@@ -4,3 +4,6 @@
 [submodule "erc20-paymaster"]
 	path = erc20-paymaster
 	url = https://github.com/pimlicolabs/erc20-paymaster
+[submodule "singleton-paymaster"]
+	path = singleton-paymaster
+	url = https://github.com/pimlicolabs/singleton-paymaster
