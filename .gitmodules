@@ -1,3 +1,6 @@
 [submodule "ultra-relay"]
 	path = ultra-relay
 	url = https://github.com/zerodevapp/ultra-relay
+[submodule "bundler"]
+	path = bundler
+	url = git@github.com:eth-infinitism/bundler.git
