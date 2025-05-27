@@ -13,8 +13,9 @@ Collection repo for SuperPaymaster
 ## How to dev
 
 1. git submodule add https://github.com/zerodevapp/ultra-relay
-2. install aastar sdk: pnpm install @aastar/sdk
-3. pnpm run dev
+2. git submodule add git@github.com:eth-infinitism/bundler.git
+3. install aastar sdk: pnpm install @aastar/sdk
+4. pnpm run dev
 
 ## How to use
 
@@ -38,3 +39,20 @@ const paymasterAddress = await astar.resolvePaymaster("paymaster.aastar.eth");
 const superPaymasterAddress = paymasterAddress;
 const signature = await astar.getSignature("paymaster.aastar.eth");
 ```
+
+## All tasks
+
+- [ ] 1.4337基础流程完成
+- [ ] 1.改进的签名流程完成
+- [ ] 1.改进的erc777完成
+- [ ] 2.ENS的完成
+- [ ] 3.注册的完成
+- [ ] 4.动态路由设计和开发完成
+- [ ] 5.paymaster主合约完成；relay完成
+- [ ] 6.bundler和合约完成
+- [ ] 7.配合调试的account relay完成
+
+## Reference
+
+- viem范例：https://github.com/wevm/viem/blob/main/examples/ens/index.ts
+- https://deepwiki.com/zerodevapp/ultra-relay/4.3-cicd-pipeline
