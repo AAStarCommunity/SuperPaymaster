@@ -6,7 +6,7 @@ Collection repo for SuperPaymaster
 
 - Contract：https://github.com/AAStarCommunity/SuperPaymaster-Contract
 
-- Relay： [move to this repo](https://github.com/AAStarCommunity/SuperRelay/tree/feature/super-relay)
+- Relay： move to this repo：[https://github.com/AAStarCommunity/SuperRelay/tree/feature/super-relay](https://github.com/AAStarCommunity/SuperRelay/tree/feature/super-relay)
 
 - Include Bundler and Relay in one relay
 - Rely on SDSS 
