@@ -4,3 +4,9 @@
 [submodule "bundler"]
 	path = bundler
 	url = git@github.com:eth-infinitism/bundler.git
+[submodule "rundler"]
+	path = rundler
+	url = git@github.com:alchemyplatform/rundler.git
+[submodule "SuperPaymaster-Contract"]
+	path = SuperPaymaster-Contract
+	url = git@github.com:AAStarCommunity/SuperPaymaster-Contract.git
