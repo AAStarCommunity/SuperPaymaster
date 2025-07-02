@@ -14,9 +14,10 @@ This service will be implemented as a new, independent module within the `rundle
 
 本文档概述了 `SuperPaymaster` 项目核心组件 `super-relay` 的设计。`super-relay` 是一个集成的 Paymaster Relay 服务，它构建于 `rundler` ERC-4337 bundler 之上。
 
-其主要目标是在不改变 `rundler` 核心逻辑的前提下扩展其功能。它将提供一个 Paymaster 签名服务，根据可配置的策略来赞助 UserOperation，然后通过 `rundler` 现有的打包基础设施将它们提交到区块链。
+其主要目标是在不改变 `rundler` 核心逻辑的前提下扩展其功能。它将提供一个 Paymaster 签名服务，标准集成官方团队验证规则和未来要扩展的 reputation 机制（借鉴自 eth-infinitism 示例验证和 reputation 机制），根据可配置的策略来赞助（借鉴 zerodev 的 ultra-relay 的策略机制）UserOperation，然后通过 `rundler` 现有的打包基础设施将它们提交到区块链。
 
 该服务将在 `rundler` 工作空间内实现为一个新的、独立的模块，以确保模块化和可维护性。设计优先兼容 EntryPoint v0.7，同时支持 v0.6。
+备忘：签名机制目前 zerodev 是使用 AWS 的 KMS，我们先使用基于 node 本机的 key pair 签名，未来考虑使用 ARM 支持的 OP-TEE 来完成 KMS 模块。
 
 ## 2. Core Features
 
@@ -45,17 +46,17 @@ This service exposes an RPC method to handle gas sponsorship for UserOperations.
 
 该服务暴露一个 RPC 方法来处理 UserOperation 的 Gas 赞助。
 
-- **RPC 方法:** `pm_sponsorUserOperation`
-- **输入:**
+- **RPC 方法：** `pm_sponsorUserOperation`
+- **输入：**
     - `userOperation`: `UserOperation` - 用户原始的、未签名的 UserOperation。
     - `entryPoint`: `address` - 目标 EntryPoint 合约地址。
     - `policyId`: `string` (可选) - 特定赞助策略的标识符。
-- **处理流程:**
-    1.  **验证:** 服务首先对 `userOperation` 执行基本验证。
-    2.  **策略检查:** 服务根据一组预定义的赞助规则（见 2.3 节）检查 `userOperation`，以确定该操作是否有资格获得赞助。
-    3.  **签名生成:** 如果符合条件，服务将计算 `userOpHash` 并使用 Paymaster 的私钥对其进行签名。
-    4.  **PaymasterData 构建:** 服务构造 `paymasterAndData` (用于 v0.6) 或填充 `paymaster`、`paymasterData` 及其他相关字段 (用于 v0.7)。
-- **输出:**
+- **处理流程：**
+    1.  **验证：** 服务首先对 `userOperation` 执行基本验证。
+    2.  **策略检查：** 服务根据一组预定义的赞助规则（见 2.3 节）检查 `userOperation`，以确定该操作是否有资格获得赞助。
+    3.  **签名生成：** 如果符合条件，服务将计算 `userOpHash` 并使用 Paymaster 的私钥对其进行签名。
+    4.  **PaymasterData 构建：** 服务构造 `paymasterAndData` (用于 v0.6) 或填充 `paymaster`、`paymasterData` 及其他相关字段 (用于 v0.7)。
+- **输出：**
     - `sponsoredUserOperation`: `UserOperation` - 更新后的 `UserOperation`，现已包含 `paymaster` 数据并准备好提交。
 
 ### 2.2. Bundler Submission Integration
@@ -76,12 +77,12 @@ Instead of requiring the client to make a second call to `eth_sendUserOperation`
 
 `super-relay` 将提供一个精简的、一步到位的流程，而不是要求客户端再调用一次 `eth_sendUserOperation`。`pm_sponsorUserOperation` 方法在成功签署 UserOperation 后，会将其直接注入 `rundler` 的交易池中，以便进行打包和上链提交。
 
-- **工作流程:**
+- **工作流程：**
     1.  客户端调用 `pm_sponsorUserOperation`。
     2.  服务如上所述签署 `UserOperation`。
     3.  服务在内部调用 `rundler` 的 Pool 服务，将赞助的 `UserOperation` 添加到内存池中。
     4.  `rundler` 现有的 builder 和 sender 逻辑处理剩余的打包和提交过程。
-- **输出:**
+- **输出：**
     - `userOpHash`: `bytes32` - 已提交到内存池的、被赞助的 UserOperation 的哈希。
 
 ### 2.3. Multi-Tenancy and Policy Management
@@ -118,7 +119,7 @@ Instead of requiring the client to make a second call to `eth_sendUserOperation`
 
 `super-relay` 将支持多个赞助商（租户）和灵活的赞助策略，从而实现对哪些交易被赞助的精细控制。
 
-- **配置:** 策略将在配置文件中定义（例如 `policies.json` 或 `policies.toml`）。
+- **配置：** 策略将在配置文件中定义（例如 `policies.json` 或 `policies.toml`）。
 - **策略结构 (示例):**
     ```json
     {
@@ -140,7 +141,7 @@ Instead of requiring the client to make a second call to `eth_sendUserOperation`
       }
     }
     ```
-- **管理:** 服务将在启动时加载并缓存这些策略。可以添加一个管理 API (`pm_admin_reloadPolicies`) 来实现不重启服务即可刷新策略。
+- **管理：** 服务将在启动时加载并缓存这些策略。可以添加一个管理 API (`pm_admin_reloadPolicies`) 来实现不重启服务即可刷新策略。
 
 ## 3. Technical Architecture
 
@@ -303,8 +304,8 @@ A `SignerManager` will be responsible for securely handling Paymaster private ke
 #### **3.3. 签名器管理**
 
 一个 `SignerManager` 将负责安全地处理 Paymaster 的私钥。
--   **初始化:** 它将从配置中指定的安全来源（如环境变量、AWS KMS 或加密文件）加载密钥。
--   **使用:** 它将为 `PaymasterRelayService` 提供一个简单的接口来请求对 `userOpHash` 的签名。
+-   **初始化：** 它将从配置中指定的安全来源（如环境变量、AWS KMS 或加密文件）加载密钥。
+-   **使用：** 它将为 `PaymasterRelayService` 提供一个简单的接口来请求对 `userOpHash` 的签名。
 
 ### 3.4. Configuration
 
