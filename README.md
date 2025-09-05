@@ -177,7 +177,9 @@ forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify
 ```
 
-## 💼 For Paymaster Providers
+## 💼 For Paymaster Operators
+
+> **👥 Become a Paymaster Operator**: Run your own gas sponsorship service and earn fees by serving the SuperPaymaster marketplace. See detailed [Paymaster Operator Guide](./PAYMASTER_OPERATOR_GUIDE.md).
 
 ### How to Join the Marketplace
 
@@ -399,7 +401,9 @@ forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify
 ```
 
-## 💼 Paymaster提供商指南
+## 💼 Paymaster运营者指南
+
+> **👥 成为Paymaster运营者**: 运营您自己的gas赞助服务，通过为SuperPaymaster市场提供服务来赚取费用。查看详细的[Paymaster运营者指南](./PAYMASTER_OPERATOR_GUIDE.md)。
 
 ### 如何加入市场
 
