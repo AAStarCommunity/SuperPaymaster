@@ -2,7 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib", "singleton-paymaster/lib"]
-solc_version = "0.8.26"
+solc_version = "0.8.28"
 optimizer = true
 optimizer_runs = 1000000
 

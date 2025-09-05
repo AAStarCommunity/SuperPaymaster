@@ -173,22 +173,26 @@ export const ENTRY_POINT_ABI = [
   }
 ] as const;
 
-// Simple Paymaster contract template
-export const SIMPLE_PAYMASTER_BYTECODE = {
-  v6: "0x...", // Will be populated with actual bytecode
-  v7: "0x...", 
-  v8: "0x..."
+// Pimlico Singleton Paymaster contract templates
+export const SINGLETON_PAYMASTER_BYTECODE = {
+  v6: "0x...", // Will be populated with actual bytecode from SingletonPaymasterV6.sol
+  v7: "0x...", // Will be populated with actual bytecode from SingletonPaymasterV7.sol
+  v8: "0x..."  // Will be populated with actual bytecode from SingletonPaymasterV8.sol
 };
 
-export const SIMPLE_PAYMASTER_ABI = [
+export const SINGLETON_PAYMASTER_ABI = [
+  // Constructor (varies by version, but all have these 4 parameters)
   {
     "inputs": [
       {"name": "_entryPoint", "type": "address"},
-      {"name": "_owner", "type": "address"}
+      {"name": "_owner", "type": "address"},
+      {"name": "_manager", "type": "address"},
+      {"name": "_signers", "type": "address[]"}
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
+  // BasePaymaster functions
   {
     "inputs": [],
     "name": "deposit",
@@ -214,6 +218,116 @@ export const SIMPLE_PAYMASTER_ABI = [
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {"name": "unstakeDelaySec", "type": "uint32"}
+    ],
+    "name": "addStake",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unlockStake",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"name": "withdrawAddress", "type": "address"}
+    ],
+    "name": "withdrawStake",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  // MultiSigner functions
+  {
+    "inputs": [
+      {"name": "signers", "type": "address[]"},
+      {"name": "allowed", "type": "bool"}
+    ],
+    "name": "updateSignersList",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"name": "bundlers", "type": "address[]"},
+      {"name": "allowed", "type": "bool"}
+    ],
+    "name": "updateBundlerAllowlist",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  // EntryPoint interface functions (V6 vs V7/V8 have different signatures)
+  {
+    "inputs": [
+      {"name": "userOp", "type": "tuple", "components": [
+        {"name": "sender", "type": "address"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "callGasLimit", "type": "uint256"},
+        {"name": "verificationGasLimit", "type": "uint256"}, 
+        {"name": "preVerificationGas", "type": "uint256"},
+        {"name": "maxFeePerGas", "type": "uint256"},
+        {"name": "maxPriorityFeePerGas", "type": "uint256"},
+        {"name": "callData", "type": "bytes"},
+        {"name": "initCode", "type": "bytes"},
+        {"name": "paymasterAndData", "type": "bytes"}
+      ]},
+      {"name": "userOpHash", "type": "bytes32"},
+      {"name": "requiredPreFund", "type": "uint256"}
+    ],
+    "name": "validatePaymasterUserOp",
+    "outputs": [
+      {"name": "context", "type": "bytes"},
+      {"name": "validationData", "type": "uint256"}
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  // Helper functions
+  {
+    "inputs": [
+      {"name": "_mode", "type": "uint8"},
+      {"name": "_userOp", "type": "tuple", "components": [
+        {"name": "sender", "type": "address"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "callGasLimit", "type": "uint256"},
+        {"name": "verificationGasLimit", "type": "uint256"}, 
+        {"name": "preVerificationGas", "type": "uint256"},
+        {"name": "maxFeePerGas", "type": "uint256"},
+        {"name": "maxPriorityFeePerGas", "type": "uint256"},
+        {"name": "callData", "type": "bytes"},
+        {"name": "initCode", "type": "bytes"},
+        {"name": "paymasterAndData", "type": "bytes"}
+      ]}
+    ],
+    "name": "getHash", 
+    "outputs": [
+      {"name": "", "type": "bytes32"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  // Events
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "userOpHash", "type": "bytes32"},
+      {"indexed": true, "name": "sender", "type": "address"},
+      {"indexed": false, "name": "mode", "type": "uint8"},
+      {"indexed": false, "name": "token", "type": "address"},
+      {"indexed": false, "name": "costInToken", "type": "uint256"},
+      {"indexed": false, "name": "exchangeRate", "type": "uint256"}
+    ],
+    "name": "UserOperationSponsored",
+    "type": "event"
   }
 ] as const;
 
