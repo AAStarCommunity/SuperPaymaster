@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { formatEther, parseEther } from 'viem';
 import { toast } from 'react-hot-toast';
 
@@ -93,7 +93,7 @@ export default function Dashboard() {
                 <p className="text-slate-400 text-sm">Decentralized Gas Payment Router</p>
               </div>
             </div>
-            <ConnectButton />
+            <MetaMaskButton />
           </div>
         </div>
       </header>
@@ -252,7 +252,7 @@ export default function Dashboard() {
             <p className="text-slate-400 mb-4">
               Connect your wallet to register paymasters, deploy contracts, and manage your services.
             </p>
-            <ConnectButton />
+            <MetaMaskButton />
           </div>
         )}
 

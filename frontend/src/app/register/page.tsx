@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { parseEther, isAddress } from 'viem';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
@@ -138,7 +138,7 @@ export default function RegisterPaymaster() {
                 </div>
               </Link>
             </div>
-            <ConnectButton />
+            <MetaMaskButton />
           </div>
         </div>
       </header>

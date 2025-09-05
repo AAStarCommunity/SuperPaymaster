@@ -49,8 +49,7 @@ cp .env.local.example .env.local
 
 Edit `.env.local`:
 ```env
-# Get from https://cloud.walletconnect.com
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="your_walletconnect_project_id"
+# Using MetaMask only - no WalletConnect needed
 
 # Sepolia configuration  
 NEXT_PUBLIC_CHAIN_ID=11155111
@@ -133,7 +132,7 @@ Dashboard → Manage Paymaster → Control Panel
 - **TypeScript** - Type-safe development
 - **Tailwind CSS** - Utility-first styling
 - **wagmi/viem** - Ethereum interactions
-- **RainbowKit** - Wallet connection
+- **MetaMask** - Wallet connection (no WalletConnect)
 
 ### Smart Contract Integration
 - **SuperPaymaster Router** - Main routing contract
@@ -198,9 +197,9 @@ npm run build && npx netlify deploy --prod --dir=out
 
 ### Environment Configuration
 Make sure to set these environment variables in your deployment platform:
-- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
 - `NEXT_PUBLIC_SUPER_PAYMASTER_V7` (and v6, v8)
 - Other `NEXT_PUBLIC_*` variables from `.env.local`
+- No WalletConnect configuration needed - using MetaMask only
 
 ## 🔗 Integration Examples
 
@@ -316,8 +315,7 @@ cp .env.local.example .env.local
 
 编辑 `.env.local`:
 ```env
-# 从 https://cloud.walletconnect.com 获取
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="your_walletconnect_project_id"
+# 仅使用MetaMask - 无需WalletConnect
 
 # Sepolia配置  
 NEXT_PUBLIC_CHAIN_ID=11155111
@@ -400,7 +398,7 @@ npm run dev
 - **TypeScript** - 类型安全开发
 - **Tailwind CSS** - 实用优先的样式
 - **wagmi/viem** - 以太坊交互
-- **RainbowKit** - 钱包连接
+- **MetaMask** - 钱包连接（无WalletConnect）
 
 ### 智能合约集成
 - **SuperPaymaster Router** - 主要路由合约
@@ -432,9 +430,9 @@ npm run build && npx netlify deploy --prod --dir=out
 
 ### 环境配置
 确保在部署平台中设置这些环境变量:
-- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
 - `NEXT_PUBLIC_SUPER_PAYMASTER_V7` (以及v6, v8)
 - 其他来自 `.env.local` 的 `NEXT_PUBLIC_*` 变量
+- 仅使用MetaMask，无需WalletConnect配置
 
 ## 🤝 贡献
 

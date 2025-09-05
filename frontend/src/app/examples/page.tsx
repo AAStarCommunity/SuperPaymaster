@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toast } from 'react-hot-toast';
@@ -812,7 +812,7 @@ export default function APIExamples() {
                 </div>
               </Link>
             </div>
-            <ConnectButton />
+            <MetaMaskButton />
           </div>
         </div>
       </header>
