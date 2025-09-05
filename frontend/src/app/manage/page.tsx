@@ -8,56 +8,170 @@ import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-import { SUPER_PAYMASTER_ABI, SIMPLE_PAYMASTER_ABI } from '@/lib/contracts';
+import { SUPER_PAYMASTER_ABI } from '@/lib/contracts';
+import { SINGLETON_PAYMASTER_CONTRACTS } from '@/lib/compiled';
 import { OperatorStats } from '@/types';
 
 export default function ManagePaymaster() {
   const { address, isConnected } = useAccount();
   const searchParams = useSearchParams();
   const paymasterAddress = searchParams.get('address');
+  const [paymasterVersion, setPaymasterVersion] = useState<'v6' | 'v7' | 'v8'>('v7');
+  const [mounted, setMounted] = useState(false);
   
   const [stats, setStats] = useState<OperatorStats | null>(null);
   const [newFeeRate, setNewFeeRate] = useState<string>('100');
   const [withdrawAmount, setWithdrawAmount] = useState<string>('0.1');
   const [depositAmount, setDepositAmount] = useState<string>('0.1');
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Read paymaster balance
-  const { data: paymasterBalance } = useReadContract({
+  // Detect paymaster version based on EntryPoint address
+  const { data: entryPoint } = useReadContract({
     address: paymasterAddress as `0x${string}`,
-    abi: SIMPLE_PAYMASTER_ABI,
-    functionName: 'getDeposit',
+    abi: [
+      {
+        inputs: [],
+        name: "entryPoint",
+        outputs: [{ name: "", type: "address" }],
+        stateMutability: "view",
+        type: "function"
+      }
+    ],
+    functionName: 'entryPoint',
     query: {
-      enabled: !!paymasterAddress,
+      enabled: !!paymasterAddress && mounted,
+    },
+  });
+  
+  // Determine version based on EntryPoint address and SuperPaymaster registration
+  useEffect(() => {
+    if (entryPoint && paymasterAddress) {
+      const epLower = entryPoint.toLowerCase();
+      if (epLower === '0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789') {
+        setPaymasterVersion('v6');
+      } else if (epLower === '0x0000000071727de22e5e9d8baf0edac6f37da032') {
+        // Both v7 and v8 use the same EntryPoint, check which SuperPaymaster has this paymaster registered
+        // We'll check v8 first, then v7 as fallback
+        setPaymasterVersion('v8'); // Default to v8, will be corrected by registration check
+      }
+    }
+  }, [entryPoint, paymasterAddress]);
+  
+  // Get the correct ABI based on version
+  const paymasterABI = paymasterVersion === 'v6' 
+    ? SINGLETON_PAYMASTER_CONTRACTS.v6.abi
+    : paymasterVersion === 'v7'
+    ? SINGLETON_PAYMASTER_CONTRACTS.v7.abi
+    : SINGLETON_PAYMASTER_CONTRACTS.v8.abi;
+  
+  // Read paymaster balance from EntryPoint
+  const { data: paymasterBalance } = useReadContract({
+    address: entryPoint as `0x${string}`,
+    abi: [
+      {
+        inputs: [{ name: "account", type: "address" }],
+        name: "balanceOf",
+        outputs: [{ name: "", type: "uint256" }],
+        stateMutability: "view",
+        type: "function"
+      }
+    ],
+    functionName: 'balanceOf',
+    args: [paymasterAddress as `0x${string}`],
+    query: {
+      enabled: !!paymasterAddress && !!entryPoint && mounted,
       refetchInterval: 10000, // Refetch every 10 seconds
     },
   });
 
-  // Read paymaster info from router (if registered)
-  const { data: paymasterInfo } = useReadContract({
-    address: process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7 as `0x${string}`,
+  // SuperPaymaster contract addresses - hardcoded from deployment
+  const SUPER_PAYMASTER_ADDRESSES = {
+    v6: "0x7417bAd0C641Ab74DB2B3Fe8971214E1F3812217",
+    v7: "0x4e67678AF714f6B5A8882C2e5a78B15B08a79575", 
+    v8: "0x2868a75dbaD3D10546382E7DAeDba2Ee05ACe320"
+  };
+
+  // Get contract address for selected version with fallback
+  const getContractAddress = (version: 'v6' | 'v7' | 'v8') => {
+    const envAddress = version === 'v6' 
+      ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6
+      : version === 'v7'
+      ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7
+      : process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8;
+    return envAddress || SUPER_PAYMASTER_ADDRESSES[version];
+  };
+
+  const superPaymasterAddress = getContractAddress(paymasterVersion);
+  
+  // Check registration in v8 SuperPaymaster
+  const { data: paymasterInfoV8 } = useReadContract({
+    address: getContractAddress('v8') as `0x${string}`,
     abi: SUPER_PAYMASTER_ABI,
     functionName: 'getPaymasterInfo',
     args: [paymasterAddress as `0x${string}`],
     query: {
-      enabled: !!paymasterAddress,
+      enabled: !!paymasterAddress && mounted && entryPoint?.toLowerCase() === '0x0000000071727de22e5e9d8baf0edac6f37da032',
     },
   });
+
+  // Check registration in v7 SuperPaymaster
+  const { data: paymasterInfoV7 } = useReadContract({
+    address: getContractAddress('v7') as `0x${string}`,
+    abi: SUPER_PAYMASTER_ABI,
+    functionName: 'getPaymasterInfo',
+    args: [paymasterAddress as `0x${string}`],
+    query: {
+      enabled: !!paymasterAddress && mounted && entryPoint?.toLowerCase() === '0x0000000071727de22e5e9d8baf0edac6f37da032',
+    },
+  });
+
+  // Check registration in v6 SuperPaymaster  
+  const { data: paymasterInfoV6 } = useReadContract({
+    address: getContractAddress('v6') as `0x${string}`,
+    abi: SUPER_PAYMASTER_ABI,
+    functionName: 'getPaymasterInfo',
+    args: [paymasterAddress as `0x${string}`],
+    query: {
+      enabled: !!paymasterAddress && mounted && entryPoint?.toLowerCase() === '0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789',
+    },
+  });
+
+  // Determine correct version and paymaster info based on registration
+  const paymasterInfo = paymasterVersion === 'v6' ? paymasterInfoV6 
+    : paymasterVersion === 'v7' ? paymasterInfoV7 
+    : paymasterInfoV8;
+
+  // Smart version detection for v7/v8 based on actual registration
+  useEffect(() => {
+    if (entryPoint?.toLowerCase() === '0x0000000071727de22e5e9d8baf0edac6f37da032') {
+      // Check v8 first
+      if (paymasterInfoV8 && paymasterInfoV8.paymaster !== '0x0000000000000000000000000000000000000000') {
+        setPaymasterVersion('v8');
+      } else if (paymasterInfoV7 && paymasterInfoV7.paymaster !== '0x0000000000000000000000000000000000000000') {
+        setPaymasterVersion('v7');
+      }
+      // If neither has registration, keep current version (default v8)
+    }
+  }, [paymasterInfoV8, paymasterInfoV7, entryPoint]);
 
   const handleUpdateFeeRate = async () => {
     if (!paymasterAddress || !newFeeRate) return;
 
-    const superPaymasterAddress = process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7;
-    if (!superPaymasterAddress) {
+    const currentSuperPaymasterAddress = getContractAddress(paymasterVersion);
+    if (!currentSuperPaymasterAddress) {
       toast.error('SuperPaymaster contract not found');
       return;
     }
 
     try {
       writeContract({
-        address: superPaymasterAddress as `0x${string}`,
+        address: currentSuperPaymasterAddress as `0x${string}`,
         abi: SUPER_PAYMASTER_ABI,
         functionName: 'updateFeeRate',
         args: [BigInt(newFeeRate)],
@@ -68,13 +182,23 @@ export default function ManagePaymaster() {
   };
 
   const handleDeposit = async () => {
-    if (!paymasterAddress || !depositAmount) return;
+    if (!paymasterAddress || !depositAmount || !entryPoint) return;
 
     try {
+      // Deposit to EntryPoint for this paymaster
       writeContract({
-        address: paymasterAddress as `0x${string}`,
-        abi: SIMPLE_PAYMASTER_ABI,
-        functionName: 'deposit',
+        address: entryPoint as `0x${string}`,
+        abi: [
+          {
+            inputs: [{ name: "account", type: "address" }],
+            name: "depositTo",
+            outputs: [],
+            stateMutability: "payable",
+            type: "function"
+          }
+        ],
+        functionName: 'depositTo',
+        args: [paymasterAddress as `0x${string}`],
         value: parseEther(depositAmount),
       });
     } catch (error) {
@@ -83,14 +207,15 @@ export default function ManagePaymaster() {
   };
 
   const handleWithdraw = async () => {
-    if (!paymasterAddress || !withdrawAmount || !address) return;
+    if (!paymasterAddress || !withdrawAmount || !address || !entryPoint) return;
 
     try {
+      // Withdraw from EntryPoint using paymaster's withdraw function
       writeContract({
         address: paymasterAddress as `0x${string}`,
-        abi: SIMPLE_PAYMASTER_ABI,
+        abi: paymasterABI,
         functionName: 'withdrawTo',
-        args: [address, parseEther(withdrawAmount)],
+        args: [address as `0x${string}`, parseEther(withdrawAmount)],
       });
     } catch (error) {
       toast.error('Failed to withdraw');
@@ -133,7 +258,7 @@ export default function ManagePaymaster() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white">Manage Paymaster</h1>
-                  <p className="text-slate-400 text-sm">Control your gas sponsorship service</p>
+                  <p className="text-slate-400 text-sm">Control your gas sponsorship service (Version: {paymasterVersion.toUpperCase()})</p>
                 </div>
               </Link>
             </div>

@@ -1,16 +1,28 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { metaMask } from 'wagmi/connectors';
 
 export function MetaMaskButton() {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleConnect = () => {
     connect({ connector: metaMask() });
   };
+
+  if (!mounted) {
+    return (
+      <div className="w-32 h-10 bg-slate-700 animate-pulse rounded-lg"></div>
+    );
+  }
 
   if (isConnected && address) {
     return (

@@ -11,6 +11,7 @@ export const config = createConfig({
     [sepolia.id]: http(),
     [mainnet.id]: http(),
   },
+  ssr: true,
 });
 
 export const SUPPORTED_CHAINS = {

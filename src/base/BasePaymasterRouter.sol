@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
-import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IPaymasterRouter.sol";
 
 /// @title BasePaymasterRouter

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { parseEther, isAddress } from 'viem';
@@ -31,13 +31,25 @@ export default function RegisterPaymaster() {
     hash,
   });
 
+  // SuperPaymaster contract addresses - hardcoded from deployment
+  const SUPER_PAYMASTER_ADDRESSES = {
+    v6: "0x7417bAd0C641Ab74DB2B3Fe8971214E1F3812217",
+    v7: "0x4e67678AF714f6B5A8882C2e5a78B15B08a79575", 
+    v8: "0x2868a75dbaD3D10546382E7DAeDba2Ee05ACe320"
+  };
+
   // Get contract address for selected version
   const getContractAddress = (version: PaymasterVersion) => {
-    switch (version) {
-      case 'v6': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6;
-      case 'v7': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7;
-      case 'v8': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8;
-    }
+    // First try environment variables, then fallback to hardcoded
+    const envAddress = (() => {
+      switch (version) {
+        case 'v6': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6;
+        case 'v7': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7;
+        case 'v8': return process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8;
+      }
+    })();
+    
+    return envAddress || SUPER_PAYMASTER_ADDRESSES[version];
   };
 
   const contractAddress = getContractAddress(formData.version);
@@ -103,23 +115,27 @@ export default function RegisterPaymaster() {
   };
 
   // Handle successful transaction
-  if (isSuccess) {
-    toast.success('Paymaster registered successfully!');
-    // Reset form
-    setFormData({
-      paymasterAddress: '',
-      feeRate: '100',
-      name: '',
-      version: 'v7'
-    });
-    setIsSubmitting(false);
-  }
+  useEffect(() => {
+    if (isSuccess) {
+      toast.success('Paymaster registered successfully!');
+      // Reset form
+      setFormData({
+        paymasterAddress: '',
+        feeRate: '100',
+        name: '',
+        version: 'v7'
+      });
+      setIsSubmitting(false);
+    }
+  }, [isSuccess]);
 
   // Handle transaction error
-  if (error) {
-    toast.error(`Registration failed: ${error.message}`);
-    setIsSubmitting(false);
-  }
+  useEffect(() => {
+    if (error) {
+      toast.error(`Registration failed: ${error.message}`);
+      setIsSubmitting(false);
+    }
+  }, [error]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">

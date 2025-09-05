@@ -18,7 +18,7 @@ contract DeploySuperpaymaster is Script {
         uint256 deployerPrivateKey = vm.envUint("SEPOLIA_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         
-        console.log("Deploying SuperPaymaster contracts...");
+        console.log("Deploying SuperPaymaster contracts for all EntryPoint versions...");
         console.log("Deployer:", deployer);
         console.log("Deployer balance:", deployer.balance);
 
@@ -46,8 +46,7 @@ contract DeploySuperpaymaster is Script {
         );
 
         // Deposit some ETH to each SuperPaymaster for operations
-        uint256 initialDeposit = 0.1 ether;
-        
+        uint256 initialDeposit = 0.05 ether; // 0.05 ETH per contract
         superPaymasterV6.deposit{value: initialDeposit}();
         superPaymasterV7.deposit{value: initialDeposit}();
         superPaymasterV8.deposit{value: initialDeposit}();
@@ -72,5 +71,17 @@ contract DeploySuperpaymaster is Script {
         console.log("V6 Version:", superPaymasterV6.getVersion());
         console.log("V7 Version:", superPaymasterV7.getVersion());
         console.log("V8 Version:", superPaymasterV8.getVersion());
+        
+        // Verify deposits
+        console.log("\n=== CONTRACT BALANCES ===");
+        console.log("V6 Balance:", superPaymasterV6.getDeposit());
+        console.log("V7 Balance:", superPaymasterV7.getDeposit());
+        console.log("V8 Balance:", superPaymasterV8.getDeposit());
+        
+        console.log("\n=== NEXT STEPS ===");
+        console.log("1. Copy the addresses above to your frontend .env.local");
+        console.log("2. Restart your frontend application");
+        console.log("3. Paymaster operators can now register their paymasters");
+        console.log("4. Test the deployment with the management dashboard");
     }
 }

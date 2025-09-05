@@ -30,10 +30,25 @@ export default function DeployPaymaster() {
   const [step, setStep] = useState<'configure' | 'deploy' | 'deposit' | 'register' | 'complete'>('configure');
   const [deployedAddress, setDeployedAddress] = useState<string>('');
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
   const { deployContract, data: deployHash, isPending: isDeploying } = useDeployContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
+  
+  // Separate write contracts for each action
+  const { writeContract: writeDeposit, data: depositHash, isPending: isDepositPending } = useWriteContract();
+  const { writeContract: writeRegister, data: registerHash, isPending: isRegisterPending } = useWriteContract();
+  
+  // Watch for deployment transaction receipt
+  const { data: deployReceipt, isLoading: isDeployConfirming, isSuccess: isDeploySuccess } = useWaitForTransactionReceipt({
+    hash: deployHash,
+  });
+  
+  // Watch for deposit transaction receipt
+  const { data: depositReceipt, isLoading: isDepositConfirming, isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({
+    hash: depositHash,
+  });
+  
+  // Watch for register transaction receipt  
+  const { data: registerReceipt, isLoading: isRegisterConfirming, isSuccess: isRegisterSuccess } = useWaitForTransactionReceipt({
+    hash: registerHash,
   });
 
   // Update deployParams when address changes
@@ -50,6 +65,46 @@ export default function DeployPaymaster() {
     return PAYMASTER_TEMPLATES[version].entryPoint;
   };
 
+  // Watch for deployment success and get the contract address
+  useEffect(() => {
+    if (isDeploySuccess && deployReceipt) {
+      // Get the deployed contract address from the receipt
+      const contractAddress = deployReceipt.contractAddress;
+      if (contractAddress) {
+        setDeployedAddress(contractAddress);
+        setStep('deposit');
+        toast.success(`Paymaster deployed at ${contractAddress.slice(0, 10)}...`);
+      } else {
+        // Fallback: try to get from logs if contractAddress is not available
+        if (deployReceipt.logs && deployReceipt.logs.length > 0) {
+          // The contract address is typically in the first log's address field
+          const contractAddr = deployReceipt.logs[0]?.address;
+          if (contractAddr) {
+            setDeployedAddress(contractAddr);
+            setStep('deposit');
+            toast.success(`Paymaster deployed at ${contractAddr.slice(0, 10)}...`);
+          }
+        }
+      }
+    }
+  }, [isDeploySuccess, deployReceipt]);
+  
+  // Watch for deposit success
+  useEffect(() => {
+    if (isDepositSuccess && depositReceipt) {
+      toast.success('ETH deposited successfully!');
+      setStep(config.autoRegister ? 'register' : 'complete');
+    }
+  }, [isDepositSuccess, depositReceipt, config.autoRegister]);
+  
+  // Watch for register success
+  useEffect(() => {
+    if (isRegisterSuccess && registerReceipt) {
+      toast.success('Paymaster registered successfully!');
+      setStep('complete');
+    }
+  }, [isRegisterSuccess, registerReceipt]);
+
   const handleDeploy = async () => {
     if (!isConnected || !address) {
       toast.error('Please connect your wallet');
@@ -60,43 +115,18 @@ export default function DeployPaymaster() {
     
     try {
       // Deploy the singleton paymaster contract with real bytecode and ABI
-      const deploymentPromise = new Promise((resolve, reject) => {
-        deployContract({
-          abi: template.abi,
-          bytecode: template.bytecode as `0x${string}`,
-          args: [
-            template.entryPoint, // _entryPoint
-            address, // _owner
-            deployParams.manager as `0x${string}`, // _manager
-            deployParams.signers as `0x${string}`[] // _signers
-          ],
-        });
-
-        // Monitor the deployment
-        const interval = setInterval(() => {
-          if (deployHash) {
-            clearInterval(interval);
-            // We would get the deployed address from the transaction receipt
-            // For now, simulate success
-            const mockAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-            setDeployedAddress(mockAddress);
-            setStep('deposit');
-            resolve(mockAddress);
-          }
-        }, 1000);
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          clearInterval(interval);
-          reject(new Error('Deployment timeout'));
-        }, 30000);
+      await deployContract({
+        abi: template.abi,
+        bytecode: template.bytecode as `0x${string}`,
+        args: [
+          template.entryPoint, // _entryPoint
+          address, // _owner
+          deployParams.manager as `0x${string}`, // _manager
+          deployParams.signers as `0x${string}`[] // _signers
+        ],
       });
-
-      toast.promise(deploymentPromise, {
-        loading: `Deploying ${template.name}...`,
-        success: 'Paymaster deployed successfully!',
-        error: 'Failed to deploy paymaster'
-      });
+      
+      toast.loading(`Deploying ${template.name}...`);
       
     } catch (error) {
       console.error('Deployment error:', error);
@@ -105,38 +135,77 @@ export default function DeployPaymaster() {
   };
 
   const handleDeposit = async () => {
-    if (!deployedAddress) return;
-
-    try {
-      // Simulate depositing to EntryPoint
-      toast.promise(
-        new Promise((resolve) => {
-          setTimeout(() => {
-            setStep(config.autoRegister ? 'register' : 'complete');
-            resolve('success');
-          }, 2000);
-        }),
-        {
-          loading: 'Depositing ETH to EntryPoint...',
-          success: 'Deposit successful!',
-          error: 'Failed to deposit'
-        }
-      );
-    } catch (error) {
-      toast.error('Failed to deposit ETH');
-    }
-  };
-
-  const handleRegister = async () => {
-    const superPaymasterAddress = process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7;
-    
-    if (!superPaymasterAddress || !deployedAddress) {
-      toast.error('Missing contract addresses');
+    if (!deployedAddress || !isConnected) {
+      toast.error('Missing paymaster address or wallet connection');
       return;
     }
 
     try {
-      writeContract({
+      // Get the EntryPoint address for the selected version
+      const entryPointAddress = getEntryPointAddress(config.version);
+      
+      // Call depositTo function on EntryPoint contract
+      await writeDeposit({
+        address: entryPointAddress as `0x${string}`,
+        abi: [
+          {
+            inputs: [{ name: "account", type: "address" }],
+            name: "depositTo",
+            outputs: [],
+            stateMutability: "payable",
+            type: "function"
+          }
+        ],
+        functionName: 'depositTo',
+        args: [deployedAddress as `0x${string}`],
+        value: parseEther(config.initialDeposit),
+      });
+      
+      toast.loading(`Depositing ${config.initialDeposit} ETH to EntryPoint...`);
+      
+    } catch (error) {
+      console.error('Deposit error:', error);
+      toast.error('Failed to deposit ETH to EntryPoint');
+    }
+  };
+
+  const handleRegister = async () => {
+    // SuperPaymaster contract addresses - hardcoded from deployment
+    const SUPER_PAYMASTER_ADDRESSES = {
+      v6: "0x7417bAd0C641Ab74DB2B3Fe8971214E1F3812217",
+      v7: "0x4e67678AF714f6B5A8882C2e5a78B15B08a79575", 
+      v8: "0x2868a75dbaD3D10546382E7DAeDba2Ee05ACe320"
+    };
+
+    // Get contract address for selected version with fallback
+    const getContractAddress = (version: PaymasterVersion) => {
+      const envAddress = version === 'v6' 
+        ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6
+        : version === 'v7'
+        ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7
+        : process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8;
+      return envAddress || SUPER_PAYMASTER_ADDRESSES[version];
+    };
+
+    const superPaymasterAddress = getContractAddress(config.version);
+    
+    if (!deployedAddress) {
+      toast.error('Missing paymaster address. Please deploy first.');
+      return;
+    }
+    
+    if (!superPaymasterAddress || superPaymasterAddress === '') {
+      toast.error(`SuperPaymaster ${config.version.toUpperCase()} not deployed yet. Please deploy SuperPaymaster first or skip registration.`);
+      console.log('SuperPaymaster addresses:', {
+        v6: process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6,
+        v7: process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7,
+        v8: process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8
+      });
+      return;
+    }
+
+    try {
+      await writeRegister({
         address: superPaymasterAddress as `0x${string}`,
         abi: SUPER_PAYMASTER_ABI,
         functionName: 'registerPaymaster',
@@ -147,8 +216,10 @@ export default function DeployPaymaster() {
         ],
       });
       
-      setStep('complete');
+      toast.loading('Registering paymaster...');
+      
     } catch (error) {
+      console.error('Register error:', error);
       toast.error('Failed to register paymaster');
     }
   };
@@ -413,6 +484,11 @@ export default function DeployPaymaster() {
                 <span className="text-purple-400 text-3xl">🚀</span>
               </div>
               <h2 className="text-2xl font-bold text-white mb-4">Deploy Paymaster Contract</h2>
+              <div className="flex items-center justify-center mb-4">
+                <span className="px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded-full">
+                  EntryPoint {config.version.toUpperCase()}
+                </span>
+              </div>
               <p className="text-slate-400 mb-6">
                 Deploy your {PAYMASTER_TEMPLATES[config.version].name} to the blockchain
               </p>
@@ -460,10 +536,10 @@ export default function DeployPaymaster() {
                 </button>
                 <button
                   onClick={handleDeploy}
-                  disabled={!isConnected}
+                  disabled={!isConnected || isDeploying || isDeployConfirming}
                   className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
                 >
-                  <span>Deploy Contract</span>
+                  <span>{isDeploying || isDeployConfirming ? 'Deploying...' : 'Deploy Contract'}</span>
                 </button>
               </div>
             </div>
@@ -475,6 +551,11 @@ export default function DeployPaymaster() {
                 <span className="text-green-400 text-3xl">💰</span>
               </div>
               <h2 className="text-2xl font-bold text-white mb-4">Fund Your Paymaster</h2>
+              <div className="flex items-center justify-center mb-4">
+                <span className="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-full">
+                  EntryPoint {config.version.toUpperCase()}
+                </span>
+              </div>
               <p className="text-slate-400 mb-6">
                 Deposit {config.initialDeposit} ETH to the EntryPoint for gas sponsorship
               </p>
@@ -489,9 +570,17 @@ export default function DeployPaymaster() {
               <div className="flex justify-center space-x-4">
                 <button
                   onClick={handleDeposit}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+                  disabled={isDepositPending || isDepositConfirming}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
                 >
-                  <span>Deposit {config.initialDeposit} ETH</span>
+                  <span>{isDepositPending || isDepositConfirming ? 'Depositing...' : `Deposit ${config.initialDeposit} ETH`}</span>
+                </button>
+                <button
+                  onClick={() => setStep(config.autoRegister ? 'register' : 'complete')}
+                  disabled={isDepositPending || isDepositConfirming}
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                >
+                  Skip Deposit
                 </button>
               </div>
             </div>
@@ -503,9 +592,48 @@ export default function DeployPaymaster() {
                 <span className="text-blue-400 text-3xl">📝</span>
               </div>
               <h2 className="text-2xl font-bold text-white mb-4">Register with SuperPaymaster</h2>
+              <div className="flex items-center justify-center mb-4">
+                <span className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">
+                  SuperPaymaster {config.version.toUpperCase()}
+                </span>
+              </div>
               <p className="text-slate-400 mb-6">
                 Register your paymaster with the SuperPaymaster marketplace
               </p>
+
+              {deployedAddress && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
+                  <p className="text-blue-400 text-sm mb-2">📍 Paymaster Address:</p>
+                  <p className="font-mono text-xs text-white break-all">{deployedAddress}</p>
+                </div>
+              )}
+              
+              {(() => {
+                // SuperPaymaster contract addresses - hardcoded from deployment
+                const SUPER_PAYMASTER_ADDRESSES = {
+                  v6: "0x7417bAd0C641Ab74DB2B3Fe8971214E1F3812217",
+                  v7: "0x4e67678AF714f6B5A8882C2e5a78B15B08a79575", 
+                  v8: "0x2868a75dbaD3D10546382E7DAeDba2Ee05ACe320"
+                };
+
+                // Get contract address for selected version with fallback
+                const getContractAddress = (version: PaymasterVersion) => {
+                  const envAddress = version === 'v6' 
+                    ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V6
+                    : version === 'v7'
+                    ? process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V7
+                    : process.env.NEXT_PUBLIC_SUPER_PAYMASTER_V8;
+                  return envAddress || SUPER_PAYMASTER_ADDRESSES[version];
+                };
+
+                const superPaymasterAddress = getContractAddress(config.version);
+                return (!superPaymasterAddress || superPaymasterAddress === '');
+              })() && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-6">
+                  <p className="text-yellow-400 text-sm mb-2">⚠️ SuperPaymaster {config.version.toUpperCase()} not deployed</p>
+                  <p className="text-yellow-300 text-xs">Please deploy SuperPaymaster first or skip registration</p>
+                </div>
+              )}
 
               <div className="flex justify-center space-x-4">
                 <button
@@ -516,9 +644,10 @@ export default function DeployPaymaster() {
                 </button>
                 <button
                   onClick={handleRegister}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  disabled={isRegisterPending || isRegisterConfirming}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
                 >
-                  Register Now
+                  {isRegisterPending || isRegisterConfirming ? 'Registering...' : 'Register Now'}
                 </button>
               </div>
             </div>
@@ -530,6 +659,11 @@ export default function DeployPaymaster() {
                 <span className="text-green-400 text-3xl">🎉</span>
               </div>
               <h2 className="text-2xl font-bold text-white mb-4">Deployment Complete!</h2>
+              <div className="flex items-center justify-center mb-4">
+                <span className="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-full">
+                  EntryPoint {config.version.toUpperCase()} Ready
+                </span>
+              </div>
               <p className="text-slate-400 mb-6">
                 Your paymaster is now deployed and ready to sponsor user operations
               </p>

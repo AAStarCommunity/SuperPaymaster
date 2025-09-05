@@ -1,22 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import "../singleton-paymaster/src/interfaces/IPaymasterV7.sol";
-import "../singleton-paymaster/src/interfaces/PostOpMode.sol";
-import "./base/BasePaymasterRouter.sol";
+interface IEntryPoint {
+    function balanceOf(address account) external view returns (uint256);
+    function depositTo(address account) external payable;
+    function withdrawTo(address payable withdrawAddress, uint256 amount) external;
+}
 
 /// @title SuperPaymasterV7
-/// @notice Paymaster router for EntryPoint v0.7
-/// @dev Routes packed user operations to the most suitable registered paymaster
-contract SuperPaymasterV7 is BasePaymasterRouter, IPaymasterV7 {
-    /// @notice EntryPoint contract address
-    IEntryPoint public immutable entryPoint;
+/// @notice A simple paymaster router for EntryPoint v0.7
+/// @dev Routes user operations to registered paymasters for gas sponsorship
+contract SuperPaymasterV7 {
+    
+    struct PaymasterPool {
+        address paymaster;
+        uint256 feeRate;
+        bool isActive;
+        uint256 successCount;
+        uint256 totalAttempts;
+        string name;
+    }
 
-    /// @notice Only allow calls from the EntryPoint
-    modifier onlyEntryPoint() {
-        require(msg.sender == address(entryPoint), "Only EntryPoint can call");
+    // State variables
+    IEntryPoint public immutable entryPoint;
+    mapping(address => PaymasterPool) public paymasterPools;
+    address[] public paymasterList;
+    uint256 public routerFeeRate;
+    address public owner;
+    
+    // Events
+    event PaymasterRegistered(address indexed paymaster, uint256 feeRate, string name);
+    event PaymasterSelected(address indexed paymaster, address indexed user, uint256 feeRate);
+    event RouterFeeUpdated(uint256 oldFeeRate, uint256 newFeeRate);
+
+    // Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
         _;
     }
 
@@ -28,72 +47,157 @@ contract SuperPaymasterV7 is BasePaymasterRouter, IPaymasterV7 {
         address _entryPoint,
         address _owner,
         uint256 _routerFeeRate
-    ) BasePaymasterRouter(_owner, _routerFeeRate) {
+    ) {
         require(_entryPoint != address(0), "Invalid EntryPoint address");
+        require(_owner != address(0), "Invalid owner address");
+        require(_routerFeeRate <= 10000, "Invalid fee rate");
+        
         entryPoint = IEntryPoint(_entryPoint);
+        owner = _owner;
+        routerFeeRate = _routerFeeRate;
     }
 
-    /// @inheritdoc IPaymasterV7
-    function validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 requiredPreFund
-    ) external virtual onlyEntryPoint returns (bytes memory context, uint256 validationData) {
-        // Get the best available paymaster
-        (address selectedPaymaster, uint256 feeRate) = this.getBestPaymaster();
+    /// @notice Register a paymaster to the router
+    /// @param _paymaster Address of the paymaster contract
+    /// @param _feeRate Fee rate in basis points
+    /// @param _name Human readable name for the paymaster
+    function registerPaymaster(
+        address _paymaster,
+        uint256 _feeRate,
+        string calldata _name
+    ) external {
+        require(_paymaster != address(0), "Invalid paymaster address");
+        require(_feeRate <= 10000, "Invalid fee rate");
+        require(bytes(_name).length > 0, "Name required");
+
+        // If not already registered, add to list
+        if (paymasterPools[_paymaster].paymaster == address(0)) {
+            paymasterList.push(_paymaster);
+        }
+
+        paymasterPools[_paymaster] = PaymasterPool({
+            paymaster: _paymaster,
+            feeRate: _feeRate,
+            isActive: true,
+            successCount: 0,
+            totalAttempts: 0,
+            name: _name
+        });
+
+        emit PaymasterRegistered(_paymaster, _feeRate, _name);
+    }
+
+    /// @notice Get the best available paymaster
+    /// @return paymaster Address of the best paymaster
+    /// @return feeRate Fee rate of the selected paymaster
+    function getBestPaymaster() external view returns (address paymaster, uint256 feeRate) {
+        uint256 bestFeeRate = type(uint256).max;
+        address bestPaymaster = address(0);
+
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            address pm = paymasterList[i];
+            PaymasterPool memory pool = paymasterPools[pm];
+            
+            if (pool.isActive && pool.feeRate < bestFeeRate) {
+                // Simple availability check - has contract code
+                if (_isPaymasterAvailable(pm)) {
+                    bestFeeRate = pool.feeRate;
+                    bestPaymaster = pm;
+                }
+            }
+        }
+
+        require(bestPaymaster != address(0), "No paymaster available");
+        return (bestPaymaster, bestFeeRate);
+    }
+
+    /// @notice Get list of active paymasters
+    /// @return activePaymasters Array of active paymaster addresses
+    function getActivePaymasters() external view returns (address[] memory activePaymasters) {
+        // Count active paymasters
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            if (paymasterPools[paymasterList[i]].isActive) {
+                activeCount++;
+            }
+        }
+
+        // Build active paymasters array
+        activePaymasters = new address[](activeCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            if (paymasterPools[paymasterList[i]].isActive) {
+                activePaymasters[index] = paymasterList[i];
+                index++;
+            }
+        }
+
+        return activePaymasters;
+    }
+
+    /// @notice Get paymaster information
+    /// @param _paymaster Address of the paymaster
+    /// @return pool PaymasterPool struct with all information
+    function getPaymasterInfo(address _paymaster) external view returns (PaymasterPool memory pool) {
+        return paymasterPools[_paymaster];
+    }
+
+    /// @notice Get router statistics
+    /// @return totalPaymasters Total number of registered paymasters
+    /// @return activePaymasters Number of active paymasters
+    /// @return totalSuccessfulRoutes Total successful routes across all paymasters
+    /// @return totalRoutes Total route attempts across all paymasters
+    function getRouterStats() external view returns (
+        uint256 totalPaymasters,
+        uint256 activePaymasters,
+        uint256 totalSuccessfulRoutes,
+        uint256 totalRoutes
+    ) {
+        totalPaymasters = paymasterList.length;
         
-        // Record routing attempt
-        paymasterPools[selectedPaymaster].totalAttempts++;
-
-        // Prepare context for postOp
-        context = abi.encode(selectedPaymaster, userOp.sender, requiredPreFund, feeRate);
-
-        // Call the selected paymaster's validation
-        try IPaymasterV7(selectedPaymaster).validatePaymasterUserOp(userOp, userOpHash, requiredPreFund) 
-            returns (bytes memory paymasterContext, uint256 paymasterValidationData) {
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            PaymasterPool memory pool = paymasterPools[paymasterList[i]];
             
-            // Success - update stats and emit event
-            paymasterPools[selectedPaymaster].successCount++;
-            emit PaymasterSelected(selectedPaymaster, userOp.sender, feeRate);
-            
-            // Combine contexts if needed
-            if (paymasterContext.length > 0) {
-                context = abi.encode(selectedPaymaster, userOp.sender, requiredPreFund, feeRate, paymasterContext);
+            if (pool.isActive) {
+                activePaymasters++;
             }
             
-            return (context, paymasterValidationData);
-            
-        } catch Error(string memory reason) {
-            // Paymaster validation failed
-            revert(string(abi.encodePacked("Selected paymaster failed: ", reason)));
-        } catch {
-            revert("Selected paymaster validation failed");
+            totalSuccessfulRoutes += pool.successCount;
+            totalRoutes += pool.totalAttempts;
         }
     }
 
-    /// @inheritdoc IPaymasterV7
-    function postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) external onlyEntryPoint {
-        // Decode context
-        (address selectedPaymaster, address sender, uint256 requiredPreFund, uint256 feeRate) = 
-            abi.decode(context, (address, address, uint256, uint256));
+    /// @notice Get total number of registered paymasters
+    /// @return count Total paymaster count
+    function getPaymasterCount() external view returns (uint256 count) {
+        return paymasterList.length;
+    }
 
-        // Calculate router fee
-        uint256 routerFee = (actualGasCost * routerFeeRate) / 10000;
+    /// @notice Update router fee rate (only owner)
+    /// @param _newFeeRate New fee rate in basis points
+    function updateFeeRate(uint256 _newFeeRate) external onlyOwner {
+        require(_newFeeRate <= 10000, "Invalid fee rate");
+        uint256 oldFeeRate = routerFeeRate;
+        routerFeeRate = _newFeeRate;
+        emit RouterFeeUpdated(oldFeeRate, _newFeeRate);
+    }
 
-        // Call the selected paymaster's postOp if it exists
-        try IPaymasterV7(selectedPaymaster).postOp(mode, context, actualGasCost, actualUserOpFeePerGas) {
-            // Paymaster postOp succeeded
-        } catch {
-            // Paymaster postOp failed, but we don't revert to avoid breaking the flow
+    /// @notice Get contract version
+    /// @return version Version string
+    function getVersion() external pure returns (string memory version) {
+        return "SuperPaymasterV7-1.0.0";
+    }
+
+    /// @notice Internal function to check if paymaster is available
+    /// @param _paymaster Address of the paymaster to check
+    /// @return available Whether the paymaster is available
+    function _isPaymasterAvailable(address _paymaster) internal view returns (bool available) {
+        // Simple check: has contract code
+        uint256 size;
+        assembly {
+            size := extcodesize(_paymaster)
         }
-
-        // Handle router fee collection here if needed
-        // For V1, we keep it simple and don't collect fees
+        return size > 0;
     }
 
     /// @notice Deposit funds to EntryPoint for this router
@@ -115,133 +219,5 @@ contract SuperPaymasterV7 is BasePaymasterRouter, IPaymasterV7 {
     /// @return balance Current deposit balance
     function getDeposit() external view returns (uint256 balance) {
         return entryPoint.balanceOf(address(this));
-    }
-
-    /// @notice Add stake for this router (only owner)
-    /// @param unstakeDelaySec Unstake delay in seconds
-    function addStake(uint32 unstakeDelaySec) external payable onlyOwner {
-        entryPoint.addStake{value: msg.value}(unstakeDelaySec);
-    }
-
-    /// @notice Start unstake process (only owner)
-    function unlockStake() external onlyOwner {
-        entryPoint.unlockStake();
-    }
-
-    /// @notice Withdraw stake (only owner)
-    /// @param withdrawAddress Address to receive the stake
-    function withdrawStake(address payable withdrawAddress) external onlyOwner {
-        entryPoint.withdrawStake(withdrawAddress);
-    }
-
-    /// @inheritdoc BasePaymasterRouter
-    function _isPaymasterAvailable(address _paymaster) 
-        internal 
-        view 
-        virtual 
-        override 
-        returns (bool available) 
-    {
-        if (_paymaster.code.length == 0) {
-            return false;
-        }
-
-        // Check if paymaster has sufficient balance in EntryPoint
-        try entryPoint.balanceOf(_paymaster) returns (uint256 balance) {
-            // Require at least 0.01 ETH for routing
-            return balance >= 0.01 ether;
-        } catch {
-            return false;
-        }
-    }
-
-    /// @notice Route a packed user operation to the best paymaster
-    /// @param userOp The packed user operation to route
-    /// @return selectedPaymaster Address of the selected paymaster
-    /// @return estimatedCost Estimated cost for the operation
-    function routePackedUserOperation(PackedUserOperation calldata userOp) 
-        external 
-        view 
-        returns (address selectedPaymaster, uint256 estimatedCost) 
-    {
-        (selectedPaymaster,) = this.getBestPaymaster();
-        
-        // Extract gas limits from packed format (bytes32 to uint128)
-        uint256 verificationGasLimit = uint128(bytes16(userOp.accountGasLimits));
-        uint256 callGasLimit = uint128(bytes16(userOp.accountGasLimits << 128));
-        
-        // Simple cost estimation
-        estimatedCost = callGasLimit + verificationGasLimit + userOp.preVerificationGas;
-        
-        return (selectedPaymaster, estimatedCost);
-    }
-
-    /// @notice Get gas limits from packed user operation
-    /// @param userOp The packed user operation
-    /// @return verificationGasLimit Gas limit for verification
-    /// @return callGasLimit Gas limit for execution
-    function getGasLimits(PackedUserOperation calldata userOp) 
-        external 
-        pure 
-        returns (uint256 verificationGasLimit, uint256 callGasLimit) 
-    {
-        verificationGasLimit = uint128(bytes16(userOp.accountGasLimits));
-        callGasLimit = uint128(bytes16(userOp.accountGasLimits << 128));
-    }
-
-    /// @notice Get gas fees from packed user operation
-    /// @param userOp The packed user operation
-    /// @return maxFeePerGas Maximum fee per gas
-    /// @return maxPriorityFeePerGas Maximum priority fee per gas
-    function getGasFees(PackedUserOperation calldata userOp) 
-        external 
-        pure 
-        returns (uint256 maxFeePerGas, uint256 maxPriorityFeePerGas) 
-    {
-        maxFeePerGas = uint128(bytes16(userOp.gasFees));
-        maxPriorityFeePerGas = uint128(bytes16(userOp.gasFees << 128));
-    }
-
-    /// @notice Emergency pause functionality (only owner)
-    /// @param _paused Whether to pause the router
-    function setPaused(bool _paused) external onlyOwner {
-        // In V1, we keep this simple - could be enhanced later
-        if (_paused) {
-            // Emergency pause: deactivate all paymasters
-            for (uint256 i = 0; i < paymasterList.length; i++) {
-                paymasterPools[paymasterList[i]].isActive = false;
-            }
-        }
-    }
-
-    /// @notice Get router version
-    /// @return version Version string
-    function getVersion() external pure virtual returns (string memory version) {
-        return "SuperPaymasterV7-1.0.0";
-    }
-
-    /// @notice Simulate paymaster selection for a user operation
-    /// @param userOp The user operation to simulate
-    /// @return selectedPaymaster Address of the paymaster that would be selected
-    /// @return feeRate Fee rate of the selected paymaster
-    /// @return available Whether the paymaster is available
-    function simulatePaymasterSelection(PackedUserOperation calldata userOp) 
-        external 
-        view 
-        returns (
-            address selectedPaymaster, 
-            uint256 feeRate, 
-            bool available
-        ) 
-    {
-        try this.getBestPaymaster() returns (address paymaster, uint256 rate) {
-            selectedPaymaster = paymaster;
-            feeRate = rate;
-            available = _isPaymasterAvailable(paymaster);
-        } catch {
-            selectedPaymaster = address(0);
-            feeRate = 0;
-            available = false;
-        }
     }
 }

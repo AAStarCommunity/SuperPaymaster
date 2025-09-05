@@ -1,312 +1,196 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-// Note: Using v7 EntryPoint interface since v8 requires Solidity ^0.8.28
-// import "@account-abstraction-v8/interfaces/IEntryPoint.sol";
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import "../singleton-paymaster/src/interfaces/PostOpMode.sol";
-import "./SuperPaymasterV7.sol";
+interface IEntryPointV8 {
+    function balanceOf(address account) external view returns (uint256);
+    function depositTo(address account) external payable;
+    function withdrawTo(address payable withdrawAddress, uint256 amount) external;
+}
 
 /// @title SuperPaymasterV8
-/// @notice Paymaster router for EntryPoint v0.8 with EIP-7702 support
-/// @dev Extends SuperPaymasterV7 since v7 and v8 share the same PackedUserOperation structure
-contract SuperPaymasterV8 is SuperPaymasterV7 {
-    /// @notice EIP-7702 support flag
-    bool public eip7702Enabled;
-
-    /// @notice Event emitted when EIP-7702 status changes
-    event EIP7702StatusChanged(bool enabled);
-
-    /// @notice EIP-7702 delegation information
-    struct DelegationInfo {
-        address delegatee;      // Address to delegate to
-        uint256 nonce;         // Delegation nonce
-        bool isActive;         // Whether delegation is active
+/// @notice A simple paymaster router for EntryPoint v0.8
+/// @dev Routes user operations to registered paymasters for gas sponsorship
+contract SuperPaymasterV8 {
+    
+    struct PaymasterPool {
+        address paymaster;
+        uint256 feeRate;
+        bool isActive;
+        uint256 successCount;
+        uint256 totalAttempts;
+        string name;
     }
 
-    /// @notice Mapping of account to delegation information
-    mapping(address => DelegationInfo) public delegations;
+    // State variables
+    IEntryPointV8 public immutable entryPoint;
+    mapping(address => PaymasterPool) public paymasterPools;
+    address[] public paymasterList;
+    uint256 public routerFeeRate;
+    address public owner;
+    
+    // Events
+    event PaymasterRegistered(address indexed paymaster, uint256 feeRate, string name);
+    event PaymasterSelected(address indexed paymaster, address indexed user, uint256 feeRate);
+    event RouterFeeUpdated(uint256 oldFeeRate, uint256 newFeeRate);
+
+    // Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
+    }
 
     /// @notice Constructor
-    /// @param _entryPoint Address of the EntryPoint v0.8 contract
-    /// @param _owner Address of the contract owner
-    /// @param _routerFeeRate Fee rate for routing service (in basis points)
     constructor(
         address _entryPoint,
         address _owner,
         uint256 _routerFeeRate
-    ) SuperPaymasterV7(_entryPoint, _owner, _routerFeeRate) {
-        eip7702Enabled = true; // Enable EIP-7702 by default for v0.8
+    ) {
+        require(_entryPoint != address(0), "Invalid EntryPoint address");
+        require(_owner != address(0), "Invalid owner address");
+        require(_routerFeeRate <= 10000, "Invalid fee rate");
+        
+        entryPoint = IEntryPointV8(_entryPoint);
+        owner = _owner;
+        routerFeeRate = _routerFeeRate;
     }
 
-    /// @notice Enable or disable EIP-7702 support (only owner)
-    /// @param _enabled Whether to enable EIP-7702 support
-    function setEIP7702Enabled(bool _enabled) external onlyOwner {
-        eip7702Enabled = _enabled;
-        emit EIP7702StatusChanged(_enabled);
-    }
+    /// @notice Register a paymaster to the router
+    function registerPaymaster(
+        address _paymaster,
+        uint256 _feeRate,
+        string calldata _name
+    ) external {
+        require(_paymaster != address(0), "Invalid paymaster address");
+        require(_feeRate <= 10000, "Invalid fee rate");
+        require(bytes(_name).length > 0, "Name required");
 
-    /// @notice Register account delegation for EIP-7702 (only owner)
-    /// @param _account Account address
-    /// @param _delegatee Address to delegate to
-    /// @param _nonce Delegation nonce
-    function setAccountDelegation(
-        address _account,
-        address _delegatee,
-        uint256 _nonce
-    ) external onlyOwner {
-        delegations[_account] = DelegationInfo({
-            delegatee: _delegatee,
-            nonce: _nonce,
-            isActive: true
+        // If not already registered, add to list
+        if (paymasterPools[_paymaster].paymaster == address(0)) {
+            paymasterList.push(_paymaster);
+        }
+
+        paymasterPools[_paymaster] = PaymasterPool({
+            paymaster: _paymaster,
+            feeRate: _feeRate,
+            isActive: true,
+            successCount: 0,
+            totalAttempts: 0,
+            name: _name
         });
+
+        emit PaymasterRegistered(_paymaster, _feeRate, _name);
     }
 
-    /// @notice Remove account delegation (only owner)
-    /// @param _account Account address
-    function removeAccountDelegation(address _account) external onlyOwner {
-        delegations[_account].isActive = false;
-    }
+    /// @notice Get the best available paymaster
+    function getBestPaymaster() external view returns (address paymaster, uint256 feeRate) {
+        uint256 bestFeeRate = type(uint256).max;
+        address bestPaymaster = address(0);
 
-    /// @inheritdoc SuperPaymasterV7
-    function validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 requiredPreFund
-    ) external override onlyEntryPoint returns (bytes memory context, uint256 validationData) {
-        // Check for EIP-7702 delegation if enabled
-        if (eip7702Enabled && delegations[userOp.sender].isActive) {
-            // Handle EIP-7702 delegated accounts
-            return _validateDelegatedUserOp(userOp, userOpHash, requiredPreFund);
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            address pm = paymasterList[i];
+            PaymasterPool memory pool = paymasterPools[pm];
+            
+            if (pool.isActive && pool.feeRate < bestFeeRate) {
+                if (_isPaymasterAvailable(pm)) {
+                    bestFeeRate = pool.feeRate;
+                    bestPaymaster = pm;
+                }
+            }
         }
 
-        // Standard validation for non-delegated accounts - call parent implementation directly
-        return _validateStandardUserOp(userOp, userOpHash, requiredPreFund);
+        require(bestPaymaster != address(0), "No paymaster available");
+        return (bestPaymaster, bestFeeRate);
     }
 
-    /// @notice Validate standard (non-delegated) user operation
-    /// @param userOp The packed user operation
-    /// @param userOpHash Hash of the user operation
-    /// @param requiredPreFund Required pre-fund amount
-    /// @return context Context for postOp
-    /// @return validationData Validation result
-    function _validateStandardUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 requiredPreFund
-    ) internal returns (bytes memory context, uint256 validationData) {
-        // Get the best available paymaster
-        (address selectedPaymaster, uint256 feeRate) = this.getBestPaymaster();
+    /// @notice Get list of active paymasters
+    function getActivePaymasters() external view returns (address[] memory activePaymasters) {
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            if (paymasterPools[paymasterList[i]].isActive) {
+                activeCount++;
+            }
+        }
+
+        activePaymasters = new address[](activeCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            if (paymasterPools[paymasterList[i]].isActive) {
+                activePaymasters[index] = paymasterList[i];
+                index++;
+            }
+        }
+
+        return activePaymasters;
+    }
+
+    /// @notice Get paymaster information
+    function getPaymasterInfo(address _paymaster) external view returns (PaymasterPool memory pool) {
+        return paymasterPools[_paymaster];
+    }
+
+    /// @notice Get router statistics
+    function getRouterStats() external view returns (
+        uint256 totalPaymasters,
+        uint256 activePaymasters,
+        uint256 totalSuccessfulRoutes,
+        uint256 totalRoutes
+    ) {
+        totalPaymasters = paymasterList.length;
         
-        // Record routing attempt
-        paymasterPools[selectedPaymaster].totalAttempts++;
-
-        // Prepare context for postOp
-        context = abi.encode(selectedPaymaster, userOp.sender, requiredPreFund, feeRate);
-
-        // Call the selected paymaster's validation
-        try IPaymasterV7(selectedPaymaster).validatePaymasterUserOp(userOp, userOpHash, requiredPreFund) 
-            returns (bytes memory paymasterContext, uint256 paymasterValidationData) {
+        for (uint256 i = 0; i < paymasterList.length; i++) {
+            PaymasterPool memory pool = paymasterPools[paymasterList[i]];
             
-            // Success - update stats and emit event
-            paymasterPools[selectedPaymaster].successCount++;
-            emit PaymasterSelected(selectedPaymaster, userOp.sender, feeRate);
-            
-            // Combine contexts if needed
-            if (paymasterContext.length > 0) {
-                context = abi.encode(selectedPaymaster, userOp.sender, requiredPreFund, feeRate, paymasterContext);
+            if (pool.isActive) {
+                activePaymasters++;
             }
             
-            return (context, paymasterValidationData);
-            
-        } catch Error(string memory reason) {
-            // Paymaster validation failed
-            revert(string(abi.encodePacked("Selected paymaster failed: ", reason)));
-        } catch {
-            revert("Selected paymaster validation failed");
+            totalSuccessfulRoutes += pool.successCount;
+            totalRoutes += pool.totalAttempts;
         }
     }
 
-    /// @notice Validate user operation for delegated accounts (EIP-7702)
-    /// @param userOp The packed user operation
-    /// @param userOpHash Hash of the user operation
-    /// @param requiredPreFund Required pre-fund amount
-    /// @return context Context for postOp
-    /// @return validationData Validation result
-    function _validateDelegatedUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 requiredPreFund
-    ) internal returns (bytes memory context, uint256 validationData) {
-        DelegationInfo memory delegation = delegations[userOp.sender];
-        
-        // Get the best available paymaster
-        (address selectedPaymaster, uint256 feeRate) = this.getBestPaymaster();
-        
-        // Record routing attempt
-        paymasterPools[selectedPaymaster].totalAttempts++;
-
-        // Prepare context with delegation info
-        context = abi.encode(
-            selectedPaymaster, 
-            userOp.sender, 
-            requiredPreFund, 
-            feeRate,
-            delegation.delegatee,
-            delegation.nonce
-        );
-
-        // For EIP-7702 accounts, we might need special validation
-        // This is a simplified implementation - real EIP-7702 would need more complex validation
-        try IPaymasterV7(selectedPaymaster).validatePaymasterUserOp(userOp, userOpHash, requiredPreFund) 
-            returns (bytes memory paymasterContext, uint256 paymasterValidationData) {
-            
-            // Success - update stats and emit event
-            paymasterPools[selectedPaymaster].successCount++;
-            emit PaymasterSelected(selectedPaymaster, userOp.sender, feeRate);
-            
-            // Combine contexts if needed
-            if (paymasterContext.length > 0) {
-                context = abi.encode(
-                    selectedPaymaster, 
-                    userOp.sender, 
-                    requiredPreFund, 
-                    feeRate,
-                    delegation.delegatee,
-                    delegation.nonce,
-                    paymasterContext
-                );
-            }
-            
-            return (context, paymasterValidationData);
-            
-        } catch Error(string memory reason) {
-            // Paymaster validation failed
-            revert(string(abi.encodePacked("Selected paymaster failed for delegated account: ", reason)));
-        } catch {
-            revert("Selected paymaster validation failed for delegated account");
-        }
+    /// @notice Get total number of registered paymasters
+    function getPaymasterCount() external view returns (uint256 count) {
+        return paymasterList.length;
     }
 
-    /// @notice Check if an account has active delegation
-    /// @param _account Account address to check
-    /// @return hasDelegate Whether account has active delegation
-    /// @return delegatee Address of the delegatee (if active)
-    function getAccountDelegation(address _account) 
-        external 
-        view 
-        returns (bool hasDelegate, address delegatee) 
-    {
-        DelegationInfo memory delegation = delegations[_account];
-        return (delegation.isActive, delegation.delegatee);
+    /// @notice Update router fee rate (only owner)
+    function updateFeeRate(uint256 _newFeeRate) external onlyOwner {
+        require(_newFeeRate <= 10000, "Invalid fee rate");
+        uint256 oldFeeRate = routerFeeRate;
+        routerFeeRate = _newFeeRate;
+        emit RouterFeeUpdated(oldFeeRate, _newFeeRate);
     }
 
-    /// @notice Simulate paymaster selection for EIP-7702 delegated accounts
-    /// @param userOp The user operation to simulate
-    /// @return selectedPaymaster Address of the paymaster that would be selected
-    /// @return feeRate Fee rate of the selected paymaster
-    /// @return available Whether the paymaster is available
-    /// @return isDelegated Whether the account is using EIP-7702 delegation
-    function simulateEIP7702PaymasterSelection(PackedUserOperation calldata userOp) 
-        external 
-        view 
-        returns (
-            address selectedPaymaster, 
-            uint256 feeRate, 
-            bool available,
-            bool isDelegated
-        ) 
-    {
-        isDelegated = eip7702Enabled && delegations[userOp.sender].isActive;
-        
-        try this.getBestPaymaster() returns (address paymaster, uint256 rate) {
-            selectedPaymaster = paymaster;
-            feeRate = rate;
-            available = _isPaymasterAvailable(paymaster);
-        } catch {
-            selectedPaymaster = address(0);
-            feeRate = 0;
-            available = false;
-        }
-    }
-
-    /// @inheritdoc SuperPaymasterV7
-    function _isPaymasterAvailable(address _paymaster) 
-        internal 
-        view 
-        override 
-        returns (bool available) 
-    {
-        // Enhanced availability check for v0.8
-        if (_paymaster.code.length == 0) {
-            return false;
-        }
-
-        // Check if paymaster has sufficient balance in EntryPoint
-        try entryPoint.balanceOf(_paymaster) returns (uint256 balance) {
-            // Require at least 0.01 ETH for routing
-            if (balance < 0.01 ether) {
-                return false;
-            }
-
-            // For v0.8, also check if paymaster supports EIP-7702 if needed
-            if (eip7702Enabled) {
-                // Additional checks for EIP-7702 compatibility could go here
-                // For now, we assume all paymasters are compatible
-                return true;
-            }
-
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /// @notice Get router version
-    /// @return version Version string
-    function getVersion() external pure override returns (string memory version) {
+    /// @notice Get contract version
+    function getVersion() external pure returns (string memory version) {
         return "SuperPaymasterV8-1.0.0";
     }
 
-    /// @notice Get EIP-7702 capabilities
-    /// @return enabled Whether EIP-7702 is enabled
-    /// @return delegatedAccounts Number of accounts with active delegations
-    function getEIP7702Info() 
-        external 
-        view 
-        returns (bool enabled, uint256 delegatedAccounts) 
-    {
-        enabled = eip7702Enabled;
-        
-        // Count delegated accounts - this is inefficient for large numbers
-        // In production, you'd want to maintain a counter
-        delegatedAccounts = 0;
-        // Note: This would need to be implemented differently in production
-        // as we can't iterate over all possible addresses
+    /// @notice Internal function to check if paymaster is available
+    function _isPaymasterAvailable(address _paymaster) internal view returns (bool available) {
+        uint256 size;
+        assembly {
+            size := extcodesize(_paymaster)
+        }
+        return size > 0;
     }
 
-    /// @notice Batch operation for managing multiple delegations (only owner)
-    /// @param _accounts Array of account addresses
-    /// @param _delegatees Array of delegatee addresses
-    /// @param _nonces Array of nonces
-    function batchSetDelegations(
-        address[] memory _accounts,
-        address[] memory _delegatees,
-        uint256[] memory _nonces
-    ) external onlyOwner {
-        require(
-            _accounts.length == _delegatees.length && 
-            _accounts.length == _nonces.length, 
-            "Array lengths must match"
-        );
+    /// @notice Deposit funds to EntryPoint for this router
+    function deposit() external payable {
+        entryPoint.depositTo{value: msg.value}(address(this));
+    }
 
-        for (uint256 i = 0; i < _accounts.length; i++) {
-            delegations[_accounts[i]] = DelegationInfo({
-                delegatee: _delegatees[i],
-                nonce: _nonces[i],
-                isActive: true
-            });
-        }
+    /// @notice Withdraw funds from EntryPoint (only owner)
+    function withdrawTo(address payable withdrawAddress, uint256 amount) 
+        external 
+        onlyOwner 
+    {
+        entryPoint.withdrawTo(withdrawAddress, amount);
+    }
+
+    /// @notice Get deposit balance in EntryPoint
+    function getDeposit() external view returns (uint256 balance) {
+        return entryPoint.balanceOf(address(this));
     }
 }

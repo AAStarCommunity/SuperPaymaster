@@ -5,17 +5,24 @@ import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTr
 import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { formatEther, parseEther } from 'viem';
 import { toast } from 'react-hot-toast';
+import Link from 'next/link';
 
 import { CONTRACTS, SUPER_PAYMASTER_ABI, PaymasterVersion } from '@/lib/contracts';
 import { PaymasterInfo, RouterStats } from '@/types';
 
 export default function Dashboard() {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const [selectedVersion, setSelectedVersion] = useState<PaymasterVersion>('v7');
   const [paymasterData, setPaymasterData] = useState<PaymasterInfo[]>([]);
   const [routerStats, setRouterStats] = useState<RouterStats | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Get contract address for selected version
   const getContractAddress = (version: PaymasterVersion) => {
@@ -77,6 +84,17 @@ export default function Dashboard() {
 
     fetchPaymasterData();
   }, [activePaymasters]);
+
+  // Don't render wagmi-dependent content until mounted on client
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -207,16 +225,27 @@ export default function Dashboard() {
         )}
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-orange-500 transition-colors group">
+            <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:bg-orange-500/30 transition-colors">
+              <span className="text-orange-400 text-xl">⚙️</span>
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Admin Panel</h3>
+            <p className="text-slate-400 text-sm mb-4">Manage your paymaster operations</p>
+            <Link href="/admin" className="block w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-center">
+              Manage Now
+            </Link>
+          </div>
+
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-blue-500 transition-colors group">
             <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-500/30 transition-colors">
               <span className="text-blue-400 text-xl">📝</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Register Paymaster</h3>
             <p className="text-slate-400 text-sm mb-4">Add your paymaster to the marketplace</p>
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            <Link href="/register" className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-center">
               Register Now
-            </button>
+            </Link>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-purple-500 transition-colors group">
@@ -225,9 +254,9 @@ export default function Dashboard() {
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Deploy Paymaster</h3>
             <p className="text-slate-400 text-sm mb-4">Deploy your own paymaster contract</p>
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            <Link href="/deploy" className="block w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-center">
               Deploy Contract
-            </button>
+            </Link>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-green-500 transition-colors group">
@@ -236,9 +265,9 @@ export default function Dashboard() {
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">API Examples</h3>
             <p className="text-slate-400 text-sm mb-4">Integration guides and code samples</p>
-            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            <Link href="/examples" className="block w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-center">
               View Examples
-            </button>
+            </Link>
           </div>
         </div>
 
