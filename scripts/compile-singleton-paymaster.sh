@@ -7,8 +7,12 @@ set -e
 
 echo "🔧 Compiling singleton-paymaster contracts..."
 
+# Get the script directory and project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 # Change to singleton-paymaster directory
-cd singleton-paymaster
+cd "$PROJECT_ROOT/singleton-paymaster"
 
 # Install dependencies
 echo "📦 Installing singleton-paymaster dependencies..."
@@ -19,7 +23,7 @@ echo "⚡ Building singleton-paymaster contracts..."
 forge build
 
 # Create output directory for frontend
-FRONTEND_LIB_DIR="../frontend/src/lib/singleton-compiled"
+FRONTEND_LIB_DIR="$PROJECT_ROOT/frontend/src/lib/singleton-compiled"
 mkdir -p "$FRONTEND_LIB_DIR"
 
 echo "📄 Extracting ABIs and bytecode for frontend..."
@@ -42,8 +46,8 @@ if [ -f "out/SingletonPaymasterV8.sol/SingletonPaymasterV8.json" ]; then
     cp "out/SingletonPaymasterV8.sol/SingletonPaymasterV8.json" "$FRONTEND_LIB_DIR/"
 fi
 
-# Go back to root
-cd ..
+# Go back to project root
+cd "$PROJECT_ROOT"
 
 # Generate TypeScript interface
 echo "🔥 Generating TypeScript interfaces..."

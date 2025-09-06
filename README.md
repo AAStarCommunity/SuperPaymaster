@@ -138,7 +138,28 @@ event FeeRateUpdated(address indexed paymaster, uint256 oldFeeRate, uint256 newF
 
 ### Prerequisites
 - [Foundry](https://book.getfoundry.sh/)
-- [Node.js](https://nodejs.org/) (for additional tooling)
+- [Node.js](https://nodejs.org/) (for frontend dashboard)
+
+### Project Structure
+
+```
+SuperPaymaster-Contract/
+├── src/                     # Smart contracts source code
+├── test/                    # Contract tests
+├── script/                  # Deployment scripts
+├── frontend/                # Next.js dashboard application
+├── singleton-paymaster/     # Git submodule for Pimlico singleton paymaster templates
+├── docs/                    # Documentation files
+├── scripts/                 # Utility scripts
+│   ├── build-all.sh        # Build all contracts (SuperPaymaster + singleton)
+│   ├── compile-singleton-paymaster.sh  # Compile singleton paymaster contracts
+│   ├── deploy-superpaymaster.sh       # Deploy SuperPaymaster contracts
+│   ├── start-frontend.sh   # Start frontend development server
+│   └── test-contracts.sh   # Run contract tests
+├── CLAUDE.md               # AI assistant instructions
+├── GEMINI.md               # AI assistant instructions
+└── README.md               # This file
+```
 
 ### Installation
 
@@ -147,17 +168,51 @@ event FeeRateUpdated(address indexed paymaster, uint256 oldFeeRate, uint256 newF
 git clone https://github.com/AAStarCommunity/SuperPaymaster-Contract.git
 cd SuperPaymaster-Contract
 
-# Install dependencies
+# Initialize git submodules (for singleton-paymaster templates)
+git submodule update --init --recursive
+
+# Install Foundry dependencies
 forge install
 
-# Build contracts
-forge build
+# Build all contracts (SuperPaymaster + singleton templates)
+./scripts/build-all.sh
+
+# Install frontend dependencies (optional - for dashboard)
+cd frontend && npm install && cd ..
+```
+
+### Available Scripts
+
+The project includes several utility scripts in the `scripts/` directory:
+
+#### Contract Scripts
+```bash
+# Build all contracts (SuperPaymaster and singleton templates)
+./scripts/build-all.sh
+
+# Run contract tests
+./scripts/test-contracts.sh
+
+# Deploy SuperPaymaster to Sepolia (requires .env setup)
+./scripts/deploy-superpaymaster.sh
+
+# Compile singleton paymaster contracts and generate ABIs for frontend
+./scripts/compile-singleton-paymaster.sh
+```
+
+#### Frontend Scripts
+```bash
+# Start frontend development server
+./scripts/start-frontend.sh
+# This will install dependencies if needed and start the dashboard at http://localhost:3000
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
+./scripts/test-contracts.sh
+# Or directly with forge:
 forge test
 
 # Run with verbosity
@@ -170,12 +225,48 @@ forge test --match-test testPaymasterSelection
 ### Deployment
 
 ```bash
-# Deploy to local network
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+# Deploy to Sepolia testnet (requires .env configuration)
+./scripts/deploy-superpaymaster.sh
 
-# Deploy to testnet
-forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify
+# Or deploy manually with forge
+forge script script/DeploySuperpaymaster.s.sol:DeploySuperpaymaster \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $SEPOLIA_PRIVATE_KEY \
+  --broadcast
 ```
+
+### Frontend Dashboard
+
+The project includes a Next.js dashboard for managing SuperPaymaster deployments:
+
+```bash
+# Start the frontend dashboard
+./scripts/start-frontend.sh
+
+# Visit http://localhost:3000 to access the dashboard
+```
+
+Features:
+- Deploy SuperPaymaster contracts (V6, V7, V8)
+- Register and manage paymasters
+- View paymaster marketplace
+- Monitor contract statistics
+- Support for multiple EntryPoint versions with proper version detection
+
+### Recent Improvements
+
+#### v1.3.0 - Project Structure Reorganization
+- **New Structure**: Created `docs/` and `scripts/` folders for better organization
+- **Documentation**: Moved all documentation files to `docs/` (except CLAUDE.md, GEMINI.md, README.md)
+- **Scripts**: Consolidated all utility scripts in `scripts/` with proper path resolution
+- **Submodule**: Restored `singleton-paymaster` as git submodule for latest Pimlico templates
+
+#### v1.2.0 - Frontend Fixes
+- **Version Detection**: Fixed V8 paymasters incorrectly showing as V7
+- **Smart Detection**: Implemented intelligent version detection based on actual registration status
+- **Version Indicators**: Added version badges to all 5 deployment steps
+- **Environment Variables**: Added fallback handling for Next.js static compilation
+- **ABI References**: Fixed undefined SIMPLE_PAYMASTER_ABI errors
 
 ## 💼 For Paymaster Operators
 
@@ -362,7 +453,28 @@ event FeeRateUpdated(address indexed paymaster, uint256 oldFeeRate, uint256 newF
 
 ### 前置要求
 - [Foundry](https://book.getfoundry.sh/)
-- [Node.js](https://nodejs.org/) (用于额外工具)
+- [Node.js](https://nodejs.org/) (用于前端仪表板)
+
+### 项目结构
+
+```
+SuperPaymaster-Contract/
+├── src/                     # 智能合约源码
+├── test/                    # 合约测试
+├── script/                  # 部署脚本
+├── frontend/                # Next.js仪表板应用
+├── singleton-paymaster/     # Pimlico singleton paymaster模板的Git子模块
+├── docs/                    # 文档文件
+├── scripts/                 # 工具脚本
+│   ├── build-all.sh        # 构建所有合约 (SuperPaymaster + singleton)
+│   ├── compile-singleton-paymaster.sh  # 编译singleton paymaster合约
+│   ├── deploy-superpaymaster.sh       # 部署SuperPaymaster合约
+│   ├── start-frontend.sh   # 启动前端开发服务器
+│   └── test-contracts.sh   # 运行合约测试
+├── CLAUDE.md               # AI助手指令
+├── GEMINI.md               # AI助手指令
+└── README.md               # 本文件
+```
 
 ### 安装
 
@@ -371,17 +483,51 @@ event FeeRateUpdated(address indexed paymaster, uint256 oldFeeRate, uint256 newF
 git clone https://github.com/AAStarCommunity/SuperPaymaster-Contract.git
 cd SuperPaymaster-Contract
 
-# 安装依赖
+# 初始化git子模块 (用于singleton-paymaster模板)
+git submodule update --init --recursive
+
+# 安装Foundry依赖
 forge install
 
-# 构建合约
-forge build
+# 构建所有合约 (SuperPaymaster + singleton模板)
+./scripts/build-all.sh
+
+# 安装前端依赖 (可选 - 用于仪表板)
+cd frontend && npm install && cd ..
+```
+
+### 可用脚本
+
+项目在`scripts/`目录中包含多个工具脚本：
+
+#### 合约脚本
+```bash
+# 构建所有合约 (SuperPaymaster和singleton模板)
+./scripts/build-all.sh
+
+# 运行合约测试
+./scripts/test-contracts.sh
+
+# 部署SuperPaymaster到Sepolia (需要配置.env)
+./scripts/deploy-superpaymaster.sh
+
+# 编译singleton paymaster合约并为前端生成ABI
+./scripts/compile-singleton-paymaster.sh
+```
+
+#### 前端脚本
+```bash
+# 启动前端开发服务器
+./scripts/start-frontend.sh
+# 如需要会自动安装依赖并在 http://localhost:3000 启动仪表板
 ```
 
 ### 测试
 
 ```bash
 # 运行所有测试
+./scripts/test-contracts.sh
+# 或者直接使用forge:
 forge test
 
 # 详细输出
@@ -394,12 +540,48 @@ forge test --match-test testPaymasterSelection
 ### 部署
 
 ```bash
-# 部署到本地网络
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+# 部署到Sepolia测试网 (需要配置.env)
+./scripts/deploy-superpaymaster.sh
 
-# 部署到测试网
-forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify
+# 或者使用forge手动部署
+forge script script/DeploySuperpaymaster.s.sol:DeploySuperpaymaster \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $SEPOLIA_PRIVATE_KEY \
+  --broadcast
 ```
+
+### 前端仪表板
+
+项目包含用于管理SuperPaymaster部署的Next.js仪表板：
+
+```bash
+# 启动前端仪表板
+./scripts/start-frontend.sh
+
+# 访问 http://localhost:3000 使用仪表板
+```
+
+功能特性:
+- 部署SuperPaymaster合约 (V6, V7, V8)
+- 注册和管理paymaster
+- 查看paymaster市场
+- 监控合约统计
+- 支持多EntryPoint版本并正确检测版本
+
+### 最近改进
+
+#### v1.3.0 - 项目结构重组
+- **新结构**: 创建`docs/`和`scripts/`文件夹以更好地组织
+- **文档**: 将所有文档文件移至`docs/` (除了CLAUDE.md, GEMINI.md, README.md)
+- **脚本**: 将所有工具脚本整合到`scripts/`并正确处理路径解析
+- **子模块**: 恢复`singleton-paymaster`作为git子模块以获取最新Pimlico模板
+
+#### v1.2.0 - 前端修复
+- **版本检测**: 修复V8 paymaster错误显示为V7的问题
+- **智能检测**: 实现基于实际注册状态的智能版本检测
+- **版本指示器**: 为所有5个部署步骤添加版本标识
+- **环境变量**: 为Next.js静态编译添加回退处理
+- **ABI引用**: 修复未定义的SIMPLE_PAYMASTER_ABI错误
 
 ## 💼 Paymaster运营者指南
 
