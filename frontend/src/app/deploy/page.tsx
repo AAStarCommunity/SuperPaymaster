@@ -62,7 +62,11 @@ export default function DeployPaymaster() {
   }, [address]);
 
   const getEntryPointAddress = (version: PaymasterVersion) => {
-    return PAYMASTER_TEMPLATES[version].entryPoint;
+    const template = PAYMASTER_TEMPLATES[version];
+    if (!template) {
+      throw new Error(`Paymaster template for version ${version} not found`);
+    }
+    return template.entryPoint;
   };
 
   // Watch for deployment success and get the contract address
@@ -112,6 +116,10 @@ export default function DeployPaymaster() {
     }
 
     const template = PAYMASTER_TEMPLATES[config.version];
+    if (!template) {
+      toast.error(`Paymaster template for version ${config.version} not found`);
+      return;
+    }
     
     try {
       // Deploy the singleton paymaster contract with real bytecode and ABI
@@ -433,12 +441,12 @@ export default function DeployPaymaster() {
 
                 {/* Template Info */}
                 <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-                  <h3 className="text-lg font-medium text-white mb-2">📋 Template: {PAYMASTER_TEMPLATES[config.version].name}</h3>
-                  <p className="text-slate-400 text-sm mb-3">{PAYMASTER_TEMPLATES[config.version].description}</p>
+                  <h3 className="text-lg font-medium text-white mb-2">📋 Template: {PAYMASTER_TEMPLATES[config.version]?.name}</h3>
+                  <p className="text-slate-400 text-sm mb-3">{PAYMASTER_TEMPLATES[config.version]?.description}</p>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Contract:</span>
-                      <span className="text-white font-mono text-xs">{PAYMASTER_TEMPLATES[config.version].contractName}</span>
+                      <span className="text-white font-mono text-xs">{PAYMASTER_TEMPLATES[config.version]?.contractName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">EntryPoint:</span>
@@ -490,7 +498,7 @@ export default function DeployPaymaster() {
                 </span>
               </div>
               <p className="text-slate-400 mb-6">
-                Deploy your {PAYMASTER_TEMPLATES[config.version].name} to the blockchain
+                Deploy your {PAYMASTER_TEMPLATES[config.version]?.name || 'Paymaster'} to the blockchain
               </p>
               
               <div className="bg-slate-700/50 rounded-lg p-4 mb-6 text-left">
@@ -522,7 +530,7 @@ export default function DeployPaymaster() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Contract:</span>
-                    <span className="text-white font-mono text-xs">{PAYMASTER_TEMPLATES[config.version].contractName}</span>
+                    <span className="text-white font-mono text-xs">{PAYMASTER_TEMPLATES[config.version]?.contractName}</span>
                   </div>
                 </div>
               </div>

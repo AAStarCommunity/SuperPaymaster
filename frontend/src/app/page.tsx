@@ -189,7 +189,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-slate-400 text-sm">Success Rate</p>
                   <p className="text-2xl font-bold text-green-400">
-                    {stats[3] && stats[3] > 0n ? 
+                    {stats[3] && stats[3] > BigInt(0) ? 
                       `${((Number(stats[2]) / Number(stats[3])) * 100).toFixed(1)}%` : 
                       '0%'
                     }

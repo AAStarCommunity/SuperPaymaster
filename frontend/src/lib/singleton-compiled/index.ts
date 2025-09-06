@@ -30,7 +30,7 @@ const ENTRY_POINTS = {
   v8: "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
 };
 
-export const SINGLETON_PAYMASTER_CONTRACTS: SingletonPaymasterContracts = {};
+export const SINGLETON_PAYMASTER_CONTRACTS: Partial<SingletonPaymasterContracts> = {};
 
 // Add V6 if available
 if (SingletonPaymasterV6) {
@@ -68,4 +68,4 @@ if (SingletonPaymasterV8) {
   };
 }
 
-export default SINGLETON_PAYMASTER_CONTRACTS;
+export default SINGLETON_PAYMASTER_CONTRACTS as SingletonPaymasterContracts;

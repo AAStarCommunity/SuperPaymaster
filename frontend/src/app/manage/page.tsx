@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { MetaMaskButton } from '@/components/MetaMaskButton';
 import { formatEther, parseEther } from 'viem';
@@ -12,7 +12,7 @@ import { SUPER_PAYMASTER_ABI } from '@/lib/contracts';
 import { SINGLETON_PAYMASTER_CONTRACTS } from '@/lib/compiled';
 import { OperatorStats } from '@/types';
 
-export default function ManagePaymaster() {
+function ManagePaymasterContent() {
   const { address, isConnected } = useAccount();
   const searchParams = useSearchParams();
   const paymasterAddress = searchParams.get('address');
@@ -65,10 +65,10 @@ export default function ManagePaymaster() {
   
   // Get the correct ABI based on version
   const paymasterABI = paymasterVersion === 'v6' 
-    ? SINGLETON_PAYMASTER_CONTRACTS.v6.abi
+    ? SINGLETON_PAYMASTER_CONTRACTS.v6?.abi
     : paymasterVersion === 'v7'
-    ? SINGLETON_PAYMASTER_CONTRACTS.v7.abi
-    : SINGLETON_PAYMASTER_CONTRACTS.v8.abi;
+    ? SINGLETON_PAYMASTER_CONTRACTS.v7?.abi
+    : SINGLETON_PAYMASTER_CONTRACTS.v8?.abi;
   
   // Read paymaster balance from EntryPoint
   const { data: paymasterBalance } = useReadContract({
@@ -207,7 +207,12 @@ export default function ManagePaymaster() {
   };
 
   const handleWithdraw = async () => {
-    if (!paymasterAddress || !withdrawAmount || !address || !entryPoint) return;
+    if (!paymasterAddress || !withdrawAmount || !address || !entryPoint || !paymasterABI) {
+      if (!paymasterABI) {
+        toast.error(`Paymaster ABI not available for version ${paymasterVersion}`);
+      }
+      return;
+    }
 
     try {
       // Withdraw from EntryPoint using paymaster's withdraw function
@@ -316,7 +321,7 @@ export default function ManagePaymaster() {
                     <div className="flex justify-between">
                       <span className="text-slate-400">Success Rate:</span>
                       <span className="text-white">
-                        {paymasterInfo.totalAttempts > 0n 
+                        {paymasterInfo.totalAttempts > BigInt(0) 
                           ? `${((Number(paymasterInfo.successCount) / Number(paymasterInfo.totalAttempts)) * 100).toFixed(1)}%`
                           : '0%'
                         }
@@ -522,7 +527,7 @@ export default function ManagePaymaster() {
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-400 mb-1">
-                    {paymasterInfo.totalAttempts > 0n 
+                    {paymasterInfo.totalAttempts > BigInt(0) 
                       ? `${((Number(paymasterInfo.successCount) / Number(paymasterInfo.totalAttempts)) * 100).toFixed(1)}%`
                       : '0%'
                     }
@@ -601,5 +606,20 @@ export default function ManagePaymaster() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ManagePaymaster() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading paymaster management...</p>
+        </div>
+      </div>
+    }>
+      <ManagePaymasterContent />
+    </Suspense>
   );
 }

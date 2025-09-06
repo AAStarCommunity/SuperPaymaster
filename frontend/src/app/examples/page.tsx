@@ -302,7 +302,7 @@ export function useSuperPaymaster(
               // In a real app, you'd call getPaymasterInfo for each
               return {
                 address,
-                feeRate: 0n,
+                feeRate: BigInt(0),
                 name: 'Unknown Paymaster',
                 isActive: true,
                 successRate: 0,
