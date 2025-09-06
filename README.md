@@ -1,4 +1,4 @@
-# SuperPaymaster - Decentralized Gas Payment Router
+# SuperPaymaster - Decentralized Gas Payment
 
 **English** | [中文](#chinese)
 
