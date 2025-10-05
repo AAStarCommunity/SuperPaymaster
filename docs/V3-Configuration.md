@@ -1,4 +1,8 @@
-# SuperPaymaster V3 Configuration
+# Paymaster V3 Configuration
+
+**重要说明**: 
+- **PaymasterV3**: 本项目开发的无链下签名 Paymaster（基于 Pimlico SingletonPaymaster 改造）
+- **SuperPaymaster**: 已部署的 Paymaster 聚合器/注册局（地址: 0x4e67678AF714f6B5A8882C2e5a78B15B08a79575）
 
 ## Network Information
 
@@ -21,14 +25,14 @@
 |----------|---------|------|----------|
 | **SBT** | `0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f` | Soul-Bound Token | ✅ |
 | **PNT** | `0x3e7B771d4541eC85c8137e950598Ac97553a337a` | ERC20 Token | ✅ |
-| **SuperPaymaster (Legacy)** | `0x4e67678AF714f6B5A8882C2e5a78B15B08a79575` | Old Version | ✅ |
+| **SuperPaymaster Registry** | `0x4e67678AF714f6B5A8882C2e5a78B15B08a79575` | Paymaster Aggregator | ✅ |
 
 ### V3 Contracts (To Deploy)
 | Contract | Address | Status |
 |----------|---------|--------|
 | **Settlement** | TBD | 🔄 Development |
-| **SuperPaymasterV7** | TBD | 🔄 Development |
-| **SuperPaymasterV8** | TBD | ⏳ Future |
+| **PaymasterV7** | TBD | 🔄 Development |
+| **PaymasterV8** | TBD | ⏳ Future |
 
 ## Configuration Parameters
 
@@ -52,9 +56,9 @@ SETTLEMENT_THRESHOLD = 1000 PNT (1000 * 10^18 wei)
 
 ### Phase 1: V7 Development (Current)
 1. ✅ Create development branch
-2. 🔄 Define interfaces
+2. ✅ Define interfaces (ISBT, ISettlement)
 3. 🔄 Develop Settlement contract
-4. 🔄 Develop SuperPaymasterV7
+4. 🔄 Develop PaymasterV7 (based on SingletonPaymasterV7)
 5. ⏳ Unit tests
 6. ⏳ Sepolia deployment
 

@@ -136,3 +136,5 @@ broadcast/
 
 # Backup directories
 *-backup/
+.env*
+!.env.example
