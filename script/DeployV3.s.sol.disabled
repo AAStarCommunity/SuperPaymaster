@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import "forge-std/Script.sol";
+import "../src/v3/Settlement.sol";
+import "../src/v3/PaymasterV3.sol";
+
+/**
+ * @title DeployV3
+ * @notice Deployment script for SuperPaymaster V3 (Settlement + PaymasterV3)
+ * @dev Usage:
+ *   forge script script/DeployV3.s.sol:DeployV3 --rpc-url sepolia --broadcast --verify
+ */
+contract DeployV3 is Script {
+    // Sepolia addresses (update these)
+    address constant ENTRYPOINT_V7 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032; // ERC-4337 v0.7 EntryPoint
+    address constant SUPERPAYMASTER_REGISTRY = 0x4e6748c62D8ebe8A8b71736eaAbbB79575a79575; // Your existing registry
+
+    // Deployment config
+    address treasuryAddress;
+    address sbtContractAddress;
+    address gasTokenAddress;
+    uint256 minTokenBalance;
+
+    function setUp() public {
+        // Load from environment variables
+        treasuryAddress = vm.envAddress("TREASURY_ADDRESS");
+        sbtContractAddress = vm.envAddress("SBT_CONTRACT_ADDRESS");
+        gasTokenAddress = vm.envAddress("GAS_TOKEN_ADDRESS");
+        minTokenBalance = vm.envUint("MIN_TOKEN_BALANCE");
+    }
+
+    function run() public {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        console.log("========================================");
+        console.log("SuperPaymaster V3 Deployment");
+        console.log("========================================");
+        console.log("Deployer:", deployer);
+        console.log("Network: Sepolia");
+        console.log("EntryPoint:", ENTRYPOINT_V7);
+        console.log("Registry:", SUPERPAYMASTER_REGISTRY);
+        console.log("========================================");
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        // Step 1: Deploy Settlement
+        console.log("\n[1/2] Deploying Settlement...");
+        Settlement settlement = new Settlement(
+            SUPERPAYMASTER_REGISTRY,
+            treasuryAddress
+        );
+        console.log("Settlement deployed at:", address(settlement));
+        console.log("  - Registry:", SUPERPAYMASTER_REGISTRY);
+        console.log("  - Treasury:", treasuryAddress);
+
+        // Step 2: Deploy PaymasterV3
+        console.log("\n[2/2] Deploying PaymasterV3...");
+        PaymasterV3 paymaster = new PaymasterV3(
+            ENTRYPOINT_V7,
+            deployer, // owner
+            sbtContractAddress,
+            gasTokenAddress,
+            address(settlement),
+            minTokenBalance
+        );
+        console.log("PaymasterV3 deployed at:", address(paymaster));
+        console.log("  - EntryPoint:", ENTRYPOINT_V7);
+        console.log("  - Owner:", deployer);
+        console.log("  - SBT:", sbtContractAddress);
+        console.log("  - Gas Token:", gasTokenAddress);
+        console.log("  - Min Balance:", minTokenBalance);
+        console.log("  - Settlement:", address(settlement));
+
+        vm.stopBroadcast();
+
+        // Post-deployment instructions
+        console.log("\n========================================");
+        console.log("Deployment Complete!");
+        console.log("========================================");
+        console.log("\nNext Steps:");
+        console.log("1. Register PaymasterV3 in SuperPaymaster Registry");
+        console.log("   registry.registerPaymaster(", address(paymaster), ")");
+        console.log("\n2. Deposit ETH to PaymasterV3 for gas sponsorship");
+        console.log("   paymaster.deposit{value: X ether}()");
+        console.log("\n3. Add stake to EntryPoint (optional)");
+        console.log("   paymaster.addStake{value: Y ether}(unstakeDelay)");
+        console.log("\n4. Verify contracts on Etherscan:");
+        console.log("   Settlement:", address(settlement));
+        console.log("   PaymasterV3:", address(paymaster));
+        console.log("========================================\n");
+
+        // Save deployment info
+        string memory deploymentInfo = string(abi.encodePacked(
+            "{\n",
+            '  "network": "sepolia",\n',
+            '  "settlement": "', vm.toString(address(settlement)), '",\n',
+            '  "paymasterV3": "', vm.toString(address(paymaster)), '",\n',
+            '  "entryPoint": "', vm.toString(ENTRYPOINT_V7), '",\n',
+            '  "registry": "', vm.toString(SUPERPAYMASTER_REGISTRY), '",\n',
+            '  "treasury": "', vm.toString(treasuryAddress), '",\n',
+            '  "sbt": "', vm.toString(sbtContractAddress), '",\n',
+            '  "gasToken": "', vm.toString(gasTokenAddress), '",\n',
+            '  "minTokenBalance": "', vm.toString(minTokenBalance), '",\n',
+            '  "deployer": "', vm.toString(deployer), '"\n',
+            "}"
+        ));
+
+        vm.writeFile("deployments/v3-sepolia.json", deploymentInfo);
+        console.log("Deployment info saved to: deployments/v3-sepolia.json");
+    }
+}

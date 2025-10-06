@@ -2,45 +2,99 @@
 pragma solidity ^0.8.23;
 
 /**
- * @title ISettlement - Settlement Contract Interface
- * @notice Interface for batch gas fee settlement
- * @dev Used by SuperPaymaster to record fees for later batch settlement
+ * @title ISettlement - Gas Fee Settlement Interface
+ * @notice Interface for batch settlement of gas fees with status tracking
+ * @dev Uses Hash(paymaster, userOpHash) as unique record key
  */
 interface ISettlement {
+    // ============ Enums ============
+
+    /**
+     * @notice Fee record status
+     * @dev Tracks lifecycle of each fee record
+     */
+    enum FeeStatus {
+        Pending,   // 0 - Recorded, awaiting settlement
+        Settled,   // 1 - Off-chain payment confirmed
+        Disputed,  // 2 - Under dispute (future)
+        Cancelled  // 3 - Cancelled/refunded (future)
+    }
+
+    // ============ Structs ============
+
+    /**
+     * @notice Complete fee record with status tracking
+     * @dev Stored with key = keccak256(abi.encodePacked(paymaster, userOpHash))
+     */
+    struct FeeRecord {
+        address paymaster;       // Paymaster that recorded this fee
+        address user;            // User who owes the fee
+        address token;           // Token used for payment (e.g., PNT)
+        uint256 amount;          // Fee amount in wei
+        uint256 timestamp;       // Block timestamp when recorded
+        FeeStatus status;        // Current status
+        bytes32 userOpHash;      // UserOperation hash from EntryPoint
+        bytes32 settlementHash;  // Off-chain settlement proof (optional)
+    }
+
     // ============ Events ============
 
     /**
-     * @notice Emitted when a gas fee is recorded
-     * @param user Address of the user who incurred the fee
-     * @param token Token address used for payment
-     * @param amount Amount of fee recorded (in wei)
+     * @notice Emitted when a Paymaster records a new fee
+     * @param recordKey Unique key: keccak256(paymaster, userOpHash)
+     * @param paymaster Paymaster contract address
+     * @param user User address
+     * @param token Token address
+     * @param amount Fee amount
+     * @param userOpHash UserOperation hash
      */
     event FeeRecorded(
+        bytes32 indexed recordKey,
+        address indexed paymaster,
         address indexed user,
-        address indexed token,
-        uint256 amount
+        address token,
+        uint256 amount,
+        bytes32 userOpHash
     );
 
     /**
-     * @notice Emitted when fees are settled
-     * @param user Address of the user whose fees were settled
+     * @notice Emitted when a fee is settled
+     * @param recordKey Record key
+     * @param user User address
      * @param token Token address
      * @param amount Amount settled
+     * @param settlementHash Off-chain payment proof
      */
-    event FeesSettled(
+    event FeeSettled(
+        bytes32 indexed recordKey,
         address indexed user,
         address indexed token,
-        uint256 amount
+        uint256 amount,
+        bytes32 settlementHash
     );
 
     /**
-     * @notice Emitted when a Paymaster is authorized or deauthorized
-     * @param paymaster Address of the Paymaster
-     * @param status True if authorized, false if deauthorized
+     * @notice Emitted when fees are batch settled
+     * @param recordCount Number of records settled
+     * @param totalAmount Total amount settled
+     * @param settlementHash Batch settlement proof
      */
-    event PaymasterAuthorized(
-        address indexed paymaster,
-        bool status
+    event BatchSettled(
+        uint256 recordCount,
+        uint256 totalAmount,
+        bytes32 indexed settlementHash
+    );
+
+    /**
+     * @notice Emitted when fee status changes
+     * @param recordKey Record key
+     * @param oldStatus Previous status
+     * @param newStatus New status
+     */
+    event FeeStatusChanged(
+        bytes32 indexed recordKey,
+        FeeStatus oldStatus,
+        FeeStatus newStatus
     );
 
     /**
@@ -53,82 +107,140 @@ interface ISettlement {
         uint256 newThreshold
     );
 
-    // ============ State-Changing Functions ============
+    /**
+     * @notice Emitted when contract is paused
+     */
+    event Paused(address account);
 
     /**
-     * @notice Record gas fee for a user
-     * @dev Only callable by authorized Paymaster contracts
-     * @param user User address
-     * @param token ERC20 token address
-     * @param amount Fee amount in token (wei)
+     * @notice Emitted when contract is unpaused
+     */
+    event Unpaused(address account);
+
+    // ============ Paymaster Functions ============
+
+    /**
+     * @notice Record a gas fee (called by registered Paymaster only)
+     * @dev CRITICAL: Only Paymasters registered in SuperPaymaster Registry can call
+     * @param user User address who owes the fee
+     * @param token Token address for payment
+     * @param amount Fee amount in wei
+     * @param userOpHash UserOperation hash from EntryPoint
+     * @return recordKey Unique record key for this fee
      */
     function recordGasFee(
         address user,
         address token,
-        uint256 amount
-    ) external;
+        uint256 amount,
+        bytes32 userOpHash
+    ) external returns (bytes32 recordKey);
+
+    // ============ Settlement Functions ============
 
     /**
-     * @notice Batch settle fees for multiple users
-     * @dev Only callable by owner/keeper
-     * @param users Array of user addresses
-     * @param token Token address to settle
-     * @param treasury Address to receive the settled fees
+     * @notice Batch settle fees by record keys
+     * @dev Only callable by owner after off-chain payment
+     * @param recordKeys Array of record keys to settle
+     * @param settlementHash Off-chain payment proof (optional)
      */
     function settleFees(
+        bytes32[] calldata recordKeys,
+        bytes32 settlementHash
+    ) external;
+
+    /**
+     * @notice Settle all pending fees for specific users and token
+     * @dev Only callable by owner after off-chain payment
+     * @param users Array of user addresses
+     * @param token Token address
+     * @param settlementHash Off-chain payment proof
+     */
+    function settleFeesByUsers(
         address[] calldata users,
         address token,
-        address treasury
+        bytes32 settlementHash
     ) external;
-
-    /**
-     * @notice Authorize or deauthorize a Paymaster
-     * @dev Only callable by owner
-     * @param paymaster Paymaster contract address
-     * @param status True to authorize, false to deauthorize
-     */
-    function setPaymasterAuthorization(
-        address paymaster,
-        bool status
-    ) external;
-
-    /**
-     * @notice Update settlement threshold
-     * @dev Only callable by owner
-     * @param newThreshold New threshold value
-     */
-    function setSettlementThreshold(uint256 newThreshold) external;
 
     // ============ View Functions ============
 
     /**
-     * @notice Get pending balance for a user
+     * @notice Get fee record by key
+     * @param recordKey Record key
+     * @return record Fee record struct
+     */
+    function getFeeRecord(bytes32 recordKey)
+        external view returns (FeeRecord memory record);
+
+    /**
+     * @notice Get fee record by paymaster and userOpHash
+     * @param paymaster Paymaster address
+     * @param userOpHash UserOperation hash
+     * @return record Fee record struct
+     */
+    function getRecordByUserOp(address paymaster, bytes32 userOpHash)
+        external view returns (FeeRecord memory record);
+
+    /**
+     * @notice Get all record keys for a user
+     * @param user User address
+     * @return keys Array of record keys
+     */
+    function getUserRecordKeys(address user)
+        external view returns (bytes32[] memory keys);
+
+    /**
+     * @notice Get all pending records for a user and token
      * @param user User address
      * @param token Token address
-     * @return pending Pending fee amount
+     * @return records Array of pending fee records
      */
-    function getPendingBalance(
-        address user,
-        address token
-    ) external view returns (uint256 pending);
+    function getUserPendingRecords(address user, address token)
+        external view returns (FeeRecord[] memory records);
 
     /**
-     * @notice Get total pending fees for a token
+     * @notice Get pending balance for user and token
+     * @param user User address
      * @param token Token address
-     * @return total Total pending amount across all users
+     * @return balance Total pending amount
      */
-    function getTotalPending(address token) external view returns (uint256 total);
+    function getPendingBalance(address user, address token)
+        external view returns (uint256 balance);
 
     /**
-     * @notice Check if a Paymaster is authorized
-     * @param paymaster Paymaster address
-     * @return authorized True if authorized
+     * @notice Get total pending amount for a token
+     * @param token Token address
+     * @return total Total pending across all users
      */
-    function isAuthorizedPaymaster(address paymaster) external view returns (bool authorized);
+    function getTotalPending(address token)
+        external view returns (uint256 total);
+
+    /**
+     * @notice Check if contract is paused
+     * @return paused True if paused
+     */
+    function paused() external view returns (bool);
 
     /**
      * @notice Get settlement threshold
-     * @return threshold Current threshold value
+     * @return threshold Current threshold
      */
-    function getSettlementThreshold() external view returns (uint256 threshold);
+    function settlementThreshold() external view returns (uint256 threshold);
+
+    // ============ Admin Functions ============
+
+    /**
+     * @notice Update settlement threshold
+     * @param newThreshold New threshold value
+     */
+    function setSettlementThreshold(uint256 newThreshold) external;
+
+    /**
+     * @notice Pause contract operations
+     */
+    function pause() external;
+
+    /**
+     * @notice Unpause contract operations
+     */
+    function unpause() external;
 }

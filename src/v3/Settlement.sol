@@ -8,19 +8,24 @@ import {ISettlement} from "../interfaces/ISettlement.sol";
 import {ISuperPaymasterRegistry} from "../interfaces/ISuperPaymasterRegistry.sol";
 
 /**
- * @title Settlement - Batch Gas Fee Settlement Contract
+ * @title Settlement - Batch Gas Fee Settlement Contract with Status Tracking
  * @notice Accumulates gas fees from registered Paymasters and enables batch settlement
- * @dev Security-first design with SuperPaymaster Registry integration
+ * @dev Security-first design with Hash-based key for gas optimization and replay protection
  *
- * Key Security Features:
+ * Key Design:
+ * - Record Key = keccak256(abi.encodePacked(paymaster, userOpHash))
+ * - Natural replay protection (same userOp cannot be recorded twice)
+ * - Saves ~10k gas per record (no counter increment)
+ * - Each record has full lifecycle tracking (Pending → Settled)
+ *
+ * Security Features:
  * - ✅ Only Paymasters registered in SuperPaymaster Registry can record fees
  * - ✅ ReentrancyGuard on all state-changing functions
  * - ✅ State changes before external calls (CEI pattern)
- * - ✅ Balance and allowance checks before transfers
  * - ✅ Comprehensive event logging
  * - ✅ Emergency pause mechanism
  *
- * @custom:security-contact security@example.com
+ * @custom:security-contact security@aastar.community
  */
 contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
@@ -30,10 +35,19 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     /// @notice SuperPaymaster Registry contract (immutable for security)
     ISuperPaymasterRegistry public immutable registry;
 
-    /// @notice Mapping: user => token => pending fee amount
-    mapping(address => mapping(address => uint256)) private _pendingFees;
+    /// @notice Main storage: recordKey => FeeRecord
+    /// @dev Key = keccak256(abi.encodePacked(paymaster, userOpHash))
+    mapping(bytes32 => FeeRecord) private _feeRecords;
 
-    /// @notice Mapping: token => total pending across all users
+    /// @notice Index: user => array of record keys
+    /// @dev Allows querying all records for a user
+    mapping(address => bytes32[]) private _userRecordKeys;
+
+    /// @notice Index: user => token => total pending amount
+    /// @dev Fast O(1) lookup for pending balance
+    mapping(address => mapping(address => uint256)) private _pendingAmounts;
+
+    /// @notice Index: token => total pending across all users
     mapping(address => uint256) private _totalPending;
 
     /// @notice Settlement threshold for triggering batch settlements
@@ -41,6 +55,30 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
 
     /// @notice Emergency pause status
     bool private _paused;
+
+    /*//////////////////////////////////////////////////////////////
+                              MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Only registered Paymasters can call
+     * @dev Checks SuperPaymaster Registry for active status
+     */
+    modifier onlyRegisteredPaymaster() {
+        require(
+            registry.isPaymasterActive(msg.sender),
+            "Settlement: paymaster not registered"
+        );
+        _;
+    }
+
+    /**
+     * @notice Only when not paused
+     */
+    modifier whenNotPaused() {
+        require(!_paused, "Settlement: paused");
+        _;
+    }
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -72,31 +110,60 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
 
     /**
      * @inheritdoc ISettlement
-     * @dev CRITICAL SECURITY: Only Paymasters registered in SuperPaymaster can call this
-     * - Checks registry.isPaymasterActive(msg.sender)
-     * - Reentrancy protected
-     * - State changes before events (CEI pattern)
+     * @dev CRITICAL SECURITY:
+     * - Only registered Paymasters can call
+     * - Natural replay protection (duplicate key will revert)
+     * - Saves ~10k gas vs counter-based approach
      */
     function recordGasFee(
         address user,
         address token,
-        uint256 amount
+        uint256 amount,
+        bytes32 userOpHash
     )
         external
         override
         nonReentrant
         whenNotPaused
         onlyRegisteredPaymaster
+        returns (bytes32 recordKey)
     {
+        // Input validation
         require(user != address(0), "Settlement: zero user");
         require(token != address(0), "Settlement: zero token");
         require(amount > 0, "Settlement: zero amount");
+        require(userOpHash != bytes32(0), "Settlement: zero hash");
 
-        // State changes BEFORE events (CEI pattern)
-        _pendingFees[user][token] += amount;
+        // Generate unique key
+        recordKey = keccak256(abi.encodePacked(msg.sender, userOpHash));
+
+        // Replay protection: ensure this record doesn't exist
+        require(
+            _feeRecords[recordKey].amount == 0,
+            "Settlement: duplicate record"
+        );
+
+        // CEI Pattern: Effects
+        _feeRecords[recordKey] = FeeRecord({
+            paymaster: msg.sender,
+            user: user,
+            token: token,
+            amount: amount,
+            timestamp: block.timestamp,
+            status: FeeStatus.Pending,
+            userOpHash: userOpHash,
+            settlementHash: bytes32(0)
+        });
+
+        // Update indexes
+        _userRecordKeys[user].push(recordKey);
+        _pendingAmounts[user][token] += amount;
         _totalPending[token] += amount;
 
-        emit FeeRecorded(user, token, amount);
+        // CEI Pattern: Interactions (events)
+        emit FeeRecorded(recordKey, msg.sender, user, token, amount, userOpHash);
+
+        return recordKey;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -105,17 +172,70 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
 
     /**
      * @inheritdoc ISettlement
-     * @dev Security:
-     * - Only owner can trigger
-     * - Reentrancy protected
-     * - Balance AND allowance validation before transfer
-     * - State changes before external calls
-     * - Fails safely if any transfer fails
+     * @dev Batch settle by record keys
+     * Security:
+     * - Only owner can call
+     * - Validates all records before state changes
+     * - Atomic operation (all or nothing)
      */
     function settleFees(
+        bytes32[] calldata recordKeys,
+        bytes32 settlementHash
+    )
+        external
+        override
+        nonReentrant
+        whenNotPaused
+        onlyOwner
+    {
+        require(recordKeys.length > 0, "Settlement: empty records");
+
+        uint256 totalSettled = 0;
+
+        for (uint256 i = 0; i < recordKeys.length; i++) {
+            bytes32 key = recordKeys[i];
+            FeeRecord storage record = _feeRecords[key];
+
+            // Validate record exists and is pending
+            require(record.amount > 0, "Settlement: record not found");
+            require(
+                record.status == FeeStatus.Pending,
+                "Settlement: not pending"
+            );
+
+            // CEI Pattern: Effects
+            FeeStatus oldStatus = record.status;
+            record.status = FeeStatus.Settled;
+            record.settlementHash = settlementHash;
+
+            // Update indexes
+            _pendingAmounts[record.user][record.token] -= record.amount;
+            _totalPending[record.token] -= record.amount;
+
+            totalSettled += record.amount;
+
+            // CEI Pattern: Interactions (events)
+            emit FeeSettled(
+                key,
+                record.user,
+                record.token,
+                record.amount,
+                settlementHash
+            );
+            emit FeeStatusChanged(key, oldStatus, FeeStatus.Settled);
+        }
+
+        emit BatchSettled(recordKeys.length, totalSettled, settlementHash);
+    }
+
+    /**
+     * @inheritdoc ISettlement
+     * @dev Settle all pending fees for specific users and token
+     */
+    function settleFeesByUsers(
         address[] calldata users,
         address token,
-        address treasury
+        bytes32 settlementHash
     )
         external
         override
@@ -125,80 +245,158 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     {
         require(users.length > 0, "Settlement: empty users");
         require(token != address(0), "Settlement: zero token");
-        require(treasury != address(0), "Settlement: zero treasury");
 
         uint256 totalSettled = 0;
-        IERC20 tokenContract = IERC20(token);
+        uint256 recordCount = 0;
 
         for (uint256 i = 0; i < users.length; i++) {
             address user = users[i];
-            uint256 pending = _pendingFees[user][token];
+            bytes32[] memory keys = _userRecordKeys[user];
 
-            if (pending == 0) {
-                continue; // Skip users with zero pending
+            for (uint256 j = 0; j < keys.length; j++) {
+                bytes32 key = keys[j];
+                FeeRecord storage record = _feeRecords[key];
+
+                // Only settle pending records for this token
+                if (
+                    record.status == FeeStatus.Pending &&
+                    record.token == token
+                ) {
+                    // Update record
+                    FeeStatus oldStatus = record.status;
+                    record.status = FeeStatus.Settled;
+                    record.settlementHash = settlementHash;
+
+                    // Update indexes
+                    _pendingAmounts[user][token] -= record.amount;
+                    _totalPending[token] -= record.amount;
+
+                    totalSettled += record.amount;
+                    recordCount++;
+
+                    emit FeeSettled(
+                        key,
+                        user,
+                        token,
+                        record.amount,
+                        settlementHash
+                    );
+                    emit FeeStatusChanged(key, oldStatus, FeeStatus.Settled);
+                }
             }
-
-            // CRITICAL: Check user balance BEFORE transfer
-            uint256 userBalance = tokenContract.balanceOf(user);
-            require(
-                userBalance >= pending,
-                "Settlement: insufficient balance"
-            );
-
-            // CRITICAL: Check user allowance for this contract
-            uint256 allowance = tokenContract.allowance(user, address(this));
-            require(
-                allowance >= pending,
-                "Settlement: insufficient allowance"
-            );
-
-            // State changes BEFORE external call (CEI pattern)
-            _pendingFees[user][token] = 0;
-            totalSettled += pending;
-
-            // External call AFTER state changes
-            bool success = tokenContract.transferFrom(user, treasury, pending);
-            require(success, "Settlement: transfer failed");
-
-            emit FeesSettled(user, token, pending);
         }
 
-        // Update total pending
-        require(
-            _totalPending[token] >= totalSettled,
-            "Settlement: total pending underflow"
-        );
-        _totalPending[token] -= totalSettled;
+        require(recordCount > 0, "Settlement: no pending records");
+        emit BatchSettled(recordCount, totalSettled, settlementHash);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                          VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc ISettlement
+    function getFeeRecord(bytes32 recordKey)
+        external
+        view
+        override
+        returns (FeeRecord memory record)
+    {
+        return _feeRecords[recordKey];
+    }
+
+    /// @inheritdoc ISettlement
+    function getRecordByUserOp(address paymaster, bytes32 userOpHash)
+        external
+        view
+        override
+        returns (FeeRecord memory record)
+    {
+        bytes32 key = keccak256(abi.encodePacked(paymaster, userOpHash));
+        return _feeRecords[key];
+    }
+
+    /// @inheritdoc ISettlement
+    function getUserRecordKeys(address user)
+        external
+        view
+        override
+        returns (bytes32[] memory keys)
+    {
+        return _userRecordKeys[user];
+    }
+
+    /// @inheritdoc ISettlement
+    function getUserPendingRecords(address user, address token)
+        external
+        view
+        override
+        returns (FeeRecord[] memory records)
+    {
+        bytes32[] memory keys = _userRecordKeys[user];
+        uint256 pendingCount = 0;
+
+        // First pass: count pending records for this token
+        for (uint256 i = 0; i < keys.length; i++) {
+            FeeRecord storage record = _feeRecords[keys[i]];
+            if (record.status == FeeStatus.Pending && record.token == token) {
+                pendingCount++;
+            }
+        }
+
+        // Second pass: collect pending records
+        records = new FeeRecord[](pendingCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < keys.length; i++) {
+            FeeRecord storage record = _feeRecords[keys[i]];
+            if (record.status == FeeStatus.Pending && record.token == token) {
+                records[index++] = record;
+            }
+        }
+
+        return records;
+    }
+
+    /// @inheritdoc ISettlement
+    function getPendingBalance(address user, address token)
+        external
+        view
+        override
+        returns (uint256 balance)
+    {
+        return _pendingAmounts[user][token];
+    }
+
+    /// @inheritdoc ISettlement
+    function getTotalPending(address token)
+        external
+        view
+        override
+        returns (uint256 total)
+    {
+        return _totalPending[token];
+    }
+
+    /// @inheritdoc ISettlement
+    function paused() external view override returns (bool) {
+        return _paused;
+    }
+
+    /// @inheritdoc ISettlement
+    function settlementThreshold()
+        external
+        view
+        override
+        returns (uint256 threshold)
+    {
+        return _settlementThreshold;
     }
 
     /*//////////////////////////////////////////////////////////////
                           ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @inheritdoc ISettlement
-     * @dev DEPRECATED: Authorization now handled by SuperPaymaster Registry
-     * @dev This function is kept for ISettlement interface compatibility
-     */
-    function setPaymasterAuthorization(
-        address paymaster,
-        bool status
-    )
-        external
-        override
-        onlyOwner
-    {
-        // Authorization is now handled by SuperPaymaster Registry
-        // Emit event for interface compatibility
-        emit PaymasterAuthorized(paymaster, status);
-    }
-
-    /**
-     * @inheritdoc ISettlement
-     */
-    function setSettlementThreshold(
-        uint256 newThreshold
-    )
+    /// @inheritdoc ISettlement
+    function setSettlementThreshold(uint256 newThreshold)
         external
         override
         onlyOwner
@@ -211,112 +409,33 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
         emit SettlementThresholdUpdated(oldThreshold, newThreshold);
     }
 
-    /**
-     * @notice Emergency pause/unpause
-     * @param status True to pause, false to unpause
-     * @dev Only owner can pause/unpause
-     */
-    function setPaused(bool status) external onlyOwner {
-        _paused = status;
+    /// @inheritdoc ISettlement
+    function pause() external override onlyOwner {
+        _paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /// @inheritdoc ISettlement
+    function unpause() external override onlyOwner {
+        _paused = false;
+        emit Unpaused(msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////
-                            VIEW FUNCTIONS
+                          HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @inheritdoc ISettlement
+     * @notice Calculate record key for a paymaster and userOpHash
+     * @param paymaster Paymaster address
+     * @param userOpHash UserOperation hash
+     * @return key Record key
      */
-    function getPendingBalance(
-        address user,
-        address token
-    )
+    function calculateRecordKey(address paymaster, bytes32 userOpHash)
         external
-        view
-        override
-        returns (uint256)
+        pure
+        returns (bytes32 key)
     {
-        return _pendingFees[user][token];
-    }
-
-    /**
-     * @inheritdoc ISettlement
-     */
-    function getTotalPending(
-        address token
-    )
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return _totalPending[token];
-    }
-
-    /**
-     * @inheritdoc ISettlement
-     * @dev Checks SuperPaymaster Registry for authorization
-     */
-    function isAuthorizedPaymaster(
-        address paymaster
-    )
-        external
-        view
-        override
-        returns (bool)
-    {
-        return registry.isPaymasterActive(paymaster);
-    }
-
-    /**
-     * @inheritdoc ISettlement
-     */
-    function getSettlementThreshold()
-        external
-        view
-        override
-        returns (uint256)
-    {
-        return _settlementThreshold;
-    }
-
-    /**
-     * @notice Check if contract is paused
-     * @return True if paused
-     */
-    function isPaused() external view returns (bool) {
-        return _paused;
-    }
-
-    /**
-     * @notice Get SuperPaymaster Registry address
-     * @return Address of the registry contract
-     */
-    function getRegistry() external view returns (address) {
-        return address(registry);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Ensure caller is registered and active in SuperPaymaster Registry
-     * @dev CRITICAL SECURITY: This is the main authorization check
-     */
-    modifier onlyRegisteredPaymaster() {
-        require(
-            registry.isPaymasterActive(msg.sender),
-            "Settlement: paymaster not registered in SuperPaymaster"
-        );
-        _;
-    }
-
-    /**
-     * @notice Ensure contract is not paused
-     */
-    modifier whenNotPaused() {
-        require(!_paused, "Settlement: paused");
-        _;
+        return keccak256(abi.encodePacked(paymaster, userOpHash));
     }
 }

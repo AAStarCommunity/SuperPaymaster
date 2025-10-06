@@ -113,6 +113,18 @@ interface ISuperPaymasterV3 {
      */
     function setMinTokenBalance(uint256 minBalance) external;
 
+    /**
+     * @notice Pauses paymaster operations
+     * @dev Only callable by owner
+     */
+    function pause() external;
+
+    /**
+     * @notice Unpauses paymaster operations
+     * @dev Only callable by owner
+     */
+    function unpause() external;
+
     // ============ View Functions ============
 
     /**
