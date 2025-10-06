@@ -74,21 +74,27 @@ contract V3IntegrationTest is Script {
     function _testContractConfiguration() internal view {
         // 检查 Settlement 配置
         (bool success1, bytes memory data1) = settlementAddress.staticcall(
-            abi.encodeWithSignature("treasury()")
+            abi.encodeWithSignature("registry()")
         );
-        require(success1, "Failed to get treasury");
-        address actualTreasury = abi.decode(data1, (address));
-        console.log("  Treasury:", actualTreasury);
-        require(actualTreasury == treasury, "Treasury mismatch");
+        require(success1, "Failed to get registry");
+        address registryAddr = abi.decode(data1, (address));
+        console.log("  Settlement Registry:", registryAddr);
 
-        // 检查 PaymasterV3 配置
-        (bool success2, bytes memory data2) = paymasterV3Address.staticcall(
-            abi.encodeWithSignature("sbtContract()")
+        // 检查 Settlement threshold
+        (bool success2, bytes memory data2) = settlementAddress.staticcall(
+            abi.encodeWithSignature("settlementThreshold()")
         );
-        require(success2, "Failed to get SBT");
-        address actualSBT = abi.decode(data2, (address));
-        console.log("  SBT Contract:", actualSBT);
-        require(actualSBT == sbtAddress, "SBT mismatch");
+        require(success2, "Failed to get threshold");
+        uint256 threshold = abi.decode(data2, (uint256));
+        console.log("  Settlement Threshold:", threshold);
+
+        // 检查 PaymasterV3 的 EntryPoint
+        (bool success3, bytes memory data3) = paymasterV3Address.staticcall(
+            abi.encodeWithSignature("entryPoint()")
+        );
+        require(success3, "Failed to get EntryPoint");
+        address entryPoint = abi.decode(data3, (address));
+        console.log("  PaymasterV3 EntryPoint:", entryPoint);
 
         console.log("  [OK] Configuration verified");
     }

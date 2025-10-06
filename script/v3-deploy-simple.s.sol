@@ -19,27 +19,27 @@ contract V3DeploySimple is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
-        address treasury = vm.envAddress("TREASURY_ADDRESS");
         address sbt = vm.envAddress("SBT_CONTRACT_ADDRESS");
         address gasToken = vm.envAddress("GAS_TOKEN_ADDRESS");
         uint256 minBalance = vm.envUint("MIN_TOKEN_BALANCE");
+        uint256 settlementThreshold = vm.envUint("SETTLEMENT_THRESHOLD");
 
         console.log("========================================");
         console.log("V3 Simple Deployment - Sepolia");
         console.log("========================================");
         console.log("Deployer:", deployer);
         console.log("Registry:", SUPERPAYMASTER_REGISTRY);
-        console.log("Treasury:", treasury);
         console.log("SBT:", sbt);
         console.log("Gas Token:", gasToken);
         console.log("Min Balance:", minBalance);
+        console.log("Settlement Threshold:", settlementThreshold);
         console.log("========================================\n");
 
         vm.startBroadcast(deployerPrivateKey);
 
         // 步骤1: 部署 Settlement
         console.log("[1/2] Deploying Settlement...");
-        address settlement = _deploySettlement(SUPERPAYMASTER_REGISTRY, treasury);
+        address settlement = _deploySettlement(deployer, SUPERPAYMASTER_REGISTRY, settlementThreshold);
         console.log("  Settlement deployed:", settlement);
 
         // 步骤2: 部署 PaymasterV3
@@ -88,11 +88,11 @@ contract V3DeploySimple is Script {
         vm.writeFile("deployments/v3-sepolia-latest.json", info);
     }
 
-    function _deploySettlement(address registry, address treasury) internal returns (address) {
-        // Settlement bytecode (需要预先编译)
+    function _deploySettlement(address owner, address registry, uint256 threshold) internal returns (address) {
+        // Settlement constructor: (address initialOwner, address registryAddress, uint256 initialThreshold)
         bytes memory bytecode = abi.encodePacked(
             vm.getCode("Settlement.sol:Settlement"),
-            abi.encode(registry, treasury)
+            abi.encode(owner, registry, threshold)
         );
 
         address addr;
