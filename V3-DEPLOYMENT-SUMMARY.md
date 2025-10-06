@@ -113,6 +113,29 @@ optimizer_runs = 1000000
 | **PaymasterV3.sol** | 100.00% | 100.00% | 89.47% | 100.00% |
 | **总计** | 99.45% | 98.60% | 85.19% | 100.00% |
 
+## 自动化脚本
+
+所有操作已脚本化,位于 `scripts/` 目录:
+
+```bash
+# 1. 完整部署 (包括 Settlement 和 PaymasterV3)
+./scripts/deploy-v3.sh
+
+# 2. 充值 ETH 到 PaymasterV3
+./scripts/deposit-eth.sh <paymaster_address> [amount]
+
+# 3. 注册 Paymaster 到 Registry
+./scripts/register-paymaster.sh <paymaster_address> [feeRate] [name]
+
+# 4. 运行集成测试
+./scripts/integration-test.sh
+
+# 5. 验证合约 (Etherscan)
+./scripts/verify-contracts.sh
+```
+
+所有脚本会自动从 `.env.v3` 加载配置。
+
 ## 下一步操作
 
 ### 1. 验证合约 (Etherscan)
@@ -139,14 +162,27 @@ forge verify-contract \
   --rpc-url $SEPOLIA_RPC_URL
 ```
 
-### 2. 注册 Paymaster
+### 2. 注册 Paymaster ✅ 已完成
 
 ```bash
+# 方法1: 使用脚本 (推荐)
+./scripts/register-paymaster.sh
+
+# 方法2: 手动执行
+# 注意: registerPaymaster 需要3个参数 (address, feeRate, name)
 cast send 0x4e67678AF714f6B5A8882C2e5a78B15B08a79575 \
-  'registerPaymaster(address)' 0x1568da4ea1E2C34255218b6DaBb2458b57B35805 \
+  'registerPaymaster(address,uint256,string)' \
+  0x1568da4ea1E2C34255218b6DaBb2458b57B35805 \
+  100 \
+  "PaymasterV3" \
   --rpc-url $SEPOLIA_RPC_URL \
   --private-key $PRIVATE_KEY \
   --legacy
+
+# 已注册
+# TX: 0xee1ed51593f5ca79de9192dbac27a9b6ae883158dbe8eb205e9957f960451ec1
+# Fee Rate: 100 (1%)
+# Status: Active ✅
 ```
 
 ### 3. 充值 ETH 到 Paymaster ✅ 已完成
