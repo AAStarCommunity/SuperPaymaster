@@ -117,6 +117,16 @@ interface ISettlement {
      */
     event Unpaused(address account);
 
+    /**
+     * @notice Emitted when fee rate is updated
+     */
+    event FeeRateUpdated(uint256 oldRate, uint256 newRate);
+
+    /**
+     * @notice Emitted when treasury address is updated
+     */
+    event TreasuryUpdated(address oldTreasury, address newTreasury);
+
     // ============ Paymaster Functions ============
 
     /**

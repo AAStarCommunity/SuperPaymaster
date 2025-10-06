@@ -239,6 +239,10 @@ contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
         // Calculate actual gas cost (already in wei from EntryPoint)
         uint256 gasCostInWei = actualGasCost;
 
+        // Convert wei to Gwei for Settlement record (L2 gas optimization)
+        // Keeper will use: PNT = (gasGwei * 1e9 / 1e18 * ethPriceUSD) / 0.02
+        uint256 gasGwei = gasCostInWei / 1e9;
+
         // Record fee to Settlement contract for batch processing
         // Settlement will:
         // 1. Generate key = keccak256(this, userOpHash)
@@ -247,7 +251,7 @@ contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
         ISettlement(settlementContract).recordGasFee(
             user,
             gasToken,
-            gasCostInWei,
+            gasGwei,
             userOpHash
         );
 

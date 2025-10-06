@@ -56,6 +56,14 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     /// @notice Emergency pause status
     bool private _paused;
 
+    /// @notice Fee rate in basis points (150 = 1.5%)
+    /// @dev Used by off-chain keeper for calculating final PNT amount
+    uint256 public feeRate;
+
+    /// @notice Treasury address for receiving PNT payments
+    /// @dev Used by off-chain keeper for transferFrom destination
+    address public treasury;
+
     /*//////////////////////////////////////////////////////////////
                               MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -419,6 +427,33 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     function unpause() external override onlyOwner {
         _paused = false;
         emit Unpaused(msg.sender);
+    }
+
+    /**
+     * @notice Set fee rate for off-chain settlement
+     * @param _feeRate New fee rate in basis points (150 = 1.5%)
+     * @dev Maximum 10% (1000 basis points)
+     */
+    function setFeeRate(uint256 _feeRate) external onlyOwner {
+        require(_feeRate <= 1000, "Settlement: fee rate too high");
+
+        uint256 oldRate = feeRate;
+        feeRate = _feeRate;
+
+        emit FeeRateUpdated(oldRate, _feeRate);
+    }
+
+    /**
+     * @notice Set treasury address for PNT payments
+     * @param _treasury New treasury address
+     */
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Settlement: zero treasury");
+
+        address oldTreasury = treasury;
+        treasury = _treasury;
+
+        emit TreasuryUpdated(oldTreasury, _treasury);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -150,9 +150,10 @@ contract PaymasterV3Test is Test {
         vm.prank(address(mockEntryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost, 1 gwei);
 
+        // Verify Settlement receives gasGwei (wei / 1e9)
         MockSettlement settlement = mockSettlement;
         assertEq(settlement.lastUser(), user1);
-        assertEq(settlement.lastAmount(), actualGasCost);
+        assertEq(settlement.lastAmount(), actualGasCost / 1e9); // Expect Gwei, not wei
     }
 
     function test_PostOp_RevertIf_NotEntryPoint() public {
