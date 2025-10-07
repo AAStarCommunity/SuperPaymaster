@@ -11,7 +11,7 @@ interface IEntryPoint {
 /// @notice A simple paymaster router for EntryPoint v0.7
 /// @dev Routes user operations to registered paymasters for gas sponsorship
 contract SuperPaymasterV7 {
-
+    
     struct PaymasterPool {
         address paymaster;
         uint256 feeRate;
@@ -27,7 +27,7 @@ contract SuperPaymasterV7 {
     address[] public paymasterList;
     uint256 public routerFeeRate;
     address public owner;
-
+    
     // Events
     event PaymasterRegistered(address indexed paymaster, uint256 feeRate, string name);
     event PaymasterSelected(address indexed paymaster, address indexed user, uint256 feeRate);
@@ -51,7 +51,7 @@ contract SuperPaymasterV7 {
         require(_entryPoint != address(0), "Invalid EntryPoint address");
         require(_owner != address(0), "Invalid owner address");
         require(_routerFeeRate <= 10000, "Invalid fee rate");
-
+        
         entryPoint = IEntryPoint(_entryPoint);
         owner = _owner;
         routerFeeRate = _routerFeeRate;
@@ -97,7 +97,7 @@ contract SuperPaymasterV7 {
         for (uint256 i = 0; i < paymasterList.length; i++) {
             address pm = paymasterList[i];
             PaymasterPool memory pool = paymasterPools[pm];
-
+            
             if (pool.isActive && pool.feeRate < bestFeeRate) {
                 // Simple availability check - has contract code
                 if (_isPaymasterAvailable(pm)) {
@@ -137,27 +137,9 @@ contract SuperPaymasterV7 {
 
     /// @notice Get paymaster information
     /// @param _paymaster Address of the paymaster
-    /// @return feeRate Fee rate in basis points
-    /// @return isActive Whether the paymaster is active
-    /// @return successCount Number of successful operations
-    /// @return totalAttempts Total number of attempts
-    /// @return name Display name
-    function getPaymasterInfo(address _paymaster) external view returns (
-        uint256 feeRate,
-        bool isActive,
-        uint256 successCount,
-        uint256 totalAttempts,
-        string memory name
-    ) {
-        PaymasterPool memory pool = paymasterPools[_paymaster];
-        return (pool.feeRate, pool.isActive, pool.successCount, pool.totalAttempts, pool.name);
-    }
-
-    /// @notice Check if a paymaster is registered and active
-    /// @param paymaster Address to check
-    /// @return True if registered and active
-    function isPaymasterActive(address paymaster) external view returns (bool) {
-        return paymasterPools[paymaster].isActive;
+    /// @return pool PaymasterPool struct with all information
+    function getPaymasterInfo(address _paymaster) external view returns (PaymasterPool memory pool) {
+        return paymasterPools[_paymaster];
     }
 
     /// @notice Get router statistics
@@ -172,14 +154,14 @@ contract SuperPaymasterV7 {
         uint256 totalRoutes
     ) {
         totalPaymasters = paymasterList.length;
-
+        
         for (uint256 i = 0; i < paymasterList.length; i++) {
             PaymasterPool memory pool = paymasterPools[paymasterList[i]];
-
+            
             if (pool.isActive) {
                 activePaymasters++;
             }
-
+            
             totalSuccessfulRoutes += pool.successCount;
             totalRoutes += pool.totalAttempts;
         }
@@ -226,9 +208,9 @@ contract SuperPaymasterV7 {
     /// @notice Withdraw funds from EntryPoint (only owner)
     /// @param withdrawAddress Address to receive the funds
     /// @param amount Amount to withdraw
-    function withdrawTo(address payable withdrawAddress, uint256 amount)
-        external
-        onlyOwner
+    function withdrawTo(address payable withdrawAddress, uint256 amount) 
+        external 
+        onlyOwner 
     {
         entryPoint.withdrawTo(withdrawAddress, amount);
     }
