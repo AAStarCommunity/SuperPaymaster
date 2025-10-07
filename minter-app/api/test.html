@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Factory Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 10px 0; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>ERC-4337 Factory Test Page</h1>
+    
+    <div class="test-section">
+        <h3>🏭 可用工厂对比</h3>
+        <p><strong>WorkingFactory (推荐)</strong></p>
+        <ul>
+            <li>地址: <code>0xFc411603D1F1e2B1E9F692E2cBBb74Fd4f2feE18</code></li>
+            <li>类型: <code>simple</code></li>
+            <li>函数: <code>getCalculatedAddress</code> (无ethers.js bug)</li>
+            <li>特点: 我们自定义部署，专门解决bug问题</li>
+        </ul>
+        
+        <p><strong>Official SimpleAccountFactory</strong></p>
+        <ul>
+            <li>地址: <code>0x9406Cc6185a346906296840746125a0E44976454</code></li>
+            <li>类型: <code>official</code></li>
+            <li>函数: <code>getAddress</code> (通过raw Interface调用避免bug)</li>
+            <li>特点: ERC-4337标准官方实现</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🧪 测试 WorkingFactory</h3>
+        <button onclick="testWorkingFactory()">测试 WorkingFactory</button>
+        <div id="workingResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🧪 测试 Official Factory</h3>
+        <button onclick="testOfficialFactory()">测试 Official Factory</button>
+        <div id="officialResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testWorkingFactory() {
+            const resultDiv = document.getElementById('workingResult');
+            resultDiv.innerHTML = '测试中...';
+            
+            try {
+                const response = await fetch('/api/calculateAccountAddress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: "0x742d35cC6634c0532925A3b8d39E9C4b73e86E7D",
+                        salt: 0,
+                        factoryAddress: "0xFc411603D1F1e2B1E9F692E2cBBb74Fd4f2feE18",
+                        factoryType: "simple"
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 成功!</strong><br>
+                        预测地址: <code>${data.predictedAddress}</code><br>
+                        预期地址: <code>0x60F358E6C1C0479A9cA9284E3c798DfFc5d75b19</code><br>
+                        匹配: ${data.predictedAddress === '0x60F358E6C1C0479A9cA9284E3c798DfFc5d75b19' ? '✅' : '❌'}
+                    `;
+                } else {
+                    throw new Error(data.details || data.error || 'Unknown error');
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>❌ 错误:</strong> ${error.message}`;
+            }
+        }
+        
+        async function testOfficialFactory() {
+            const resultDiv = document.getElementById('officialResult');
+            resultDiv.innerHTML = '测试中...';
+            
+            try {
+                const response = await fetch('/api/calculateAccountAddress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        owner: "0x742d35cC6634c0532925A3b8d39E9C4b73e86E7D",
+                        salt: 0,
+                        factoryAddress: "0x9406Cc6185a346906296840746125a0E44976454",
+                        factoryType: "official"
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 成功!</strong><br>
+                        预测地址: <code>${data.predictedAddress}</code><br>
+                        预期地址: <code>0x57f372F761946b4197C7EC82c8D09E1B042380a6</code><br>
+                        匹配: ${data.predictedAddress === '0x57f372F761946b4197C7EC82c8D09E1B042380a6' ? '✅' : '❌'}
+                    `;
+                } else {
+                    throw new Error(data.details || data.error || 'Unknown error');
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>❌ 错误:</strong> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

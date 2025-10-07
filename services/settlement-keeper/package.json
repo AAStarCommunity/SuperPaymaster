@@ -1,0 +1,24 @@
+{
+  "name": "superpaymaster-v3-keeper",
+  "version": "1.0.0",
+  "description": "Settlement Keeper for SuperPaymaster V3 - Off-chain settlement service",
+  "main": "settlement-keeper.js",
+  "scripts": {
+    "start": "node settlement-keeper.js",
+    "test": "node test-keeper.js"
+  },
+  "keywords": [
+    "superpaymaster",
+    "erc4337",
+    "settlement",
+    "keeper"
+  ],
+  "author": "Jason",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.9.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
