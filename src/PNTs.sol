@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 contract PNTs is ERC20, Ownable {
     constructor() ERC20("Points Token", "PNTs") Ownable(msg.sender) {}
