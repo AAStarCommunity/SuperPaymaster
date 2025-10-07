@@ -14,13 +14,13 @@
 ACCOUNT="0x你的账户地址"
 
 # 1. 检查 PNT 余额
-cast call 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+cast call 0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   "balanceOf(address)(uint256)" \
   $ACCOUNT \
   --rpc-url https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
 
 # 2. 检查 PNT 授权 (最重要!)
-cast call 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+cast call 0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   "allowance(address,address)(uint256)" \
   $ACCOUNT \
   0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 \
@@ -48,7 +48,7 @@ https://gastoken-faucet.vercel.app
 # 通过账户的 execute 函数授权
 cast send $ACCOUNT \
   "execute(address,uint256,bytes)" \
-  0x090e34709a592210158aa49a969e4a04e3a29ebd \
+  0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   0 \
   $(cast calldata "approve(address,uint256)" 0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 $(cast max-uint)) \
   --rpc-url $SEPOLIA_RPC_URL \
@@ -59,7 +59,7 @@ cast send $ACCOUNT \
 
 ```bash
 # 直接授权
-cast send 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+cast send 0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   "approve(address,uint256)" \
   0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 \
   $(cast max-uint) \
@@ -74,7 +74,7 @@ const { ethers } = require("ethers");
 
 const ACCOUNT = "0x你的账户地址";
 const PAYMASTER_V4 = "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445";
-const PNT_TOKEN = "0x090e34709a592210158aa49a969e4a04e3a29ebd";
+const PNT_TOKEN = "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180";
 const PRIVATE_KEY = "0x你的私钥";
 const RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY";
 
@@ -126,7 +126,7 @@ approve().catch(console.error);
 
 ```bash
 # 再次检查授权
-cast call 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+cast call 0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   "allowance(address,address)(uint256)" \
   $ACCOUNT \
   0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 \

@@ -25,7 +25,7 @@ const SBT_ADDRESS =
   process.env.SBT_CONTRACT_ADDRESS ||
   "0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f";
 const PNT_ADDRESS =
-  process.env.PNT_TOKEN_ADDRESS || "0x090e34709a592210158aa49a969e4a04e3a29ebd";
+  process.env.PNT_TOKEN_ADDRESS || "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180"; // GasTokenV2 (PNTv2)
 
 // Mint amounts
 const PNT_MINT_AMOUNT = ethers.parseUnits("100", 18); // 100 PNT
