@@ -4,11 +4,17 @@ const { ethers } = require("ethers");
 // This script submits UserOp directly via EntryPoint instead of bundler
 // to bypass Alchemy's gas efficiency policy
 
-const ENTRYPOINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
+const ENTRYPOINT =
+  process.env.ENTRYPOINT_V07 || "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 const SIMPLE_ACCOUNT = "0x94FC9B8B7cAb56C01f20A24E37C2433FCe88A10D";
-const PAYMASTER = "0x1568da4ea1E2C34255218b6DaBb2458b57B35805";
+const PAYMASTER =
+  process.env.PAYMASTER_V3_ADDRESS ||
+  process.env.PAYMASTER_V3 ||
+  "0x4D66379b88Ff32dFf8325e7aa877fdB4A4E2599C";
 const PNT_TOKEN =
-  process.env.PNTS_TOKEN || "0x090e34709a592210158aa49a969e4a04e3a29ebd";
+  process.env.GAS_TOKEN_ADDRESS ||
+  process.env.PNTS_TOKEN ||
+  "0x090e34709a592210158aa49a969e4a04e3a29ebd";
 const OWNER_PRIVATE_KEY = process.env.PRIVATE_KEY;
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
 const RECIPIENT = "0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA";
@@ -83,7 +89,7 @@ async function main() {
   const paymasterAndData = ethers.concat([
     PAYMASTER,
     ethers.zeroPadValue(ethers.toBeHex(200000n), 16), // paymasterVerificationGasLimit
-    ethers.zeroPadValue(ethers.toBeHex(150000n), 16), // paymasterPostOpGasLimit
+    ethers.zeroPadValue(ethers.toBeHex(300000n), 16), // paymasterPostOpGasLimit (increased for Settlement.recordGasFee)
     "0x", // paymasterData
   ]);
 

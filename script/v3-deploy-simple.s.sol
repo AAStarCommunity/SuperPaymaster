@@ -13,9 +13,8 @@ import "forge-std/console.sol";
 contract V3DeploySimple is Script {
     // Sepolia 地址
     address constant ENTRYPOINT_V7 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
-    address constant SUPERPAYMASTER_REGISTRY = 0x4e6748C62d8EBE8a8b71736EAABBB79575A79575;
 
-    function run() public {
+    function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
@@ -23,12 +22,13 @@ contract V3DeploySimple is Script {
         address gasToken = vm.envAddress("GAS_TOKEN_ADDRESS");
         uint256 minBalance = vm.envUint("MIN_TOKEN_BALANCE");
         uint256 settlementThreshold = vm.envUint("SETTLEMENT_THRESHOLD");
+        address registry = vm.envAddress("SUPER_PAYMASTER"); // 从环境变量读取 Registry 地址
 
         console.log("========================================");
         console.log("V3 Simple Deployment - Sepolia");
         console.log("========================================");
         console.log("Deployer:", deployer);
-        console.log("Registry:", SUPERPAYMASTER_REGISTRY);
+        console.log("Registry:", registry);
         console.log("SBT:", sbt);
         console.log("Gas Token:", gasToken);
         console.log("Min Balance:", minBalance);
@@ -39,7 +39,7 @@ contract V3DeploySimple is Script {
 
         // 步骤1: 部署 Settlement
         console.log("[1/2] Deploying Settlement...");
-        address settlement = _deploySettlement(deployer, SUPERPAYMASTER_REGISTRY, settlementThreshold);
+        address settlement = _deploySettlement(deployer, registry, settlementThreshold);
         console.log("  Settlement deployed:", settlement);
 
         // 步骤2: 部署 PaymasterV3
@@ -69,8 +69,8 @@ contract V3DeploySimple is Script {
         console.log("   export SETTLEMENT_ADDRESS=", settlement);
         console.log("   export PAYMASTER_V3_ADDRESS=", paymaster);
         console.log("\n2. Register in Registry:");
-        console.log("   cast send", SUPERPAYMASTER_REGISTRY, "\\");
-        console.log("     'registerPaymaster(address)'", paymaster, "\\");
+        console.log("   cast send", registry, "\\");
+        console.log("     'registerPaymaster(address,string,uint256)'", paymaster, "'SuperPaymasterV3' 150 \\");
         console.log("     --rpc-url sepolia --private-key $PRIVATE_KEY");
         console.log("\n3. Deposit ETH:");
         console.log("   cast send", paymaster, "\\");
@@ -91,7 +91,7 @@ contract V3DeploySimple is Script {
     function _deploySettlement(address owner, address registry, uint256 threshold) internal returns (address) {
         // Settlement constructor: (address initialOwner, address registryAddress, uint256 initialThreshold)
         bytes memory bytecode = abi.encodePacked(
-            vm.getCode("Settlement.sol:Settlement"),
+            vm.getCode("src/v3/Settlement.sol:Settlement"),
             abi.encode(owner, registry, threshold)
         );
 
@@ -113,7 +113,7 @@ contract V3DeploySimple is Script {
     ) internal returns (address) {
         // PaymasterV3 bytecode (需要预先编译)
         bytes memory bytecode = abi.encodePacked(
-            vm.getCode("PaymasterV3.sol:PaymasterV3"),
+            vm.getCode("src/v3/PaymasterV3.sol:PaymasterV3"),
             abi.encode(entryPoint, owner, sbtContract, gasToken, settlement, minBalance)
         );
 

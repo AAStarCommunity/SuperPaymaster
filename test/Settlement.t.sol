@@ -97,16 +97,13 @@ contract SettlementTest is Test {
         assertEq(record.amount, GAS_FEE);
         assertEq(uint256(record.status), uint256(ISettlement.FeeStatus.Pending));
         assertEq(record.userOpHash, userOpHash);
-        assertEq(record.settlementHash, bytes32(0));
+        // settlementHash field removed in gas optimization
 
         // Verify pending amounts
         assertEq(settlement.getPendingBalance(user1, address(pnt)), GAS_FEE);
         assertEq(settlement.getTotalPending(address(pnt)), GAS_FEE);
 
-        // Verify user record keys
-        bytes32[] memory keys = settlement.getUserRecordKeys(user1);
-        assertEq(keys.length, 1);
-        assertEq(keys[0], recordKey);
+        // getUserRecordKeys removed in gas optimization - use off-chain indexing
     }
 
     function test_RecordGasFee_RevertIf_NotRegisteredPaymaster() public {
@@ -181,9 +178,7 @@ contract SettlementTest is Test {
         assertEq(settlement.getPendingBalance(user1, address(pnt)), GAS_FEE * 4);
         assertEq(settlement.getTotalPending(address(pnt)), GAS_FEE * 4);
 
-        // Verify record count
-        bytes32[] memory keys = settlement.getUserRecordKeys(user1);
-        assertEq(keys.length, 3);
+        // getUserRecordKeys removed in gas optimization - use off-chain indexing
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -216,11 +211,11 @@ contract SettlementTest is Test {
         // Verify records updated
         ISettlement.FeeRecord memory record1 = settlement.getFeeRecord(key1);
         assertEq(uint256(record1.status), uint256(ISettlement.FeeStatus.Settled));
-        assertEq(record1.settlementHash, settlementHash);
+        // settlementHash field removed in gas optimization
 
         ISettlement.FeeRecord memory record2 = settlement.getFeeRecord(key2);
         assertEq(uint256(record2.status), uint256(ISettlement.FeeStatus.Settled));
-        assertEq(record2.settlementHash, settlementHash);
+        // settlementHash field removed in gas optimization
 
         // Verify pending amounts cleared
         assertEq(settlement.getPendingBalance(user1, address(pnt)), 0);
@@ -282,42 +277,8 @@ contract SettlementTest is Test {
                     SETTLE FEES BY USERS TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_SettleFeesByUsers_Success() public {
-        // Create records for user1
-        vm.prank(paymaster1);
-        settlement.recordGasFee(user1, address(pnt), GAS_FEE, keccak256("userOp1"));
-
-        vm.prank(paymaster1);
-        settlement.recordGasFee(user1, address(pnt), GAS_FEE * 2, keccak256("userOp2"));
-
-        // Create records for user2
-        vm.prank(paymaster1);
-        settlement.recordGasFee(user2, address(pnt), GAS_FEE, keccak256("userOp3"));
-
-        // Settle all pending for both users
-        address[] memory users = new address[](2);
-        users[0] = user1;
-        users[1] = user2;
-
-        bytes32 settlementHash = keccak256("batchSettlement");
-
-        vm.prank(owner);
-        settlement.settleFeesByUsers(users, address(pnt), settlementHash);
-
-        // Verify all cleared
-        assertEq(settlement.getPendingBalance(user1, address(pnt)), 0);
-        assertEq(settlement.getPendingBalance(user2, address(pnt)), 0);
-        assertEq(settlement.getTotalPending(address(pnt)), 0);
-    }
-
-    function test_SettleFeesByUsers_RevertIf_NoPendingRecords() public {
-        address[] memory users = new address[](1);
-        users[0] = user1;
-
-        vm.prank(owner);
-        vm.expectRevert("Settlement: no pending records");
-        settlement.settleFeesByUsers(users, address(pnt), bytes32(0));
-    }
+    // REMOVED: test_SettleFeesByUsers_* - Function deleted in gas optimization
+    // Use settleFees() with off-chain indexed keys instead
 
     /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTION TESTS
@@ -335,20 +296,8 @@ contract SettlementTest is Test {
         assertEq(record.amount, GAS_FEE);
     }
 
-    function test_GetUserPendingRecords() public {
-        // Create records
-        vm.prank(paymaster1);
-        settlement.recordGasFee(user1, address(pnt), GAS_FEE, keccak256("userOp1"));
-
-        vm.prank(paymaster1);
-        settlement.recordGasFee(user1, address(pnt), GAS_FEE * 2, keccak256("userOp2"));
-
-        // Get pending records
-        ISettlement.FeeRecord[] memory records = settlement.getUserPendingRecords(user1, address(pnt));
-        assertEq(records.length, 2);
-        assertEq(records[0].amount, GAS_FEE);
-        assertEq(records[1].amount, GAS_FEE * 2);
-    }
+    // REMOVED: test_GetUserPendingRecords - Function deleted in gas optimization
+    // Use getPendingBalance() + off-chain indexing instead
 
     function test_CalculateRecordKey() public {
         bytes32 userOpHash = keccak256("userOp1");

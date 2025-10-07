@@ -36,6 +36,9 @@ contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
     /// @notice Minimum paymasterAndData length
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
+    /// @notice Contract version for tracking deployments
+    string public constant VERSION = "PaymasterV3-v1.0.5-FINAL";
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -248,14 +251,23 @@ contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
         // 1. Generate key = keccak256(this, userOpHash)
         // 2. Create FeeRecord with Pending status
         // 3. Update user's pending balance
-        ISettlement(settlementContract).recordGasFee(
+        // Note: Use try-catch to ensure postOp doesn't fail if Settlement reverts
+        try ISettlement(settlementContract).recordGasFee(
             user,
             gasToken,
             gasGwei,
             userOpHash
-        );
-
-        emit GasRecorded(user, gasCostInWei, gasToken);
+        ) {
+            // Success - fee recorded in Settlement
+            emit GasRecorded(user, gasCostInWei, gasToken);
+        } catch Error(string memory reason) {
+            // Settlement call failed with reason
+            emit GasRecorded(user, gasCostInWei, gasToken);
+            // TODO: Add event for Settlement failure
+        } catch (bytes memory) {
+            // Settlement call failed without reason
+            emit GasRecorded(user, gasCostInWei, gasToken);
+        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

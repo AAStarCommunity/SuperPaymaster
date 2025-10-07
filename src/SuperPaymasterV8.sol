@@ -11,7 +11,7 @@ interface IEntryPointV8 {
 /// @notice A simple paymaster router for EntryPoint v0.8
 /// @dev Routes user operations to registered paymasters for gas sponsorship
 contract SuperPaymasterV8 {
-    
+
     struct PaymasterPool {
         address paymaster;
         uint256 feeRate;
@@ -27,7 +27,7 @@ contract SuperPaymasterV8 {
     address[] public paymasterList;
     uint256 public routerFeeRate;
     address public owner;
-    
+
     // Events
     event PaymasterRegistered(address indexed paymaster, uint256 feeRate, string name);
     event PaymasterSelected(address indexed paymaster, address indexed user, uint256 feeRate);
@@ -48,7 +48,7 @@ contract SuperPaymasterV8 {
         require(_entryPoint != address(0), "Invalid EntryPoint address");
         require(_owner != address(0), "Invalid owner address");
         require(_routerFeeRate <= 10000, "Invalid fee rate");
-        
+
         entryPoint = IEntryPointV8(_entryPoint);
         owner = _owner;
         routerFeeRate = _routerFeeRate;
@@ -89,7 +89,7 @@ contract SuperPaymasterV8 {
         for (uint256 i = 0; i < paymasterList.length; i++) {
             address pm = paymasterList[i];
             PaymasterPool memory pool = paymasterPools[pm];
-            
+
             if (pool.isActive && pool.feeRate < bestFeeRate) {
                 if (_isPaymasterAvailable(pm)) {
                     bestFeeRate = pool.feeRate;
@@ -128,6 +128,13 @@ contract SuperPaymasterV8 {
         return paymasterPools[_paymaster];
     }
 
+    /// @notice Check if a paymaster is registered and active
+    /// @param paymaster Address to check
+    /// @return True if registered and active
+    function isPaymasterActive(address paymaster) external view returns (bool) {
+        return paymasterPools[paymaster].isActive;
+    }
+
     /// @notice Get router statistics
     function getRouterStats() external view returns (
         uint256 totalPaymasters,
@@ -136,14 +143,14 @@ contract SuperPaymasterV8 {
         uint256 totalRoutes
     ) {
         totalPaymasters = paymasterList.length;
-        
+
         for (uint256 i = 0; i < paymasterList.length; i++) {
             PaymasterPool memory pool = paymasterPools[paymasterList[i]];
-            
+
             if (pool.isActive) {
                 activePaymasters++;
             }
-            
+
             totalSuccessfulRoutes += pool.successCount;
             totalRoutes += pool.totalAttempts;
         }
@@ -182,9 +189,9 @@ contract SuperPaymasterV8 {
     }
 
     /// @notice Withdraw funds from EntryPoint (only owner)
-    function withdrawTo(address payable withdrawAddress, uint256 amount) 
-        external 
-        onlyOwner 
+    function withdrawTo(address payable withdrawAddress, uint256 amount)
+        external
+        onlyOwner
     {
         entryPoint.withdrawTo(withdrawAddress, amount);
     }

@@ -2,7 +2,10 @@ require("dotenv").config({ path: ".env.v3" });
 const { ethers } = require("ethers");
 
 const ENTRYPOINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const PAYMASTER = "0x1568da4ea1E2C34255218b6DaBb2458b57B35805";
+const PAYMASTER =
+  process.env.PAYMASTER_V3 ||
+  process.env.PAYMASTER_V3_ADDRESS ||
+  "0x17fe4D317D780b0d257a1a62E848Badea094ed97";
 const OWNER_PRIVATE_KEY = process.env.PRIVATE_KEY;
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
 

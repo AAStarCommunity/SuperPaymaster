@@ -2,14 +2,16 @@ require("dotenv").config({ path: ".env.v3" });
 const { ethers } = require("ethers");
 
 const CONTRACTS = {
-  ENTRYPOINT: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  ENTRYPOINT:
+    process.env.ENTRYPOINT_V07 || "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
   SIMPLE_ACCOUNT_FACTORY: "0x70F0DBca273a836CbA609B10673A52EED2D15625",
-  PAYMASTER_V3: "0x1568da4ea1E2C34255218b6DaBb2458b57B35805",
-  SETTLEMENT: "0x6Bbf0C72805ECd4305EfCCF579c32d6F6d3041d5",
-  PNT_TOKEN: "0xf2996D81b264d071f99FD13d76D15A9258f4cFa9",
-  SBT: "0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f", // PaymasterV3 实际配置的 SBT
+  PAYMASTER_V3: process.env.PAYMASTER_V3_ADDRESS || process.env.PAYMASTER_V3,
+  SETTLEMENT: process.env.SETTLEMENT_ADDRESS || process.env.SETTLEMENT_CONTRACT,
+  PNT_TOKEN: process.env.GAS_TOKEN_ADDRESS || process.env.PNTS_TOKEN,
+  SBT: process.env.SBT_CONTRACT_ADDRESS || process.env.SBT_CONTRACT,
   SIMPLE_ACCOUNT: "0x94FC9B8B7cAb56C01f20A24E37C2433FCe88A10D",
-  OWNER: "0x411BD567E46C0781248dbB6a9211891C032885e5",
+  OWNER:
+    process.env.OWNER_ADDRESS || "0x411BD567E46C0781248dbB6a9211891C032885e5",
 };
 
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL;
@@ -53,7 +55,7 @@ async function main() {
 
     console.log(`   - gasToken: ${gasToken}`);
     console.log(
-      `     ${gasToken === CONTRACTS.PNT_TOKEN ? "✅" : "❌"} ${gasToken === CONTRACTS.PNT_TOKEN ? "正确" : "配置错误!"}`,
+      `     ${gasToken.toLowerCase() === CONTRACTS.PNT_TOKEN.toLowerCase() ? "✅" : "❌"} ${gasToken.toLowerCase() === CONTRACTS.PNT_TOKEN.toLowerCase() ? "正确" : "配置错误!"}`,
     );
 
     console.log(`   - settlementContract: ${settlementContract}`);

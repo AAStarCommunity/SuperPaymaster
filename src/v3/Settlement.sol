@@ -32,6 +32,9 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Contract version for tracking deployments
+    string public constant VERSION = "Settlement-v1.0.5-FINAL";
+
     /// @notice SuperPaymaster Registry contract (immutable for security)
     ISuperPaymasterRegistry public immutable registry;
 
@@ -39,9 +42,8 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
     /// @dev Key = keccak256(abi.encodePacked(paymaster, userOpHash))
     mapping(bytes32 => FeeRecord) private _feeRecords;
 
-    /// @notice Index: user => array of record keys
-    /// @dev Allows querying all records for a user
-    mapping(address => bytes32[]) private _userRecordKeys;
+    /// @notice REMOVED: _userRecordKeys mapping for gas optimization
+    /// @dev Use off-chain indexing via FeeRecorded events to query user records
 
     /// @notice Index: user => token => total pending amount
     /// @dev Fast O(1) lookup for pending balance
@@ -70,11 +72,12 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
 
     /**
      * @notice Only registered Paymasters can call
-     * @dev Checks SuperPaymaster Registry for active status
+     * @dev Checks SuperPaymaster Registry for active status using getPaymasterInfo
      */
     modifier onlyRegisteredPaymaster() {
+        (uint256 feeRate, bool isActive, , , ) = registry.getPaymasterInfo(msg.sender);
         require(
-            registry.isPaymasterActive(msg.sender),
+            isActive && feeRate > 0,
             "Settlement: paymaster not registered"
         );
         _;
@@ -154,17 +157,15 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
         // CEI Pattern: Effects
         _feeRecords[recordKey] = FeeRecord({
             paymaster: msg.sender,
+            amount: uint96(amount),
             user: user,
+            timestamp: uint96(block.timestamp),
             token: token,
-            amount: amount,
-            timestamp: block.timestamp,
             status: FeeStatus.Pending,
-            userOpHash: userOpHash,
-            settlementHash: bytes32(0)
+            userOpHash: userOpHash
         });
 
         // Update indexes
-        _userRecordKeys[user].push(recordKey);
         _pendingAmounts[user][token] += amount;
         _totalPending[token] += amount;
 
@@ -214,7 +215,6 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
             // CEI Pattern: Effects
             FeeStatus oldStatus = record.status;
             record.status = FeeStatus.Settled;
-            record.settlementHash = settlementHash;
 
             // Update indexes
             _pendingAmounts[record.user][record.token] -= record.amount;
@@ -236,67 +236,7 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
         emit BatchSettled(recordKeys.length, totalSettled, settlementHash);
     }
 
-    /**
-     * @inheritdoc ISettlement
-     * @dev Settle all pending fees for specific users and token
-     */
-    function settleFeesByUsers(
-        address[] calldata users,
-        address token,
-        bytes32 settlementHash
-    )
-        external
-        override
-        nonReentrant
-        whenNotPaused
-        onlyOwner
-    {
-        require(users.length > 0, "Settlement: empty users");
-        require(token != address(0), "Settlement: zero token");
-
-        uint256 totalSettled = 0;
-        uint256 recordCount = 0;
-
-        for (uint256 i = 0; i < users.length; i++) {
-            address user = users[i];
-            bytes32[] memory keys = _userRecordKeys[user];
-
-            for (uint256 j = 0; j < keys.length; j++) {
-                bytes32 key = keys[j];
-                FeeRecord storage record = _feeRecords[key];
-
-                // Only settle pending records for this token
-                if (
-                    record.status == FeeStatus.Pending &&
-                    record.token == token
-                ) {
-                    // Update record
-                    FeeStatus oldStatus = record.status;
-                    record.status = FeeStatus.Settled;
-                    record.settlementHash = settlementHash;
-
-                    // Update indexes
-                    _pendingAmounts[user][token] -= record.amount;
-                    _totalPending[token] -= record.amount;
-
-                    totalSettled += record.amount;
-                    recordCount++;
-
-                    emit FeeSettled(
-                        key,
-                        user,
-                        token,
-                        record.amount,
-                        settlementHash
-                    );
-                    emit FeeStatusChanged(key, oldStatus, FeeStatus.Settled);
-                }
-            }
-        }
-
-        require(recordCount > 0, "Settlement: no pending records");
-        emit BatchSettled(recordCount, totalSettled, settlementHash);
-    }
+    // REMOVED: settleFeesByUsers() - Use settleFees() with off-chain indexed keys
 
     /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTIONS
@@ -323,46 +263,8 @@ contract Settlement is ISettlement, Ownable, ReentrancyGuard {
         return _feeRecords[key];
     }
 
-    /// @inheritdoc ISettlement
-    function getUserRecordKeys(address user)
-        external
-        view
-        override
-        returns (bytes32[] memory keys)
-    {
-        return _userRecordKeys[user];
-    }
-
-    /// @inheritdoc ISettlement
-    function getUserPendingRecords(address user, address token)
-        external
-        view
-        override
-        returns (FeeRecord[] memory records)
-    {
-        bytes32[] memory keys = _userRecordKeys[user];
-        uint256 pendingCount = 0;
-
-        // First pass: count pending records for this token
-        for (uint256 i = 0; i < keys.length; i++) {
-            FeeRecord storage record = _feeRecords[keys[i]];
-            if (record.status == FeeStatus.Pending && record.token == token) {
-                pendingCount++;
-            }
-        }
-
-        // Second pass: collect pending records
-        records = new FeeRecord[](pendingCount);
-        uint256 index = 0;
-        for (uint256 i = 0; i < keys.length; i++) {
-            FeeRecord storage record = _feeRecords[keys[i]];
-            if (record.status == FeeStatus.Pending && record.token == token) {
-                records[index++] = record;
-            }
-        }
-
-        return records;
-    }
+    // REMOVED: getUserRecordKeys() - Use off-chain indexing via FeeRecorded events
+    // REMOVED: getUserPendingRecords() - Use getPendingBalance() + off-chain indexing
 
     /// @inheritdoc ISettlement
     function getPendingBalance(address user, address token)

@@ -27,14 +27,13 @@ interface ISettlement {
      * @dev Stored with key = keccak256(abi.encodePacked(paymaster, userOpHash))
      */
     struct FeeRecord {
-        address paymaster;       // Paymaster that recorded this fee
-        address user;            // User who owes the fee
-        address token;           // Token used for payment (e.g., PNT)
-        uint256 amount;          // Fee amount in wei
-        uint256 timestamp;       // Block timestamp when recorded
-        FeeStatus status;        // Current status
-        bytes32 userOpHash;      // UserOperation hash from EntryPoint
-        bytes32 settlementHash;  // Off-chain settlement proof (optional)
+        address paymaster;       // Paymaster that recorded this fee (20 bytes) - slot 0
+        uint96 amount;           // Fee amount in wei (12 bytes) - packed with paymaster in slot 0
+        address user;            // User who owes the fee (20 bytes) - slot 1
+        uint96 timestamp;        // Block timestamp when recorded (12 bytes) - packed with user in slot 1
+        address token;           // Token used for payment (e.g., PNT) (20 bytes) - slot 2
+        FeeStatus status;        // Current status (1 byte) - packed with token in slot 2
+        bytes32 userOpHash;      // UserOperation hash from EntryPoint - slot 3
     }
 
     // ============ Events ============
@@ -158,18 +157,7 @@ interface ISettlement {
         bytes32 settlementHash
     ) external;
 
-    /**
-     * @notice Settle all pending fees for specific users and token
-     * @dev Only callable by owner after off-chain payment
-     * @param users Array of user addresses
-     * @param token Token address
-     * @param settlementHash Off-chain payment proof
-     */
-    function settleFeesByUsers(
-        address[] calldata users,
-        address token,
-        bytes32 settlementHash
-    ) external;
+    // REMOVED: settleFeesByUsers() - Use settleFees() with off-chain indexed keys
 
     // ============ View Functions ============
 
@@ -190,22 +178,8 @@ interface ISettlement {
     function getRecordByUserOp(address paymaster, bytes32 userOpHash)
         external view returns (FeeRecord memory record);
 
-    /**
-     * @notice Get all record keys for a user
-     * @param user User address
-     * @return keys Array of record keys
-     */
-    function getUserRecordKeys(address user)
-        external view returns (bytes32[] memory keys);
-
-    /**
-     * @notice Get all pending records for a user and token
-     * @param user User address
-     * @param token Token address
-     * @return records Array of pending fee records
-     */
-    function getUserPendingRecords(address user, address token)
-        external view returns (FeeRecord[] memory records);
+    // REMOVED: getUserRecordKeys() - Use off-chain indexing via FeeRecorded events
+    // REMOVED: getUserPendingRecords() - Use getPendingBalance() + off-chain indexing
 
     /**
      * @notice Get pending balance for user and token
