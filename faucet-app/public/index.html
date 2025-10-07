@@ -50,7 +50,54 @@
                 background: #f8f9fa;
                 border-radius: 10px;
                 padding: 20px;
+                margin-bottom: 20px;
+            }
+
+            .treasury-banner {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 10px;
+                padding: 15px 20px;
                 margin-bottom: 30px;
+                color: white;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            }
+
+            .treasury-info {
+                flex: 1;
+            }
+
+            .treasury-label {
+                font-size: 12px;
+                opacity: 0.9;
+                margin-bottom: 5px;
+            }
+
+            .treasury-amount {
+                font-size: 24px;
+                font-weight: 700;
+                display: flex;
+                align-items: baseline;
+                gap: 5px;
+            }
+
+            .treasury-link {
+                background: rgba(255, 255, 255, 0.2);
+                padding: 8px 16px;
+                border-radius: 8px;
+                color: white;
+                text-decoration: none;
+                font-size: 13px;
+                font-weight: 600;
+                transition: all 0.3s;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+
+            .treasury-link:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-2px);
             }
 
             .info-item {
@@ -222,6 +269,23 @@
             <h1>💧 GasToken Faucet</h1>
             <p class="subtitle">Get free SBT and PNT tokens on Sepolia</p>
 
+            <div class="treasury-banner">
+                <div class="treasury-info">
+                    <div class="treasury-label">💎 Treasury Balance</div>
+                    <div class="treasury-amount">
+                        <span id="treasury-balance">Loading...</span>
+                        <span style="font-size: 16px">PNT</span>
+                    </div>
+                </div>
+                <a
+                    href="https://sepolia.etherscan.io/address/0x411bd567e46c0781248dbb6a9211891c032885e5"
+                    target="_blank"
+                    class="treasury-link"
+                >
+                    View Txs →
+                </a>
+            </div>
+
             <div class="info-box">
                 <div class="info-item">
                     <span class="info-label">SBT per mint:</span>
@@ -279,6 +343,47 @@
         </div>
 
         <script>
+            // Load treasury balance on page load
+            async function loadTreasuryBalance() {
+                const TREASURY_ADDRESS =
+                    "0x411BD567E46C0781248dbB6a9211891C032885e5";
+                const PNT_TOKEN = "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180";
+                const RPC_URL =
+                    "https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N";
+
+                try {
+                    const response = await fetch(RPC_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "eth_call",
+                            params: [
+                                {
+                                    to: PNT_TOKEN,
+                                    data:
+                                        "0x70a08231000000000000000000000000" +
+                                        TREASURY_ADDRESS.slice(2),
+                                },
+                                "latest",
+                            ],
+                            id: 1,
+                        }),
+                    });
+
+                    const data = await response.json();
+                    const balance = parseInt(data.result, 16) / 1e18;
+                    document.getElementById("treasury-balance").textContent =
+                        balance.toFixed(2);
+                } catch (error) {
+                    document.getElementById("treasury-balance").textContent =
+                        "—";
+                    console.error("Failed to load treasury balance:", error);
+                }
+            }
+
+            window.addEventListener("load", loadTreasuryBalance);
+
             function showStatus(message, type, txHash = null) {
                 const statusEl = document.getElementById("status");
                 statusEl.className = `status ${type}`;
