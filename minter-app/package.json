@@ -1,0 +1,19 @@
+{
+  "name": "gemini-minter",
+  "version": "1.0.0",
+  "description": "Web3 DApp for minting ERC20, ERC721, and Soul-Bound Tokens",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd frontend && npm run preview"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
