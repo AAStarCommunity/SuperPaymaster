@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./GasToken.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /**
  * @title GasTokenFactory

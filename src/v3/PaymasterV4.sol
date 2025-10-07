@@ -44,12 +44,21 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @notice Maximum service fee (10%)
     uint256 public constant MAX_SERVICE_FEE = 1000;
 
+    /// @notice Maximum number of supported SBTs
+    uint256 public constant MAX_SBTS = 5;
+
+    /// @notice Maximum number of supported GasTokens
+    uint256 public constant MAX_GAS_TOKENS = 10;
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Treasury address - service provider's collection account
     address public treasury;
+
+    /// @notice Gas to USD conversion rate (18 decimals), e.g., 4500e18 = $4500/ETH
+    uint256 public gasToUSDRate;
 
     /// @notice PNT price in USD (18 decimals), e.g., 0.02 USD = 0.02e18
     uint256 public pntPriceUSD;
@@ -89,6 +98,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     error PaymasterV4__EmptyArray();
     error PaymasterV4__AlreadyExists();
     error PaymasterV4__NotFound();
+    error PaymasterV4__MaxLimitReached();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -97,6 +107,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     event Paused(address indexed account);
     event Unpaused(address indexed account);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event GasToUSDRateUpdated(uint256 oldRate, uint256 newRate);
     event PntPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ServiceFeeUpdated(uint256 oldRate, uint256 newRate);
     event MaxGasCostCapUpdated(uint256 oldCap, uint256 newCap);
@@ -109,7 +120,13 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         address indexed user,
         address indexed gasToken,
         uint256 pntAmount,
-        uint256 gasCostWei
+        uint256 gasCostWei,
+        uint256 actualGasCost
+    );
+    event PostOpProcessed(
+        address indexed user,
+        uint256 actualGasCost,
+        uint256 pntCharged
     );
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -138,6 +155,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @param _entryPoint EntryPoint contract address
     /// @param _owner Contract owner address
     /// @param _treasury Treasury address for receiving PNT
+    /// @param _gasToUSDRate Gas to USD conversion rate (18 decimals)
     /// @param _pntPriceUSD PNT price in USD (18 decimals)
     /// @param _serviceFeeRate Service fee rate in basis points
     /// @param _maxGasCostCap Maximum gas cost cap (wei)
@@ -146,6 +164,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         address _entryPoint,
         address _owner,
         address _treasury,
+        uint256 _gasToUSDRate,
         uint256 _pntPriceUSD,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
@@ -155,12 +174,14 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         if (_entryPoint == address(0)) revert PaymasterV4__ZeroAddress();
         if (_owner == address(0)) revert PaymasterV4__ZeroAddress();
         if (_treasury == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_gasToUSDRate == 0) revert PaymasterV4__InvalidTokenBalance();
         if (_pntPriceUSD == 0) revert PaymasterV4__InvalidTokenBalance();
         if (_serviceFeeRate > MAX_SERVICE_FEE) revert PaymasterV4__InvalidServiceFee();
         if (_minTokenBalance == 0) revert PaymasterV4__InvalidTokenBalance();
 
         entryPoint = IEntryPoint(_entryPoint);
         treasury = _treasury;
+        gasToUSDRate = _gasToUSDRate;
         pntPriceUSD = _pntPriceUSD;
         serviceFeeRate = _serviceFeeRate;
         maxGasCostCap = _maxGasCostCap;
@@ -196,9 +217,17 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
 
         address sender = userOp.getSender();
 
-        // Check 1: User must own at least one supported SBT
-        if (!_hasAnySBT(sender)) {
-            revert PaymasterV4__NoValidSBT();
+        // Check if account is deployed (extcodesize check)
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(sender)
+        }
+
+        // Check 1: User must own at least one supported SBT (skip for undeployed accounts)
+        if (codeSize > 0) {
+            if (!_hasAnySBT(sender)) {
+                revert PaymasterV4__NoValidSBT();
+            }
         }
 
         // Apply gas cost cap
@@ -207,8 +236,14 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         // Calculate required PNT amount
         uint256 pntAmount = _calculatePNTAmount(cappedMaxCost);
 
+        // Parse user-specified GasToken from paymasterData (v0.7 format)
+        address specifiedGasToken = address(0);
+        if (userOp.paymasterAndData.length >= 72) {
+            specifiedGasToken = address(bytes20(userOp.paymasterAndData[52:72]));
+        }
+
         // Find which GasToken user holds with sufficient balance
-        address userGasToken = _getUserGasToken(sender, pntAmount);
+        address userGasToken = _getUserGasToken(sender, pntAmount, specifiedGasToken);
         if (userGasToken == address(0)) {
             revert PaymasterV4__InsufficientPNT();
         }
@@ -217,25 +252,26 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         IERC20(userGasToken).transferFrom(sender, treasury, pntAmount);
 
         // Emit payment event
-        emit GasPaymentProcessed(sender, userGasToken, pntAmount, cappedMaxCost);
+        emit GasPaymentProcessed(sender, userGasToken, pntAmount, cappedMaxCost, maxCost);
 
         // Return empty context (no refund logic)
         return ("", 0);
     }
 
     /// @notice PostOp handler (minimal implementation)
-    /// @dev Empty implementation for maximum gas savings
+    /// @dev Emits event for off-chain analysis only, no refund logic
     function postOp(
         PostOpMode /* mode */,
-        bytes calldata /* context */,
-        uint256 /* actualGasCost */,
+        bytes calldata context,
+        uint256 actualGasCost,
         uint256 /* actualUserOpFeePerGas */
     )
         external
         onlyEntryPoint
     {
-        // Empty - all payment handled in validatePaymasterUserOp
-        // Saves ~245k gas compared to V3.2
+        // Emit event for off-chain analysis (multi-pay without refund)
+        // Context is empty, but we can emit actualGasCost for tracking
+        emit PostOpProcessed(tx.origin, actualGasCost, 0);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -258,12 +294,23 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @notice Find which GasToken user can use for payment
     /// @param user User address
     /// @param requiredAmount Required PNT amount
+    /// @param specifiedToken User-specified token from paymasterData (0 = auto-select)
     /// @return Address of GasToken, or address(0) if insufficient
-    function _getUserGasToken(address user, uint256 requiredAmount)
+    function _getUserGasToken(address user, uint256 requiredAmount, address specifiedToken)
         internal
         view
         returns (address)
     {
+        // If user specified a token and it's supported, try it first
+        if (specifiedToken != address(0) && isGasTokenSupported[specifiedToken]) {
+            uint256 balance = IERC20(specifiedToken).balanceOf(user);
+            uint256 allowance = IERC20(specifiedToken).allowance(user, address(this));
+            if (balance >= requiredAmount && allowance >= requiredAmount) {
+                return specifiedToken;
+            }
+        }
+
+        // Otherwise, auto-select from supported tokens
         uint256 length = supportedGasTokens.length;
         for (uint256 i = 0; i < length; i++) {
             address token = supportedGasTokens[i];
@@ -278,25 +325,24 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     }
 
     /// @notice Calculate required PNT amount for gas cost
-    /// @dev Formula: PNT = (gasCostWei * ethPriceUSD / 1e18 + serviceFee) / pntPriceUSD
-    /// @dev Simplified: Assumes ETH price, can be enhanced with Oracle
+    /// @dev Uses dual-parameter system: gasToUSDRate (fixed) + pntPriceUSD (variable)
+    /// @dev Formula: gasCostUSD = gasCostWei * gasToUSDRate / 1e18
+    /// @dev         totalCostUSD = gasCostUSD * (1 + serviceFeeRate/10000)
+    /// @dev         pntAmount = totalCostUSD / pntPriceUSD
     /// @param gasCostWei Gas cost in wei
     /// @return Required PNT amount
     function _calculatePNTAmount(uint256 gasCostWei) internal view returns (uint256) {
-        // TODO: Get ETH price from Oracle or use fixed value
-        // For now, use estimated ETH price: 3000 USD
-        uint256 ethPriceUSD = 3000e18; // 18 decimals
+        // Step 1: Convert gas cost to USD using gasToUSDRate
+        // e.g., 1 ETH = 4500 USD, so gasCostWei * 4500e18 / 1e18
+        uint256 gasCostUSD = (gasCostWei * gasToUSDRate) / 1e18;
 
-        // Calculate gas cost in USD
-        // gasCostWei * ethPriceUSD / 1e18
-        uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
-
-        // Add service fee
-        // gasCostUSD * (1 + serviceFeeRate / 10000)
+        // Step 2: Add service fee
+        // e.g., serviceFeeRate = 200 (2%), so multiply by 10200/10000
         uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
 
-        // Convert to PNT
-        // totalCostUSD / pntPriceUSD
+        // Step 3: Convert USD to PNT amount
+        // e.g., pntPriceUSD = 0.02e18, so totalCostUSD * 1e18 / 0.02e18
+        // When pntPriceUSD changes, this step automatically affects PNT collection
         uint256 pntAmount = (totalCostUSD * 1e18) / pntPriceUSD;
 
         return pntAmount;
@@ -315,6 +361,17 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         treasury = _treasury;
 
         emit TreasuryUpdated(oldTreasury, _treasury);
+    }
+
+    /// @notice Set gas to USD conversion rate
+    /// @param _gasToUSDRate New gas to USD rate (18 decimals)
+    function setGasToUSDRate(uint256 _gasToUSDRate) external onlyOwner {
+        if (_gasToUSDRate == 0) revert PaymasterV4__InvalidTokenBalance();
+
+        uint256 oldRate = gasToUSDRate;
+        gasToUSDRate = _gasToUSDRate;
+
+        emit GasToUSDRateUpdated(oldRate, _gasToUSDRate);
     }
 
     /// @notice Set PNT price in USD
@@ -364,6 +421,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     function addSBT(address sbt) external onlyOwner {
         if (sbt == address(0)) revert PaymasterV4__ZeroAddress();
         if (isSBTSupported[sbt]) revert PaymasterV4__AlreadyExists();
+        if (supportedSBTs.length >= MAX_SBTS) revert PaymasterV4__MaxLimitReached();
 
         supportedSBTs.push(sbt);
         isSBTSupported[sbt] = true;
@@ -396,6 +454,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     function addGasToken(address token) external onlyOwner {
         if (token == address(0)) revert PaymasterV4__ZeroAddress();
         if (isGasTokenSupported[token]) revert PaymasterV4__AlreadyExists();
+        if (supportedGasTokens.length >= MAX_GAS_TOKENS) revert PaymasterV4__MaxLimitReached();
 
         supportedGasTokens.push(token);
         isGasTokenSupported[token] = true;
@@ -478,17 +537,25 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         view
         returns (bool qualified, string memory reason)
     {
-        // Check SBT
-        if (!_hasAnySBT(user)) {
-            return (false, "User does not own required SBT");
+        // Check if account is deployed
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(user)
+        }
+
+        // Check SBT (skip for undeployed accounts)
+        if (codeSize > 0) {
+            if (!_hasAnySBT(user)) {
+                return (false, "User does not own required SBT");
+            }
         }
 
         // Calculate required PNT
         uint256 cappedCost = estimatedGasCost > maxGasCostCap ? maxGasCostCap : estimatedGasCost;
         uint256 requiredPNT = _calculatePNTAmount(cappedCost);
 
-        // Check PNT balance
-        address userToken = _getUserGasToken(user, requiredPNT);
+        // Check PNT balance (auto-select token)
+        address userToken = _getUserGasToken(user, requiredPNT, address(0));
         if (userToken == address(0)) {
             return (false, "Insufficient PNT balance or allowance");
         }
