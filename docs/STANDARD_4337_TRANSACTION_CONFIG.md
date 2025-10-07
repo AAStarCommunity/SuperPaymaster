@@ -65,7 +65,7 @@ const CONTRACTS = {
   SUPER_PAYMASTER_REGISTRY: "0x838da93c815a6E45Aa50429529da9106C0621eF0",
   
   // Tokens
-  PNT_TOKEN: "0x090e34709a592210158aa49a969e4a04e3a29ebd",
+  PNT_TOKEN: "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180",
   SBT_TOKEN: "0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f",
   
   // Account Factory
@@ -136,7 +136,7 @@ paymasterAndData = concat(
    - 用于 `_postOp` 函数执行 (扣除 token)
 
 4. **userSpecifiedGasToken** (20 bytes): 用户指定的 GasToken 地址
-   - 使用 PNT: `0x090e34709a592210158aa49a969e4a04e3a29ebd`
+   - 使用 PNT: `0xD14E87d8D8B69016Fcc08728c33799bD3F66F180`
    - 自动选择: `0x0000000000000000000000000000000000000000` (零地址)
 
 ### 编码示例
@@ -146,7 +146,7 @@ const { ethers } = require("ethers");
 
 // PaymasterV4 配置
 const PAYMASTER_V4 = "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445";
-const PNT_TOKEN = "0x090e34709a592210158aa49a969e4a04e3a29ebd";
+const PNT_TOKEN = "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180";
 
 // 构造 paymasterAndData
 const paymasterAndData = ethers.concat([
@@ -313,7 +313,7 @@ const SIMPLE_ACCOUNT = process.env.SIMPLE_ACCOUNT || "0x94FC9B8B7cAb56C01f20A24E
 const CONTRACTS = {
   ENTRYPOINT: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
   PAYMASTER_V4: "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445",
-  PNT_TOKEN: "0x090e34709a592210158aa49a969e4a04e3a29ebd",
+  PNT_TOKEN: "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180",
 };
 
 const RECIPIENT = "0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA";
@@ -493,7 +493,7 @@ cast call $SBT_TOKEN "balanceOf(address)(uint256)" $SIMPLE_ACCOUNT --rpc-url $SE
 ```bash
 # 设置变量
 SIMPLE_ACCOUNT="0x你的SimpleAccount地址"
-PNT_TOKEN="0x090e34709a592210158aa49a969e4a04e3a29ebd"
+PNT_TOKEN="0xD14E87d8D8B69016Fcc08728c33799bD3F66F180"
 PAYMASTER_V4="0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445"
 PRIVATE_KEY="0x你的私钥"
 SEPOLIA_RPC_URL="https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY"
@@ -574,7 +574,7 @@ node test-paymaster-v4.js
 **诊断**:
 ```bash
 # 检查授权 (重要!)
-cast call 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+cast call 0xD14E87d8D8B69016Fcc08728c33799bD3F66F180 \
   "allowance(address,address)(uint256)" \
   YOUR_ACCOUNT \
   0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 \

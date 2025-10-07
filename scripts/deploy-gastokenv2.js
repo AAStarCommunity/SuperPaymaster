@@ -16,8 +16,13 @@ const { ethers } = require("ethers");
 require("dotenv").config();
 
 // Configuration
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org";
-const PRIVATE_KEY = (process.env.SEPOLIA_PRIVATE_KEY || "").trim();
+const SEPOLIA_RPC_URL =
+  process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org";
+const PRIVATE_KEY = (
+  process.env.PRIVATE_KEY ||
+  process.env.SEPOLIA_PRIVATE_KEY ||
+  ""
+).trim();
 
 // PaymasterV4 address (initial paymaster)
 const PAYMASTER_V4 = "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445";
@@ -46,7 +51,10 @@ async function main() {
   // Step 1: Deploy GasTokenFactoryV2
   console.log("📦 Step 1: Deploying GasTokenFactoryV2...");
 
-  const GasTokenFactoryV2 = await ethers.getContractFactory("GasTokenFactoryV2", wallet);
+  const GasTokenFactoryV2 = await ethers.getContractFactory(
+    "GasTokenFactoryV2",
+    wallet,
+  );
   const factory = await GasTokenFactoryV2.deploy();
   await factory.waitForDeployment();
 
@@ -61,7 +69,7 @@ async function main() {
     TOKEN_NAME,
     TOKEN_SYMBOL,
     PAYMASTER_V4,
-    EXCHANGE_RATE
+    EXCHANGE_RATE,
   );
 
   console.log("  Transaction:", createTx.hash);
@@ -107,7 +115,12 @@ async function main() {
   const allowance = await token.allowance(wallet.address, PAYMASTER_V4);
 
   console.log("  Balance:", ethers.formatEther(balance), symbol);
-  console.log("  Auto-Approval:", allowance === ethers.MaxUint256 ? "✅ MAX" : `❌ ${ethers.formatEther(allowance)}`);
+  console.log(
+    "  Auto-Approval:",
+    allowance === ethers.MaxUint256
+      ? "✅ MAX"
+      : `❌ ${ethers.formatEther(allowance)}`,
+  );
   console.log();
 
   // Summary
@@ -121,13 +134,17 @@ async function main() {
 
   console.log("📝 Next Steps:");
   console.log("  1. Save contract addresses for future use");
-  console.log("  2. To change paymaster: token.setPaymaster(newPaymasterAddress)");
+  console.log(
+    "  2. To change paymaster: token.setPaymaster(newPaymasterAddress)",
+  );
   console.log("  3. To mint more: token.mint(recipient, amount)");
   console.log("  4. Auto-approval happens on mint and transfer automatically");
   console.log();
 
   console.log("🔗 Verify on Sepolia Etherscan:");
-  console.log(`  Factory: https://sepolia.etherscan.io/address/${factoryAddress}`);
+  console.log(
+    `  Factory: https://sepolia.etherscan.io/address/${factoryAddress}`,
+  );
   console.log(`  Token: https://sepolia.etherscan.io/address/${tokenAddress}`);
 }
 
