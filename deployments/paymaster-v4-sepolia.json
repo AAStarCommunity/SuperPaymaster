@@ -1,0 +1,12 @@
+{
+  "paymaster": "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "owner": "0x411BD567E46C0781248dbB6a9211891C032885e5",
+  "treasury": "0x411BD567E46C0781248dbB6a9211891C032885e5",
+  "gasToUSDRate": "4500000000000000000000",
+  "pntPriceUSD": "20000000000000000",
+  "serviceFeeRate": 200,
+  "maxGasCostCap": "1000000000000000000",
+  "minTokenBalance": "10000000000000000000",
+  "version": "PaymasterV4-Direct-v1.0.0"
+}

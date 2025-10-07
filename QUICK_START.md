@@ -71,40 +71,90 @@ forge script script/DeployGasToken.s.sol:DeployGasToken \
 ```
 
 #### 3. 部署PaymasterV4 (最新版本 🆕)
-```bash
-# 配置环境变量
-ENTRY_POINT=0x0000000071727De22E5E9d8BAf0edAc6f37da032  # v0.7 EntryPoint
-OWNER_ADDRESS=0x...
-TREASURY_ADDRESS=0x...
-GAS_TO_USD_RATE=4500000000000000000000  # 4500e18 = $4500/ETH
-PNT_PRICE_USD=20000000000000000         # 0.02e18 = $0.02/PNT
-SERVICE_FEE_RATE=200                     # 2%
-MAX_GAS_COST_CAP=1000000000000000000    # 1e18 = 1 ETH
-MIN_TOKEN_BALANCE=1000000000000000000000 # 1000e18
 
-# 部署
+**方式一: 使用完整部署脚本 (推荐)**
+```bash
+# 配置 .env.v3 环境变量
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+PRIVATE_KEY=your_private_key
+OWNER_ADDRESS=0x411BD567E46C0781248dbB6a9211891C032885e5
+ENTRYPOINT_V07=0x0000000071727De22E5E9d8BAf0edAc6f37da032
+SUPER_PAYMASTER=0x838da93c815a6E45Aa50429529da9106C0621eF0  # Registry
+SBT_CONTRACT_ADDRESS=0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f
+GAS_TOKEN_ADDRESS=0x090e34709a592210158aa49a969e4a04e3a29ebd
+
+# 一键部署、注册、配置
+./scripts/deploy-v4-complete.sh
+
+# 脚本会自动:
+# 1. 部署 PaymasterV4
+# 2. 注册到 Registry
+# 3. 添加 Stake 和 Deposit
+# 4. 配置 SBT 和 GasToken
+# 5. 验证配置
+# 6. 保存部署摘要到 deployments/paymaster-v4-deployment.txt
+```
+
+**方式二: 手动步骤**
+```bash
+# 1. 部署 PaymasterV4
 forge script script/deploy-paymaster-v4.s.sol:DeployPaymasterV4 \
   --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
   --broadcast \
-  --verify
+  --verify \
+  -vvvv
 
-# 配置SBT和GasToken
-export PAYMASTER_V4_ADDRESS=0x...  # 部署后的地址
-forge script script/configure-paymaster-v4.s.sol \
-  --sig "addSBT(address)" 0x... \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast
+# 2. 注册和资金配置
+export PAYMASTER_V4_ADDRESS=0x...  # 从部署输出获取
+./scripts/register-v4.sh $PAYMASTER_V4_ADDRESS 0.05 0.05
 
-forge script script/configure-paymaster-v4.s.sol \
-  --sig "addGasToken(address)" 0x... \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast
-
-# 查看配置
-forge script script/configure-paymaster-v4.s.sol \
-  --sig "showConfig()" \
-  --rpc-url $SEPOLIA_RPC_URL
+# 3. 验证配置
+node scripts/check-config-v4.js
 ```
+
+## 🧪 测试和验证
+
+### 完整测试流程 (开发 → 测试 → 部署 → 验证 → 交易)
+
+```bash
+# 1. 本地开发和测试
+forge build
+forge test --match-contract PaymasterV4Test -vv
+
+# 2. 部署到测试网
+./scripts/deploy-v4-complete.sh
+
+# 3. 验证配置
+node scripts/check-config-v4.js
+
+# 4. 授权 PNT (如需要)
+node scripts/approve-pnt-v4.js
+
+# 5. 执行测试交易
+node scripts/submit-via-entrypoint-v4.js
+
+# 6. 在 Sepolia Etherscan 验证交易结果
+# 查看输出的 Transaction hash 链接
+```
+
+### 测试脚本说明
+
+- **`check-config-v4.js`**: 检查 PaymasterV4 所有配置
+  - PaymasterV4 参数 (gasToUSDRate, pntPriceUSD, serviceFeeRate 等)
+  - EntryPoint stake/deposit 状态
+  - Registry 注册状态
+  - 测试账户余额和授权
+  
+- **`approve-pnt-v4.js`**: 授权 PNT 给 PaymasterV4
+  - 授权 unlimited 数量
+  - 用于测试账户 gas 支付
+  
+- **`submit-via-entrypoint-v4.js`**: 提交测试 UserOp
+  - 直接通过 EntryPoint 提交
+  - 使用 PaymasterV4 支付 gas
+  - 支持用户指定 GasToken
+  - 详细的交易日志
 
 ## 🎯 两个DApp
 
