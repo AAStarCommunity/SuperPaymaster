@@ -15,11 +15,20 @@
 ## 前置要求
 
 ### 1. 测试账户准备
+
+⚠️ **重要**: 在提交 UserOperation 之前，必须完成以下所有步骤！
+
 你需要一个 SimpleAccount (ERC-4337 账户) 或任何兼容的 AA 账户:
-- PNT Token 余额 ≥ 10 PNT
-- PNT 授权给 PaymasterV4 ≥ 预计 gas 费用
-- SBT Token 余额 ≥ 1 (如账户已部署)
-- 账户 owner 的私钥用于签名
+
+✅ **必需步骤**:
+1. **PNT Token 余额 ≥ 20 PNT** (PaymasterV4 最低要求)
+2. **🔴 PNT 必须授权给 PaymasterV4!** (这是最容易被忽略的步骤)
+   - 使用 `approve(address,uint256)` 授权
+   - 建议授权 `MaxUint256` (无限额度)
+3. **SBT Token 余额 ≥ 1** (如果账户已部署)
+4. **账户 owner 的私钥** 用于签名
+
+> 💡 **快速获取测试 tokens**: 访问 [Faucet](https://gastoken-faucet.vercel.app) 免费领取 SBT 和 PNT
 
 ### 2. 环境配置
 
@@ -475,10 +484,21 @@ cast call $PNT_TOKEN "allowance(address,address)(uint256)" $SIMPLE_ACCOUNT $PAYM
 cast call $SBT_TOKEN "balanceOf(address)(uint256)" $SIMPLE_ACCOUNT --rpc-url $SEPOLIA_RPC_URL
 ```
 
-### 2. 授权 PNT (如需要)
+### 2. 授权 PNT (🔴 必需步骤!)
+
+⚠️ **这是最容易被忽略的步骤！如果不授权，会得到 `AA33 reverted 0x8a7638fa` 错误**
+
+#### 方法 1: 通过 SimpleAccount 授权 (推荐)
 
 ```bash
-# 通过 SimpleAccount 授权 PNT
+# 设置变量
+SIMPLE_ACCOUNT="0x你的SimpleAccount地址"
+PNT_TOKEN="0x090e34709a592210158aa49a969e4a04e3a29ebd"
+PAYMASTER_V4="0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445"
+PRIVATE_KEY="0x你的私钥"
+SEPOLIA_RPC_URL="https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY"
+
+# 通过 SimpleAccount 授权 PNT (授权无限额度)
 cast send $SIMPLE_ACCOUNT \
   "execute(address,uint256,bytes)" \
   $PNT_TOKEN \
@@ -486,6 +506,32 @@ cast send $SIMPLE_ACCOUNT \
   $(cast calldata "approve(address,uint256)" $PAYMASTER_V4 $(cast max-uint)) \
   --rpc-url $SEPOLIA_RPC_URL \
   --private-key $PRIVATE_KEY
+```
+
+#### 方法 2: 如果是 EOA (普通地址)
+
+```bash
+# 直接授权
+cast send $PNT_TOKEN \
+  "approve(address,uint256)" \
+  $PAYMASTER_V4 \
+  $(cast max-uint) \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY
+```
+
+#### 验证授权成功
+
+```bash
+# 检查授权额度
+cast call $PNT_TOKEN \
+  "allowance(address,address)(uint256)" \
+  $SIMPLE_ACCOUNT \
+  $PAYMASTER_V4 \
+  --rpc-url $SEPOLIA_RPC_URL
+
+# 应该返回一个很大的数字，而不是 0
+# 例如: 115792089237316195423570985008687907853269984665640564039457584007913129639935
 ```
 
 ### 3. 验证 PaymasterV4 配置
@@ -517,17 +563,38 @@ node test-paymaster-v4.js
 
 ## 常见问题
 
-### Q1: 交易失败 "AA31 paymaster deposit too low"
+### Q1: 交易失败 "AA33 reverted 0x8a7638fa" (最常见 ⚠️)
+
+**错误含义**: `PaymasterV4__InsufficientPNT()` - PNT 不足或未授权
+
+**原因**: 
+1. SimpleAccount 未授权 PNT 给 PaymasterV4 (最常见!)
+2. PNT 余额 < 20 PNT
+
+**诊断**:
+```bash
+# 检查授权 (重要!)
+cast call 0x090e34709a592210158aa49a969e4a04e3a29ebd \
+  "allowance(address,address)(uint256)" \
+  YOUR_ACCOUNT \
+  0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445 \
+  --rpc-url $SEPOLIA_RPC_URL
+
+# 如果返回 0，说明没有授权！
+```
+
+**解决**: 
+- 方案 1: 按照上面的 "2. 授权 PNT" 步骤授权
+- 方案 2: 访问 https://gastoken-faucet.vercel.app 领取 PNT (会自动处理)
+- 详细修复指南: [PAYMASTER_V4_QUICK_FIX.md](./PAYMASTER_V4_QUICK_FIX.md)
+
+### Q2: 交易失败 "AA31 paymaster deposit too low"
 **原因**: PaymasterV4 在 EntryPoint 中的 deposit 不足  
 **解决**: 联系 Paymaster 运营者增加 deposit
 
-### Q2: 交易失败 "Insufficient balance"
+### Q3: 交易失败 "Insufficient balance"
 **原因**: SimpleAccount 的 PNT 余额不足  
-**解决**: 向 SimpleAccount 转入更多 PNT
-
-### Q3: 交易失败 "Insufficient allowance"
-**原因**: SimpleAccount 未授权 PNT 给 PaymasterV4  
-**解决**: 执行 `approve-pnt-v4.js` 或使用上面的 cast 命令授权
+**解决**: 访问 https://gastoken-faucet.vercel.app 领取 100 PNT
 
 ### Q4: 交易失败 "SBT required"
 **原因**: 已部署账户没有 SBT  
