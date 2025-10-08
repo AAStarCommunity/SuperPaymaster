@@ -1,5 +1,5 @@
-forge-std/=lib/forge-std/src/
-@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+forge-std/=contracts/lib/forge-std/src/
+@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/
 @openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/
 @account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/
 solady/=singleton-paymaster/lib/solady/src/

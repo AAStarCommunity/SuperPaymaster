@@ -1,3 +1,7 @@
+
+singleton-paymaster/
+singleton-paymaster-backup/
+logs/
 # Logs
 logs
 *.log
