@@ -1,0 +1,114 @@
+<svg width="450" height="400" viewBox="0 0 450 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Glow Filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Arrow Heads -->
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3498db"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e74c3c"/>
+    </marker>
+    <marker id="arrow-yellow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f1c40f"/>
+    </marker>
+  </defs>
+
+  <style>
+    .circle-node {
+      fill: #aed6f1; /* Light Blue */
+      stroke: #5dade2;
+      stroke-width: 2;
+    }
+    .internal-text {
+      font-family: sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      fill: #2c3e50;
+      text-anchor: middle;
+    }
+    .external-text {
+      font-family: sans-serif;
+      font-size: 11px;
+      fill: #566573;
+      text-anchor: middle;
+    }
+    .flow-path {
+        fill: none;
+        stroke-width: 2.5;
+        stroke-dasharray: 10, 15;
+        stroke-linecap: round;
+    }
+
+    /* Animations */
+    @keyframes flow {
+      to { stroke-dashoffset: -25; }
+    }
+    @keyframes pulse-tasks {
+      0% { fill: #4682b4; transform: scale(1.03); }
+      20% { fill: #aed6f1; transform: scale(1); }
+      100% { fill: #aed6f1; transform: scale(1); }
+    }
+    @keyframes pulse-pnts {
+      0% { fill: #aed6f1; transform: scale(1); }
+      20% { fill: #4682b4; transform: scale(1.03); }
+      40% { fill: #aed6f1; transform: scale(1); }
+      100% { fill: #aed6f1; transform: scale(1); }
+    }
+    @keyframes pulse-shops {
+      0% { fill: #aed6f1; transform: scale(1); }
+      40% { fill: #4682b4; transform: scale(1.03); }
+      60% { fill: #aed6f1; transform: scale(1); }
+      100% { fill: #aed6f1; transform: scale(1); }
+    }
+
+    #tasks-circle { animation: pulse-tasks 9s ease-in-out infinite alternate; }
+    #pnts-circle { animation: pulse-pnts 9s ease-in-out infinite alternate; }
+    #shops-circle { animation: pulse-shops 9s ease-in-out infinite alternate; }
+
+    .flow-blue { stroke: #3498db; animation: flow 1.5s linear infinite; }
+    .flow-red { stroke: #e74c3c; animation: flow 1.5s linear infinite; }
+    .flow-yellow { stroke: #f1c40f; animation: flow 1.5s linear infinite; }
+
+  </style>
+
+  <!-- Arrows - Animated Flow -->
+  <g>
+    <!-- Blue Arrows (Tasks <-> PNTs) -->
+    <path class="flow-path flow-blue" d="M 175 100 Q 225 80 275 100" marker-end="url(#arrow-blue)"/>
+    <path class="flow-path flow-blue" d="M 275 100 Q 225 90 175 100" marker-end="url(#arrow-blue)" style="animation-delay: -0.75s;"/>
+    <!-- Red Arrows (PNTs <-> Shops) -->
+    <path class="flow-path flow-red" d="M 305 145 Q 350 200 275 280" marker-end="url(#arrow-red)"/>
+    <path class="flow-path flow-red" d="M 275 280 Q 340 205 305 145" marker-end="url(#arrow-red)" style="animation-delay: -0.75s;"/>
+    <!-- Yellow Arrows (Shops <-> Tasks) -->
+    <path class="flow-path flow-yellow" d="M 145 145 Q 100 200 175 280" marker-end="url(#arrow-yellow)"/>
+    <path class="flow-path flow-yellow" d="M 175 280 Q 110 205 145 145" marker-end="url(#arrow-yellow)" style="animation-delay: -0.75s;"/>
+  </g>
+
+  <!-- Nodes -->
+  <g id="tasks-node">
+    <circle id="tasks-circle" class="circle-node" cx="125" cy="100" r="50" filter="url(#glow)"/>
+    <text class="internal-text" x="125" y="105">Tasks</text>
+    <text class="external-text" x="125" y="30">Complicated Service</text>
+  </g>
+
+  <g id="pnts-node">
+    <circle id="pnts-circle" class="circle-node" cx="325" cy="100" r="50" filter="url(#glow)"/>
+    <text class="internal-text" x="325" y="105">PNTs</text>
+    <text class="external-text" x="325" y="30">Not Only Community Gas Token</text>
+  </g>
+
+  <g id="shops-node">
+    <circle id="shops-circle" class="circle-node" cx="225" cy="280" r="50" filter="url(#glow)"/>
+    <text class="internal-text" x="225" y="285">Shops</text>
+    <text class="external-text" x="225" y="355">Simple Products/Services</text>
+  </g>
+
+</svg>
