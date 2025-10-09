@@ -16,7 +16,9 @@ const OWNER_PRIVATE_KEY = (
   process.env.SEPOLIA_PRIVATE_KEY ||
   ""
 ).trim();
-const FACTORY_ADDRESS = process.env.SIMPLE_ACCOUNT_FACTORY_ADDRESS || "0x9bD66892144FCf0BAF5B6946AEAFf38B0d967881";
+const FACTORY_ADDRESS =
+  process.env.SIMPLE_ACCOUNT_FACTORY_ADDRESS ||
+  "0x9bD66892144FCf0BAF5B6946AEAFf38B0d967881";
 
 // Rate limiting (simple in-memory cache for demo)
 const rateLimitCache = new Map();
@@ -70,16 +72,20 @@ export default async function handler(req, res) {
     }
 
     if (!/^0x[a-fA-F0-9]{40}$/.test(owner)) {
-      return res.status(400).json({ error: "Invalid Ethereum address for owner" });
+      return res
+        .status(400)
+        .json({ error: "Invalid Ethereum address for owner" });
     }
 
     // Use provided salt or random salt
-    const accountSalt = salt !== undefined ? salt : Math.floor(Math.random() * 1000000);
+    const accountSalt =
+      salt !== undefined ? salt : Math.floor(Math.random() * 1000000);
 
     // Check rate limit
     if (!checkRateLimit(owner)) {
       return res.status(429).json({
-        error: "Rate limit exceeded. Please try again later (max 3 requests per hour)",
+        error:
+          "Rate limit exceeded. Please try again later (max 3 requests per hour)",
       });
     }
 
@@ -94,10 +100,19 @@ export default async function handler(req, res) {
     const signer = new ethers.Wallet(OWNER_PRIVATE_KEY, provider);
 
     // Create SimpleAccount via Factory
-    const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+    const factoryContract = new ethers.Contract(
+      FACTORY_ADDRESS,
+      FACTORY_ABI,
+      signer,
+    );
 
     // First, get the counterfactual address
-    const accountAddress = await factoryContract.getAddress(owner, accountSalt);
+    // NOTE: Cannot use factoryContract.getAddress() because it's a built-in ethers method
+    // Use callStatic or direct interface call instead
+    const accountAddress = await factoryContract["getAddress(address,uint256)"](
+      owner,
+      accountSalt,
+    );
 
     // Check if account already exists
     const code = await provider.getCode(accountAddress);
@@ -135,7 +150,8 @@ export default async function handler(req, res) {
     let statusCode = 500;
 
     if (errorMessage.includes("insufficient funds")) {
-      errorMessage = "Faucet is out of funds. Please contact the administrator.";
+      errorMessage =
+        "Faucet is out of funds. Please contact the administrator.";
     } else if (errorMessage.includes("nonce")) {
       errorMessage = "Transaction conflict. Please try again.";
     } else if (errorMessage.includes("only callable from SenderCreator")) {
