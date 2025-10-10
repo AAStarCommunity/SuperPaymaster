@@ -1,0 +1,8 @@
+{
+  "network": "sepolia",
+  "simpleAccountV2Implementation": "0xd80c298084527B0c42f855439B8427F3A1C911ed",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "deployer": "0x411BD567E46C0781248dbB6a9211891C032885e5",
+  "timestamp": "2025-10-10T07:16:03.993Z",
+  "version": "2.0.0"
+}
