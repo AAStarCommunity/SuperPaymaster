@@ -32,7 +32,7 @@ cd /Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster-Contract
 # 部署 Settlement
 forge create src/v3/Settlement.sol:Settlement \
   --rpc-url "https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N" \
-  --private-key "0x2717524c39f8b8ab74c902dc712e590fee36993774119c1e06d31daa4b0fbc81" \
+  --private-key "$PRIVATE_KEY" \
   --constructor-args "0x411BD567E46C0781248dbB6a9211891C032885e5" "0x4e67678AF714f6B5A8882C2e5a78B15B08a79575" "100000000000000000000" \
   --legacy \
   --broadcast \
@@ -58,7 +58,7 @@ minTokenBalance: 10000000000000000000  // 10 PNT
 # 替换 <NEW_SETTLEMENT> 为步骤1部署的地址
 forge create src/v3/PaymasterV3.sol:PaymasterV3 \
   --rpc-url "https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N" \
-  --private-key "0x2717524c39f8b8ab74c902dc712e590fee36993774119c1e06d31daa4b0fbc81" \
+  --private-key "$PRIVATE_KEY" \
   --constructor-args \
     "0x0000000071727De22E5E9d8BAf0edAc6f37da032" \
     "0x411BD567E46C0781248dbB6a9211891C032885e5" \
@@ -81,7 +81,7 @@ cast send 0x4e67678AF714f6B5A8882C2e5a78B15B08a79575 \
   "SuperPaymasterV3" \
   150 \
   --rpc-url "https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N" \
-  --private-key "0x2717524c39f8b8ab74c902dc712e590fee36993774119c1e06d31daa4b0fbc81" \
+  --private-key "$PRIVATE_KEY" \
   --legacy
 ```
 
@@ -91,7 +91,7 @@ cast send 0x4e67678AF714f6B5A8882C2e5a78B15B08a79575 \
 cast send "<NEW_PAYMASTER>" \
   --value 0.1ether \
   --rpc-url "https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N" \
-  --private-key "0x2717524c39f8b8ab74c902dc712e590fee36993774119c1e06d31daa4b0fbc81" \
+  --private-key "$PRIVATE_KEY" \
   --legacy
 ```
 
