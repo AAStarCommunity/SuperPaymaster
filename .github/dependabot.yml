@@ -1,0 +1,39 @@
+# Dependabot configuration for SuperPaymaster
+# This file configures GitHub Dependabot to manage dependency updates
+# and security alerts for the project
+
+version: 2
+updates:
+  # Monitor npm dependencies in the root project
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Only alert on production dependencies vulnerabilities
+    open-pull-requests-limit: 5
+    ignore:
+      # Ignore development dependencies vulnerabilities
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-patch", "version-update:semver-minor"]
+      - dependency-name: "hardhat"
+        update-types: ["version-update:semver-patch", "version-update:semver-minor"]
+      - dependency-name: "@sentry/node"
+      - dependency-name: "axios"
+        # Only ignore dev dependency updates, not security patches
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "cookie"
+      - dependency-name: "brace-expansion"
+      - dependency-name: "@eslint/plugin-kit"
+
+  # Monitor GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+
+# Note: To further configure security alerts:
+# 1. Go to: https://github.com/AAStarCommunity/SuperPaymaster/settings/security_analysis
+# 2. Enable "Dependabot security updates"
+# 3. Configure alert severity thresholds
+# 4. You can dismiss specific alerts for development dependencies
