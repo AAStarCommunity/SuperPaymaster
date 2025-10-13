@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@openzeppelin/contracts':
-        specifier: ^5.0.2
+        specifier: ^5.4.0
         version: 5.4.0
       dotenv:
         specifier: ^17.2.3
