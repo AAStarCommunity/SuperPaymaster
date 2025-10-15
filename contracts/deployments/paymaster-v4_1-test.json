@@ -1,0 +1,10 @@
+{
+  "paymaster": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "owner": "0x1234567890123456789012345678901234567890",
+  "treasury": "0x2234567890123456789012345678901234567890",
+  "registry": "0x3234567890123456789012345678901234567890",
+  "registrySet": true,
+  "version": "PaymasterV4.1-Registry-v1.1.0",
+  "timestamp": 1
+}
