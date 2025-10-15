@@ -1,14 +1,24 @@
 require("dotenv").config({ path: ".env.v3" });
 const { ethers } = require("ethers");
 
-// This script submits UserOp directly via EntryPoint using PaymasterV4
-// PaymasterV4 uses direct payment mode without Settlement contract
+// Multi-Account Test Script
+// Usage: node scripts/submit-multi-accounts-v4.js [account_address] [count]
+// Example: node scripts/submit-multi-accounts-v4.js 0xf0e96d5fDCCCA9B67929600615EB04e5f11D4584 3
 
 const ENTRYPOINT =
   process.env.ENTRYPOINT_V07 || "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const SIMPLE_ACCOUNT =
-  process.env.SIMPLE_ACCOUNT_V1_TEST ||
-  "0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce"; // SimpleAccount V1 (raw signature)
+
+// Multiple test accounts (SimpleAccount V1)
+const TEST_ACCOUNTS = [
+  "0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce", // Primary test account
+  "0xf0e96d5fDCCCA9B67929600615EB04e5f11D4584", // Account 1 (200 PNT)
+  "0x57b2e6f08399c276b2c1595825219d29990d0921", // Account 2 (100 PNT)
+];
+
+// Get account from command line or use first in list
+const SIMPLE_ACCOUNT = process.argv[2] || TEST_ACCOUNTS[0];
+const TX_COUNT = parseInt(process.argv[3] || "1");
+
 const PAYMASTER_V4 = "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445";
 const PNT_TOKEN =
   process.env.PNT_TOKEN_ADDRESS || "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180";
@@ -35,14 +45,62 @@ const ERC20ABI = [
   "function allowance(address owner, address spender) external view returns (uint256)",
 ];
 
+async function submitTransaction(provider, signer, txNumber, totalTxs) {
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`Transaction ${txNumber}/${totalTxs} - Account: ${SIMPLE_ACCOUNT}`);
+  console.log("=".repeat(60));
+
 async function main() {
+  if (!ethers.isAddress(SIMPLE_ACCOUNT)) {
+    console.error("❌ Invalid account address:", SIMPLE_ACCOUNT);
+    process.exit(1);
+  }
+
+  console.log("=== Multi-Account Test Script ===\n");
+  console.log("Account:", SIMPLE_ACCOUNT);
+  console.log("Transactions to send:", TX_COUNT);
+  console.log("PaymasterV4:", PAYMASTER_V4);
+  console.log();
+
   const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
   const signer = new ethers.Wallet(OWNER_PRIVATE_KEY, provider);
 
-  console.log("=== Submit UserOp via EntryPoint (PaymasterV4) ===\n");
-  console.log("Signer:", signer.address);
-  console.log("SimpleAccount:", SIMPLE_ACCOUNT);
-  console.log("PaymasterV4:", PAYMASTER_V4);
+  // Send multiple transactions
+  const results = [];
+  for (let i = 1; i <= TX_COUNT; i++) {
+    try {
+      const result = await submitTransaction(provider, signer, i, TX_COUNT);
+      results.push(result);
+
+      // Wait 2 seconds between transactions
+      if (i < TX_COUNT) {
+        console.log("\n⏳ Waiting 2 seconds before next transaction...");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    } catch (error) {
+      console.error(`\n❌ Transaction ${i} failed:`, error.message);
+      results.push({ txNumber: i, success: false, error: error.message });
+    }
+  }
+
+  // Summary
+  console.log("\n\n" + "=".repeat(60));
+  console.log("📊 SUMMARY");
+  console.log("=".repeat(60));
+  console.log(`Account: ${SIMPLE_ACCOUNT}`);
+  console.log(`Total Transactions: ${results.length}`);
+  console.log(`Successful: ${results.filter(r => r.success).length}`);
+  console.log(`Failed: ${results.filter(r => !r.success).length}`);
+
+  if (results.some(r => r.success)) {
+    console.log("\n✅ Successful Transactions:");
+    results.filter(r => r.success).forEach(r => {
+      console.log(`  ${r.txNumber}. ${r.txHash} (Block: ${r.blockNumber})`);
+    });
+  }
+}
+
+async function submitTransaction_impl(provider, signer) {
 
   const entryPoint = new ethers.Contract(ENTRYPOINT, EntryPointABI, signer);
   const accountContract = new ethers.Contract(
