@@ -4,15 +4,15 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "../src/v3/PaymasterV4.sol";
 import "../src/MySBT.sol";
-import "../src/GasToken.sol";
+import "../src/GasTokenV2.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 contract PaymasterV4Test is Test {
     PaymasterV4 public paymaster;
     MySBT public sbt;
-    GasToken public basePNT;
-    GasToken public aPNT;
+    GasTokenV2 public basePNT;
+    GasTokenV2 public aPNT;
 
     address public owner;
     address public treasury;
@@ -38,8 +38,6 @@ contract PaymasterV4Test is Test {
         vm.startPrank(owner);
 
         sbt = new MySBT();
-        basePNT = new GasToken("Base PNT", "bPNT", mockSettlement, 1e18);
-        aPNT = new GasToken("Alpha PNT", "aPNT", mockSettlement, 1e18);
 
         paymaster = new PaymasterV4(
             entryPoint,
@@ -51,6 +49,9 @@ contract PaymasterV4Test is Test {
             INITIAL_MAX_GAS_COST_CAP,
             INITIAL_MIN_TOKEN_BALANCE
         );
+
+        basePNT = new GasTokenV2("Base PNT", "bPNT", address(paymaster), 1e18);
+        aPNT = new GasTokenV2("Alpha PNT", "aPNT", address(paymaster), 1e18);
 
         // Add SBT and GasTokens
         paymaster.addSBT(address(sbt));
@@ -163,12 +164,12 @@ contract PaymasterV4Test is Test {
 
         // Add tokens until limit (already have 2)
         for (uint256 i = 2; i < paymaster.MAX_GAS_TOKENS(); i++) {
-            GasToken newToken = new GasToken("Token", "TKN", mockSettlement, 1e18);
+            GasTokenV2 newToken = new GasTokenV2("Token", "TKN", address(paymaster), 1e18);
             paymaster.addGasToken(address(newToken));
         }
 
         // Try to add one more
-        GasToken extraToken = new GasToken("Extra", "EXT", mockSettlement, 1e18);
+        GasTokenV2 extraToken = new GasTokenV2("Extra", "EXT", address(paymaster), 1e18);
         vm.expectRevert(PaymasterV4.PaymasterV4__MaxLimitReached.selector);
         paymaster.addGasToken(address(extraToken));
 
