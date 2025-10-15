@@ -24,7 +24,6 @@ contract PaymasterV4_1Test is Test {
     address public treasury;
     address public user;
     address public entryPoint;
-    address public mockSettlement;
 
     // Initial parameters
     uint256 constant INITIAL_GAS_TO_USD_RATE = 4500e18; // $4500/ETH
@@ -38,7 +37,6 @@ contract PaymasterV4_1Test is Test {
         treasury = makeAddr("treasury");
         user = address(this);
         entryPoint = makeAddr("entryPoint");
-        mockSettlement = makeAddr("mockSettlement");
 
         // Deploy contracts
         vm.startPrank(owner);

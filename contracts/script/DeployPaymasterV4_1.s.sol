@@ -7,11 +7,15 @@ import "../src/v3/PaymasterV4_1.sol";
 /**
  * @title DeployPaymasterV4_1
  * @notice Deployment script for PaymasterV4_1 with Registry management
- * @dev Usage:
+ * @dev Usage (with verification):
  *   forge script script/DeployPaymasterV4_1.s.sol:DeployPaymasterV4_1 \
  *     --rpc-url $SEPOLIA_RPC_URL \
  *     --broadcast \
- *     --verify
+ *     --verify \
+ *     --etherscan-api-key $ETHERSCAN_API_KEY \
+ *     -vvvv
+ *
+ * @dev For mainnet or other networks, adjust --rpc-url and --etherscan-api-key
  */
 contract DeployPaymasterV4_1 is Script {
     function run() external {
