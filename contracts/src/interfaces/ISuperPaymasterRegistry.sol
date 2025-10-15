@@ -64,4 +64,18 @@ interface ISuperPaymasterRegistry {
             uint256 totalSuccessfulRoutes,
             uint256 totalRoutes
         );
+
+    /**
+     * @notice Deactivate the caller's paymaster
+     * @dev Only callable by registered paymaster, sets isActive to false
+     * @dev Deactivate means: stop accepting new requests, but continue settlement & unstake
+     */
+    function deactivate() external;
+
+    /**
+     * @notice Activate the caller's paymaster
+     * @dev Only callable by registered paymaster, sets isActive to true
+     * @dev Activation requires passing Registry's qualification checks
+     */
+    function activate() external;
 }
