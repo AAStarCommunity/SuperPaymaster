@@ -170,9 +170,8 @@ contract MySBT is ERC721 {
             MINT_STAKE + MINT_FEE
         );
 
-        // Stake 0.2 GT
-        IERC20(GTOKEN).approve(GTOKEN_STAKING, MINT_STAKE);
-        IGTokenStaking(GTOKEN_STAKING).stake(MINT_STAKE);
+        // Hold 0.2 GT as stake (stored in contract)
+        // Note: 0.2 GT stays in this contract as collateral
 
         // Burn 0.1 GT
         IGToken(GTOKEN).burn(MINT_FEE);
