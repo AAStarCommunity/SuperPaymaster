@@ -84,6 +84,40 @@ contract SuperPaymasterV2Test is Test {
         superPaymaster.setDVTAggregator(address(blsAggregator));
         dvtValidator.setBLSAggregator(address(blsAggregator));
 
+        // Configure lock system and exit fees (v2.0-beta)
+        gtokenStaking.setTreasury(owner);
+
+        // Configure MySBT locker (flat 0.1 sGT exit fee)
+        uint256[] memory emptyTiers = new uint256[](0);
+        uint256[] memory emptyFees = new uint256[](0);
+        gtokenStaking.configureLocker(
+            address(mysbt),
+            true,           // authorized
+            0.1 ether,     // baseExitFee
+            emptyTiers,
+            emptyFees,
+            address(0)
+        );
+
+        // Configure SuperPaymaster locker (tiered exit fees)
+        uint256[] memory spTiers = new uint256[](3);
+        spTiers[0] = 90 days;
+        spTiers[1] = 180 days;
+        spTiers[2] = 365 days;
+        uint256[] memory spFees = new uint256[](4);
+        spFees[0] = 15 ether;
+        spFees[1] = 10 ether;
+        spFees[2] = 7 ether;
+        spFees[3] = 5 ether;
+        gtokenStaking.configureLocker(
+            address(superPaymaster),
+            true,
+            0,
+            spTiers,
+            spFees,
+            address(0)
+        );
+
         // Mint GToken to test accounts
         gtoken.mint(operator1, 1000 ether);
         gtoken.mint(operator2, 1000 ether);
@@ -121,13 +155,23 @@ contract SuperPaymasterV2Test is Test {
     }
 
     function test_RevertWhen_RegistrationInsufficientStake() public {
-        // Try to register with insufficient stake
+        // v2.0-beta: GTokenStaking MIN_STAKE = 0.01 GT (Lido-like)
+        // But SuperPaymaster minOperatorStake = 30 sGT
+
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 20 ether);
+        gtokenStaking.stake(20 ether);  // Get 20 sGT (enough for GTokenStaking, but not for operator)
 
-        // Should fail: MIN_STAKE = 30 GT
+        address[] memory sbts = new address[](1);
+        sbts[0] = address(mysbt);
+
+        // Should fail: minOperatorStake = 30 sGT, but only have 20 sGT
         vm.expectRevert();
-        gtokenStaking.stake(20 ether);
+        superPaymaster.registerOperator(
+            20 ether,  // Trying to register with 20 sGT (insufficient)
+            sbts,
+            address(0)
+        );
 
         vm.stopPrank();
     }
@@ -217,15 +261,25 @@ contract SuperPaymasterV2Test is Test {
     // ====================================
 
     function test_SBTMinting() public {
-        // User mints SBT
         vm.startPrank(user1);
-        gtoken.approve(address(mysbt), 0.3 ether);
 
+        // v2.0-beta: User must first stake GT to get sGToken
+        gtoken.approve(address(gtokenStaking), 1 ether);
+        gtokenStaking.stake(1 ether);  // Get 1 sGToken
+
+        // Then approve GT for mint fee burn
+        gtoken.approve(address(mysbt), 0.1 ether);
+
+        // Mint SBT (will lock 0.3 sGToken)
         uint256 tokenId = mysbt.mintSBT(community1);
 
         assertTrue(tokenId > 0);
         assertEq(mysbt.ownerOf(tokenId), user1);
         assertTrue(mysbt.hasSBT(user1, community1));
+
+        // Verify sGToken is locked
+        assertEq(gtokenStaking.lockedBalanceBy(user1, address(mysbt)), 0.3 ether);
+        assertEq(gtokenStaking.availableBalance(user1), 0.7 ether);
 
         vm.stopPrank();
 
@@ -239,7 +293,9 @@ contract SuperPaymasterV2Test is Test {
     function test_SBTNonTransferable() public {
         // Mint SBT
         vm.startPrank(user1);
-        gtoken.approve(address(mysbt), 0.3 ether);
+        gtoken.approve(address(gtokenStaking), 1 ether);
+        gtokenStaking.stake(1 ether);
+        gtoken.approve(address(mysbt), 0.1 ether);
         uint256 tokenId = mysbt.mintSBT(community1);
         vm.stopPrank();
 
@@ -252,7 +308,9 @@ contract SuperPaymasterV2Test is Test {
     function test_SBTActivityUpdate() public {
         // Mint SBT
         vm.startPrank(user1);
-        gtoken.approve(address(mysbt), 0.3 ether);
+        gtoken.approve(address(gtokenStaking), 1 ether);
+        gtokenStaking.stake(1 ether);
+        gtoken.approve(address(mysbt), 0.1 ether);
         mysbt.mintSBT(community1);
         vm.stopPrank();
 
@@ -440,6 +498,12 @@ contract SuperPaymasterV2Test is Test {
 
     function test_RevertWhen_SBTDoubleMint() public {
         vm.startPrank(user1);
+
+        // v2.0-beta: User must first stake GT to get sGToken
+        gtoken.approve(address(gtokenStaking), 2 ether);
+        gtokenStaking.stake(2 ether);  // Get 2 sGToken (enough for 2 mint attempts)
+
+        // Approve GT for mint fees
         gtoken.approve(address(mysbt), 1 ether);
 
         mysbt.mintSBT(community1);

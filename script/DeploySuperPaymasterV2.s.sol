@@ -136,6 +136,7 @@ contract DeploySuperPaymasterV2 is Script {
         console.log("GTokenStaking deployed:", address(gtokenStaking));
         console.log("MIN_STAKE:", gtokenStaking.MIN_STAKE() / 1e18, "GT");
         console.log("UNSTAKE_DELAY:", gtokenStaking.UNSTAKE_DELAY() / 1 days, "days");
+        console.log("Treasury:", gtokenStaking.treasury());
         console.log("");
     }
 
@@ -157,8 +158,8 @@ contract DeploySuperPaymasterV2 is Script {
         );
 
         console.log("SuperPaymasterV2 deployed:", address(superPaymaster));
-        console.log("MIN_STAKE:", superPaymaster.MIN_STAKE() / 1e18, "GT");
-        console.log("MIN_APNTS_BALANCE:", superPaymaster.MIN_APNTS_BALANCE() / 1e18, "aPNTs");
+        console.log("minOperatorStake:", superPaymaster.minOperatorStake() / 1e18, "sGT");
+        console.log("minAPNTsBalance:", superPaymaster.minAPNTsBalance() / 1e18, "aPNTs");
         console.log("");
     }
 
@@ -234,6 +235,54 @@ contract DeploySuperPaymasterV2 is Script {
         // Set BLS Aggregator in DVT Validator
         dvtValidator.setBLSAggregator(address(blsAggregator));
         console.log("DVTValidator.setBLSAggregator:", address(blsAggregator));
+
+        // ====================================
+        // Configure Lock System and Exit Fees
+        // ====================================
+
+        // Set treasury for exit fees (use deployer for now, transfer to multisig later)
+        gtokenStaking.setTreasury(msg.sender);
+        console.log("GTokenStaking.setTreasury:", msg.sender);
+
+        // Configure MySBT locker (flat 0.1 sGT exit fee)
+        uint256[] memory emptyTiers = new uint256[](0);
+        uint256[] memory emptyFees = new uint256[](0);
+
+        gtokenStaking.configureLocker(
+            address(mysbt),
+            true,                    // authorized
+            0.1 ether,              // baseExitFee: 0.1 sGT
+            emptyTiers,             // no time tiers
+            emptyFees,              // no tiered fees
+            address(0)              // use default treasury
+        );
+        console.log("Configured MySBT locker: flat 0.1 sGT exit fee");
+
+        // Configure SuperPaymaster locker (tiered exit fees based on operating time)
+        uint256[] memory spTiers = new uint256[](3);
+        spTiers[0] = 90 days;
+        spTiers[1] = 180 days;
+        spTiers[2] = 365 days;
+
+        uint256[] memory spFees = new uint256[](4);
+        spFees[0] = 15 ether;   // < 90 days: 15 sGT
+        spFees[1] = 10 ether;   // 90-180 days: 10 sGT
+        spFees[2] = 7 ether;    // 180-365 days: 7 sGT
+        spFees[3] = 5 ether;    // >= 365 days: 5 sGT
+
+        gtokenStaking.configureLocker(
+            address(superPaymaster),
+            true,                    // authorized
+            0,                       // baseExitFee not used
+            spTiers,                // time tiers
+            spFees,                 // tiered fees
+            address(0)              // use default treasury
+        );
+        console.log("Configured SuperPaymaster locker: tiered exit fees (5-15 sGT)");
+
+        // Set SuperPaymaster in GTokenStaking (for slash operations)
+        gtokenStaking.setSuperPaymaster(address(superPaymaster));
+        console.log("GTokenStaking.setSuperPaymaster:", address(superPaymaster));
 
         console.log("");
     }

@@ -89,11 +89,11 @@ contract SuperPaymasterV2 is Ownable {
     /// @notice EntryPoint contract (ERC-4337)
     address public ENTRY_POINT;
 
-    /// @notice Minimum stake: 30 GToken
-    uint256 public constant MIN_STAKE = 30 ether;
+    /// @notice Minimum stake for operator registration (configurable)
+    uint256 public minOperatorStake = 30 ether;
 
-    /// @notice Minimum aPNTs balance: 100 aPNTs
-    uint256 public constant MIN_APNTS_BALANCE = 100 ether;
+    /// @notice Minimum aPNTs balance threshold (configurable)
+    uint256 public minAPNTsBalance = 100 ether;
 
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [
@@ -162,6 +162,16 @@ contract SuperPaymasterV2 is Ownable {
         address indexed newAddress
     );
 
+    event MinOperatorStakeUpdated(
+        uint256 oldStake,
+        uint256 newStake
+    );
+
+    event MinAPNTsBalanceUpdated(
+        uint256 oldBalance,
+        uint256 newBalance
+    );
+
     // ====================================
     // Errors
     // ====================================
@@ -212,8 +222,8 @@ contract SuperPaymasterV2 is Ownable {
         address[] memory supportedSBTs,
         address xPNTsToken
     ) external {
-        if (sGTokenAmount < MIN_STAKE) {
-            revert InsufficientStake(sGTokenAmount, MIN_STAKE);
+        if (sGTokenAmount < minOperatorStake) {
+            revert InsufficientStake(sGTokenAmount, minOperatorStake);
         }
 
         if (accounts[msg.sender].stakedAt != 0) {
@@ -234,7 +244,7 @@ contract SuperPaymasterV2 is Ownable {
             aPNTsBalance: 0,
             totalSpent: 0,
             lastRefillTime: 0,
-            minBalanceThreshold: MIN_APNTS_BALANCE,
+            minBalanceThreshold: minAPNTsBalance,
             supportedSBTs: supportedSBTs,
             xPNTsToken: xPNTsToken,
             reputationScore: 0,
@@ -486,6 +496,34 @@ contract SuperPaymasterV2 is Ownable {
         DVT_AGGREGATOR = _dvtAggregator;
 
         emit DVTAggregatorUpdated(oldAddress, _dvtAggregator);
+    }
+
+    /**
+     * @notice Set minimum operator stake requirement
+     * @param newStake New minimum stake amount in sGToken
+     * @dev Only owner can adjust this parameter
+     */
+    function setMinOperatorStake(uint256 newStake) external onlyOwner {
+        require(newStake >= 10 ether && newStake <= 1000 ether, "Invalid stake range");
+
+        uint256 oldStake = minOperatorStake;
+        minOperatorStake = newStake;
+
+        emit MinOperatorStakeUpdated(oldStake, newStake);
+    }
+
+    /**
+     * @notice Set minimum aPNTs balance threshold
+     * @param newBalance New minimum balance threshold
+     * @dev Only owner can adjust this parameter
+     */
+    function setMinAPNTsBalance(uint256 newBalance) external onlyOwner {
+        require(newBalance >= 10 ether && newBalance <= 10000 ether, "Invalid balance range");
+
+        uint256 oldBalance = minAPNTsBalance;
+        minAPNTsBalance = newBalance;
+
+        emit MinAPNTsBalanceUpdated(oldBalance, newBalance);
     }
 
     /**
