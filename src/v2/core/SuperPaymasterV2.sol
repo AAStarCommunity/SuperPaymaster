@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
@@ -21,7 +22,7 @@ import "../interfaces/Interfaces.sol";
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
-contract SuperPaymasterV2 is Ownable {
+contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
 
     // ====================================
     // Structs
@@ -221,7 +222,7 @@ contract SuperPaymasterV2 is Ownable {
         uint256 sGTokenAmount,
         address[] memory supportedSBTs,
         address xPNTsToken
-    ) external {
+    ) external nonReentrant {
         if (sGTokenAmount < minOperatorStake) {
             revert InsufficientStake(sGTokenAmount, minOperatorStake);
         }
@@ -230,14 +231,7 @@ contract SuperPaymasterV2 is Ownable {
             revert AlreadyRegistered(msg.sender);
         }
 
-        // Lock stake from GTokenStaking
-        IGTokenStaking(GTOKEN_STAKING).lockStake(
-            msg.sender,
-            sGTokenAmount,
-            "SuperPaymaster operator"
-        );
-
-        // Initialize operator account
+        // CEI: Effects first - Initialize operator account BEFORE external call
         accounts[msg.sender] = OperatorAccount({
             sGTokenLocked: sGTokenAmount,
             stakedAt: block.timestamp,
@@ -255,6 +249,13 @@ contract SuperPaymasterV2 is Ownable {
             isPaused: false
         });
 
+        // CEI: Interactions last - Lock stake from GTokenStaking
+        IGTokenStaking(GTOKEN_STAKING).lockStake(
+            msg.sender,
+            sGTokenAmount,
+            "SuperPaymaster operator"
+        );
+
         emit OperatorRegistered(msg.sender, sGTokenAmount, block.timestamp);
     }
 
@@ -262,7 +263,7 @@ contract SuperPaymasterV2 is Ownable {
      * @notice Deposit aPNTs (burn xPNTs 1:1)
      * @param amount Amount to deposit
      */
-    function depositAPNTs(uint256 amount) external {
+    function depositAPNTs(uint256 amount) external nonReentrant {
         if (accounts[msg.sender].stakedAt == 0) {
             revert NotRegistered(msg.sender);
         }
@@ -272,11 +273,12 @@ contract SuperPaymasterV2 is Ownable {
             revert InvalidConfiguration();
         }
 
-        // Burn xPNTs from user (pre-authorized, no approve needed)
-        IxPNTsToken(xPNTsToken).burn(msg.sender, amount);
-
+        // CEI: Effects first - Update balance BEFORE external call
         accounts[msg.sender].aPNTsBalance += amount;
         accounts[msg.sender].lastRefillTime = block.timestamp;
+
+        // CEI: Interactions last - Burn xPNTs from user
+        IxPNTsToken(xPNTsToken).burn(msg.sender, amount);
 
         emit aPNTsDeposited(msg.sender, amount, block.timestamp);
     }
@@ -362,13 +364,14 @@ contract SuperPaymasterV2 is Ownable {
         address operator,
         SlashLevel level,
         bytes memory proof
-    ) external {
+    ) external nonReentrant {
         if (msg.sender != DVT_AGGREGATOR) {
             revert UnauthorizedCaller(msg.sender);
         }
 
-        uint256 slashAmount;
-        uint256 reputationLoss;
+        // Explicit initialization to avoid Slither warnings
+        uint256 slashAmount = 0;
+        uint256 reputationLoss = 0;
 
         if (level == SlashLevel.WARNING) {
             reputationLoss = 10;
@@ -378,14 +381,11 @@ contract SuperPaymasterV2 is Ownable {
         } else if (level == SlashLevel.MAJOR) {
             slashAmount = accounts[operator].sGTokenLocked * 10 / 100; // 10%
             reputationLoss = 50;
-            accounts[operator].isPaused = true;
-            emit OperatorPaused(operator, block.timestamp);
         }
 
-        // Execute slash on GTokenStaking
+        // CEI: Effects first - Update all state BEFORE external calls
         if (slashAmount > 0) {
             accounts[operator].sGTokenLocked -= slashAmount;
-            IGTokenStaking(GTOKEN_STAKING).slash(operator, slashAmount, "Low aPNTs balance");
         }
 
         // Update reputation
@@ -393,6 +393,12 @@ contract SuperPaymasterV2 is Ownable {
             accounts[operator].reputationScore -= reputationLoss;
         } else {
             accounts[operator].reputationScore = 0;
+        }
+
+        // Pause if MAJOR
+        if (level == SlashLevel.MAJOR) {
+            accounts[operator].isPaused = true;
+            emit OperatorPaused(operator, block.timestamp);
         }
 
         // Record slash
@@ -403,6 +409,11 @@ contract SuperPaymasterV2 is Ownable {
             reason: "aPNTs balance below threshold",
             level: level
         }));
+
+        // CEI: Interactions last - Execute slash on GTokenStaking
+        if (slashAmount > 0) {
+            IGTokenStaking(GTOKEN_STAKING).slash(operator, slashAmount, "Low aPNTs balance");
+        }
 
         emit OperatorSlashed(operator, slashAmount, level, block.timestamp);
     }
