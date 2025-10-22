@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/Interfaces.sol";
 
 /**
  * @title DVTValidator
@@ -509,18 +510,4 @@ contract DVTValidator is Ownable {
     {
         return proposals[proposalId].validators.length;
     }
-}
-
-// ====================================
-// Interfaces
-// ====================================
-
-interface IBLSAggregator {
-    function verifyAndExecute(
-        uint256 proposalId,
-        address operator,
-        uint8 slashLevel,
-        address[] memory validators,
-        bytes[] memory signatures
-    ) external;
 }
