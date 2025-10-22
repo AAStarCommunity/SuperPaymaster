@@ -121,10 +121,10 @@ contract xPNTsToken is ERC20, ERC20Permit {
     /**
      * @notice Add trusted spender to pre-authorization list
      * @param spender Contract address to trust
-     * @dev Only community owner can add trusted spenders
+     * @dev Only community owner or factory can add trusted spenders
      */
     function addAutoApprovedSpender(address spender) external {
-        if (msg.sender != communityOwner) {
+        if (msg.sender != communityOwner && msg.sender != FACTORY) {
             revert Unauthorized(msg.sender);
         }
         if (spender == address(0)) {

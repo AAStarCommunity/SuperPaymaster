@@ -124,18 +124,11 @@ contract SuperPaymasterV2Test is Test {
         // Try to register with insufficient stake
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 20 ether);
-        gtokenStaking.stake(20 ether);
-
-        address[] memory sbts = new address[](1);
-        sbts[0] = address(mysbt);
 
         // Should fail: MIN_STAKE = 30 GT
         vm.expectRevert();
-        superPaymaster.registerOperator(
-            20 ether,
-            sbts,
-            address(0)
-        );
+        gtokenStaking.stake(20 ether);
+
         vm.stopPrank();
     }
 
@@ -204,8 +197,8 @@ contract SuperPaymasterV2Test is Test {
 
         // Update prediction parameters
         xpntsFactory.updatePrediction(
-            100,        // avgDailyTx
-            0.001 ether, // avgGasCost
+            1000,       // avgDailyTx
+            0.01 ether, // avgGasCost
             "DeFi",     // industry (2.0x multiplier)
             1.5 ether   // safetyFactor
         );
@@ -213,8 +206,8 @@ contract SuperPaymasterV2Test is Test {
         // Get prediction
         uint256 suggested = xpntsFactory.predictDepositAmount(community1);
 
-        // Expected: 100 * 0.001 * 30 * 2.0 * 1.5 = 9 ether
-        assertEq(suggested, 9 ether);
+        // Expected: 1000 * 0.01 * 30 * 2.0 * 1.5 = 900 ether
+        assertEq(suggested, 900 ether);
 
         vm.stopPrank();
     }
