@@ -79,6 +79,7 @@ contract SuperPaymasterV2Test is Test {
         );
 
         // Initialize connections
+        gtokenStaking.setSuperPaymaster(address(superPaymaster));
         mysbt.setSuperPaymaster(address(superPaymaster));
         superPaymaster.setDVTAggregator(address(blsAggregator));
         dvtValidator.setBLSAggregator(address(blsAggregator));
@@ -101,9 +102,6 @@ contract SuperPaymasterV2Test is Test {
         gtoken.approve(address(gtokenStaking), 100 ether);
         gtokenStaking.stake(100 ether);
 
-        // Lock stake for SuperPaymaster
-        gtokenStaking.approve(address(superPaymaster), 50 ether);
-
         // Register operator
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
@@ -113,7 +111,6 @@ contract SuperPaymasterV2Test is Test {
             sbts,
             address(0) // Will set xPNTs token later
         );
-
         vm.stopPrank();
 
         // Verify registration
@@ -123,7 +120,7 @@ contract SuperPaymasterV2Test is Test {
         assertFalse(account.isPaused);
     }
 
-    function testFail_RegistrationInsufficientStake() public {
+    function test_RevertWhen_RegistrationInsufficientStake() public {
         // Try to register with insufficient stake
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 20 ether);
@@ -133,6 +130,7 @@ contract SuperPaymasterV2Test is Test {
         sbts[0] = address(mysbt);
 
         // Should fail: MIN_STAKE = 30 GT
+        vm.expectRevert();
         superPaymaster.registerOperator(
             20 ether,
             sbts,
@@ -299,7 +297,6 @@ contract SuperPaymasterV2Test is Test {
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 100 ether);
         gtokenStaking.stake(100 ether);
-        gtokenStaking.approve(address(superPaymaster), 50 ether);
 
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
@@ -407,7 +404,6 @@ contract SuperPaymasterV2Test is Test {
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 100 ether);
         gtokenStaking.stake(100 ether);
-        gtokenStaking.approve(address(superPaymaster), 50 ether);
 
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
@@ -427,11 +423,10 @@ contract SuperPaymasterV2Test is Test {
     // Edge Cases
     // ====================================
 
-    function testFail_DoubleRegistration() public {
+    function test_RevertWhen_DoubleRegistration() public {
         vm.startPrank(operator1);
         gtoken.approve(address(gtokenStaking), 100 ether);
         gtokenStaking.stake(100 ether);
-        gtokenStaking.approve(address(superPaymaster), 50 ether);
 
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
@@ -439,22 +434,25 @@ contract SuperPaymasterV2Test is Test {
         superPaymaster.registerOperator(50 ether, sbts, address(0));
 
         // Try to register again (should fail)
+        vm.expectRevert();
         superPaymaster.registerOperator(50 ether, sbts, address(0));
         vm.stopPrank();
     }
 
-    function testFail_DepositWithoutRegistration() public {
+    function test_RevertWhen_DepositWithoutRegistration() public {
         vm.prank(operator1);
+        vm.expectRevert();
         superPaymaster.depositAPNTs(100 ether);
     }
 
-    function testFail_SBTDoubleMint() public {
+    function test_RevertWhen_SBTDoubleMint() public {
         vm.startPrank(user1);
         gtoken.approve(address(mysbt), 1 ether);
 
         mysbt.mintSBT(community1);
 
         // Try to mint again for same community (should fail)
+        vm.expectRevert();
         mysbt.mintSBT(community1);
         vm.stopPrank();
     }

@@ -375,7 +375,7 @@ contract Registry is Ownable {
     function getCommunities(uint256 offset, uint256 limit)
         external
         view
-        returns (address[] memory communities)
+        returns (address[] memory)
     {
         uint256 total = communityList.length;
 
@@ -389,11 +389,13 @@ contract Registry is Ownable {
         }
 
         uint256 size = end - offset;
-        communities = new address[](size);
+        address[] memory result = new address[](size);
 
         for (uint256 i = 0; i < size; i++) {
-            communities[i] = communityList[offset + i];
+            result[i] = communityList[offset + i];
         }
+
+        return result;
     }
 
     /**
