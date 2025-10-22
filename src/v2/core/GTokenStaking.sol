@@ -6,21 +6,22 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title GTokenStaking
- * @notice Staking contract for GToken with slash-aware share calculation
- * @dev Implements sGToken (staked GToken) share system with automatic slash distribution
+ * @title GTokenStaking with Lock Management and Exit Fees
+ * @notice Enhanced staking contract following Lido stETH best practices
+ * @dev Implements sGToken (staked GToken) share system with:
+ *      - Slash-aware share calculation
+ *      - Lock management for multiple protocols (MySBT, SuperPaymaster, etc.)
+ *      - Configurable exit fees (time-based tiers or flat rate)
+ *      - Low minimum stake (0.01 GT, like Lido's no minimum)
+ *      - Treasury for protocol fees
  *
- * Key Features:
- * - GToken → sGToken conversion with dynamic shares
- * - Slash-aware balance calculation: balanceOf = shares * (totalStaked - totalSlashed) / totalShares
- * - 7-day unstake delay for security
- * - 30 GT minimum stake requirement
- * - Only SuperPaymaster can execute slash
+ * Architecture:
+ * - Users stake GT → receive sGToken shares
+ * - Protocols (MySBT, SuperPaymaster) lock user's sGToken
+ * - Users can't unstake while locked
+ * - Unlocking charges exit fees → treasury
  *
- * Share Mechanism:
- * - When slashing occurs, totalSlashed increases
- * - All stakers automatically share the loss proportionally via share-based calculation
- * - Individual shares remain constant, but share value decreases
+ * v2.0-beta: Lido-compliant architecture
  */
 contract GTokenStaking is Ownable {
     using SafeERC20 for IERC20;
@@ -36,12 +37,36 @@ contract GTokenStaking is Ownable {
         uint256 unstakeRequestedAt; // Unstake request timestamp (0 = not requested)
     }
 
+    struct LockInfo {
+        uint256 amount;          // Locked sGToken amount
+        uint256 lockedAt;        // Lock timestamp
+        string purpose;          // Lock purpose (e.g., "MySBT membership")
+        address beneficiary;     // Who benefits from this lock
+    }
+
+    struct LockerConfig {
+        bool authorized;         // Is authorized to lock stakes
+        uint256 baseExitFee;     // Base exit fee (for simple lockers like MySBT)
+        uint256[] timeTiers;     // Time thresholds in seconds (for tiered fees)
+        uint256[] tierFees;      // Corresponding fees for each tier
+        address feeRecipient;    // Where exit fees go (address(0) = use default treasury)
+    }
+
     // ====================================
     // Storage
     // ====================================
 
     /// @notice User stake information
     mapping(address => StakeInfo) public stakes;
+
+    /// @notice Lock information: user => locker => LockInfo
+    mapping(address => mapping(address => LockInfo)) public locks;
+
+    /// @notice Total locked per user
+    mapping(address => uint256) public totalLocked;
+
+    /// @notice Locker configurations
+    mapping(address => LockerConfig) public lockerConfigs;
 
     /// @notice Total amount of GToken staked
     uint256 public totalStaked;
@@ -55,14 +80,17 @@ contract GTokenStaking is Ownable {
     /// @notice GToken ERC20 contract address
     address public immutable GTOKEN;
 
-    /// @notice SuperPaymaster contract address (only authorized slasher)
+    /// @notice SuperPaymaster contract address (for slash operations)
     address public SUPERPAYMASTER;
+
+    /// @notice Default treasury for exit fees
+    address public treasury;
 
     /// @notice 7-day delay before unstaking
     uint256 public constant UNSTAKE_DELAY = 7 days;
 
-    /// @notice Minimum stake amount: 30 GToken
-    uint256 public constant MIN_STAKE = 30 ether;
+    /// @notice Minimum stake amount: 0.01 GToken (Lido-like low barrier)
+    uint256 public constant MIN_STAKE = 0.01 ether;
 
     // ====================================
     // Events
@@ -94,6 +122,35 @@ contract GTokenStaking is Ownable {
         uint256 timestamp
     );
 
+    event LockerConfigured(
+        address indexed locker,
+        bool authorized,
+        uint256 baseExitFee,
+        uint256[] timeTiers,
+        uint256[] tierFees,
+        address feeRecipient
+    );
+
+    event StakeLocked(
+        address indexed user,
+        address indexed locker,
+        uint256 amount,
+        string purpose
+    );
+
+    event StakeUnlocked(
+        address indexed user,
+        address indexed locker,
+        uint256 grossAmount,
+        uint256 exitFee,
+        uint256 netAmount
+    );
+
+    event TreasuryUpdated(
+        address indexed oldTreasury,
+        address indexed newTreasury
+    );
+
     event SuperPaymasterUpdated(
         address indexed oldAddress,
         address indexed newAddress
@@ -108,9 +165,16 @@ contract GTokenStaking is Ownable {
     error NoStakeFound(address user);
     error UnstakeNotRequested(address user);
     error UnstakeDelayNotPassed(uint256 remainingTime);
+    error StakeIsLocked(address user, uint256 lockedAmount);
     error UnauthorizedSlasher(address caller);
+    error UnauthorizedLocker(address caller);
     error SlashAmountExceedsBalance(uint256 amount, uint256 balance);
+    error InsufficientAvailableBalance(uint256 available, uint256 required);
+    error InsufficientLockedAmount(uint256 locked, uint256 required);
+    error ExitFeeTooHigh(uint256 fee, uint256 amount);
     error InvalidAddress(address addr);
+    error InvalidTierConfig();
+    error InvalidFeeRecipient();
 
     // ====================================
     // Constructor
@@ -126,12 +190,12 @@ contract GTokenStaking is Ownable {
     }
 
     // ====================================
-    // Core Functions
+    // Core Staking Functions
     // ====================================
 
     /**
      * @notice Stake GToken and receive sGToken shares
-     * @param amount Amount of GToken to stake (must be >= 30 GT)
+     * @param amount Amount of GToken to stake (must be >= 0.01 GT)
      * @return shares Number of sGToken shares received
      * @dev Share calculation:
      *      - First stake: shares = amount
@@ -172,19 +236,185 @@ contract GTokenStaking is Ownable {
     }
 
     /**
-     * @notice Query user's actual balance after slash
-     * @param user User address
-     * @return balance Current balance (shares * (totalStaked - totalSlashed) / totalShares)
-     * @dev This automatically reflects slash penalties
+     * @notice Request unstake (starts 7-day delay)
+     * @dev User must wait UNSTAKE_DELAY before calling unstake()
      */
-    function balanceOf(address user) public view returns (uint256 balance) {
-        StakeInfo memory info = stakes[user];
-        if (info.sGTokenShares == 0) return 0;
+    function requestUnstake() external {
+        if (stakes[msg.sender].sGTokenShares == 0) {
+            revert NoStakeFound(msg.sender);
+        }
 
-        // Slash-aware calculation
-        // All stakers share the slash loss proportionally
-        return info.sGTokenShares * (totalStaked - totalSlashed) / totalShares;
+        stakes[msg.sender].unstakeRequestedAt = block.timestamp;
+
+        emit UnstakeRequested(msg.sender, block.timestamp);
     }
+
+    /**
+     * @notice Execute unstake after 7-day delay
+     * @dev Returns actual balance (original amount minus proportional slash)
+     *      Reverts if stake is locked by any protocol
+     */
+    function unstake() external {
+        StakeInfo memory info = stakes[msg.sender];
+
+        if (info.unstakeRequestedAt == 0) {
+            revert UnstakeNotRequested(msg.sender);
+        }
+
+        uint256 elapsed = block.timestamp - info.unstakeRequestedAt;
+        if (elapsed < UNSTAKE_DELAY) {
+            revert UnstakeDelayNotPassed(UNSTAKE_DELAY - elapsed);
+        }
+
+        // ✅ NEW: Check if stake is locked by any protocol
+        if (totalLocked[msg.sender] > 0) {
+            revert StakeIsLocked(msg.sender, totalLocked[msg.sender]);
+        }
+
+        // Calculate actual balance (after slash)
+        uint256 actualAmount = balanceOf(msg.sender);
+
+        // Update global state
+        totalStaked -= info.amount;
+        totalSlashed -= (info.amount - actualAmount); // Adjust slash accounting
+        totalShares -= info.sGTokenShares;
+
+        // Delete user stake
+        delete stakes[msg.sender];
+
+        // Transfer GToken back to user
+        IERC20(GTOKEN).safeTransfer(msg.sender, actualAmount);
+
+        emit Unstaked(msg.sender, info.amount, actualAmount, block.timestamp);
+    }
+
+    // ====================================
+    // Lock Management Functions
+    // ====================================
+
+    /**
+     * @notice Lock user's sGToken for usage by authorized protocol
+     * @param user User whose stake to lock
+     * @param amount Amount of sGToken shares to lock
+     * @param purpose Lock purpose description
+     * @dev Called by authorized lockers (MySBT, SuperPaymaster, etc.)
+     */
+    function lockStake(
+        address user,
+        uint256 amount,
+        string memory purpose
+    ) external {
+        LockerConfig memory config = lockerConfigs[msg.sender];
+        if (!config.authorized) {
+            revert UnauthorizedLocker(msg.sender);
+        }
+
+        uint256 available = availableBalance(user);
+        if (available < amount) {
+            revert InsufficientAvailableBalance(available, amount);
+        }
+
+        // Update lock info
+        locks[user][msg.sender].amount += amount;
+        locks[user][msg.sender].lockedAt = block.timestamp;
+        locks[user][msg.sender].purpose = purpose;
+        locks[user][msg.sender].beneficiary = msg.sender;
+
+        totalLocked[user] += amount;
+
+        emit StakeLocked(user, msg.sender, amount, purpose);
+    }
+
+    /**
+     * @notice Unlock user's sGToken with exit fee
+     * @param user User whose stake to unlock
+     * @param grossAmount Gross amount to unlock (before exit fee)
+     * @return netAmount Net amount unlocked after exit fee deduction
+     * @dev Called by locker when user exits (burns SBT, unregisters operator, etc.)
+     *      Exit fee is transferred to treasury
+     */
+    function unlockStake(
+        address user,
+        uint256 grossAmount
+    ) external returns (uint256 netAmount) {
+        LockInfo storage lockInfo = locks[user][msg.sender];
+
+        if (lockInfo.amount < grossAmount) {
+            revert InsufficientLockedAmount(lockInfo.amount, grossAmount);
+        }
+
+        // Calculate exit fee
+        uint256 exitFee = calculateExitFee(msg.sender, user);
+
+        if (exitFee >= grossAmount) {
+            revert ExitFeeTooHigh(exitFee, grossAmount);
+        }
+
+        netAmount = grossAmount - exitFee;
+
+        // Update lock state
+        lockInfo.amount -= grossAmount;
+        totalLocked[user] -= grossAmount;
+
+        // Transfer exit fee to treasury (if fee > 0)
+        if (exitFee > 0) {
+            LockerConfig memory config = lockerConfigs[msg.sender];
+            address feeRecipient = config.feeRecipient != address(0)
+                ? config.feeRecipient
+                : treasury;
+
+            if (feeRecipient == address(0)) {
+                revert InvalidFeeRecipient();
+            }
+
+            // Convert sGToken shares to GT amount and transfer
+            uint256 feeInGT = sharesToGToken(exitFee);
+            IERC20(GTOKEN).safeTransfer(feeRecipient, feeInGT);
+
+            // Adjust totalStaked and totalSlashed to account for fee transfer
+            totalStaked -= feeInGT;
+        }
+
+        emit StakeUnlocked(user, msg.sender, grossAmount, exitFee, netAmount);
+    }
+
+    /**
+     * @notice Calculate exit fee for a user's lock
+     * @param locker Locker contract address
+     * @param user User address
+     * @return fee Exit fee in sGToken shares
+     */
+    function calculateExitFee(
+        address locker,
+        address user
+    ) public view returns (uint256 fee) {
+        LockerConfig memory config = lockerConfigs[locker];
+        LockInfo memory lockInfo = locks[user][locker];
+
+        if (lockInfo.amount == 0) return 0;
+
+        // Simple base fee (for MySBT: flat 0.1 sGT)
+        if (config.timeTiers.length == 0) {
+            return config.baseExitFee;
+        }
+
+        // Time-based tiered fee (for SuperPaymaster: 5-15 sGT based on duration)
+        uint256 lockDuration = block.timestamp - lockInfo.lockedAt;
+
+        // Find appropriate tier
+        for (uint256 i = 0; i < config.timeTiers.length; i++) {
+            if (lockDuration < config.timeTiers[i]) {
+                return config.tierFees[i];
+            }
+        }
+
+        // Last tier (longest duration = lowest fee)
+        return config.tierFees[config.timeTiers.length];
+    }
+
+    // ====================================
+    // Slash Functions
+    // ====================================
 
     /**
      * @notice Execute slash on operator (only SuperPaymaster)
@@ -208,59 +438,80 @@ contract GTokenStaking is Ownable {
         emit Slashed(operator, amount, reason, block.timestamp);
     }
 
-    /**
-     * @notice Request unstake (starts 7-day delay)
-     * @dev User must wait UNSTAKE_DELAY before calling unstake()
-     */
-    function requestUnstake() external {
-        if (stakes[msg.sender].sGTokenShares == 0) {
-            revert NoStakeFound(msg.sender);
-        }
-
-        stakes[msg.sender].unstakeRequestedAt = block.timestamp;
-
-        emit UnstakeRequested(msg.sender, block.timestamp);
-    }
-
-    /**
-     * @notice Execute unstake after 7-day delay
-     * @dev Returns actual balance (original amount minus proportional slash)
-     */
-    function unstake() external {
-        StakeInfo memory info = stakes[msg.sender];
-
-        if (info.unstakeRequestedAt == 0) {
-            revert UnstakeNotRequested(msg.sender);
-        }
-
-        uint256 elapsed = block.timestamp - info.unstakeRequestedAt;
-        if (elapsed < UNSTAKE_DELAY) {
-            revert UnstakeDelayNotPassed(UNSTAKE_DELAY - elapsed);
-        }
-
-        // Calculate actual balance (after slash)
-        uint256 actualAmount = balanceOf(msg.sender);
-
-        // Update global state
-        totalStaked -= info.amount;
-        totalSlashed -= (info.amount - actualAmount); // Adjust slash accounting
-        totalShares -= info.sGTokenShares;
-
-        // Delete user stake
-        delete stakes[msg.sender];
-
-        // Transfer GToken back to user
-        IERC20(GTOKEN).safeTransfer(msg.sender, actualAmount);
-
-        emit Unstaked(msg.sender, info.amount, actualAmount, block.timestamp);
-    }
-
     // ====================================
     // Admin Functions
     // ====================================
 
     /**
-     * @notice Set SuperPaymaster address (only owner)
+     * @notice Configure locker contract with exit fee parameters
+     * @param locker Locker contract address
+     * @param authorized Whether authorized to lock stakes
+     * @param baseExitFee Base exit fee (for simple lockers)
+     * @param timeTiers Array of time thresholds in seconds
+     * @param tierFees Array of fees for each time tier
+     * @param feeRecipient Address to receive exit fees (address(0) = use treasury)
+     *
+     * Example for MySBT (flat fee):
+     *   baseExitFee = 0.1 ether
+     *   timeTiers = []
+     *   tierFees = []
+     *
+     * Example for SuperPaymaster (tiered):
+     *   baseExitFee = 0
+     *   timeTiers = [90 days, 180 days, 365 days]
+     *   tierFees = [15 ether, 10 ether, 7 ether, 5 ether]
+     *   (< 90d: 15, 90-180d: 10, 180-365d: 7, ≥365d: 5)
+     */
+    function configureLocker(
+        address locker,
+        bool authorized,
+        uint256 baseExitFee,
+        uint256[] calldata timeTiers,
+        uint256[] calldata tierFees,
+        address feeRecipient
+    ) external onlyOwner {
+        if (locker == address(0)) revert InvalidAddress(locker);
+
+        // Validate time tiers
+        if (timeTiers.length > 0) {
+            if (tierFees.length != timeTiers.length + 1) {
+                revert InvalidTierConfig();
+            }
+
+            // Ensure tiers are ascending
+            for (uint256 i = 1; i < timeTiers.length; i++) {
+                if (timeTiers[i] <= timeTiers[i-1]) {
+                    revert InvalidTierConfig();
+                }
+            }
+        }
+
+        lockerConfigs[locker] = LockerConfig({
+            authorized: authorized,
+            baseExitFee: baseExitFee,
+            timeTiers: timeTiers,
+            tierFees: tierFees,
+            feeRecipient: feeRecipient
+        });
+
+        emit LockerConfigured(locker, authorized, baseExitFee, timeTiers, tierFees, feeRecipient);
+    }
+
+    /**
+     * @notice Set treasury address for exit fees
+     * @param newTreasury New treasury address
+     */
+    function setTreasury(address newTreasury) external onlyOwner {
+        if (newTreasury == address(0)) revert InvalidAddress(newTreasury);
+
+        address oldTreasury = treasury;
+        treasury = newTreasury;
+
+        emit TreasuryUpdated(oldTreasury, newTreasury);
+    }
+
+    /**
+     * @notice Set SuperPaymaster address (for slash operations)
      * @param _superPaymaster SuperPaymaster contract address
      */
     function setSuperPaymaster(address _superPaymaster) external onlyOwner {
@@ -274,22 +525,109 @@ contract GTokenStaking is Ownable {
         emit SuperPaymasterUpdated(oldAddress, _superPaymaster);
     }
 
-    /**
-     * @notice Lock stake for operator (called by SuperPaymaster)
-     * @param operator Operator address
-     * @param amount Amount to lock
-     * @dev This allows SuperPaymaster to lock existing stakes
-     */
-    function lockStake(address operator, uint256 amount) external {
-        require(msg.sender == SUPERPAYMASTER, "Only SuperPaymaster");
-        require(balanceOf(operator) >= amount, "Insufficient stake");
-        // Lock logic can be implemented as needed
-        // For now, we just verify the stake exists
-    }
-
     // ====================================
     // View Functions
     // ====================================
+
+    /**
+     * @notice Query user's total sGToken balance (shares value after slash)
+     * @param user User address
+     * @return balance Current balance in GT equivalent
+     * @dev This automatically reflects slash penalties
+     */
+    function balanceOf(address user) public view returns (uint256 balance) {
+        StakeInfo memory info = stakes[user];
+        if (info.sGTokenShares == 0) return 0;
+
+        // Slash-aware calculation
+        return info.sGTokenShares * (totalStaked - totalSlashed) / totalShares;
+    }
+
+    /**
+     * @notice Get available (unlocked) balance in sGToken shares
+     * @param user User address
+     * @return available Available sGToken shares
+     */
+    function availableBalance(address user) public view returns (uint256) {
+        StakeInfo memory info = stakes[user];
+        uint256 userShares = info.sGTokenShares;
+        uint256 locked = totalLocked[user];
+
+        return userShares > locked ? userShares - locked : 0;
+    }
+
+    /**
+     * @notice Get locked balance by specific locker
+     * @param user User address
+     * @param locker Locker contract address
+     * @return amount Locked sGToken shares
+     */
+    function lockedBalanceBy(
+        address user,
+        address locker
+    ) external view returns (uint256) {
+        return locks[user][locker].amount;
+    }
+
+    /**
+     * @notice Get complete lock information
+     * @param user User address
+     * @param locker Locker contract
+     * @return lockInfo Complete lock information
+     */
+    function getLockInfo(
+        address user,
+        address locker
+    ) external view returns (LockInfo memory) {
+        return locks[user][locker];
+    }
+
+    /**
+     * @notice Preview exit fee and net amount for user
+     * @param user User address
+     * @param locker Locker contract
+     * @return fee Exit fee in sGToken shares
+     * @return netAmount Net amount after fee (in sGToken shares)
+     */
+    function previewExitFee(
+        address user,
+        address locker
+    ) external view returns (uint256 fee, uint256 netAmount) {
+        uint256 lockedAmount = locks[user][locker].amount;
+        fee = calculateExitFee(locker, user);
+        netAmount = lockedAmount > fee ? lockedAmount - fee : 0;
+    }
+
+    /**
+     * @notice Get locker configuration
+     * @param locker Locker address
+     * @return config Complete locker configuration
+     */
+    function getLockerConfig(
+        address locker
+    ) external view returns (LockerConfig memory) {
+        return lockerConfigs[locker];
+    }
+
+    /**
+     * @notice Convert sGToken shares to GT amount
+     * @param shares sGToken shares
+     * @return amount GT amount
+     */
+    function sharesToGToken(uint256 shares) public view returns (uint256) {
+        if (totalShares == 0) return 0;
+        return shares * (totalStaked - totalSlashed) / totalShares;
+    }
+
+    /**
+     * @notice Convert GT amount to sGToken shares
+     * @param amount GT amount
+     * @return shares sGToken shares
+     */
+    function gTokenToShares(uint256 amount) public view returns (uint256) {
+        if (totalShares == 0) return amount;
+        return amount * totalShares / (totalStaked - totalSlashed);
+    }
 
     /**
      * @notice Get stake info for user
@@ -299,7 +637,7 @@ contract GTokenStaking is Ownable {
     function getStakeInfo(address user)
         external
         view
-        returns (StakeInfo memory info)
+        returns (StakeInfo memory)
     {
         return stakes[user];
     }

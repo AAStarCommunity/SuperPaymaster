@@ -221,7 +221,11 @@ contract SuperPaymasterV2 is Ownable {
         }
 
         // Lock stake from GTokenStaking
-        IGTokenStaking(GTOKEN_STAKING).lockStake(msg.sender, sGTokenAmount);
+        IGTokenStaking(GTOKEN_STAKING).lockStake(
+            msg.sender,
+            sGTokenAmount,
+            "SuperPaymaster operator"
+        );
 
         // Initialize operator account
         accounts[msg.sender] = OperatorAccount({
