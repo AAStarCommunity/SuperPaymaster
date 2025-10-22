@@ -74,6 +74,9 @@ contract MySBT is ERC721 {
     /// @notice Next token ID
     uint256 public nextTokenId = 1;
 
+    /// @notice Contract owner (deployer)
+    address private immutable OWNER;
+
     /// @notice Mint stake amount: 0.2 GT
     uint256 public constant MINT_STAKE = 0.2 ether;
 
@@ -138,6 +141,7 @@ contract MySBT is ERC721 {
 
         GTOKEN = _gtoken;
         GTOKEN_STAKING = _staking;
+        OWNER = msg.sender;
     }
 
     // ====================================
@@ -411,13 +415,7 @@ contract MySBT is ERC721 {
      * @notice Get initial contract owner (deployer)
      * @return owner Deployer address
      */
-    function _getInitialOwner() internal view returns (address owner) {
-        // Simplified: In production, use proper Ownable pattern
-        // For now, we'll need to track deployer in constructor
-        // This is a placeholder
-        assembly {
-            // Return first storage slot or implement proper ownership
-            owner := sload(0)
-        }
+    function _getInitialOwner() internal view returns (address) {
+        return OWNER;
     }
 }

@@ -306,7 +306,7 @@ contract xPNTsFactory is Ownable {
      * @param community Community address
      * @return hasToken True if token deployed
      */
-    function hasToken(address community) external view returns (bool hasToken) {
+    function hasToken(address community) external view returns (bool) {
         return communityToToken[community] != address(0);
     }
 

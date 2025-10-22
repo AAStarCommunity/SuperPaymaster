@@ -273,7 +273,7 @@ contract xPNTsToken is ERC20, ERC20Permit {
     function needsApproval(address owner, address spender, uint256 amount)
         external
         view
-        returns (bool needsApproval)
+        returns (bool)
     {
         uint256 currentAllowance = allowance(owner, spender);
         return currentAllowance < amount;
