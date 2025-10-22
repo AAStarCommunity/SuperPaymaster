@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/Interfaces.sol";
 
 /**
  * @title SuperPaymasterV2
@@ -168,7 +169,7 @@ contract SuperPaymasterV2 is Ownable {
     error InsufficientStake(uint256 provided, uint256 required);
     error AlreadyRegistered(address operator);
     error NotRegistered(address operator);
-    error OperatorPaused(address operator);
+    error OperatorIsPaused(address operator);
     error NoSBTFound(address user);
     error InsufficientAPNTs(uint256 required, uint256 available);
     error UnauthorizedCaller(address caller);
@@ -285,7 +286,7 @@ contract SuperPaymasterV2 is Ownable {
 
         // Validations
         if (accounts[operator].isPaused) {
-            revert OperatorPaused(operator);
+            revert OperatorIsPaused(operator);
         }
 
         if (!_hasSBT(user, accounts[operator].supportedSBTs)) {
@@ -550,17 +551,4 @@ contract SuperPaymasterV2 is Ownable {
                account.aPNTsBalance * 100 / account.minBalanceThreshold >= 150 &&
                account.reputationLevel < 12;
     }
-}
-
-// ====================================
-// Interfaces
-// ====================================
-
-interface IGTokenStaking {
-    function lockStake(address operator, uint256 amount) external;
-    function slash(address operator, uint256 amount, string memory reason) external;
-}
-
-interface IxPNTsToken {
-    function burn(address from, uint256 amount) external;
 }

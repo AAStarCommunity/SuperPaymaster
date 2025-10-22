@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/Interfaces.sol";
 
 /**
  * @title BLSAggregator
@@ -463,26 +464,4 @@ contract BLSAggregator is Ownable {
         // Note: In production, maintain a separate counter
         return 0; // Placeholder
     }
-}
-
-// ====================================
-// Interfaces
-// ====================================
-
-interface ISuperPaymaster {
-    enum SlashLevel {
-        WARNING,
-        MINOR,
-        MAJOR
-    }
-
-    function executeSlashWithBLS(
-        address operator,
-        SlashLevel level,
-        bytes memory proof
-    ) external;
-}
-
-interface IDVTValidator {
-    function markProposalExecuted(uint256 proposalId) external;
 }

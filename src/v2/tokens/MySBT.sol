@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../interfaces/Interfaces.sol";
 
 /**
  * @title MySBT
@@ -419,16 +420,4 @@ contract MySBT is ERC721 {
             owner := sload(0)
         }
     }
-}
-
-// ====================================
-// Interfaces
-// ====================================
-
-interface IGTokenStaking {
-    function stake(uint256 amount) external returns (uint256 shares);
-}
-
-interface IGToken {
-    function burn(uint256 amount) external;
 }
