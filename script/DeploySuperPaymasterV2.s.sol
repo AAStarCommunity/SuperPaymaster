@@ -185,8 +185,9 @@ contract DeploySuperPaymasterV2 is Script {
         );
 
         console.log("MySBT deployed:", address(mysbt));
-        console.log("MINT_STAKE:", mysbt.MINT_STAKE() / 1e18, "GT");
-        console.log("MINT_FEE:", mysbt.MINT_FEE() / 1e18, "GT");
+        console.log("minLockAmount:", mysbt.minLockAmount() / 1e18, "sGT");
+        console.log("mintFee:", mysbt.mintFee() / 1e18, "GT");
+        console.log("creator:", mysbt.creator());
         console.log("");
     }
 

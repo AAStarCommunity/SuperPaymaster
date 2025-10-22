@@ -6,26 +6,27 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title MySBT
- * @notice Soul Bound Token for community identity and activity tracking
+ * @title MySBT with sGToken Lock Mechanism
+ * @notice Soul Bound Token for community identity using sGToken lock architecture
  * @dev ERC721 with transfer restrictions (non-transferable except mint/burn)
+ *
+ * v2.0-beta Changes:
+ * - Uses GTokenStaking.lockStake() instead of directly holding GT
+ * - Configurable lock amount and mint fee
+ * - Creator governance for parameter adjustment
+ * - Exit fee paid when burning SBT (0.1 sGToken default)
  *
  * Key Features:
  * - Non-transferable (Soul Bound)
  * - Per-community identity tracking
  * - Activity and contribution scoring
- * - 0.2 GT stake + 0.1 GT burn fee for minting
+ * - sGToken lock for membership (default 0.3 sGT)
+ * - GT burn fee for minting (default 0.1 GT)
  *
  * Architecture:
  * - UserProfile: Cross-community user data
- * - CommunityData: Per-community activity (community field, not operator!)
- * - Mint requires: 0.3 GT total (0.2 stake + 0.1 burn)
- *
- * Use Cases:
- * - Community membership verification
- * - Access control for SuperPaymaster
- * - Reputation and contribution tracking
- * - Multi-community user profiles
+ * - CommunityData: Per-community activity
+ * - Lock via GTokenStaking: User's sGToken is locked, not GT
  */
 contract MySBT is ERC721 {
 
@@ -74,14 +75,18 @@ contract MySBT is ERC721 {
     /// @notice Next token ID
     uint256 public nextTokenId = 1;
 
-    /// @notice Contract owner (deployer)
-    address private immutable OWNER;
+    /// @notice Contract creator (deployer, later transferred to multisig)
+    address public creator;
 
-    /// @notice Mint stake amount: 0.2 GT
-    uint256 public constant MINT_STAKE = 0.2 ether;
+    // ====================================
+    // Configurable Parameters
+    // ====================================
 
-    /// @notice Mint burn fee: 0.1 GT
-    uint256 public constant MINT_FEE = 0.1 ether;
+    /// @notice Lock amount: sGToken shares to lock (default 0.3 sGT)
+    uint256 public minLockAmount = 0.3 ether;
+
+    /// @notice Mint burn fee: GT to burn when minting (default 0.1 GT)
+    uint256 public mintFee = 0.1 ether;
 
     // ====================================
     // Events
@@ -91,6 +96,7 @@ contract MySBT is ERC721 {
         address indexed user,
         address indexed community,
         uint256 tokenId,
+        uint256 sGTokenLocked,
         uint256 timestamp
     );
 
@@ -104,12 +110,29 @@ contract MySBT is ERC721 {
     event SBTBurned(
         address indexed user,
         uint256 tokenId,
+        uint256 exitFeePaid,
+        uint256 sGTokenReturned,
         uint256 timestamp
     );
 
     event SuperPaymasterSet(
         address indexed oldAddress,
         address indexed newAddress
+    );
+
+    event MinLockAmountUpdated(
+        uint256 oldAmount,
+        uint256 newAmount
+    );
+
+    event MintFeeUpdated(
+        uint256 oldFee,
+        uint256 newFee
+    );
+
+    event CreatorTransferred(
+        address indexed oldCreator,
+        address indexed newCreator
     );
 
     // ====================================
@@ -122,6 +145,7 @@ contract MySBT is ERC721 {
     error TransferNotAllowed();
     error Unauthorized(address caller);
     error InvalidAddress(address addr);
+    error InvalidParameter(string param);
 
     // ====================================
     // Constructor
@@ -141,7 +165,7 @@ contract MySBT is ERC721 {
 
         GTOKEN = _gtoken;
         GTOKEN_STAKING = _staking;
-        OWNER = msg.sender;
+        creator = msg.sender;
     }
 
     // ====================================
@@ -152,7 +176,8 @@ contract MySBT is ERC721 {
      * @notice Mint SBT for community membership
      * @param community Community address
      * @return tokenId Minted token ID
-     * @dev Requires 0.3 GT total: 0.2 GT stake + 0.1 GT burn
+     * @dev v2.0-beta: Locks sGToken via GTokenStaking instead of holding GT
+     *      Requires user to have staked GT and obtained sGToken first
      */
     function mintSBT(address community) external returns (uint256 tokenId) {
         if (userCommunityToken[msg.sender][community] != 0) {
@@ -163,18 +188,18 @@ contract MySBT is ERC721 {
             revert InvalidAddress(community);
         }
 
-        // Transfer 0.3 GT from user
-        IERC20(GTOKEN).transferFrom(
+        // ✅ NEW: Lock sGToken via GTokenStaking
+        IGTokenStaking(GTOKEN_STAKING).lockStake(
             msg.sender,
-            address(this),
-            MINT_STAKE + MINT_FEE
+            minLockAmount,
+            "MySBT membership"
         );
 
-        // Hold 0.2 GT as stake (stored in contract)
-        // Note: 0.2 GT stays in this contract as collateral
-
-        // Burn 0.1 GT
-        IGToken(GTOKEN).burn(MINT_FEE);
+        // Burn mint fee (in GT, not sGToken)
+        if (mintFee > 0) {
+            IERC20(GTOKEN).transferFrom(msg.sender, address(this), mintFee);
+            IGToken(GTOKEN).burn(mintFee);
+        }
 
         // Mint SBT
         tokenId = nextTokenId++;
@@ -193,7 +218,7 @@ contract MySBT is ERC721 {
         userProfiles[msg.sender].ownedSBTs.push(tokenId);
         userCommunityToken[msg.sender][community] = tokenId;
 
-        emit SBTMinted(msg.sender, community, tokenId, block.timestamp);
+        emit SBTMinted(msg.sender, community, tokenId, minLockAmount, block.timestamp);
     }
 
     /**
@@ -234,9 +259,10 @@ contract MySBT is ERC721 {
     }
 
     /**
-     * @notice Burn SBT (owner only)
+     * @notice Burn SBT and unlock sGToken
      * @param tokenId Token ID to burn
-     * @dev User loses community membership but keeps reputation score
+     * @dev v2.0-beta: Unlocks sGToken via GTokenStaking (pays exit fee)
+     *      User loses community membership but keeps reputation score
      */
     function burnSBT(uint256 tokenId) external {
         if (ownerOf(tokenId) != msg.sender) {
@@ -244,6 +270,14 @@ contract MySBT is ERC721 {
         }
 
         address community = sbtData[tokenId].community;
+
+        // ✅ NEW: Unlock sGToken (pays exit fee to treasury)
+        uint256 netAmount = IGTokenStaking(GTOKEN_STAKING).unlockStake(
+            msg.sender,
+            minLockAmount
+        );
+
+        uint256 exitFee = minLockAmount - netAmount;
 
         // Clean up mappings
         delete sbtData[tokenId];
@@ -261,7 +295,7 @@ contract MySBT is ERC721 {
 
         _burn(tokenId);
 
-        emit SBTBurned(msg.sender, tokenId, block.timestamp);
+        emit SBTBurned(msg.sender, tokenId, exitFee, netAmount, block.timestamp);
     }
 
     // ====================================
@@ -290,6 +324,68 @@ contract MySBT is ERC721 {
     }
 
     // ====================================
+    // Governance Functions
+    // ====================================
+
+    /**
+     * @notice Set minimum lock amount (only creator)
+     * @param newAmount New lock amount in sGToken shares
+     */
+    function setMinLockAmount(uint256 newAmount) external {
+        if (msg.sender != creator) {
+            revert Unauthorized(msg.sender);
+        }
+
+        if (newAmount < 0.01 ether || newAmount > 10 ether) {
+            revert InvalidParameter("minLockAmount");
+        }
+
+        uint256 oldAmount = minLockAmount;
+        minLockAmount = newAmount;
+
+        emit MinLockAmountUpdated(oldAmount, newAmount);
+    }
+
+    /**
+     * @notice Set mint fee (only creator)
+     * @param newFee New mint fee in GT
+     */
+    function setMintFee(uint256 newFee) external {
+        if (msg.sender != creator) {
+            revert Unauthorized(msg.sender);
+        }
+
+        if (newFee > 1 ether) {
+            revert InvalidParameter("mintFee");
+        }
+
+        uint256 oldFee = mintFee;
+        mintFee = newFee;
+
+        emit MintFeeUpdated(oldFee, newFee);
+    }
+
+    /**
+     * @notice Transfer creator role (only creator)
+     * @param newCreator New creator address
+     * @dev Use this to transfer to community multisig
+     */
+    function transferCreator(address newCreator) external {
+        if (msg.sender != creator) {
+            revert Unauthorized(msg.sender);
+        }
+
+        if (newCreator == address(0)) {
+            revert InvalidAddress(newCreator);
+        }
+
+        address oldCreator = creator;
+        creator = newCreator;
+
+        emit CreatorTransferred(oldCreator, newCreator);
+    }
+
+    // ====================================
     // Admin Functions
     // ====================================
 
@@ -298,9 +394,8 @@ contract MySBT is ERC721 {
      * @param _superPaymaster SuperPaymaster address
      */
     function setSuperPaymaster(address _superPaymaster) external {
-        // Simple owner check: deployer is initial owner
-        // In production, should use Ownable pattern
-        require(msg.sender == _getInitialOwner(), "Only owner");
+        // Simple creator check
+        require(msg.sender == creator, "Only creator");
 
         if (_superPaymaster == address(0)) {
             revert InvalidAddress(_superPaymaster);
@@ -333,7 +428,7 @@ contract MySBT is ERC721 {
     function getCommunityData(address user, address community)
         external
         view
-        returns (CommunityData memory data)
+        returns (CommunityData memory)
     {
         uint256 tokenId = userCommunityToken[user][community];
         if (tokenId == 0) {
@@ -351,7 +446,7 @@ contract MySBT is ERC721 {
     function getUserSBTs(address user)
         external
         view
-        returns (uint256[] memory tokenIds)
+        returns (uint256[] memory)
     {
         return userProfiles[user].ownedSBTs;
     }
@@ -364,7 +459,7 @@ contract MySBT is ERC721 {
     function getUserProfile(address user)
         external
         view
-        returns (UserProfile memory profile)
+        returns (UserProfile memory)
     {
         return userProfiles[user];
     }
@@ -402,19 +497,23 @@ contract MySBT is ERC721 {
      * @notice Get total supply
      * @return supply Total minted SBTs
      */
-    function totalSupply() external view returns (uint256 supply) {
+    function totalSupply() external view returns (uint256) {
         return nextTokenId - 1;
     }
 
-    // ====================================
-    // Internal Functions
-    // ====================================
-
     /**
-     * @notice Get initial contract owner (deployer)
-     * @return owner Deployer address
+     * @notice Preview exit cost when burning SBT
+     * @param user User address
+     * @return exitFee Exit fee in sGToken shares
+     * @return netReturn Net sGToken returned after fee
      */
-    function _getInitialOwner() internal view returns (address) {
-        return OWNER;
+    function previewExit(address user) external view returns (
+        uint256 exitFee,
+        uint256 netReturn
+    ) {
+        (exitFee, netReturn) = IGTokenStaking(GTOKEN_STAKING).previewExitFee(
+            user,
+            address(this)
+        );
     }
 }
