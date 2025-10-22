@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
@@ -28,7 +30,8 @@ import "../interfaces/Interfaces.sol";
  * - CommunityData: Per-community activity
  * - Lock via GTokenStaking: User's sGToken is locked, not GT
  */
-contract MySBT is ERC721 {
+contract MySBT is ERC721, ReentrancyGuard {
+    using SafeERC20 for IERC20;
 
     // ====================================
     // Structs
@@ -179,7 +182,7 @@ contract MySBT is ERC721 {
      * @dev v2.0-beta: Locks sGToken via GTokenStaking instead of holding GT
      *      Requires user to have staked GT and obtained sGToken first
      */
-    function mintSBT(address community) external returns (uint256 tokenId) {
+    function mintSBT(address community) external nonReentrant returns (uint256 tokenId) {
         if (userCommunityToken[msg.sender][community] != 0) {
             revert AlreadyHasSBT(msg.sender, community);
         }
@@ -188,24 +191,10 @@ contract MySBT is ERC721 {
             revert InvalidAddress(community);
         }
 
-        // ✅ NEW: Lock sGToken via GTokenStaking
-        IGTokenStaking(GTOKEN_STAKING).lockStake(
-            msg.sender,
-            minLockAmount,
-            "MySBT membership"
-        );
-
-        // Burn mint fee (in GT, not sGToken)
-        if (mintFee > 0) {
-            IERC20(GTOKEN).transferFrom(msg.sender, address(this), mintFee);
-            IGToken(GTOKEN).burn(mintFee);
-        }
-
-        // Mint SBT
+        // CEI: Effects first
         tokenId = nextTokenId++;
-        _mint(msg.sender, tokenId);
 
-        // Initialize community data
+        // Initialize community data BEFORE external calls
         sbtData[tokenId] = CommunityData({
             community: community,
             txCount: 0,
@@ -214,9 +203,26 @@ contract MySBT is ERC721 {
             contributionScore: 0
         });
 
-        // Update user profile
+        // Update user profile BEFORE external calls
         userProfiles[msg.sender].ownedSBTs.push(tokenId);
         userCommunityToken[msg.sender][community] = tokenId;
+
+        // CEI: Interactions last
+        // ✅ Lock sGToken via GTokenStaking
+        IGTokenStaking(GTOKEN_STAKING).lockStake(
+            msg.sender,
+            minLockAmount,
+            "MySBT membership"
+        );
+
+        // Burn mint fee (in GT, not sGToken)
+        if (mintFee > 0) {
+            IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), mintFee);
+            IGToken(GTOKEN).burn(mintFee);
+        }
+
+        // Mint SBT
+        _mint(msg.sender, tokenId);
 
         emit SBTMinted(msg.sender, community, tokenId, minLockAmount, block.timestamp);
     }
@@ -264,22 +270,14 @@ contract MySBT is ERC721 {
      * @dev v2.0-beta: Unlocks sGToken via GTokenStaking (pays exit fee)
      *      User loses community membership but keeps reputation score
      */
-    function burnSBT(uint256 tokenId) external {
+    function burnSBT(uint256 tokenId) external nonReentrant {
         if (ownerOf(tokenId) != msg.sender) {
             revert NotSBTOwner(msg.sender, tokenId);
         }
 
         address community = sbtData[tokenId].community;
 
-        // ✅ NEW: Unlock sGToken (pays exit fee to treasury)
-        uint256 netAmount = IGTokenStaking(GTOKEN_STAKING).unlockStake(
-            msg.sender,
-            minLockAmount
-        );
-
-        uint256 exitFee = minLockAmount - netAmount;
-
-        // Clean up mappings
+        // CEI: Effects first - Clean up state BEFORE external calls
         delete sbtData[tokenId];
         delete userCommunityToken[msg.sender][community];
 
@@ -294,6 +292,15 @@ contract MySBT is ERC721 {
         }
 
         _burn(tokenId);
+
+        // CEI: Interactions last
+        // ✅ Unlock sGToken (pays exit fee to treasury)
+        uint256 netAmount = IGTokenStaking(GTOKEN_STAKING).unlockStake(
+            msg.sender,
+            minLockAmount
+        );
+
+        uint256 exitFee = minLockAmount - netAmount;
 
         emit SBTBurned(msg.sender, tokenId, exitFee, netAmount, block.timestamp);
     }
