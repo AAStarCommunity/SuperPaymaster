@@ -890,3 +890,141 @@ cast storage 0xeC3f... 11  # slot 11应该是aPNTsToken地址
 - EntryPoint脚本准备: ✅ 完成
 - SimpleAccount资金准备: ⏳ 待执行
 
+
+---
+
+## Phase 6.4: EntryPoint集成测试准备
+
+**日期**: 2025-10-23  
+**分支**: v2  
+**状态**: 🔄 部分完成
+
+### SimpleAccount准备工作
+
+#### ✅ 完成的步骤
+
+**1. xPNTs资产转移**
+- 从测试用户 (`0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb`) 转账200 xTEST到SimpleAccount
+- SimpleAccount地址: `0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce`
+- Tx: `0xc84ba18...`
+
+**2. xPNTs Approval**
+- SimpleAccount.execute() approve 500 xTEST给SuperPaymasterV2
+- Approved successfully via execute() call
+- Tx: `0xc22dbee...`
+
+**3. SBT准备流程**
+为SimpleAccount mint SBT，需要以下步骤：
+
+a) **Mint GToken到SimpleAccount**
+   - 1 GToken minted
+   - Tx: `0xe7e9524...`
+
+b) **Approve GToken to GTokenStaking**
+   - SimpleAccount.execute() approve 0.3 GToken
+   - Tx: `0x39bc5b5...`
+
+c) **Stake GToken**
+   - SimpleAccount.execute() stake 0.3 GToken
+   - Got 0.3 sGToken shares
+   - Tx: `0xaa5b1c8...`
+
+d) **Approve GToken to MySBT for mintFee**
+   - SimpleAccount.execute() approve 0.1 GToken
+   - Tx: `0x4b7a022...`
+
+e) **Mint SBT**
+   - SimpleAccount.execute() mint SBT for community/operator
+   - SBT tokenId: 2
+   - Community: `0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA`
+   - Tx: `0xb1ed3a5...`
+   - Gas used: 391,361
+
+#### 🔄 EntryPoint集成测试
+
+**测试环境验证**:
+- ✅ Operator registered: true
+- ✅ Operator aPNTs balance: 1000
+- ✅ User xPNTs balance: 200
+- ✅ User xPNTs allowance: unlimited  
+- ✅ SimpleAccount SBT: tokenId 2
+
+**测试执行**:
+- UserOp构造成功
+- 签名生成成功
+- EntryPoint.handleOps调用成功提交
+- ❌ UserOp执行revert (未获得详细revert reason)
+- Tx: `0x20bc907...` (status: 0)
+- Gas used: 65,189
+
+**可能的revert原因**:
+1. validatePaymasterUserOp中的验证逻辑问题
+2. Signature格式不匹配
+3. Gas limits设置不足
+4. SBT验证逻辑问题
+5. 需要更详细的trace分析
+
+### 创建的脚本和工具
+
+**1. MintSBTForSimpleAccount.s.sol**
+- 自动化SimpleAccount的SBT mint流程
+- 包含完整的stake → approve → mint链路
+- 通过SimpleAccount.execute()执行所有调用
+
+**2. submit-via-entrypoint-v2.js更新**
+- 修正env路径: `../env/.env`
+- 更新OperatorAccount ABI匹配最新struct
+- 使用SIMPLE_ACCOUNT_B地址
+
+### 总Gas消耗
+
+**SimpleAccount准备**:
+- Mint GToken: ~51K gas
+- Approve GToken (staking): ~57K gas
+- Stake GToken: ~132K gas
+- Approve GToken (MySBT): ~57K gas
+- Mint SBT: ~391K gas
+- **SBT准备总计**: ~688K gas
+
+**EntryPoint测试**:
+- UserOp提交 (reverted): ~65K gas
+
+### 技术收获
+
+1. **SimpleAccount execute()模式**
+   - 所有外部调用必须通过execute(dest, value, data)
+   - Owner私钥用于签名execute调用
+   - 适用于复杂的多步骤流程
+
+2. **ERC-4337 UserOp调试难点**
+   - EntryPoint revert通常不返回详细reason
+   - 需要使用Tenderly或cast run来trace
+   - 建议先在本地anvil测试
+
+3. **环境变量管理**
+   - SIMPLE_ACCOUNT_B有重复定义，需清理
+   - dotenv自动选择第一个值
+
+### 下一步调试方向
+
+1. **获取详细revert reason**
+   - 使用Tenderly debug transaction
+   - 或使用`cast run`本地重放
+   - 检查validatePaymasterUserOp的每个require
+
+2. **检查validatePaymasterUserOp实现**
+   - SBT验证逻辑
+   - xPNTs balance/allowance检查
+   - aPNTs余额检查
+   - Operator paused状态
+
+3. **简化测试场景**
+   - 先在本地anvil fork测试
+   - 添加更多console.log到validatePaymasterUserOp
+   - 单元测试validatePaymasterUserOp
+
+---
+
+**测试执行时间**: 2025-10-23 13:00 UTC  
+**测试网络**: Sepolia Testnet  
+**SimpleAccount owner**: 0xc8d1Ae1063176BEBC750D9aD5D057BA4A65daf3d
