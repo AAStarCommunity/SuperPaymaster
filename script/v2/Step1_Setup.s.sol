@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../../src/v2/core/SuperPaymasterV2.sol";
-import "../../contracts/test/MockERC20.sol";
+import "../../contracts/test/mocks/MockERC20.sol";
 
 /**
  * @title Step1_Setup

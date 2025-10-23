@@ -8,7 +8,7 @@ import "../../src/v2/core/GTokenStaking.sol";
 import "../../src/v2/tokens/xPNTsFactory.sol";
 import "../../src/v2/tokens/xPNTsToken.sol";
 import "../../src/v2/tokens/MySBT.sol";
-import "../../contracts/test/MockERC20.sol";
+import "../../contracts/test/mocks/MockERC20.sol";
 
 /**
  * @title TestV2FullFlow
