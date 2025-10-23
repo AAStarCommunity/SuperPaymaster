@@ -14,13 +14,13 @@
  * 5. Verify dual payment (user xPNTs -> operator treasury, operator aPNTs consumed)
  */
 
-require("dotenv").config({ path: ".env.v2" });
+require("dotenv").config({ path: "../env/.env" });
 const { ethers } = require("ethers");
 
 // Contract addresses
 const ENTRYPOINT = process.env.ENTRYPOINT_V07 || "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-const SUPER_PAYMASTER_V2 = process.env.SUPER_PAYMASTER_V2_ADDRESS || "0xeC3f8d895dcD9f9055e140b4B97AF523527755cF";
-const SIMPLE_ACCOUNT = process.env.SIMPLE_ACCOUNT_ADDRESS || "0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce";
+const SUPER_PAYMASTER_V2 = process.env.SUPER_PAYMASTER_V2_ADDRESS;
+const SIMPLE_ACCOUNT = process.env.SIMPLE_ACCOUNT_B || "0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce";
 const XPNTS_TOKEN = process.env.OPERATOR_XPNTS_TOKEN_ADDRESS;
 const OPERATOR_ADDRESS = process.env.OWNER2_ADDRESS;
 
@@ -48,7 +48,7 @@ const ERC20ABI = [
 ];
 
 const SuperPaymasterV2ABI = [
-  "function getOperatorAccount(address operator) external view returns (tuple(uint256 stakedAmount, uint256 stakedAt, uint256 aPNTsBalance, uint256 lastRefillTime, uint256 totalSpent, uint256 totalTxSponsored, address[] supportedSBTs, address xPNTsToken, address treasury, uint256 exchangeRate, bool isPaused, uint256 reputationScore))",
+  "function getOperatorAccount(address operator) external view returns (tuple(uint256 sGTokenLocked, uint256 stakedAt, uint256 aPNTsBalance, uint256 totalSpent, uint256 lastRefillTime, uint256 minBalanceThreshold, address[] supportedSBTs, address xPNTsToken, address treasury, uint256 exchangeRate, uint256 reputationScore, uint256 consecutiveDays, uint256 totalTxSponsored, uint256 reputationLevel, uint256 lastCheckTime, bool isPaused))",
 ];
 
 async function main() {
