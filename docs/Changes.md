@@ -1398,3 +1398,139 @@ forge build
 **编译时间**: 16.87s  
 **部署时间**: ~43s  
 **状态**: ✅ 已部署，待集成测试
+
+## Phase 8: EntryPoint V2集成测试准备
+**时间**: 2025-10-23 13:50 UTC
+
+### 测试准备完成
+
+#### 1. 环境配置更新
+
+更新.env文件中的所有V2合约地址：
+- ✅ SUPER_PAYMASTER_V2_ADDRESS="0xb96d8BC6d771AE5913C8656FAFf8721156AC8141"
+- ✅ APNTS_TOKEN_ADDRESS="0xe99f6b5a1008862B9467B44B6D688A7c3cBE16BE"
+- ✅ GTOKEN_STAKING_ADDRESS="0xc3aa5816B000004F790e1f6B9C65f4dd5520c7b2"
+- ✅ REGISTRY_ADDRESS="0x6806e4937038e783cA0D3961B7E258A3549A0043"
+- ✅ XPNTS_FACTORY_ADDRESS="0x356CF363E136b0880C8F48c9224A37171f375595"
+- ✅ MYSBT_ADDRESS="0xB330a8A396Da67A1b50903E734750AAC81B0C711"
+- ✅ OPERATOR_XPNTS_TOKEN_ADDRESS="0x95A71F3C8c25D14ec2F261Ab293635d7f37A55ab"
+
+#### 2. V2 Main Flow测试步骤
+
+**Step 1: aPNTs部署和配置** ✅
+- aPNTs token部署: 0xe99f6b5a1008862B9467B44B6D688A7c3cBE16BE
+- SuperPaymaster treasury设置: 0x0000000000000000000000000000000000000888
+- Gas消耗: 954,109
+
+**Step 2: Operator注册** ✅
+- Operator: 0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA
+- Minted 100 GToken
+- Staked 100 GT，获得100 sGT
+- Locked 50 sGT到SuperPaymaster
+- 部署xPNTs token: 0x95A71F3C8c25D14ec2F261Ab293635d7f37A55ab
+- Treasury: 0x0000000000000000000000000000000000000777
+- Exchange rate: 1:1
+- Gas消耗: 3,528,359
+
+**Step 3: Operator存入aPNTs** ✅  
+- Minted 2000 aPNTs给operator
+- Operator存入1000 aPNTs到SuperPaymaster
+- SuperPaymaster合约持有: 1000 aPNTs
+- Gas消耗: 312,126
+
+**Step 4: SimpleAccount准备** (使用已有账户)
+- SimpleAccount: 0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce
+- Owner: 0xc8d1Ae1063176BEBC750D9aD5D057BA4A65daf3d
+- ⚠️ SimpleAccount缺少xPNTs余额（需要200+ xPNTs）
+- ✅ SimpleAccount已有xPNTs approve给SuperPaymaster（max allowance）
+- ✅ SimpleAccount已有SBT（从之前的测试）
+
+**Step 5: EntryPoint deposit** ✅
+- EntryPoint地址: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+- Deposit金额: 0.1 ETH
+- Transaction: 0xe94a21ad1eeb36c774ec155a719595e81f15871f8f5a966dc1b8c7af4b90bcd1
+- Gas消耗: 45,599
+
+#### 3. EntryPoint V2集成测试脚本验证
+
+运行`scripts/submit-via-entrypoint-v2.js`:
+```
+✅ Operator registered: true
+✅ Operator aPNTs balance: 1000.0 aPNTs
+✅ Operator treasury: 0x0000000000000000000000000000000000000777
+✅ xPNTs token: 0x95A71F3C8c25D14ec2F261Ab293635d7f37A55ab
+✅ Exchange rate: 1.0
+✅ User xPNTs allowance: max (unlimited)
+❌ User xPNTs balance: 0.0 (需要 >= 10 xPNTs)
+```
+
+### 待解决问题
+
+#### xPNTs初始供应量问题
+
+**问题描述**: xPNTs token在Step2通过xPNTsFactory部署时，没有mint初始供应量
+
+**影响**: 
+- SimpleAccount无法获得xPNTs来支付交易费用
+- 无法完成完整的EntryPoint集成测试流程
+
+**可能的解决方案**:
+1. 修改xPNTsFactory，在部署时mint初始供应量给operator
+2. 为xPNTs token添加mint函数（仅owner可调用）
+3. 使用deployer预先mint xPNTs并distribute
+4. 修改Step2脚本，部署后立即mint初始供应量
+
+### 技术验证结果
+
+#### ✅ ERC-4337标准合规性验证
+
+1. **PackedUserOperation结构体** - 正确定义并使用
+2. **IPaymaster接口** - SuperPaymasterV2正确实现
+3. **validatePaymasterUserOp签名** - 使用`PackedUserOperation calldata`
+4. **postOp签名** - 使用`PostOpMode enum`和`actualUserOpFeePerGas`
+5. **_extractOperator** - 从`paymasterAndData[52:72]`正确提取
+6. **_extractSender** - 直接使用`userOp.sender`
+
+#### ✅ 部署验证
+
+所有合约成功部署到Sepolia testnet并完成初始化：
+- ✅ SuperPaymasterV2实现IPaymaster
+- ✅ EntryPoint deposit已添加
+- ✅ Operator注册成功并存入aPNTs
+- ✅ GTokenStaking配置正确
+- ✅ MySBT配置正确
+
+#### ⚠️ 集成测试待完成
+
+由于xPNTs初始供应量问题，完整的EntryPoint V2集成测试流程需要：
+1. 解决xPNTs mint问题
+2. 为SimpleAccount提供足够的xPNTs余额
+3. 提交完整的UserOp via EntryPoint.handleOps
+4. 验证双重支付模型（user xPNTs → operator treasury, operator aPNTs consumed）
+
+### 成果总结
+
+**核心目标完成**: ✅ SuperPaymasterV2符合ERC-4337标准
+
+1. **代码修复** (commit: dc37fd8)
+   - 添加PackedUserOperation结构体和IPaymaster接口
+   - 修复validatePaymasterUserOp和postOp函数签名
+   - 重构_extractOperator和_extractSender
+
+2. **部署和配置** 
+   - 重新部署所有V2合约到Sepolia
+   - 完成Steps 1-3和5（aPNTs配置、operator注册、aPNTs deposit、EntryPoint deposit）
+   - 更新环境变量
+
+3. **验证结果**
+   - ✅ 合约编译成功
+   - ✅ Operator可以成功注册并存入aPNTs
+   - ✅ EntryPoint deposit添加成功
+   - ✅ 测试脚本可以连接并验证operator状态
+   - ⚠️ 需要解决xPNTs初始供应量问题以完成完整测试
+
+---
+
+**Phase 8完成时间**: 2025-10-23 13:55 UTC  
+**状态**: ERC-4337标准合规性修复完成 ✅  
+**下一步**: 解决xPNTs初始供应量问题，完成EntryPoint V2集成测试
