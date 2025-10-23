@@ -23,7 +23,7 @@ import "../interfaces/Interfaces.sol";
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
-contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
+contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     // ====================================
     // Structs
@@ -383,20 +383,20 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     /**
      * @notice Validate paymaster user operation (ERC-4337)
      * @dev 借鉴PaymasterV4：直接在此函数中计算gas并转账xPNTs，不使用postOp退款
-     * @param userOp User operation
+     * @param userOp User operation (PackedUserOperation struct)
      * @param userOpHash User operation hash
      * @param maxCost Maximum cost (in wei)
      * @return context Context for postOp (empty, 不使用)
      * @return validationData Validation result
      */
     function validatePaymasterUserOp(
-        bytes calldata userOp,
+        PackedUserOperation calldata userOp,
         bytes32 userOpHash,
         uint256 maxCost
     ) external returns (bytes memory context, uint256 validationData) {
         // Extract operator from paymasterAndData
         address operator = _extractOperator(userOp);
-        address user = _extractSender(userOp);
+        address user = userOp.sender;
 
         // Validations
         if (accounts[operator].isPaused) {
@@ -452,18 +452,20 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
      * @notice Post operation (ERC-4337)
      * @dev 简化版：不退款，只用于tracking和事件emit
      * @dev 根据用户要求：上浮2%不退还，作为协议收入
-     * @param mode Operation mode
+     * @param mode Operation mode (opSucceeded, opReverted, postOpReverted)
      * @param context Context from validatePaymasterUserOp (empty in our impl)
      * @param actualGasCost Actual gas cost
+     * @param actualUserOpFeePerGas The gas price this UserOp pays
      */
     function postOp(
-        uint8 mode,
+        PostOpMode mode,
         bytes calldata context,
-        uint256 actualGasCost
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
     ) external {
         require(msg.sender == ENTRY_POINT, "Only EntryPoint");
 
-        // mode: 0 = opSucceeded, 1 = opReverted, 2 = postOpReverted
+        // mode: opSucceeded, opReverted, postOpReverted
         // 只emit事件用于off-chain分析，不退款
         // (context为空，因为validatePaymasterUserOp已完成所有处理)
     }
@@ -622,26 +624,20 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
 
     /**
      * @notice Extract operator address from paymasterAndData
-     * @param userOp User operation bytes
+     * @dev paymasterAndData format (EntryPoint v0.7):
+     *      [0:20]   paymaster address
+     *      [20:36]  verificationGasLimit (uint128)
+     *      [36:52]  postOpGasLimit (uint128)
+     *      [52:72]  operator address (our custom data)
+     * @param userOp User operation struct
      * @return operator Operator address
      */
-    function _extractOperator(bytes calldata userOp) internal pure returns (address operator) {
-        // paymasterAndData format: [paymaster (20)][operator (20)][...]
-        // userOp contains paymasterAndData at specific offset
-        // Simplified: assume operator is at bytes 20-40
-        require(userOp.length >= 40, "Invalid userOp");
-        return address(bytes20(userOp[20:40]));
-    }
+    function _extractOperator(PackedUserOperation calldata userOp) internal pure returns (address operator) {
+        bytes calldata paymasterAndData = userOp.paymasterAndData;
+        require(paymasterAndData.length >= 72, "Invalid paymasterAndData");
 
-    /**
-     * @notice Extract sender from user operation
-     * @param userOp User operation bytes
-     * @return sender Sender address
-     */
-    function _extractSender(bytes calldata userOp) internal pure returns (address sender) {
-        // Simplified: sender is at beginning
-        require(userOp.length >= 20, "Invalid userOp");
-        return address(bytes20(userOp[0:20]));
+        // Extract operator address from bytes [52:72]
+        return address(bytes20(paymasterAndData[52:72]));
     }
 
     // ====================================

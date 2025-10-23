@@ -7,6 +7,78 @@ pragma solidity ^0.8.23;
  */
 
 // ====================================
+// ERC-4337 Structures (EntryPoint v0.7)
+// ====================================
+
+/**
+ * User Operation struct
+ * @param sender                - The sender account of this request.
+ * @param nonce                 - Unique value the sender uses to verify it is not a replay.
+ * @param initCode              - If set, the account contract will be created by this constructor
+ * @param callData              - The method call to execute on this account.
+ * @param accountGasLimits      - Packed gas limits for validateUserOp and gas limit passed to the callData method call.
+ * @param preVerificationGas    - Gas not calculated by the handleOps method, but added to the gas paid.
+ * @param gasFees               - packed gas fields maxPriorityFeePerGas and maxFeePerGas - Same as EIP-1559 gas parameters.
+ * @param paymasterAndData      - If set, this field holds the paymaster address, verification gas limit, postOp gas limit and paymaster-specific extra data
+ * @param signature             - Sender-verified signature over the entire request, the EntryPoint address and the chain ID.
+ */
+struct PackedUserOperation {
+    address sender;
+    uint256 nonce;
+    bytes initCode;
+    bytes callData;
+    bytes32 accountGasLimits;
+    uint256 preVerificationGas;
+    bytes32 gasFees;
+    bytes paymasterAndData;
+    bytes signature;
+}
+
+// ====================================
+// ERC-4337 IPaymaster Interface (EntryPoint v0.7)
+// ====================================
+
+/**
+ * @title IPaymaster
+ * @notice Standard paymaster interface for EntryPoint v0.7
+ */
+interface IPaymaster {
+    enum PostOpMode {
+        opSucceeded,
+        opReverted,
+        postOpReverted
+    }
+
+    /**
+     * @notice Payment validation: check if paymaster agrees to pay (must be called by EntryPoint)
+     * @param userOp The user operation
+     * @param userOpHash Hash of the user's request data
+     * @param maxCost Maximum cost of this transaction (based on maximum gas and gas price from userOp)
+     * @return context Value to send to postOp (empty for modes that don't use postOp)
+     * @return validationData Signature and time-range of this operation (0 for valid, 1 for invalid)
+     */
+    function validatePaymasterUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    ) external returns (bytes memory context, uint256 validationData);
+
+    /**
+     * @notice Post-operation handler (must be called by EntryPoint)
+     * @param mode Enum with the following options: opSucceeded, opReverted, postOpReverted
+     * @param context Value returned by validatePaymasterUserOp
+     * @param actualGasCost Actual gas used so far (without this postOp call)
+     * @param actualUserOpFeePerGas The gas price this UserOp pays
+     */
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
+    ) external;
+}
+
+// ====================================
 // GToken Staking Interface
 // ====================================
 

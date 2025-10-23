@@ -175,11 +175,10 @@ contract TestV2FullFlow is Script {
         vm.startPrank(USER);
         gtoken.approve(address(gtokenStaking), 0.1 ether);
         gtokenStaking.stake(0.1 ether);
-        gtokenStaking.approve(address(mysbt), 0.1 ether);
-        mysbt.mintSBT();
+        gtoken.approve(address(mysbt), 0.1 ether);
+        uint256 tokenId = mysbt.mintSBT(OPERATOR); // Use operator as community
         vm.stopPrank();
 
-        uint256 tokenId = mysbt.tokenOfOwnerByIndex(USER, 0);
         console.log("      SBT minted, tokenId:", tokenId);
 
         console.log("  3.2 User gets xPNTs...");
