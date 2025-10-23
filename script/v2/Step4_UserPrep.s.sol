@@ -25,6 +25,7 @@ contract Step4_UserPrep is Script {
     xPNTsToken operatorXPNTs;
 
     address user;
+    uint256 userKey;
     address operator;
 
     uint256 constant USER_XPNTS = 500 ether;
@@ -36,8 +37,9 @@ contract Step4_UserPrep is Script {
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
 
-        // 账户
-        user = address(0x999);
+        // 账户 - 使用测试私钥生成用户地址
+        userKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+        user = vm.addr(userKey);
         operator = vm.envAddress("OWNER2_ADDRESS");
     }
 
@@ -55,18 +57,25 @@ contract Step4_UserPrep is Script {
         vm.stopBroadcast();
 
         // User stake GToken并mint SBT
-        vm.startBroadcast(user);
-        gtoken.approve(address(gtokenStaking), 0.1 ether);
-        gtokenStaking.stake(0.1 ether);
-        console.log("    User staked 0.1 GToken");
+        vm.startBroadcast(userKey);
 
-        gtokenStaking.approve(address(mysbt), 0.1 ether);
-        mysbt.mintSBT();
-        console.log("    User minted SBT");
+        // Stake GToken first
+        gtoken.approve(address(gtokenStaking), 0.3 ether); // minLockAmount + mintFee
+        gtokenStaking.stake(0.3 ether);
+        console.log("    User staked 0.3 GToken");
 
-        uint256 tokenId = mysbt.tokenOfOwnerByIndex(user, 0);
+        // Approve GToken for mintFee burn
+        gtoken.approve(address(mysbt), 0.1 ether);
+
+        // Mint SBT with community address (using operator as community for testing)
+        mysbt.mintSBT(operator);
+        console.log("    User minted SBT for community:", operator);
+
+        vm.stopBroadcast();
+
+        // Get tokenId using userCommunityToken mapping
+        uint256 tokenId = mysbt.userCommunityToken(user, operator);
         console.log("    SBT tokenId:", tokenId);
-        vm.stopPrank();
 
         // 2. Operator给user mint xPNTs
         console.log("\n4.2 Operator minting xPNTs to user...");
