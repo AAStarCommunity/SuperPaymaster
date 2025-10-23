@@ -1193,3 +1193,208 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 **Debug完成时间**: 2025-10-23 14:30 UTC  
 **使用工具**: cast run, xxd  
 **发现**: validatePaymasterUserOp违反ERC-4337标准
+
+## Phase 7: ERC-4337标准合规性修复与重新部署
+**时间**: 2025-10-23 13:40 UTC
+
+### 修复内容
+
+根据Phase 6.5的debug发现，对SuperPaymasterV2进行了完整的ERC-4337标准合规性修复：
+
+#### 1. 添加PackedUserOperation结构和IPaymaster接口
+
+**文件**: `src/v2/interfaces/Interfaces.sol`
+
+```solidity
+// 添加PackedUserOperation结构体
+struct PackedUserOperation {
+    address sender;
+    uint256 nonce;
+    bytes initCode;
+    bytes callData;
+    bytes32 accountGasLimits;
+    uint256 preVerificationGas;
+    bytes32 gasFees;
+    bytes paymasterAndData;
+    bytes signature;
+}
+
+// 添加IPaymaster接口
+interface IPaymaster {
+    enum PostOpMode {
+        opSucceeded,
+        opReverted,
+        postOpReverted
+    }
+
+    function validatePaymasterUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    ) external returns (bytes memory context, uint256 validationData);
+
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
+    ) external;
+}
+```
+
+#### 2. 实现IPaymaster接口
+
+**文件**: `src/v2/core/SuperPaymasterV2.sol:26`
+
+```solidity
+contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
+    // ...
+}
+```
+
+#### 3. 修复validatePaymasterUserOp签名
+
+**修改前**:
+```solidity
+function validatePaymasterUserOp(
+    bytes calldata userOp,  // ❌ 错误：应该是struct
+    bytes32 userOpHash,
+    uint256 maxCost
+) external returns (bytes memory context, uint256 validationData)
+```
+
+**修改后**:
+```solidity
+function validatePaymasterUserOp(
+    PackedUserOperation calldata userOp,  // ✅ 正确：使用struct
+    bytes32 userOpHash,
+    uint256 maxCost
+) external returns (bytes memory context, uint256 validationData) {
+    address operator = _extractOperator(userOp);
+    address user = userOp.sender;  // ✅ 直接从struct获取
+    // ...
+}
+```
+
+#### 4. 修复postOp签名
+
+**修改前**:
+```solidity
+function postOp(
+    uint8 mode,  // ❌ 错误：应该是enum
+    bytes calldata context,
+    uint256 actualGasCost
+    // ❌ 缺少actualUserOpFeePerGas参数
+) external
+```
+
+**修改后**:
+```solidity
+function postOp(
+    PostOpMode mode,  // ✅ 正确：使用enum
+    bytes calldata context,
+    uint256 actualGasCost,
+    uint256 actualUserOpFeePerGas  // ✅ 添加缺失参数
+) external
+```
+
+#### 5. 重构_extractOperator和_extractSender
+
+**修改前** (SuperPaymasterV2.sol:628-645):
+```solidity
+// ❌ 错误：无法正确解析ABI-encoded struct
+function _extractOperator(bytes calldata userOp) internal pure returns (address) {
+    require(userOp.length >= 40, "Invalid userOp");
+    return address(bytes20(userOp[20:40]));  // 完全错误的offset!
+}
+
+function _extractSender(bytes calldata userOp) internal pure returns (address) {
+    require(userOp.length >= 20, "Invalid userOp");
+    return address(bytes20(userOp[0:20]));  // 无法处理struct!
+}
+```
+
+**修改后**:
+```solidity
+// ✅ 正确：从paymasterAndData提取operator
+function _extractOperator(PackedUserOperation calldata userOp) internal pure returns (address) {
+    bytes calldata paymasterAndData = userOp.paymasterAndData;
+    require(paymasterAndData.length >= 72, "Invalid paymasterAndData");
+    
+    // paymasterAndData格式 (EntryPoint v0.7):
+    // [0:20]   paymaster address
+    // [20:36]  verificationGasLimit (uint128)
+    // [36:52]  postOpGasLimit (uint128)
+    // [52:72]  operator address (自定义数据)
+    return address(bytes20(paymasterAndData[52:72]));
+}
+
+// _extractSender已移除 - 直接使用userOp.sender
+```
+
+### 重新部署
+
+**部署时间**: 2025-10-23 13:40 UTC  
+**部署脚本**: `forge script script/DeploySuperPaymasterV2.s.sol`  
+**Gas消耗**: 26,772,967 gas
+
+#### 新部署的合约地址
+
+| 合约名称 | 新地址 | 旧地址 | 说明 |
+|---------|--------|--------|------|
+| SuperPaymasterV2 | `0xb96d8BC6d771AE5913C8656FAFf8721156AC8141` | `0x999B36aa83c7f2e0709EE3CCD11CD58ad85a81D3` | ✅ 符合ERC-4337标准 |
+| GTokenStaking | `0xc3aa5816B000004F790e1f6B9C65f4dd5520c7b2` | `0xD8235F8920815175BD46f76a2cb99e15E02cED68` | 重新部署 |
+| Registry | `0x6806e4937038e783cA0D3961B7E258A3549A0043` | `0x13005A505562A97FBcf9809d808E912E7F988758` | 重新部署 |
+| xPNTsFactory | `0x356CF363E136b0880C8F48c9224A37171f375595` | `0x40B4E57b1b21F41783EfD937aAcE26157Fb957aD` | 重新部署 |
+| MySBT | `0xB330a8A396Da67A1b50903E734750AAC81B0C711` | `0x82737D063182bb8A98966ab152b6BAE627a23b11` | 重新部署 |
+| DVTValidator | `0x385a73D1bcC08E9818cb2a3f89153B01943D32c7` | `0x4C0A84601c9033d5b87242DEDBB7b7E24FD914F3` | 重新部署 |
+| BLSAggregator | `0x102E02754dEB85E174Cd6f160938dedFE5d65C6F` | `0xc84c7cD6Db17379627Bc42eeAe09F75792154b0a` | 重新部署 |
+| GToken | `0x54Afca294BA9824E6858E9b2d0B9a19C440f6D35` | `0x54Afca294BA9824E6858E9b2d0B9a19C440f6D35` | 保持不变 |
+
+#### 初始化配置
+
+所有合约初始化已完成：
+- ✅ MySBT.setSuperPaymaster → SuperPaymasterV2
+- ✅ SuperPaymaster.setDVTAggregator → BLSAggregator
+- ✅ SuperPaymaster.setEntryPoint → EntryPoint v0.7
+- ✅ DVTValidator.setBLSAggregator → BLSAggregator
+- ✅ GTokenStaking.setTreasury → Deployer
+- ✅ GTokenStaking.setSuperPaymaster → SuperPaymasterV2
+- ✅ GTokenStaking Locker配置:
+  - MySBT: 固定0.1 sGT退出费
+  - SuperPaymaster: 5-15 sGT梯度退出费
+
+### Git提交记录
+
+**Commit**: `dc37fd8`  
+**标题**: Fix SuperPaymasterV2 to comply with ERC-4337 IPaymaster standard
+
+**修改文件**:
+- `src/v2/interfaces/Interfaces.sol` - 添加PackedUserOperation和IPaymaster
+- `src/v2/core/SuperPaymasterV2.sol` - 实现IPaymaster接口，修复函数签名
+- `script/v2/TestV2FullFlow.s.sol` - 修复编译错误
+- `script/v2/DeployTestSimpleAccount.s.sol` - 新增（之前创建）
+- `package-lock.json` - 依赖更新
+
+### 编译结果
+
+```bash
+forge build
+# ✅ Compiler run successful with warnings
+# 警告：部分未使用的参数（不影响功能）
+```
+
+### 下一步
+
+1. ✅ 部署完成
+2. 🔄 设置新SuperPaymasterV2的aPNTs token
+3. 🔄 为EntryPoint添加deposit (0.1 ETH)
+4. 🔄 重新注册operator
+5. 🔄 运行EntryPoint V2集成测试
+
+---
+
+**修复完成时间**: 2025-10-23 13:40 UTC  
+**编译时间**: 16.87s  
+**部署时间**: ~43s  
+**状态**: ✅ 已部署，待集成测试
