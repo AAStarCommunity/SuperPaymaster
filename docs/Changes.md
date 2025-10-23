@@ -602,10 +602,115 @@ forge script script/v2/Step1_Setup.s.sol:Step1_Setup \
 ### 下一步
 
 1. ✅ Commit代码修复
-2. [ ] 创建链上状态检查脚本
-3. [ ] 根据链上状态决定从哪步开始测试
-4. [ ] 继续完成V2主流程测试
-5. [ ] 使用JS脚本进行EntryPoint集成测试
+2. ✅ 创建链上状态检查脚本（使用cast storage调试）
+3. ✅ 发现问题：链上旧合约缺少新字段
+4. ✅ 重新部署完整V2系统
+5. ✅ 成功运行Steps 1-3测试
+6. [ ] 完成Steps 4-6测试
+7. [ ] 使用JS脚本进行EntryPoint集成测试
+
+---
+
+## 🚀 Phase 6.2 成功: V2合约重新部署和测试Steps 1-3 (2025-10-23)
+
+### 问题诊断与解决
+
+**发现的问题**:
+- 链上旧合约(`0xeC3f...`)的storage layout与当前代码不匹配
+- 缺少Phase 5添加的新字段：aPNTsToken, superPaymasterTreasury等
+- setAPNTsToken调用一直revert
+
+**诊断方法**:
+```bash
+# 1. 检查storage layout
+forge inspect SuperPaymasterV2 storage-layout
+
+# 2. 读取链上storage
+cast storage 0xeC3f... 11  # slot 11应该是aPNTsToken地址
+# 结果：0x...4563918244f40000 (不是地址格式，是uint256!)
+
+# 3. 确认：链上合约是旧版本
+```
+
+**解决方案**: 重新部署完整的V2系统
+
+### 新部署的合约地址 (Sepolia)
+
+**Core Contracts:**
+- GToken: `0x54Afca294BA9824E6858E9b2d0B9a19C440f6D35` (重用)
+- **GTokenStaking: `0x54e97bc3E81a4beD963c5dE4240714f8E4002d37`** (新)
+- **Registry: `0x62Ebe96C6C1b80160f55D889a372a592FFE940B9`** (新)
+- **SuperPaymasterV2: `0x999B36aa83c7f2e0709EE3CCD11CD58ad85a81D3`** (新)
+
+**Token System:**
+- **xPNTsFactory: `0xfdF531896D62A6aB355575F12aa836Aee1F34b21`** (新)
+- **MySBT: `0xBB985B60D7c3Ec67D7157e8c5c12c2566f098Eef`** (新)
+
+**Monitoring System:**
+- **DVTValidator: `0x8E03495A45291084A73Cee65B986f34565321fb1`** (新)
+- **BLSAggregator: `0xA7df6789218C5a270D6DF033979698CAB7D7b728`** (新)
+
+### 测试执行结果
+
+#### ✅ Step 1: Setup & Configuration
+- **aPNTs token**: `0xc15952e335E7233b0b12e3A0F47cbb95D2167CAD`
+- 成功配置SuperPaymaster的aPNTsToken
+- 成功配置SuperPaymaster treasury: `0x888`
+- Gas used: 985,732
+
+#### ✅ Step 2: Operator Registration
+- **Operator**: `0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA`
+- **Operator xPNTs token**: `0x54FAF9AD50f8e033330C13D92A7F3b607B1875EE`
+- Operator treasury: `0x777`
+- 成功mint 100 GToken
+- 成功stake 100 GToken → 100 sGToken
+- 成功lock 50 sGToken
+- 成功注册到SuperPaymaster
+- Exchange rate: 1:1 (默认)
+- Gas used: 3,532,105
+
+#### ✅ Step 3: Operator Deposit aPNTs
+- 成功mint 2000 aPNTs给operator
+- 成功deposit 1000 aPNTs到SuperPaymaster
+- 内部余额验证成功
+- 合约持有的aPNTs余额验证成功
+- Gas used: 312,126
+
+#### 🔄 Step 4-6: 执行中
+- Step 4: 用户准备 (mint SBT + 获取xPNTs)
+- Step 5: 用户交易模拟
+- Step 6: 最终验证
+
+### 总Gas消耗
+
+- 部署V2系统: ~26,745,770 gas
+- Step 1-3测试: ~4,829,963 gas
+- **总计**: ~31,575,733 gas (~0.032 ETH on Sepolia)
+
+### 验证的功能
+
+✅ **Phase 5实现的完整功能已验证**:
+1. aPNTs token配置机制
+2. SuperPaymaster treasury配置
+3. Operator注册with treasury和exchange rate
+4. aPNTs充值和内部记账
+
+### 技术收获
+
+1. **Storage layout调试技巧**
+   - 使用`forge inspect`查看合约storage布局
+   - 使用`cast storage`读取链上storage
+   - 理解`immutable`变量不占用storage
+
+2. **合约版本管理**
+   - 链上合约可能和本地代码不同步
+   - 需要先验证链上版本再执行操作
+   - 重新部署是解决storage不匹配的唯一方法
+
+3. **分段测试的优势**
+   - 易于定位问题（Step 1就发现了合约版本问题）
+   - 灵活恢复（从任意步骤继续）
+   - 清晰的进度跟踪
 
 ---
 
