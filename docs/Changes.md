@@ -868,3 +868,25 @@ cast storage 0xeC3f... 11  # slot 11应该是aPNTsToken地址
 **测试工具**: Foundry forge script  
 **网络**: Sepolia Testnet  
 **测试账户**: 3个 (deployer, operator, user)
+
+### 下一步准备: EntryPoint集成
+
+**SimpleAccount准备工作** (待执行):
+1. 将xPNTs从测试用户转账到SimpleAccount
+   - User: `0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb`
+   - SimpleAccount: `0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce`
+   - 需转账: 至少200 xTEST
+
+2. SimpleAccount approve xPNTs给SuperPaymaster
+   - 通过SimpleAccount.execute()调用xPNTs.approve()
+   - 需要准备special execute call
+
+3. 运行EntryPoint集成测试
+   - `node scripts/submit-via-entrypoint-v2.js`
+   - 将验证完整的UserOp + dual payment流程
+
+**当前状态**:
+- V2 Main Flow测试: ✅ 完成
+- EntryPoint脚本准备: ✅ 完成
+- SimpleAccount资金准备: ⏳ 待执行
+
