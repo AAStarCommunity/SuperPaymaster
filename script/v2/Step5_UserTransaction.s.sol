@@ -25,6 +25,7 @@ contract Step5_UserTransaction is Script {
     xPNTsToken operatorXPNTs;
 
     address user;
+    uint256 userKey;
     address operator;
     address operatorTreasury;
 
@@ -33,8 +34,9 @@ contract Step5_UserTransaction is Script {
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
 
-        // 账户
-        user = address(0x999);
+        // 账户 - 使用与Step4相同的用户私钥
+        userKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+        user = vm.addr(userKey);
         operator = vm.envAddress("OWNER2_ADDRESS");
         operatorTreasury = address(0x777);
     }
@@ -77,20 +79,20 @@ contract Step5_UserTransaction is Script {
 
         // 3. 用户approve并支付xPNTs
         console.log("\n5.3 User approving and paying xPNTs...");
-        vm.startBroadcast(user);
+        vm.startBroadcast(userKey);
         operatorXPNTs.approve(address(superPaymaster), xPNTsCost);
         console.log("    User approved", xPNTsCost / 1e18, "xTEST");
-        vm.stopPrank();
+        vm.stopBroadcast();
 
         // 4. 手动模拟双重支付
         console.log("\n5.4 Simulating dual payment...");
         console.log("    Note: In production, EntryPoint calls validatePaymasterUserOp");
 
         // 模拟用户xPNTs转账到operator treasury
-        vm.startBroadcast(user);
+        vm.startBroadcast(userKey);
         operatorXPNTs.transfer(operatorTreasury, xPNTsCost);
         console.log("    [1] User xPNTs -> Operator treasury: DONE");
-        vm.stopPrank();
+        vm.stopBroadcast();
 
         // 注意：aPNTs的内部记账需要通过合约调用
         // 这里我们只能验证xPNTs的转账，aPNTs的扣除需要真实的EntryPoint调用

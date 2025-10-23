@@ -38,8 +38,9 @@ contract Step6_Verification is Script {
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
 
-        // 账户
-        user = address(0x999);
+        // 账户 - 使用与Step4/5相同的用户地址
+        uint256 userKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+        user = vm.addr(userKey);
         operator = vm.envAddress("OWNER2_ADDRESS");
         operatorTreasury = address(0x777);
         superPaymasterTreasury = address(0x888);
@@ -54,13 +55,14 @@ contract Step6_Verification is Script {
 
         console.log("    Operator:", operator);
         console.log("    Is registered:", account.stakedAt > 0);
-        console.log("    Staked amount:", account.stakedAmount / 1e18, "sGT");
+        console.log("    sGToken locked:", account.sGTokenLocked / 1e18, "sGT");
         console.log("    aPNTs balance:", account.aPNTsBalance / 1e18, "aPNTs");
         console.log("    Treasury:", account.treasury);
         console.log("    xPNTs token:", account.xPNTsToken);
         console.log("    Exchange rate:", account.exchangeRate / 1e18);
         console.log("    Total spent:", account.totalSpent / 1e18, "aPNTs");
         console.log("    Total tx sponsored:", account.totalTxSponsored);
+        console.log("    Reputation score:", account.reputationScore);
         console.log("    Is paused:", account.isPaused);
 
         // 2. 检查用户资产

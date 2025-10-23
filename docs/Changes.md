@@ -718,3 +718,153 @@ cast storage 0xeC3f... 11  # slot 11应该是aPNTsToken地址
 **部署工具**: Foundry forge v0.2.0
 **Solidity版本**: 0.8.28
 **OpenZeppelin版本**: v5.0.2
+
+---
+
+## Phase 6.3: V2测试完成 - Steps 4-6
+
+**日期**: 2025-10-23  
+**分支**: v2  
+**状态**: ✅ 测试完成
+
+### 执行步骤
+
+#### ✅ Step 4: 用户准备
+**功能**: 用户mint SBT并获取xPNTs
+
+**执行内容**:
+1. Deployer给用户mint 1 GToken
+2. 用户stake 0.3 GToken → 获得0.3 sGToken
+3. 用户approve并burn 0.1 GT作为mintFee
+4. 用户mint SBT（锁定0.3 sGT）
+5. Operator给用户mint 500 xTEST
+
+**结果**:
+- User address: `0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb`
+- SBT tokenId: 1
+- xTEST balance: 500
+- Gas used: ~966,313
+
+**技术细节**:
+- 使用测试私钥生成user地址: `vm.addr(userKey)`
+- MySBT.mintSBT需要community参数，使用operator作为community
+- MySBT锁定sGToken而非GToken（通过GTokenStaking.lockStake）
+- 需给user地址转0.01 ETH用于gas
+
+#### ✅ Step 5: 用户交易模拟
+**功能**: 模拟用户支付xPNTs流程
+
+**执行内容**:
+1. 计算费用：模拟0.001 ETH gas cost
+   - gasCostUSD = 0.001 * 3000 = 3 USD
+   - with 2% fee = 3.06 USD  
+   - aPNTs = 3.06 / 0.02 = 153 aPNTs
+   - xPNTs = 153 (1:1 exchange rate)
+2. 用户approve 153 xTEST给SuperPaymaster
+3. 用户transfer 153 xTEST到operator treasury
+
+**结果**:
+- User xTEST: 500 → 347
+- Operator treasury xTEST: 0 → 153
+- Payment verified: ✅
+- Gas used: ~142,218
+
+**限制**:
+- aPNTs的内部记账被跳过（需要EntryPoint调用validatePaymasterUserOp）
+- 这是简化版本，验证了xPNTs支付流程
+
+#### ✅ Step 6: 最终验证
+**功能**: 验证整个系统状态
+
+**验证结果**:
+
+**Operator状态**:
+- Address: `0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA`
+- Registered: ✅
+- sGToken locked: 50
+- aPNTs balance: 1000
+- Treasury: `0x0000000000000000000000000000000000000777`
+- xPNTs token: `0x54FAF9AD50f8e033330C13D92A7F3b607B1875EE`
+- Exchange rate: 1:1
+- Total spent: 0
+- Total tx sponsored: 0
+- Is paused: false
+
+**User状态**:
+- Address: `0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb`
+- SBT count: 1
+- xPNTs balance: 347 xTEST
+
+**Treasuries**:
+- Operator treasury xPNTs: 153 xTEST
+- SuperPaymaster treasury aPNTs (internal): 0
+
+**aPNTs分布**:
+- SuperPaymaster合约持有: 1000 aPNTs
+- Operator内部余额: 1000 aPNTs
+- Treasury内部余额: 0 aPNTs
+- 内部记账完整性: ✅ (1000 = 1000 + 0)
+
+**支付流程验证**:
+- User → Operator treasury: 153 xTEST ✅
+- Operator → SuperPaymaster: 0 aPNTs (需要EntryPoint)
+
+### 总Gas消耗
+
+- Step 4 (User Prep): ~966,313 gas
+- Step 5 (User Tx): ~142,218 gas
+- Step 6 (Verification): 0 gas (view-only)
+- **Steps 4-6总计**: ~1,108,531 gas
+- **包含Steps 1-3**: ~5,938,494 gas
+
+### 修复的问题
+
+1. **用户地址问题**: 
+   - 错误: `vm.startBroadcast(address(0x999))` 无法工作
+   - 修复: 使用`vm.addr(userKey)`生成地址，用userKey broadcast
+
+2. **MySBT mintSBT调用**:
+   - 错误: `mysbt.mintSBT()` 缺少参数
+   - 修复: `mysbt.mintSBT(community)` - 需要指定community地址
+
+3. **用户资金问题**:
+   - 错误: User地址没有ETH支付gas
+   - 修复: 从deployer转0.01 ETH给user
+
+4. **OperatorAccount字段名**:
+   - 错误: 使用了不存在的`stakedAmount`和`isActive`字段
+   - 修复: 使用正确的`sGTokenLocked`和`isPaused`
+
+### 验证的功能
+
+✅ **V2 Main Flow完整功能已验证**:
+1. aPNTs token部署和配置
+2. Operator注册（stake + xPNTs部署）
+3. Operator充值aPNTs
+4. User mint SBT（stake + lock sGToken）
+5. User获取xPNTs
+6. User支付xPNTs到operator treasury
+7. 内部记账完整性
+
+### 待EntryPoint集成测试的功能
+
+🔄 **需要EntryPoint才能完整测试**:
+1. validatePaymasterUserOp调用
+2. aPNTs内部记账扣除
+3. postOp回调
+4. 实际的UserOperation执行
+5. Bundler集成测试
+
+### 下一步
+
+1. ✅ V2 Main Flow测试完成
+2. 🔄 EntryPoint集成测试（使用scripts/submit-via-entrypoint-v2.js）
+3. ⏳ Bundler生产环境测试
+4. ⏳ PaymasterV4兼容性测试
+
+---
+
+**测试完成时间**: 2025-10-23 12:10 UTC  
+**测试工具**: Foundry forge script  
+**网络**: Sepolia Testnet  
+**测试账户**: 3个 (deployer, operator, user)
