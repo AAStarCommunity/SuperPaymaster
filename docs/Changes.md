@@ -1028,3 +1028,168 @@ e) **Mint SBT**
 **测试执行时间**: 2025-10-23 13:00 UTC  
 **测试网络**: Sepolia Testnet  
 **SimpleAccount owner**: 0xc8d1Ae1063176BEBC750D9aD5D057BA4A65daf3d
+
+---
+
+## Phase 6.5: EntryPoint集成Debug - 发现关键问题
+
+**日期**: 2025-10-23  
+**分支**: v2  
+**状态**: 🔍 重大发现
+
+### Debug过程
+
+#### 问题1: EntryPoint Deposit不足 ✅ 已解决
+
+**错误**: `@AA31 paymaster deposit too low`
+
+**原因**: SuperPaymasterV2在EntryPoint的deposit余额为0
+
+**解决**: 
+```bash
+cast send EntryPoint "depositTo(address)" SuperPaymasterV2 --value 0.1ether
+```
+
+Tx: `0xef6d537...`
+
+#### 问题2: validatePaymasterUserOp Revert ❌ 发现根本问题
+
+**错误**: `AA33 reverted` (validatePaymasterUserOp内部revert)
+
+**Debug方法**:
+```bash
+# 1. 使用cast run获取trace
+cast run 0x402a5fc... --rpc-url $SEPOLIA_RPC
+
+# 2. 解码错误信息
+echo "41413333207265766572746564" | xxd -r -p
+# Output: "AA33 reverted"
+```
+
+**发现的根本问题**:
+
+SuperPaymasterV2的validatePaymasterUserOp实现违反了ERC-4337标准！
+
+**错误1: Function Signature错误**
+
+❌ 当前实现:
+```solidity
+function validatePaymasterUserOp(
+    bytes calldata userOp,  // 错误！
+    bytes32 userOpHash,
+    uint256 maxCost
+)
+```
+
+✅ 正确的IPaymaster接口:
+```solidity
+function validatePaymasterUserOp(
+    PackedUserOperation calldata userOp,  // 应该是struct!
+    bytes32 userOpHash,
+    uint256 maxCost
+)
+```
+
+**错误2: 未实现IPaymaster接口**
+
+SuperPaymasterV2没有`contract SuperPaymasterV2 is IPaymaster`声明
+
+**错误3: 错误的数据提取方法**
+
+```solidity
+// ❌ 当前实现 - 完全错误
+function _extractOperator(bytes calldata userOp) internal pure returns (address) {
+    return address(bytes20(userOp[20:40]));  // 这是错的！
+}
+
+function _extractSender(bytes calldata userOp) internal pure returns (address) {
+    return address(bytes20(userOp[0:20]));  // 这也是错的！
+}
+
+// ✅ 正确实现
+function _extractOperator(PackedUserOperation calldata userOp) internal pure returns (address) {
+    bytes calldata paymasterAndData = userOp.paymasterAndData;
+    require(paymasterAndData.length >= 72, "Invalid paymasterAndData");
+    return address(bytes20(paymasterAndData[52:72]));  // operator在offset 52-72
+}
+
+function _extractSender(PackedUserOperation calldata userOp) internal pure returns (address) {
+    return userOp.sender;  // 直接返回struct字段！
+}
+```
+
+### 需要修复的内容
+
+#### 1. 定义PackedUserOperation结构
+
+```solidity
+struct PackedUserOperation {
+    address sender;
+    uint256 nonce;
+    bytes initCode;
+    bytes callData;
+    bytes32 accountGasLimits;
+    uint256 preVerificationGas;
+    bytes32 gasFees;
+    bytes paymasterAndData;
+    bytes signature;
+}
+```
+
+#### 2. 修改validatePaymasterUserOp签名
+
+```solidity
+function validatePaymasterUserOp(
+    PackedUserOperation calldata userOp,  // 改为struct
+    bytes32 userOpHash,
+    uint256 maxCost
+) external returns (bytes memory context, uint256 validationData)
+```
+
+#### 3. 修复_extractOperator和_extractSender
+
+使用struct字段访问，而不是raw bytes解析
+
+#### 4. Implement IPaymaster接口
+
+```solidity
+contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
+    // ...
+}
+```
+
+### 技术收获
+
+1. **ERC-4337标准的严格性**
+   - IPaymaster接口必须精确实现
+   - EntryPoint通过接口调用，signature必须匹配
+   - 任何偏差都会导致revert
+
+2. **cast run的强大debug能力**
+   - 完整的call trace
+   - 显示自定义错误码
+   - 显示revert原因的hex编码
+
+3. **EntryPoint错误码系统**
+   - AA31: paymaster deposit too low
+   - AA33: reverted in validatePaymasterUserOp
+   - 所有AA开头的错误都有标准定义
+
+### 影响评估
+
+**当前状态**: V2 Main Flow (Steps 1-6) 已完成并验证
+
+**EntryPoint集成**: 需要重构validatePaymasterUserOp
+
+**估计工作量**:
+1. 定义PackedUserOperation: 5分钟
+2. 修改function signatures: 10分钟
+3. 修复extract函数: 10分钟
+4. 测试验证: 15分钟
+**总计**: ~40分钟
+
+---
+
+**Debug完成时间**: 2025-10-23 14:30 UTC  
+**使用工具**: cast run, xxd  
+**发现**: validatePaymasterUserOp违反ERC-4337标准
