@@ -564,6 +564,51 @@ forge script script/v2/Step1_Setup.s.sol:Step1_Setup \
 
 ---
 
+## 📝 Phase 6.1 进展: 测试脚本修复和环境配置 (2025-10-23)
+
+### 完成工作
+
+1. **修复import路径问题**
+   - 创建独立的 `contracts/test/mocks/MockERC20.sol`
+   - 更新所有测试脚本使用正确的import路径
+   - 避免与forge-std的MockERC20冲突
+
+2. **环境配置**
+   - 创建 `.env` 符号链接到 `../env/.env`
+   - 添加V2合约地址到环境变量：
+     - `GTOKEN_ADDRESS`
+     - `GTOKEN_STAKING_ADDRESS`
+     - `SUPER_PAYMASTER_V2_ADDRESS`
+     - `XPNTS_FACTORY_ADDRESS`
+     - `MYSBT_ADDRESS`
+
+3. **EntryPoint集成脚本**
+   - 创建 `scripts/submit-via-entrypoint-v2.js`
+   - 基于V4脚本改造，适配V2双重支付机制
+   - 包含完整的UserOp构造和签名流程
+
+### 发现的问题
+
+1. **Step1测试失败**
+   - `setAPNTsToken()` 调用revert
+   - 可能原因：合约已在链上配置过
+   - 需要：检查链上状态并调整测试策略
+
+2. **测试策略调整建议**
+   - 跳过Step 1，直接从Step 2开始（假设合约已配置）
+   - 或创建状态检查脚本验证当前配置
+   - 然后从适当的步骤继续测试
+
+### 下一步
+
+1. ✅ Commit代码修复
+2. [ ] 创建链上状态检查脚本
+3. [ ] 根据链上状态决定从哪步开始测试
+4. [ ] 继续完成V2主流程测试
+5. [ ] 使用JS脚本进行EntryPoint集成测试
+
+---
+
 **部署完成时间**: 2025-10-22 17:40 UTC
 **部署工具**: Foundry forge v0.2.0
 **Solidity版本**: 0.8.28
