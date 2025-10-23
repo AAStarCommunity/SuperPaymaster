@@ -23,6 +23,7 @@ contract SuperPaymasterV2Test is Test {
     // ====================================
 
     MockERC20 public gtoken;
+    MockERC20 public apntsToken;  // AAStar community token
     GTokenStaking public gtokenStaking;
     Registry public registry;
     SuperPaymasterV2 public superPaymaster;
@@ -44,6 +45,8 @@ contract SuperPaymasterV2Test is Test {
     address public validator1 = address(0x301);
     address public validator2 = address(0x302);
     address public validator3 = address(0x303);
+    address public treasury1 = address(0x401); // Treasury for operator1
+    address public treasury2 = address(0x402); // Treasury for operator2
 
     // ====================================
     // Setup
@@ -53,6 +56,9 @@ contract SuperPaymasterV2Test is Test {
         // Deploy GToken
         gtoken = new MockERC20("GToken", "GT", 18);
 
+        // Deploy aPNTs token (AAStar community token)
+        apntsToken = new MockERC20("AAStar Points", "aPNTs", 18);
+
         // Deploy core contracts
         gtokenStaking = new GTokenStaking(address(gtoken));
         registry = new Registry();
@@ -60,6 +66,9 @@ contract SuperPaymasterV2Test is Test {
             address(gtokenStaking),
             address(registry)
         );
+
+        // Configure aPNTs token
+        superPaymaster.setAPNTsToken(address(apntsToken));
 
         // Deploy token system
         xpntsFactory = new xPNTsFactory(
@@ -143,7 +152,8 @@ contract SuperPaymasterV2Test is Test {
         superPaymaster.registerOperator(
             50 ether,
             sbts,
-            address(0) // Will set xPNTs token later
+            address(0), // Will set xPNTs token later
+            treasury1   // Treasury address for operator1
         );
         vm.stopPrank();
 
@@ -170,7 +180,8 @@ contract SuperPaymasterV2Test is Test {
         superPaymaster.registerOperator(
             20 ether,  // Trying to register with 20 sGT (insufficient)
             sbts,
-            address(0)
+            address(0),
+            treasury1
         );
 
         vm.stopPrank();
@@ -355,18 +366,29 @@ contract SuperPaymasterV2Test is Test {
         superPaymaster.registerOperator(
             50 ether,
             sbts,
-            tokenAddr
+            tokenAddr,
+            treasury1
         );
 
-        // Deposit aPNTs
+        // Mint aPNTs (AAStar token) to operator
+        vm.stopPrank();
+        vm.startPrank(owner);
+        apntsToken.mint(operator1, 1000 ether);
+        vm.stopPrank();
+
+        // Approve and deposit aPNTs
+        vm.startPrank(operator1);
+        apntsToken.approve(address(superPaymaster), 500 ether);
         superPaymaster.depositAPNTs(500 ether);
 
         vm.stopPrank();
 
         // Verify balance
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator1);
-        assertEq(account.aPNTsBalance, 500 ether);
-        assertEq(token.balanceOf(operator1), 500 ether); // 500 xPNTs burned
+        assertEq(account.aPNTsBalance, 500 ether); // aPNTs记录在operator账户中
+        assertEq(token.balanceOf(operator1), 1000 ether); // xPNTs余额不变（没有burn）
+        assertEq(apntsToken.balanceOf(operator1), 500 ether); // 剩余500 aPNTs
+        assertEq(apntsToken.balanceOf(address(superPaymaster)), 500 ether); // 500 aPNTs在SuperPaymaster合约中
     }
 
     // ====================================
@@ -459,7 +481,7 @@ contract SuperPaymasterV2Test is Test {
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
 
-        superPaymaster.registerOperator(50 ether, sbts, address(0));
+        superPaymaster.registerOperator(50 ether, sbts, address(0), treasury1);
         vm.stopPrank();
 
         // Simulate reputation upgrade conditions
@@ -482,11 +504,11 @@ contract SuperPaymasterV2Test is Test {
         address[] memory sbts = new address[](1);
         sbts[0] = address(mysbt);
 
-        superPaymaster.registerOperator(50 ether, sbts, address(0));
+        superPaymaster.registerOperator(50 ether, sbts, address(0), treasury1);
 
         // Try to register again (should fail)
         vm.expectRevert();
-        superPaymaster.registerOperator(50 ether, sbts, address(0));
+        superPaymaster.registerOperator(50 ether, sbts, address(0), treasury1);
         vm.stopPrank();
     }
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
@@ -42,6 +43,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
         // Community config
         address[] supportedSBTs;    // Supported SBT contracts
         address xPNTsToken;         // Community points token
+        address treasury;           // Treasury address for receiving user xPNTs
+
+        // Pricing config (借鉴PaymasterV4)
+        uint256 exchangeRate;       // xPNTs <-> aPNTs exchange rate (18 decimals, default 1e18 = 1:1)
 
         // Reputation system
         uint256 reputationScore;    // Reputation score (Fibonacci level)
@@ -96,6 +101,28 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     /// @notice Minimum aPNTs balance threshold (configurable)
     uint256 public minAPNTsBalance = 100 ether;
 
+    /// @notice aPNTs price in USD (18 decimals), e.g., 0.02 USD = 0.02e18
+    uint256 public aPNTsPriceUSD = 0.02 ether;
+
+    /// @notice Gas to USD conversion rate (18 decimals), e.g., 4500e18 = $4500/ETH
+    uint256 public gasToUSDRate = 3000 ether; // 默认$3000/ETH
+
+    /// @notice Service fee rate in basis points (200 = 2%)
+    uint256 public serviceFeeRate = 200;
+
+    /// @notice Basis points denominator
+    uint256 private constant BPS_DENOMINATOR = 10000;
+
+    /// @notice SuperPaymaster treasury address (receives consumed aPNTs)
+    address public superPaymasterTreasury;
+
+    /// @notice aPNTs token address (AAStar community ERC20 token)
+    address public aPNTsToken;
+
+    /// @notice SuperPaymaster treasury's aPNTs balance (internal accounting)
+    /// @dev aPNTs consumed by user transactions are recorded here, not immediately transferred
+    uint256 public treasuryAPNTsBalance;
+
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [
         1 ether,   // Level 1
@@ -122,6 +149,16 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
         uint256 timestamp
     );
 
+    event TreasuryUpdated(
+        address indexed operator,
+        address indexed newTreasury
+    );
+
+    event ExchangeRateUpdated(
+        address indexed operator,
+        uint256 newRate
+    );
+
     event aPNTsDeposited(
         address indexed operator,
         uint256 amount,
@@ -131,7 +168,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     event TransactionSponsored(
         address indexed operator,
         address indexed user,
-        uint256 cost,
+        uint256 aPNTsCost,
+        uint256 xPNTsCost,
         uint256 timestamp
     );
 
@@ -173,6 +211,22 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
         uint256 newBalance
     );
 
+    event SuperPaymasterTreasuryUpdated(
+        address indexed oldTreasury,
+        address indexed newTreasury
+    );
+
+    event APNTsTokenUpdated(
+        address indexed oldToken,
+        address indexed newToken
+    );
+
+    event TreasuryWithdrawal(
+        address indexed treasury,
+        uint256 amount,
+        uint256 timestamp
+    );
+
     // ====================================
     // Errors
     // ====================================
@@ -186,6 +240,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     error UnauthorizedCaller(address caller);
     error InvalidConfiguration();
     error InvalidAddress(address addr);
+    error InvalidAmount(uint256 amount);
 
     // ====================================
     // Constructor
@@ -206,6 +261,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
 
         GTOKEN_STAKING = _gtokenStaking;
         REGISTRY = _registry;
+        superPaymasterTreasury = msg.sender; // 默认设为deployer，可后续修改
     }
 
     // ====================================
@@ -221,7 +277,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     function registerOperator(
         uint256 sGTokenAmount,
         address[] memory supportedSBTs,
-        address xPNTsToken
+        address xPNTsToken,
+        address treasury
     ) external nonReentrant {
         if (sGTokenAmount < minOperatorStake) {
             revert InsufficientStake(sGTokenAmount, minOperatorStake);
@@ -229,6 +286,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
 
         if (accounts[msg.sender].stakedAt != 0) {
             revert AlreadyRegistered(msg.sender);
+        }
+
+        if (treasury == address(0)) {
+            revert InvalidAddress(treasury);
         }
 
         // CEI: Effects first - Initialize operator account BEFORE external call
@@ -241,6 +302,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
             minBalanceThreshold: minAPNTsBalance,
             supportedSBTs: supportedSBTs,
             xPNTsToken: xPNTsToken,
+            treasury: treasury,
+            exchangeRate: 1 ether, // 默认1:1汇率
             reputationScore: 0,
             consecutiveDays: 0,
             totalTxSponsored: 0,
@@ -260,16 +323,17 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Deposit aPNTs (burn xPNTs 1:1)
-     * @param amount Amount to deposit
+     * @notice Deposit aPNTs (Operator transfers aPNTs to SuperPaymaster contract)
+     * @param amount Amount of aPNTs to deposit
+     * @dev Operator must purchase aPNTs (AAStar token) first, then deposit to SuperPaymaster
+     * @dev aPNTs stay in contract until consumed by user transactions, then go to treasury
      */
     function depositAPNTs(uint256 amount) external nonReentrant {
         if (accounts[msg.sender].stakedAt == 0) {
             revert NotRegistered(msg.sender);
         }
 
-        address xPNTsToken = accounts[msg.sender].xPNTsToken;
-        if (xPNTsToken == address(0)) {
+        if (aPNTsToken == address(0)) {
             revert InvalidConfiguration();
         }
 
@@ -277,18 +341,52 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
         accounts[msg.sender].aPNTsBalance += amount;
         accounts[msg.sender].lastRefillTime = block.timestamp;
 
-        // CEI: Interactions last - Burn xPNTs from user
-        IxPNTsToken(xPNTsToken).burn(msg.sender, amount);
+        // CEI: Interactions last - Transfer aPNTs from operator to SuperPaymaster contract
+        // Operator购买的aPNTs（AAStar token）存入合约，用户交易时再转到treasury
+        IERC20(aPNTsToken).transferFrom(msg.sender, address(this), amount);
 
         emit aPNTsDeposited(msg.sender, amount, block.timestamp);
     }
 
     /**
+     * @notice Update operator's treasury address
+     * @param newTreasury New treasury address
+     */
+    function updateTreasury(address newTreasury) external {
+        if (accounts[msg.sender].stakedAt == 0) {
+            revert NotRegistered(msg.sender);
+        }
+        if (newTreasury == address(0)) {
+            revert InvalidAddress(newTreasury);
+        }
+
+        accounts[msg.sender].treasury = newTreasury;
+        emit TreasuryUpdated(msg.sender, newTreasury);
+    }
+
+    /**
+     * @notice Update operator's exchange rate (xPNTs <-> aPNTs)
+     * @param newRate New exchange rate (18 decimals, 1e18 = 1:1)
+     */
+    function updateExchangeRate(uint256 newRate) external {
+        if (accounts[msg.sender].stakedAt == 0) {
+            revert NotRegistered(msg.sender);
+        }
+        if (newRate == 0) {
+            revert InvalidAmount(newRate);
+        }
+
+        accounts[msg.sender].exchangeRate = newRate;
+        emit ExchangeRateUpdated(msg.sender, newRate);
+    }
+
+    /**
      * @notice Validate paymaster user operation (ERC-4337)
+     * @dev 借鉴PaymasterV4：直接在此函数中计算gas并转账xPNTs，不使用postOp退款
      * @param userOp User operation
      * @param userOpHash User operation hash
-     * @param maxCost Maximum cost
-     * @return context Context for postOp
+     * @param maxCost Maximum cost (in wei)
+     * @return context Context for postOp (empty, 不使用)
      * @return validationData Validation result
      */
     function validatePaymasterUserOp(
@@ -309,22 +407,53 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
             revert NoSBTFound(user);
         }
 
-        if (accounts[operator].aPNTsBalance < maxCost) {
-            revert InsufficientAPNTs(maxCost, accounts[operator].aPNTsBalance);
+        // 计算aPNTs费用 (参考PaymasterV4)
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
+
+        // 检查operator的aPNTs余额
+        if (accounts[operator].aPNTsBalance < aPNTsAmount) {
+            revert InsufficientAPNTs(aPNTsAmount, accounts[operator].aPNTsBalance);
         }
 
-        // Pre-deduct cost
-        accounts[operator].aPNTsBalance -= maxCost;
+        // 计算用户需要支付的xPNTs数量（根据operator的exchangeRate）
+        uint256 xPNTsAmount = _calculateXPNTsAmount(operator, aPNTsAmount);
 
-        // Return context for postOp
-        context = abi.encode(operator, user, maxCost);
-        validationData = 0; // Validation passed
+        // 直接转账xPNTs从用户到operator的treasury
+        address xPNTsToken = accounts[operator].xPNTsToken;
+        address treasury = accounts[operator].treasury;
+
+        if (xPNTsToken == address(0) || treasury == address(0)) {
+            revert InvalidConfiguration();
+        }
+
+        // 1. 转账xPNTs从用户到operator的treasury
+        IERC20(xPNTsToken).transferFrom(user, treasury, xPNTsAmount);
+
+        // 2. 内部记账：将aPNTs从operator余额转到treasury余额
+        // 所有aPNTs都在合约内，只改记录，不实际转账（省gas）
+        accounts[operator].aPNTsBalance -= aPNTsAmount;
+        treasuryAPNTsBalance += aPNTsAmount;
+
+        // 3. 更新operator统计
+        accounts[operator].totalSpent += aPNTsAmount;
+        accounts[operator].totalTxSponsored += 1;
+
+        // Emit event
+        emit TransactionSponsored(operator, user, aPNTsAmount, xPNTsAmount, block.timestamp);
+
+        // Update reputation
+        _updateReputation(operator);
+
+        // Return empty context (不使用postOp退款)
+        return ("", 0);
     }
 
     /**
      * @notice Post operation (ERC-4337)
+     * @dev 简化版：不退款，只用于tracking和事件emit
+     * @dev 根据用户要求：上浮2%不退还，作为协议收入
      * @param mode Operation mode
-     * @param context Context from validatePaymasterUserOp
+     * @param context Context from validatePaymasterUserOp (empty in our impl)
      * @param actualGasCost Actual gas cost
      */
     function postOp(
@@ -334,24 +463,9 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     ) external {
         require(msg.sender == ENTRY_POINT, "Only EntryPoint");
 
-        (address operator, address user, uint256 maxCost) = abi.decode(
-            context,
-            (address, address, uint256)
-        );
-
         // mode: 0 = opSucceeded, 1 = opReverted, 2 = postOpReverted
-        if (mode <= 1) {
-            // Refund unused gas
-            uint256 refund = maxCost - actualGasCost;
-            accounts[operator].aPNTsBalance += refund;
-            accounts[operator].totalSpent += actualGasCost;
-            accounts[operator].totalTxSponsored += 1;
-
-            emit TransactionSponsored(operator, user, actualGasCost, block.timestamp);
-
-            // Update reputation
-            _updateReputation(operator);
-        }
+        // 只emit事件用于off-chain分析，不退款
+        // (context为空，因为validatePaymasterUserOp已完成所有处理)
     }
 
     /**
@@ -467,6 +581,46 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Calculate aPNTs amount needed (借鉴PaymasterV4)
+     * @param gasCostWei Gas cost in wei
+     * @return aPNTsAmount Required aPNTs amount
+     */
+    function _calculateAPNTsAmount(uint256 gasCostWei) internal view returns (uint256) {
+        // Step 1: Convert gas cost to USD
+        // e.g., 1 ETH = 3000 USD, so gasCostWei * 3000e18 / 1e18
+        uint256 gasCostUSD = (gasCostWei * gasToUSDRate) / 1e18;
+
+        // Step 2: Add service fee (2%)
+        // serviceFeeRate = 200 (2%), so multiply by 10200/10000
+        uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
+
+        // Step 3: Convert USD to aPNTs amount
+        // aPNTsPriceUSD = 0.02e18, so totalCostUSD * 1e18 / 0.02e18
+        uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPriceUSD;
+
+        return aPNTsAmount;
+    }
+
+    /**
+     * @notice Calculate xPNTs amount based on exchangeRate
+     * @param operator Operator address
+     * @param aPNTsAmount aPNTs amount
+     * @return xPNTsAmount Required xPNTs amount
+     */
+    function _calculateXPNTsAmount(address operator, uint256 aPNTsAmount) internal view returns (uint256) {
+        // Get operator's exchange rate (默认1:1 = 1e18)
+        uint256 rate = accounts[operator].exchangeRate;
+        if (rate == 0) {
+            rate = 1 ether; // Fallback to 1:1
+        }
+
+        // xPNTs = aPNTs * rate / 1e18
+        // 例如: rate = 1e18 (1:1), 则 xPNTs = aPNTs
+        //      rate = 2e18 (1:2), 则 xPNTs = aPNTs * 2
+        return (aPNTsAmount * rate) / 1e18;
+    }
+
+    /**
      * @notice Extract operator address from paymasterAndData
      * @param userOp User operation bytes
      * @return operator Operator address
@@ -535,6 +689,61 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard {
         minAPNTsBalance = newBalance;
 
         emit MinAPNTsBalanceUpdated(oldBalance, newBalance);
+    }
+
+    /**
+     * @notice Set SuperPaymaster treasury address
+     * @param newTreasury New treasury address
+     * @dev Only owner can update. All operator deposits go to this address
+     */
+    function setSuperPaymasterTreasury(address newTreasury) external onlyOwner {
+        if (newTreasury == address(0)) {
+            revert InvalidAddress(newTreasury);
+        }
+
+        address oldTreasury = superPaymasterTreasury;
+        superPaymasterTreasury = newTreasury;
+
+        emit SuperPaymasterTreasuryUpdated(oldTreasury, newTreasury);
+    }
+
+    /**
+     * @notice Set aPNTs token address (AAStar community ERC20 token)
+     * @param newAPNTsToken New aPNTs token address
+     * @dev Only owner can update. This is the token operators deposit to SuperPaymaster
+     */
+    function setAPNTsToken(address newAPNTsToken) external onlyOwner {
+        if (newAPNTsToken == address(0)) {
+            revert InvalidAddress(newAPNTsToken);
+        }
+
+        address oldToken = aPNTsToken;
+        aPNTsToken = newAPNTsToken;
+
+        emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+    }
+
+    /**
+     * @notice Withdraw aPNTs from treasury balance to treasury address
+     * @param amount Amount of aPNTs to withdraw
+     * @dev Only treasury can withdraw. This allows batch withdrawal to save gas
+     */
+    function withdrawTreasury(uint256 amount) external nonReentrant {
+        if (msg.sender != superPaymasterTreasury) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+
+        if (amount > treasuryAPNTsBalance) {
+            revert InsufficientAPNTs(amount, treasuryAPNTsBalance);
+        }
+
+        // CEI: Effects first
+        treasuryAPNTsBalance -= amount;
+
+        // CEI: Interactions last - Transfer actual aPNTs to treasury
+        IERC20(aPNTsToken).transfer(superPaymasterTreasury, amount);
+
+        emit TreasuryWithdrawal(superPaymasterTreasury, amount, block.timestamp);
     }
 
     /**
