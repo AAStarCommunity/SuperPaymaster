@@ -4,6 +4,90 @@
 
 ---
 
+## Phase 13.4 - Wizard Flow Screenshots Documentation (2025-10-23)
+
+**Type**: Documentation Enhancement
+**Status**: ✅ Complete
+
+### 📸 Screenshot Collection
+
+**Generated Screenshots**: 11 high-quality images (5.5MB total)
+
+#### Desktop Version (1920x1080)
+1. **00-landing-page.png** (452K) - Landing page with platform overview
+2. **01-step1-configuration.png** (334K) - Step 1: Configuration form
+3. **02-step2-wallet-check.png** (522K) - Step 2: Wallet resource check
+4. **03a-step3-stake-option.png** (675K) - Step 3: Stake option (before selection)
+5. **03b-step3-stake-selected.png** (831K) - Step 3: Standard mode selected
+6. **03c-step3-super-mode-selected.png** (856K) - Step 3: Super mode selected
+7. **04-step4-resource-preparation.png** (525K) - Step 4: Resource preparation
+8. **05-step5-deposit-entrypoint.png** (276K) - Step 5: Deposit to EntryPoint
+
+#### Mobile Version (375x812 - iPhone X)
+1. **mobile-00-landing.png** (386K) - Landing page (mobile)
+2. **mobile-01-step1.png** (289K) - Step 1 configuration (mobile)
+3. **mobile-03-step3.png** (570K) - Step 3 options (mobile)
+
+### 🔧 Implementation
+
+**New Files**:
+1. `e2e/capture-wizard-screenshots.spec.ts` (registry repo)
+   - Playwright test suite for automated screenshot capture
+   - 3 test cases: full flow, Super mode variation, mobile views
+   - Uses Test Mode (`?testMode=true`) to bypass wallet connection
+
+2. `docs/screenshots/README.md` (updated, registry repo)
+   - Complete screenshot catalog with descriptions
+   - Wizard flow documentation (7-step process)
+   - Screenshot generation instructions
+   - Version updated to v1.1
+
+### ✅ Features
+
+1. **Automated Screenshot Capture**:
+   - Full wizard flow automation (Steps 1-5)
+   - Standard and Super mode variations
+   - Mobile responsive views
+
+2. **High-Quality Output**:
+   - Desktop: 1920x1080 resolution
+   - Mobile: 375x812 (iPhone X standard)
+   - Full-page screenshots for complete UI coverage
+
+3. **Test Mode Integration**:
+   - No wallet connection required
+   - Mock data for consistent screenshots
+   - Faster capture process
+
+### 📝 Usage
+
+```bash
+# Generate all wizard screenshots
+npx playwright test e2e/capture-wizard-screenshots.spec.ts --project=chromium
+
+# Generate only main flow
+npx playwright test e2e/capture-wizard-screenshots.spec.ts -g "Capture complete wizard flow"
+
+# Generate only mobile views
+npx playwright test e2e/capture-wizard-screenshots.spec.ts -g "Capture mobile views"
+```
+
+### 🎯 Key Achievements
+
+1. **Complete Visual Documentation**: All 5 wizard steps captured with variations
+2. **Mobile Coverage**: 3 key screens for mobile responsive verification
+3. **Reusable Script**: Automated screenshot capture for future UI updates
+4. **Professional Documentation**: Comprehensive README with all screenshot details
+
+### 📦 Repository
+
+**Registry Repo** (`launch-paymaster` branch):
+- Commit: `c3715d4`
+- Files: 13 changed (11 new screenshots + 1 script + 1 doc update)
+- Size: ~5.5MB total
+
+---
+
 ## Phase 13.3 - Steps 5-7 UI Verification Enhancement (2025-10-23)
 
 **Type**: E2E Test Enhancement
@@ -588,3 +672,144 @@ Test Mode implementation achieved 100% test coverage without the complexity of w
 **Final Status**: ✅ **100% Test Coverage Achieved**
 **Test Duration**: 17.0s (30/30 passed)
 **Last Updated**: 2025-10-23 20:30 UTC
+
+---
+
+## 2025-10-23 - 重大重构：7步部署向导流程优化
+
+### 🎯 核心改进
+
+根据用户反馈，完成了部署向导流程的重大重构，优化了用户体验并修复了关键问题。
+
+### ✅ 流程重新设计
+
+**新的 7 步流程**（方案 A）：
+
+1. **🔌 Step 1: Connect Wallet & Check Resources**
+   - 连接 MetaMask
+   - 检查 ETH / sGToken / aPNTs 余额
+   - 提供获取资源的链接（Faucet, GToken, PNTs）
+   - 移除了 paymasterAddress 依赖
+
+2. **⚙️ Step 2: Configuration**  
+   - 配置 Paymaster 参数（原 Step1）
+   - 7 个配置项：Community Name, Treasury, Gas Rate, PNT Price, Service Fee, Max Gas Cap, Min Token Balance
+
+3. **🚀 Step 3: Deploy Paymaster**
+   - **新增步骤**：部署 PaymasterV4_1 合约
+   - 使用 ethers.js ContractFactory
+   - 自动获取 EntryPoint v0.7 地址
+   - Gas 估算显示
+
+4. **⚡ Step 4: Select Stake Option**
+   - 选择 Standard 或 Super 模式（原 Step3）
+   - 智能推荐
+
+5. **🔒 Step 5: Stake**
+   - 动态路由：Standard → EntryPoint v0.7 / Super → SuperPaymaster V2（原 Step5）
+   - 移除了 Step4_ResourcePrep（已合并到 Step1）
+
+6. **📝 Step 6: Register to Registry**
+   - 注册到 SuperPaymaster Registry（原 Step6）
+
+7. **✅ Step 7: Complete**
+   - 完成页面（原 Step7）
+   - **自动跳转到管理页面**：`/operator/manage?address=${paymasterAddress}`
+
+### 🔧 技术实现
+
+#### 合约升级
+- **使用 PaymasterV4_1** 替代 V2
+- 合约位置：`contracts/src/v3/PaymasterV4_1.sol`
+- ABI 已编译并复制到：`registry/src/contracts/PaymasterV4_1.json`
+- Constructor 参数：
+  ```solidity
+  constructor(
+    address _entryPoint,      // EntryPoint v0.7
+    address _owner,            // 部署者地址
+    address _treasury,         // 手续费接收地址
+    uint256 _gasToUSDRate,     // Gas to USD 汇率（18 decimals）
+    uint256 _pntPriceUSD,      // PNT 价格（18 decimals）
+    uint256 _serviceFeeRate,   // 服务费率（basis points）
+    uint256 _maxGasCostCap,    // 最大 Gas 上限（wei）
+    uint256 _minTokenBalance   // 最小代币余额（wei）
+  )
+  ```
+
+#### 文件重构
+- **新增文件**：
+  - `src/pages/operator/deploy-v2/steps/Step1_ConnectWallet.tsx`
+  - `src/pages/operator/deploy-v2/steps/Step1_ConnectWallet.css`
+  - `src/pages/operator/deploy-v2/steps/Step3_DeployPaymaster.tsx`
+  - `src/pages/operator/deploy-v2/steps/Step3_DeployPaymaster.css`
+  
+- **重命名文件**：
+  - `Step1_ConfigForm.tsx` → `Step2_ConfigForm.tsx`
+  - `Step3_StakeOption.tsx` → `Step4_StakeOption.tsx`
+  - `Step5_StakeEntryPoint.tsx` → `Step5_Stake.tsx`
+  
+- **删除文件**：
+  - `Step4_ResourcePrep.tsx`（功能合并到 Step1）
+  - `Step2_WalletCheck.tsx`（改名为 Step1_ConnectWallet）
+
+#### DeployWizard.tsx 更新
+- 更新 STEPS 数组，修正了所有步骤名称
+- 重构步骤渲染逻辑，确保 props 正确传递
+- 修复了 `handleStep3Complete` 类型错误（`'fast'` → `'super'`）
+- Step1 移除 `onBack` prop（第一步无需后退）
+- Step3 新增 `config` 和 `chainId` props
+
+### 🎨 UI/UX 改进
+
+1. **Step 1 优化**：
+   - 首先连接钱包，符合用户心智模型
+   - 实时检查资源，提供明确的缺失提示
+   - 一键跳转到获取资源的页面
+
+2. **Step 3 新体验**：
+   - 显示部署配置摘要
+   - 实时 Gas 估算
+   - 交易哈希追踪
+   - 部署状态动画
+
+3. **Step 7 改进**：
+   - 点击"管理 Paymaster"自动跳转到管理页面
+   - 完整的部署摘要展示
+
+### 📋 配置支持
+
+- **EntryPoint v0.7 地址**（多网络支持）：
+  - Sepolia: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+  - OP Sepolia: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+  - OP Mainnet: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+  - Ethereum Mainnet: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+
+### 🐛 修复的问题
+
+1. ✅ **流程顺序错误**：原先"配置 → 检查钱包"不符合逻辑，现在改为"连接钱包 → 配置"
+2. ✅ **Step 名称不匹配**：Tracker 显示"Deploy Contract"但页面显示"Configuration"
+3. ✅ **Step 5 标题问题**：原"Stake to EntryPoint"改为"Stake"（动态路由）
+4. ✅ **Mock 部署**：Step 1 使用假地址 `0x1234...`，现在 Step 3 真正部署合约
+5. ✅ **完成后跳转**：Step 7 现在会自动跳转到管理页面
+
+### 📊 测试状态
+
+- ✅ PaymasterV4_1 合约编译成功
+- ✅ ABI 已集成到前端
+- ✅ 所有步骤组件已创建
+- ✅ DeployWizard 主流程已重构
+- ⚠️ E2E 测试需要更新（针对新流程）
+- ⚠️ 一些 TypeScript 警告需要清理（未使用的导入）
+
+### 📝 待办事项
+
+- [ ] 更新 E2E 测试以匹配新的 7 步流程
+- [ ] 清理未使用的导入和变量
+- [ ] 测试真实钱包部署流程
+- [ ] 更新截图文档
+- [ ] 添加错误处理和重试逻辑
+
+### 🎉 影响
+
+这次重构显著改善了用户体验，流程更符合直觉，并且实现了真正的合约部署功能。新的流程已准备好进行真实环境测试。
+

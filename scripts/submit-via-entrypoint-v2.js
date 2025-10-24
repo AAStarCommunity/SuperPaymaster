@@ -133,10 +133,10 @@ async function main() {
   ]);
   console.log("   Action: Transfer 0.5 xPNTs to", RECIPIENT);
 
-  // Gas limits
-  const callGasLimit = 150000n;  // Higher for V2 (has transferFrom logic)
-  const verificationGasLimit = 400000n;  // Higher for V2 (has SBT check + dual payment)
-  const preVerificationGas = 100000n;
+  // Gas limits (optimized for PaymasterV4 mode)
+  const callGasLimit = 100000n;  // Simple token transfer
+  const verificationGasLimit = 100000n;  // Account verification
+  const preVerificationGas = 50000n;  // Bundler overhead
   const maxPriorityFeePerGas = ethers.parseUnits("1", "gwei");
   const latestBlock = await provider.getBlock("latest");
   const baseFeePerGas = latestBlock.baseFeePerGas || ethers.parseUnits("1", "gwei");
@@ -166,15 +166,15 @@ async function main() {
   // [52:72] operator address (20 bytes) - REQUIRED for V2
   const paymasterAndData = ethers.concat([
     SUPER_PAYMASTER_V2, // paymaster address (20 bytes)
-    ethers.zeroPadValue(ethers.toBeHex(300000n), 16), // paymasterVerificationGasLimit
-    ethers.zeroPadValue(ethers.toBeHex(50000n), 16), // paymasterPostOpGasLimit (minimal, V2 has simple postOp)
+    ethers.zeroPadValue(ethers.toBeHex(100000n), 16), // paymasterVerificationGasLimit (SBT check + transfer)
+    ethers.zeroPadValue(ethers.toBeHex(0n), 16), // paymasterPostOpGasLimit (not used - PaymasterV4 mode)
     OPERATOR_ADDRESS, // operator address (20 bytes)
   ]);
 
   console.log("\n7. PaymasterAndData:");
   console.log("   Paymaster:", SUPER_PAYMASTER_V2);
-  console.log("   VerificationGasLimit: 300000");
-  console.log("   PostOpGasLimit: 50000");
+  console.log("   VerificationGasLimit: 100000");
+  console.log("   PostOpGasLimit: 0 (not used)");
   console.log("   Operator:", OPERATOR_ADDRESS);
   console.log("   Full hex:", paymasterAndData);
 
