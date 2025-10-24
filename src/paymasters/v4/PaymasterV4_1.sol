@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { PaymasterV4 } from "./PaymasterV4.sol";
-import { ISuperPaymasterRegistry } from "../interfaces/ISuperPaymasterRegistry.sol";
+import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
-import "../src/v3/PaymasterV4.sol";
+import "../../src/paymasters/v4/PaymasterV4.sol";
 import "../src/MySBT.sol";
 import "../src/GasTokenV2.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";

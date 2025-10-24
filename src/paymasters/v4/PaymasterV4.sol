@@ -10,7 +10,7 @@ import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
-import { ISBT } from "../interfaces/ISBT.sol";
+import { ISBT } from "../../interfaces/ISBT.sol";
 import { PostOpMode } from "../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
