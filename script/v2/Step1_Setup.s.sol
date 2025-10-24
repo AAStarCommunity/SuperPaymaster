@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../../src/v2/core/SuperPaymasterV2.sol";
+import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../contracts/test/mocks/MockERC20.sol";
 
 /**

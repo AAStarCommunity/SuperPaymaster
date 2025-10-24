@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import "../contracts/src/SimpleAccountFactoryV2.sol";
-import "../contracts/src/SimpleAccountV2.sol";
+import "../src/accounts/SimpleAccountFactoryV2.sol";
+import "../src/accounts/SimpleAccountV2.sol";
 import "../contracts/src/interfaces/IEntryPoint.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
