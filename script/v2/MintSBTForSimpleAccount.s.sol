@@ -7,100 +7,94 @@ import "../../src/v2/core/GTokenStaking.sol";
 import "../../src/v2/tokens/MySBT.sol";
 import "../../contracts/test/mocks/MockERC20.sol";
 
-interface ISimpleAccount {
-    function execute(address dest, uint256 value, bytes calldata func) external;
-}
-
 /**
  * @title MintSBTForSimpleAccount
- * @notice Mint SBT for SimpleAccount via execute() calls
+ * @notice Mint SBT for SimpleAccount using SimpleAccount.execute()
+ *
+ * Flow:
+ * 1. Deployer mint GT to SimpleAccount owner
+ * 2. Owner stake GT -> get sGToken
+ * 3. Owner use SimpleAccount.execute() to call MySBT.mintSBT()
  */
 contract MintSBTForSimpleAccount is Script {
 
     MockERC20 gtoken;
     GTokenStaking gtokenStaking;
     MySBT mysbt;
-    ISimpleAccount simpleAccount;
 
-    address operator;
+    address simpleAccount;
+    address owner;
     uint256 ownerKey;
+    address operator;
 
     function setUp() public {
         // Load contracts
         gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
-        simpleAccount = ISimpleAccount(vm.envAddress("SIMPLE_ACCOUNT_B"));
 
+        // Accounts
+        simpleAccount = vm.envAddress("SIMPLE_ACCOUNT_B");
+        ownerKey = vm.envUint("OWNER_PRIVATE_KEY");
+        owner = vm.addr(ownerKey);
         operator = vm.envAddress("OWNER2_ADDRESS");
-        ownerKey = vm.envUint("OWNER_PRIVATE_KEY"); // SimpleAccount owner's key
     }
 
     function run() public {
         console.log("=== Mint SBT for SimpleAccount ===\n");
-        console.log("SimpleAccount:", address(simpleAccount));
-        console.log("Operator/Community:", operator);
+        console.log("SimpleAccount:", simpleAccount);
+        console.log("Owner:", owner);
+        console.log("Operator (community):", operator);
 
-        // 1. Deployer mints GToken to SimpleAccount
-        console.log("\n1. Minting GToken to SimpleAccount...");
+        // 1. Deployer mint GT to owner
+        console.log("\n1. Minting GT to owner...");
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        gtoken.mint(address(simpleAccount), 1 ether);
-        console.log("   Minted 1 GToken");
+        gtoken.mint(owner, 1 ether);
+        console.log("   Minted 1 GT to owner");
         vm.stopBroadcast();
 
-        // 2. SimpleAccount approves GToken to GTokenStaking
-        console.log("\n2. SimpleAccount approving GToken...");
-        bytes memory approveCalldata = abi.encodeWithSelector(
-            gtoken.approve.selector,
-            address(gtokenStaking),
-            0.3 ether
-        );
-
+        // 2. Owner stake GT to get sGToken
+        console.log("\n2. Owner staking GT...");
         vm.startBroadcast(ownerKey);
-        simpleAccount.execute(address(gtoken), 0, approveCalldata);
-        console.log("   Approved 0.3 GToken to GTokenStaking");
 
-        // 3. SimpleAccount stakes GToken
-        console.log("\n3. SimpleAccount staking GToken...");
-        bytes memory stakeCalldata = abi.encodeWithSelector(
-            gtokenStaking.stake.selector,
-            0.3 ether
-        );
-        simpleAccount.execute(address(gtokenStaking), 0, stakeCalldata);
-        console.log("   Staked 0.3 GToken");
+        gtoken.approve(address(gtokenStaking), 0.4 ether); // 0.3 for lock + 0.1 for mint fee
+        gtokenStaking.stake(0.4 ether);
+        console.log("   Staked 0.4 GT");
 
-        // 4. SimpleAccount approves GToken to MySBT for mintFee
-        console.log("\n4. SimpleAccount approving GToken for mintFee...");
-        bytes memory approveMintFeeCalldata = abi.encodeWithSelector(
-            gtoken.approve.selector,
+        uint256 sGTokenBalance = gtokenStaking.balanceOf(owner);
+        console.log("   Got sGToken:", sGTokenBalance / 1e18, "sGT");
+
+        // 3. Approve GT for MySBT mint fee (0.1 GT)
+        gtoken.approve(address(mysbt), 0.1 ether);
+        console.log("   Approved 0.1 GT for mint fee");
+
+        // 4. Construct calldata for MySBT.mintSBT(operator)
+        bytes memory mintSBTCalldata = abi.encodeWithSignature("mintSBT(address)", operator);
+
+        // 5. Use SimpleAccount.execute() to call MySBT.mintSBT()
+        console.log("\n3. SimpleAccount executing mintSBT...");
+        bytes memory executeCalldata = abi.encodeWithSignature(
+            "execute(address,uint256,bytes)",
             address(mysbt),
-            0.1 ether
+            0,
+            mintSBTCalldata
         );
-        simpleAccount.execute(address(gtoken), 0, approveMintFeeCalldata);
-        console.log("   Approved 0.1 GToken to MySBT");
 
-        // 5. SimpleAccount mints SBT
-        console.log("\n5. SimpleAccount minting SBT...");
-        bytes memory mintSBTCalldata = abi.encodeWithSelector(
-            mysbt.mintSBT.selector,
-            operator
-        );
-        simpleAccount.execute(address(mysbt), 0, mintSBTCalldata);
-        console.log("   Minted SBT for community:", operator);
+        // Call SimpleAccount.execute()
+        (bool success,) = simpleAccount.call(executeCalldata);
+        require(success, "SimpleAccount.execute() failed");
+
+        console.log("   SimpleAccount executed mintSBT successfully");
 
         vm.stopBroadcast();
 
-        // 6. Verify
-        console.log("\n6. Verifying...");
-        uint256 sbtBalance = mysbt.balanceOf(address(simpleAccount));
-        uint256 tokenId = mysbt.userCommunityToken(address(simpleAccount), operator);
-
+        // 4. Verify
+        console.log("\n4. Verifying...");
+        uint256 sbtBalance = mysbt.balanceOf(simpleAccount);
         console.log("   SimpleAccount SBT balance:", sbtBalance);
-        console.log("   SBT tokenId:", tokenId);
 
-        require(sbtBalance > 0, "SBT mint failed");
-        require(tokenId > 0, "SBT mapping failed");
+        require(sbtBalance > 0, "SimpleAccount has no SBT");
 
-        console.log("\n[SUCCESS] SBT minted for SimpleAccount!");
+        console.log("\n[SUCCESS] SimpleAccount now has SBT!");
     }
 }

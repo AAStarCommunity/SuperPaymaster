@@ -382,11 +382,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Validate paymaster user operation (ERC-4337)
-     * @dev 借鉴PaymasterV4：直接在此函数中计算gas并转账xPNTs，不使用postOp退款
+     * @dev PaymasterV4模式：基于maxCost直接收费，含2% markup，不退款
      * @param userOp User operation (PackedUserOperation struct)
      * @param userOpHash User operation hash
      * @param maxCost Maximum cost (in wei)
-     * @return context Context for postOp (empty, 不使用)
+     * @return context Empty context (不使用postOp退款)
      * @return validationData Validation result
      */
     function validatePaymasterUserOp(
@@ -394,6 +394,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         bytes32 userOpHash,
         uint256 maxCost
     ) external returns (bytes memory context, uint256 validationData) {
+        require(msg.sender == ENTRY_POINT, "Only EntryPoint");
+
         // Extract operator from paymasterAndData
         address operator = _extractOperator(userOp);
         address user = userOp.sender;
@@ -407,7 +409,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
             revert NoSBTFound(user);
         }
 
-        // 计算aPNTs费用 (参考PaymasterV4)
+        // 基于maxCost计算aPNTs费用（含2% service fee）
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
 
         // 检查operator的aPNTs余额
@@ -418,7 +420,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         // 计算用户需要支付的xPNTs数量（根据operator的exchangeRate）
         uint256 xPNTsAmount = _calculateXPNTsAmount(operator, aPNTsAmount);
 
-        // 直接转账xPNTs从用户到operator的treasury
+        // 获取配置
         address xPNTsToken = accounts[operator].xPNTsToken;
         address treasury = accounts[operator].treasury;
 
@@ -426,11 +428,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
             revert InvalidConfiguration();
         }
 
-        // 1. 转账xPNTs从用户到operator的treasury
+        // 1. 转账xPNTs从用户到operator的treasury（不退款）
         IERC20(xPNTsToken).transferFrom(user, treasury, xPNTsAmount);
 
         // 2. 内部记账：将aPNTs从operator余额转到treasury余额
-        // 所有aPNTs都在合约内，只改记录，不实际转账（省gas）
         accounts[operator].aPNTsBalance -= aPNTsAmount;
         treasuryAPNTsBalance += aPNTsAmount;
 
@@ -438,24 +439,23 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         accounts[operator].totalSpent += aPNTsAmount;
         accounts[operator].totalTxSponsored += 1;
 
-        // Emit event
+        // 4. Emit event
         emit TransactionSponsored(operator, user, aPNTsAmount, xPNTsAmount, block.timestamp);
 
-        // Update reputation
+        // 5. Update reputation
         _updateReputation(operator);
 
-        // Return empty context (不使用postOp退款)
+        // 返回空context（不使用postOp退款）
         return ("", 0);
     }
 
     /**
      * @notice Post operation (ERC-4337)
-     * @dev 简化版：不退款，只用于tracking和事件emit
-     * @dev 根据用户要求：上浮2%不退还，作为协议收入
+     * @dev 空实现：不退款（已在validatePaymasterUserOp中完成收费）
      * @param mode Operation mode (opSucceeded, opReverted, postOpReverted)
-     * @param context Context from validatePaymasterUserOp (empty in our impl)
-     * @param actualGasCost Actual gas cost
-     * @param actualUserOpFeePerGas The gas price this UserOp pays
+     * @param context Context from validatePaymasterUserOp (empty)
+     * @param actualGasCost Actual gas cost (unused)
+     * @param actualUserOpFeePerGas The gas price this UserOp pays (unused)
      */
     function postOp(
         PostOpMode mode,
@@ -465,9 +465,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     ) external {
         require(msg.sender == ENTRY_POINT, "Only EntryPoint");
 
-        // mode: opSucceeded, opReverted, postOpReverted
-        // 只emit事件用于off-chain分析，不退款
-        // (context为空，因为validatePaymasterUserOp已完成所有处理)
+        // 空实现：所有收费已在validatePaymasterUserOp中完成
+        // 不退款，2% markup作为协议收入
     }
 
     /**
