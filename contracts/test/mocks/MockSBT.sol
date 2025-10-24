@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ISBT} from "../../src/interfaces/ISBT.sol";
+import {ISBT} from "../../../src/interfaces/ISBT.sol";
 
 /**
  * @title MockSBT - Mock Soul-Bound Token for Testing
