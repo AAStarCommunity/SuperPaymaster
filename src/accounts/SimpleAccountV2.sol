@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "./core/BaseAccount.sol";
-import "./core/Helpers.sol";
-import "./callback/TokenCallbackHandler.sol";
+import "../../contracts/src/core/BaseAccount.sol";
+import "../../contracts/src/core/Helpers.sol";
+import "../../contracts/src/callback/TokenCallbackHandler.sol";
 
 /**
   * SimpleAccountV2 - Upgraded version with personal_sign support

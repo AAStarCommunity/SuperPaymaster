@@ -813,3 +813,136 @@ Test Mode implementation achieved 100% test coverage without the complexity of w
 
 这次重构显著改善了用户体验，流程更符合直觉，并且实现了真正的合约部署功能。新的流程已准备好进行真实环境测试。
 
+
+
+---
+
+## 🏗️ 合约目录重组 - Phase 1 完成 (2025-10-24)
+
+### 任务背景
+用户要求整理分散在多个目录的合约文件，建立清晰的目录结构。
+
+**原有问题**:
+- ❌ 双根目录: `src/v2/` + `contracts/src/`
+- ❌ V2/V3/V4 合约分散
+- ❌ 缺乏功能分类
+- ❌ 难以维护和扩展
+
+### ✅ Phase 1: 目录重组完成
+
+#### 1. 新目录结构
+```
+src/
+├── paymasters/
+│   ├── v2/                     # SuperPaymasterV2 (AOA+ Super Mode)
+│   │   ├── core/               # 4 files
+│   │   ├── tokens/             # 3 files
+│   │   ├── monitoring/         # 2 files
+│   │   └── interfaces/         # 1 file
+│   ├── v3/                     # PaymasterV3 (历史版本) - 3 files
+│   ├── v4/                     # PaymasterV4 (AOA Standard) - 5 files
+│   └── registry/               # Registry v1.2 - 1 file
+├── tokens/                     # Token 系统 - 5 files
+├── accounts/                   # Smart Account - 4 files
+├── interfaces/                 # 项目接口 - 6 files
+├── base/                       # 基础合约 - 1 file
+├── utils/                      # 工具 - 1 file
+├── mocks/                      # 测试 Mock - 2 files
+└── vendor/                     # 第三方库 (保持不变)
+```
+
+#### 2. 文件移动统计
+- ✅ **37 个合约文件**成功重组
+- ✅ V2 核心合约: 10 files
+- ✅ V3/V4 Paymaster: 8 files
+- ✅ Token 合约: 5 files
+- ✅ Account 合约: 4 files
+- ✅ 接口文件: 6 files
+- ✅ 其他文件: 4 files
+
+#### 3. 执行步骤
+1. ✅ 创建 Git 备份分支: `backup-before-reorg-20251024`
+2. ✅ 创建新目录结构
+3. ✅ 批量复制文件到新位置
+4. ✅ 验证文件完整性
+5. ✅ 提交阶段性进度 (commit 662d174)
+
+#### 4. 改进效果
+
+**改进前**:
+```
+❌ src/v2/ + contracts/src/ (双根目录)
+❌ V2/V3/V4 分散
+❌ 缺乏分类
+❌ 难以维护
+```
+
+**改进后**:
+```
+✅ 统一 src/ 根目录
+✅ 按功能分类 (paymasters/tokens/accounts)
+✅ 按版本隔离 (v2/v3/v4)
+✅ 清晰的模块边界
+✅ 易于扩展和维护
+```
+
+### ⚠️ Phase 2: 待完成工作
+
+#### 1. 更新 Import 路径
+需要更新以下文件的 import 语句:
+- `script/DeploySuperPaymasterV2.s.sol`
+- `script/v2/*.s.sol` (所有 V2 部署脚本)
+- `src/paymasters/v2/core/*.sol` (V2 合约内部引用)
+- `src/paymasters/v4/*.sol` (V4 合约引用)
+- `test/**/*.t.sol` (所有测试文件)
+
+**Import 路径变更示例**:
+```solidity
+// 修改前
+import "../src/v2/core/Registry.sol";
+import "../src/v2/core/SuperPaymasterV2.sol";
+
+// 修改后
+import "../src/paymasters/v2/core/Registry.sol";
+import "../src/paymasters/v2/core/SuperPaymasterV2.sol";
+```
+
+#### 2. 测试编译
+```bash
+forge clean
+forge build
+```
+
+#### 3. 运行测试
+```bash
+forge test
+```
+
+#### 4. 清理旧目录
+确认无误后删除:
+- `src/v2/` (已迁移到 `src/paymasters/v2/`)
+- `contracts/src/v3/` (已迁移到 `src/paymasters/v3|v4/`)
+
+### 📝 相关文档
+- 完整方案: `/tmp/contract-reorganization-plan.md`
+- 执行脚本: `/tmp/reorganize-contracts.sh`
+
+### 🎯 下一步行动
+1. 批量更新所有 import 路径
+2. 测试编译确保无错误
+3. 更新部署脚本
+4. 运行完整测试套件
+5. 更新 README 和文档
+6. 清理旧目录
+
+**当前状态**: ✅ Phase 1 完成，等待 Phase 2 执行
+
+---
+
+
+**Git 提交**:
+- `1fb9cd6`: Backup before reorganization
+- `662d174`: Refactor - reorganize contracts into logical directory structure
+
+**备份分支**: `backup-before-reorg-20251024`
+
