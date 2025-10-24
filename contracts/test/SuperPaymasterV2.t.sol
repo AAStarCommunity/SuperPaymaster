@@ -2,14 +2,14 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../src/v2/core/Registry.sol";
-import "../../src/v2/core/GTokenStaking.sol";
-import "../../src/v2/core/SuperPaymasterV2.sol";
-import "../../src/v2/tokens/xPNTsFactory.sol";
-import "../../src/v2/tokens/xPNTsToken.sol";
-import "../../src/v2/tokens/MySBT.sol";
-import "../../src/v2/monitoring/DVTValidator.sol";
-import "../../src/v2/monitoring/BLSAggregator.sol";
+import "../../src/paymasters/v2/core/Registry.sol";
+import "../../src/paymasters/v2/core/GTokenStaking.sol";
+import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
+import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
+import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
+import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/monitoring/DVTValidator.sol";
+import "../../src/paymasters/v2/monitoring/BLSAggregator.sol";
 
 /**
  * @title SuperPaymasterV2Test

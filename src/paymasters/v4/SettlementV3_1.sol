@@ -4,8 +4,8 @@ pragma solidity ^0.8.23;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ISettlement} from "../interfaces/ISettlement.sol";
-import {ISuperPaymasterRegistry} from "../interfaces/ISuperPaymasterRegistry.sol";
+import {ISettlement} from "../../interfaces/ISettlement.sol";
+import {ISuperPaymasterRegistry} from "../../interfaces/ISuperPaymasterRegistry.sol";
 
 /**
  * @title SettlementV3.1 - Stage 2 Gas Optimizations
