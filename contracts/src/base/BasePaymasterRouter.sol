@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "../interfaces/IPaymasterRouter.sol";
+import "../../../src/interfaces/IPaymasterRouter.sol";
 
 /// @title BasePaymasterRouter
 /// @notice Base implementation for paymaster routing functionality

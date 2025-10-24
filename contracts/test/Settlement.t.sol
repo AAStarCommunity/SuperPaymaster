@@ -2,8 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../src/paymasters/v4/Settlement.sol";
-import "../src/interfaces/ISettlement.sol";
+import "../../../src/paymasters/v4/Settlement.sol";
+import "../../../src/interfaces/ISettlement.sol";
 import "../src/SuperPaymasterRegistry_v1_2.sol";
 import "../test/mocks/MockPNT.sol";
 
