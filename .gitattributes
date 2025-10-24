@@ -1,0 +1,30 @@
+# Git Attributes for SuperPaymaster
+# This file configures how GitHub handles different parts of the repository
+
+# Mark vendor/library directories as vendored code
+# This excludes them from language statistics and security scanning
+contracts/lib/** linguist-vendored
+singleton-paymaster/** linguist-vendored
+lib/** linguist-vendored
+
+# Mark Solidity files as detectable
+*.sol linguist-detectable=true
+
+# Ensure consistent line endings
+* text=auto
+*.sol text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
