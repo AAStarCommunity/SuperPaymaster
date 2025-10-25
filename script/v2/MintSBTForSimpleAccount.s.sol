@@ -5,20 +5,23 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title MintSBTForSimpleAccount
  * @notice Mint SBT for SimpleAccount using SimpleAccount.execute()
  *
+ * ⚠️ IMPORTANT: Owner must have at least 1 GT before running this script.
+ * Get GToken from faucet: https://faucet.aastar.io/ or transfer from deployer.
+ *
  * Flow:
- * 1. Deployer mint GT to SimpleAccount owner
+ * 1. Check owner has sufficient GT
  * 2. Owner stake GT -> get stGToken
  * 3. Owner use SimpleAccount.execute() to call MySBT.mintSBT()
  */
 contract MintSBTForSimpleAccount is Script {
 
-    MockERC20 gtoken;
+    IERC20 gtoken;
     GTokenStaking gtokenStaking;
     MySBT mysbt;
 
@@ -29,7 +32,7 @@ contract MintSBTForSimpleAccount is Script {
 
     function setUp() public {
         // Load contracts
-        gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
 
@@ -46,12 +49,12 @@ contract MintSBTForSimpleAccount is Script {
         console.log("Owner:", owner);
         console.log("Operator (community):", operator);
 
-        // 1. Deployer mint GT to owner
-        console.log("\n1. Minting GT to owner...");
-        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        gtoken.mint(owner, 1 ether);
-        console.log("   Minted 1 GT to owner");
-        vm.stopBroadcast();
+        // 1. Check owner's GT balance
+        console.log("\n1. Checking owner's GT balance...");
+        uint256 ownerGT = gtoken.balanceOf(owner);
+        console.log("   Owner GT balance:", ownerGT / 1e18, "GT");
+        console.log("   Required:", 1 ether / 1e18, "GT");
+        require(ownerGT >= 1 ether, "Owner needs at least 1 GT! Get from faucet: https://faucet.aastar.io/");
 
         // 2. Owner stake GT to get stGToken
         console.log("\n2. Owner staking GT...");

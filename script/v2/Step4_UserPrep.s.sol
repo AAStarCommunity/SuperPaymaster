@@ -6,20 +6,25 @@ import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Step4_UserPrep
  * @notice V2测试流程 - 步骤4: 用户准备
  *
  * 功能：
- * 1. 用户mint SBT (需要先stake GToken)
- * 2. Operator给用户mint xPNTs
- * 3. 验证用户资产
+ * 1. ⚠️ 确保 user 已有 GToken（从 faucet 获取或从 deployer 转账）
+ * 2. 用户mint SBT (需要先stake GToken)
+ * 3. Operator给用户mint xPNTs
+ * 4. 验证用户资产
+ *
+ * IMPORTANT: This script does NOT mint GToken. User must obtain GToken from:
+ * - Faucet: https://faucet.aastar.io/
+ * - Or transfer from deployer (at least 1 GT required)
  */
 contract Step4_UserPrep is Script {
 
-    MockERC20 gtoken;
+    IERC20 gtoken;
     GTokenStaking gtokenStaking;
     MySBT mysbt;
     xPNTsToken operatorXPNTs;
@@ -32,7 +37,7 @@ contract Step4_UserPrep is Script {
 
     function setUp() public {
         // 加载合约
-        gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
@@ -50,11 +55,11 @@ contract Step4_UserPrep is Script {
         // 1. User mint SBT
         console.log("\n4.1 User minting SBT...");
 
-        // Deployer给user mint一些GToken用于stake
-        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        gtoken.mint(user, 1 ether);
-        console.log("    Minted 1 GToken to user");
-        vm.stopBroadcast();
+        // ⚠️ Check user's GToken balance
+        uint256 userGTokenBalance = gtoken.balanceOf(user);
+        console.log("    User GToken balance:", userGTokenBalance / 1e18, "GT");
+        console.log("    Required (stake + fee):", 0.3 ether / 1e18, "GT");
+        require(userGTokenBalance >= 1 ether, "Insufficient GToken! Get from faucet: https://faucet.aastar.io/");
 
         // User stake GToken并mint SBT
         vm.startBroadcast(userKey);
