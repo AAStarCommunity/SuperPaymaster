@@ -2274,3 +2274,295 @@ import { GetXPNTs } from "./pages/resources/GetXPNTs";
 3. **代币参数**: communityName 和 communityENS 为选填，未填写时使用默认值
 4. **浏览器兼容**: 测试 MetaMask 在不同浏览器的兼容性
 
+
+---
+
+## Phase 22 - V2 系统重新部署（使用生产 GToken） (2025-10-25)
+
+**Type**: Critical Security Fix + Infrastructure
+**Status**: ✅ Complete
+
+### 🚨 问题背景
+
+在 Phase 21 期间，发现 V2 系统部署时使用了错误的 MockERC20 代替生产 Governance Token，导致严重的安全风险和功能问题。
+
+详细事件分析参见：`docs/GTOKEN_INCIDENT_2025-10-25.md`
+
+### 🎯 问题定位
+
+#### 原因分析
+
+| 问题 | 错误实现 | 正确实现 |
+|------|---------|----------|
+| **GToken 地址** | 0x54Afca294BA9824E6858E9b2d0B9a19C440f6D35 (MockERC20) | 0x868F843723a98c6EECC4BF0aF3352C53d5004147 (Governance Token) |
+| **供应上限** | ❌ 无 cap() 函数 - 无限铸造 | ✅ cap() = 21,000,000 GT |
+| **访问控制** | ❌ 无 owner() - 任何人可铸造 | ✅ owner() + Ownable 模式 |
+| **当前供应** | 1,000,555.6 GT（测试铸造） | 750 GT（生产铸造） |
+| **安全性** | ⚠️ 仅测试用途 - 不安全 | ✅ 生产级安全 |
+
+#### 影响范围
+
+- ❌ **GTokenStaking**: 引用错误的 MockERC20
+- ❌ **Registry V2**: 引用错误的 GToken
+- ❌ **SuperPaymasterV2**: 通过 GTokenStaking 间接受影响
+- ❌ **MySBT**: 通过 GTokenStaking 间接受影响
+- ❌ **Registry 前端**: 显示错误的 GToken 地址和余额
+- ✅ **Faucet 后端**: 仍使用正确的生产 GToken
+
+### 🔧 解决方案
+
+#### 1️⃣ 部署脚本安全增强
+
+**文件**: `script/DeploySuperPaymasterV2.s.sol:111-144`
+
+**添加的安全检查**:
+
+```solidity
+function _deployGToken() internal {
+    try vm.envAddress("GTOKEN_ADDRESS") returns (address existingGToken) {
+        GTOKEN = existingGToken;
+        
+        // ✅ CRITICAL SAFETY CHECK: 验证生产 GToken
+        (bool hasCapSuccess,) = GTOKEN.call(abi.encodeWithSignature("cap()"));
+        (bool hasOwnerSuccess,) = GTOKEN.call(abi.encodeWithSignature("owner()"));
+        
+        require(hasCapSuccess, "SAFETY: GToken must have cap() function");
+        require(hasOwnerSuccess, "SAFETY: GToken must have owner() function");
+        
+        console.log("Safety checks passed: cap() and owner() verified");
+    } catch {
+        // ✅ 防止 Mock 部署到公共网络
+        require(
+            block.chainid == 31337,
+            "SAFETY: MockERC20 can only be deployed on local anvil (chainid 31337). Set GTOKEN_ADDRESS env var for public networks!"
+        );
+        
+        GTOKEN = address(new MockERC20("GToken", "GT", 18));
+        console.log("Deployed Mock GToken (LOCAL ONLY):", GTOKEN);
+    }
+}
+```
+
+**安全机制**:
+1. **环境变量验证**: 必须设置 GTOKEN_ADDRESS
+2. **合约能力检查**: 验证 cap() 和 owner() 函数存在
+3. **网络限制**: MockERC20 仅允许在 local anvil (chainid 31337) 部署
+4. **部署日志**: 明确标记 Mock vs Production
+
+#### 2️⃣ V2 系统重新部署
+
+**部署命令**:
+```bash
+export GTOKEN_ADDRESS=0x868F843723a98c6EECC4BF0aF3352C53d5004147
+
+forge script script/DeploySuperPaymasterV2.s.sol:DeploySuperPaymasterV2 \
+  --rpc-url https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  -vv
+```
+
+**部署结果**:
+
+✅ **核心合约**:
+- GToken: `0x868F843723a98c6EECC4BF0aF3352C53d5004147` (生产 Governance Token)
+- GTokenStaking: `0x199402b3F213A233e89585957F86A07ED1e1cD67`
+- Registry V2: `0x3ff7f71725285dB207442f51F6809e9C671E5dEb`
+- SuperPaymasterV2: `0x2bc6BC8FfAF5cDE5894FcCDEb703B18418092FcA`
+
+✅ **代币系统**:
+- xPNTsFactory: `0xE3461BC2D55B707D592dC6a8269eBD06b9Af85a5`
+- MySBT: `0xd4EFD5e2aC1b2cb719f82075fAFb69921E0F8392`
+
+✅ **监控系统**:
+- DVTValidator: `0xBb3838C6532374417C24323B4f69F76D319Ac40f`
+- BLSAggregator: `0xda2b62Ef9f6fb618d22C6D5B9961e304335Bc0Ff`
+
+✅ **EntryPoint**:
+- EntryPoint v0.7: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+
+**部署统计**:
+- Gas Used: 28,142,074
+- Gas Price: 0.001000009 gwei
+- Total Cost: 0.000028142327278666 ETH
+- Deployed Contracts: 8
+- Transaction Count: 9 (部署 + 初始化)
+
+#### 3️⃣ Registry 前端配置更新
+
+**文件**: `registry/src/config/networkConfig.ts:56-70`
+
+**修改内容**:
+
+```typescript
+contracts: {
+  // ✅ 恢复生产 GToken
+  gToken: "0x868F843723a98c6EECC4BF0aF3352C53d5004147",
+  
+  // ✅ 更新所有 V2 合约地址
+  gTokenStaking: "0x199402b3F213A233e89585957F86A07ED1e1cD67",
+  registryV2: "0x3ff7f71725285dB207442f51F6809e9C671E5dEb",
+  superPaymasterV2: "0x2bc6BC8FfAF5cDE5894FcCDEb703B18418092FcA",
+  xPNTsFactory: "0xE3461BC2D55B707D592dC6a8269eBD06b9Af85a5",
+  mySBT: "0xd4EFD5e2aC1b2cb719f82075fAFb69921E0F8392",
+  
+  // 保持不变的合约
+  paymasterV4: "0xBC56D82374c3CdF1234fa67E28AF9d3E31a9D445",
+  registry: "0x838da93c815a6E45Aa50429529da9106C0621eF0", // Legacy v1.2
+  pntToken: "0xD14E87d8D8B69016Fcc08728c33799bD3F66F180",
+  gasTokenFactory: "0x6720Dc8ce5021bC6F3F126054556b5d3C125101F",
+  sbtContract: "0xBfde68c232F2248114429DDD9a7c3Adbff74bD7f",
+  usdtContract: "0x14EaC6C3D49AEDff3D59773A7d7bfb50182bCfDc",
+  entryPointV07: "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+}
+
+requirements: {
+  minEthDeploy: "0.02",
+  minEthStandardFlow: "0.1",
+  minGTokenStake: "30", // ✅ 修正: 从 100 改为 30
+  minPntDeposit: "1000",
+}
+```
+
+**修复的问题**:
+1. ❌→✅ GToken 地址从 MockERC20 改为生产 Governance Token
+2. ❌→✅ minGTokenStake 从 100 修正为 30 stGToken
+3. ✅ 更新所有 V2 系统合约地址
+4. ✅ 保持 V1 系统合约地址不变
+
+### 📋 部署日志验证
+
+**安全检查通过**:
+```
+Step 1: Deploying GToken (Mock)...
+Using existing GToken: 0x868F843723a98c6EECC4BF0aF3352C53d5004147
+Safety checks passed: cap() and owner() verified
+```
+
+**GTokenStaking 配置**:
+```
+GTokenStaking deployed: 0x199402b3F213A233e89585957F86A07ED1e1cD67
+MIN_STAKE: 0 GT
+UNSTAKE_DELAY: 7 days
+Treasury: 0x0000000000000000000000000000000000000000
+```
+
+**SuperPaymasterV2 配置**:
+```
+SuperPaymasterV2 deployed: 0x2bc6BC8FfAF5cDE5894FcCDEb703B18418092FcA
+minOperatorStake: 30 sGT
+minAPNTsBalance: 100 aPNTs
+```
+
+**MySBT 配置**:
+```
+MySBT deployed: 0xd4EFD5e2aC1b2cb719f82075fAFb69921E0F8392
+minLockAmount: 0 sGT
+mintFee: 0 GT
+creator: 0x411BD567E46C0781248dbB6a9211891C032885e5
+```
+
+**初始化连接**:
+```
+MySBT.setSuperPaymaster: 0x2bc6BC8FfAF5cDE5894FcCDEb703B18418092FcA
+SuperPaymaster.setDVTAggregator: 0xda2b62Ef9f6fb618d22C6D5B9961e304335Bc0Ff
+SuperPaymaster.setEntryPoint: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+DVTValidator.setBLSAggregator: 0xda2b62Ef9f6fb618d22C6D5B9961e304335Bc0Ff
+GTokenStaking.setTreasury: 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38
+```
+
+**Exit Fee 配置**:
+- MySBT locker: flat 0.1 sGT exit fee
+- SuperPaymaster locker: tiered exit fees (5-15 sGT)
+
+**Slasher 授权**:
+- SuperPaymaster: `0x2bc6BC8FfAF5cDE5894FcCDEb703B18418092FcA`
+- Registry: `0x3ff7f71725285dB207442f51F6809e9C671E5dEb`
+
+### 📊 完成任务清单
+
+Phase 21 遗留任务完成：
+- [x] Task 8: 重命名 sGToken→stGToken（175 处）
+- [x] Task 9: 测试 burn SBT 后 stGToken 分配（0.1 国库，0.2 用户）
+- [x] Task 10: 测试 SBT 绑定的 NFT 在 burn 前必须解绑
+
+Phase 22 新增任务：
+- [x] 识别 GToken 合约替换问题
+- [x] 创建事件报告文档（GTOKEN_INCIDENT_2025-10-25.md）
+- [x] 添加部署脚本安全检查
+- [x] 重新部署 V2 系统（使用生产 GToken）
+- [x] 更新 Registry 前端配置
+- [x] 提交并推送所有修复
+
+### 🔒 防范措施
+
+#### 部署前检查清单
+
+1. **环境变量验证**:
+   - [ ] GTOKEN_ADDRESS 已设置
+   - [ ] 地址指向生产合约（有 cap() 和 owner()）
+   - [ ] RPC URL 正确（Sepolia/Mainnet）
+
+2. **合约验证**:
+   ```bash
+   cast call $GTOKEN_ADDRESS "cap()(uint256)" --rpc-url $RPC_URL
+   cast call $GTOKEN_ADDRESS "owner()(address)" --rpc-url $RPC_URL
+   cast call $GTOKEN_ADDRESS "totalSupply()(uint256)" --rpc-url $RPC_URL
+   ```
+
+3. **网络确认**:
+   - [ ] Chain ID 匹配（Sepolia: 11155111）
+   - [ ] 不在 local anvil（31337）部署生产合约
+   - [ ] 不在 Sepolia/Mainnet 部署 Mock 合约
+
+4. **部署后验证**:
+   - [ ] 所有合约地址已记录
+   - [ ] 合约已在 Etherscan 验证
+   - [ ] 前端配置已更新
+   - [ ] 用户功能测试通过
+
+#### 关键原则
+
+⚠️ **永远不要违反的规则**:
+
+1. **Never deploy Mock contracts to public networks** (testnet or mainnet)
+2. **Never replace production contracts without explicit approval**
+3. **Never use "optimization" or "simplification" as justification for changes**
+4. **Always verify contract capabilities before deployment** (cap, owner, etc.)
+5. **MockERC20 is ONLY for local anvil testing**
+
+### 📝 技术债务
+
+当前已知问题：
+1. ⚠️ Etherscan 合约验证失败（API v2 迁移问题）
+   - 错误: "You are using a deprecated V1 endpoint"
+   - 需要: 更新 forge verify 到 Etherscan API V2
+
+### 🎓 经验教训
+
+#### 什么做对了
+- ✅ 快速识别安全问题
+- ✅ 立即创建事件报告文档
+- ✅ 添加多层部署安全检查
+- ✅ 完整的日志记录和验证
+
+#### 需要改进
+- ❌ 初始部署时未验证 GTOKEN_ADDRESS
+- ❌ 未在 catch 块中添加网络检查
+- ❌ 前端配置与合约部署不同步
+- ❌ 缺少部署前自动化检查脚本
+
+#### 未来行动
+1. 创建 pre-deployment validation script
+2. 添加 CI/CD 环境变量检查
+3. 建立 deployment → frontend config 自动同步流程
+4. 增加合约类型检测（Mock vs Production）
+
+---
+
+**部署完成时间**: 2025-10-25
+**部署者**: 0x411BD567E46C0781248dbB6a9211891C032885e5
+**网络**: Sepolia Testnet (Chain ID: 11155111)
+**Gas Used**: 28,142,074 gas
+**状态**: ✅ PRODUCTION READY
+
