@@ -132,9 +132,9 @@ contract TestV2FullFlow is Script {
         console.log("  2.1 Operator stakes GToken...");
         gtoken.approve(address(gtokenStaking), STAKE_AMOUNT);
         gtokenStaking.stake(STAKE_AMOUNT);
-        uint256 sGTokenBalance = gtokenStaking.balanceOf(OPERATOR);
+        uint256 stGTokenBalance = gtokenStaking.balanceOf(OPERATOR);
         console.log("      Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("      Got sGToken:", sGTokenBalance / 1e18, "sGT");
+        console.log("      Got stGToken:", stGTokenBalance / 1e18, "sGT");
 
         console.log("  2.2 Deploying operator's xPNTs token...");
         address xpntsAddr = xpntsFactory.deployxPNTsToken(
@@ -156,7 +156,7 @@ contract TestV2FullFlow is Script {
             address(operatorXPNTs),
             operatorTreasury
         );
-        console.log("      Locked sGToken:", LOCK_AMOUNT / 1e18, "sGT");
+        console.log("      Locked stGToken:", LOCK_AMOUNT / 1e18, "sGT");
         console.log("      Operator treasury:", operatorTreasury);
 
         console.log("  2.4 Operator deposits aPNTs...");

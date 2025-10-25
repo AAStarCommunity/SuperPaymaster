@@ -8,27 +8,27 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title MySBT with sGToken Lock Mechanism
- * @notice Soul Bound Token for community identity using sGToken lock architecture
+ * @title MySBT with stGToken Lock Mechanism
+ * @notice Soul Bound Token for community identity using stGToken lock architecture
  * @dev ERC721 with transfer restrictions (non-transferable except mint/burn)
  *
  * v2.0-beta Changes:
  * - Uses GTokenStaking.lockStake() instead of directly holding GT
  * - Configurable lock amount and mint fee
  * - Creator governance for parameter adjustment
- * - Exit fee paid when burning SBT (0.1 sGToken default)
+ * - Exit fee paid when burning SBT (0.1 stGToken default)
  *
  * Key Features:
  * - Non-transferable (Soul Bound)
  * - Per-community identity tracking
  * - Activity and contribution scoring
- * - sGToken lock for membership (default 0.3 sGT)
+ * - stGToken lock for membership (default 0.3 sGT)
  * - GT burn fee for minting (default 0.1 GT)
  *
  * Architecture:
  * - UserProfile: Cross-community user data
  * - CommunityData: Per-community activity
- * - Lock via GTokenStaking: User's sGToken is locked, not GT
+ * - Lock via GTokenStaking: User's stGToken is locked, not GT
  */
 contract MySBT is ERC721, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -85,7 +85,7 @@ contract MySBT is ERC721, ReentrancyGuard {
     // Configurable Parameters
     // ====================================
 
-    /// @notice Lock amount: sGToken shares to lock (default 0.3 sGT)
+    /// @notice Lock amount: stGToken shares to lock (default 0.3 sGT)
     uint256 public minLockAmount = 0.3 ether;
 
     /// @notice Mint burn fee: GT to burn when minting (default 0.1 GT)
@@ -99,7 +99,7 @@ contract MySBT is ERC721, ReentrancyGuard {
         address indexed user,
         address indexed community,
         uint256 tokenId,
-        uint256 sGTokenLocked,
+        uint256 stGTokenLocked,
         uint256 timestamp
     );
 
@@ -114,7 +114,7 @@ contract MySBT is ERC721, ReentrancyGuard {
         address indexed user,
         uint256 tokenId,
         uint256 exitFeePaid,
-        uint256 sGTokenReturned,
+        uint256 stGTokenReturned,
         uint256 timestamp
     );
 
@@ -179,8 +179,8 @@ contract MySBT is ERC721, ReentrancyGuard {
      * @notice Mint SBT for community membership
      * @param community Community address
      * @return tokenId Minted token ID
-     * @dev v2.0-beta: Locks sGToken via GTokenStaking instead of holding GT
-     *      Requires user to have staked GT and obtained sGToken first
+     * @dev v2.0-beta: Locks stGToken via GTokenStaking instead of holding GT
+     *      Requires user to have staked GT and obtained stGToken first
      */
     function mintSBT(address community) external nonReentrant returns (uint256 tokenId) {
         if (userCommunityToken[msg.sender][community] != 0) {
@@ -208,14 +208,14 @@ contract MySBT is ERC721, ReentrancyGuard {
         userCommunityToken[msg.sender][community] = tokenId;
 
         // CEI: Interactions last
-        // ✅ Lock sGToken via GTokenStaking
+        // ✅ Lock stGToken via GTokenStaking
         IGTokenStaking(GTOKEN_STAKING).lockStake(
             msg.sender,
             minLockAmount,
             "MySBT membership"
         );
 
-        // Burn mint fee (in GT, not sGToken)
+        // Burn mint fee (in GT, not stGToken)
         if (mintFee > 0) {
             IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), mintFee);
             IGToken(GTOKEN).burn(mintFee);
@@ -265,9 +265,9 @@ contract MySBT is ERC721, ReentrancyGuard {
     }
 
     /**
-     * @notice Burn SBT and unlock sGToken
+     * @notice Burn SBT and unlock stGToken
      * @param tokenId Token ID to burn
-     * @dev v2.0-beta: Unlocks sGToken via GTokenStaking (pays exit fee)
+     * @dev v2.0-beta: Unlocks stGToken via GTokenStaking (pays exit fee)
      *      User loses community membership but keeps reputation score
      */
     function burnSBT(uint256 tokenId) external nonReentrant {
@@ -294,7 +294,7 @@ contract MySBT is ERC721, ReentrancyGuard {
         _burn(tokenId);
 
         // CEI: Interactions last
-        // ✅ Unlock sGToken (pays exit fee to treasury)
+        // ✅ Unlock stGToken (pays exit fee to treasury)
         uint256 netAmount = IGTokenStaking(GTOKEN_STAKING).unlockStake(
             msg.sender,
             minLockAmount
@@ -336,7 +336,7 @@ contract MySBT is ERC721, ReentrancyGuard {
 
     /**
      * @notice Set minimum lock amount (only creator)
-     * @param newAmount New lock amount in sGToken shares
+     * @param newAmount New lock amount in stGToken shares
      */
     function setMinLockAmount(uint256 newAmount) external {
         if (msg.sender != creator) {
@@ -511,8 +511,8 @@ contract MySBT is ERC721, ReentrancyGuard {
     /**
      * @notice Preview exit cost when burning SBT
      * @param user User address
-     * @return exitFee Exit fee in sGToken shares
-     * @return netReturn Net sGToken returned after fee
+     * @return exitFee Exit fee in stGToken shares
+     * @return netReturn Net stGToken returned after fee
      */
     function previewExit(address user) external view returns (
         uint256 exitFee,
