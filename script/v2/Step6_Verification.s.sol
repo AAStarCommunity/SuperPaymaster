@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -24,7 +24,7 @@ contract Step6_Verification is Script {
     SuperPaymasterV2 superPaymaster;
     IERC20 apntsToken;
     xPNTsToken operatorXPNTs;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
 
     address user;
     address operator;
@@ -36,7 +36,7 @@ contract Step6_Verification is Script {
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         apntsToken = IERC20(vm.envAddress("APNTS_TOKEN_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
 
         // 账户 - 使用与Step4/5相同的用户地址
         uint256 userKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
@@ -53,36 +53,54 @@ contract Step6_Verification is Script {
         console.log("6.1 Checking operator account...");
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator);
 
-        console.log("    Operator:", operator);
-        console.log("    Is registered:", account.stakedAt > 0);
-        console.log("    stGToken locked:", account.stGTokenLocked / 1e18, "sGT");
-        console.log("    aPNTs balance:", account.aPNTsBalance / 1e18, "aPNTs");
-        console.log("    Treasury:", account.treasury);
-        console.log("    xPNTs token:", account.xPNTsToken);
-        console.log("    Exchange rate:", account.exchangeRate / 1e18);
-        console.log("    Total spent:", account.totalSpent / 1e18, "aPNTs");
-        console.log("    Total tx sponsored:", account.totalTxSponsored);
-        console.log("    Reputation score:", account.reputationScore);
-        console.log("    Is paused:", account.isPaused);
+        console.log("    Operator:");
+        console.logAddress(operator);
+        console.log("    Is registered:");
+        console.log(account.stakedAt > 0);
+        console.log("    stGToken locked:");
+        console.log(account.stGTokenLocked / 1e18, "sGT");
+        console.log("    aPNTs balance:");
+        console.log(account.aPNTsBalance / 1e18, "aPNTs");
+        console.log("    Treasury:");
+        console.log(account.treasury);
+        console.log("    xPNTs token:");
+        console.log(account.xPNTsToken);
+        console.log("    Exchange rate:");
+        console.log(account.exchangeRate / 1e18);
+        console.log("    Total spent:");
+        console.log(account.totalSpent / 1e18, "aPNTs");
+        console.log("    Total tx sponsored:");
+        console.log(account.totalTxSponsored);
+        console.log("    Reputation score:");
+        console.log(account.reputationScore);
+        console.log("    Is paused:");
+        console.log(account.isPaused);
 
         // 2. 检查用户资产
         console.log("\n6.2 Checking user assets...");
         uint256 userSBTCount = mysbt.balanceOf(user);
         uint256 userXPNTs = operatorXPNTs.balanceOf(user);
 
-        console.log("    User:", user);
-        console.log("    SBT count:", userSBTCount);
-        console.log("    xPNTs balance:", userXPNTs / 1e18, "xTEST");
+        console.log("    User:");
+        console.logAddress(user);
+        console.log("    SBT count:");
+        console.logUint(userSBTCount);
+        console.log("    xPNTs balance:");
+        console.log(userXPNTs / 1e18, "xTEST");
 
         // 3. 检查treasury余额
         console.log("\n6.3 Checking treasuries...");
         uint256 operatorTreasuryXPNTs = operatorXPNTs.balanceOf(operatorTreasury);
         uint256 treasuryAPNTsBalance = superPaymaster.treasuryAPNTsBalance();
 
-        console.log("    Operator treasury:", operatorTreasury);
-        console.log("      xPNTs balance:", operatorTreasuryXPNTs / 1e18, "xTEST");
-        console.log("    SuperPaymaster treasury:", superPaymasterTreasury);
-        console.log("      aPNTs balance (internal):", treasuryAPNTsBalance / 1e18, "aPNTs");
+        console.log("    Operator treasury:");
+        console.logAddress(operatorTreasury);
+        console.log("      xPNTs balance:");
+        console.log(operatorTreasuryXPNTs / 1e18, "xTEST");
+        console.log("    SuperPaymaster treasury:");
+        console.logAddress(superPaymasterTreasury);
+        console.log("      aPNTs balance (internal):");
+        console.log(treasuryAPNTsBalance / 1e18, "aPNTs");
 
         // 4. 检查aPNTs分布
         console.log("\n6.4 Checking aPNTs distribution...");
@@ -90,9 +108,12 @@ contract Step6_Verification is Script {
         uint256 operatorAPNTs = account.aPNTsBalance;
         uint256 treasuryAPNTs = treasuryAPNTsBalance;
 
-        console.log("    SuperPaymaster contract holds:", contractAPNTs / 1e18, "aPNTs");
-        console.log("    Operator balance (internal):", operatorAPNTs / 1e18, "aPNTs");
-        console.log("    Treasury balance (internal):", treasuryAPNTs / 1e18, "aPNTs");
+        console.log("    SuperPaymaster contract holds:");
+        console.log(contractAPNTs / 1e18, "aPNTs");
+        console.log("    Operator balance (internal):");
+        console.log(operatorAPNTs / 1e18, "aPNTs");
+        console.log("    Treasury balance (internal):");
+        console.log(treasuryAPNTs / 1e18, "aPNTs");
         console.log("    Sum equals contract:", (operatorAPNTs + treasuryAPNTs) == contractAPNTs);
 
         // 5. 生成测试报告
@@ -105,13 +126,18 @@ contract Step6_Verification is Script {
         console.log("      SuperPaymaster configured: YES");
         console.log("    [OPERATOR]");
         console.log("      Registered: YES");
-        console.log("      aPNTs deposited:", operatorAPNTs / 1e18, "aPNTs");
-        console.log("      Treasury configured:", account.treasury == operatorTreasury);
+        console.log("      aPNTs deposited:");
+        console.log(operatorAPNTs / 1e18, "aPNTs");
+        console.log("      Treasury configured:");
+        console.log(account.treasury == operatorTreasury);
         console.log("    [USER]");
-        console.log("      Has SBT:", userSBTCount > 0);
-        console.log("      Has xPNTs:", userXPNTs / 1e18, "xTEST");
+        console.log("      Has SBT:");
+        console.log(userSBTCount > 0);
+        console.log("      Has xPNTs:");
+        console.log(userXPNTs / 1e18, "xTEST");
         console.log("    [PAYMENT FLOW]");
-        console.log("      User -> Operator treasury:", operatorTreasuryXPNTs / 1e18, "xTEST");
+        console.log("      User -> Operator treasury:");
+        console.log(operatorTreasuryXPNTs / 1e18, "xTEST");
         console.log("      Operator -> SuperPaymaster:", treasuryAPNTs / 1e18, "aPNTs (internal)");
         console.log("    [INTERNAL ACCOUNTING]");
         console.log("      Balance integrity:", (operatorAPNTs + treasuryAPNTs) == contractAPNTs);

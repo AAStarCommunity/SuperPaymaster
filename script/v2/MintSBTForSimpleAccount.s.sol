@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -23,7 +23,7 @@ contract MintSBTForSimpleAccount is Script {
 
     IERC20 gtoken;
     GTokenStaking gtokenStaking;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
 
     address simpleAccount;
     address owner;
@@ -34,7 +34,7 @@ contract MintSBTForSimpleAccount is Script {
         // Load contracts
         gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
 
         // Accounts
         simpleAccount = vm.envAddress("SIMPLE_ACCOUNT_B");
@@ -45,15 +45,20 @@ contract MintSBTForSimpleAccount is Script {
 
     function run() public {
         console.log("=== Mint SBT for SimpleAccount ===\n");
-        console.log("SimpleAccount:", simpleAccount);
-        console.log("Owner:", owner);
-        console.log("Operator (community):", operator);
+        console.log("SimpleAccount:");
+        console.logAddress(simpleAccount);
+        console.log("Owner:");
+        console.logAddress(owner);
+        console.log("Operator (community):");
+        console.logAddress(operator);
 
         // 1. Check owner's GT balance
         console.log("\n1. Checking owner's GT balance...");
         uint256 ownerGT = gtoken.balanceOf(owner);
-        console.log("   Owner GT balance:", ownerGT / 1e18, "GT");
-        console.log("   Required:", 1 ether / 1e18, "GT");
+        console.log("   Owner GT balance:");
+        console.log(ownerGT / 1e18, "GT");
+        console.log("   Required:");
+        console.log(1 ether / 1e18, "GT");
         require(ownerGT >= 1 ether, "Owner needs at least 1 GT! Get from faucet: https://faucet.aastar.io/");
 
         // 2. Owner stake GT to get stGToken
@@ -65,7 +70,8 @@ contract MintSBTForSimpleAccount is Script {
         console.log("   Staked 0.4 GT");
 
         uint256 stGTokenBalance = gtokenStaking.balanceOf(owner);
-        console.log("   Got stGToken:", stGTokenBalance / 1e18, "sGT");
+        console.log("   Got stGToken:");
+        console.log(stGTokenBalance / 1e18, "sGT");
 
         // 3. Approve GT for MySBT mint fee (0.1 GT)
         gtoken.approve(address(mysbt), 0.1 ether);
@@ -94,7 +100,8 @@ contract MintSBTForSimpleAccount is Script {
         // 4. Verify
         console.log("\n4. Verifying...");
         uint256 sbtBalance = mysbt.balanceOf(simpleAccount);
-        console.log("   SimpleAccount SBT balance:", sbtBalance);
+        console.log("   SimpleAccount SBT balance:");
+        console.logUint(sbtBalance);
 
         require(sbtBalance > 0, "SimpleAccount has no SBT");
 

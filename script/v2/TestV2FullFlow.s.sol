@@ -7,7 +7,7 @@ import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -47,7 +47,7 @@ contract TestV2FullFlow is Script {
     GTokenStaking gtokenStaking;
     SuperPaymasterV2 superPaymaster;
     xPNTsFactory xpntsFactory;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
 
     xPNTsToken operatorXPNTs;
 
@@ -75,7 +75,7 @@ contract TestV2FullFlow is Script {
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         xpntsFactory = xPNTsFactory(vm.envAddress("XPNTS_FACTORY_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
 
         // 设置treasury地址
         operatorTreasury = address(0x777);
@@ -122,15 +122,19 @@ contract TestV2FullFlow is Script {
 
         console.log("  1.2 Verifying SuperPaymaster configuration...");
         address configuredAPNTs = superPaymaster.aPNTsToken();
-        console.log("      Configured aPNTs:", configuredAPNTs);
+        console.log("      Configured aPNTs:");
+        console.logAddress(configuredAPNTs);
         console.log("      Treasury:", superPaymaster.superPaymasterTreasury());
 
         console.log("  1.3 Checking operator token balances...");
         uint256 operatorGT = gtoken.balanceOf(OPERATOR);
         uint256 operatorAPNTs = apntsToken.balanceOf(OPERATOR);
-        console.log("      Operator GToken:", operatorGT / 1e18, "GT");
-        console.log("      Operator aPNTs:", operatorAPNTs / 1e18, "aPNTs");
-        console.log("      Required GT:", STAKE_AMOUNT / 1e18, "GT");
+        console.log("      Operator GToken:");
+        console.log(operatorGT / 1e18, "GT");
+        console.log("      Operator aPNTs:");
+        console.log(operatorAPNTs / 1e18, "aPNTs");
+        console.log("      Required GT:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
         console.log("      Required aPNTs:", (APNTS_DEPOSIT * 2) / 1e18, "aPNTs");
         require(operatorGT >= STAKE_AMOUNT, "Insufficient GT! Get from faucet");
         require(operatorAPNTs >= APNTS_DEPOSIT * 2, "Insufficient aPNTs! Transfer from deployer");
@@ -141,8 +145,10 @@ contract TestV2FullFlow is Script {
         gtoken.approve(address(gtokenStaking), STAKE_AMOUNT);
         gtokenStaking.stake(STAKE_AMOUNT);
         uint256 stGTokenBalance = gtokenStaking.balanceOf(OPERATOR);
-        console.log("      Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("      Got stGToken:", stGTokenBalance / 1e18, "sGT");
+        console.log("      Staked:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
+        console.log("      Got stGToken:");
+        console.log(stGTokenBalance / 1e18, "sGT");
 
         console.log("  2.2 Deploying operator's xPNTs token...");
         address xpntsAddr = xpntsFactory.deployxPNTsToken(
@@ -152,7 +158,8 @@ contract TestV2FullFlow is Script {
             "test.eth"
         );
         operatorXPNTs = xPNTsToken(xpntsAddr);
-        console.log("      xPNTs token:", xpntsAddr);
+        console.log("      xPNTs token:");
+        console.logAddress(xpntsAddr);
 
         console.log("  2.3 Operator registers to SuperPaymaster...");
         address[] memory supportedSBTs = new address[](1);
@@ -164,23 +171,28 @@ contract TestV2FullFlow is Script {
             address(operatorXPNTs),
             operatorTreasury
         );
-        console.log("      Locked stGToken:", LOCK_AMOUNT / 1e18, "sGT");
-        console.log("      Operator treasury:", operatorTreasury);
+        console.log("      Locked stGToken:");
+        console.log(LOCK_AMOUNT / 1e18, "sGT");
+        console.log("      Operator treasury:");
+        console.logAddress(operatorTreasury);
 
         console.log("  2.4 Operator deposits aPNTs...");
         apntsToken.approve(address(superPaymaster), APNTS_DEPOSIT);
         superPaymaster.depositAPNTs(APNTS_DEPOSIT);
 
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(OPERATOR);
-        console.log("      Deposited aPNTs:", APNTS_DEPOSIT / 1e18, "aPNTs");
-        console.log("      aPNTs balance:", account.aPNTsBalance / 1e18, "aPNTs");
+        console.log("      Deposited aPNTs:");
+        console.log(APNTS_DEPOSIT / 1e18, "aPNTs");
+        console.log("      aPNTs balance:");
+        console.log(account.aPNTsBalance / 1e18, "aPNTs");
     }
 
     function userPreparation() internal {
         console.log("  3.1 User mints SBT...");
         // User needs to stake first
         uint256 userGT = gtoken.balanceOf(USER);
-        console.log("      User GToken balance:", userGT / 1e18, "GT");
+        console.log("      User GToken balance:");
+        console.log(userGT / 1e18, "GT");
         require(userGT >= 1 ether, "USER needs at least 1 GT! Get from faucet or transfer");
 
         vm.startPrank(USER);
@@ -190,14 +202,16 @@ contract TestV2FullFlow is Script {
         uint256 tokenId = mysbt.mintSBT(OPERATOR); // Use operator as community
         vm.stopPrank();
 
-        console.log("      SBT minted, tokenId:", tokenId);
+        console.log("      SBT minted, tokenId:");
+        console.logUint(tokenId);
 
         console.log("  3.2 User gets xPNTs...");
         // Operator gives xPNTs to user (or user buys from market)
         vm.startPrank(OPERATOR);
         operatorXPNTs.mint(USER, USER_XPNTS);
         vm.stopPrank();
-        console.log("      User xPNTs:", USER_XPNTS / 1e18, "xTEST");
+        console.log("      User xPNTs:");
+        console.log(USER_XPNTS / 1e18, "xTEST");
     }
 
     function userTransaction() internal {
@@ -214,9 +228,12 @@ contract TestV2FullFlow is Script {
         uint256 aPNTsCost = 153 ether;
         uint256 xPNTsCost = aPNTsCost;  // 1:1 exchange rate
 
-        console.log("      Gas cost:", gasCost);
-        console.log("      aPNTs cost:", aPNTsCost / 1e18, "aPNTs");
-        console.log("      xPNTs cost:", xPNTsCost / 1e18, "xTEST");
+        console.log("      Gas cost:");
+        console.logUint(gasCost);
+        console.log("      aPNTs cost:");
+        console.log(aPNTsCost / 1e18, "aPNTs");
+        console.log("      xPNTs cost:");
+        console.log(xPNTsCost / 1e18, "xTEST");
 
         console.log("  4.2 User approves xPNTs (pre-approve pattern)...");
         vm.startPrank(USER);
@@ -232,10 +249,14 @@ contract TestV2FullFlow is Script {
         uint256 treasuryAPNTsBefore = superPaymaster.treasuryAPNTsBalance();
 
         console.log("      [BEFORE]");
-        console.log("        User xPNTs:", userXPNTsBefore / 1e18);
-        console.log("        Operator treasury xPNTs:", treasuryXPNTsBefore / 1e18);
-        console.log("        Operator aPNTs balance:", accountBefore.aPNTsBalance / 1e18);
-        console.log("        SuperPaymaster treasury aPNTs:", treasuryAPNTsBefore / 1e18);
+        console.log("        User xPNTs:");
+        console.logUint(userXPNTsBefore / 1e18);
+        console.log("        Operator treasury xPNTs:");
+        console.logUint(treasuryXPNTsBefore / 1e18);
+        console.log("        Operator aPNTs balance:");
+        console.log(accountBefore.aPNTsBalance / 1e18);
+        console.log("        SuperPaymaster treasury aPNTs:");
+        console.logUint(treasuryAPNTsBefore / 1e18);
 
         // 模拟EntryPoint调用validatePaymasterUserOp
         // 注意：这里需要mock EntryPoint的调用，实际部署后需要真实EntryPoint
@@ -256,19 +277,26 @@ contract TestV2FullFlow is Script {
         uint256 treasuryXPNTsAfter = operatorXPNTs.balanceOf(operatorTreasury);
 
         console.log("      [AFTER]");
-        console.log("        User xPNTs:", userXPNTsAfter / 1e18);
-        console.log("        Operator treasury xPNTs:", treasuryXPNTsAfter / 1e18);
+        console.log("        User xPNTs:");
+        console.logUint(userXPNTsAfter / 1e18);
+        console.log("        Operator treasury xPNTs:");
+        console.logUint(treasuryXPNTsAfter / 1e18);
         console.log("        xPNTs transferred:", (treasuryXPNTsAfter - treasuryXPNTsBefore) / 1e18);
     }
 
     function verification() internal view {
         console.log("  5.1 Checking operator account...");
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(OPERATOR);
-        console.log("      Operator registered:", account.stakedAt > 0);
-        console.log("      aPNTs balance:", account.aPNTsBalance / 1e18, "aPNTs");
-        console.log("      Treasury:", account.treasury);
-        console.log("      xPNTs token:", account.xPNTsToken);
-        console.log("      Exchange rate:", account.exchangeRate / 1e18);
+        console.log("      Operator registered:");
+        console.log(account.stakedAt > 0);
+        console.log("      aPNTs balance:");
+        console.log(account.aPNTsBalance / 1e18, "aPNTs");
+        console.log("      Treasury:");
+        console.log(account.treasury);
+        console.log("      xPNTs token:");
+        console.log(account.xPNTsToken);
+        console.log("      Exchange rate:");
+        console.log(account.exchangeRate / 1e18);
 
         console.log("  5.2 Checking user assets...");
         console.log("      User SBT count:", mysbt.balanceOf(USER));
@@ -282,9 +310,12 @@ contract TestV2FullFlow is Script {
         uint256 contractAPNTs = apntsToken.balanceOf(address(superPaymaster));
         uint256 operatorAPNTs = account.aPNTsBalance;
         uint256 treasuryAPNTs = superPaymaster.treasuryAPNTsBalance();
-        console.log("      SuperPaymaster contract holds:", contractAPNTs / 1e18, "aPNTs");
-        console.log("      Operator balance (internal):", operatorAPNTs / 1e18, "aPNTs");
-        console.log("      Treasury balance (internal):", treasuryAPNTs / 1e18, "aPNTs");
+        console.log("      SuperPaymaster contract holds:");
+        console.log(contractAPNTs / 1e18, "aPNTs");
+        console.log("      Operator balance (internal):");
+        console.log(operatorAPNTs / 1e18, "aPNTs");
+        console.log("      Treasury balance (internal):");
+        console.log(treasuryAPNTs / 1e18, "aPNTs");
         console.log("      Sum equals contract:", (operatorAPNTs + treasuryAPNTs) == contractAPNTs);
     }
 }

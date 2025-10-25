@@ -50,15 +50,18 @@ contract Step1_Setup is Script {
         console.log("    aPNTs token configured");
 
         superPaymaster.setSuperPaymasterTreasury(superPaymasterTreasury);
-        console.log("    SuperPaymaster treasury:", superPaymasterTreasury);
+        console.log("    SuperPaymaster treasury:");
+        console.logAddress(superPaymasterTreasury);
 
         // 3. 验证配置
         console.log("\n1.3 Verifying configuration...");
         address configuredAPNTs = superPaymaster.aPNTsToken();
         address configuredTreasury = superPaymaster.superPaymasterTreasury();
 
-        console.log("    Configured aPNTs:", configuredAPNTs);
-        console.log("    Configured treasury:", configuredTreasury);
+        console.log("    Configured aPNTs:");
+        console.logAddress(configuredAPNTs);
+        console.log("    Configured treasury:");
+        console.logAddress(configuredTreasury);
 
         require(configuredAPNTs == address(apntsToken), "aPNTs token mismatch");
         require(configuredTreasury == superPaymasterTreasury, "Treasury mismatch");

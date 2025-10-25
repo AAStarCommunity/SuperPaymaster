@@ -58,9 +58,12 @@ contract Step5_UserTransaction is Script {
         uint256 aPNTsCost = 153 ether;
         uint256 xPNTsCost = aPNTsCost;  // 1:1 exchange rate
 
-        console.log("    Gas cost:", gasCost);
-        console.log("    aPNTs cost:", aPNTsCost / 1e18, "aPNTs");
-        console.log("    xPNTs cost:", xPNTsCost / 1e18, "xTEST");
+        console.log("    Gas cost:");
+        console.logUint(gasCost);
+        console.log("    aPNTs cost:");
+        console.log(aPNTsCost / 1e18, "aPNTs");
+        console.log("    xPNTs cost:");
+        console.log(xPNTsCost / 1e18, "xTEST");
 
         // 2. 记录交易前余额
         console.log("\n5.2 Recording balances before transaction...");
@@ -72,10 +75,14 @@ contract Step5_UserTransaction is Script {
         uint256 treasuryAPNTsBefore = superPaymaster.treasuryAPNTsBalance();
 
         console.log("    [BEFORE]");
-        console.log("      User xPNTs:", userXPNTsBefore / 1e18, "xTEST");
-        console.log("      Operator treasury xPNTs:", treasuryXPNTsBefore / 1e18, "xTEST");
-        console.log("      Operator aPNTs balance:", accountBefore.aPNTsBalance / 1e18, "aPNTs");
-        console.log("      SuperPaymaster treasury aPNTs (internal):", treasuryAPNTsBefore / 1e18, "aPNTs");
+        console.log("      User xPNTs:");
+        console.log(userXPNTsBefore / 1e18, "xTEST");
+        console.log("      Operator treasury xPNTs:");
+        console.log(treasuryXPNTsBefore / 1e18, "xTEST");
+        console.log("      Operator aPNTs balance:");
+        console.log(accountBefore.aPNTsBalance / 1e18, "aPNTs");
+        console.log("      SuperPaymaster treasury aPNTs (internal):");
+        console.log(treasuryAPNTsBefore / 1e18, "aPNTs");
 
         // 3. 用户approve并支付xPNTs
         console.log("\n5.3 User approving and paying xPNTs...");
@@ -105,8 +112,10 @@ contract Step5_UserTransaction is Script {
         uint256 treasuryXPNTsAfter = operatorXPNTs.balanceOf(operatorTreasury);
 
         console.log("    [AFTER]");
-        console.log("      User xPNTs:", userXPNTsAfter / 1e18, "xTEST");
-        console.log("      Operator treasury xPNTs:", treasuryXPNTsAfter / 1e18, "xTEST");
+        console.log("      User xPNTs:");
+        console.log(userXPNTsAfter / 1e18, "xTEST");
+        console.log("      Operator treasury xPNTs:");
+        console.log(treasuryXPNTsAfter / 1e18, "xTEST");
         console.log("      xPNTs transferred:", (treasuryXPNTsAfter - treasuryXPNTsBefore) / 1e18, "xTEST");
 
         // 6. 验证

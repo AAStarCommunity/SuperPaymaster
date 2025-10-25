@@ -8,7 +8,7 @@ import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -35,7 +35,7 @@ contract TestRegistryLaunchPaymaster is Script {
     Registry registry;
     SuperPaymasterV2 superPaymaster;
     xPNTsFactory xpntsFactory;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
 
     // Test accounts
     address deployer;
@@ -55,7 +55,7 @@ contract TestRegistryLaunchPaymaster is Script {
         registry = Registry(vm.envAddress("REGISTRY_ADDRESS"));
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         xpntsFactory = xPNTsFactory(vm.envAddress("XPNTS_FACTORY_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
 
         // Test accounts
         deployer = vm.envAddress("DEPLOYER_ADDRESS");
@@ -95,9 +95,12 @@ contract TestRegistryLaunchPaymaster is Script {
         uint256 balanceUser = gtoken.balanceOf(user);
 
         console.log("Checking GToken balances:");
-        console.log("  - Community AOA:", balanceAOA / 1e18, "GT (required:", STAKE_AMOUNT * 2 / 1e18, "GT)");
-        console.log("  - Community Super:", balanceSuper / 1e18, "GT (required:", STAKE_AMOUNT * 2 / 1e18, "GT)");
-        console.log("  - User:", balanceUser / 1e18, "GT (required:", STAKE_AMOUNT / 1e18, "GT)");
+        console.log("  - Community AOA:");
+        console.logUint(balanceAOA / 1e18);
+        console.log("  - Community Super:");
+        console.logUint(balanceSuper / 1e18);
+        console.log("  - User:");
+        console.logUint(balanceUser / 1e18);
 
         require(balanceAOA >= STAKE_AMOUNT * 2, "Community AOA needs at least 200 GT! Get from faucet");
         require(balanceSuper >= STAKE_AMOUNT * 2, "Community Super needs at least 200 GT! Get from faucet");
@@ -121,8 +124,10 @@ contract TestRegistryLaunchPaymaster is Script {
         gtokenStaking.stake(STAKE_AMOUNT);
 
         uint256 stGTokenBalance = gtokenStaking.balanceOf(communityAOA);
-        console.log("    Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("    Got stGToken:", stGTokenBalance / 1e18, "stGT");
+        console.log("    Staked:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
+        console.log("    Got stGToken:");
+        console.log(stGTokenBalance / 1e18, "stGT");
 
         // 2.2 Deploy xPNTs
         console.log("\n2.2 Deploying xPNTs token...");
@@ -132,7 +137,8 @@ contract TestRegistryLaunchPaymaster is Script {
             "AOACommunity",
             "aoa.eth"
         );
-        console.log("    xPNTs deployed:", xpntsAOA);
+        console.log("    xPNTs deployed:");
+        console.logAddress(xpntsAOA);
 
         // 2.3 Register to Registry (AOA mode)
         console.log("\n2.3 Registering to Registry (AOA mode)...");
@@ -162,7 +168,8 @@ contract TestRegistryLaunchPaymaster is Script {
 
         registry.registerCommunity(profile, LOCK_AOA);
 
-        console.log("    Locked stGToken:", LOCK_AOA / 1e18, "stGT");
+        console.log("    Locked stGToken:");
+        console.log(LOCK_AOA / 1e18, "stGT");
         console.log("    Registered to Registry!");
 
         // 2.4 Verify registration
@@ -195,8 +202,10 @@ contract TestRegistryLaunchPaymaster is Script {
         gtokenStaking.stake(STAKE_AMOUNT);
 
         uint256 stGTokenBalance = gtokenStaking.balanceOf(communitySuper);
-        console.log("    Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("    Got stGToken:", stGTokenBalance / 1e18, "stGT");
+        console.log("    Staked:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
+        console.log("    Got stGToken:");
+        console.log(stGTokenBalance / 1e18, "stGT");
 
         // 3.2 Deploy xPNTs
         console.log("\n3.2 Deploying xPNTs token...");
@@ -206,7 +215,8 @@ contract TestRegistryLaunchPaymaster is Script {
             "SuperCommunity",
             "super.eth"
         );
-        console.log("    xPNTs deployed:", xpntsSuper);
+        console.log("    xPNTs deployed:");
+        console.logAddress(xpntsSuper);
 
         // 3.3 Register to SuperPaymaster FIRST
         console.log("\n3.3 Registering to SuperPaymaster...");
@@ -221,7 +231,8 @@ contract TestRegistryLaunchPaymaster is Script {
             communitySuper  // treasury
         );
 
-        console.log("    Locked stGToken:", LOCK_SUPER / 1e18, "stGT");
+        console.log("    Locked stGToken:");
+        console.log(LOCK_SUPER / 1e18, "stGT");
         console.log("    Registered to SuperPaymaster!");
 
         // 3.4 Register to Registry (Super mode, stGTokenAmount=0)
@@ -279,33 +290,47 @@ contract TestRegistryLaunchPaymaster is Script {
         // 4.1 Registry state
         console.log("4.1 Registry State:");
         uint256 totalCommunities = registry.getCommunityCount();
-        console.log("    Total communities:", totalCommunities);
+        console.log("    Total communities:");
+        console.logUint(totalCommunities);
         require(totalCommunities >= 2, "Missing communities");
 
         // 4.2 AOA mode verification
         console.log("\n4.2 AOA Mode Verification:");
         Registry.CommunityProfile memory aoaProfile = registry.getCommunityProfile(communityAOA);
-        console.log("    Name:", aoaProfile.name);
-        console.log("    Mode:", aoaProfile.mode == Registry.PaymasterMode.INDEPENDENT ? "AOA" : "SUPER");
-        console.log("    Active:", aoaProfile.isActive);
-        console.log("    xPNTs Token:", aoaProfile.xPNTsToken);
+        console.log("    Name:");
+        console.log(aoaProfile.name);
+        console.log("    Mode:");
+        console.log(aoaProfile.mode == Registry.PaymasterMode.INDEPENDENT ? "AOA" : "SUPER");
+        console.log("    Active:");
+        console.log(aoaProfile.isActive);
+        console.log("    xPNTs Token:");
+        console.log(aoaProfile.xPNTsToken);
 
         // 4.3 Super mode verification
         console.log("\n4.3 Super Mode Verification:");
         Registry.CommunityProfile memory superProfile = registry.getCommunityProfile(communitySuper);
-        console.log("    Name:", superProfile.name);
-        console.log("    Mode:", superProfile.mode == Registry.PaymasterMode.SUPER ? "SUPER" : "AOA");
-        console.log("    Paymaster:", superProfile.paymasterAddress);
-        console.log("    Active:", superProfile.isActive);
-        console.log("    xPNTs Token:", superProfile.xPNTsToken);
+        console.log("    Name:");
+        console.log(superProfile.name);
+        console.log("    Mode:");
+        console.log(superProfile.mode == Registry.PaymasterMode.SUPER ? "SUPER" : "AOA");
+        console.log("    Paymaster:");
+        console.log(superProfile.paymasterAddress);
+        console.log("    Active:");
+        console.log(superProfile.isActive);
+        console.log("    xPNTs Token:");
+        console.log(superProfile.xPNTsToken);
 
         // 4.4 SuperPaymaster state
         console.log("\n4.4 SuperPaymaster State:");
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(communitySuper);
-        console.log("    Operator registered:", account.stakedAt > 0);
-        console.log("    Locked stGToken:", account.stGTokenLocked / 1e18, "stGT");
-        console.log("    xPNTs token:", account.xPNTsToken);
-        console.log("    Treasury:", account.treasury);
+        console.log("    Operator registered:");
+        console.log(account.stakedAt > 0);
+        console.log("    Locked stGToken:");
+        console.log(account.stGTokenLocked / 1e18, "stGT");
+        console.log("    xPNTs token:");
+        console.log(account.xPNTsToken);
+        console.log("    Treasury:");
+        console.log(account.treasury);
 
         console.log("\n[DONE] Phase 4: All Verified!\n");
     }

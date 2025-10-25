@@ -7,7 +7,7 @@ import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -30,7 +30,7 @@ contract Step2_OperatorRegister is Script {
     GTokenStaking gtokenStaking;
     SuperPaymasterV2 superPaymaster;
     xPNTsFactory xpntsFactory;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
 
     address operator;
     address operatorTreasury;
@@ -40,11 +40,11 @@ contract Step2_OperatorRegister is Script {
 
     function setUp() public {
         // 加载合约
-        gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         xpntsFactory = xPNTsFactory(vm.envAddress("XPNTS_FACTORY_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
 
         // Operator账户
         operator = vm.envAddress("OWNER2_ADDRESS");
@@ -53,8 +53,10 @@ contract Step2_OperatorRegister is Script {
 
     function run() public {
         console.log("=== Step 2: Operator Registration ===\n");
-        console.log("Operator address:", operator);
-        console.log("Operator treasury:", operatorTreasury);
+        console.log("Operator address:");
+        console.logAddress(operator);
+        console.log("Operator treasury:");
+        console.logAddress(operatorTreasury);
 
         // 1. ⚠️ IMPORTANT: Operator must already have GToken before running this script!
         //    Get GToken from: https://faucet.aastar.io/ or transfer from deployer
@@ -62,8 +64,10 @@ contract Step2_OperatorRegister is Script {
 
         uint256 operatorGTokenBalance = gtoken.balanceOf(operator);
         console.log("\n2.1 Checking operator's GToken balance...");
-        console.log("    Operator GToken balance:", operatorGTokenBalance / 1e18, "GT");
-        console.log("    Required for staking:", STAKE_AMOUNT / 1e18, "GT");
+        console.log("    Operator GToken balance:");
+        console.log(operatorGTokenBalance / 1e18, "GT");
+        console.log("    Required for staking:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
         require(operatorGTokenBalance >= STAKE_AMOUNT, "Insufficient GToken! Get from faucet: https://faucet.aastar.io/");
 
         // 2. Operator stake GToken
@@ -74,8 +78,10 @@ contract Step2_OperatorRegister is Script {
         gtokenStaking.stake(STAKE_AMOUNT);
 
         uint256 stGTokenBalance = gtokenStaking.balanceOf(operator);
-        console.log("    Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("    Got stGToken:", stGTokenBalance / 1e18, "sGT");
+        console.log("    Staked:");
+        console.log(STAKE_AMOUNT / 1e18, "GT");
+        console.log("    Got stGToken:");
+        console.log(stGTokenBalance / 1e18, "sGT");
 
         // 3. 部署xPNTs token
         console.log("\n2.3 Deploying operator's xPNTs token...");
@@ -85,7 +91,8 @@ contract Step2_OperatorRegister is Script {
             "TestCommunity",
             "test.eth"
         );
-        console.log("    xPNTs token deployed:", xpntsAddr);
+        console.log("    xPNTs token deployed:");
+        console.logAddress(xpntsAddr);
 
         // 4. 注册到SuperPaymaster
         console.log("\n2.4 Registering to SuperPaymaster...");
@@ -98,16 +105,21 @@ contract Step2_OperatorRegister is Script {
             xpntsAddr,
             operatorTreasury
         );
-        console.log("    Locked stGToken:", LOCK_AMOUNT / 1e18, "sGT");
+        console.log("    Locked stGToken:");
+        console.log(LOCK_AMOUNT / 1e18, "sGT");
         console.log("    Registered successfully!");
 
         // 5. 验证注册
         console.log("\n2.5 Verifying registration...");
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator);
-        console.log("    Is registered:", account.stakedAt > 0);
-        console.log("    Treasury:", account.treasury);
-        console.log("    xPNTs token:", account.xPNTsToken);
-        console.log("    Exchange rate:", account.exchangeRate / 1e18);
+        console.log("    Is registered:");
+        console.log(account.stakedAt > 0);
+        console.log("    Treasury:");
+        console.log(account.treasury);
+        console.log("    xPNTs token:");
+        console.log(account.xPNTsToken);
+        console.log("    Exchange rate:");
+        console.log(account.exchangeRate / 1e18);
 
         require(account.treasury == operatorTreasury, "Treasury mismatch");
         require(account.xPNTsToken == xpntsAddr, "xPNTs token mismatch");

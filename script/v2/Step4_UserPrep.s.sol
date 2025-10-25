@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -26,7 +26,7 @@ contract Step4_UserPrep is Script {
 
     IERC20 gtoken;
     GTokenStaking gtokenStaking;
-    MySBT mysbt;
+    MySBTWithNFTBinding mysbt;
     xPNTsToken operatorXPNTs;
 
     address user;
@@ -39,7 +39,7 @@ contract Step4_UserPrep is Script {
         // 加载合约
         gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
-        mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
+        mysbt = MySBTWithNFTBinding(vm.envAddress("MYSBT_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
 
         // 账户 - 使用测试私钥生成用户地址
@@ -50,15 +50,18 @@ contract Step4_UserPrep is Script {
 
     function run() public {
         console.log("=== Step 4: User Preparation ===\n");
-        console.log("User address:", user);
+        console.log("User address:");
+        console.logAddress(user);
 
         // 1. User mint SBT
         console.log("\n4.1 User minting SBT...");
 
         // ⚠️ Check user's GToken balance
         uint256 userGTokenBalance = gtoken.balanceOf(user);
-        console.log("    User GToken balance:", userGTokenBalance / 1e18, "GT");
-        console.log("    Required (stake + fee):", 0.3 ether / 1e18, "GT");
+        console.log("    User GToken balance:");
+        console.logUint(userGTokenBalance / 1e18);
+        console.log("    Required (stake + fee):");
+        // console.logUint(0.3 ether / 1e18); // Skip: fractional division
         require(userGTokenBalance >= 1 ether, "Insufficient GToken! Get from faucet: https://faucet.aastar.io/");
 
         // User stake GToken并mint SBT
@@ -74,13 +77,15 @@ contract Step4_UserPrep is Script {
 
         // Mint SBT with community address (using operator as community for testing)
         mysbt.mintSBT(operator);
-        console.log("    User minted SBT for community:", operator);
+        console.log("    User minted SBT for community:");
+        console.logAddress(operator);
 
         vm.stopBroadcast();
 
         // Get tokenId using userCommunityToken mapping
         uint256 tokenId = mysbt.userCommunityToken(user, operator);
-        console.log("    SBT tokenId:", tokenId);
+        console.log("    SBT tokenId:");
+        console.logUint(tokenId);
 
         // 2. Operator给user mint xPNTs
         console.log("\n4.2 Operator minting xPNTs to user...");
@@ -94,8 +99,10 @@ contract Step4_UserPrep is Script {
         uint256 userSBTCount = mysbt.balanceOf(user);
         uint256 userXPNTs = operatorXPNTs.balanceOf(user);
 
-        console.log("    User SBT count:", userSBTCount);
-        console.log("    User xPNTs balance:", userXPNTs / 1e18, "xTEST");
+        console.log("    User SBT count:");
+        console.logUint(userSBTCount);
+        console.log("    User xPNTs balance:");
+        console.log(userXPNTs / 1e18, "xTEST");
 
         require(userSBTCount > 0, "User has no SBT");
         require(userXPNTs == USER_XPNTS, "xPNTs balance mismatch");
