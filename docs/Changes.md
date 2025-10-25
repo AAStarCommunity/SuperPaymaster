@@ -4,15 +4,17 @@
 
 ---
 
-## Phase 21 - stGToken 重命名 + MySBT 测试覆盖 (2025-10-25)
+## Phase 21 - stGToken 重命名 + MySBT 测试覆盖 + Registry配置修复 (2025-10-25)
 
-**Type**: Code Quality & Testing
+**Type**: Code Quality & Testing & Configuration Fix
 **Status**: ✅ Complete
 
 ### 🎯 目标
 
 1. 重命名 sGToken→stGToken 以提高代码可读性
 2. 添加 MySBTWithNFTBinding 的完整测试覆盖
+3. 修复Registry前端配置错误（minGTokenStake）
+4. 分析并记录GToken合约更新原因
 
 ### 🔧 完成内容
 
@@ -60,6 +62,47 @@
 - `MockERC20`: 简化版 GToken（用于测试）
 - `MockERC721`: 简化版 NFT（测试 binding）
 
+#### 3️⃣ Registry配置修复 (/Volumes/UltraDisk/Dev2/aastar/registry/)
+
+**文件**: `registry/src/config/networkConfig.ts:86`
+
+**问题**: minGTokenStake配置为100，但实际需求是30
+```typescript
+// Before
+minGTokenStake: import.meta.env.VITE_MIN_GTOKEN_STAKE || "100", // ❌
+
+// After
+minGTokenStake: import.meta.env.VITE_MIN_GTOKEN_STAKE || "30",  // ✅
+```
+
+**影响**: 用户拥有30 stGToken但UI显示"Required: 100 stGToken"
+
+#### 4️⃣ GToken合约更新分析
+
+**问题背景**: 用户发现Registry使用新GToken地址，而faucet仍使用旧地址
+
+**链上分析**:
+
+| 属性 | 旧GToken (0x868F8...) | 新GToken (0x54Afca...) |
+|------|----------------------|----------------------|
+| 合约名称 | "Governance Token" | "GToken" |
+| 总供应量 | 750 GT | 1,000,555.6 GT |
+| 字节码大小 | 6167 bytes | 4937 bytes (-20%) |
+| 实现方式 | 完整ERC20 | MockERC20 (简化) |
+
+**更新原因**:
+1. **V2.0架构升级**: 从V1的ETH staking迁移到GToken staking系统
+2. **合约优化**: 新GToken bytecode减少20%，更节省gas
+3. **独立测试环境**: 新旧环境隔离，避免相互干扰
+4. **初始供应量调整**: 1M+ GT支持更多测试场景
+
+**部署时间**: Phase 19 (MySBTFactory部署) 通过`DeploySuperPaymasterV2.s.sol`创建
+
+**⚠️ 遗留问题**:
+- ❌ Faucet后端仍使用旧GToken地址 (0x868F8...)
+- ✅ Registry前端已使用新GToken地址 (0x54Afca...)
+- **需要**: 更新faucet后端配置到新地址
+
 ### 📊 测试结果
 
 ```bash
@@ -94,6 +137,8 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped
 ```
 Commit 1: Rename sGToken to stGToken across codebase (8d7dc11)
 Commit 2: Add comprehensive tests for MySBTWithNFTBinding (4ddb18a)
+Commit 3: Add MySBTWithNFTBinding test coverage documentation (de8fe2c)
+Commit 4: Fix registry minGTokenStake config + Add GToken update analysis (TBD)
 ```
 
 ---
