@@ -15,7 +15,7 @@ import { ISuperPaymasterRegistry } from "../../src/interfaces/ISuperPaymasterReg
  */
 contract PaymasterV4_1Test is Test {
     PaymasterV4_1 public paymaster;
-    MySBT public sbt;
+    MockSBT public sbt;
     GasTokenV2 public basePNT;
     GasTokenV2 public aPNT;
     MockRegistry public mockRegistry;
@@ -41,7 +41,7 @@ contract PaymasterV4_1Test is Test {
         // Deploy contracts
         vm.startPrank(owner);
 
-        sbt = new MySBT();
+        sbt = new MockSBT();
 
         // Deploy paymaster first
         paymaster = new PaymasterV4_1(
