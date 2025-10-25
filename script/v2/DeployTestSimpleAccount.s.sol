@@ -15,19 +15,23 @@ contract DeployTestSimpleAccount is Script {
         address owner = vm.envAddress("OWNER_ADDRESS");
 
         console.log("=== Deploy Test SimpleAccount ===");
-        console.log("Factory:", factory);
-        console.log("Owner:", owner);
+        console.log("Factory:");
+        console.logAddress(factory);
+        console.log("Owner:");
+        console.logAddress(owner);
 
         ISimpleAccountFactory factoryContract = ISimpleAccountFactory(factory);
 
         // Get predicted address
         address predicted = factoryContract.getAddress(owner, 0);
-        console.log("Predicted address:", predicted);
+        console.log("Predicted address:");
+        console.logAddress(predicted);
 
         // Deploy
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         address account = factoryContract.createAccount(owner, 0);
-        console.log("Deployed SimpleAccount:", account);
+        console.log("Deployed SimpleAccount:");
+        console.logAddress(account);
         vm.stopBroadcast();
 
         require(account == predicted, "Address mismatch");

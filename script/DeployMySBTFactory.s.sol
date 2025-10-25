@@ -20,14 +20,11 @@ import "../src/paymasters/v2/tokens/MySBTFactory.sol";
 contract DeployMySBTFactory is Script {
 
     // ====================================
-    // Configuration (Sepolia Testnet)
+    // Configuration (loaded from environment)
     // ====================================
 
-    /// @notice GToken address (from .env.local)
-    address constant GTOKEN = 0x54Afca294BA9824E6858E9b2d0B9a19C440f6D35;
-
-    /// @notice GTokenStaking address (from .env.local)
-    address constant GTOKEN_STAKING = 0xc3aa5816B000004F790e1f6B9C65f4dd5520c7b2;
+    address public GTOKEN;
+    address public GTOKEN_STAKING;
 
     // ====================================
     // Deployment State
@@ -42,6 +39,10 @@ contract DeployMySBTFactory is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+
+        // Load addresses from environment
+        GTOKEN = vm.envAddress("GTOKEN_ADDRESS");
+        GTOKEN_STAKING = vm.envAddress("GTOKEN_STAKING_ADDRESS");
 
         console.log("=== MySBTFactory Deployment ===");
         console.log("Deployer:", deployer);

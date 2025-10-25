@@ -6,7 +6,8 @@ import "../src/paymasters/v2/core/Registry.sol";
 import "../src/paymasters/v2/core/GTokenStaking.sol";
 import "../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../src/paymasters/v2/tokens/xPNTsFactory.sol";
-import "../src/paymasters/v2/tokens/MySBT.sol";
+import "../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
+import "../src/paymasters/v2/tokens/MySBTFactory.sol";
 import "../src/paymasters/v2/monitoring/DVTValidator.sol";
 import "../src/paymasters/v2/monitoring/BLSAggregator.sol";
 
@@ -52,7 +53,8 @@ contract DeploySuperPaymasterV2 is Script {
     Registry public registry;
     SuperPaymasterV2 public superPaymaster;
     xPNTsFactory public xpntsFactory;
-    MySBT public mysbt;
+    MySBTFactory public mysbtFactory;
+    MySBTWithNFTBinding public mysbt;
     DVTValidator public dvtValidator;
     BLSAggregator public blsAggregator;
 
@@ -86,16 +88,19 @@ contract DeploySuperPaymasterV2 is Script {
         // Step 5: Deploy xPNTsFactory
         _deployXPNTsFactory();
 
-        // Step 6: Deploy MySBT
+        // Step 6: Deploy MySBTFactory
+        _deployMySBTFactory();
+
+        // Step 7: Deploy MySBT
         _deployMySBT();
 
-        // Step 7: Deploy DVTValidator
+        // Step 8: Deploy DVTValidator
         _deployDVTValidator();
 
-        // Step 8: Deploy BLSAggregator
+        // Step 9: Deploy BLSAggregator
         _deployBLSAggregator();
 
-        // Step 9: Initialize connections
+        // Step 10: Initialize connections
         _initializeConnections();
 
         vm.stopBroadcast();
@@ -184,15 +189,26 @@ contract DeploySuperPaymasterV2 is Script {
         console.log("");
     }
 
-    function _deployMySBT() internal {
-        console.log("Step 6: Deploying MySBT...");
+    function _deployMySBTFactory() internal {
+        console.log("Step 6: Deploying MySBTFactory...");
 
-        mysbt = new MySBT(
+        mysbtFactory = new MySBTFactory(GTOKEN, address(gtokenStaking));
+
+        console.log("MySBTFactory deployed:", address(mysbtFactory));
+        console.log("DEFAULT_MIN_LOCK:", mysbtFactory.DEFAULT_MIN_LOCK() / 1e18, "sGT");
+        console.log("DEFAULT_MINT_FEE:", mysbtFactory.DEFAULT_MINT_FEE() / 1e18, "GT");
+        console.log("");
+    }
+
+    function _deployMySBT() internal {
+        console.log("Step 7: Deploying MySBTWithNFTBinding...");
+
+        mysbt = new MySBTWithNFTBinding(
             GTOKEN,
             address(gtokenStaking)
         );
 
-        console.log("MySBT deployed:", address(mysbt));
+        console.log("MySBTWithNFTBinding deployed:", address(mysbt));
         console.log("minLockAmount:", mysbt.minLockAmount() / 1e18, "sGT");
         console.log("mintFee:", mysbt.mintFee() / 1e18, "GT");
         console.log("creator:", mysbt.creator());
@@ -200,7 +216,7 @@ contract DeploySuperPaymasterV2 is Script {
     }
 
     function _deployDVTValidator() internal {
-        console.log("Step 7: Deploying DVTValidator...");
+        console.log("Step 8: Deploying DVTValidator...");
 
         dvtValidator = new DVTValidator(address(superPaymaster));
 
@@ -211,7 +227,7 @@ contract DeploySuperPaymasterV2 is Script {
     }
 
     function _deployBLSAggregator() internal {
-        console.log("Step 8: Deploying BLSAggregator...");
+        console.log("Step 9: Deploying BLSAggregator...");
 
         blsAggregator = new BLSAggregator(
             address(superPaymaster),
@@ -225,7 +241,7 @@ contract DeploySuperPaymasterV2 is Script {
     }
 
     function _initializeConnections() internal {
-        console.log("Step 9: Initializing connections...");
+        console.log("Step 10: Initializing connections...");
 
         // Set MySBT in SuperPaymaster
         mysbt.setSuperPaymaster(address(superPaymaster));
@@ -312,6 +328,7 @@ contract DeploySuperPaymasterV2 is Script {
         console.log("");
         console.log("Token System:");
         console.log("  xPNTsFactory:", address(xpntsFactory));
+        console.log("  MySBTFactory:", address(mysbtFactory));
         console.log("  MySBT:", address(mysbt));
         console.log("");
         console.log("Monitoring System:");

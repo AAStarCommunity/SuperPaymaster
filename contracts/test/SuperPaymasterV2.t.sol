@@ -7,7 +7,7 @@ import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBT.sol";
+import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "../../src/paymasters/v2/monitoring/DVTValidator.sol";
 import "../../src/paymasters/v2/monitoring/BLSAggregator.sol";
 

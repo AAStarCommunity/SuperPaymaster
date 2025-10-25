@@ -1,9 +1,10 @@
 [profile.default]
-src = "contracts/src"
+src = "src"
 test = "contracts/test"
-out = "contracts/out"
-libs = ["contracts/lib"]
-cache_path = "contracts/cache"
+script = "script"
+out = "out"
+libs = ["contracts/lib", "singleton-paymaster/lib"]
+cache_path = "cache"
 solc_version = "0.8.28"
 optimizer = true
 optimizer_runs = 1000000
@@ -14,7 +15,10 @@ exclude = ["singleton-paymaster/test/**/*", "singleton-paymaster/**/*.t.sol"]
 
 # Remappings for dependencies
 remappings = [
-    "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/"
+    "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+    "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+    "solady/=singleton-paymaster/lib/solady/src/"
 ]
 
 # Allow writing deployment info

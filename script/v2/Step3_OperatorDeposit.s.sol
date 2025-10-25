@@ -40,13 +40,16 @@ contract Step3_OperatorDeposit is Script {
 
     function run() public {
         console.log("=== Step 3: Operator Deposit aPNTs ===\n");
-        console.log("Operator address:", operator);
+        console.log("Operator address:");
+        console.logAddress(operator);
 
         // 1. ⚠️ Check operator's aPNTs balance
         console.log("\n3.1 Checking operator's aPNTs balance...");
         uint256 operatorAPNTsBalance = apntsToken.balanceOf(operator);
-        console.log("    Operator aPNTs balance:", operatorAPNTsBalance / 1e18, "aPNTs");
-        console.log("    Required for deposit:", APNTS_DEPOSIT / 1e18, "aPNTs");
+        console.log("    Operator aPNTs balance:");
+        console.log(operatorAPNTsBalance / 1e18, "aPNTs");
+        console.log("    Required for deposit:");
+        console.log(APNTS_DEPOSIT / 1e18, "aPNTs");
         require(operatorAPNTsBalance >= APNTS_DEPOSIT, "Insufficient aPNTs! Transfer from token controller first.");
 
         // 2. Operator deposit aPNTs
@@ -54,14 +57,17 @@ contract Step3_OperatorDeposit is Script {
         vm.startBroadcast(vm.envUint("OWNER2_PRIVATE_KEY"));
 
         uint256 operatorAPNTsBefore = apntsToken.balanceOf(operator);
-        console.log("    Operator aPNTs balance before:", operatorAPNTsBefore / 1e18, "aPNTs");
+        console.log("    Operator aPNTs balance before:");
+        console.log(operatorAPNTsBefore / 1e18, "aPNTs");
 
         apntsToken.approve(address(superPaymaster), APNTS_DEPOSIT);
         superPaymaster.depositAPNTs(APNTS_DEPOSIT);
 
         uint256 operatorAPNTsAfter = apntsToken.balanceOf(operator);
-        console.log("    Operator aPNTs balance after:", operatorAPNTsAfter / 1e18, "aPNTs");
-        console.log("    Deposited:", APNTS_DEPOSIT / 1e18, "aPNTs");
+        console.log("    Operator aPNTs balance after:");
+        console.log(operatorAPNTsAfter / 1e18, "aPNTs");
+        console.log("    Deposited:");
+        console.log(APNTS_DEPOSIT / 1e18, "aPNTs");
 
         vm.stopBroadcast();
 
@@ -70,8 +76,10 @@ contract Step3_OperatorDeposit is Script {
         SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator);
         uint256 contractAPNTs = apntsToken.balanceOf(address(superPaymaster));
 
-        console.log("    Operator internal balance:", account.aPNTsBalance / 1e18, "aPNTs");
-        console.log("    SuperPaymaster contract holds:", contractAPNTs / 1e18, "aPNTs");
+        console.log("    Operator internal balance:");
+        console.log(account.aPNTsBalance / 1e18, "aPNTs");
+        console.log("    SuperPaymaster contract holds:");
+        console.log(contractAPNTs / 1e18, "aPNTs");
 
         require(account.aPNTsBalance == APNTS_DEPOSIT, "Internal balance mismatch");
         require(contractAPNTs >= APNTS_DEPOSIT, "Contract balance mismatch");
