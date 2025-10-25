@@ -309,6 +309,20 @@ Check the `examples/` directory for:
 - Paymaster provider setup
 - Frontend integration guides
 
+## 📚 Technical Documentation
+
+### V2 System Architecture Docs
+- **[V2 Contract Dependencies and Mock Analysis](docs/V2_CONTRACT_DEPENDENCIES_AND_MOCK_ANALYSIS.md)** - Complete dependency graph, Constructor parameter analysis, Mock code impact assessment
+- **[GToken Incident Report (2025-10-25)](docs/GTOKEN_INCIDENT_2025-10-25.md)** - Detailed analysis of MockERC20 incident and prevention measures
+- **[Project Change History](docs/Changes.md)** - Detailed development records for all Phases
+
+### Key Features
+- ✅ Contract dependency visualization charts
+- ✅ Constructor immutability analysis
+- ✅ GToken reference mechanism explanation
+- ✅ Mock code usage summary
+- ✅ User migration strategy recommendations
+
 ---
 
 <a name="chinese"></a>
@@ -631,6 +645,20 @@ forge script script/DeploySuperpaymaster.s.sol:DeploySuperpaymaster \
 ## 📄 许可证
 
 本项目采用MIT许可证 - 查看[LICENSE](LICENSE)文件了解详情。
+
+## 📚 技术文档
+
+### V2 系统架构文档
+- **[V2 合约依赖关系和 Mock 分析](docs/V2_CONTRACT_DEPENDENCIES_AND_MOCK_ANALYSIS.md)** - 完整的依赖关系图、Constructor 参数分析、Mock 代码影响评估
+- **[GToken 事件报告 (2025-10-25)](docs/GTOKEN_INCIDENT_2025-10-25.md)** - MockERC20 事件详细分析和防范措施
+- **[项目变更历史](docs/Changes.md)** - 所有 Phase 的详细开发记录
+
+### 关键特性
+- ✅ 合约依赖关系可视化图表
+- ✅ Constructor 不可变性分析
+- ✅ GToken 引用方式详解
+- ✅ Mock 代码使用情况汇总
+- ✅ 用户迁移策略建议
 
 ## 🔗 链接
 
