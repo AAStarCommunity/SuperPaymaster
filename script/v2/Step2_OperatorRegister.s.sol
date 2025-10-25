@@ -16,7 +16,7 @@ import "../../contracts/test/mocks/MockERC20.sol";
  *
  * 功能：
  * 1. Mint GToken给operator
- * 2. Operator stake GToken获得sGToken
+ * 2. Operator stake GToken获得stGToken
  * 3. Operator部署xPNTs token
  * 4. Operator注册到SuperPaymaster
  */
@@ -66,9 +66,9 @@ contract Step2_OperatorRegister is Script {
         gtoken.approve(address(gtokenStaking), STAKE_AMOUNT);
         gtokenStaking.stake(STAKE_AMOUNT);
 
-        uint256 sGTokenBalance = gtokenStaking.balanceOf(operator);
+        uint256 stGTokenBalance = gtokenStaking.balanceOf(operator);
         console.log("    Staked:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("    Got sGToken:", sGTokenBalance / 1e18, "sGT");
+        console.log("    Got stGToken:", stGTokenBalance / 1e18, "sGT");
 
         // 3. 部署xPNTs token
         console.log("\n2.3 Deploying operator's xPNTs token...");
@@ -91,7 +91,7 @@ contract Step2_OperatorRegister is Script {
             xpntsAddr,
             operatorTreasury
         );
-        console.log("    Locked sGToken:", LOCK_AMOUNT / 1e18, "sGT");
+        console.log("    Locked stGToken:", LOCK_AMOUNT / 1e18, "sGT");
         console.log("    Registered successfully!");
 
         // 5. 验证注册

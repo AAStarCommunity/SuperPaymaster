@@ -13,7 +13,7 @@ import "../../contracts/test/mocks/MockERC20.sol";
  *
  * Flow:
  * 1. Deployer mint GT to SimpleAccount owner
- * 2. Owner stake GT -> get sGToken
+ * 2. Owner stake GT -> get stGToken
  * 3. Owner use SimpleAccount.execute() to call MySBT.mintSBT()
  */
 contract MintSBTForSimpleAccount is Script {
@@ -53,7 +53,7 @@ contract MintSBTForSimpleAccount is Script {
         console.log("   Minted 1 GT to owner");
         vm.stopBroadcast();
 
-        // 2. Owner stake GT to get sGToken
+        // 2. Owner stake GT to get stGToken
         console.log("\n2. Owner staking GT...");
         vm.startBroadcast(ownerKey);
 
@@ -61,8 +61,8 @@ contract MintSBTForSimpleAccount is Script {
         gtokenStaking.stake(0.4 ether);
         console.log("   Staked 0.4 GT");
 
-        uint256 sGTokenBalance = gtokenStaking.balanceOf(owner);
-        console.log("   Got sGToken:", sGTokenBalance / 1e18, "sGT");
+        uint256 stGTokenBalance = gtokenStaking.balanceOf(owner);
+        console.log("   Got stGToken:", stGTokenBalance / 1e18, "sGT");
 
         // 3. Approve GT for MySBT mint fee (0.1 GT)
         gtoken.approve(address(mysbt), 0.1 ether);

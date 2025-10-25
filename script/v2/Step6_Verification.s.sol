@@ -55,7 +55,7 @@ contract Step6_Verification is Script {
 
         console.log("    Operator:", operator);
         console.log("    Is registered:", account.stakedAt > 0);
-        console.log("    sGToken locked:", account.sGTokenLocked / 1e18, "sGT");
+        console.log("    stGToken locked:", account.stGTokenLocked / 1e18, "sGT");
         console.log("    aPNTs balance:", account.aPNTsBalance / 1e18, "aPNTs");
         console.log("    Treasury:", account.treasury);
         console.log("    xPNTs token:", account.xPNTsToken);

@@ -143,7 +143,7 @@ contract DeploySuperPaymasterV2 is Script {
     function _deployRegistry() internal {
         console.log("Step 3: Deploying Registry...");
 
-        registry = new Registry();
+        registry = new Registry(address(gtokenStaking));
 
         console.log("Registry deployed:", address(registry));
         console.log("");
@@ -280,9 +280,12 @@ contract DeploySuperPaymasterV2 is Script {
         );
         console.log("Configured SuperPaymaster locker: tiered exit fees (5-15 sGT)");
 
-        // Set SuperPaymaster in GTokenStaking (for slash operations)
-        gtokenStaking.setSuperPaymaster(address(superPaymaster));
-        console.log("GTokenStaking.setSuperPaymaster:", address(superPaymaster));
+        // Authorize SuperPaymaster and Registry as slashers in GTokenStaking
+        gtokenStaking.authorizeSlasher(address(superPaymaster), true);
+        gtokenStaking.authorizeSlasher(address(registry), true);
+        console.log("GTokenStaking authorized slashers:");
+        console.log("  - SuperPaymaster:", address(superPaymaster));
+        console.log("  - Registry:", address(registry));
 
         console.log("");
     }

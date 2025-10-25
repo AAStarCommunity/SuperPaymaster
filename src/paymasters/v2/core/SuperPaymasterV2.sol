@@ -31,7 +31,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     struct OperatorAccount {
         // Staking info
-        uint256 sGTokenLocked;      // Locked sGToken amount
+        uint256 stGTokenLocked;      // Locked stGToken amount
         uint256 stakedAt;           // Stake timestamp
 
         // Operating balance
@@ -61,7 +61,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     struct SlashRecord {
         uint256 timestamp;          // Slash timestamp
-        uint256 amount;             // Slash amount (sGToken)
+        uint256 amount;             // Slash amount (stGToken)
         uint256 reputationLoss;     // Reputation loss
         string reason;              // Slash reason
         SlashLevel level;           // Slash level
@@ -270,18 +270,18 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Register new operator
-     * @param sGTokenAmount Amount of sGToken to lock
+     * @param stGTokenAmount Amount of stGToken to lock
      * @param supportedSBTs List of supported SBT contracts
      * @param xPNTsToken Community points token address
      */
     function registerOperator(
-        uint256 sGTokenAmount,
+        uint256 stGTokenAmount,
         address[] memory supportedSBTs,
         address xPNTsToken,
         address treasury
     ) external nonReentrant {
-        if (sGTokenAmount < minOperatorStake) {
-            revert InsufficientStake(sGTokenAmount, minOperatorStake);
+        if (stGTokenAmount < minOperatorStake) {
+            revert InsufficientStake(stGTokenAmount, minOperatorStake);
         }
 
         if (accounts[msg.sender].stakedAt != 0) {
@@ -294,7 +294,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
         // CEI: Effects first - Initialize operator account BEFORE external call
         accounts[msg.sender] = OperatorAccount({
-            sGTokenLocked: sGTokenAmount,
+            stGTokenLocked: stGTokenAmount,
             stakedAt: block.timestamp,
             aPNTsBalance: 0,
             totalSpent: 0,
@@ -315,11 +315,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         // CEI: Interactions last - Lock stake from GTokenStaking
         IGTokenStaking(GTOKEN_STAKING).lockStake(
             msg.sender,
-            sGTokenAmount,
+            stGTokenAmount,
             "SuperPaymaster operator"
         );
 
-        emit OperatorRegistered(msg.sender, sGTokenAmount, block.timestamp);
+        emit OperatorRegistered(msg.sender, stGTokenAmount, block.timestamp);
     }
 
     /**
@@ -491,16 +491,16 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         if (level == SlashLevel.WARNING) {
             reputationLoss = 10;
         } else if (level == SlashLevel.MINOR) {
-            slashAmount = accounts[operator].sGTokenLocked * 5 / 100; // 5%
+            slashAmount = accounts[operator].stGTokenLocked * 5 / 100; // 5%
             reputationLoss = 20;
         } else if (level == SlashLevel.MAJOR) {
-            slashAmount = accounts[operator].sGTokenLocked * 10 / 100; // 10%
+            slashAmount = accounts[operator].stGTokenLocked * 10 / 100; // 10%
             reputationLoss = 50;
         }
 
         // CEI: Effects first - Update all state BEFORE external calls
         if (slashAmount > 0) {
-            accounts[operator].sGTokenLocked -= slashAmount;
+            accounts[operator].stGTokenLocked -= slashAmount;
         }
 
         // Update reputation
@@ -660,7 +660,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Set minimum operator stake requirement
-     * @param newStake New minimum stake amount in sGToken
+     * @param newStake New minimum stake amount in stGToken
      * @dev Only owner can adjust this parameter
      */
     function setMinOperatorStake(uint256 newStake) external onlyOwner {
