@@ -8,21 +8,25 @@ import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Step2_OperatorRegister
  * @notice V2测试流程 - 步骤2: Operator注册
  *
  * 功能：
- * 1. Mint GToken给operator
+ * 1. ⚠️ 确保 operator 已有 GToken（从 faucet 获取或已有余额）
  * 2. Operator stake GToken获得stGToken
  * 3. Operator部署xPNTs token
  * 4. Operator注册到SuperPaymaster
+ *
+ * IMPORTANT: This script does NOT mint GToken. Operator must obtain GToken from:
+ * - Faucet: https://faucet.aastar.io/
+ * - Or transfer from deployer
  */
 contract Step2_OperatorRegister is Script {
 
-    MockERC20 gtoken;
+    IERC20 gtoken;
     GTokenStaking gtokenStaking;
     SuperPaymasterV2 superPaymaster;
     xPNTsFactory xpntsFactory;
@@ -52,12 +56,15 @@ contract Step2_OperatorRegister is Script {
         console.log("Operator address:", operator);
         console.log("Operator treasury:", operatorTreasury);
 
-        // 1. Deployer mint GToken给operator
-        console.log("\n2.1 Minting GToken to operator...");
-        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        gtoken.mint(operator, STAKE_AMOUNT);
-        console.log("    Minted", STAKE_AMOUNT / 1e18, "GToken");
-        vm.stopBroadcast();
+        // 1. ⚠️ IMPORTANT: Operator must already have GToken before running this script!
+        //    Get GToken from: https://faucet.aastar.io/ or transfer from deployer
+        //    Required amount: at least STAKE_AMOUNT (100 GT)
+
+        uint256 operatorGTokenBalance = gtoken.balanceOf(operator);
+        console.log("\n2.1 Checking operator's GToken balance...");
+        console.log("    Operator GToken balance:", operatorGTokenBalance / 1e18, "GT");
+        console.log("    Required for staking:", STAKE_AMOUNT / 1e18, "GT");
+        require(operatorGTokenBalance >= STAKE_AMOUNT, "Insufficient GToken! Get from faucet: https://faucet.aastar.io/");
 
         // 2. Operator stake GToken
         console.log("\n2.2 Operator staking GToken...");

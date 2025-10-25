@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Step6_Verification
@@ -22,7 +22,7 @@ import "../../contracts/test/mocks/MockERC20.sol";
 contract Step6_Verification is Script {
 
     SuperPaymasterV2 superPaymaster;
-    MockERC20 apntsToken;
+    IERC20 apntsToken;
     xPNTsToken operatorXPNTs;
     MySBT mysbt;
 
@@ -34,7 +34,7 @@ contract Step6_Verification is Script {
     function setUp() public {
         // 加载合约
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
-        apntsToken = MockERC20(vm.envAddress("APNTS_TOKEN_ADDRESS"));
+        apntsToken = IERC20(vm.envAddress("APNTS_TOKEN_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
         mysbt = MySBT(vm.envAddress("MYSBT_ADDRESS"));
 

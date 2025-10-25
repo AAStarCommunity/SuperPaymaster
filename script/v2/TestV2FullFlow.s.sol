@@ -8,12 +8,18 @@ import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title TestV2FullFlow
  * @notice 完整测试SuperPaymaster V2主流程
  * @dev 基于TEST-SCENARIO-1-V2-FULL-FLOW.md
+ *
+ * ⚠️ IMPORTANT: This test requires pre-funded accounts with GToken and aPNTs:
+ * - OPERATOR must have at least 100 GT (get from faucet: https://faucet.aastar.io/)
+ * - OPERATOR must have at least 2000 aPNTs (transfer from deployer)
+ * - USER must have at least 1 GT (get from faucet or transfer)
+ * - aPNTs token must be deployed and address set in APNTS_TOKEN_ADDRESS env var
  *
  * 流程：
  * 1. Operator准备：stake GToken → lock → register
@@ -36,8 +42,8 @@ contract TestV2FullFlow is Script {
     // ====================================
     // 合约实例
     // ====================================
-    MockERC20 gtoken;
-    MockERC20 apntsToken;  // AAStar token
+    IERC20 gtoken;
+    IERC20 apntsToken;  // AAStar token
     GTokenStaking gtokenStaking;
     SuperPaymasterV2 superPaymaster;
     xPNTsFactory xpntsFactory;
@@ -64,7 +70,8 @@ contract TestV2FullFlow is Script {
         USER = address(0x999);  // 测试用户
 
         // 加载已部署的合约
-        gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        apntsToken = IERC20(vm.envAddress("APNTS_TOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         xpntsFactory = xPNTsFactory(vm.envAddress("XPNTS_FACTORY_ADDRESS"));
@@ -109,23 +116,24 @@ contract TestV2FullFlow is Script {
         console.log("\n=== Test Complete ===");
     }
 
-    function setupContracts() internal {
-        console.log("  1.1 Deploying aPNTs token (AAStar token)...");
-        apntsToken = new MockERC20("AAStar Points", "aPNTs", 18);
+    function setupContracts() internal view {
+        console.log("  1.1 Verifying aPNTs token (AAStar token)...");
         console.log("      aPNTs token:", address(apntsToken));
 
-        console.log("  1.2 Configuring SuperPaymaster...");
-        superPaymaster.setAPNTsToken(address(apntsToken));
-        superPaymaster.setSuperPaymasterTreasury(superPaymasterTreasury);
-        console.log("      Treasury:", superPaymasterTreasury);
+        console.log("  1.2 Verifying SuperPaymaster configuration...");
+        address configuredAPNTs = superPaymaster.aPNTsToken();
+        console.log("      Configured aPNTs:", configuredAPNTs);
+        console.log("      Treasury:", superPaymaster.superPaymasterTreasury());
 
-        console.log("  1.3 Minting tokens to operator...");
-        // Mint GToken for staking
-        gtoken.mint(OPERATOR, STAKE_AMOUNT);
-        // Mint aPNTs for deposit
-        apntsToken.mint(OPERATOR, APNTS_DEPOSIT * 2);  // 2倍，留一些
-        console.log("      GToken to operator:", STAKE_AMOUNT / 1e18, "GT");
-        console.log("      aPNTs to operator:", (APNTS_DEPOSIT * 2) / 1e18, "aPNTs");
+        console.log("  1.3 Checking operator token balances...");
+        uint256 operatorGT = gtoken.balanceOf(OPERATOR);
+        uint256 operatorAPNTs = apntsToken.balanceOf(OPERATOR);
+        console.log("      Operator GToken:", operatorGT / 1e18, "GT");
+        console.log("      Operator aPNTs:", operatorAPNTs / 1e18, "aPNTs");
+        console.log("      Required GT:", STAKE_AMOUNT / 1e18, "GT");
+        console.log("      Required aPNTs:", (APNTS_DEPOSIT * 2) / 1e18, "aPNTs");
+        require(operatorGT >= STAKE_AMOUNT, "Insufficient GT! Get from faucet");
+        require(operatorAPNTs >= APNTS_DEPOSIT * 2, "Insufficient aPNTs! Transfer from deployer");
     }
 
     function operatorFlow() internal {
@@ -171,7 +179,10 @@ contract TestV2FullFlow is Script {
     function userPreparation() internal {
         console.log("  3.1 User mints SBT...");
         // User needs to stake first
-        gtoken.mint(USER, 1 ether);
+        uint256 userGT = gtoken.balanceOf(USER);
+        console.log("      User GToken balance:", userGT / 1e18, "GT");
+        require(userGT >= 1 ether, "USER needs at least 1 GT! Get from faucet or transfer");
+
         vm.startPrank(USER);
         gtoken.approve(address(gtokenStaking), 0.1 ether);
         gtokenStaking.stake(0.1 ether);

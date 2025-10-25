@@ -9,11 +9,16 @@ import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBT.sol";
-import "../../contracts/test/mocks/MockERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title TestRegistryLaunchPaymaster
  * @notice 完整测试 Registry 注册 → Launch Paymaster 流程
+ *
+ * ⚠️ IMPORTANT: This test requires pre-funded accounts with GToken:
+ * - COMMUNITY_AOA_ADDRESS must have at least 200 GT (get from faucet: https://faucet.aastar.io/)
+ * - COMMUNITY_SUPER_ADDRESS must have at least 200 GT (get from faucet)
+ * - USER_ADDRESS must have at least 100 GT (get from faucet or transfer)
  *
  * 测试流程：
  * 1. Community 注册到 Registry（AOA + Super 两种模式）
@@ -25,7 +30,7 @@ import "../../contracts/test/mocks/MockERC20.sol";
 contract TestRegistryLaunchPaymaster is Script {
 
     // Contracts
-    MockERC20 gtoken;
+    IERC20 gtoken;
     GTokenStaking gtokenStaking;
     Registry registry;
     SuperPaymasterV2 superPaymaster;
@@ -45,7 +50,7 @@ contract TestRegistryLaunchPaymaster is Script {
 
     function setUp() public {
         // Load deployed contracts
-        gtoken = MockERC20(vm.envAddress("GTOKEN_ADDRESS"));
+        gtoken = IERC20(vm.envAddress("GTOKEN_ADDRESS"));
         gtokenStaking = GTokenStaking(vm.envAddress("GTOKEN_STAKING_ADDRESS"));
         registry = Registry(vm.envAddress("REGISTRY_ADDRESS"));
         superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
@@ -81,22 +86,22 @@ contract TestRegistryLaunchPaymaster is Script {
     // Phase 1: 准备资源
     // ====================================
 
-    function _prepareResources() private {
+    function _prepareResources() private view {
         console.log("=== Phase 1: Prepare Resources ===\n");
 
-        // Mint GToken to all test accounts
-        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        // Check GToken balances for all test accounts
+        uint256 balanceAOA = gtoken.balanceOf(communityAOA);
+        uint256 balanceSuper = gtoken.balanceOf(communitySuper);
+        uint256 balanceUser = gtoken.balanceOf(user);
 
-        gtoken.mint(communityAOA, STAKE_AMOUNT * 2);
-        gtoken.mint(communitySuper, STAKE_AMOUNT * 2);
-        gtoken.mint(user, STAKE_AMOUNT);
+        console.log("Checking GToken balances:");
+        console.log("  - Community AOA:", balanceAOA / 1e18, "GT (required:", STAKE_AMOUNT * 2 / 1e18, "GT)");
+        console.log("  - Community Super:", balanceSuper / 1e18, "GT (required:", STAKE_AMOUNT * 2 / 1e18, "GT)");
+        console.log("  - User:", balanceUser / 1e18, "GT (required:", STAKE_AMOUNT / 1e18, "GT)");
 
-        console.log("Minted GToken:");
-        console.log("  - Community AOA:", STAKE_AMOUNT * 2 / 1e18, "GT");
-        console.log("  - Community Super:", STAKE_AMOUNT * 2 / 1e18, "GT");
-        console.log("  - User:", STAKE_AMOUNT / 1e18, "GT");
-
-        vm.stopBroadcast();
+        require(balanceAOA >= STAKE_AMOUNT * 2, "Community AOA needs at least 200 GT! Get from faucet");
+        require(balanceSuper >= STAKE_AMOUNT * 2, "Community Super needs at least 200 GT! Get from faucet");
+        require(balanceUser >= STAKE_AMOUNT, "User needs at least 100 GT! Get from faucet");
 
         console.log("\n[DONE] Phase 1\n");
     }

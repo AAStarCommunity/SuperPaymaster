@@ -115,14 +115,21 @@ contract DeploySuperPaymasterV2 is Script {
         try vm.envAddress("GTOKEN_ADDRESS") returns (address existingGToken) {
             GTOKEN = existingGToken;
             console.log("Using existing GToken:", GTOKEN);
-        } catch {
-            // Deploy mock GToken for testing
-            GTOKEN = address(new MockERC20("GToken", "GT", 18));
-            console.log("Deployed Mock GToken:", GTOKEN);
 
-            // Mint initial supply for testing (1,000,000 GT)
-            MockERC20(GTOKEN).mint(msg.sender, 1_000_000 ether);
-            console.log("Minted 1,000,000 GT to deployer");
+            // CRITICAL SAFETY CHECK: Verify it's a production GToken
+            // Production GToken MUST have cap() and owner() functions
+            (bool hasCapSuccess,) = GTOKEN.call(abi.encodeWithSignature("cap()"));
+            (bool hasOwnerSuccess,) = GTOKEN.call(abi.encodeWithSignature("owner()"));
+
+            require(hasCapSuccess, "SAFETY: GToken must have cap() function");
+            require(hasOwnerSuccess, "SAFETY: GToken must have owner() function");
+
+            console.log("Safety checks passed: cap() and owner() verified");
+        } catch {
+            // CRITICAL: GTOKEN_ADDRESS environment variable must be set
+            revert(
+                "SAFETY: GTOKEN_ADDRESS environment variable is required! Never deploy MockERC20 to public networks."
+            );
         }
 
         console.log("");
@@ -321,62 +328,5 @@ contract DeploySuperPaymasterV2 is Script {
         console.log("2. Register BLS public keys (blsAggregator.registerBLSPublicKey)");
         console.log("3. Register communities (registry.registerCommunity)");
         console.log("4. Test operator registration (superPaymaster.registerOperator)");
-    }
-}
-
-// ====================================
-// Mock Contracts for Testing
-// ====================================
-
-contract MockERC20 {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    uint256 public totalSupply;
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
-    }
-
-    function mint(address to, uint256 amount) external {
-        balanceOf[to] += amount;
-        totalSupply += amount;
-        emit Transfer(address(0), to, amount);
-    }
-
-    function burn(uint256 amount) external {
-        balanceOf[msg.sender] -= amount;
-        totalSupply -= amount;
-        emit Transfer(msg.sender, address(0), amount);
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        emit Transfer(from, to, amount);
-        return true;
     }
 }
