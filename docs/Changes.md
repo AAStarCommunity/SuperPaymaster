@@ -4,6 +4,100 @@
 
 ---
 
+## Phase 21 - stGToken 重命名 + MySBT 测试覆盖 (2025-10-25)
+
+**Type**: Code Quality & Testing
+**Status**: ✅ Complete
+
+### 🎯 目标
+
+1. 重命名 sGToken→stGToken 以提高代码可读性
+2. 添加 MySBTWithNFTBinding 的完整测试覆盖
+
+### 🔧 完成内容
+
+#### 1️⃣ 重命名 sGToken→stGToken
+
+**影响范围**:
+- `src/` - 所有合约源码
+- `script/` - 所有部署脚本
+- `contracts/test/` - 所有测试文件
+
+**更改**:
+- ✅ 175 处 `sGToken` → `stGToken`
+- ✅ 所有注释中的术语更新
+- ✅ 变量名更新（`sGTokenShares` → `stGTokenShares`, `sGTokenLocked` → `stGTokenLocked`）
+- ✅ 编译测试通过（16 个 SuperPaymasterV2 测试全部通过）
+
+**原因**: `stGToken` = "staked GToken" 更清晰，与 stETH（Lido）命名风格一致
+
+#### 2️⃣ MySBTWithNFTBinding 测试套件
+
+**文件**: `contracts/test/MySBTWithNFTBinding.t.sol` (301 行)
+
+**测试用例** (3 个，全部通过 ✅):
+
+1. **test_BurnSBT_FeeDistribution**
+   - 验证 burn SBT 后的 stGToken 费用分配
+   - Treasury 收到 0.1 stGT exit fee ✅
+   - 用户锁定 0.3 stGT，burn 后损失 0.1 stGT（手续费）✅
+   - 净返还用户 0.2 stGT ✅
+
+2. **test_BurnSBT_RequiresNFTUnbind**
+   - 测试 burn 保护：必须先 unbind NFT
+   - CUSTODIAL 模式：NFT 转移到合约 ✅
+   - 尝试 burn 时正确 revert ✅
+   - 7 天冷却期后成功 unbind ✅
+   - unbind 后 burn 成功 ✅
+
+3. **test_BurnSBT_NonCustodialNFT**
+   - 测试非托管模式的 NFT binding
+   - NON_CUSTODIAL 模式：NFT 保留在用户钱包 ✅
+   - 仍然需要 unbind 才能 burn ✅
+   - unbind 后 NFT 仍在用户钱包（不转移）✅
+
+**Mock 合约**:
+- `MockERC20`: 简化版 GToken（用于测试）
+- `MockERC721`: 简化版 NFT（测试 binding）
+
+### 📊 测试结果
+
+```bash
+Ran 3 tests for contracts/test/MySBTWithNFTBinding.t.sol:MySBTWithNFTBindingTest
+[PASS] test_BurnSBT_FeeDistribution() (gas: 401351)
+Logs:
+  Treasury received (stGT): 100000000000000000  # 0.1 stGT
+  Alice net loss (stGT): 100000000000000000     # 0.1 stGT
+
+[PASS] test_BurnSBT_NonCustodialNFT() (gas: 614379)
+[PASS] test_BurnSBT_RequiresNFTUnbind() (gas: 616479)
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped
+```
+
+### ✅ 验证要点
+
+#### stGToken Exit Fee 分配
+- **锁定**: 0.3 stGT (minLockAmount)
+- **Exit Fee**: 0.1 stGT (baseExitFee) → Treasury
+- **用户收回**: 0.2 stGT (0.3 - 0.1)
+- **费用流向**: `GTokenStaking.unlockStake()` → `calculateExitFee()` → Treasury
+
+#### NFT Burn 保护
+- **CUSTODIAL**: NFT 托管在 SBT 合约，unbind 时转回
+- **NON_CUSTODIAL**: NFT 保留在用户钱包，unbind 只更新状态
+- **7天冷却期**: `requestUnbind()` + 7 days → `executeUnbind()`
+- **Burn 检查**: `burnSBT()` 会检查 `sbtCommunities[tokenId].length > 0` 并 revert
+
+### 📝 提交
+
+```
+Commit 1: Rename sGToken to stGToken across codebase (8d7dc11)
+Commit 2: Add comprehensive tests for MySBTWithNFTBinding (4ddb18a)
+```
+
+---
+
 ## Phase 20 - Registry Get-SBT 页面开发 (2025-10-25)
 
 **Type**: Frontend Development
