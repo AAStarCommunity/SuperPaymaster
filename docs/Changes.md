@@ -222,6 +222,17 @@ $4 / $0.02 = 200 aPNT
 
 ---
 
+## Phase 24 - Registry v2.1升级：可配置节点+阶梯Slash (2025-01-26)
+
+**Type**: Contract Upgrade
+**Status**: ✅ Complete
+
+Registry v2.0→v2.1（向后兼容）：硬编码→可配置NodeTypeConfig；2模式→4节点类型（AOA/Super/ANode/KMS）；固定10%→阶梯2%-10% Slash；添加superPaymasterV2存储+治理接口。
+
+**相关**: 修复Step6_RegisterRegistry_v2.tsx传参bug
+
+---
+
 ## Phase 23 - RegistryExplorer Bug修复 + Registry版本对比 (2025-01-26)
 
 **Type**: Bug Fix & Analysis
