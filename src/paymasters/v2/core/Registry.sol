@@ -6,26 +6,47 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title Registry
- * @notice Community metadata storage, staking management, and slash system for SuperPaymaster v2.0
+ * @title Registry v2.1
+ * @notice Community metadata storage, staking management, and slash system for SuperPaymaster
  * @dev Stores all community information and enforces reputation through stGToken locks
  *
  * Key Features:
  * - Atomic registration: metadata + stGToken lock in one transaction
- * - Failure monitoring and automatic slash triggers
- * - Support for both AOA (INDEPENDENT) and Super mode
+ * - Failure monitoring and progressive slash system (2%-10%)
+ * - Support for 4 node types: AOA, Super, ANode, KMS
+ * - Configurable stake requirements per node type (governance)
  *
  * Architecture:
  * - Registry stores metadata and triggers slash
  * - GTokenStaking executes lock and slash operations
  * - Oracle reports failures for monitoring
+ *
+ * @custom:version 2.1
+ * @custom:changes Added configurable node types and progressive slash
  */
 contract Registry is Ownable, ReentrancyGuard {
 
-    /// @notice Paymaster operation mode
+    /// @notice Node type (replaces PaymasterMode for extensibility)
+    enum NodeType {
+        PAYMASTER_AOA,      // 0: AOA (Asset Oriented Abstraction) independent Paymaster
+        PAYMASTER_SUPER,    // 1: SuperPaymaster v2 shared mode
+        ANODE,              // 2: Community computation node
+        KMS                 // 3: Key Management Service node
+    }
+
+    /// @notice Node type configuration (governance adjustable)
+    struct NodeTypeConfig {
+        uint256 minStake;           // Minimum stGToken stake required
+        uint256 slashThreshold;     // Failure count to trigger slash
+        uint256 slashBase;          // Base slash percentage (e.g., 2 = 2%)
+        uint256 slashIncrement;     // Increment per failure (e.g., 1 = +1% per failure)
+        uint256 slashMax;           // Maximum slash percentage (e.g., 10 = 10%)
+    }
+
+    /// @notice Legacy enum for backward compatibility (mapped to NodeType)
     enum PaymasterMode {
-        INDEPENDENT,  // Traditional独立Paymaster
-        SUPER         // SuperPaymaster v2.0共享模式
+        INDEPENDENT,  // Maps to PAYMASTER_AOA
+        SUPER         // Maps to PAYMASTER_SUPER
     }
 
     /// @notice Complete community profile with metadata and configuration
@@ -46,9 +67,10 @@ contract Registry is Ownable, ReentrancyGuard {
         address xPNTsToken;             // Community points token address
         address[] supportedSBTs;        // List of supported SBT contracts
 
-        // Paymaster configuration
-        PaymasterMode mode;             // INDEPENDENT or SUPER
-        address paymasterAddress;       // Paymaster contract address
+        // Node configuration
+        PaymasterMode mode;             // Legacy: INDEPENDENT or SUPER (backward compat)
+        NodeType nodeType;              // v2.1: Actual node type (AOA/SUPER/ANODE/KMS)
+        address paymasterAddress;       // Paymaster/Node contract address
         address community;              // Community admin address
 
         // Metadata
@@ -68,22 +90,6 @@ contract Registry is Ownable, ReentrancyGuard {
     }
 
     // ====================================
-    // Constants
-    // ====================================
-
-    /// @notice Minimum stGToken stake for AOA (INDEPENDENT) mode
-    uint256 public constant MIN_STAKE_AOA = 30 ether;
-
-    /// @notice Minimum stGToken stake for Super mode
-    uint256 public constant MIN_STAKE_SUPER = 50 ether;
-
-    /// @notice Failure threshold to trigger slash
-    uint256 public constant SLASH_THRESHOLD = 10;
-
-    /// @notice Slash percentage (10%)
-    uint256 public constant SLASH_PERCENTAGE = 10;
-
-    // ====================================
     // Storage
     // ====================================
 
@@ -92,6 +98,12 @@ contract Registry is Ownable, ReentrancyGuard {
 
     /// @notice Oracle address (can report failures)
     address public oracle;
+
+    /// @notice SuperPaymaster v2 contract address (for Super mode communities)
+    address public superPaymasterV2;
+
+    /// @notice Node type configurations (governance adjustable)
+    mapping(NodeType => NodeTypeConfig) public nodeTypeConfigs;
 
     /// @notice Main storage: community address => profile
     mapping(address => CommunityProfile) public communities;
@@ -120,6 +132,7 @@ contract Registry is Ownable, ReentrancyGuard {
         string name,
         string ensName,
         PaymasterMode mode,
+        NodeType indexed nodeType,
         uint256 stGTokenLocked
     );
 
@@ -160,6 +173,16 @@ contract Registry is Ownable, ReentrancyGuard {
         address indexed newOracle
     );
 
+    event SuperPaymasterV2Updated(
+        address indexed newSuperPaymasterV2
+    );
+
+    event NodeTypeConfigured(
+        NodeType indexed nodeType,
+        uint256 minStake,
+        uint256 slashThreshold
+    );
+
     // ====================================
     // Errors
     // ====================================
@@ -178,14 +201,52 @@ contract Registry is Ownable, ReentrancyGuard {
     // ====================================
 
     /**
-     * @notice Initialize Registry with GTokenStaking contract
+     * @notice Initialize Registry v2.1 with GTokenStaking contract
      * @param _gtokenStaking GTokenStaking contract address
+     * @dev Initializes default node type configurations (governance adjustable later)
      */
     constructor(address _gtokenStaking) Ownable(msg.sender) {
         if (_gtokenStaking == address(0)) {
             revert InvalidAddress(_gtokenStaking);
         }
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
+
+        // Initialize default node type configurations
+        // PAYMASTER_AOA: 30 GT stake, 10 failures → 2% base, +1% per failure, max 10%
+        nodeTypeConfigs[NodeType.PAYMASTER_AOA] = NodeTypeConfig({
+            minStake: 30 ether,
+            slashThreshold: 10,
+            slashBase: 2,
+            slashIncrement: 1,
+            slashMax: 10
+        });
+
+        // PAYMASTER_SUPER: 50 GT stake, 10 failures → 2% base, +1% per failure, max 10%
+        nodeTypeConfigs[NodeType.PAYMASTER_SUPER] = NodeTypeConfig({
+            minStake: 50 ether,
+            slashThreshold: 10,
+            slashBase: 2,
+            slashIncrement: 1,
+            slashMax: 10
+        });
+
+        // ANODE: 20 GT stake (lower for computation), 15 failures → 1% base, +1%, max 5%
+        nodeTypeConfigs[NodeType.ANODE] = NodeTypeConfig({
+            minStake: 20 ether,
+            slashThreshold: 15,
+            slashBase: 1,
+            slashIncrement: 1,
+            slashMax: 5
+        });
+
+        // KMS: 100 GT stake (higher for security), 5 failures → 5% base, +2%, max 20%
+        nodeTypeConfigs[NodeType.KMS] = NodeTypeConfig({
+            minStake: 100 ether,
+            slashThreshold: 5,
+            slashBase: 5,
+            slashIncrement: 2,
+            slashMax: 20
+        });
     }
 
     // ====================================
@@ -215,11 +276,19 @@ contract Registry is Ownable, ReentrancyGuard {
             revert("Name cannot be empty");
         }
 
-        // Check minimum stake requirement (except for Super mode with existing lock)
+        // Map legacy PaymasterMode to NodeType (backward compatibility)
+        NodeType nodeType = profile.mode == PaymasterMode.INDEPENDENT
+            ? NodeType.PAYMASTER_AOA
+            : NodeType.PAYMASTER_SUPER;
+
+        // Get config for this node type
+        NodeTypeConfig memory config = nodeTypeConfigs[nodeType];
+
+        // Check minimum stake requirement
         if (profile.mode == PaymasterMode.INDEPENDENT) {
             // AOA mode MUST lock stGToken here
-            if (stGTokenAmount < MIN_STAKE_AOA) {
-                revert InsufficientStake(stGTokenAmount, MIN_STAKE_AOA);
+            if (stGTokenAmount < config.minStake) {
+                revert InsufficientStake(stGTokenAmount, config.minStake);
             }
 
             // Lock stGToken via GTokenStaking (atomic)
@@ -232,8 +301,8 @@ contract Registry is Ownable, ReentrancyGuard {
             // Super mode: either lock here or already locked via SuperPaymaster
             if (stGTokenAmount > 0) {
                 // If providing stake, check minimum
-                if (stGTokenAmount < MIN_STAKE_SUPER) {
-                    revert InsufficientStake(stGTokenAmount, MIN_STAKE_SUPER);
+                if (stGTokenAmount < config.minStake) {
+                    revert InsufficientStake(stGTokenAmount, config.minStake);
                 }
 
                 // Lock stGToken
@@ -245,11 +314,14 @@ contract Registry is Ownable, ReentrancyGuard {
             } else {
                 // Verify already locked via SuperPaymaster
                 uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, msg.sender);
-                if (existingLock < MIN_STAKE_SUPER) {
-                    revert InsufficientStake(existingLock, MIN_STAKE_SUPER);
+                if (existingLock < config.minStake) {
+                    revert InsufficientStake(existingLock, config.minStake);
                 }
             }
         }
+
+        // Set nodeType in profile
+        profile.nodeType = nodeType;
 
         // Check name uniqueness (case-insensitive)
         string memory lowercaseName = _toLowercase(profile.name);
@@ -303,6 +375,7 @@ contract Registry is Ownable, ReentrancyGuard {
             profile.name,
             profile.ensName,
             profile.mode,
+            profile.nodeType,
             communityStakes[communityAddress].stGTokenLocked
         );
     }
@@ -571,31 +644,53 @@ contract Registry is Ownable, ReentrancyGuard {
 
         emit FailureReported(community, stake.failureCount, block.timestamp);
 
-        // Trigger slash if threshold reached
-        if (stake.failureCount >= SLASH_THRESHOLD) {
+        // Get node type config for threshold
+        NodeType nodeType = communities[community].nodeType;
+        NodeTypeConfig memory config = nodeTypeConfigs[nodeType];
+
+        // Trigger slash if threshold reached (configurable per node type)
+        if (stake.failureCount >= config.slashThreshold) {
             _slashCommunity(community);
         }
     }
 
     /**
-     * @notice Internal function to slash community's stGToken
+     * @notice Internal function to slash community's stGToken (progressive slash)
      * @param community Community address to slash
-     * @dev Slashes SLASH_PERCENTAGE of locked stake and resets failure count
+     * @dev v2.1: Implements progressive slash (2%-10%) based on failure count
+     *      Example: 10 failures → 2% + (10-10)*1% = 2%
+     *               11 failures → 2% + (11-10)*1% = 3%
+     *               20 failures → 2% + (20-10)*1% = 12% capped at 10%
      */
     function _slashCommunity(address community) internal {
         CommunityStake storage stake = communityStakes[community];
+        NodeType nodeType = communities[community].nodeType;
+        NodeTypeConfig memory config = nodeTypeConfigs[nodeType];
 
-        // Calculate slash amount (10% of locked stake)
-        uint256 slashAmount = stake.stGTokenLocked * SLASH_PERCENTAGE / 100;
+        // Calculate progressive slash percentage
+        uint256 excessFailures = stake.failureCount > config.slashThreshold
+            ? stake.failureCount - config.slashThreshold
+            : 0;
+        uint256 slashPercentage = config.slashBase + (excessFailures * config.slashIncrement);
+
+        // Cap at maximum
+        if (slashPercentage > config.slashMax) {
+            slashPercentage = config.slashMax;
+        }
+
+        // Calculate slash amount
+        uint256 slashAmount = stake.stGTokenLocked * slashPercentage / 100;
 
         // Execute slash via GTokenStaking
         uint256 slashed = GTOKEN_STAKING.slash(
             community,
             slashAmount,
             string(abi.encodePacked(
-                "Registry slash: ",
+                "Registry v2.1 progressive slash: ",
                 _toString(stake.failureCount),
-                " consecutive failures"
+                " failures, ",
+                _toString(slashPercentage),
+                "% penalty"
             ))
         );
 
@@ -604,8 +699,8 @@ contract Registry is Ownable, ReentrancyGuard {
         stake.totalSlashed += slashed;
         stake.failureCount = 0;  // Reset counter after slash
 
-        // Deactivate if stake too low
-        if (stake.stGTokenLocked < MIN_STAKE_AOA / 2) {
+        // Deactivate if stake too low (50% of minimum)
+        if (stake.stGTokenLocked < config.minStake / 2) {
             stake.isActive = false;
             communities[community].isActive = false;
             emit CommunityDeactivated(community, "Insufficient stake after slash");
@@ -636,6 +731,38 @@ contract Registry is Ownable, ReentrancyGuard {
         address oldOracle = oracle;
         oracle = _oracle;
         emit OracleUpdated(oldOracle, _oracle);
+    }
+
+    /**
+     * @notice Set SuperPaymaster v2 contract address (for Super mode)
+     * @param _superPaymasterV2 New SuperPaymaster v2 contract address
+     * @dev Can only be called by contract owner
+     */
+    function setSuperPaymasterV2(address _superPaymasterV2) external onlyOwner {
+        if (_superPaymasterV2 == address(0)) {
+            revert InvalidAddress(_superPaymasterV2);
+        }
+        superPaymasterV2 = _superPaymasterV2;
+        emit SuperPaymasterV2Updated(_superPaymasterV2);
+    }
+
+    /**
+     * @notice Configure node type settings (governance)
+     * @param nodeType Node type to configure
+     * @param config Configuration for this node type
+     * @dev Can only be called by contract owner
+     *      Allows adjusting min stake, slash thresholds, and penalties
+     */
+    function configureNodeType(
+        NodeType nodeType,
+        NodeTypeConfig calldata config
+    ) external onlyOwner {
+        require(config.minStake > 0, "Min stake must be > 0");
+        require(config.slashThreshold > 0, "Slash threshold must be > 0");
+        require(config.slashMax >= config.slashBase, "Max must be >= base");
+
+        nodeTypeConfigs[nodeType] = config;
+        emit NodeTypeConfigured(nodeType, config.minStake, config.slashThreshold);
     }
 
     // ====================================
