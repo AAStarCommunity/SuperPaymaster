@@ -78,39 +78,44 @@ contract DeployRegistryV2_1 is Script {
         (uint256 minStake, uint256 slashThreshold, uint256 slashBase, uint256 slashIncrement, uint256 slashMax)
             = registryV2_1.nodeTypeConfigs(Registry.NodeType.PAYMASTER_AOA);
         console.log("\nPAYMASTER_AOA:");
-        console.log("  Min Stake:", minStake / 1e18, "GT");
-        console.log("  Slash Threshold:", slashThreshold, "failures");
-        console.log("  Slash Range:", slashBase, "% -", slashMax, "%");
+        console.log("  Min Stake:", minStake / 1e18);
+        console.log("  Slash Threshold:", slashThreshold);
+        console.log("  Slash Base:", slashBase);
+        console.log("  Slash Max:", slashMax);
 
         // PAYMASTER_SUPER
         (minStake, slashThreshold, slashBase, slashIncrement, slashMax)
             = registryV2_1.nodeTypeConfigs(Registry.NodeType.PAYMASTER_SUPER);
         console.log("\nPAYMASTER_SUPER:");
-        console.log("  Min Stake:", minStake / 1e18, "GT");
-        console.log("  Slash Threshold:", slashThreshold, "failures");
-        console.log("  Slash Range:", slashBase, "% -", slashMax, "%");
+        console.log("  Min Stake:", minStake / 1e18);
+        console.log("  Slash Threshold:", slashThreshold);
+        console.log("  Slash Base:", slashBase);
+        console.log("  Slash Max:", slashMax);
 
         // ANODE
         (minStake, slashThreshold, slashBase, slashIncrement, slashMax)
             = registryV2_1.nodeTypeConfigs(Registry.NodeType.ANODE);
         console.log("\nANODE:");
-        console.log("  Min Stake:", minStake / 1e18, "GT");
-        console.log("  Slash Threshold:", slashThreshold, "failures");
-        console.log("  Slash Range:", slashBase, "% -", slashMax, "%");
+        console.log("  Min Stake:", minStake / 1e18);
+        console.log("  Slash Threshold:", slashThreshold);
+        console.log("  Slash Base:", slashBase);
+        console.log("  Slash Max:", slashMax);
 
         // KMS
         (minStake, slashThreshold, slashBase, slashIncrement, slashMax)
             = registryV2_1.nodeTypeConfigs(Registry.NodeType.KMS);
         console.log("\nKMS:");
-        console.log("  Min Stake:", minStake / 1e18, "GT");
-        console.log("  Slash Threshold:", slashThreshold, "failures");
-        console.log("  Slash Range:", slashBase, "% -", slashMax, "%");
+        console.log("  Min Stake:", minStake / 1e18);
+        console.log("  Slash Threshold:", slashThreshold);
+        console.log("  Slash Base:", slashBase);
+        console.log("  Slash Max:", slashMax);
 
         console.log("\n=== Next Steps ===");
         console.log("1. Add Registry v2.1 as locker in GTokenStaking:");
-        console.log("   GTokenStaking(", GTOKEN_STAKING, ").addLocker(", address(registryV2_1), ")");
+        console.log("   GTokenStaking:", GTOKEN_STAKING);
+        console.log("   Registry v2.1:", address(registryV2_1));
         console.log("\n2. Update frontend configs with new Registry v2.1 address");
         console.log("\n3. Update .env files:");
-        console.log("   V2_REGISTRY=", address(registryV2_1));
+        console.log("   V2_1_REGISTRY:", address(registryV2_1));
     }
 }
