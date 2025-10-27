@@ -158,6 +158,7 @@ contract TestRegistryLaunchPaymaster is Script {
             xPNTsToken: xpntsAOA,
             supportedSBTs: supportedSBTs,
             mode: Registry.PaymasterMode.INDEPENDENT,
+            nodeType: Registry.NodeType.PAYMASTER_AOA,  // v2.1: AOA node type
             paymasterAddress: address(0),  // No SuperPaymaster for AOA
             community: address(0),  // Will be set by Registry
             registeredAt: 0,  // Will be set by Registry
@@ -250,6 +251,7 @@ contract TestRegistryLaunchPaymaster is Script {
             xPNTsToken: xpntsSuper,
             supportedSBTs: supportedSBTs,
             mode: Registry.PaymasterMode.SUPER,
+            nodeType: Registry.NodeType.PAYMASTER_SUPER,  // v2.1: Super node type
             paymasterAddress: address(superPaymaster),
             community: address(0),
             registeredAt: 0,
