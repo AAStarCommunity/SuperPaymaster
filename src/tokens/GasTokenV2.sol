@@ -4,6 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
+/// @notice Interface for GasToken price query
+interface IGasTokenPrice {
+    function getPrice() external view returns (uint256);
+    function getEffectivePrice() external view returns (uint256);
+}
+
 /**
  * @title GasTokenV2
  * @notice ERC20 token with updatable auto-approval for Paymaster contract
@@ -19,12 +25,17 @@ contract GasTokenV2 is ERC20, Ownable {
     /// @notice Paymaster/Settlement contract address (updatable)
     address public paymaster;
 
-    /// @notice Exchange rate relative to base PNT (1e18 = 1:1)
-    /// @dev Example: 1.2e18 means 1 token = 1.2 base PNT
+    /// @notice Base price token address (for derived tokens like xPNTs)
+    /// @dev address(0) for base tokens (aPNTs), non-zero for derived tokens
+    address public basePriceToken;
+
+    /// @notice Exchange rate relative to base token (18 decimals, 1e18 = 1:1)
+    /// @dev Example: 4e18 means 1 this-token = 4 base-tokens
+    /// @dev For base tokens (aPNTs), this is 1e18
     uint256 public exchangeRate;
 
     /// @notice Token price in USD (18 decimals), e.g., 0.02e18 = $0.02
-    /// @dev Used by Paymaster to calculate gas cost in tokens
+    /// @dev Only used for base tokens (basePriceToken == address(0))
     uint256 public priceUSD;
 
     /// @notice Maximum approval amount (effectively unlimited)
@@ -56,13 +67,15 @@ contract GasTokenV2 is ERC20, Ownable {
      * @param name Token name (e.g., "Points Token")
      * @param symbol Token symbol (e.g., "PNT")
      * @param _paymaster Initial Paymaster/Settlement contract address
-     * @param _exchangeRate Initial exchange rate (1e18 = 1:1)
-     * @param _priceUSD Initial price in USD (18 decimals), default 0.02e18 = $0.02
+     * @param _basePriceToken Base token address (address(0) for base tokens like aPNTs)
+     * @param _exchangeRate Exchange rate (18 decimals), 1e18 for base tokens, 4e18 for 1:4 ratio
+     * @param _priceUSD Price in USD (18 decimals), only for base tokens, default 0.02e18
      */
     constructor(
         string memory name,
         string memory symbol,
         address _paymaster,
+        address _basePriceToken,
         uint256 _exchangeRate,
         uint256 _priceUSD
     ) ERC20(name, symbol) Ownable(msg.sender) {
@@ -70,8 +83,13 @@ contract GasTokenV2 is ERC20, Ownable {
         if (_exchangeRate == 0) revert ZeroExchangeRate();
 
         paymaster = _paymaster;
+        basePriceToken = _basePriceToken;
         exchangeRate = _exchangeRate;
-        priceUSD = _priceUSD > 0 ? _priceUSD : 0.02e18; // Default to $0.02 if not specified
+
+        // Only base tokens need priceUSD
+        if (_basePriceToken == address(0)) {
+            priceUSD = _priceUSD > 0 ? _priceUSD : 0.02e18;
+        }
     }
 
     /**
@@ -150,11 +168,31 @@ contract GasTokenV2 is ERC20, Ownable {
     }
 
     /**
-     * @notice Get token price in USD
+     * @notice Get token price in USD (raw, for base tokens only)
      * @return Token price in USD (18 decimals)
      */
     function getPrice() external view returns (uint256) {
         return priceUSD;
+    }
+
+    /**
+     * @notice Get effective price in USD (considers exchange rate for derived tokens)
+     * @dev For base tokens (aPNTs): returns priceUSD directly
+     * @dev For derived tokens (xPNTs): returns basePrice * exchangeRate / 1e18
+     * @return Effective token price in USD (18 decimals)
+     */
+    function getEffectivePrice() external view returns (uint256) {
+        if (basePriceToken == address(0)) {
+            // Base token: direct price
+            return priceUSD;
+        } else {
+            // Derived token: calculate based on base token price
+            uint256 basePrice = IGasTokenPrice(basePriceToken).getPrice();
+            // effectivePrice = basePrice * exchangeRate / 1e18
+            // Example: aPNT = $0.02, xPNT exchangeRate = 4e18
+            // effectivePrice = 0.02e18 * 4e18 / 1e18 = 0.08e18 ($0.08)
+            return (basePrice * exchangeRate) / 1e18;
+        }
     }
 
     /**

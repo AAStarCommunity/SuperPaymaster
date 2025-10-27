@@ -31,7 +31,9 @@ contract GasTokenFactoryV2 is Ownable {
         string name,
         string symbol,
         address indexed paymaster,
+        address basePriceToken,
         uint256 exchangeRate,
+        uint256 priceUSD,
         address indexed deployer
     );
 
@@ -42,26 +44,29 @@ contract GasTokenFactoryV2 is Ownable {
      * @param name Token name (e.g., "Points Token")
      * @param symbol Token symbol (e.g., "PNT")
      * @param paymaster Initial Paymaster contract address for this token
-     * @param exchangeRate Exchange rate relative to base (1e18 = 1:1)
+     * @param basePriceToken Base token address (address(0) for base tokens like aPNTs)
+     * @param exchangeRate Exchange rate (18 decimals), 1e18 for base tokens, 4e18 for 1:4 ratio
+     * @param priceUSD Price in USD (18 decimals), only for base tokens, e.g., 0.02e18
      * @return token Address of deployed GasTokenV2
      *
      * @dev Example use cases:
-     *   - Deploy PNT (base): createToken("Points", "PNT", paymasterV4, 1e18)
-     *   - Deploy aPNT: createToken("A Points", "aPNT", paymasterV4, 1.2e18)
-     *   - Deploy bPNT: createToken("B Points", "bPNT", paymasterV4, 0.8e18)
+     *   - Deploy aPNT (base): createToken("Alpha Points", "aPNT", paymasterV4, address(0), 1e18, 0.02e18)
+     *   - Deploy xPNT (derived): createToken("X Points", "xPNT", paymasterV4, aPNTAddress, 4e18, 0)
      */
     function createToken(
         string memory name,
         string memory symbol,
         address paymaster,
-        uint256 exchangeRate
+        address basePriceToken,
+        uint256 exchangeRate,
+        uint256 priceUSD
     ) external returns (address token) {
         require(paymaster != address(0), "Factory: zero paymaster");
         require(exchangeRate > 0, "Factory: zero rate");
         require(tokenBySymbol[symbol] == address(0), "Factory: symbol exists");
 
         // Deploy new GasTokenV2
-        GasTokenV2 newToken = new GasTokenV2(name, symbol, paymaster, exchangeRate);
+        GasTokenV2 newToken = new GasTokenV2(name, symbol, paymaster, basePriceToken, exchangeRate, priceUSD);
 
         // Transfer ownership to caller (issuer)
         newToken.transferOwnership(msg.sender);
@@ -78,7 +83,9 @@ contract GasTokenFactoryV2 is Ownable {
             name,
             symbol,
             paymaster,
+            basePriceToken,
             exchangeRate,
+            priceUSD,
             msg.sender
         );
 

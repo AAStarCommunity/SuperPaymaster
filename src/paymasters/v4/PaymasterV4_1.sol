@@ -14,11 +14,11 @@ import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol"
  */
 contract PaymasterV4_1 is PaymasterV4 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                          STORAGE                           */
+    /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice SuperPaymaster Registry contract for deactivation management
-    ISuperPaymasterRegistry public registry;
+    /// @notice SuperPaymaster Registry contract (immutable, set at deployment)
+    ISuperPaymasterRegistry public immutable registry;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -30,10 +30,6 @@ contract PaymasterV4_1 is PaymasterV4 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    /// @notice Emitted when Registry address is updated
-    /// @param registry New registry address
-    event RegistryUpdated(address indexed registry);
 
     /// @notice Emitted when Paymaster is deactivated from Registry
     /// @param paymaster Address of the deactivated Paymaster
@@ -48,37 +44,37 @@ contract PaymasterV4_1 is PaymasterV4 {
      * @param _entryPoint EntryPoint contract address (v0.7)
      * @param _owner Initial owner address
      * @param _treasury Treasury address for fee collection
-     * @param _gasToUSDRate Gas to USD conversion rate (18 decimals)
-     * @param _pntPriceUSD PNT price in USD (18 decimals)
+     * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
      * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
      * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
-     * @param _minTokenBalance Minimum token balance required (wei)
      * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
      * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
+     * @param _registry SuperPaymasterRegistry contract address (immutable)
      */
     constructor(
         address _entryPoint,
         address _owner,
         address _treasury,
-        uint256 _gasToUSDRate,
-        uint256 _pntPriceUSD,
+        address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        uint256 _minTokenBalance,
         address _initialSBT,
-        address _initialGasToken
+        address _initialGasToken,
+        address _registry
     )
         PaymasterV4(
             _entryPoint,
             _owner,
             _treasury,
-            _gasToUSDRate,
-            _pntPriceUSD,
+            _ethUsdPriceFeed,
             _serviceFeeRate,
-            _maxGasCostCap,
-            _minTokenBalance
+            _maxGasCostCap
         )
     {
+        // Initialize immutable Registry
+        if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
+        registry = ISuperPaymasterRegistry(_registry);
+
         // Add initial SBT if provided
         if (_initialSBT != address(0)) {
             _addSBT(_initialSBT);
@@ -93,18 +89,6 @@ contract PaymasterV4_1 is PaymasterV4 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    REGISTRY MANAGEMENT                     */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    /**
-     * @notice Set Registry contract address
-     * @dev Only owner can call
-     * @dev Must be called before deactivateFromRegistry()
-     * @param _registry Address of SuperPaymasterRegistry contract
-     */
-    function setRegistry(address _registry) external onlyOwner {
-        if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
-        registry = ISuperPaymasterRegistry(_registry);
-        emit RegistryUpdated(_registry);
-    }
 
     /**
      * @notice Deactivate this Paymaster from Registry
