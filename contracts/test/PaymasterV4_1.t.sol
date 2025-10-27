@@ -7,6 +7,7 @@ import "./mocks/MockSBT.sol";
 import "../../src/tokens/GasTokenV2.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { ISuperPaymasterRegistry } from "../../src/interfaces/ISuperPaymasterRegistry.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title PaymasterV4_1Test
@@ -19,6 +20,7 @@ contract PaymasterV4_1Test is Test {
     GasTokenV2 public basePNT;
     GasTokenV2 public aPNT;
     MockRegistry public mockRegistry;
+    MockChainlinkPriceFeed public ethUsdPriceFeed;
 
     address public owner;
     address public treasury;
@@ -26,11 +28,9 @@ contract PaymasterV4_1Test is Test {
     address public entryPoint;
 
     // Initial parameters
-    uint256 constant INITIAL_GAS_TO_USD_RATE = 4500e18; // $4500/ETH
-    uint256 constant INITIAL_PNT_PRICE_USD = 0.02e18; // $0.02/PNT
     uint256 constant INITIAL_SERVICE_FEE_RATE = 200; // 2%
     uint256 constant INITIAL_MAX_GAS_COST_CAP = 1e18; // 1 ETH
-    uint256 constant INITIAL_MIN_TOKEN_BALANCE = 1000e18; // 1000 PNT
+    uint256 constant INITIAL_PNT_PRICE_USD = 0.02e18; // $0.02/PNT
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -42,31 +42,33 @@ contract PaymasterV4_1Test is Test {
         vm.startPrank(owner);
 
         sbt = new MockSBT();
+        mockRegistry = new MockRegistry();
+
+        // Deploy Chainlink price feed mock (ETH/USD = $4500)
+        ethUsdPriceFeed = new MockChainlinkPriceFeed(8, 4500e8); // 8 decimals, $4500
 
         // Deploy paymaster first
         paymaster = new PaymasterV4_1(
             entryPoint,
             owner,
             treasury,
-            INITIAL_GAS_TO_USD_RATE,
-            INITIAL_PNT_PRICE_USD,
+            address(ethUsdPriceFeed),  // Chainlink ETH/USD price feed
             INITIAL_SERVICE_FEE_RATE,
             INITIAL_MAX_GAS_COST_CAP,
-            INITIAL_MIN_TOKEN_BALANCE,
-            address(sbt),     // Initial SBT
-            address(0)        // Initial GasToken (will be added later)
+            address(sbt),              // Initial SBT
+            address(0),                // Initial GasToken (will be added later)
+            address(mockRegistry)      // Registry (immutable)
         );
 
         // Deploy GasTokens with paymaster address
-        basePNT = new GasTokenV2("Base PNT", "bPNT", address(paymaster), 1e18);
-        aPNT = new GasTokenV2("Alpha PNT", "aPNT", address(paymaster), 1e18);
+        // basePNT: base token, price = $0.02, exchangeRate = 1e18
+        basePNT = new GasTokenV2("Base PNT", "bPNT", address(paymaster), address(0), 1e18, INITIAL_PNT_PRICE_USD);
+        // aPNT: base token, price = $0.02, exchangeRate = 1e18
+        aPNT = new GasTokenV2("Alpha PNT", "aPNT", address(paymaster), address(0), 1e18, INITIAL_PNT_PRICE_USD);
 
         // Add GasTokens to paymaster (SBT already added in constructor)
         paymaster.addGasToken(address(basePNT));
         paymaster.addGasToken(address(aPNT));
-
-        // Deploy mock Registry
-        mockRegistry = new MockRegistry();
 
         vm.stopPrank();
     }
@@ -80,60 +82,14 @@ contract PaymasterV4_1Test is Test {
         assertEq(version, "PaymasterV4.1-Registry-v1.1.0");
     }
 
-    function test_InitialRegistryNotSet() public view {
-        assertFalse(paymaster.isRegistrySet());
-        assertEq(address(paymaster.registry()), address(0));
-    }
-
-    function test_InitialNotActiveInRegistry() public view {
-        assertFalse(paymaster.isActiveInRegistry());
-    }
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                   REGISTRY CONFIGURATION                   */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    function test_SetRegistry_Success() public {
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit PaymasterV4_1.RegistryUpdated(address(mockRegistry));
-        paymaster.setRegistry(address(mockRegistry));
-
+    function test_InitialRegistrySet() public view {
         assertTrue(paymaster.isRegistrySet());
         assertEq(address(paymaster.registry()), address(mockRegistry));
     }
 
-    function test_SetRegistry_RevertZeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert(PaymasterV4.PaymasterV4__ZeroAddress.selector);
-        paymaster.setRegistry(address(0));
-    }
-
-    function test_SetRegistry_RevertNonOwner() public {
-        address nonOwner = makeAddr("nonOwner");
-
-        vm.prank(nonOwner);
-        vm.expectRevert();
-        paymaster.setRegistry(address(mockRegistry));
-    }
-
-    function test_SetRegistry_UpdateExisting() public {
-        MockRegistry newRegistry = new MockRegistry();
-
-        vm.startPrank(owner);
-
-        // Set first registry
-        paymaster.setRegistry(address(mockRegistry));
-        assertEq(address(paymaster.registry()), address(mockRegistry));
-
-        // Update to new registry
-        vm.expectEmit(true, true, true, true);
-        emit PaymasterV4_1.RegistryUpdated(address(newRegistry));
-        paymaster.setRegistry(address(newRegistry));
-
-        assertEq(address(paymaster.registry()), address(newRegistry));
-
-        vm.stopPrank();
+    function test_InitialNotActiveInRegistry() public view {
+        // Not registered yet, so not active
+        assertFalse(paymaster.isActiveInRegistry());
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -141,10 +97,6 @@ contract PaymasterV4_1Test is Test {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function test_DeactivateFromRegistry_Success() public {
-        // Setup registry
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
         // Register paymaster in mock registry
         mockRegistry.registerPaymaster(address(paymaster));
         assertTrue(mockRegistry.isPaymasterActive(address(paymaster)));
@@ -160,17 +112,7 @@ contract PaymasterV4_1Test is Test {
         assertFalse(paymaster.isActiveInRegistry());
     }
 
-    function test_DeactivateFromRegistry_RevertRegistryNotSet() public {
-        vm.prank(owner);
-        vm.expectRevert(PaymasterV4_1.PaymasterV4_1__RegistryNotSet.selector);
-        paymaster.deactivateFromRegistry();
-    }
-
     function test_DeactivateFromRegistry_RevertNonOwner() public {
-        // Setup registry
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
         // Try to deactivate as non-owner
         address nonOwner = makeAddr("nonOwner");
         vm.prank(nonOwner);
@@ -179,10 +121,6 @@ contract PaymasterV4_1Test is Test {
     }
 
     function test_DeactivateFromRegistry_MultipleCallsAllowed() public {
-        // Setup registry
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
         mockRegistry.registerPaymaster(address(paymaster));
 
         // Deactivate twice
@@ -201,43 +139,18 @@ contract PaymasterV4_1Test is Test {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function test_IsActiveInRegistry_WhenActive() public {
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
         mockRegistry.registerPaymaster(address(paymaster));
-
         assertTrue(paymaster.isActiveInRegistry());
     }
 
     function test_IsActiveInRegistry_WhenInactive() public {
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
         mockRegistry.registerPaymaster(address(paymaster));
         mockRegistry.setPaymasterActive(address(paymaster), false);
-
         assertFalse(paymaster.isActiveInRegistry());
     }
 
-    function test_IsActiveInRegistry_WhenRegistryNotSet() public view {
-        assertFalse(paymaster.isActiveInRegistry());
-    }
-
-    function test_IsActiveInRegistry_WhenNotRegistered() public {
-        vm.prank(owner);
-        paymaster.setRegistry(address(mockRegistry));
-
+    function test_IsActiveInRegistry_WhenNotRegistered() public view {
         // Paymaster not registered
-        assertFalse(paymaster.isActiveInRegistry());
-    }
-
-    function test_IsActiveInRegistry_WithRevertingRegistry() public {
-        RevertingRegistry revertingRegistry = new RevertingRegistry();
-
-        vm.prank(owner);
-        paymaster.setRegistry(address(revertingRegistry));
-
-        // Should return false instead of reverting
         assertFalse(paymaster.isActiveInRegistry());
     }
 
@@ -249,21 +162,10 @@ contract PaymasterV4_1Test is Test {
         // Verify inherited state
         assertEq(paymaster.owner(), owner);
         assertEq(paymaster.treasury(), treasury);
-        assertEq(paymaster.gasToUSDRate(), INITIAL_GAS_TO_USD_RATE);
-        assertEq(paymaster.pntPriceUSD(), INITIAL_PNT_PRICE_USD);
+        assertEq(address(paymaster.ethUsdPriceFeed()), address(ethUsdPriceFeed));
         assertEq(paymaster.serviceFeeRate(), INITIAL_SERVICE_FEE_RATE);
         assertEq(paymaster.maxGasCostCap(), INITIAL_MAX_GAS_COST_CAP);
-        assertEq(paymaster.minTokenBalance(), INITIAL_MIN_TOKEN_BALANCE);
         assertFalse(paymaster.paused());
-    }
-
-    function test_InheritsPaymasterV4_OwnerFunctions() public {
-        uint256 newRate = 5000e18;
-
-        vm.prank(owner);
-        paymaster.setGasToUSDRate(newRate);
-
-        assertEq(paymaster.gasToUSDRate(), newRate);
     }
 
     // Helper to implement ERC721Receiver
@@ -351,40 +253,58 @@ contract MockRegistry is ISuperPaymasterRegistry {
 }
 
 /**
- * @notice Registry that always reverts on isPaymasterActive()
- * @dev Used to test try-catch in isActiveInRegistry()
+ * @notice Mock Chainlink Price Feed for testing
+ * @dev Simplified implementation of AggregatorV3Interface
  */
-contract RevertingRegistry is ISuperPaymasterRegistry {
-    function deactivate() external pure override {
-        revert("Always reverts");
+contract MockChainlinkPriceFeed is AggregatorV3Interface {
+    uint8 private _decimals;
+    int256 private _price;
+    uint256 private _updatedAt;
+
+    constructor(uint8 decimals_, int256 initialPrice) {
+        _decimals = decimals_;
+        _price = initialPrice;
+        _updatedAt = block.timestamp;
     }
 
-    function activate() external pure override {
-        revert("Always reverts");
+    function decimals() external view override returns (uint8) {
+        return _decimals;
     }
 
-    function isPaymasterActive(address) external pure override returns (bool) {
-        revert("Always reverts");
+    function description() external pure override returns (string memory) {
+        return "Mock ETH/USD Price Feed";
     }
 
-    function getPaymasterInfo(address)
+    function version() external pure override returns (uint256) {
+        return 1;
+    }
+
+    function getRoundData(uint80)
         external
         pure
         override
-        returns (uint256, bool, uint256, uint256, string memory)
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        revert("Always reverts");
+        revert("Not implemented");
     }
 
-    function getBestPaymaster() external pure override returns (address, uint256) {
-        revert("Always reverts");
+    function latestRoundData()
+        external
+        view
+        override
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
+        return (1, _price, block.timestamp, _updatedAt, 1);
     }
 
-    function getActivePaymasters() external pure override returns (address[] memory) {
-        revert("Always reverts");
+    // Helper function for testing: update price
+    function updatePrice(int256 newPrice) external {
+        _price = newPrice;
+        _updatedAt = block.timestamp;
     }
 
-    function getRouterStats() external pure override returns (uint256, uint256, uint256, uint256) {
-        revert("Always reverts");
+    // Helper function for testing: set stale data
+    function setStale(uint256 timestamp) external {
+        _updatedAt = timestamp;
     }
 }
