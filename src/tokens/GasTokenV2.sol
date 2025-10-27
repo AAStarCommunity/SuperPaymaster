@@ -23,6 +23,10 @@ contract GasTokenV2 is ERC20, Ownable {
     /// @dev Example: 1.2e18 means 1 token = 1.2 base PNT
     uint256 public exchangeRate;
 
+    /// @notice Token price in USD (18 decimals), e.g., 0.02e18 = $0.02
+    /// @dev Used by Paymaster to calculate gas cost in tokens
+    uint256 public priceUSD;
+
     /// @notice Maximum approval amount (effectively unlimited)
     uint256 private constant MAX_APPROVAL = type(uint256).max;
 
@@ -31,6 +35,9 @@ contract GasTokenV2 is ERC20, Ownable {
 
     /// @notice Event emitted when exchange rate is updated
     event ExchangeRateUpdated(uint256 oldRate, uint256 newRate);
+
+    /// @notice Event emitted when price is updated
+    event PriceUpdated(uint256 oldPrice, uint256 newPrice);
 
     /// @notice Event emitted when token is auto-approved
     event AutoApproved(address indexed user, address indexed paymaster, uint256 amount);
@@ -50,18 +57,21 @@ contract GasTokenV2 is ERC20, Ownable {
      * @param symbol Token symbol (e.g., "PNT")
      * @param _paymaster Initial Paymaster/Settlement contract address
      * @param _exchangeRate Initial exchange rate (1e18 = 1:1)
+     * @param _priceUSD Initial price in USD (18 decimals), default 0.02e18 = $0.02
      */
     constructor(
         string memory name,
         string memory symbol,
         address _paymaster,
-        uint256 _exchangeRate
+        uint256 _exchangeRate,
+        uint256 _priceUSD
     ) ERC20(name, symbol) Ownable(msg.sender) {
         if (_paymaster == address(0)) revert ZeroPaymaster();
         if (_exchangeRate == 0) revert ZeroExchangeRate();
 
         paymaster = _paymaster;
         exchangeRate = _exchangeRate;
+        priceUSD = _priceUSD > 0 ? _priceUSD : 0.02e18; // Default to $0.02 if not specified
     }
 
     /**
@@ -124,6 +134,27 @@ contract GasTokenV2 is ERC20, Ownable {
         exchangeRate = _exchangeRate;
 
         emit ExchangeRateUpdated(oldRate, _exchangeRate);
+    }
+
+    /**
+     * @notice Update token price in USD (only owner)
+     * @param _priceUSD New price in USD (18 decimals)
+     */
+    function setPrice(uint256 _priceUSD) external onlyOwner {
+        if (_priceUSD == 0) revert ZeroExchangeRate(); // Reuse error for simplicity
+
+        uint256 oldPrice = priceUSD;
+        priceUSD = _priceUSD;
+
+        emit PriceUpdated(oldPrice, _priceUSD);
+    }
+
+    /**
+     * @notice Get token price in USD
+     * @return Token price in USD (18 decimals)
+     */
+    function getPrice() external view returns (uint256) {
+        return priceUSD;
     }
 
     /**

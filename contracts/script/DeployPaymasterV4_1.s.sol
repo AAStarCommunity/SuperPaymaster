@@ -57,7 +57,9 @@ contract DeployPaymasterV4_1 is Script {
             pntPriceUSD,
             serviceFeeRate,
             maxGasCostCap,
-            minTokenBalance
+            minTokenBalance,
+            sbtAddress,       // Initial SBT (optional)
+            gasTokenAddress   // Initial GasToken (optional)
         );
 
         console.log("\n=== Deployment Successful ===");
@@ -107,8 +109,8 @@ contract DeployPaymasterV4_1 is Script {
         address sbtAddress,
         address gasTokenAddress
     ) internal {
-        // Note: Configuration functions require owner privileges
-        // If owner is different from deployer, these must be called separately
+        // Note: SBT and GasToken are already added in constructor if provided
+        // This function only configures Registry
 
         // Check if we are the owner (deployer == owner)
         address deployer = msg.sender;
@@ -119,29 +121,21 @@ contract DeployPaymasterV4_1 is Script {
             if (registryAddress != address(0)) {
                 console.log("- Owner must call: setRegistry(", registryAddress, ")");
             }
-            if (sbtAddress != address(0)) {
-                console.log("- Owner must call: addSBT(", sbtAddress, ")");
-            }
-            if (gasTokenAddress != address(0)) {
-                console.log("- Owner must call: addGasToken(", gasTokenAddress, ")");
-            }
             return;
         }
 
-        // If we are the owner, configure directly
+        // If we are the owner, configure Registry
         if (registryAddress != address(0)) {
             paymaster.setRegistry(registryAddress);
             console.log("Registry configured:", registryAddress);
         }
 
+        // Log initial configuration
         if (sbtAddress != address(0)) {
-            paymaster.addSBT(sbtAddress);
-            console.log("Added SBT:", sbtAddress);
+            console.log("Initial SBT added in constructor:", sbtAddress);
         }
-
         if (gasTokenAddress != address(0)) {
-            paymaster.addGasToken(gasTokenAddress);
-            console.log("Added GasToken:", gasTokenAddress);
+            console.log("Initial GasToken added in constructor:", gasTokenAddress);
         }
     }
 

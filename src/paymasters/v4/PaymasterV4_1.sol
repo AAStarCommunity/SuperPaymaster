@@ -53,6 +53,8 @@ contract PaymasterV4_1 is PaymasterV4 {
      * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
      * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
      * @param _minTokenBalance Minimum token balance required (wei)
+     * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
+     * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
      */
     constructor(
         address _entryPoint,
@@ -62,7 +64,9 @@ contract PaymasterV4_1 is PaymasterV4 {
         uint256 _pntPriceUSD,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        uint256 _minTokenBalance
+        uint256 _minTokenBalance,
+        address _initialSBT,
+        address _initialGasToken
     )
         PaymasterV4(
             _entryPoint,
@@ -74,7 +78,17 @@ contract PaymasterV4_1 is PaymasterV4 {
             _maxGasCostCap,
             _minTokenBalance
         )
-    {}
+    {
+        // Add initial SBT if provided
+        if (_initialSBT != address(0)) {
+            _addSBT(_initialSBT);
+        }
+
+        // Add initial GasToken if provided
+        if (_initialGasToken != address(0)) {
+            _addGasToken(_initialGasToken);
+        }
+    }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    REGISTRY MANAGEMENT                     */
