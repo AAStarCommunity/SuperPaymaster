@@ -52,15 +52,16 @@ contract PaymasterV4_1Test is Test {
             INITIAL_PNT_PRICE_USD,
             INITIAL_SERVICE_FEE_RATE,
             INITIAL_MAX_GAS_COST_CAP,
-            INITIAL_MIN_TOKEN_BALANCE
+            INITIAL_MIN_TOKEN_BALANCE,
+            address(sbt),     // Initial SBT
+            address(0)        // Initial GasToken (will be added later)
         );
 
         // Deploy GasTokens with paymaster address
         basePNT = new GasTokenV2("Base PNT", "bPNT", address(paymaster), 1e18);
         aPNT = new GasTokenV2("Alpha PNT", "aPNT", address(paymaster), 1e18);
 
-        // Add SBT and GasTokens to paymaster
-        paymaster.addSBT(address(sbt));
+        // Add GasTokens to paymaster (SBT already added in constructor)
         paymaster.addGasToken(address(basePNT));
         paymaster.addGasToken(address(aPNT));
 

@@ -7,3 +7,6 @@
 [submodule "singleton-paymaster"]
 	path = singleton-paymaster
 	url = https://github.com/pimlicolabs/singleton-paymaster.git
+[submodule "contracts/lib/chainlink-brownie-contracts"]
+	path = contracts/lib/chainlink-brownie-contracts
+	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
