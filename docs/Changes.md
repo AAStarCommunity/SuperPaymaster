@@ -5197,3 +5197,49 @@ await sdk.txs.send({ txs });
 
 **下一步**: 等待用户确认实施优先级
 
+
+## Phase 25 - MySBT v2.3 Frontend (2025-10-28)
+
+**Type**: Frontend Development
+**Status**: ✅ Complete
+
+### 完成内容
+
+**MySBT v2.3 页面** (`/my-sbt`):
+- 无许可加入社区功能 (permissionless `mintOrAddMembership`)
+- 社区声誉查询 (getCommunityReputation)
+- 合约版本和配置展示
+- GToken自动approve机制
+- 成功/错误消息提示
+
+**页面特性**:
+- 借鉴GetSBT页面的优秀文案和布局结构
+- What is MySBT v2.3 详细介绍
+- Contract Information 展示
+- How It Works 帮助说明
+- Action Footer 快捷链接
+
+**文件变更** (registry前端):
+- 新增: `src/pages/resources/MySBT.tsx` (516行)
+- 新增: `src/pages/resources/MySBT.css` (708行，青色主题)
+- 更新: `src/App.tsx` (添加 `/my-sbt` 路由)
+- 更新: `.env.local` (MYSBT_V2_3_ADDRESS, SUBGRAPH_URL)
+
+**保留兼容性**:
+- `/get-sbt` - 保留旧版MySBTFactory页面
+- `/my-sbt` - 新版MySBT v2.3页面（用于launch paymaster流程）
+
+**技术实现**:
+- React + TypeScript + ethers.js v6
+- 直接使用MetaMask (window.ethereum)
+- 独立RPC provider用于读取，MetaMask用于交易
+- 响应式设计，移动端适配
+
+**集成信息**:
+- MySBT v2.3合约: `0xc1085841307d85d4a8dC973321Df2dF7c01cE5C8`
+- Subgraph: https://thegraph.com/studio/subgraph/mysbt-v-2-3
+- 网络: Sepolia (11155111)
+
+**下一步**: 测试页面功能 → 集成Gnosis Safe SDK
+
+---
