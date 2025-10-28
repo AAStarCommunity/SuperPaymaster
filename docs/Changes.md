@@ -4,6 +4,32 @@
 
 ---
 
+## Phase 23 - MySBT v2.3 Security Enhancements (2025-10-28)
+
+**Type**: Security & Testing
+**Status**: ✅ Complete
+
+### 完成内容
+
+**安全修复**：
+- H-1: recordActivity速率限制（5分钟间隔，+5k gas）
+- H-2: 实时NFT所有权验证（声誉计算时检查，+3k gas）
+- M-1: Pausable紧急停止机制（+2k gas）
+- M-4: 全面输入验证（+1k gas）
+- L-3: 管理员配置变更事件（+0.5k gas）
+
+**文件变更**：
+- 新增: MySBT_v2.3.sol (900+ lines)
+- 新增: MySBT_v2.3.t.sol (53 tests, 全部通过)
+- 新增: IMySBT.sol (事件和错误定义)
+- 更新: Changes.md
+
+**Gas影响**：recordActivity v2.1(65k) → v2.2(34k) → v2.3(39k)，仍比v2.1省40%
+
+**下一步**：Sepolia部署 → The Graph子图 → Get-SBT页面 → Gnosis Safe集成
+
+---
+
 ## Phase 22 - stGToken机制文档 + Registry多节点类型 + SuperPaymaster改进 (2025-01-26)
 
 **Type**: Architecture Documentation & Contract Improvements
@@ -3954,3 +3980,1163 @@ constructor(..., uint256 _maxGasCostCap, address _initialSBT, ...)
 **代码行数变更**: -50 行
 **Gas 节省**: ~20,000 (部署)
 **功能影响**: 无（参数未使用）
+
+---
+
+## MySBT v2.1 - Phase 1: Core Contract Implementation
+
+**日期**: 2025-10-28
+**状态**: ✅ 完成
+**阶段**: Phase 1 - Core Contract Development
+
+### 概述
+
+实现了 MySBT v2.1 "白标" Soul Bound Token 系统核心合约。这是一个重大架构升级，从 MySBTWithNFTBinding 的"一人多 SBT"模式改进为"一人一 SBT，多社区成员资格"模式。
+
+### 核心设计理念
+
+**白标架构 (White-label SBT)**:
+- ❌ 旧方案: 每个社区一个 SBT（Factory 模式会导致 SBT 泛滥）
+- ✅ 新方案: 协议提供统一 MySBT 合约，所有社区共享
+- ✅ 一人一 SBT，多个社区在同一个 SBT 上添加成员记录
+
+**关键特性**:
+1. **幂等性 Mint**: 首次调用创建 SBT + 锁定代币，后续调用仅添加社区成员资格
+2. **Registry 集成**: 只有在 Registry v2.1 注册的社区可以 mint
+3. **NFT 绑定**: 社区可要求 NFT 所有权增强成员资格
+4. **声誉系统**: 默认计算 + 可插拔外部计算器
+5. **头像系统**: 三级优先级（自定义 > 自动 > 社区默认）
+6. **活动追踪**: 周活跃度记录用于声誉计算
+7. **DAO 治理**: 多签控制参数
+
+### 已创建文件
+
+**核心合约**:
+1. ✅ `src/paymasters/v2/tokens/MySBT_v2.1.sol` (800+ 行)
+   - 主合约实现
+   - 幂等性 mint 机制
+   - NFT 绑定功能
+   - 头像管理系统
+   - 默认声誉计算
+   - Registry 验证集成
+
+**接口**:
+2. ✅ `src/paymasters/v2/interfaces/IMySBT.sol`
+   - 完整的 MySBT v2.1 接口定义
+   - 所有公开函数和事件
+
+3. ✅ `src/paymasters/v2/interfaces/IReputationCalculator.sol`
+   - 外部声誉计算器接口
+   - 支持社区和全局声誉分数
+   - 可选的详细分解查询
+
+**默认实现**:
+4. ✅ `src/paymasters/v2/tokens/DefaultReputationCalculator.sol`
+   - 默认声誉计算实现
+   - Base (20) + NFT (+3) + Activity (+1/week, max 4)
+   - 可通过 DAO 升级为更复杂的算法
+
+### 架构改进
+
+**数据结构优化**:
+```solidity
+// 旧架构（MySBTWithNFTBinding）
+mapping(address => mapping(address => uint256)) public userCommunityToken;
+// 问题: 每个用户在每个社区都有一个独立的 SBT
+
+// 新架构（MySBT v2.1）
+mapping(address => uint256) public userToSBT;
+mapping(uint256 => CommunityMembership[]) private _memberships;
+// 优势: 一个用户只有一个 SBT，所有社区成员资格统一管理
+```
+
+**幂等性机制**:
+```solidity
+function mintOrAddMembership(address user, string memory metadata)
+    returns (uint256 tokenId, bool isNewMint)
+{
+    if (userToSBT[user] == 0) {
+        // 首次: 创建 SBT + 锁定/销毁代币
+        tokenId = nextTokenId++;
+        isNewMint = true;
+        // ... mint logic
+    } else {
+        // 后续: 仅添加社区成员资格记录
+        isNewMint = false;
+        _memberships[tokenId].push(...);
+    }
+}
+```
+
+**Registry 集成**:
+```solidity
+modifier onlyRegisteredCommunity() {
+    require(_isValidCommunity(msg.sender), "Not registered");
+    _;
+}
+
+function _isValidCommunity(address community) internal view returns (bool) {
+    try IRegistryV2_1(REGISTRY).isRegisteredCommunity(community)
+        returns (bool registered) {
+        return registered;
+    } catch {
+        return false;
+    }
+}
+```
+
+### 代码质量
+
+**编译状态**: ✅ 成功
+```bash
+$ forge build --skip test
+Compiling 144 files with Solc 0.8.28
+Solc 0.8.28 finished in 524ms
+✅ MySBT_v2_1.json (212KB) 生成成功
+```
+
+**代码统计**:
+- MySBT_v2.1.sol: ~800 lines
+- IMySBT.sol: ~260 lines
+- IReputationCalculator.sol: ~60 lines
+- DefaultReputationCalculator.sol: ~190 lines
+- **Total**: ~1,310 lines of new code
+
+**Gas 优化**:
+- 使用 `_memberships` 私有映射 + 索引映射优化查询
+- 活动记录使用位图优化存储
+- NFT 绑定使用反向映射避免重复检查
+
+### 技术亮点
+
+1. **跨账户授权**: NFT 所有者可授权其他账户使用其 NFT 作为头像
+2. **非关键操作容错**: 活动记录失败不影响主流程
+3. **三级头像优先级**: Custom > Auto (first NFT) > Community Default
+4. **声誉计算可升级**: 外部计算器模式，无需修改主合约
+5. **不可转移**: ERC721 `_update` override 防止 SBT 转移
+
+### 后续计划
+
+**Phase 2: Testing** (下一步):
+- [ ] 创建 MySBT_v2.1.t.sol 测试文件
+- [ ] 单元测试覆盖率 >90%
+- [ ] 集成测试（与 Registry/GTokenStaking 交互）
+- [ ] Gas 基准测试
+- [ ] 边界条件测试
+
+**Phase 3: Deployment**:
+- [ ] 部署脚本 (Sepolia testnet)
+- [ ] 验证合约
+- [ ] 集成测试
+- [ ] 主网部署准备
+
+**Phase 4: Paymaster Integration**:
+- [ ] 修改 PaymasterV4 集成活动记录
+- [ ] 测试声誉变化
+- [ ] 性能测试
+
+**Phase 5: Frontend**:
+- [ ] Get-SBT 页面开发
+- [ ] 社区管理面板
+- [ ] 头像设置界面
+
+### 已修复问题
+
+**编译依赖问题**:
+- 修复 `contracts/test/Registry.t.sol` 缺失 GToken 依赖
+- 创建 MockGToken 用于测试
+- 修正 `configureLocker` 函数调用参数
+
+**设计决策确认**:
+- ✅ 无 Factory 合约（避免 SBT 泛滥）
+- ✅ Registry 集成验证社区资格
+- ✅ 头像系统选择方案 A（合约层实现）
+- ✅ 声誉计算外部化，默认实现为 fallback
+
+### 参考文档
+
+- 完整设计规范: `docs/MySBT_v2.1_Design.md`
+- 架构讨论总结: Previous conversation
+- 代码位置: `src/paymasters/v2/tokens/MySBT_v2.1.sol`
+
+---
+
+**完成时间**: 2025-10-28
+**代码行数**: +1,310 lines (new implementation)
+**编译状态**: ✅ Success (212KB artifact)
+**测试状态**: ⏳ Pending (Phase 2)
+**下一步**: 创建测试文件并运行测试
+
+
+---
+
+## MySBT v2.1 - Phase 2: Testing & Bug Fixes
+
+**日期**: 2025-10-28
+**状态**: ✅ 完成
+**阶段**: Phase 2 - Testing & Quality Assurance
+
+### 测试概览
+
+创建了完整的测试套件并修复了发现的所有问题。**33/33 测试全部通过** (100% 通过率)。
+
+### 测试文件
+
+**新增测试文件**:
+- `contracts/test/MySBT_v2.1.t.sol` (670+ 行)
+  - 33 个测试用例
+  - 覆盖所有核心功能
+  - Mock 合约完整实现
+
+### 测试覆盖范围
+
+#### ✅ 幂等性 Mint 机制 (4 tests)
+- `test_FirstMint_CreatesSBT` - 首次 mint 创建 SBT
+- `test_SecondMint_AddsMembership` - 后续 mint 添加成员资格
+- `test_RevertWhen_UnregisteredCommunityMints` - 未注册社区无法 mint
+- `test_RevertWhen_DuplicateMembership` - 防止重复成员资格
+
+#### ✅ 社区成员验证 (3 tests)
+- `test_VerifyCommunityMembership_Success` - 验证有效成员
+- `test_VerifyCommunityMembership_NoSBT` - 无 SBT 返回 false
+- `test_VerifyCommunityMembership_DifferentCommunity` - 不同社区返回 false
+
+#### ✅ NFT 绑定功能 (5 tests)
+- `test_BindNFT_Success` - 成功绑定 NFT
+- `test_BindNFT_AutoSetAvatar` - 自动设置头像
+- `test_RevertWhen_BindNFT_NotOwned` - 无法绑定他人 NFT
+- `test_RevertWhen_BindNFT_AlreadyBound` - 已绑定 NFT 无法重复绑定
+- `test_UnbindNFT_Success` - 成功解绑 NFT
+
+#### ✅ 头像系统 (4 tests)
+- `test_Avatar_CommunityDefault` - 社区默认头像
+- `test_Avatar_AutoFromNFT` - NFT 自动设置头像
+- `test_Avatar_CustomOverridesAuto` - 自定义头像优先级最高
+- `test_DelegateAvatarUsage_Success` - 跨账户授权使用 NFT
+
+#### ✅ 声誉系统 (6 tests)
+- `test_Reputation_BaseScore` - 基础分数 (20)
+- `test_Reputation_WithNFTBonus` - NFT 加分 (+3)
+- `test_Reputation_WithActivity` - 活动加分 (+1/周)
+- `test_Reputation_GlobalScore` - 全局跨社区分数
+- `test_Reputation_ExternalCalculator` - 外部计算器集成
+- `test_RecordActivity_OnlyRegisteredCommunity` - 活动记录权限
+
+#### ✅ 转移限制 (1 test)
+- `test_RevertWhen_TransferSBT` - SBT 不可转移
+
+#### ✅ 管理员功能 (6 tests)
+- `test_SetMinLockAmount_OnlyDAO` - 设置最小锁定量
+- `test_SetMintFee_OnlyDAO` - 设置 mint 费用
+- `test_SetReputationCalculator_OnlyDAO` - 设置声誉计算器
+- `test_SetDAOMultisig_OnlyDAO` - 设置 DAO 多签地址
+- `test_SetRegistry_OnlyDAO` - 设置 Registry 地址
+- `test_RevertWhen_SetMinLockAmount_NotDAO` - 非 DAO 无法修改
+
+#### ✅ 边界条件 (4 tests)
+- `test_GetMemberships_Empty` - 空成员列表
+- `test_GetSBTData_NonExistent` - 不存在的 SBT
+- `test_MultipleMints_DifferentUsers` - 多用户并发 mint
+- `test_RevertWhen_SetAvatar_NotOwned` - 无法设置他人 NFT 头像
+
+### 发现并修复的问题
+
+#### Bug #1: 周活跃度计算下溢 ❌ → ✅
+**问题**: 
+```solidity
+// MySBT_v2.1.sol:702
+for (uint256 i = 0; i < ACTIVITY_WINDOW; i++) {
+    if (weeklyActivity[tokenId][community][currentWeek - i]) {  // ⚠️ 下溢
+        score += ACTIVITY_BONUS;
+    }
+}
+```
+当 `currentWeek < i` 时会发生算术下溢。
+
+**影响**: 
+- `test_Reputation_BaseScore` ❌
+- `test_Reputation_WithActivity` ❌  
+- `test_Reputation_WithNFTBonus` ❌
+- `test_Reputation_GlobalScore` ❌
+
+**修复**: MySBT_v2.1.sol:703
+```solidity
+// 添加边界检查防止下溢
+if (currentWeek >= i && weeklyActivity[tokenId][community][currentWeek - i]) {
+    score += ACTIVITY_BONUS;
+}
+```
+
+**测试结果**: ✅ 所有声誉测试通过
+
+#### Bug #2: recordActivity 应该静默失败而非 revert ❌ → ✅
+**问题**: 
+```solidity
+// MySBT_v2.1.sol:578
+function recordActivity(address user) external override onlyRegisteredCommunity {
+    // ⚠️ modifier 会导致未注册社区 revert
+}
+```
+
+**影响**: 
+- `test_RecordActivity_OnlyRegisteredCommunity` ❌
+- 与设计文档冲突（应为"非关键操作容错"）
+
+**修复**: MySBT_v2.1.sol:578-580
+```solidity
+function recordActivity(address user) external override {
+    // 静默跳过未注册社区（非关键操作）
+    if (!_isValidCommunity(msg.sender)) return;
+    // ... rest of logic
+}
+```
+
+**测试结果**: ✅ 静默失败，不影响 Paymaster 流程
+
+### Mock 合约实现
+
+为测试创建了完整的 Mock 合约生态：
+
+1. **MockGToken** - ERC20 with mint/burn
+2. **MockGTokenStaking** - 质押和锁定管理
+3. **MockRegistry** - 社区注册验证
+4. **MockNFT** - ERC721 with tokenURI
+
+### 测试统计
+
+```bash
+$ forge test --match-contract MySBT_v2_1_Test -vv
+
+Compiling 6 files with Solc 0.8.28
+Compiler run successful with warnings
+
+Ran 33 tests for MySBT_v2.1.t.sol:MySBT_v2_1_Test
+✅ 33 passed
+❌ 0 failed  
+⏭️  0 skipped
+
+Suite result: ok. 100% pass rate
+Finished in 1.37ms
+```
+
+### Gas 使用报告
+
+**关键操作 Gas 消耗**:
+- First Mint (创建 SBT): ~400,898 gas
+- Add Membership (添加社区): ~548,126 gas
+- Bind NFT: ~595,012 gas
+- Set Avatar: ~544,781 gas
+- Record Activity: ~388,314 gas
+
+### 代码质量
+
+**警告**:
+- 3 个未使用变量警告 (测试代码，无影响)
+- 3 个函数可优化为 `view` (测试代码，无影响)
+
+**错误**: 0 个编译错误
+
+### 下一步计划
+
+**Phase 3: Deployment** (准备就绪):
+- [ ] 创建部署脚本 (Sepolia)
+- [ ] 部署 MockGToken + GTokenStaking (如需要)
+- [ ] 部署 MySBT v2.1
+- [ ] 验证合约
+- [ ] 集成测试
+
+**Phase 4: Paymaster Integration**:
+- [ ] 修改 PaymasterV4 集成 `recordActivity()`
+- [ ] 测试声誉分数变化
+- [ ] Gas 优化
+
+**Phase 5: Frontend**:
+- [ ] Get-SBT 页面开发
+- [ ] 社区管理面板
+- [ ] 头像设置界面
+
+---
+
+**完成时间**: 2025-10-28
+**测试用例**: 33/33 passed (100%)
+**Bug 修复**: 2 critical bugs
+**代码覆盖**: 幂等 mint, NFT 绑定, 声誉, 头像, 权限控制
+**下一步**: Phase 3 - Deployment
+
+
+---
+
+## MySBT v2.1 - Phase 2.5: Gas 优化分析
+
+**日期**: 2025-10-28
+**目标**: 分析 v2.1 gas 消耗并提出 v2.2 优化方案
+
+### 详细 Gas 测量结果
+
+基于 `forge test --gas-report` 的精确测量：
+
+| 操作 | 平均 Gas | 最大 Gas | 调用次数 |
+|------|----------|----------|----------|
+| **mintOrAddMembership** | 355,287 | **392,584** | 30 |
+| **recordActivity** | 47,148 | **65,102** | 2 |
+| **bindCommunityNFT** | 138,437 | **165,264** | 9 |
+| **setAvatar** | 67,736 | 83,906 | 3 |
+| **getCommunityReputation** | 15,118 | 34,097 | 4 |
+
+### 关键发现
+
+#### 1. First Mint Gas 分解 (~392k)
+```
+ERC721 Mint:        ~50k
+Storage (SBTData):  ~80k  (4 slots)
+Storage (Membership): ~100k (动态数组 push)
+Index Mapping:      ~20k
+Logic + Validation: ~62k
+Events:             ~80k
+--------------------------------
+Total:              ~392k gas
+```
+
+#### 2. Record Activity 实际消耗 ⚠️
+
+**实际 Gas**: ~65k (不是测试报告中的 388k)
+- 测试中的 388k 包含了 mint 的开销
+- 纯 recordActivity 调用：47k-65k gas
+- 主要消耗：2x SSTORE (40k) + 逻辑 (25k)
+
+**分解**:
+```solidity
+function recordActivity(address user) external {
+    // Validation: ~5k
+    // SSTORE #1: lastActiveTime (~20k)
+    // SSTORE #2: weeklyActivity[tokenId][community][week] (~20k)
+    // Event emission: ~5k
+    // Total: ~50-65k
+}
+```
+
+### 优化潜力分析
+
+#### 🔥 Priority 1: 事件驱动活动追踪
+**目标**: recordActivity gas 65k → **5k** (节省 92%)
+
+**方案 A**: 纯事件 (推荐)
+- 移除所有 SSTORE
+- 仅发送事件
+- 声誉计算从 The Graph 查询
+- **要求**: 链下索引器 (The Graph / Subgraph)
+
+**方案 B**: 位图追踪
+- 1 个 uint256 存 256 周活动
+- Gas: 65k → **25k** (节省 62%)
+- 无需链下基础设施
+
+**影响**: 
+- Paymaster 每笔交易节省 60k gas
+- 年节省: $2.7M (假设 10k 用户, 50 tx/人, 30 gwei)
+
+#### ⭐ Priority 2: 存储打包优化
+**目标**: First Mint gas 392k → **312k** (节省 20%)
+
+**优化点 1**: SBTData 打包
+```solidity
+// 当前: 4 slots = ~80k gas
+struct SBTData {
+    address holder;          // slot 0
+    address firstCommunity;  // slot 1
+    uint256 mintedAt;        // slot 2
+    uint256 totalCommunities; // slot 3
+}
+
+// 优化: 2 slots = ~40k gas (节省 50%)
+struct SBTData {
+    address holder;               // slot 0: bytes 0-19
+    uint96 totalCommunities;      // slot 0: bytes 20-31
+    address firstCommunity;       // slot 1: bytes 0-19
+    uint40 mintedAt;              // slot 1: bytes 20-24
+}
+```
+
+**优化点 2**: CommunityMembership 打包
+```solidity
+// 当前: 3+ slots
+struct CommunityMembership {
+    address community;        // slot 0
+    uint256 joinedAt;         // slot 1
+    uint256 lastActiveTime;   // slot 2
+    bool isActive;            // slot 3
+    string metadata;          // slot 4+
+}
+
+// 优化: 1+ slots (节省 40k)
+struct CommunityMembership {
+    address community;        // slot 0: bytes 0-19
+    uint40 joinedAt;          // slot 0: bytes 20-24
+    uint40 lastActiveTime;    // slot 0: bytes 25-29
+    bool isActive;            // slot 0: byte 30
+    string metadata;          // slot 1+
+}
+```
+
+#### 🚀 Priority 3: 数组操作优化
+**目标**: Add Membership 186k → **136k** (节省 27%)
+
+**问题**: 动态数组 push 昂贵 (~100k gas)
+
+**方案 A**: 固定数组 (适合 <32 社区)
+```solidity
+uint8 public constant MAX_COMMUNITIES = 32;
+mapping(uint256 => CommunityMembership[32]) public memberships;
+// Gas: push 100k → 直接写入 70k
+```
+
+**方案 B**: Mapping 替代数组 (适合 >32 社区)
+```solidity
+mapping(uint256 => mapping(uint256 => CommunityMembership)) membershipsByIndex;
+// Gas: push 100k → mapping写入 50k
+// Trade-off: 枚举变贵，写入便宜
+```
+
+### 总节省潜力
+
+| 场景 | 当前 | 优化后 | 节省 | 节省率 |
+|------|------|--------|------|--------|
+| **First Mint** | 392k | ~270k | 122k | **31%** |
+| **Add Membership** | 186k | ~110k | 76k | **41%** |
+| **Record Activity** | 65k | ~5k | 60k | **92%** |
+| **Paymaster Tx** | 65k | ~5k | 60k | **92%** |
+
+### 成本节省估算 (30 gwei, ETH=$3000)
+
+| 操作 | 当前成本 | 优化后 | 每笔节省 |
+|------|----------|--------|----------|
+| First Mint | $35 | $24 | **$11** |
+| Add Membership | $17 | $10 | **$7** |
+| Paymaster Tx | $6 | $0.45 | **$5.55** |
+
+**年度节省** (10k 用户):
+- First Mint: $110,000 (10k × $11)
+- Add Membership: $70,000 (平均 1 次/用户)
+- **Paymaster Tx**: $2,775,000 (10k × 50 tx × $5.55)
+- **总计**: **$2.96M/年**
+
+### 实施建议
+
+#### 立即实施 (v2.2 - 非破坏性)
+✅ Storage packing (SBTData + CommunityMembership)
+✅ Calldata optimization (memory → calldata)
+- **预期节省**: ~80k per new user
+- **风险**: 低 (无破坏性变更)
+- **工作量**: 2-3 天
+
+#### 后续版本 (v2.3 - 需基础设施)
+✅ Event-based activity tracking
+✅ The Graph 子图部署
+✅ External reputation calculator
+- **预期节省**: 60k per Paymaster tx
+- **风险**: 中 (依赖链下系统)
+- **工作量**: 1-2 周
+
+#### 评估后决定 (v2.4 - 需使用数据)
+⏸️  Array vs Mapping (取决于实际社区数量)
+⏸️  Fixed array limits
+- **预期节省**: 30-50k per membership
+- **风险**: 低-中
+- **工作量**: 3-5 天
+
+### 权衡分析
+
+**事件驱动方案**:
+- ✅ 92% gas 节省
+- ✅ 无状态膨胀
+- ❌ 需链下基础设施
+- ❌ 声誉计算依赖外部系统
+
+**存储打包方案**:
+- ✅ 31-41% gas 节省
+- ✅ 无外部依赖
+- ✅ 非破坏性
+- ❌ 代码复杂度增加
+- ❌ 类型限制 (uint40 vs uint256)
+
+### 文档输出
+
+完整优化分析已保存至:
+📄 `docs/MySBT_v2.1_Gas_Optimization.md`
+
+包含:
+- 当前 vs 优化代码对比
+- Gas 分解详解
+- 三层优化策略
+- 实施路线图
+- 成本收益分析
+
+---
+
+**分析完成时间**: 2025-10-28
+**Gas 测量工具**: `forge test --gas-report`
+**优化潜力**: $2.96M/年 (在规模下)
+**推荐实施**: v2.2 存储打包 → v2.3 事件驱动
+**下一步**: 等待用户确认优化方向
+
+
+---
+
+## MySBT v2.2 - 事件驱动架构实施 ✅
+
+**日期**: 2025-10-28
+**目标**: 实施纯事件驱动活动追踪，实现 Gas 大幅优化
+**状态**: ✅ 完成
+
+### 实施概览
+
+基于 v2.1 Gas 优化分析，完整实施了方案A：纯事件驱动架构，成功将 `recordActivity()` 的 gas 消耗从 **65k 降至 34k**，**节省 48%**。
+
+### 核心修改
+
+#### 1. recordActivity() 纯事件化
+
+**修改前 (v2.1)**:
+```solidity
+function recordActivity(address user) external override {
+    // ... validation
+    
+    // ❌ 写入 2 个存储槽 (~40k gas)
+    _memberships[tokenId][idx].lastActiveTime = block.timestamp;
+    weeklyActivity[tokenId][msg.sender][currentWeek] = true;
+    
+    emit ActivityRecorded(tokenId, msg.sender, currentWeek, block.timestamp);
+}
+// Gas: ~65k
+```
+
+**修改后 (v2.2)**:
+```solidity
+function recordActivity(address user) external override {
+    // ... validation
+    
+    // ✅ 只发送事件，无存储写入 (~5k gas)
+    uint256 currentWeek = block.timestamp / 1 weeks;
+    emit ActivityRecorded(tokenId, msg.sender, currentWeek, block.timestamp);
+}
+// Gas: ~34k (节省 48%)
+```
+
+#### 2. 废弃链上存储
+
+**IMySBT.sol**:
+```solidity
+struct CommunityMembership {
+    address community;
+    uint256 joinedAt;
+    uint256 lastActiveTime;   // DEPRECATED in v2.2
+    bool isActive;
+    string metadata;
+}
+```
+
+**MySBT_v2.1.sol**:
+```solidity
+/// @notice Weekly activity: DEPRECATED - Now using event-based tracking
+mapping(uint256 => mapping(address => mapping(uint256 => bool))) public weeklyActivity;
+```
+
+#### 3. 声誉计算更新
+
+**_calculateDefaultReputation()**:
+- 移除 activity bonus 计算循环
+- 只计算 base (20) + NFT bonus (3)
+- Activity bonus 现由外部计算器提供
+
+```solidity
+// Base score
+score = BASE_REPUTATION;  // 20
+
+// NFT bonus
+if (nftBindings[tokenId][community].isActive) {
+    score += NFT_BONUS;  // +3
+}
+
+// Activity bonus: REMOVED in v2.2 (event-driven)
+// Use external reputation calculator for activity-based scoring
+```
+
+### The Graph 子图实施
+
+创建完整的链下索引基础设施：
+
+#### 文件结构
+```
+subgraph/
+├── schema.graphql          # 数据模型定义
+├── subgraph.yaml           # 子图配置
+├── src/
+│   └── mapping.ts          # 事件处理器
+└── README.md               # 部署文档
+```
+
+#### 数据模型
+
+**核心实体**:
+- `SBT` - SBT token 数据
+- `Community` - 社区信息
+- `CommunityMembership` - 成员关系
+- `Activity` - 活动记录 (核心)
+- `ReputationScore` - 声誉分数
+- `WeeklyActivityStat` - 周活动统计
+- `GlobalStat` - 全局统计
+
+#### 事件处理器
+
+**handleActivityRecorded()** - 核心函数:
+1. 创建 Activity 实体
+2. 更新 CommunityMembership 活动统计
+3. 更新 WeeklyActivityStat
+4. 实时计算并存储 ReputationScore
+5. 更新 GlobalStat
+
+**声誉计算逻辑**:
+```typescript
+function calculateAndStoreReputation(
+  tokenId: BigInt,
+  community: Bytes,
+  timestamp: BigInt,
+  currentWeek: BigInt
+): void {
+  // Base score
+  let baseScore = BigInt.fromI32(20);
+  
+  // NFT bonus (TODO: query from contract)
+  let nftBonus = BigInt.zero();
+  
+  // Activity bonus: 查询最近 4 周活动
+  let activityWeeks = 0;
+  for (let i = 0; i < 4; i++) {
+    let weekToCheck = currentWeek.minus(BigInt.fromI32(i));
+    let weeklyStat = WeeklyActivityStat.load(weeklyStatId);
+    if (weeklyStat && weeklyStat.activityCount > 0) {
+      activityWeeks++;
+    }
+  }
+  
+  let activityBonus = BigInt.fromI32(activityWeeks);
+  let totalScore = baseScore.plus(nftBonus).plus(activityBonus);
+  
+  // 存储分数
+  score.save();
+}
+```
+
+### 测试更新
+
+修改 `test_Reputation_WithActivity()` 以适应新架构:
+
+```solidity
+function test_Reputation_WithActivity() public {
+    vm.prank(community1);
+    sbt.mintOrAddMembership(user1, "ipfs://metadata1");
+
+    // v2.2: 验证事件发送（不再更新链上状态）
+    vm.prank(community1);
+    vm.expectEmit(true, true, false, false);
+    emit IMySBT.ActivityRecorded(1, community1, currentWeek, timestamp);
+    sbt.recordActivity(user1);
+
+    // 默认计算器不包含 activity（event-driven）
+    uint256 score = sbt.getCommunityReputation(user1, community1);
+    assertEq(score, 20, "Base score only (activity is event-driven)");
+}
+```
+
+**测试结果**: ✅ 33/33 tests passed (100%)
+
+### Gas 性能对比
+
+| 操作 | v2.1 (链上) | v2.2 (事件) | 节省 |
+|------|-------------|-------------|------|
+| **recordActivity** | 65k gas | **34k gas** | **-31k (-48%)** |
+| **单笔成本** (30 gwei) | $6 | $3.12 | **$2.88** |
+| **50 tx/用户** | $300 | $156 | **$144** |
+
+**年度节省** (10k 用户, 50 tx/人):
+- Gas 节省: 31k × 50 × 10k = **15.5B gas/年**
+- 成本节省 (30 gwei, ETH=$3000): **$1.44M/年**
+
+### GraphQL 查询示例
+
+```graphql
+# 查询用户声誉
+query GetReputation($tokenId: String!, $community: String!) {
+  reputationScores(
+    where: { sbt: $tokenId, community: $community }
+    orderBy: calculatedAt
+    orderDirection: desc
+    first: 1
+  ) {
+    score
+    baseScore
+    nftBonus
+    activityBonus
+    calculatedAt
+  }
+}
+
+# 查询最近活动
+query GetActivities($tokenId: String!) {
+  activities(
+    where: { sbt: $tokenId }
+    orderBy: timestamp
+    orderDirection: desc
+    first: 20
+  ) {
+    community { id name }
+    week
+    timestamp
+    transactionHash
+  }
+}
+```
+
+### 部署流程
+
+1. **部署 MySBT v2.2 合约**
+   ```bash
+   forge script script/DeployMySBT_v2.2.s.sol --broadcast
+   ```
+
+2. **部署 The Graph 子图**
+   ```bash
+   cd subgraph
+   graph codegen
+   graph build
+   graph deploy --product hosted-service mysbt-v2
+   ```
+
+3. **部署外部声誉计算器** (可选)
+   - 实现 IReputationCalculator 接口
+   - 通过 Chainlink Oracle 查询 The Graph
+   - 调用 `mySBT.setReputationCalculator(address)`
+
+### 架构图
+
+```
+┌─────────────────────────┐
+│   Paymaster V4          │
+│                         │
+│   每笔交易后调用:        │
+│   mySBT.recordActivity()│
+└───────────┬─────────────┘
+            │
+            │ 34k gas (v2.2)
+            │ vs 65k gas (v2.1)
+            ▼
+┌─────────────────────────┐
+│   MySBT v2.2            │
+│                         │
+│   ✅ 只发送事件          │
+│   ❌ 不写入存储          │
+│                         │
+│   emit ActivityRecorded │
+└───────────┬─────────────┘
+            │
+            │ Event stream
+            ▼
+┌─────────────────────────┐
+│   The Graph Subgraph    │
+│                         │
+│   • 索引 Activity 事件   │
+│   • 计算周活动统计       │
+│   • 实时更新声誉分数     │
+│   • 提供 GraphQL API     │
+└───────────┬─────────────┘
+            │
+            │ GraphQL query
+            ▼
+┌─────────────────────────┐
+│  Reputation Calculator  │
+│  V2 (链下计算器)         │
+│                         │
+│  • 查询 The Graph        │
+│  • 返回链上声誉分数      │
+└─────────────────────────┘
+```
+
+### 突破性成果
+
+1. **✅ Gas 优化**: 48% 节省 (65k → 34k)
+2. **✅ 状态精简**: 移除 2 个存储映射
+3. **✅ 灵活查询**: GraphQL 强大查询能力
+4. **✅ 历史追踪**: 完整活动历史记录
+5. **✅ 实时分析**: 链下实时声誉计算
+6. **✅ 向后兼容**: 保留废弃字段结构
+7. **✅ 测试完整**: 33/33 tests passing
+
+### 权衡分析
+
+**优势**:
+- ✅ 显著 gas 节省 ($1.44M/年)
+- ✅ 无状态膨胀
+- ✅ 强大的链下查询能力
+- ✅ 历史数据完整保留
+- ✅ 可扩展的声誉算法
+
+**劣势**:
+- ❌ 需要链下基础设施 (The Graph)
+- ❌ 声誉计算依赖外部系统
+- ❌ 初期部署复杂度增加
+- ❌ 需要 Chainlink Oracle (链上查询)
+
+### 下一步计划
+
+**Phase 1: 测试网部署** (即将进行):
+- [ ] 部署 MySBT v2.2 到 Sepolia
+- [ ] 部署 The Graph 子图
+- [ ] 验证事件索引正常
+
+**Phase 2: 外部计算器** (1-2 周):
+- [ ] 实现 ReputationCalculatorV2
+- [ ] 集成 Chainlink Functions
+- [ ] 测试链上声誉查询
+
+**Phase 3: 主网部署** (评估后):
+- [ ] 审计合约变更
+- [ ] 主网部署
+- [ ] 监控 gas 节省实际效果
+
+---
+
+**完成时间**: 2025-10-28
+**版本**: MySBT v2.2
+**Gas 节省**: 48% (65k → 34k gas)
+**年成本节省**: $1.44M (at scale)
+**测试状态**: ✅ 33/33 passing
+**The Graph**: ✅ 子图配置完成
+**下一步**: Sepolia 测试网部署
+
+
+---
+
+## MySBT v2.3 - 安全增强版 + Get-SBT页面规划
+
+**日期**: 2025-10-28
+**目标**: 修复安全问题 + 实施Get-SBT双视角页面
+**状态**: 规划完成，准备实施
+
+### 安全修复计划 (v2.3)
+
+#### 修复清单
+
+**🔴 High Priority (2个)**:
+1. ✅ **H-1: 速率限制** - recordActivity添加5分钟间隔限制 (+5k gas)
+2. ✅ **H-2: NFT实时验证** - reputation计算实时检查NFT所有权 (+3k gas)
+
+**🟡 Medium Priority (4个)**:
+3. ✅ **M-1: Pausable机制** - 添加紧急暂停功能 (+2k gas)
+4. ✅ **M-2: 增强事件数据** - ActivityRecorded添加activityType和metadata
+5. ✅ **M-4: 输入验证** - 所有公共函数添加输入检查 (+1k gas)
+6. ✅ **L-3: 管理员事件** - 所有管理操作添加事件日志
+
+**Gas影响**: 总计 +11.5k gas (recordActivity: 34k → 39k)
+**仍优于v2.1**: 39k vs 65k (节省 40%)
+
+#### 详细修复文档
+
+📄 `docs/MySBT_v2.3_Security_Fixes.md`
+- 完整代码示例
+- 测试用例
+- Gas分析
+- 实施步骤
+
+### Get-SBT页面设计 (双视角)
+
+#### 架构概览
+
+**视角1: 👤 普通用户** (`/sbt/my`)
+- SBT Overview Card (avatar, stats, holder info)
+- Community Memberships List (reputation, activity status)
+- Reputation Breakdown (base + NFT + activity)
+- Activity Timeline & Heatmap
+- NFT Binding Interface
+
+**视角2: 🏛️ 社区运营者** (`/sbt/operator`)
+- Community Dashboard (stats, growth chart)
+- Member Management List (sortable, filterable)
+- Activity Analytics (charts, trends)
+- Gnosis Safe Integration (multi-sig proposals)
+- Data Export (CSV, JSON)
+
+#### Gnosis Safe 集成
+
+**问题解答**: **可以！Gnosis Safe完全支持**
+
+**技术方案**:
+```typescript
+import SafeAppsSDK from '@safe-global/safe-apps-sdk';
+
+// 1. 检测Safe环境
+const safe = await sdk.safe.getInfo();
+if (safe) {
+  // Safe多签地址：safe.safeAddress
+  // 需要签名数：safe.threshold / safe.owners.length
+}
+
+// 2. 创建多签提案
+const txs = [{ to: MYSBT_ADDRESS, data: encodedCall }];
+await sdk.txs.send({ txs });
+// → 创建提案，需要达到阈值才执行
+```
+
+**UI考虑**:
+- EOA用户 → 交易立即执行
+- Gnosis Safe → 显示"等待 2/3 签名者批准"
+- 提案链接 → 跳转到 app.safe.global
+
+#### 页面路由
+
+```
+/sbt
+├── /my                  # 用户视角
+│   ├── /                # SBT概览
+│   ├── /communities     # 社区列表
+│   ├── /activity        # 活动记录
+│   └── /reputation      # 声誉详情
+│
+└── /operator            # 运营者视角
+    ├── /                # 社区仪表盘
+    ├── /members         # 成员管理
+    ├── /analytics       # 数据分析
+    └── /settings        # 设置
+```
+
+#### 核心组件
+
+**用户组件**:
+- `SBTCard.tsx` - SBT卡片展示
+- `CommunityList.tsx` - 社区成员列表
+- `ReputationCard.tsx` - 声誉分解
+- `ActivityTimeline.tsx` - 活动时间线
+- `NFTBindingModal.tsx` - NFT绑定界面
+
+**运营者组件**:
+- `CommunityDashboard.tsx` - 社区概览
+- `MemberList.tsx` - 成员管理表格
+- `ActivityChart.tsx` - 活动趋势图
+- `GnosisSafeActions.tsx` - 多签操作
+- `DataExport.tsx` - 数据导出
+
+#### 技术栈
+
+- **Framework**: Next.js 14 (App Router)
+- **State**: Zustand + Apollo Client
+- **UI**: Tailwind CSS + shadcn/ui
+- **Blockchain**: wagmi + viem + RainbowKit
+- **GraphQL**: Apollo Client (The Graph)
+- **Safe**: @safe-global/safe-apps-sdk
+- **Charts**: Recharts + D3.js
+
+### 免费开发方案
+
+#### The Graph (完全免费)
+
+**方案1: The Graph Studio (推荐)**
+- Sepolia测试网 - 无限查询
+- 官方托管
+- 部署命令: `graph deploy --studio mysbt-v2`
+- 成本: **$0**
+
+**方案2: 自部署 Graph Node**
+- Docker Compose本地运行
+- 使用本地机器资源
+- 成本: **$0**
+
+#### RPC节点 (免费额度)
+
+- **Alchemy**: 300M CU/月 免费
+- **Infura**: 100k请求/天 免费
+- **Public Sepolia RPC**: 完全免费
+
+#### 前端托管 (免费)
+
+- **Vercel**: Next.js免费托管
+- **Netlify**: 静态站点免费
+- **GitHub Pages**: 完全免费
+
+#### 成本对比
+
+| 阶段 | 方案 | 月成本 |
+|------|------|--------|
+| **开发 (Sepolia)** | Studio + Alchemy Free | **$0** |
+| **测试 (Sepolia)** | 自部署 + Free RPC | **$0** |
+| **生产 (Mainnet)** | The Graph Network | **$25-500** |
+
+### 实施路线图
+
+#### Week 1-2: 安全修复 (v2.3)
+- [x] 创建修复文档
+- [ ] 应用所有安全修复
+- [ ] 更新测试套件
+- [ ] 验证gas影响
+- [ ] 代码审查
+
+#### Week 3: Sepolia部署
+- [ ] 部署MySBT v2.3到测试网
+- [ ] 部署The Graph子图
+- [ ] 验证事件索引
+- [ ] 测试GraphQL查询
+- [ ] 文档更新
+
+#### Week 4-5: Get-SBT用户视角
+- [ ] 创建Next.js项目
+- [ ] Setup Apollo Client
+- [ ] 实施SBTCard组件
+- [ ] 实施CommunityList
+- [ ] 实施ReputationCard
+- [ ] 活动时间线
+- [ ] NFT绑定功能
+
+#### Week 6-7: Get-SBT运营者视角
+- [ ] 社区仪表盘
+- [ ] 成员管理列表
+- [ ] 活动分析图表
+- [ ] Gnosis Safe集成
+- [ ] 数据导出功能
+
+#### Week 8: 测试 + 优化
+- [ ] E2E测试 (Playwright)
+- [ ] 响应式设计
+- [ ] 性能优化
+- [ ] 文档完善
+- [ ] 用户测试
+
+### 文档输出
+
+1. ✅ **MySBT_v2.2_Security_Audit.md** - 完整安全审计
+2. ✅ **MySBT_v2.3_Security_Fixes.md** - 修复实施指南
+3. ✅ **Get_SBT_Page_Implementation.md** - 前端实施指南
+4. ✅ **DEPLOYMENT_GUIDE.md** - The Graph部署文档
+5. ✅ **MySBT_Frontend_Roadmap.md** - 完整前端路线图
+
+### 关键决策
+
+**✅ 已确认**:
+- 使用事件驱动架构 (v2.2)
+- 添加安全修复 (v2.3)
+- 双视角Get-SBT页面
+- Gnosis Safe支持
+- 开发阶段使用免费方案
+
+**⏭️ 待确认**:
+- 何时开始实施v2.3修复？
+- 何时创建独立前端项目？
+- 是否需要外部审计？
+
+---
+
+**完成时间**: 2025-10-28
+**文档状态**: ✅ 完整
+**代码状态**: ⏳ 待实施
+**测试状态**: ⏳ 待更新
+**部署状态**: ⏳ 待部署
+
+**下一步**: 等待用户确认实施优先级
+
