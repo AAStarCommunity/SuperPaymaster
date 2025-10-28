@@ -1,0 +1,41 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum
+    name: MySBT
+    network: sepolia # Change to mainnet when deployed
+    source:
+      address: "0x0000000000000000000000000000000000000000" # TODO: Replace with deployed MySBT address
+      abi: MySBT
+      startBlock: 0 # TODO: Replace with deployment block number
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - SBT
+        - Community
+        - CommunityMembership
+        - Activity
+        - ReputationScore
+        - WeeklyActivityStat
+        - GlobalStat
+      abis:
+        - name: MySBT
+          file: ../out/MySBT_v2.1.sol/MySBT_v2_1.json
+      eventHandlers:
+        - event: SBTMinted(indexed address,indexed uint256,indexed address,uint256)
+          handler: handleSBTMinted
+        - event: MembershipAdded(indexed uint256,indexed address,string,uint256)
+          handler: handleMembershipAdded
+        - event: MembershipDeactivated(indexed uint256,indexed address,uint256)
+          handler: handleMembershipDeactivated
+        - event: ActivityRecorded(indexed uint256,indexed address,uint256,uint256)
+          handler: handleActivityRecorded
+        - event: NFTBound(indexed uint256,indexed address,address,uint256,uint256)
+          handler: handleNFTBound
+        - event: NFTUnbound(indexed uint256,indexed address,address,uint256,uint256)
+          handler: handleNFTUnbound
+      file: ./src/mapping.ts
