@@ -1,7 +1,7 @@
-# MySBT v2.2 - The Graph Schema
+# MySBT v2.3 - The Graph Schema
 # Event-driven activity tracking for reputation calculation
 
-type SBT @entity {
+type SBT @entity(immutable: false) {
   id: ID! # Token ID
   holder: Bytes! # address
   firstCommunity: Bytes! # address
@@ -12,7 +12,7 @@ type SBT @entity {
   reputationScores: [ReputationScore!]! @derivedFrom(field: "sbt")
 }
 
-type Community @entity {
+type Community @entity(immutable: false) {
   id: ID! # Community address
   name: String
   memberCount: Int!
@@ -20,7 +20,7 @@ type Community @entity {
   activities: [Activity!]! @derivedFrom(field: "community")
 }
 
-type CommunityMembership @entity {
+type CommunityMembership @entity(immutable: false) {
   id: ID! # tokenId-communityAddress
   sbt: SBT!
   community: Community!
@@ -31,7 +31,7 @@ type CommunityMembership @entity {
   lastActivityTime: BigInt # Last activity timestamp
 }
 
-type Activity @entity {
+type Activity @entity(immutable: true) {
   id: ID! # txHash-logIndex
   sbt: SBT!
   community: Community!
@@ -42,7 +42,7 @@ type Activity @entity {
   transactionHash: Bytes!
 }
 
-type ReputationScore @entity {
+type ReputationScore @entity(immutable: false) {
   id: ID! # tokenId-communityAddress-timestamp
   sbt: SBT!
   community: Community!
@@ -54,7 +54,7 @@ type ReputationScore @entity {
   activityWindow: Int! # Number of weeks considered
 }
 
-type WeeklyActivityStat @entity {
+type WeeklyActivityStat @entity(immutable: false) {
   id: ID! # tokenId-communityAddress-week
   sbt: SBT!
   community: Community!
@@ -65,7 +65,7 @@ type WeeklyActivityStat @entity {
 }
 
 # Global stats
-type GlobalStat @entity {
+type GlobalStat @entity(immutable: false) {
   id: ID! # "global"
   totalSBTs: Int!
   totalCommunities: Int!
