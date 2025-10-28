@@ -1,0 +1,75 @@
+# MySBT v2.2 - The Graph Schema
+# Event-driven activity tracking for reputation calculation
+
+type SBT @entity {
+  id: ID! # Token ID
+  holder: Bytes! # address
+  firstCommunity: Bytes! # address
+  mintedAt: BigInt!
+  totalCommunities: Int!
+  memberships: [CommunityMembership!]! @derivedFrom(field: "sbt")
+  activities: [Activity!]! @derivedFrom(field: "sbt")
+  reputationScores: [ReputationScore!]! @derivedFrom(field: "sbt")
+}
+
+type Community @entity {
+  id: ID! # Community address
+  name: String
+  memberCount: Int!
+  memberships: [CommunityMembership!]! @derivedFrom(field: "community")
+  activities: [Activity!]! @derivedFrom(field: "community")
+}
+
+type CommunityMembership @entity {
+  id: ID! # tokenId-communityAddress
+  sbt: SBT!
+  community: Community!
+  joinedAt: BigInt!
+  isActive: Boolean!
+  metadata: String # IPFS URI
+  activityCount: Int! # Total activities recorded
+  lastActivityTime: BigInt # Last activity timestamp
+}
+
+type Activity @entity {
+  id: ID! # txHash-logIndex
+  sbt: SBT!
+  community: Community!
+  membership: CommunityMembership!
+  week: BigInt! # Week number (timestamp / 1 week)
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type ReputationScore @entity {
+  id: ID! # tokenId-communityAddress-timestamp
+  sbt: SBT!
+  community: Community!
+  score: BigInt!
+  baseScore: BigInt!
+  nftBonus: BigInt!
+  activityBonus: BigInt! # Calculated from recent activities
+  calculatedAt: BigInt!
+  activityWindow: Int! # Number of weeks considered
+}
+
+type WeeklyActivityStat @entity {
+  id: ID! # tokenId-communityAddress-week
+  sbt: SBT!
+  community: Community!
+  week: BigInt!
+  activityCount: Int!
+  firstActivityTime: BigInt!
+  lastActivityTime: BigInt!
+}
+
+# Global stats
+type GlobalStat @entity {
+  id: ID! # "global"
+  totalSBTs: Int!
+  totalCommunities: Int!
+  totalActivities: BigInt!
+  totalMemberships: Int!
+  lastUpdatedAt: BigInt!
+}
