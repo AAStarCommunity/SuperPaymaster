@@ -1,0 +1,17 @@
+# The Graph generated files
+generated/
+build/
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
