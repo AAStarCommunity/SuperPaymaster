@@ -42,6 +42,84 @@
 
 ---
 
+## Phase 26 - MySBT v2.3 Frontend + Gnosis Safe集成 (2025-10-28)
+
+**Type**: Frontend Integration & Multisig Support
+**Status**: ✅ Complete
+
+### 完成内容
+
+**MySBT v2.3页面** (`/my-sbt`):
+- 无许可加入社区功能（permissionless `mintOrAddMembership`）
+- 社区声誉查询（`getCommunityReputation`）
+- 合约版本和配置展示
+- GToken自动approve机制
+- 实时NFT所有权验证提示
+
+**社区运营者Section**:
+- Gnosis Safe多签推荐（建议Optimism L2降低gas）
+- 提供Safe创建和管理链接
+- 说明多签安全优势和配置建议
+- 支持EOA备用方案
+
+**Gnosis Safe SDK集成**:
+- `useSafeApp` hook检测Safe环境
+- 自动识别Safe地址和配置（threshold/owners）
+- 双wallet支持：Safe multisig + MetaMask EOA
+- 批量交易提案（approve + mint in one batch）
+- Safe交易提交到Safe UI等待多签确认
+
+**Transaction Flow**:
+- **Safe模式**: 编码交易 → 提交Safe → 等待multisig签名
+- **EOA模式**: 直接通过MetaMask执行交易
+- 统一交易准备逻辑（ethers Interface编码）
+- 用户友好的交易状态提示
+
+**UI改进**:
+- 显示钱包类型（🔐 Safe Multisig vs 👤 MetaMask EOA）
+- Safe信息banner（显示threshold/signers要求）
+- Action footer始终可见（不依赖钱包连接状态）
+- 响应式设计支持移动端
+
+**E2E测试**:
+- Playwright测试套件（9 passed, 3 skipped）
+- 页面结构和内容测试
+- 响应式设计测试
+- Action footer可见性测试
+- 钱包连接功能测试（需手动测试）
+
+**文件变更**:
+- 新增: `src/hooks/useSafeApp.ts` (Safe环境检测)
+- 更新: `src/pages/resources/MySBT.tsx` (+164 lines)
+- 更新: `src/pages/resources/MySBT.css` (+21 lines Safe样式)
+- 新增: `e2e/my-sbt.spec.ts` (12个测试用例)
+- 更新: `package.json` (Gnosis Safe SDK依赖)
+
+**Dependencies**:
+- @safe-global/safe-apps-sdk@9.1.0
+- @safe-global/safe-apps-react-sdk@4.7.2
+
+**保留兼容性**:
+- `/get-sbt` - 旧版MySBTFactory页面保留
+- `/my-sbt` - 新版MySBT v2.3页面（Launch Paymaster流程使用）
+
+**Benefits**:
+- 社区运营者可用Safe进行安全的多签管理
+- 支持去中心化社区治理（多签决策）
+- 保持与MetaMask EOA的向后兼容
+- 批量交易降低gas成本
+
+---
+
+## Phase 25 - MySBT v2.3 Frontend基础 (2025-10-28)
+
+**Type**: Frontend Development
+**Status**: ✅ Merged into Phase 26
+
+*(此阶段工作已合并到Phase 26)*
+
+---
+
 ## Phase 24 - The Graph子图部署 (2025-10-28)
 
 **Type**: Indexing Infrastructure
