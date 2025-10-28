@@ -26,7 +26,13 @@
 
 **Gas影响**：recordActivity v2.1(65k) → v2.2(34k) → v2.3(39k)，仍比v2.1省40%
 
-**下一步**：Sepolia部署 → The Graph子图 → Get-SBT页面 → Gnosis Safe集成
+**Sepolia部署**：
+- 合约地址: 0xc1085841307d85d4a8dC973321Df2dF7c01cE5C8
+- 部署者: 0x411BD567E46C0781248dbB6a9211891C032885e5
+- Gas Used: 6,103,350
+- 版本: 2.3.0 (code: 230)
+
+**下一步**：The Graph子图 → Get-SBT页面 → Gnosis Safe集成
 
 ---
 
