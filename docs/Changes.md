@@ -31,8 +31,59 @@
 - 部署者: 0x411BD567E46C0781248dbB6a9211891C032885e5
 - Gas Used: 6,103,350
 - 版本: 2.3.0 (code: 230)
+- 链上测试: ✅ 全部通过（6项基础功能测试）
 
-**下一步**：The Graph子图 → Get-SBT页面 → Gnosis Safe集成
+**安全审计结果**: ✅ 全部修复
+- 🟠 高危 (2/2): recordActivity速率限制 + NFT实时验证
+- 🟡 中危 (4/4): Pausable机制 + 存储优化 + 事件完整性 + 输入验证
+- 🟢 低危 (3/3): 版本追踪 + 文档 + 管理员事件
+- ⚡ Gas优化 (5/5): v2.3(39k) vs v2.1(65k) = -40%
+- 测试覆盖: 53/53 通过
+
+---
+
+## Phase 24 - The Graph子图部署 (2025-10-28)
+
+**Type**: Indexing Infrastructure
+**Status**: ✅ Complete
+
+### 完成内容
+
+**合约验证**：
+- 尝试: Etherscan API V1/V2（均因端点废弃失败）
+- 解决: 使用Blockscout验证器成功验证
+- 状态: Blockscout ✅ Pass，Etherscan同步中
+- GUID: c1085841307d85d4a8dc973321df2df7c01ce5c869009b80
+
+**子图部署**：
+- 部署到The Graph Studio (v2.3.0)
+- Studio URL: https://thegraph.com/studio/subgraph/mysbt-v-2-3
+- Query Endpoint: https://api.studio.thegraph.com/query/1704882/mysbt-v-2-3/v2.3.0
+- IPFS Build Hash: QmRp5ZrRDTLvnmFqpWQRdUCVarnXARb7iFhTcmWyf1WVa9
+- Network: Sepolia (11155111)
+- Start Block: 9507735
+
+**Schema设计**：
+- 7个Entity类型（SBT, Community, Membership, Activity等）
+- Activity设为immutable（历史记录不可变）
+- 事件驱动的活动追踪（gas优化）
+- 支持声誉分数查询和周活动统计
+
+**文件变更**：
+- 新增: ETHERSCAN_VERIFY.md（手动验证指南）
+- 新增: mysbt-v2.3-standard-json.json（220KB标准输入）
+- 新增: subgraph/deploy.sh（自动化部署脚本）
+- 新增: subgraph/test-subgraph-query.sh（GraphQL测试）
+- 更新: .env（添加SUBGRAPH_URL和SUBGRAPH_STUDIO）
+- 更新: subgraph.yaml（MySBT v2.3地址和起始区块）
+
+**技术要点**：
+- Foundry验证工具仍使用废弃的Etherscan API V1
+- Blockscout验证器兼容并自动同步到Etherscan
+- The Graph Studio不再支持`--studio`标志（使用deploy-key方式）
+- 子图可使用本地ABI，无需等待Etherscan验证完成
+
+**下一步**：Get-SBT页面（双视角：用户+社区运营者） → Gnosis Safe集成
 
 ---
 
