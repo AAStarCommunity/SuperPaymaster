@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
@@ -88,6 +89,9 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /// @notice Registry contract
     address public immutable REGISTRY;
+
+    /// @notice Chainlink ETH/USD price feed (immutable)
+    AggregatorV3Interface public immutable ethUsdPriceFeed;
 
     /// @notice DVT Aggregator contract
     address public DVT_AGGREGATOR;
@@ -250,17 +254,20 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
      * @notice Initialize SuperPaymasterV2
      * @param _gtokenStaking GTokenStaking contract address
      * @param _registry Registry contract address
+     * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
      */
     constructor(
         address _gtokenStaking,
-        address _registry
+        address _registry,
+        address _ethUsdPriceFeed
     ) Ownable(msg.sender) {
-        if (_gtokenStaking == address(0) || _registry == address(0)) {
+        if (_gtokenStaking == address(0) || _registry == address(0) || _ethUsdPriceFeed == address(0)) {
             revert InvalidAddress(address(0));
         }
 
         GTOKEN_STAKING = _gtokenStaking;
         REGISTRY = _registry;
+        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
         superPaymasterTreasury = msg.sender; // 默认设为deployer，可后续修改
     }
 
@@ -582,20 +589,32 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     }
 
     /**
-     * @notice Calculate aPNTs amount needed (借鉴PaymasterV4)
+     * @notice Calculate aPNTs amount needed (使用 Chainlink 价格预言机)
      * @param gasCostWei Gas cost in wei
      * @return aPNTsAmount Required aPNTs amount
      */
     function _calculateAPNTsAmount(uint256 gasCostWei) internal view returns (uint256) {
-        // Step 1: Convert gas cost to USD
-        // e.g., 1 ETH = 3000 USD, so gasCostWei * 3000e18 / 1e18
-        uint256 gasCostUSD = (gasCostWei * gasToUSDRate) / 1e18;
+        // Step 1: Get ETH/USD price from Chainlink with staleness check
+        (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
 
-        // Step 2: Add service fee (2%)
+        // Check if price is stale (not updated within 3600 seconds / 1 hour)
+        if (block.timestamp - updatedAt > 3600) {
+            revert InvalidConfiguration(); // Price feed is stale
+        }
+
+        uint8 decimals = ethUsdPriceFeed.decimals();
+
+        // Convert to 18 decimals: price * 1e18 / 10^decimals
+        uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** decimals);
+
+        // Step 2: Convert gas cost (wei) to USD
+        uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
+
+        // Step 3: Add service fee (2%)
         // serviceFeeRate = 200 (2%), so multiply by 10200/10000
         uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
 
-        // Step 3: Convert USD to aPNTs amount
+        // Step 4: Convert USD to aPNTs amount
         // aPNTsPriceUSD = 0.02e18, so totalCostUSD * 1e18 / 0.02e18
         uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPriceUSD;
 

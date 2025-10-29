@@ -10,6 +10,7 @@ import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
 import "../../src/paymasters/v2/monitoring/DVTValidator.sol";
 import "../../src/paymasters/v2/monitoring/BLSAggregator.sol";
+import "./mocks/MockChainlinkAggregator.sol";
 
 /**
  * @title SuperPaymasterV2Test
@@ -24,6 +25,7 @@ contract SuperPaymasterV2Test is Test {
 
     MockERC20 public gtoken;
     MockERC20 public apntsToken;  // AAStar community token
+    MockChainlinkAggregator public ethUsdPriceFeed;  // Chainlink ETH/USD price feed mock
     GTokenStaking public gtokenStaking;
     Registry public registry;
     SuperPaymasterV2 public superPaymaster;
@@ -59,12 +61,16 @@ contract SuperPaymasterV2Test is Test {
         // Deploy aPNTs token (AAStar community token)
         apntsToken = new MockERC20("AAStar Points", "aPNTs", 18);
 
+        // Deploy Chainlink ETH/USD price feed mock (8 decimals, $3000/ETH)
+        ethUsdPriceFeed = new MockChainlinkAggregator(8, 3000 * 10**8);
+
         // Deploy core contracts
         gtokenStaking = new GTokenStaking(address(gtoken));
         registry = new Registry(address(gtokenStaking));
         superPaymaster = new SuperPaymasterV2(
             address(gtokenStaking),
-            address(registry)
+            address(registry),
+            address(ethUsdPriceFeed)
         );
 
         // Configure aPNTs token
