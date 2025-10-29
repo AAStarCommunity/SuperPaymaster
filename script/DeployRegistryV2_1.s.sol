@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "../src/paymasters/v2/core/Registry.sol";
+import "../src/paymasters/v2/core/GTokenStaking.sol";
 
 /**
  * @title DeployRegistryV2_1
@@ -23,8 +24,8 @@ contract DeployRegistryV2_1 is Script {
     // Configuration - Sepolia Addresses
     // ====================================
 
-    /// @notice Existing GTokenStaking address on Sepolia
-    address constant GTOKEN_STAKING = 0xD8235F8920815175BD46f76a2cb99e15E02cED68;
+    /// @notice Existing GTokenStaking V2 address on Sepolia (Production)
+    address constant GTOKEN_STAKING = 0x199402b3F213A233e89585957F86A07ED1e1cD67;
 
     /// @notice Existing SuperPaymasterV2 address (for setSuperPaymasterV2)
     address constant SUPER_PAYMASTER_V2 = 0xb96d8BC6d771AE5913C8656FAFf8721156AC8141;
@@ -60,6 +61,29 @@ contract DeployRegistryV2_1 is Script {
         console.log("\n2. Configuring SuperPaymasterV2 address...");
         registryV2_1.setSuperPaymasterV2(SUPER_PAYMASTER_V2);
         console.log("   SuperPaymasterV2 set to:", SUPER_PAYMASTER_V2);
+
+        // Configure Registry as authorized locker in GTokenStaking
+        console.log("\n3. Configuring Registry v2.1 as locker in GTokenStaking...");
+        GTokenStaking gtokenStaking = GTokenStaking(GTOKEN_STAKING);
+
+        uint256[] memory emptyTimeTiers = new uint256[](0);
+        uint256[] memory emptyTierFees = new uint256[](0);
+
+        gtokenStaking.configureLocker(
+            address(registryV2_1),  // locker
+            true,                   // authorized
+            0,                      // baseExitFee (no fee)
+            emptyTimeTiers,         // timeTiers
+            emptyTierFees,          // tierFees
+            address(0)              // feeRecipient (not applicable)
+        );
+        console.log("   Registry v2.1 authorized as locker: true");
+
+        // Verify locker configuration
+        console.log("\n4. Verifying locker configuration...");
+        GTokenStaking.LockerConfig memory config = gtokenStaking.getLockerConfig(address(registryV2_1));
+        require(config.authorized, "Locker authorization failed!");
+        console.log("   Verification successful: authorized =", config.authorized);
 
         vm.stopBroadcast();
 
@@ -111,11 +135,11 @@ contract DeployRegistryV2_1 is Script {
         console.log("  Slash Max:", slashMax);
 
         console.log("\n=== Next Steps ===");
-        console.log("1. Add Registry v2.1 as locker in GTokenStaking:");
-        console.log("   GTokenStaking:", GTOKEN_STAKING);
-        console.log("   Registry v2.1:", address(registryV2_1));
-        console.log("\n2. Update frontend configs with new Registry v2.1 address");
-        console.log("\n3. Update .env files:");
-        console.log("   V2_1_REGISTRY:", address(registryV2_1));
+        console.log("1. Update frontend configs with new Registry v2.1 address:");
+        console.log("   networkConfig.ts -> registryV2_1:", address(registryV2_1));
+        console.log("\n2. Update .env files:");
+        console.log("   VITE_REGISTRY_V2_1_ADDRESS=", address(registryV2_1));
+        console.log("\n3. (Optional) Transfer ownership to multisig when ready:");
+        console.log("   registryV2_1.transferOwnership(MULTISIG_ADDRESS)");
     }
 }
