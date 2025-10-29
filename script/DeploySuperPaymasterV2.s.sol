@@ -42,6 +42,9 @@ contract DeploySuperPaymasterV2 is Script {
     /// @notice EntryPoint v0.7 address (Sepolia)
     address constant ENTRYPOINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
+    /// @notice Chainlink ETH/USD price feed address (Sepolia)
+    address constant ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+
     /// @notice Mock GToken address (deploy if not exists)
     address public GTOKEN;
 
@@ -166,10 +169,12 @@ contract DeploySuperPaymasterV2 is Script {
 
         superPaymaster = new SuperPaymasterV2(
             address(gtokenStaking),
-            address(registry)
+            address(registry),
+            ETH_USD_PRICE_FEED
         );
 
         console.log("SuperPaymasterV2 deployed:", address(superPaymaster));
+        console.log("ETH/USD Price Feed:", ETH_USD_PRICE_FEED);
         console.log("minOperatorStake:", superPaymaster.minOperatorStake() / 1e18, "sGT");
         console.log("minAPNTsBalance:", superPaymaster.minAPNTsBalance() / 1e18, "aPNTs");
         console.log("");
