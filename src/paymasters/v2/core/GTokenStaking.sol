@@ -216,9 +216,11 @@ contract GTokenStaking is Ownable {
             revert BelowMinimumStake(amount, MIN_STAKE);
         }
 
-        if (stakes[msg.sender].stGTokenShares > 0) {
-            revert AlreadyStaked(msg.sender);
-        }
+        // ✅ FIXED: Allow users to add more stake (permissionless design)
+        // Removed AlreadyStaked check to support:
+        // - Multiple stake additions
+        // - Community registration + Paymaster deployment
+        // - Flexible stake management
 
         // Transfer GToken from user
         IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), amount);
@@ -230,13 +232,27 @@ contract GTokenStaking is Ownable {
             shares = amount * totalShares / (totalStaked - totalSlashed);
         }
 
-        // Update user stake info
-        stakes[msg.sender] = StakeInfo({
-            amount: amount,
-            stGTokenShares: shares,
-            stakedAt: block.timestamp,
-            unstakeRequestedAt: 0
-        });
+        // Update user stake info (support both new stake and adding to existing)
+        StakeInfo storage userStake = stakes[msg.sender];
+
+        if (userStake.stGTokenShares > 0) {
+            // Adding to existing stake
+            userStake.amount += amount;
+            userStake.stGTokenShares += shares;
+            // Keep original stakedAt timestamp
+            // Reset unstake request if user is adding more stake
+            if (userStake.unstakeRequestedAt > 0) {
+                userStake.unstakeRequestedAt = 0;
+            }
+        } else {
+            // First time staking
+            stakes[msg.sender] = StakeInfo({
+                amount: amount,
+                stGTokenShares: shares,
+                stakedAt: block.timestamp,
+                unstakeRequestedAt: 0
+            });
+        }
 
         // Update global state
         totalStaked += amount;

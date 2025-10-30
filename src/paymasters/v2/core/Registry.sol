@@ -153,6 +153,12 @@ contract Registry is Ownable, ReentrancyGuard {
         address indexed community
     );
 
+    event CommunityOwnershipTransferred(
+        address indexed oldOwner,
+        address indexed newOwner,
+        uint256 timestamp
+    );
+
     event FailureReported(
         address indexed community,
         uint256 failureCount,
@@ -201,6 +207,7 @@ contract Registry is Ownable, ReentrancyGuard {
     error NameAlreadyTaken(string name);
     error ENSAlreadyTaken(string ensName);
     error InvalidAddress(address addr);
+    error InvalidParameter(string message);
     error CommunityNotActive(address community);
     error InsufficientStake(uint256 provided, uint256 required);
     error UnauthorizedOracle(address caller);
@@ -505,6 +512,69 @@ contract Registry is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Transfer community ownership to new address
+     * @dev Allows community owner to transfer ownership from EOA to multisig (e.g., Gnosis Safe)
+     *      - Updates community address in mapping
+     *      - Updates all index mappings (name, ENS, SBT)
+     *      - Preserves all community data
+     *      - New owner must not have an existing community
+     * @param newOwner New community owner address (e.g., Gnosis Safe multisig)
+     */
+    function transferCommunityOwnership(address newOwner) external nonReentrant {
+        address currentOwner = msg.sender;
+
+        // Verify current owner has a registered community
+        if (communities[currentOwner].registeredAt == 0) {
+            revert CommunityNotRegistered(currentOwner);
+        }
+
+        // Verify new owner is valid
+        if (newOwner == address(0)) {
+            revert InvalidParameter("New owner cannot be zero address");
+        }
+        if (newOwner == currentOwner) {
+            revert InvalidParameter("New owner same as current");
+        }
+        if (communities[newOwner].registeredAt != 0) {
+            revert InvalidParameter("New owner already has a community");
+        }
+
+        // Get community profile
+        CommunityProfile storage profile = communities[currentOwner];
+
+        // Update community.community field to new owner
+        profile.community = newOwner;
+        profile.lastUpdatedAt = block.timestamp;
+
+        // Transfer community data to new owner mapping
+        communities[newOwner] = profile;
+
+        // Update name index
+        string memory lowerName = _toLowercase(profile.name);
+        if (bytes(lowerName).length > 0) {
+            communityByName[lowerName] = newOwner;
+        }
+
+        // Update ENS index
+        if (bytes(profile.ensName).length > 0) {
+            communityByENS[profile.ensName] = newOwner;
+        }
+
+        // Update SBT indices
+        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
+            address sbtAddress = profile.supportedSBTs[i];
+            if (sbtAddress != address(0)) {
+                communityBySBT[sbtAddress] = newOwner;
+            }
+        }
+
+        // Clear old owner's community data
+        delete communities[currentOwner];
+
+        emit CommunityOwnershipTransferred(currentOwner, newOwner, block.timestamp);
+    }
+
+    /**
      * @notice Toggle permissionless MySBT minting for this community
      * @param enabled True to allow users to mint without invitation, false to require invitation
      */
@@ -643,6 +713,20 @@ contract Registry is Ownable, ReentrancyGuard {
     {
         isRegistered = communities[communityAddress].registeredAt != 0;
         isActive = communities[communityAddress].isActive;
+    }
+
+    /**
+     * @notice Check if a community is registered in the Registry
+     * @param communityAddress Community address to check
+     * @return registered True if community is registered (used by MySBT v2.3.1+)
+     * @dev Returns true if registeredAt timestamp is not zero
+     */
+    function isRegisteredCommunity(address communityAddress)
+        external
+        view
+        returns (bool registered)
+    {
+        return communities[communityAddress].registeredAt != 0;
     }
 
     /**

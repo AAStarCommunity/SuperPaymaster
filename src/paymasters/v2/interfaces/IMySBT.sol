@@ -50,6 +50,14 @@ interface IMySBT {
         uint256 timestamp
     );
 
+    event SBTBurned(
+        address indexed user,
+        uint256 indexed tokenId,
+        uint256 grossAmount,    // Total unlocked amount (0.3 ether)
+        uint256 netAmount,      // Net returned after exitFee (0.2 ether)
+        uint256 timestamp
+    );
+
     event MembershipAdded(
         uint256 indexed tokenId,
         address indexed community,
