@@ -148,3 +148,26 @@ interface IBLSAggregator {
         bytes[] memory signatures
     ) external;
 }
+
+// ====================================
+// Registry v2.1 Interface
+// ====================================
+
+interface IRegistryV2_1 {
+    /**
+     * @notice Check if a community is registered
+     * @param community Community address to check
+     * @return True if community is registered
+     */
+    function isRegisteredCommunity(address community) external view returns (bool);
+
+    /**
+     * @notice Check if a community allows permissionless MySBT minting
+     * @param communityAddress Community address to check
+     * @return allowed True if users can mint without invitation
+     */
+    function isPermissionlessMintAllowed(address communityAddress)
+        external
+        view
+        returns (bool allowed);
+}

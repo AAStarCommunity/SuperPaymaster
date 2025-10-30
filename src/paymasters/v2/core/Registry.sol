@@ -78,6 +78,9 @@ contract Registry is Ownable, ReentrancyGuard {
         uint256 lastUpdatedAt;          // Last update timestamp
         bool isActive;                  // Active status
         uint256 memberCount;            // Number of members (optional)
+
+        // MySBT Integration (v2.1.1)
+        bool allowPermissionlessMint;   // Allow users to mint MySBT without invitation
     }
 
     /// @notice Community staking and reputation tracking
@@ -181,6 +184,12 @@ contract Registry is Ownable, ReentrancyGuard {
         NodeType indexed nodeType,
         uint256 minStake,
         uint256 slashThreshold
+    );
+
+    event PermissionlessMintToggled(
+        address indexed community,
+        bool enabled,
+        uint256 timestamp
     );
 
     // ====================================
@@ -495,6 +504,23 @@ contract Registry is Ownable, ReentrancyGuard {
         emit CommunityReactivated(communityAddress);
     }
 
+    /**
+     * @notice Toggle permissionless MySBT minting for this community
+     * @param enabled True to allow users to mint without invitation, false to require invitation
+     */
+    function setPermissionlessMint(bool enabled) external nonReentrant {
+        address communityAddress = msg.sender;
+
+        if (communities[communityAddress].registeredAt == 0) {
+            revert CommunityNotRegistered(communityAddress);
+        }
+
+        communities[communityAddress].allowPermissionlessMint = enabled;
+        communities[communityAddress].lastUpdatedAt = block.timestamp;
+
+        emit PermissionlessMintToggled(communityAddress, enabled, block.timestamp);
+    }
+
     // ====================================
     // View Functions
     // ====================================
@@ -617,6 +643,19 @@ contract Registry is Ownable, ReentrancyGuard {
     {
         isRegistered = communities[communityAddress].registeredAt != 0;
         isActive = communities[communityAddress].isActive;
+    }
+
+    /**
+     * @notice Check if a community allows permissionless MySBT minting
+     * @param communityAddress Community address to check
+     * @return allowed True if users can mint without invitation, false otherwise
+     */
+    function isPermissionlessMintAllowed(address communityAddress)
+        external
+        view
+        returns (bool allowed)
+    {
+        return communities[communityAddress].allowPermissionlessMint;
     }
 
     // ====================================

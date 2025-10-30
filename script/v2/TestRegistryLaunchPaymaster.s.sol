@@ -166,7 +166,8 @@ contract TestRegistryLaunchPaymaster is Script {
             registeredAt: 0,  // Will be set by Registry
             lastUpdatedAt: 0,  // Will be set by Registry
             isActive: false,  // Will be set by Registry
-            memberCount: 0
+            memberCount: 0,
+            allowPermissionlessMint: true  // v2.1.1: Allow permissionless MySBT mint
         });
 
         registry.registerCommunity(profile, LOCK_AOA);
@@ -261,7 +262,8 @@ contract TestRegistryLaunchPaymaster is Script {
             registeredAt: 0,
             lastUpdatedAt: 0,
             isActive: false,
-            memberCount: 0
+            memberCount: 0,
+            allowPermissionlessMint: true  // v2.1.1: Allow permissionless MySBT mint
         });
 
         // Super mode: use 0 because already locked via SuperPaymaster

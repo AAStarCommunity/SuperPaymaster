@@ -797,10 +797,3 @@ contract MySBT_v2_1 is ERC721, ReentrancyGuard, IMySBT {
         return super._update(to, tokenId, auth);
     }
 }
-
-/**
- * @notice Registry v2.1 interface (minimal for validation)
- */
-interface IRegistryV2_1 {
-    function isRegisteredCommunity(address community) external view returns (bool);
-}

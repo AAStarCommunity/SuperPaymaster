@@ -13,22 +13,19 @@ import "../interfaces/IMySBT.sol";
 import "../interfaces/IReputationCalculator.sol";
 
 /**
- * @title MySBT v2.3 - White-label Soul Bound Token (Security Enhanced)
+ * @title MySBT v2.3.1 - White-label Soul Bound Token (Permissionless Mint)
  * @notice One SBT per user, multiple community memberships
- * @dev Security enhancements over v2.2:
- *      - H-1: Rate limiting for recordActivity (5 minute interval)
- *      - H-2: Real-time NFT ownership verification in reputation
- *      - M-1: Pausable mechanism for emergency stops
- *      - M-4: Comprehensive input validation
- *      - L-3: Enhanced admin events for all configuration changes
+ * @dev Enhancements over v2.3:
+ *      - Added permissionless mint via userMint() function
+ *      - Communities can toggle allowPermissionlessMint in Registry
+ *      - Users can directly mint SBT and join any community (if allowed)
+ *      - Preserves invitation-only mode via mintOrAddMembership()
  *
- * Gas Impact: +11.5k per recordActivity (still 40% better than v2.1)
- *
- * Version: 2.3.0
- * Previous: v2.2 (event-driven), v2.1 (baseline)
- * Security Audit Date: 2025-10-28
+ * Version: 2.3.1
+ * Previous: v2.3 (security enhanced), v2.2 (event-driven), v2.1 (baseline)
+ * Release Date: 2025-10-30
  */
-contract MySBT_v2_3 is ERC721, ReentrancyGuard, Pausable, IMySBT {
+contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -36,10 +33,10 @@ contract MySBT_v2_3 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     // ====================================
 
     /// @notice Contract version string
-    string public constant VERSION = "2.3.0";
+    string public constant VERSION = "2.3.1";
 
     /// @notice Contract version code
-    uint256 public constant VERSION_CODE = 230;
+    uint256 public constant VERSION_CODE = 231;
 
     // ====================================
     // Storage
@@ -278,6 +275,108 @@ contract MySBT_v2_3 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             sbtData[tokenId].totalCommunities++;
 
             emit MembershipAdded(tokenId, msg.sender, metadata, block.timestamp);
+        }
+
+        return (tokenId, isNewMint);
+    }
+
+    /**
+     * @notice Permissionless mint: User mints SBT and joins a community
+     * @param communityToJoin Community address to join
+     * @param metadata Community-specific metadata (JSON string)
+     * @return tokenId The minted or existing SBT token ID
+     * @return isNewMint True if new SBT was minted, false if adding membership
+     * @dev ✅ v2.3.1: Permissionless mint if community allows it
+     */
+    function userMint(address communityToJoin, string memory metadata)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256 tokenId, bool isNewMint)
+    {
+        // Input validation
+        if (communityToJoin == address(0)) revert InvalidAddress(communityToJoin);
+        if (bytes(metadata).length == 0) revert InvalidParameter("metadata empty");
+        if (bytes(metadata).length > 1024) revert InvalidParameter("metadata too long");
+
+        // Check if community is registered
+        if (!_isValidCommunity(communityToJoin)) {
+            revert InvalidParameter("community not registered");
+        }
+
+        // Check if community allows permissionless mint
+        bool allowed = IRegistryV2_1(REGISTRY).isPermissionlessMintAllowed(communityToJoin);
+        if (!allowed) {
+            revert InvalidParameter("community is invite-only");
+        }
+
+        address user = msg.sender;
+        tokenId = userToSBT[user];
+
+        if (tokenId == 0) {
+            // FIRST MINT: Create SBT
+            tokenId = nextTokenId++;
+            isNewMint = true;
+
+            // Set SBT data
+            sbtData[tokenId] = SBTData({
+                holder: user,
+                firstCommunity: communityToJoin,  // Immutable record
+                mintedAt: block.timestamp,
+                totalCommunities: 1
+            });
+
+            // Map user to SBT
+            userToSBT[user] = tokenId;
+
+            // Add first community membership
+            _memberships[tokenId].push(CommunityMembership({
+                community: communityToJoin,
+                joinedAt: block.timestamp,
+                lastActiveTime: block.timestamp,
+                isActive: true,
+                metadata: metadata
+            }));
+
+            membershipIndex[tokenId][communityToJoin] = 0;
+
+            // Lock stGToken (from user's staked balance)
+            IGTokenStaking(GTOKEN_STAKING).lockStake(user, minLockAmount, "MySBT");
+
+            // Burn GToken mint fee (user must approve first)
+            IERC20(GTOKEN).safeTransferFrom(user, address(this), mintFee);
+            IGToken(GTOKEN).burn(mintFee);
+
+            // Mint SBT
+            _mint(user, tokenId);
+
+            emit SBTMinted(user, tokenId, communityToJoin, block.timestamp);
+        } else {
+            // IDEMPOTENT: Add community membership
+            isNewMint = false;
+
+            // Check if membership already exists
+            uint256 idx = membershipIndex[tokenId][communityToJoin];
+            if (idx < _memberships[tokenId].length &&
+                _memberships[tokenId][idx].community == communityToJoin) {
+                revert MembershipAlreadyExists(tokenId, communityToJoin);
+            }
+
+            // Add new membership
+            _memberships[tokenId].push(CommunityMembership({
+                community: communityToJoin,
+                joinedAt: block.timestamp,
+                lastActiveTime: block.timestamp,
+                isActive: true,
+                metadata: metadata
+            }));
+
+            membershipIndex[tokenId][communityToJoin] = _memberships[tokenId].length - 1;
+
+            // Increment community count
+            sbtData[tokenId].totalCommunities++;
+
+            emit MembershipAdded(tokenId, communityToJoin, metadata, block.timestamp);
         }
 
         return (tokenId, isNewMint);
