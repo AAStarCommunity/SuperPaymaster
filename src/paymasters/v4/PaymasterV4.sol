@@ -13,8 +13,10 @@ import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/
 
 import { ISBT } from "../../interfaces/ISBT.sol";
 import { PostOpMode } from "../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
+import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
+import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
 
-/// @notice Interface for GasToken price query
+/// @notice Interface for GasToken price query (deprecated, use xPNTs)
 interface IGasTokenPrice {
     function getEffectivePrice() external view returns (uint256);
 }
@@ -37,6 +39,9 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
 
     /// @notice Chainlink ETH/USD price feed (immutable)
     AggregatorV3Interface public immutable ethUsdPriceFeed;
+
+    /// @notice xPNTs Factory for aPNTs price (immutable)
+    IxPNTsFactory public immutable xpntsFactory;
 
     /// @notice Paymaster data offset in paymasterAndData
     uint256 private constant PAYMASTER_DATA_OFFSET = 52;
@@ -155,23 +160,27 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
     /// @param _serviceFeeRate Service fee rate in basis points
     /// @param _maxGasCostCap Maximum gas cost cap (wei)
+    /// @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
     constructor(
         address _entryPoint,
         address _owner,
         address _treasury,
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
-        uint256 _maxGasCostCap
+        uint256 _maxGasCostCap,
+        address _xpntsFactory
     ) Ownable(_owner) {
         // Input validation
         if (_entryPoint == address(0)) revert PaymasterV4__ZeroAddress();
         if (_owner == address(0)) revert PaymasterV4__ZeroAddress();
         if (_treasury == address(0)) revert PaymasterV4__ZeroAddress();
         if (_ethUsdPriceFeed == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_xpntsFactory == address(0)) revert PaymasterV4__ZeroAddress();
         if (_serviceFeeRate > MAX_SERVICE_FEE) revert PaymasterV4__InvalidServiceFee();
 
         entryPoint = IEntryPoint(_entryPoint);
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        xpntsFactory = IxPNTsFactory(_xpntsFactory);
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
         maxGasCostCap = _maxGasCostCap;
@@ -313,12 +322,15 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         return (address(0), 0);
     }
 
-    /// @notice Calculate required token amount for gas cost
-    /// @dev Uses Chainlink for ETH/USD price and GasToken's getEffectivePrice()
+    /// @notice Calculate required xPNTs amount for gas cost
+    /// @dev Unified with SuperPaymaster V2 calculation flow:
+    ///      1. gasCostWei → gasCostUSD (Chainlink ETH/USD)
+    ///      2. gasCostUSD → aPNTsAmount (factory.getAPNTsPrice())
+    ///      3. aPNTsAmount → xPNTsAmount (token.exchangeRate())
     /// @param gasCostWei Gas cost in wei
-    /// @param gasToken GasToken contract address
-    /// @return Required token amount
-    function _calculatePNTAmount(uint256 gasCostWei, address gasToken) internal view returns (uint256) {
+    /// @param xpntsToken xPNTs token contract address
+    /// @return Required xPNTs token amount
+    function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken) internal view returns (uint256) {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
 
@@ -335,16 +347,18 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         // Step 2: Convert gas cost (wei) to USD
         uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
 
-        // Step 3: Add service fee
+        // Step 3: Add service fee (same as SuperPaymaster V2)
         uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
 
-        // Step 4: Get token's effective price (GasToken handles exchangeRate internally)
-        uint256 tokenPriceUSD = IGasTokenPrice(gasToken).getEffectivePrice();
+        // Step 4: Convert USD to aPNTs amount (using factory's aPNTs price)
+        uint256 aPNTsPrice = xpntsFactory.getAPNTsPrice(); // Get dynamic aPNTs price
+        uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPrice;
 
-        // Step 5: Convert USD to token amount
-        uint256 tokenAmount = (totalCostUSD * 1e18) / tokenPriceUSD;
+        // Step 5: Convert aPNTs to xPNTs (using token's exchange rate)
+        uint256 rate = IxPNTsToken(xpntsToken).exchangeRate();
+        uint256 xPNTsAmount = (aPNTsAmount * rate) / 1e18;
 
-        return tokenAmount;
+        return xPNTsAmount;
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

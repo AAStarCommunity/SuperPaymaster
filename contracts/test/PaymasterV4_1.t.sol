@@ -47,6 +47,9 @@ contract PaymasterV4_1Test is Test {
         // Deploy Chainlink price feed mock (ETH/USD = $4500)
         ethUsdPriceFeed = new MockChainlinkPriceFeed(8, 4500e8); // 8 decimals, $4500
 
+        // Deploy mock xPNTsFactory (temporary address for testing)
+        address mockXPNTsFactory = makeAddr("mockXPNTsFactory");
+
         // Deploy paymaster first
         paymaster = new PaymasterV4_1(
             entryPoint,
@@ -55,6 +58,7 @@ contract PaymasterV4_1Test is Test {
             address(ethUsdPriceFeed),  // Chainlink ETH/USD price feed
             INITIAL_SERVICE_FEE_RATE,
             INITIAL_MAX_GAS_COST_CAP,
+            mockXPNTsFactory,          // xPNTs Factory (for aPNTs price)
             address(sbt),              // Initial SBT
             address(0),                // Initial GasToken (will be added later)
             address(mockRegistry)      // Registry (immutable)

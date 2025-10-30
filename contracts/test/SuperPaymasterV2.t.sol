@@ -206,7 +206,9 @@ contract SuperPaymasterV2Test is Test {
             "MyDAO Points",
             "xMDAO",
             "MyDAO Community",
-            "mydao.eth"
+            "mydao.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: not using AOA mode
         );
 
         assertTrue(tokenAddr != address(0));
@@ -227,7 +229,9 @@ contract SuperPaymasterV2Test is Test {
             "MyDAO Points",
             "xMDAO",
             "MyDAO",
-            "mydao.eth"
+            "mydao.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: not using AOA mode
         );
         xPNTsToken token = xPNTsToken(tokenAddr);
 
@@ -254,7 +258,9 @@ contract SuperPaymasterV2Test is Test {
             "DeFi DAO Points",
             "xDEFI",
             "DeFi DAO",
-            "defi.eth"
+            "defi.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: not using AOA mode
         );
 
         // Update prediction parameters
@@ -351,7 +357,9 @@ contract SuperPaymasterV2Test is Test {
             "Test Points",
             "xTEST",
             "Test",
-            "test.eth"
+            "test.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: not using AOA mode
         );
         xPNTsToken token = xPNTsToken(tokenAddr);
         token.mint(operator1, 1000 ether);

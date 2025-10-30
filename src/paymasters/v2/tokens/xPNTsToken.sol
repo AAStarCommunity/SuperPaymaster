@@ -47,6 +47,10 @@ contract xPNTsToken is ERC20, ERC20Permit {
     /// @notice Community ENS domain
     string public communityENS;
 
+    /// @notice Exchange rate with aPNTs (18 decimals, 1e18 = 1:1)
+    /// @dev xPNTs amount = aPNTs amount * exchangeRate / 1e18
+    uint256 public exchangeRate;
+
     // ====================================
     // Events
     // ====================================
@@ -54,6 +58,7 @@ contract xPNTsToken is ERC20, ERC20Permit {
     event AutoApprovedSpenderAdded(address indexed spender);
     event AutoApprovedSpenderRemoved(address indexed spender);
     event CommunityOwnerUpdated(address indexed oldOwner, address indexed newOwner);
+    event ExchangeRateUpdated(uint256 oldRate, uint256 newRate);
 
     // ====================================
     // Errors
@@ -73,13 +78,15 @@ contract xPNTsToken is ERC20, ERC20Permit {
      * @param _communityOwner Community admin address
      * @param _communityName Community display name
      * @param _communityENS Community ENS domain
+     * @param _exchangeRate Exchange rate with aPNTs (18 decimals, 0 = default 1:1)
      */
     constructor(
         string memory name,
         string memory symbol,
         address _communityOwner,
         string memory _communityName,
-        string memory _communityENS
+        string memory _communityENS,
+        uint256 _exchangeRate
     ) ERC20(name, symbol) ERC20Permit(name) {
         if (_communityOwner == address(0)) {
             revert InvalidAddress(_communityOwner);
@@ -89,6 +96,9 @@ contract xPNTsToken is ERC20, ERC20Permit {
         communityOwner = _communityOwner;
         communityName = _communityName;
         communityENS = _communityENS;
+
+        // Set exchange rate (default 1:1 if not specified)
+        exchangeRate = _exchangeRate > 0 ? _exchangeRate : 1 ether;
     }
 
     // ====================================
@@ -212,6 +222,22 @@ contract xPNTsToken is ERC20, ERC20Permit {
     // ====================================
     // Admin Functions
     // ====================================
+
+    /**
+     * @notice Update exchange rate with aPNTs (only community owner)
+     * @param newRate New exchange rate (18 decimals, e.g., 1e18 = 1:1)
+     */
+    function updateExchangeRate(uint256 newRate) external {
+        if (msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        require(newRate > 0, "Rate must be positive");
+
+        uint256 oldRate = exchangeRate;
+        exchangeRate = newRate;
+
+        emit ExchangeRateUpdated(oldRate, newRate);
+    }
 
     /**
      * @notice Transfer community ownership

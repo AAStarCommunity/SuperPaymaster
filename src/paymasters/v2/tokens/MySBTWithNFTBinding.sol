@@ -504,23 +504,13 @@ contract MySBTWithNFTBinding is ERC721, ReentrancyGuard {
         view
         returns (bool)
     {
-        uint256 sbtTokenId = userCommunityToken[user][sbtData[0].community];
+        // MySBTWithNFTBinding: one SBT per community model
+        // Simply check if user has an SBT for this community
+        uint256 sbtTokenId = userCommunityToken[user][community];
         if (sbtTokenId == 0) return false;
 
-        NFTBinding memory binding = bindings[sbtTokenId][community];
-        if (!binding.isActive) return false;
-
-        if (binding.mode == NFTBindingMode.CUSTODIAL) {
-            // Custodial: NFT in contract, binding guaranteed valid
-            return true;
-        } else {
-            // Non-Custodial: Check real-time ownership
-            try IERC721(binding.nftContract).ownerOf(binding.nftTokenId) returns (address owner) {
-                return owner == user;
-            } catch {
-                return false;
-            }
-        }
+        // Verify user still owns the SBT
+        return ownerOf(sbtTokenId) == user;
     }
 
     // ====================================

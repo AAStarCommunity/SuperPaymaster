@@ -155,7 +155,9 @@ contract TestV2FullFlow is Script {
             "Test Community Points",
             "xTEST",
             "TestCommunity",
-            "test.eth"
+            "test.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: using SuperPaymaster V2 (AOA+ mode)
         );
         operatorXPNTs = xPNTsToken(xpntsAddr);
         console.log("      xPNTs token:");

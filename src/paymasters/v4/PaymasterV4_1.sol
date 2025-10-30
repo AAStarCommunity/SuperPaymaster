@@ -47,6 +47,7 @@ contract PaymasterV4_1 is PaymasterV4 {
      * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
      * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
      * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
+     * @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
      * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
      * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
      * @param _registry SuperPaymasterRegistry contract address (immutable)
@@ -58,6 +59,7 @@ contract PaymasterV4_1 is PaymasterV4 {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
+        address _xpntsFactory,
         address _initialSBT,
         address _initialGasToken,
         address _registry
@@ -68,7 +70,8 @@ contract PaymasterV4_1 is PaymasterV4 {
             _treasury,
             _ethUsdPriceFeed,
             _serviceFeeRate,
-            _maxGasCostCap
+            _maxGasCostCap,
+            _xpntsFactory
         )
     {
         // Initialize immutable Registry

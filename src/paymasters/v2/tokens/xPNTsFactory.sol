@@ -60,6 +60,10 @@ contract xPNTsFactory is Ownable {
     /// @notice Industry multipliers (name => value in 1e18)
     mapping(string => uint256) public industryMultipliers;
 
+    /// @notice aPNTs USD price (18 decimals, e.g., 0.02e18 = $0.02)
+    /// @dev Used by PaymasterV4 and SuperPaymaster V2 for gas cost calculation
+    uint256 public aPNTsPriceUSD;
+
     // ====================================
     // Constants
     // ====================================
@@ -91,6 +95,11 @@ contract xPNTsFactory is Ownable {
         uint256 multiplier
     );
 
+    event APNTsPriceUpdated(
+        uint256 oldPrice,
+        uint256 newPrice
+    );
+
     // ====================================
     // Errors
     // ====================================
@@ -116,6 +125,9 @@ contract xPNTsFactory is Ownable {
         SUPERPAYMASTER = _superPaymaster;
         REGISTRY = _registry;
 
+        // Initialize aPNTs price (default: $0.02)
+        aPNTsPriceUSD = 0.02 ether; // 0.02 * 1e18
+
         // Initialize default industry multipliers (scaled by 1e18)
         industryMultipliers["DeFi"] = 2.0 ether;      // 2.0x
         industryMultipliers["Gaming"] = 1.5 ether;    // 1.5x
@@ -134,32 +146,42 @@ contract xPNTsFactory is Ownable {
      * @param symbol Token symbol (e.g., "xMDAO")
      * @param communityName Community display name
      * @param communityENS Community ENS domain
+     * @param exchangeRate Exchange rate with aPNTs (18 decimals, e.g., 1e18 = 1:1)
+     * @param paymasterAOA Paymaster address for AOA mode (optional, use address(0) for AOA+ only)
      * @return token Deployed token address
      */
     function deployxPNTsToken(
         string memory name,
         string memory symbol,
         string memory communityName,
-        string memory communityENS
+        string memory communityENS,
+        uint256 exchangeRate,
+        address paymasterAOA
     ) external returns (address token) {
         if (communityToToken[msg.sender] != address(0)) {
             revert AlreadyDeployed(msg.sender);
         }
 
-        // Deploy new xPNTs token
+        // Deploy new xPNTs token with exchangeRate
         xPNTsToken newToken = new xPNTsToken(
             name,
             symbol,
             msg.sender,
             communityName,
-            communityENS
+            communityENS,
+            exchangeRate
         );
 
         token = address(newToken);
 
         // Auto-configure pre-authorization
+        // AOA+ mode: Always approve SuperPaymaster V2
         newToken.addAutoApprovedSpender(SUPERPAYMASTER);
-        newToken.addAutoApprovedSpender(address(this));
+
+        // AOA mode: Approve operator's specific paymaster (if provided)
+        if (paymasterAOA != address(0)) {
+            newToken.addAutoApprovedSpender(paymasterAOA);
+        }
 
         // Record deployment
         communityToToken[msg.sender] = token;
@@ -269,6 +291,20 @@ contract xPNTsFactory is Ownable {
     // ====================================
 
     /**
+     * @notice Update aPNTs USD price (only owner)
+     * @dev Price is updated off-chain periodically for dynamic pricing
+     * @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
+     */
+    function updateAPNTsPrice(uint256 newPrice) external onlyOwner {
+        require(newPrice > 0, "Price must be positive");
+
+        uint256 oldPrice = aPNTsPriceUSD;
+        aPNTsPriceUSD = newPrice;
+
+        emit APNTsPriceUpdated(oldPrice, newPrice);
+    }
+
+    /**
      * @notice Set industry multiplier (only owner)
      * @param industry Industry name
      * @param multiplier Multiplier value (scaled by 1e18)
@@ -287,6 +323,15 @@ contract xPNTsFactory is Ownable {
     // ====================================
     // View Functions
     // ====================================
+
+    /**
+     * @notice Get current aPNTs USD price
+     * @dev Used by PaymasterV4 and SuperPaymaster V2 for gas cost calculation
+     * @return price aPNTs price in USD (18 decimals)
+     */
+    function getAPNTsPrice() external view returns (uint256 price) {
+        return aPNTsPriceUSD;
+    }
 
     /**
      * @notice Get xPNTs token address for community

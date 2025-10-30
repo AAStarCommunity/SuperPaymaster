@@ -89,7 +89,9 @@ contract Step2_OperatorRegister is Script {
             "Test Community Points",
             "xTEST",
             "TestCommunity",
-            "test.eth"
+            "test.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: not using AOA mode (using SuperPaymaster V2)
         );
         console.log("    xPNTs token deployed:");
         console.logAddress(xpntsAddr);

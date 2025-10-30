@@ -135,7 +135,9 @@ contract TestRegistryLaunchPaymaster is Script {
             "AOA Community Points",
             "xAOA",
             "AOACommunity",
-            "aoa.eth"
+            "aoa.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: will be added later via addAutoApprovedSpender
         );
         console.log("    xPNTs deployed:");
         console.logAddress(xpntsAOA);
@@ -214,7 +216,9 @@ contract TestRegistryLaunchPaymaster is Script {
             "Super Community Points",
             "xSUPER",
             "SuperCommunity",
-            "super.eth"
+            "super.eth",
+            1 ether,       // exchangeRate: 1:1 with aPNTs
+            address(0)     // paymasterAOA: using SuperPaymaster V2 (AOA+ mode)
         );
         console.log("    xPNTs deployed:");
         console.logAddress(xpntsSuper);
