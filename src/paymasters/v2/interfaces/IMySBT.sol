@@ -188,8 +188,8 @@ interface IMySBT {
     // ====================================
 
     /**
-     * @notice Bind community NFT to SBT
-     * @param community Community address
+     * @notice Bind community NFT to SBT (v2.4.0: User-level binding)
+     * @param community Community address (deprecated in v2.4.0)
      * @param nftContract NFT contract address
      * @param nftTokenId NFT token ID
      */
@@ -200,21 +200,14 @@ interface IMySBT {
     ) external;
 
     /**
-     * @notice Unbind community NFT from SBT
-     * @param community Community address
-     */
-    function unbindCommunityNFT(address community) external;
-
-    /**
-     * @notice Get NFT binding for community
+     * @notice Get all NFT bindings for an SBT (v2.4.0+)
      * @param tokenId Token ID
-     * @param community Community address
-     * @return binding NFT binding data
+     * @return bindings Array of NFT bindings
      */
-    function getNFTBinding(uint256 tokenId, address community)
+    function getAllNFTBindings(uint256 tokenId)
         external
         view
-        returns (NFTBinding memory binding);
+        returns (NFTBinding[] memory bindings);
 
     // ====================================
     // Avatar Functions

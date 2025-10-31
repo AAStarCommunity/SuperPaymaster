@@ -13,19 +13,25 @@ import "../interfaces/IMySBT.sol";
 import "../interfaces/IReputationCalculator.sol";
 
 /**
- * @title MySBT v2.3.1 - White-label Soul Bound Token (Permissionless Mint)
+ * @title MySBT v2.4.0 - White-label Soul Bound Token (NFT Binding Refactor)
  * @notice One SBT per user, multiple community memberships
- * @dev Enhancements over v2.3:
- *      - Added permissionless mint via userMint() function
- *      - Communities can toggle allowPermissionlessMint in Registry
- *      - Users can directly mint SBT and join any community (if allowed)
- *      - Preserves invitation-only mode via mintOrAddMembership()
+ * @dev Enhancements over v2.3.3:
+ *      - NFT binding is now user-level (not community-specific)
+ *      - NFT reputation calculated by holding time (every 30 days +10 points, max +100)
+ *      - Removed unbindCommunityNFT() - burnSBT() auto-cleans all NFT bindings
+ *      - leaveCommunity() no longer affects NFT bindings (NFTs are objective assets)
+ *      - Simplified data structure: tokenId => NFTBinding[] (removed community mapping)
  *
- * Version: 2.3.1
- * Previous: v2.3 (security enhanced), v2.2 (event-driven), v2.1 (baseline)
- * Release Date: 2025-10-30
+ * Key Changes:
+ * - bindNFT(nftContract, nftTokenId) - no community parameter
+ * - Real-time NFT ownership verification during reputation calculation
+ * - Holding time tracking for anti-gaming mechanism
+ *
+ * Version: 2.4.0
+ * Previous: v2.3.3 (exit), v2.3.2 (burn fix), v2.3.1 (permissionless)
+ * Release Date: 2025-10-31
  */
-contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
+contract MySBT_v2_4_0 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -33,10 +39,10 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     // ====================================
 
     /// @notice Contract version string
-    string public constant VERSION = "2.3.1";
+    string public constant VERSION = "2.4.0";
 
     /// @notice Contract version code
-    uint256 public constant VERSION_CODE = 231;
+    uint256 public constant VERSION_CODE = 240;
 
     // ====================================
     // Storage
@@ -54,8 +60,8 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     /// @notice Membership index: tokenId => community => array index
     mapping(uint256 => mapping(address => uint256)) public membershipIndex;
 
-    /// @notice NFT bindings: tokenId => community => NFTBinding
-    mapping(uint256 => mapping(address => NFTBinding)) public nftBindings;
+    /// @notice NFT bindings: tokenId => NFTBinding[] (✅ v2.4: User-level, not community-specific)
+    mapping(uint256 => NFTBinding[]) private _nftBindings;
 
     /// @notice SBT avatars: tokenId => AvatarSetting
     mapping(uint256 => AvatarSetting) public sbtAvatars;
@@ -70,9 +76,6 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     /// @notice Avatar delegation: nftContract => nftTokenId => delegatee => bool
     mapping(address => mapping(uint256 => mapping(address => bool))) public avatarDelegation;
 
-    /// @notice NFT to SBT reverse mapping: nftContract => nftTokenId => tokenId
-    mapping(address => mapping(uint256 => uint256)) public nftToSBT;
-
     /// @notice Last activity time: tokenId => community => timestamp (✅ v2.3: Rate limiting)
     mapping(uint256 => mapping(address => uint256)) public lastActivityTime;
 
@@ -85,6 +88,9 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
 
     /// @notice GTokenStaking contract
     address public immutable GTOKEN_STAKING;
+
+    /// @notice Burn address for GToken fees (0x000...dEaD)
+    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     // ====================================
     // Mutable Configuration
@@ -115,8 +121,12 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     /// @notice Base reputation score
     uint256 public constant BASE_REPUTATION = 20;
 
-    /// @notice NFT bonus per bound NFT
-    uint256 public constant NFT_BONUS = 3;
+    /// @notice NFT holding time bonus (✅ v2.4: Time-weighted reputation)
+    /// @dev Base: 1 point per month, max 1.2 points (12 months) per NFT
+    ///      Unverified NFTs get 0.1x multiplier (applied by external calculator)
+    uint256 public constant NFT_TIME_UNIT = 30 days;              // 1 month
+    uint256 public constant NFT_BASE_SCORE_PER_MONTH = 1;         // 1 point/month
+    uint256 public constant NFT_MAX_MONTHS = 12;                  // Max 12 months = 1.2 points total
 
     /// @notice Activity bonus per active week
     uint256 public constant ACTIVITY_BONUS = 1;
@@ -241,9 +251,9 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             // Lock stGToken (from user's staked balance)
             IGTokenStaking(GTOKEN_STAKING).lockStake(user, minLockAmount, "MySBT");
 
-            // Burn GToken mint fee (user must approve first)
-            IERC20(GTOKEN).safeTransferFrom(user, address(this), mintFee);
-            IGToken(GTOKEN).burn(mintFee);
+            // Burn GToken mint fee by transferring to dead address (user must approve first)
+            // Note: GToken.burn() is not accessible, so we transfer to 0x000...dEaD instead
+            IERC20(GTOKEN).safeTransferFrom(user, BURN_ADDRESS, mintFee);
 
             // Mint SBT
             _mint(user, tokenId);
@@ -343,9 +353,9 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             // Lock stGToken (from user's staked balance)
             IGTokenStaking(GTOKEN_STAKING).lockStake(user, minLockAmount, "MySBT");
 
-            // Burn GToken mint fee (user must approve first)
-            IERC20(GTOKEN).safeTransferFrom(user, address(this), mintFee);
-            IGToken(GTOKEN).burn(mintFee);
+            // Burn GToken mint fee by transferring to dead address (user must approve first)
+            // Note: GToken.burn() is not accessible, so we transfer to 0x000...dEaD instead
+            IERC20(GTOKEN).safeTransferFrom(user, BURN_ADDRESS, mintFee);
 
             // Mint SBT
             _mint(user, tokenId);
@@ -380,6 +390,102 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
         }
 
         return (tokenId, isNewMint);
+    }
+
+    /**
+     * @notice Burn SBT and unlock staked GToken
+     * @dev User can exit by burning their SBT
+     *      - Deactivates all community memberships
+     *      - Burns the SBT NFT
+     *      - Unlocks stGToken via GTokenStaking.unlockStake()
+     *      - GTokenStaking automatically deducts 0.1 stGT exitFee and sends to treasury
+     *      - User receives 0.2 stGT back (0.3 - 0.1 exitFee)
+     *
+     * Requirements:
+     *      - Caller must own an SBT
+     *      - All community memberships will be deactivated
+     *      - Cannot burn if SBT is paused
+     *
+     * @return netAmount Net amount of stGToken returned to user (after exitFee)
+     */
+    function burnSBT()
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256 netAmount)
+    {
+        address user = msg.sender;
+        uint256 tokenId = userToSBT[user];
+
+        if (tokenId == 0) revert InvalidParameter("No SBT to burn");
+        if (ownerOf(tokenId) != user) revert InvalidParameter("Not SBT owner");
+
+        // 1. Deactivate all community memberships
+        CommunityMembership[] storage memberships = _memberships[tokenId];
+        for (uint256 i = 0; i < memberships.length; i++) {
+            if (memberships[i].isActive) {
+                memberships[i].isActive = false;
+                emit MembershipDeactivated(tokenId, memberships[i].community, block.timestamp);
+            }
+        }
+
+        // 2. ✅ v2.4: Auto-clean all NFT bindings
+        delete _nftBindings[tokenId];
+
+        // 3. Clear user mapping
+        delete userToSBT[user];
+
+        // 4. Burn the SBT NFT
+        _burn(tokenId);
+
+        // 4. Unlock stGToken via GTokenStaking
+        // GTokenStaking.unlockStake() will automatically:
+        // - Calculate exitFee = 0.1 stGT
+        // - Deduct exitFee and transfer to treasury
+        // - Return netAmount = 0.2 stGT to user
+        netAmount = IGTokenStaking(GTOKEN_STAKING).unlockStake(user, minLockAmount);
+
+        emit SBTBurned(user, tokenId, minLockAmount, netAmount, block.timestamp);
+    }
+
+    /**
+     * @notice Leave a specific community (deactivate membership)
+     * @dev User can leave individual communities without burning entire SBT
+     *      - Deactivates the community membership
+     *      - Does NOT unlock stGToken (SBT remains valid)
+     *      - Does NOT burn the SBT NFT
+     *      - User can still have other active memberships
+     * @param community Community address to leave
+     */
+    function leaveCommunity(address community)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        address user = msg.sender;
+        uint256 tokenId = userToSBT[user];
+
+        if (tokenId == 0) revert InvalidParameter("No SBT found");
+        if (ownerOf(tokenId) != user) revert InvalidParameter("Not SBT owner");
+
+        // Find and deactivate the community membership
+        uint256 idx = membershipIndex[tokenId][community];
+        if (idx >= _memberships[tokenId].length) {
+            revert InvalidParameter("Not a member of this community");
+        }
+
+        CommunityMembership storage membership = _memberships[tokenId][idx];
+        if (membership.community != community) {
+            revert InvalidParameter("Invalid community membership");
+        }
+        if (!membership.isActive) {
+            revert InvalidParameter("Membership already inactive");
+        }
+
+        // Deactivate membership
+        membership.isActive = false;
+
+        emit MembershipDeactivated(tokenId, community, block.timestamp);
     }
 
     /**
@@ -466,36 +572,19 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     // ====================================
 
     /**
-     * @notice Bind community NFT to SBT
-     * @dev User must own the NFT
-     * @param community Community address
+     * @notice Bind NFT to SBT (✅ v2.4: User-level binding, not community-specific)
+     * @dev User must own the NFT. NFT reputation calculated by holding time.
      * @param nftContract NFT contract address
      * @param nftTokenId NFT token ID
      */
-    function bindCommunityNFT(
-        address community,
+    function bindNFT(
         address nftContract,
         uint256 nftTokenId
-    ) external override whenNotPaused nonReentrant {  // ✅ v2.3: Pausable protection
-        // ✅ v2.3: Input validation
-        if (community == address(0)) revert InvalidAddress(community);
+    ) external whenNotPaused nonReentrant {
         if (nftContract == address(0)) revert InvalidAddress(nftContract);
 
         uint256 tokenId = userToSBT[msg.sender];
         if (tokenId == 0) revert NoSBTFound(msg.sender);
-
-        // Verify community membership
-        uint256 idx = membershipIndex[tokenId][community];
-        if (idx >= _memberships[tokenId].length ||
-            _memberships[tokenId][idx].community != community ||
-            !_memberships[tokenId][idx].isActive) {
-            revert MembershipNotFound(tokenId, community);
-        }
-
-        // Check NFT not already bound
-        if (nftToSBT[nftContract][nftTokenId] != 0) {
-            revert NFTAlreadyBound(nftContract, nftTokenId);
-        }
 
         // Verify NFT ownership
         try IERC721(nftContract).ownerOf(nftTokenId) returns (address owner) {
@@ -506,16 +595,23 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             revert NFTNotOwned(msg.sender, nftContract, nftTokenId);
         }
 
-        // Bind NFT
-        nftBindings[tokenId][community] = NFTBinding({
+        // Check if NFT already bound
+        NFTBinding[] storage bindings = _nftBindings[tokenId];
+        for (uint256 i = 0; i < bindings.length; i++) {
+            if (bindings[i].nftContract == nftContract &&
+                bindings[i].nftTokenId == nftTokenId &&
+                bindings[i].isActive) {
+                revert NFTAlreadyBound(nftContract, nftTokenId);
+            }
+        }
+
+        // Add NFT binding
+        _nftBindings[tokenId].push(NFTBinding({
             nftContract: nftContract,
             nftTokenId: nftTokenId,
             bindTime: block.timestamp,
             isActive: true
-        });
-
-        // Reverse mapping
-        nftToSBT[nftContract][nftTokenId] = tokenId;
+        }));
 
         // Auto-set avatar if no avatar set yet
         if (sbtAvatars[tokenId].nftContract == address(0)) {
@@ -528,63 +624,37 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             emit AvatarSet(tokenId, nftContract, nftTokenId, false, block.timestamp);
         }
 
-        emit NFTBound(tokenId, community, nftContract, nftTokenId, block.timestamp);
+        // ✅ v2.4: Event without community parameter
+        emit NFTBound(tokenId, address(0), nftContract, nftTokenId, block.timestamp);
     }
 
     /**
-     * @notice Unbind community NFT from SBT
-     * @param community Community address
+     * @notice Bind community NFT to SBT (DEPRECATED - use bindNFT instead)
+     * @dev Kept for backward compatibility, ignores community parameter
+     * @param community Ignored (kept for interface compatibility)
+     * @param nftContract NFT contract address
+     * @param nftTokenId NFT token ID
      */
-    function unbindCommunityNFT(address community) external whenNotPaused nonReentrant {  // ✅ v2.3: Pausable
-        uint256 tokenId = userToSBT[msg.sender];
-        if (tokenId == 0) revert NoSBTFound(msg.sender);
-
-        NFTBinding memory binding = nftBindings[tokenId][community];
-        if (!binding.isActive) {
-            revert MembershipNotFound(tokenId, community);
-        }
-
-        // Deactivate binding
-        nftBindings[tokenId][community].isActive = false;
-
-        // Clear reverse mapping
-        delete nftToSBT[binding.nftContract][binding.nftTokenId];
-
-        // If this was the avatar and it was auto-set, clear it
-        if (sbtAvatars[tokenId].nftContract == binding.nftContract &&
-            sbtAvatars[tokenId].nftTokenId == binding.nftTokenId &&
-            !sbtAvatars[tokenId].isCustom) {
-            delete sbtAvatars[tokenId];
-        }
-
-        emit NFTUnbound(tokenId, community, binding.nftContract, binding.nftTokenId, block.timestamp);
+    function bindCommunityNFT(
+        address community,
+        address nftContract,
+        uint256 nftTokenId
+    ) external override whenNotPaused nonReentrant {
+        // Simply call the new bindNFT() function (community parameter ignored)
+        this.bindNFT(nftContract, nftTokenId);
     }
 
     /**
-     * @notice Get NFT binding for community
+     * @notice Get all NFT bindings for a token (✅ v2.4: New function)
      * @param tokenId Token ID
-     * @param community Community address
-     * @return binding NFT binding data
+     * @return bindings Array of all NFT bindings
      */
-    function getNFTBinding(uint256 tokenId, address community)
+    function getAllNFTBindings(uint256 tokenId)
         external
         view
-        returns (NFTBinding memory binding)
-    {
-        return nftBindings[tokenId][community];
-    }
-
-    /**
-     * @notice Get all NFT bindings (v2.4.0+ interface compatibility)
-     * @dev Not supported in v2.3.1 (community-level binding model)
-     * @return bindings Empty array
-     */
-    function getAllNFTBindings(uint256 /* tokenId */)
-        external
-        pure
         returns (NFTBinding[] memory bindings)
     {
-        return new NFTBinding[](0);
+        return _nftBindings[tokenId];
     }
 
     // ====================================
@@ -811,8 +881,8 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     }
 
     /**
-     * @notice Default reputation calculation (✅ v2.3: Real-time NFT verification)
-     * @dev Base (20) + NFT (+3 if currently owned) + Activity (off-chain via calculator)
+     * @notice Default reputation calculation (✅ v2.4: Time-weighted NFT reputation)
+     * @dev Base (20) + NFT (time-weighted, max +100 per NFT) + Activity (off-chain via calculator)
      * @param tokenId Token ID
      * @param community Community address
      * @return score Calculated score
@@ -833,23 +903,65 @@ contract MySBT_v2_3_1 is ERC721, ReentrancyGuard, Pausable, IMySBT {
         // Base score
         score = BASE_REPUTATION;
 
-        // ✅ v2.3: Verify NFT ownership in real-time
-        NFTBinding memory binding = nftBindings[tokenId][community];
-        if (binding.isActive) {
-            try IERC721(binding.nftContract).ownerOf(binding.nftTokenId) returns (address owner) {
-                if (owner == sbtData[tokenId].holder) {
-                    score += NFT_BONUS;
-                }
-                // If owner changed, NFT bonus is automatically removed
-            } catch {
-                // NFT contract error or NFT burned, no bonus
-            }
-        }
+        // ✅ v2.4: Time-weighted NFT reputation (user-level)
+        score += _calculateNFTReputation(tokenId);
 
         // Activity bonus: Use external reputation calculator for activity-based scoring
         // Activity data tracked off-chain via The Graph
 
         return score;
+    }
+
+    /**
+     * @notice Calculate time-weighted NFT reputation (✅ v2.4: New function)
+     * @dev Iterates through all bound NFTs, verifies ownership at query time
+     *      Formula: min(holdingMonths * 1, 12) per NFT
+     *      - Base: 1 point/month, max 12 months (1.2 points total)
+     *      - Query-time verification: Only checks ownership when called (caller pays gas)
+     *      - Not real-time: NFT transfer won't trigger on-chain updates
+     * @param tokenId Token ID
+     * @return totalNFTScore Total NFT reputation score (unweighted, multiplier applied by external calculator)
+     */
+    function _calculateNFTReputation(uint256 tokenId)
+        internal
+        view
+        returns (uint256 totalNFTScore)
+    {
+        NFTBinding[] storage bindings = _nftBindings[tokenId];
+        address holder = sbtData[tokenId].holder;
+
+        for (uint256 i = 0; i < bindings.length; i++) {
+            NFTBinding storage binding = bindings[i];
+
+            // Skip inactive bindings
+            if (!binding.isActive) continue;
+
+            // Query-time ownership verification (caller pays gas)
+            address currentOwner;
+            try IERC721(binding.nftContract).ownerOf(binding.nftTokenId) returns (address owner) {
+                currentOwner = owner;
+            } catch {
+                // NFT contract error or NFT burned
+                continue;
+            }
+
+            // If NFT transferred away, no bonus
+            if (currentOwner != holder) continue;
+
+            // Calculate holding time in months (30 days each)
+            uint256 holdingTime = block.timestamp - binding.bindTime;
+            uint256 holdingMonths = holdingTime / NFT_TIME_UNIT;
+
+            // Calculate score: min(months * 1, 12)
+            uint256 nftScore = holdingMonths * NFT_BASE_SCORE_PER_MONTH;
+            if (nftScore > NFT_MAX_MONTHS) {
+                nftScore = NFT_MAX_MONTHS;
+            }
+
+            totalNFTScore += nftScore;
+        }
+
+        return totalNFTScore;
     }
 
     // ====================================

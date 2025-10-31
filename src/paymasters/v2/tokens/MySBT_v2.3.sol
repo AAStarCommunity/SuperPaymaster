@@ -436,7 +436,7 @@ contract MySBT_v2_3 is ERC721, ReentrancyGuard, Pausable, IMySBT {
      * @notice Unbind community NFT from SBT
      * @param community Community address
      */
-    function unbindCommunityNFT(address community) external override whenNotPaused nonReentrant {  // ✅ v2.3: Pausable
+    function unbindCommunityNFT(address community) external whenNotPaused nonReentrant {  // ✅ v2.3: Pausable
         uint256 tokenId = userToSBT[msg.sender];
         if (tokenId == 0) revert NoSBTFound(msg.sender);
 
@@ -470,10 +470,22 @@ contract MySBT_v2_3 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     function getNFTBinding(uint256 tokenId, address community)
         external
         view
-        override
         returns (NFTBinding memory binding)
     {
         return nftBindings[tokenId][community];
+    }
+
+    /**
+     * @notice Get all NFT bindings (v2.4.0+ interface compatibility)
+     * @dev Not supported in v2.3 (community-level binding model)
+     * @return bindings Empty array
+     */
+    function getAllNFTBindings(uint256 /* tokenId */)
+        external
+        pure
+        returns (NFTBinding[] memory bindings)
+    {
+        return new NFTBinding[](0);
     }
 
     // ====================================

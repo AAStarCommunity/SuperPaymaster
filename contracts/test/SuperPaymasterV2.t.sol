@@ -7,7 +7,7 @@ import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
 import "../../src/paymasters/v2/tokens/xPNTsFactory.sol";
 import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
-import "../../src/paymasters/v2/tokens/MySBTWithNFTBinding.sol";
+import "../../src/paymasters/v2/tokens/MySBT_v2.4.0.sol";
 import "../../src/paymasters/v2/monitoring/DVTValidator.sol";
 import "../../src/paymasters/v2/monitoring/BLSAggregator.sol";
 import "./mocks/MockChainlinkAggregator.sol";
@@ -30,7 +30,7 @@ contract SuperPaymasterV2Test is Test {
     Registry public registry;
     SuperPaymasterV2 public superPaymaster;
     xPNTsFactory public xpntsFactory;
-    MySBTWithNFTBinding public mysbt;
+    MySBT_v2_4_0 public mysbt;
     DVTValidator public dvtValidator;
     BLSAggregator public blsAggregator;
 
@@ -81,9 +81,11 @@ contract SuperPaymasterV2Test is Test {
             address(superPaymaster),
             address(registry)
         );
-        mysbt = new MySBTWithNFTBinding(
+        mysbt = new MySBT_v2_4_0(
             address(gtoken),
-            address(gtokenStaking)
+            address(gtokenStaking),
+            address(registry),
+            owner  // dao address
         );
 
         // Deploy monitoring system
@@ -96,7 +98,7 @@ contract SuperPaymasterV2Test is Test {
         // Initialize connections
         gtokenStaking.authorizeSlasher(address(superPaymaster), true);
         gtokenStaking.authorizeSlasher(address(registry), true);
-        mysbt.setSuperPaymaster(address(superPaymaster));
+        // Note: MySBT v2.4.0 no longer requires setSuperPaymaster()
         superPaymaster.setDVTAggregator(address(blsAggregator));
         dvtValidator.setBLSAggregator(address(blsAggregator));
 
@@ -140,6 +142,13 @@ contract SuperPaymasterV2Test is Test {
         gtoken.mint(user1, 100 ether);
         gtoken.mint(user2, 100 ether);
         gtoken.mint(community1, 1000 ether);
+
+        // Mock Registry.isRegisteredCommunity for community1 (required for MySBT v2.4.0)
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSelector(Registry.isRegisteredCommunity.selector, community1),
+            abi.encode(true)
+        );
     }
 
     // ====================================
@@ -293,17 +302,19 @@ contract SuperPaymasterV2Test is Test {
 
         // Then approve GT for mint fee burn
         gtoken.approve(address(mysbt), 0.1 ether);
+        vm.stopPrank();
 
-        // Mint SBT (will lock 0.3 stGToken)
-        uint256 tokenId = mysbt.mintSBT(community1);
+        // Mint SBT via community (v2.4.0: community calls mintOrAddMembership)
+        vm.prank(community1);
+        (uint256 tokenId,) = mysbt.mintOrAddMembership(user1, "ipfs://metadata");
+
+        vm.startPrank(user1);
 
         assertTrue(tokenId > 0);
         assertEq(mysbt.ownerOf(tokenId), user1);
         assertTrue(mysbt.verifyCommunityMembership(user1, community1));
 
-        // Verify stGToken is locked
-        assertEq(gtokenStaking.lockedBalanceBy(user1, address(mysbt)), 0.3 ether);
-        assertEq(gtokenStaking.availableBalance(user1), 0.7 ether);
+        // Note: MySBT v2.4.0 removed stGToken locking mechanism
 
         vm.stopPrank();
 
@@ -319,12 +330,14 @@ contract SuperPaymasterV2Test is Test {
         gtoken.approve(address(gtokenStaking), 1 ether);
         gtokenStaking.stake(1 ether);
         gtoken.approve(address(mysbt), 0.1 ether);
-        uint256 tokenId = mysbt.mintSBT(community1);
         vm.stopPrank();
+
+        vm.prank(community1);
+        (uint256 tokenId,) = mysbt.mintOrAddMembership(user1, "ipfs://metadata");
 
         // Try to transfer (should fail)
         vm.prank(user1);
-        vm.expectRevert(MySBTWithNFTBinding.TransferNotAllowed.selector);
+        vm.expectRevert(MySBT_v2_4_0.TransferNotAllowed.selector);
         mysbt.transferFrom(user1, user2, tokenId);
     }
 
@@ -334,11 +347,13 @@ contract SuperPaymasterV2Test is Test {
         gtoken.approve(address(gtokenStaking), 1 ether);
         gtokenStaking.stake(1 ether);
         gtoken.approve(address(mysbt), 0.1 ether);
-        mysbt.mintSBT(community1);
         vm.stopPrank();
 
-        // SuperPaymaster updates activity
-        mysbt.setSuperPaymaster(address(this)); // Set test contract as SuperPaymaster
+        vm.prank(community1);
+        mysbt.mintOrAddMembership(user1, "ipfs://metadata");
+
+        // NOTE: MySBT v2.4.0 removed setSuperPaymaster() and activity tracking functions
+        // Activity metrics are not tracked in v2.4.0, focusing on NFT binding reputation instead
 
         // NOTE: MySBTWithNFTBinding v2.1-beta does not track per-community activity metrics
         // The updateActivity() function exists but does not maintain CommunityData or UserProfile structs
@@ -537,13 +552,16 @@ contract SuperPaymasterV2Test is Test {
 
         // Approve GT for mint fees
         gtoken.approve(address(mysbt), 1 ether);
-
-        mysbt.mintSBT(community1);
-
-        // Try to mint again for same community (should fail)
-        vm.expectRevert();
-        mysbt.mintSBT(community1);
         vm.stopPrank();
+
+        // Mint SBT via community
+        vm.prank(community1);
+        mysbt.mintOrAddMembership(user1, "ipfs://metadata");
+
+        // Try to mint again from same community (should fail - MembershipAlreadyExists)
+        vm.prank(community1);
+        vm.expectRevert(); // MySBT v2.4.0 prevents duplicate membership from same community
+        mysbt.mintOrAddMembership(user1, "ipfs://metadata2");
     }
 }
 

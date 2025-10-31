@@ -159,3 +159,39 @@ When adding new features:
 - **Fail-Safe Design**: Router gracefully handles paymaster failures without breaking user operations
 - **Owner Controls**: Emergency pause and paymaster removal functions
 - **Reentrancy Protection**: All state-changing functions protected against reentrancy attacks
+
+## Documentation Standards
+
+### File Organization
+- **All documentation must be placed in the `docs/` directory**
+- Never create documentation files (`.md`, `.txt`, etc.) in the project root directory
+- Organize by topic: architecture, deployment, testing, API references, etc.
+
+### Documentation File Naming
+- Use descriptive names with date suffix: `contract-relation-2025-10-30.md`
+- For permanent documentation: Use descriptive names without dates (e.g., `ARCHITECTURE.md`)
+- For version-specific docs: Include version in filename (e.g., `v2.3.3-deployment.md`)
+
+### Documentation Content Standards
+- **Keep code snippets concise**: Show only relevant parts with comments
+- **Use tables** for comparing features, dependencies, or configurations
+- **Include diagrams** (ASCII art or Mermaid) for complex relationships
+- **Version tracking**: Always note the date and version of contracts being documented
+- **Update existing docs** when making significant architectural changes
+
+### Required Documentation Types
+1. **Contract Relations**: Deployment dependencies and configuration steps
+2. **Architecture Decisions**: Why certain patterns were chosen
+3. **Migration Guides**: When breaking changes occur
+4. **Testing Strategy**: How to test new features
+5. **Deployment Guides**: Step-by-step deployment instructions
+
+### Examples of Good Documentation
+- `docs/contract-relation-2025-10-30.md` - Comprehensive deployment dependency analysis
+- `docs/CLAUDE.md` - Project best practices and development guidelines
+- `CLAUDE.md` (root) - Repository overview and architecture patterns
+
+### Documentation Update Policy
+- Update documentation **immediately** when deploying new contracts
+- Mark deprecated features clearly with ❌ or ~~strikethrough~~
+- Include migration paths when deprecating features

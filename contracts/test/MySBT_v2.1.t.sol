@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "../../src/paymasters/v2/tokens/MySBT_v2.1.sol";
-import "../../src/paymasters/v2/tokens/DefaultReputationCalculator.sol";
+// Note: DefaultReputationCalculator removed (deprecated)
 import "../../src/paymasters/v2/interfaces/IMySBT.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -105,7 +105,7 @@ contract MySBT_v2_1_Test is Test {
     MockGTokenStaking public staking;
     MockRegistry public registry;
     MockNFT public nft;
-    DefaultReputationCalculator public repCalc;
+    // Note: DefaultReputationCalculator removed (deprecated)
 
     address public dao = address(0x1000);
     address public community1 = address(0x2001);
@@ -159,8 +159,7 @@ contract MySBT_v2_1_Test is Test {
             dao
         );
 
-        // Deploy reputation calculator
-        repCalc = new DefaultReputationCalculator(address(sbt));
+        // Note: DefaultReputationCalculator removed (deprecated)
 
         // Register communities
         registry.registerCommunity(community1);
@@ -528,17 +527,18 @@ contract MySBT_v2_1_Test is Test {
         assertEq(score, 20, "Base score only (activity tracking is event-driven in v2.2)");
     }
 
-    function test_Reputation_ExternalCalculator() public {
-        // Set external calculator
-        vm.prank(dao);
-        sbt.setReputationCalculator(address(repCalc));
+    // Note: Test disabled - DefaultReputationCalculator removed (deprecated)
+    // function test_Reputation_ExternalCalculator() public {
+    //     // Set external calculator
+    //     vm.prank(dao);
+    //     sbt.setReputationCalculator(address(repCalc));
 
-        vm.prank(community1);
-        sbt.mintOrAddMembership(user1, "ipfs://metadata1");
+    //     vm.prank(community1);
+    //     sbt.mintOrAddMembership(user1, "ipfs://metadata1");
 
-        uint256 score = sbt.getCommunityReputation(user1, community1);
-        assertGt(score, 0, "External calculator should return score");
-    }
+    //     uint256 score = sbt.getCommunityReputation(user1, community1);
+    //     assertGt(score, 0, "External calculator should return score");
+    // }
 
     function test_Reputation_GlobalScore() public {
         // Mint from two communities
@@ -601,12 +601,13 @@ contract MySBT_v2_1_Test is Test {
         assertEq(sbt.mintFee(), 0.2 ether, "Should update mint fee");
     }
 
-    function test_SetReputationCalculator_OnlyDAO() public {
-        vm.prank(dao);
-        sbt.setReputationCalculator(address(repCalc));
+    // Note: Test disabled - DefaultReputationCalculator removed (deprecated)
+    // function test_SetReputationCalculator_OnlyDAO() public {
+    //     vm.prank(dao);
+    //     sbt.setReputationCalculator(address(repCalc));
 
-        assertEq(sbt.reputationCalculator(), address(repCalc), "Should update calculator");
-    }
+    //     assertEq(sbt.reputationCalculator(), address(repCalc), "Should update calculator");
+    // }
 
     function test_SetDAOMultisig_OnlyDAO() public {
         address newDAO = address(0x2000);
