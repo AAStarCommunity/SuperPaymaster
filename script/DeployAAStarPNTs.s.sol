@@ -46,14 +46,14 @@ contract DeployAAStarPNTs is Script {
 
         vm.startBroadcast();
 
-        // Deploy through factory
-        address tokenAddress = factory.createXPNTsToken(
+        // Deploy through factory (6-parameter deployment)
+        address tokenAddress = factory.deployxPNTsToken(
             name,
             symbol,
-            aastarOwner,
             communityName,
             communityENS,
-            exchangeRate
+            exchangeRate,
+            address(0) // paymasterAOA (optional, can be address(0))
         );
 
         xPNTsToken token = xPNTsToken(tokenAddress);
@@ -72,13 +72,6 @@ contract DeployAAStarPNTs is Script {
         console.log("  Community:", token.communityName());
         console.log("  ENS:", token.communityENS());
         console.log("  Exchange Rate:", token.exchangeRate() / 1e18, ":1 (aPNT:xPNT)");
-        console.log("");
-
-        // Check auto-approved spenders
-        address superPaymaster = factory.SUPER_PAYMASTER();
-        console.log("Auto-Approved Spenders:");
-        console.log("  SuperPaymaster:", superPaymaster);
-        console.log("  Is Auto-Approved:", token.isAutoApproved(superPaymaster));
         console.log("");
 
         vm.stopBroadcast();
