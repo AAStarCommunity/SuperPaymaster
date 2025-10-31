@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title MockPNT - Mock PNT Token for Testing

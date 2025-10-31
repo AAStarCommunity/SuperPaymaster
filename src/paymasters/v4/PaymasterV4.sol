@@ -9,6 +9,7 @@ import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol"
 import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import { ISBT } from "../../interfaces/ISBT.sol";
@@ -22,6 +23,7 @@ interface IGasTokenPrice {
 }
 
 using UserOperationLib for PackedUserOperation;
+using SafeERC20 for IERC20;
 
 /// @title PaymasterV4
 /// @notice Direct payment mode without Settlement - gas optimized
@@ -63,6 +65,11 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
 
     /// @notice Maximum number of supported GasTokens
     uint256 public constant MAX_GAS_TOKENS = 10;
+
+    /// @notice Price staleness threshold (15 minutes for L2)
+    /// @dev L2 chains have faster block times and more frequent Chainlink updates
+    ///      Reduced from 3600s (1 hour) to 900s (15 min) for better price accuracy
+    uint256 public constant PRICE_STALENESS_THRESHOLD = 900;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -243,8 +250,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
             revert PaymasterV4__InsufficientPNT();
         }
 
-        // Direct transfer tokens to treasury
-        IERC20(userGasToken).transferFrom(sender, treasury, tokenAmount);
+        // Direct transfer tokens to treasury (using SafeERC20 to handle non-compliant tokens)
+        IERC20(userGasToken).safeTransferFrom(sender, treasury, tokenAmount);
 
         // Emit payment event
         emit GasPaymentProcessed(sender, userGasToken, tokenAmount, cappedMaxCost, maxCost);
@@ -334,8 +341,9 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
 
-        // Check if price is stale (not updated within 3600 seconds / 1 hour)
-        if (block.timestamp - updatedAt > 3600) {
+        // ✅ FIXED: Use PRICE_STALENESS_THRESHOLD (900s / 15 min for L2)
+        // Reduced from 3600s (1 hour) for better price accuracy on L2
+        if (block.timestamp - updatedAt > PRICE_STALENESS_THRESHOLD) {
             revert PaymasterV4__InvalidTokenBalance(); // Reuse error for simplicity
         }
 

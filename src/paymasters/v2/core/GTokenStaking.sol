@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /**
  * @title GTokenStaking with Lock Management and Slash System
@@ -229,7 +229,10 @@ contract GTokenStaking is Ownable {
         if (totalShares == 0) {
             shares = amount;
         } else {
-            shares = amount * totalShares / (totalStaked - totalSlashed);
+            // ✅ FIXED: Prevent division by zero when fully slashed
+            uint256 availableStake = totalStaked - totalSlashed;
+            require(availableStake > 0, "GTokenStaking: fully slashed");
+            shares = amount * totalShares / availableStake;
         }
 
         // Update user stake info (support both new stake and adding to existing)
@@ -300,9 +303,17 @@ contract GTokenStaking is Ownable {
         // Calculate actual balance (after slash)
         uint256 actualAmount = balanceOf(msg.sender);
 
+        // ✅ FIXED: More accurate slash accounting
+        // Calculate user's proportional share of total slashed amount
+        // This is more accurate than (info.amount - actualAmount) due to rounding
+        uint256 userSlashedAmount = 0;
+        if (totalSlashed > 0 && totalShares > 0) {
+            userSlashedAmount = info.stGTokenShares * totalSlashed / totalShares;
+        }
+
         // Update global state
         totalStaked -= info.amount;
-        totalSlashed -= (info.amount - actualAmount); // Adjust slash accounting
+        totalSlashed -= userSlashedAmount;  // Deduct user's proportional slash
         totalShares -= info.stGTokenShares;
 
         // Delete user stake
@@ -578,8 +589,13 @@ contract GTokenStaking is Ownable {
         StakeInfo memory info = stakes[user];
         if (info.stGTokenShares == 0) return 0;
 
+        // ✅ FIXED: Prevent division by zero when fully slashed
+        if (totalShares == 0) return 0;
+        uint256 availableStake = totalStaked - totalSlashed;
+        if (availableStake == 0) return 0;
+
         // Slash-aware calculation
-        return info.stGTokenShares * (totalStaked - totalSlashed) / totalShares;
+        return info.stGTokenShares * availableStake / totalShares;
     }
 
     /**
@@ -668,7 +684,10 @@ contract GTokenStaking is Ownable {
      */
     function sharesToGToken(uint256 shares) public view returns (uint256) {
         if (totalShares == 0) return 0;
-        return shares * (totalStaked - totalSlashed) / totalShares;
+        // ✅ FIXED: Prevent division by zero when fully slashed
+        uint256 availableStake = totalStaked - totalSlashed;
+        if (availableStake == 0) return 0;
+        return shares * availableStake / totalShares;
     }
 
     /**
@@ -678,7 +697,10 @@ contract GTokenStaking is Ownable {
      */
     function gTokenToShares(uint256 amount) public view returns (uint256) {
         if (totalShares == 0) return amount;
-        return amount * totalShares / (totalStaked - totalSlashed);
+        // ✅ FIXED: Prevent division by zero when fully slashed
+        uint256 availableStake = totalStaked - totalSlashed;
+        require(availableStake > 0, "GTokenStaking: fully slashed");
+        return amount * totalShares / availableStake;
     }
 
     /**
@@ -730,7 +752,10 @@ contract GTokenStaking is Ownable {
         if (totalShares == 0) {
             return amount;
         }
-        return amount * totalShares / (totalStaked - totalSlashed);
+        // ✅ FIXED: Prevent division by zero when fully slashed
+        uint256 availableStake = totalStaked - totalSlashed;
+        require(availableStake > 0, "GTokenStaking: fully slashed");
+        return amount * totalShares / availableStake;
     }
 
     /**

@@ -513,6 +513,35 @@ NFTRatingRegistry (未部署)
 MySBT v2.4.0 (未部署) → WeightedReputationCalculator (未部署)
 ```
 
+
+  核心合约测试状态：
+
+  | 合约                           | 版本     | 测试状态   | 测试数量                 | 说明                   |
+  |------------------------------|--------|--------|----------------------|----------------------|
+  | MySBT                        | v2.1   | ✅ 已测试  | 31 tests             | 基础版本                 |
+  | MySBT                        | v2.3   | ✅ 已测试  | 51 tests             | 增强版本                 |
+  | MySBT                        | v2.4.0 | ✅ 已测试  | 13 tests             | 最新版本 - NFT 绑定        |
+  | NFTRatingRegistry            | v1.0.0 | ✅ 已测试  | 17 tests             | NFT 评级系统             |
+  | WeightedReputationCalculator | v1.0.0 | ✅ 已测试  | (NFTRatingSystem 套件) | 加权声誉计算               |
+  | PaymasterV3                  | v3     | ✅ 已测试  | 34 tests             | Paymaster v3         |
+  | PaymasterV4_1                | v4.1   | ✅ 已测试  | 10 tests             | Paymaster v4.1       |
+  | SuperPaymasterV2             | v2     | ✅ 已测试  | 16 tests             | 集成测试                 |
+  | GTokenStaking                | v2     | ✅ 集成测试 | (MySBT 套件)           | 在 MySBT 测试中          |
+  | Registry                     | v2.1.3 | ✅ 集成测试 | (MySBT 套件)           | 在 MySBT 测试中          |
+  | xPNTsFactory                 | v1     | ✅ 集成测试 | (SuperPaymaster 套件)  | 在 SuperPaymaster 测试中 |
+  | xPNTsToken                   | 动态     | ✅ 集成测试 | (SuperPaymaster 套件)  | 在 SuperPaymaster 测试中 |
+  | DVTValidator                 | v1     | ✅ 集成测试 | (SuperPaymaster 套件)  | 在 SuperPaymaster 测试中 |
+  | BLSAggregator                | v1     | ✅ 集成测试 | (SuperPaymaster 套件)  | 在 SuperPaymaster 测试中 |
+
+  未单独测试的合约：
+
+  | 合约                         | 版本           | 测试状态    | 说明     |
+  |----------------------------|--------------|---------|--------|
+  | PaymasterFactory           | v1           | ⚠️ 未部署  | 未来功能   |
+  | BasePaymasterRouter        | -            | 📦 基础库  | 抽象合约   |
+  | MySBT v2.3.1/v2.3.2/v2.3.3 | 旧版本          | 📚 历史版本 | 保留用于参考 |
+  | PaymasterV3_1/V3_2         | 旧版本          | 📚 历史版本 | 保留用于参考 |
+  | Settlement/SettlementV3    | v3/v3.1/v3.2 | 📚 历史版本 | 保留用于参考 |
 ---
 
 **文档生成时间**: 2025-10-31

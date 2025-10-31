@@ -5,9 +5,9 @@ import "forge-std/Test.sol";
 import "../../src/paymasters/v2/tokens/MySBT_v2.4.0.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "../../src/paymasters/v2/core/Registry.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /// @notice Mock GToken for testing
 contract GToken is ERC20, Ownable {

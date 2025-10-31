@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "../../src/paymasters/v4/PaymasterV4_1.sol";
 import "./mocks/MockSBT.sol";
-import "../../src/tokens/GasTokenV2.sol";
+import "../../src/paymasters/v2/tokens/xPNTsToken.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { ISuperPaymasterRegistry } from "../../src/interfaces/ISuperPaymasterRegistry.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -17,8 +17,8 @@ import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/
 contract PaymasterV4_1Test is Test {
     PaymasterV4_1 public paymaster;
     MockSBT public sbt;
-    GasTokenV2 public basePNT;
-    GasTokenV2 public aPNT;
+    xPNTsToken public basePNT;
+    xPNTsToken public aPNT;
     MockRegistry public mockRegistry;
     MockChainlinkPriceFeed public ethUsdPriceFeed;
 
@@ -64,11 +64,15 @@ contract PaymasterV4_1Test is Test {
             address(mockRegistry)      // Registry (immutable)
         );
 
-        // Deploy GasTokens with paymaster address
-        // basePNT: base token, price = $0.02, exchangeRate = 1e18
-        basePNT = new GasTokenV2("Base PNT", "bPNT", address(paymaster), address(0), 1e18, INITIAL_PNT_PRICE_USD);
-        // aPNT: base token, price = $0.02, exchangeRate = 1e18
-        aPNT = new GasTokenV2("Alpha PNT", "aPNT", address(paymaster), address(0), 1e18, INITIAL_PNT_PRICE_USD);
+        // Deploy xPNTs tokens for testing
+        // basePNT: base community token, exchangeRate = 1e18 (1:1 with aPNT)
+        basePNT = new xPNTsToken("Base PNT", "bPNT", owner, "Base Community", "base.eth", 1e18);
+        // aPNT: alpha community token, exchangeRate = 1e18 (1:1 with aPNT)
+        aPNT = new xPNTsToken("Alpha PNT", "aPNT", owner, "Alpha Community", "alpha.eth", 1e18);
+
+        // Add paymaster as auto-approved spender (replaces GasTokenV2's _update hook)
+        basePNT.addAutoApprovedSpender(address(paymaster));
+        aPNT.addAutoApprovedSpender(address(paymaster));
 
         // Add GasTokens to paymaster (SBT already added in constructor)
         paymaster.addGasToken(address(basePNT));

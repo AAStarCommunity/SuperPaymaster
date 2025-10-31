@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
 import "../interfaces/Interfaces.sol";
 import "../interfaces/IMySBT.sol";
 import "../interfaces/IReputationCalculator.sol";

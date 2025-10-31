@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
@@ -91,6 +91,19 @@ contract Registry is Ownable, ReentrancyGuard {
         uint256 totalSlashed;           // Total slashed amount (historical)
         bool isActive;                  // Active status (deactivated if stake too low)
     }
+
+    // ====================================
+    // Constants (DoS Protection)
+    // ====================================
+
+    /// @notice Maximum number of supported SBTs per community (DoS protection)
+    uint256 public constant MAX_SUPPORTED_SBTS = 10;
+
+    /// @notice Maximum community name length (DoS protection for _toLowercase)
+    uint256 public constant MAX_NAME_LENGTH = 100;
+
+    /// @notice Maximum string field length for ENS, description, etc.
+    uint256 public constant MAX_STRING_LENGTH = 500;
 
     // ====================================
     // Storage
@@ -292,6 +305,14 @@ contract Registry is Ownable, ReentrancyGuard {
             revert("Name cannot be empty");
         }
 
+        // ✅ FIXED: DoS protection - limit array and string sizes
+        if (bytes(profile.name).length > MAX_NAME_LENGTH) {
+            revert InvalidParameter("Name too long");
+        }
+        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) {
+            revert InvalidParameter("Too many SBTs (max 10)");
+        }
+
         // Map legacy PaymasterMode to NodeType (backward compatibility)
         NodeType nodeType = profile.mode == PaymasterMode.INDEPENDENT
             ? NodeType.PAYMASTER_AOA
@@ -328,8 +349,10 @@ contract Registry is Ownable, ReentrancyGuard {
                     "Registry community registration (Super mode)"
                 );
             } else {
-                // Verify already locked via SuperPaymaster
-                uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, msg.sender);
+                // ✅ FIXED: Verify already locked via SuperPaymaster
+                // Correct parameter order: getLockedStake(user, locker)
+                // locker should be address(this) (Registry), not msg.sender
+                uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, address(this));
                 if (existingLock < config.minStake) {
                     revert InsufficientStake(existingLock, config.minStake);
                 }
@@ -362,8 +385,9 @@ contract Registry is Ownable, ReentrancyGuard {
         communities[communityAddress] = profile;
 
         // Store staking info
+        // ✅ FIXED: Correct parameter order for getLockedStake(user, locker)
         communityStakes[communityAddress] = CommunityStake({
-            stGTokenLocked: stGTokenAmount > 0 ? stGTokenAmount : GTOKEN_STAKING.getLockedStake(msg.sender, msg.sender),
+            stGTokenLocked: stGTokenAmount > 0 ? stGTokenAmount : GTOKEN_STAKING.getLockedStake(msg.sender, address(this)),
             failureCount: 0,
             lastFailureTime: 0,
             totalSlashed: 0,
@@ -406,6 +430,14 @@ contract Registry is Ownable, ReentrancyGuard {
 
         if (communities[communityAddress].registeredAt == 0) {
             revert CommunityNotRegistered(communityAddress);
+        }
+
+        // ✅ FIXED: DoS protection - limit array and string sizes
+        if (bytes(profile.name).length > MAX_NAME_LENGTH) {
+            revert InvalidParameter("Name too long");
+        }
+        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) {
+            revert InvalidParameter("Too many SBTs (max 10)");
         }
 
         CommunityProfile storage existing = communities[communityAddress];

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import {SafeCast} from "@openzeppelin-v5.0.2/contracts/utils/math/SafeCast.sol";
 import {ISettlement} from "../../interfaces/ISettlement.sol";
 import {ISuperPaymasterRegistry} from "../../interfaces/ISuperPaymasterRegistry.sol";
 
@@ -157,11 +158,12 @@ contract SettlementV3_2 is ISettlement, Ownable, ReentrancyGuard {
         );
 
         // CEI Pattern: Effects
+        // ✅ FIXED: Use SafeCast to prevent silent overflow
         _feeRecords[recordKey] = FeeRecord({
             paymaster: msg.sender,
-            amount: uint96(amount),
+            amount: SafeCast.toUint96(amount),
             user: user,
-            timestamp: uint96(block.timestamp),
+            timestamp: SafeCast.toUint96(block.timestamp),
             token: token,
             status: FeeStatus.Pending,
             userOpHash: userOpHash

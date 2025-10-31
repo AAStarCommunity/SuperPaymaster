@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "../interfaces/IReputationCalculator.sol";
 import "../interfaces/IMySBT.sol";
 import "./NFTRatingRegistry.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
 
 /**
  * @title WeightedReputationCalculator

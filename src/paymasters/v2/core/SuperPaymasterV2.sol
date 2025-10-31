@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/Interfaces.sol";
 
@@ -107,6 +107,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /// @notice aPNTs price in USD (18 decimals), e.g., 0.02 USD = 0.02e18
     uint256 public aPNTsPriceUSD = 0.02 ether;
+
+    /// @notice ETH/USD price sanity bounds (prevents oracle manipulation)
+    /// @dev Min: $100, Max: $100,000 (with 8 decimals from Chainlink)
+    int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;      // $100
+    int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;  // $100,000
 
     /// @notice Gas to USD conversion rate (18 decimals), e.g., 4500e18 = $4500/ETH
     uint256 public gasToUSDRate = 3000 ether; // 默认$3000/ETH
@@ -600,6 +605,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         // Check if price is stale (not updated within 3600 seconds / 1 hour)
         if (block.timestamp - updatedAt > 3600) {
             revert InvalidConfiguration(); // Price feed is stale
+        }
+
+        // ✅ FIXED: Add price sanity bounds check (prevents oracle manipulation)
+        if (ethUsdPrice <= 0 || ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) {
+            revert InvalidConfiguration(); // Price out of reasonable range
         }
 
         uint8 decimals = ethUsdPriceFeed.decimals();

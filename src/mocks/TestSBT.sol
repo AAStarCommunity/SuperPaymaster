@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 
 /**
  * @title TestSBT
