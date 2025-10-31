@@ -469,16 +469,16 @@ contract SuperPaymasterRegistry is Ownable, ReentrancyGuard {
         pm.stakedAmount -= slashAmount;
         totalStaked -= slashAmount;
 
-        // Send slashed amount to treasury
-        (bool success, ) = treasury.call{value: slashAmount}("");
-        require(success, "ETH transfer failed");
-
-        // Deactivate if stake falls below minimum
+        // Deactivate if stake falls below minimum (CEI: State modification before external call)
         if (pm.stakedAmount < minStakeAmount) {
             pm.isActive = false;
         }
 
         emit PaymasterSlashed(_paymaster, slashAmount, _reason);
+
+        // Send slashed amount to treasury (CEI: External call last)
+        (bool success, ) = treasury.call{value: slashAmount}("");
+        require(success, "ETH transfer failed");
     }
 
     /*//////////////////////////////////////////////////////////////

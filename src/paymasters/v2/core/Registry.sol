@@ -836,22 +836,9 @@ contract Registry is Ownable, ReentrancyGuard {
         // Calculate slash amount
         uint256 slashAmount = stake.stGTokenLocked * slashPercentage / 100;
 
-        // Execute slash via GTokenStaking
-        uint256 slashed = GTOKEN_STAKING.slash(
-            community,
-            slashAmount,
-            string(abi.encodePacked(
-                "Registry v2.1 progressive slash: ",
-                _toString(stake.failureCount),
-                " failures, ",
-                _toString(slashPercentage),
-                "% penalty"
-            ))
-        );
-
-        // Update state
-        stake.stGTokenLocked -= slashed;
-        stake.totalSlashed += slashed;
+        // CEI: Update state before external call
+        stake.stGTokenLocked -= slashAmount;
+        stake.totalSlashed += slashAmount;
         stake.failureCount = 0;  // Reset counter after slash
 
         // Deactivate if stake too low (50% of minimum)
@@ -861,7 +848,23 @@ contract Registry is Ownable, ReentrancyGuard {
             emit CommunityDeactivated(community, "Insufficient stake after slash");
         }
 
-        emit CommunitySlashed(community, slashed, stake.stGTokenLocked, block.timestamp);
+        emit CommunitySlashed(community, slashAmount, stake.stGTokenLocked, block.timestamp);
+
+        // CEI: Execute slash via GTokenStaking (external call last)
+        uint256 slashed = GTOKEN_STAKING.slash(
+            community,
+            slashAmount,
+            string(abi.encodePacked(
+                "Registry v2.1 progressive slash: ",
+                _toString(excessFailures + config.slashThreshold),
+                " failures, ",
+                _toString(slashPercentage),
+                "% penalty"
+            ))
+        );
+
+        // Verify actual slashed amount matches expected
+        require(slashed == slashAmount, "Slash amount mismatch");
     }
 
     /**

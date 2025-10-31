@@ -389,14 +389,17 @@ contract GTokenStaking is Ownable {
 
         netAmount = grossAmount - exitFee;
 
-        // Update lock state
+        // CEI: Update lock state before external call
         lockInfo.amount -= grossAmount;
         totalLocked[user] -= grossAmount;
 
-        // Transfer exit fee to treasury (if fee > 0)
+        // Prepare fee transfer data (if fee > 0)
+        address feeRecipient;
+        uint256 feeInGT;
+
         if (exitFee > 0) {
             LockerConfig memory config = lockerConfigs[msg.sender];
-            address feeRecipient = config.feeRecipient != address(0)
+            feeRecipient = config.feeRecipient != address(0)
                 ? config.feeRecipient
                 : treasury;
 
@@ -404,15 +407,19 @@ contract GTokenStaking is Ownable {
                 revert InvalidFeeRecipient();
             }
 
-            // Convert stGToken shares to GT amount and transfer
-            uint256 feeInGT = sharesToGToken(exitFee);
-            IERC20(GTOKEN).safeTransfer(feeRecipient, feeInGT);
+            // Convert stGToken shares to GT amount
+            feeInGT = sharesToGToken(exitFee);
 
-            // Adjust totalStaked and totalSlashed to account for fee transfer
+            // CEI: Adjust totalStaked before external call
             totalStaked -= feeInGT;
         }
 
         emit StakeUnlocked(user, msg.sender, grossAmount, exitFee, netAmount);
+
+        // CEI: Transfer exit fee to treasury (external call last)
+        if (exitFee > 0) {
+            IERC20(GTOKEN).safeTransfer(feeRecipient, feeInGT);
+        }
     }
 
     /**

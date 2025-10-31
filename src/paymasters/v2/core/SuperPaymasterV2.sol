@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -25,6 +26,7 @@ import "../interfaces/Interfaces.sol";
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
 contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
+    using SafeERC20 for IERC20;
 
     // ====================================
     // Structs
@@ -355,7 +357,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
         // CEI: Interactions last - Transfer aPNTs from operator to SuperPaymaster contract
         // Operator购买的aPNTs（AAStar token）存入合约，用户交易时再转到treasury
-        IERC20(aPNTsToken).transferFrom(msg.sender, address(this), amount);
+        IERC20(aPNTsToken).safeTransferFrom(msg.sender, address(this), amount);
 
         emit aPNTsDeposited(msg.sender, amount, block.timestamp);
     }
@@ -765,7 +767,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         treasuryAPNTsBalance -= amount;
 
         // CEI: Interactions last - Transfer actual aPNTs to treasury
-        IERC20(aPNTsToken).transfer(superPaymasterTreasury, amount);
+        IERC20(aPNTsToken).safeTransfer(superPaymasterTreasury, amount);
 
         emit TreasuryWithdrawal(superPaymasterTreasury, amount, block.timestamp);
     }
