@@ -7,6 +7,8 @@
 - 添加社区注册页面
 - GTokenStaking细粒度测试
 - 安全审计工具评估文档
+- 修复Slither重入漏洞
+- SuperPaymasterV2添加SafeERC20
 
 ## 2025-10-30
 - 完成统一xPNTs架构实现
