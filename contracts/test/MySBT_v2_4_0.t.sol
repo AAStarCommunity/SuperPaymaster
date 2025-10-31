@@ -72,7 +72,9 @@ contract MySBT_v2_4_0_Test is Test {
         staking.configureLocker(
             address(mysbt),
             true,           // authorized
-            0.1 ether,      // baseExitFee
+            100,            // feeRateBps (1%)
+            0.01 ether,     // minExitFee
+            500,            // maxFeePercent (5%)
             emptyTiers,     // timeTiers
             emptyTiers,     // tierFees
             address(0)      // feeRecipient (use default treasury)

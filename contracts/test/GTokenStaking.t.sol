@@ -45,7 +45,7 @@ contract GTokenStakingTest is Test {
         // Configure locker with 1% base exit fee
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
-        staking.configureLocker(locker, true, 100, emptyTiers, emptyFees, address(0)); // 1% = 100 basis points
+        staking.configureLocker(locker, true, 100, 0.01 ether, 500, emptyTiers, emptyFees, address(0)); // 1% = 100 basis points
 
         vm.stopPrank();
 
@@ -97,7 +97,7 @@ contract GTokenStakingTest is Test {
         staking.stake(100 ether);
 
         // First staker: 1:1 ratio (shares = amount)
-        (,uint256 shares,,) = staking.stakes(user1);
+        (,uint256 shares,,,) = staking.stakes(user1);
         assertEq(shares, 100 ether, "First staker should get 1:1 shares");
         assertEq(staking.balanceOf(user1), 100 ether);
         vm.stopPrank();
@@ -115,7 +115,7 @@ contract GTokenStakingTest is Test {
         gtoken.approve(address(staking), 50 ether);
         staking.stake(50 ether);
 
-        (,uint256 shares,,) = staking.stakes(user2);
+        (,uint256 shares,,,) = staking.stakes(user2);
         assertEq(shares, 50 ether, "Second staker should also get 1:1 shares when no slash");
         assertEq(staking.balanceOf(user2), 50 ether);
         vm.stopPrank();
@@ -132,16 +132,17 @@ contract GTokenStakingTest is Test {
         vm.prank(slasher);
         staking.slash(user1, 50 ether, "Test slash");
 
-        // User2 stakes 50 GT after slash
-        // totalStaked = 100, totalSlashed = 50, availableStake = 50
+        // User2 stakes 50 GT after User1's slash
+        // ✅ NEW USER-LEVEL SLASH: User1's slash only affects User1
+        // totalStaked = 100 - 50 (slashed) + 50 (new stake) = 100
         // totalShares = 100
-        // New shares = 50 * 100 / 50 = 100 shares
+        // New shares = 50 * 100 / 100 = 50 shares (NOT affected by User1's slash)
         vm.startPrank(user2);
         gtoken.approve(address(staking), 50 ether);
         staking.stake(50 ether);
 
-        (,uint256 shares,,) = staking.stakes(user2);
-        assertEq(shares, 100 ether, "After 50% slash, 50 GT should give 100 shares");
+        (,uint256 shares,,,) = staking.stakes(user2);
+        assertEq(shares, 50 ether, "User2 gets 50 shares for 50 GT (fair ratio)");
         assertEq(staking.balanceOf(user2), 50 ether, "Balance should be 50 GT equivalent");
         vm.stopPrank();
     }
@@ -154,10 +155,14 @@ contract GTokenStakingTest is Test {
         gtoken.approve(address(staking), smallAmount * 10);
 
         // Stake 10 times in small amounts
+        uint256 currentTime = block.timestamp;
         for (uint256 i = 0; i < 10; i++) {
             staking.stake(smallAmount);
             staking.requestUnstake();
-            vm.warp(block.timestamp + UNSTAKE_DELAY);
+
+            currentTime += UNSTAKE_DELAY + 1;
+            vm.warp(currentTime);
+
             staking.unstake();
         }
 
@@ -185,7 +190,10 @@ contract GTokenStakingTest is Test {
 
         assertEq(slashed, 10 ether);
         assertEq(staking.balanceOf(user1), balanceBefore - 10 ether);
-        assertEq(staking.totalSlashed(), 10 ether);
+
+        // ✅ NEW: Check user-level slashedAmount instead of global totalSlashed
+        (,,uint256 slashedAmount,,) = staking.stakes(user1);
+        assertEq(slashedAmount, 10 ether, "User's slashedAmount should be 10 ether");
     }
 
     function test_Slash_Multiple_Cumulative() public {
@@ -205,7 +213,9 @@ contract GTokenStakingTest is Test {
         staking.slash(user1, 10 ether, "Third 10%");
         assertEq(staking.balanceOf(user1), 70 ether);
 
-        assertEq(staking.totalSlashed(), 30 ether);
+        // ✅ NEW: Check user-level slashedAmount instead of global totalSlashed
+        (,,uint256 slashedAmount,,) = staking.stakes(user1);
+        assertEq(slashedAmount, 30 ether, "User's cumulative slashedAmount should be 30 ether");
         vm.stopPrank();
     }
 
@@ -340,26 +350,16 @@ contract GTokenStakingTest is Test {
         assertEq(staking.availableBalance(user1), 99 ether);
     }
 
-    function test_UnlockStake_ExitFeeTooHigh_Reverts() public {
-        // Configure locker with 110% exit fee (impossible)
+    function test_ConfigureLocker_ExitFeeRateTooHigh_Reverts() public {
+        // ✅ NEW: Test that configureLocker rejects fee rate > 5% (500 bps)
         vm.prank(owner);
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
         address badLocker = makeAddr("badLocker");
-        staking.configureLocker(badLocker, true, 11000, emptyTiers, emptyFees, address(0)); // 110%
 
-        vm.startPrank(user1);
-        gtoken.approve(address(staking), 100 ether);
-        staking.stake(100 ether);
-        vm.stopPrank();
-
-        vm.prank(badLocker);
-        staking.lockStake(user1, 100 ether, "Bad lock");
-
-        // Try to unlock - should revert because fee > amount
-        vm.prank(badLocker);
-        vm.expectRevert(); // ExitFeeTooHigh
-        staking.unlockStake(user1, 100 ether);
+        // Try to configure locker with 110% exit fee - should revert
+        vm.expectRevert(GTokenStaking.InvalidTierConfig.selector);
+        staking.configureLocker(badLocker, true, 11000, 0.01 ether, 500, emptyTiers, emptyFees, address(0)); // 110%
     }
 
     function test_CannotUnstake_WhileLocked() public {
@@ -394,7 +394,7 @@ contract GTokenStakingTest is Test {
         vm.prank(owner);
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
-        staking.configureLocker(locker2, true, 200, emptyTiers, emptyFees, address(0)); // 2%
+        staking.configureLocker(locker2, true, 200, 0.01 ether, 500, emptyTiers, emptyFees, address(0)); // 2%
 
         // Lock 50 GT from each locker
         vm.prank(locker);
@@ -493,7 +493,8 @@ contract GTokenStakingTest is Test {
         vm.prank(locker);
         uint256 netUnlocked = staking.unlockStake(user1, 80 ether);
         assertEq(netUnlocked, 79.2 ether);
-        assertEq(staking.availableBalance(user1), 99.2 ether); // 20 + 79.2
+        // ✅ NEW: 90 (after slash) - 0.8 (exit fee) = 89.2 GT available
+        assertEq(staking.availableBalance(user1), 89.2 ether);
 
         // 5. Unstake all
         vm.prank(user1);

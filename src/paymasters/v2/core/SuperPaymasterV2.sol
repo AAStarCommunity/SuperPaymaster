@@ -616,19 +616,27 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
         uint8 decimals = ethUsdPriceFeed.decimals();
 
-        // Convert to 18 decimals: price * 1e18 / 10^decimals
-        uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** decimals);
+        // ✅ OPTIMIZED: Minimize precision loss by reducing division operations
+        // Combine all multiplications first, then divide once at the end
+        //
+        // Original formula (with precision loss):
+        //   aPNTsAmount = gasCostWei * ethUsdPrice / (10^decimals)
+        //                 * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR
+        //                 * 1e18 / aPNTsPriceUSD
+        //
+        // Optimized formula (single division):
+        //   numerator   = gasCostWei * ethUsdPrice * (BPS_DENOMINATOR + serviceFeeRate) * 1e18
+        //   denominator = (10^decimals) * BPS_DENOMINATOR * aPNTsPriceUSD
+        //   aPNTsAmount = numerator / denominator
 
-        // Step 2: Convert gas cost (wei) to USD
-        uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
+        uint256 numerator = gasCostWei
+            * uint256(ethUsdPrice)
+            * (BPS_DENOMINATOR + serviceFeeRate)
+            * 1e18;
 
-        // Step 3: Add service fee (2%)
-        // serviceFeeRate = 200 (2%), so multiply by 10200/10000
-        uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
+        uint256 denominator = (10 ** decimals) * BPS_DENOMINATOR * aPNTsPriceUSD;
 
-        // Step 4: Convert USD to aPNTs amount
-        // aPNTsPriceUSD = 0.02e18, so totalCostUSD * 1e18 / 0.02e18
-        uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPriceUSD;
+        uint256 aPNTsAmount = numerator / denominator;
 
         return aPNTsAmount;
     }

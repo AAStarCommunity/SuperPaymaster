@@ -75,7 +75,9 @@ contract DeployRegistryV2_1_1 is Script {
         gtokenStaking.configureLocker(
             address(registryV2_1_1),  // locker
             true,                      // authorized
-            0,                         // baseExitFee (no fee)
+            0,                         // feeRateBps (no percentage fee)
+            0,                         // minExitFee (no minimum)
+            0,                         // maxFeePercent (no cap needed if rate is 0)
             emptyTimeTiers,            // timeTiers
             emptyTierFees,             // tierFees
             address(0)                 // feeRecipient (not applicable)

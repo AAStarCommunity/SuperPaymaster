@@ -43,7 +43,7 @@ contract GTokenStakingFixedTest is Test {
         // Configure locker: baseExitFee = 0.01 ether (flat fee, not percentage)
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
-        staking.configureLocker(locker, true, 0.01 ether, emptyTiers, emptyFees, address(0));
+        staking.configureLocker(locker, true, 100, 0.01 ether, 500, emptyTiers, emptyFees, address(0));
 
         vm.stopPrank();
 
@@ -56,6 +56,7 @@ contract GTokenStakingFixedTest is Test {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function test_Slash_GlobalEffect_AffectsAllUsers() public {
+        // ✅ NEW: 测试用户级别 slash - 只影响被 slash 用户，不影响其他人
         // 两个用户各质押 100 GT
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
@@ -74,43 +75,44 @@ contract GTokenStakingFixedTest is Test {
         vm.prank(slasher);
         staking.slash(user2, 50 ether, "User2 penalty");
 
-        // totalSlashed = 50, availableStake = 150
-        // User1 balance = 100 * 150 / 200 = 75 GT ❗️
-        // User2 balance = 100 * 150 / 200 = 75 GT
+        // ✅ NEW USER-LEVEL SLASH: totalStaked 不变 = 200
+        // User1 balance = 100 shares * 200 / 200 = 100 GT ✅（不受影响）
+        // User2 balance = (100 shares * 200 / 200) - 50 slashed = 50 GT ✅（只影响 User2）
 
-        assertEq(staking.balanceOf(user1), 75 ether, "User1 affected by global slash");
-        assertEq(staking.balanceOf(user2), 75 ether, "User2 also 75 GT");
+        assertEq(staking.balanceOf(user1), 100 ether, "User1 NOT affected - user-level slash");
+        assertEq(staking.balanceOf(user2), 50 ether, "User2 slashed 50 GT");
     }
 
     function test_Slash_FullySlashed_StakeRecoversAfterNewDeposit() public {
+        // ✅ NEW: 测试用户级别 slash - 被 100% slash 的用户不会因新质押恢复
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
         staking.stake(100 ether);
         vm.stopPrank();
 
-        // Slash 100% -> availableStake = 0
+        // Slash 100% of User1
         vm.prank(slasher);
         staking.slash(user1, 100 ether, "Full slash");
 
         // User1 balance = 0
-        assertEq(staking.balanceOf(user1), 0);
+        assertEq(staking.balanceOf(user1), 0, "User1 fully slashed");
 
-        // User2 新质押可以恢复池子
+        // User2 新质押
         vm.startPrank(user2);
         gtoken.approve(address(staking), 50 ether);
         staking.stake(50 ether);
 
-        // totalStaked = 150, totalSlashed = 100, availableStake = 50
-        // totalShares = 200
-        // User1: 100 shares * 50 / 200 = 25 GT (恢复了价值！)
-        // User2: 100 shares * 50 / 200 = 25 GT
+        // ✅ NEW USER-LEVEL SLASH:
+        // totalStaked = 150, totalShares = 150
+        // User1: 100 shares * 150 / 150 - 100 slashed = 100 - 100 = 0 GT（不恢复）
+        // User2: 50 shares * 150 / 150 = 50 GT
 
-        assertEq(staking.balanceOf(user1), 25 ether, "User1 partially recovered");
-        assertEq(staking.balanceOf(user2), 25 ether);
+        assertEq(staking.balanceOf(user1), 0, "User1 does NOT recover - user-level slash");
+        assertEq(staking.balanceOf(user2), 50 ether, "User2 gets full staked amount");
         vm.stopPrank();
     }
 
-    function test_UnlockStake_FlatFee_NotPercentage() public {
+    function test_UnlockStake_PercentageFee_WithMinProtection() public {
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
         staking.stake(100 ether);
@@ -119,36 +121,41 @@ contract GTokenStakingFixedTest is Test {
         vm.prank(locker);
         staking.lockStake(user1, 100 ether, "MySBT");
 
-        // Unlock: baseExitFee = 0.01 ether (flat fee)
+        // Unlock: feeRateBps = 100 (1%), minExitFee = 0.01 ether, maxFeePercent = 500 (5%)
+        // 100 ether * 1% = 1 ether (> minExitFee, < maxFee of 5 ether)
+        // Fee goes to treasury, user gets net amount back
         vm.prank(locker);
         uint256 netAmount = staking.unlockStake(user1, 100 ether);
 
-        assertEq(netAmount, 100 ether - 0.01 ether, "Net = gross - flat fee");
-        assertEq(staking.availableBalance(user1), 99.99 ether);
+        assertEq(netAmount, 99 ether, "Net = gross - 1% fee");
+        // Fee (1 ether) is transferred to treasury and deducted from totalStaked
+        // User balance = shares * (totalStaked - totalSlashed - fee) / totalShares = 99 ether
+        assertEq(staking.balanceOf(user1), 99 ether, "Balance reduced by fee amount");
     }
 
-    function test_ExitFee_CanExceedAmount_NoRevert() public {
-        // 配置 locker：baseExitFee = 150 ether (> lock amount)
-        address badLocker = makeAddr("badLocker");
+    function test_ExitFee_MaxFeeProtection() public {
+        // 测试 maxFeePercent 保护机制
+        // feeRateBps = 100 (1%), minExitFee = 0, maxFeePercent = 500 (5%)
+        address highFeeLocker = makeAddr("highFeeLocker");
         vm.prank(owner);
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
-        staking.configureLocker(badLocker, true, 150 ether, emptyTiers, emptyFees, address(0));
+        // 配置高费率但有最大值保护
+        staking.configureLocker(highFeeLocker, true, 100, 0, 500, emptyTiers, emptyFees, address(0));
 
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
         staking.stake(100 ether);
         vm.stopPrank();
 
-        vm.prank(badLocker);
-        staking.lockStake(user1, 100 ether, "Bad lock");
+        vm.prank(highFeeLocker);
+        staking.lockStake(user1, 100 ether, "High fee lock");
 
-        // 尝试 unlock：exitFee = 150 > grossAmount = 100
-        // 不会 revert，只是 netAmount < 0 会有问题
-        vm.prank(badLocker);
-        // 实际上 `netAmount = grossAmount - exitFee` 会下溢为 0
-        vm.expectRevert(); // 预期 revert 但实际可能不会
-        staking.unlockStake(user1, 100 ether);
+        // Unlock：1% 费用 = 1 ether，小于 maxFee (5 ether)
+        vm.prank(highFeeLocker);
+        uint256 netAmount = staking.unlockStake(user1, 100 ether);
+
+        assertEq(netAmount, 99 ether, "Fee capped at 1% (below max 5%)");
     }
 
     function test_RoundingError_MultipleStakeUnstake() public {
@@ -158,10 +165,15 @@ contract GTokenStakingFixedTest is Test {
         gtoken.approve(address(staking), smallAmount * 5);
 
         // 5次质押/取消质押
+        uint256 currentTime = block.timestamp;
         for (uint256 i = 0; i < 5; i++) {
             staking.stake(smallAmount);
             staking.requestUnstake();
-            vm.warp(block.timestamp + UNSTAKE_DELAY + 1);
+
+            // Warp to allow unstake
+            currentTime += UNSTAKE_DELAY + 1;
+            vm.warp(currentTime);
+
             staking.unstake();
         }
 
@@ -200,7 +212,10 @@ contract GTokenStakingFixedTest is Test {
         vm.stopPrank();
 
         assertEq(staking.balanceOf(user1), 70 ether);
-        assertEq(staking.totalSlashed(), 30 ether);
+
+        // ✅ NEW: Check user-level slashedAmount instead of global totalSlashed
+        (,,uint256 slashedAmount,,) = staking.stakes(user1);
+        assertEq(slashedAmount, 30 ether);
     }
 
     function test_LockAfterPartialSlash_AvailableReduced() public {
@@ -242,11 +257,11 @@ contract GTokenStakingFixedTest is Test {
         // availableStake = 90, balance = 90
         assertEq(staking.balanceOf(user1), 90 ether);
 
-        // 4. Unlock 80 GT（flat fee = 0.01 GT）
+        // 4. Unlock 80 GT（percentage fee = 1% = 0.8 GT）
         vm.prank(locker);
         uint256 netUnlocked = staking.unlockStake(user1, 80 ether);
 
-        assertEq(netUnlocked, 80 ether - 0.01 ether);
+        assertEq(netUnlocked, 80 ether - 0.8 ether, "80 GT - 1% fee");
 
         // 5. Unstake
         vm.prank(user1);
@@ -257,9 +272,9 @@ contract GTokenStakingFixedTest is Test {
         vm.prank(user1);
         staking.unstake();
 
-        // 最终收到：90 - 0.01 = 89.99 GT
+        // 最终收到：90 - 0.8 = 89.2 GT
         uint256 finalBalance = gtoken.balanceOf(user1);
-        assertApproxEqAbs(finalBalance, 900 ether + 89.99 ether, 0.01 ether);
+        assertApproxEqAbs(finalBalance, 900 ether + 89.2 ether, 0.01 ether);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -267,29 +282,30 @@ contract GTokenStakingFixedTest is Test {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function test_ShareRatio_AfterSlash_NewStakerGetsBetter() public {
+        // ✅ NEW: 测试新用户质押不受其他用户 slash 影响
         // User1 质押 100 GT，得到 100 shares
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
         staking.stake(100 ether);
         vm.stopPrank();
 
-        // Slash 50 GT
+        // Slash User1 50 GT
         vm.prank(slasher);
         staking.slash(user1, 50 ether, "50% slash");
 
-        // totalStaked = 100, totalSlashed = 50, availableStake = 50
+        // ✅ NEW USER-LEVEL SLASH: totalStaked 不变 = 100
         // totalShares = 100
 
         // User2 质押 50 GT
-        // newShares = 50 * 100 / 50 = 100 shares
+        // ✅ NEW: newShares = 50 * 100 / 100 = 50 shares（公平比例，不受 User1 slash 影响）
         vm.startPrank(user2);
         gtoken.approve(address(staking), 50 ether);
         staking.stake(50 ether);
 
-        // User2 得到 100 shares（50 GT 价值）
-        (,uint256 shares,,) = staking.stakes(user2);
-        assertEq(shares, 100 ether);
-        assertEq(staking.balanceOf(user2), 50 ether);
+        // User2 得到 50 shares = 50 GT 价值 ✅
+        (,uint256 shares,,,) = staking.stakes(user2);
+        assertEq(shares, 50 ether, "New staker gets fair share ratio");
+        assertEq(staking.balanceOf(user2), 50 ether, "User2 balance equals staked amount");
         vm.stopPrank();
     }
 }

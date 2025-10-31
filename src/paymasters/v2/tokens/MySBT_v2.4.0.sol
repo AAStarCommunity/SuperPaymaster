@@ -672,7 +672,7 @@ contract MySBT_v2_4_0 is ERC721, ReentrancyGuard, Pausable, IMySBT {
         if (tokenId == 0) revert NoSBTFound(msg.sender);
 
         // Check authorization (owner or delegated)
-        address nftOwner;
+        address nftOwner = address(0);
         try IERC721(nftContract).ownerOf(nftTokenId) returns (address owner) {
             nftOwner = owner;
         } catch {
@@ -707,7 +707,7 @@ contract MySBT_v2_4_0 is ERC721, ReentrancyGuard, Pausable, IMySBT {
         address delegatee
     ) external {
         // Verify ownership
-        address nftOwner;
+        address nftOwner = address(0);
         try IERC721(nftContract).ownerOf(nftTokenId) returns (address owner) {
             nftOwner = owner;
         } catch {
@@ -937,7 +937,7 @@ contract MySBT_v2_4_0 is ERC721, ReentrancyGuard, Pausable, IMySBT {
             if (!binding.isActive) continue;
 
             // Query-time ownership verification (caller pays gas)
-            address currentOwner;
+            address currentOwner = address(0);
             try IERC721(binding.nftContract).ownerOf(binding.nftTokenId) returns (address owner) {
                 currentOwner = owner;
             } catch {

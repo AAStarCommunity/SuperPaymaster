@@ -105,32 +105,36 @@ contract SuperPaymasterV2Test is Test {
         // Configure lock system and exit fees (v2.0-beta)
         gtokenStaking.setTreasury(owner);
 
-        // Configure MySBT locker (flat 0.1 sGT exit fee)
+        // Configure MySBT locker (1% percentage-based exit fee)
         uint256[] memory emptyTiers = new uint256[](0);
         uint256[] memory emptyFees = new uint256[](0);
         gtokenStaking.configureLocker(
             address(mysbt),
-            true,           // authorized
-            0.1 ether,     // baseExitFee
+            true,                // authorized
+            100,                 // feeRateBps (1%)
+            0.01 ether,         // minExitFee
+            500,                 // maxFeePercent (5%)
             emptyTiers,
             emptyFees,
             address(0)
         );
 
-        // Configure SuperPaymaster locker (tiered exit fees)
+        // Configure SuperPaymaster locker (tiered percentage-based fees)
         uint256[] memory spTiers = new uint256[](3);
         spTiers[0] = 90 days;
         spTiers[1] = 180 days;
         spTiers[2] = 365 days;
         uint256[] memory spFees = new uint256[](4);
-        spFees[0] = 15 ether;
-        spFees[1] = 10 ether;
-        spFees[2] = 7 ether;
-        spFees[3] = 5 ether;
+        spFees[0] = 150;     // 1.5% for < 90d
+        spFees[1] = 100;     // 1% for 90-180d
+        spFees[2] = 70;      // 0.7% for 180-365d
+        spFees[3] = 50;      // 0.5% for >= 365d
         gtokenStaking.configureLocker(
             address(superPaymaster),
             true,
-            0,
+            0,                   // feeRateBps (ignored when timeTiers set)
+            0.01 ether,         // minExitFee
+            500,                 // maxFeePercent (5%)
             spTiers,
             spFees,
             address(0)

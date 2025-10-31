@@ -24,14 +24,16 @@ contract ConfigureMySBTLocker is Script {
         GTokenStaking staking = GTokenStaking(gtokenStaking);
 
         // Configure MySBT as locker
-        // authorized=true, baseExitFee=0.1 ether, timeTiers=[], tierFees=[], feeRecipient=0x0
+        // authorized=true, feeRateBps=100 (1%), minExitFee=0.01 ether, maxFeePercent=500 (5%)
         staking.configureLocker(
             mysbtAddress,
-            true,      // authorized
-            0.1 ether, // baseExitFee (0.1 stGT exit fee goes to treasury)
-            new uint256[](0),  // timeTiers (no time-based tiers)
-            new uint256[](0),  // tierFees (no tier fees)
-            address(0)  // feeRecipient (use default treasury)
+            true,                // authorized
+            100,                 // feeRateBps (1%)
+            0.01 ether,          // minExitFee
+            500,                 // maxFeePercent (5%)
+            new uint256[](0),    // timeTiers (no time-based tiers)
+            new uint256[](0),    // tierFees (no tier fees)
+            address(0)           // feeRecipient (use default treasury)
         );
 
         vm.stopBroadcast();

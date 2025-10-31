@@ -93,7 +93,9 @@ contract NFTRatingSystemTest is Test {
         staking.configureLocker(
             address(mysbt),
             true,
-            0.1 ether,
+            100,             // feeRateBps (1%)
+            0.01 ether,     // minExitFee
+            500,             // maxFeePercent (5%)
             emptyTiers,
             emptyTiers,
             address(0)
