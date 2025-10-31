@@ -228,14 +228,10 @@ contract GTokenStaking is Ownable {
         // Transfer GToken from user
         IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), amount);
 
-        // ✅ SIMPLIFIED: Share calculation without global slash
+        // ✅ SIMPLIFIED: 1:1 shares (no dynamic ratio)
         // User-level slashing is tracked separately in StakeInfo.slashedAmount
-        if (totalShares == 0) {
-            shares = amount;
-        } else {
-            require(totalStaked > 0, "GTokenStaking: invalid state");
-            shares = amount * totalShares / totalStaked;
-        }
+        // Future: Can re-introduce ratio for staking rewards if needed
+        shares = amount;
 
         // Update user stake info (support both new stake and adding to existing)
         StakeInfo storage userStake = stakes[msg.sender];
@@ -411,11 +407,13 @@ contract GTokenStaking is Ownable {
                 revert InvalidFeeRecipient();
             }
 
-            // Convert stGToken shares to GT amount
-            feeInGT = sharesToGToken(exitFee);
+            // ✅ 1:1 shares: exitFee in shares = exitFee in GT
+            feeInGT = exitFee;
 
-            // CEI: Adjust totalStaked before external call
+            // CEI: Adjust totalStaked, totalShares, and user shares before external call
             totalStaked -= feeInGT;
+            totalShares -= exitFee;
+            stakes[user].stGTokenShares -= exitFee;
         }
 
         emit StakeUnlocked(user, msg.sender, grossAmount, exitFee, netAmount);
@@ -659,14 +657,11 @@ contract GTokenStaking is Ownable {
         StakeInfo memory info = stakes[user];
         if (info.stGTokenShares == 0) return 0;
 
-        // ✅ REDESIGNED: User-level slash instead of global pool slash
-        // Convert shares to GT amount
-        uint256 grossBalance = sharesToGToken(info.stGTokenShares);
+        // ✅ SIMPLIFIED: 1:1 shares, direct subtraction
+        // User-level slashing is tracked separately in StakeInfo.slashedAmount
+        if (info.stGTokenShares <= info.slashedAmount) return 0;
 
-        // Subtract user-specific slashed amount
-        if (grossBalance <= info.slashedAmount) return 0;
-
-        return grossBalance - info.slashedAmount;
+        return info.stGTokenShares - info.slashedAmount;
     }
 
     /**
@@ -753,11 +748,10 @@ contract GTokenStaking is Ownable {
      * @param shares stGToken shares
      * @return amount GT amount
      */
-    function sharesToGToken(uint256 shares) public view returns (uint256) {
-        if (totalShares == 0) return 0;
-        // ✅ SIMPLIFIED: No global slash, direct calculation
-        if (totalStaked == 0) return 0;
-        return shares * totalStaked / totalShares;
+    function sharesToGToken(uint256 shares) public pure returns (uint256) {
+        // ✅ SIMPLIFIED: 1:1 shares (always equal)
+        // Future: Can re-introduce ratio for staking rewards if needed
+        return shares;
     }
 
     /**
@@ -765,11 +759,10 @@ contract GTokenStaking is Ownable {
      * @param amount GT amount
      * @return shares stGToken shares
      */
-    function gTokenToShares(uint256 amount) public view returns (uint256) {
-        if (totalShares == 0) return amount;
-        // ✅ SIMPLIFIED: No global slash, direct calculation
-        require(totalStaked > 0, "GTokenStaking: invalid state");
-        return amount * totalShares / totalStaked;
+    function gTokenToShares(uint256 amount) public pure returns (uint256) {
+        // ✅ SIMPLIFIED: 1:1 shares (always equal)
+        // Future: Can re-introduce ratio for staking rewards if needed
+        return amount;
     }
 
     /**
