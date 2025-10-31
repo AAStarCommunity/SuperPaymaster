@@ -1,0 +1,30 @@
+[2025-10-31 16:22:26.07] Compiling `contracts/echidna/GTokenStakingInvariants.sol`... Done! (1.02501s)
+Analyzing contract: /Volumes/UltraDisk/Dev2/aastar/SuperPaymaster/contracts/echidna/GTokenStakingInvariants.sol:GTokenStakingInvariants
+[2025-10-31 16:22:27.11] Running slither on `contracts/echidna/GTokenStakingInvariants.sol`... Done! (1.163996s)
+[2025-10-31 16:22:28.37] [Worker 3] New coverage: 3288 instr, 3 contracts, 1 seqs in corpus
+[2025-10-31 16:22:28.37] [Worker 1] New coverage: 3288 instr, 3 contracts, 2 seqs in corpus
+[2025-10-31 16:22:28.37] [Worker 2] New coverage: 3288 instr, 3 contracts, 3 seqs in corpus
+[2025-10-31 16:22:28.37] [Worker 0] New coverage: 3288 instr, 3 contracts, 4 seqs in corpus
+[2025-10-31 16:22:29.20] [Worker 3] New coverage: 3306 instr, 3 contracts, 5 seqs in corpus
+[2025-10-31 16:22:29.28] [Worker 1] New coverage: 3328 instr, 3 contracts, 6 seqs in corpus
+[2025-10-31 16:22:30.65] [Worker 2] Test limit reached. Stopping.
+[2025-10-31 16:22:30.69] [Worker 0] New coverage: 3346 instr, 3 contracts, 7 seqs in corpus
+[2025-10-31 16:22:30.69] [Worker 0] Test limit reached. Stopping.
+[2025-10-31 16:22:30.72] [Worker 3] Test limit reached. Stopping.
+[2025-10-31 16:22:30.74] [Worker 1] Test limit reached. Stopping.
+[2025-10-31 16:22:30.74] [status] tests: 0/7, fuzzing: 10197/10000, values: [], cov: 3346, corpus: 7, gas/s: 164360644
+echidna_user_balance_not_exceed_shares: passing
+echidna_shares_conversion_is_one_to_one: passing
+echidna_gtoken_conversion_is_one_to_one: passing
+echidna_available_not_exceed_balance: passing
+echidna_total_staked_equals_balance: passing
+echidna_locked_not_exceed_balance: passing
+echidna_total_shares_equals_total_staked: passing
+
+
+Unique instructions: 3346
+Unique codehashes: 3
+Corpus size: 7
+Seed: 5116824023745769478
+Total calls: 10197
+

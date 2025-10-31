@@ -1,0 +1,48 @@
+# Echidna Configuration for GTokenStaking Fuzzing Tests
+# https://github.com/crytic/echidna
+
+# Test settings
+testMode: property
+testLimit: 50000
+timeout: 300  # 5 minutes
+
+# Coverage settings
+coverage: true
+corpusDir: "corpus"
+
+# Deployment settings
+# deployContracts:
+#   - GTokenStakingProperties
+
+# Property testing
+checkAsserts: true
+propMaxGas: 12000000
+estimateGas: true
+
+# Shrinking
+shrinkLimit: 5000
+
+# RPC settings (if needed)
+# rpcUrl: "http://localhost:8545"
+# rpcBlock: latest
+
+# Filtering
+filterBlacklist: true
+filterFunctions:
+  - "echidna_*"
+
+# Optimization
+cryticArgs:
+  - --compile-force-framework
+  - foundry
+  - --foundry-out-dir
+  - out
+
+# Solc settings
+solcArgs: "--via-ir --optimize --optimize-runs 200"
+solcLibs:
+  - node_modules
+  - contracts/lib
+
+# Multi-ABI support
+allContracts: true
