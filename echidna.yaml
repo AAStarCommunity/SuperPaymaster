@@ -31,18 +31,8 @@ filterBlacklist: true
 filterFunctions:
   - "echidna_*"
 
-# Optimization
-cryticArgs:
-  - --compile-force-framework
-  - foundry
-  - --foundry-out-dir
-  - out
-
 # Solc settings
 solcArgs: "--via-ir --optimize --optimize-runs 200"
-solcLibs:
-  - node_modules
-  - contracts/lib
 
 # Multi-ABI support
 allContracts: true
