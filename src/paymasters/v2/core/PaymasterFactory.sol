@@ -19,6 +19,16 @@ contract PaymasterFactory is Ownable {
     using Clones for address;
 
     // ====================================
+    // Version Management
+    // ====================================
+
+    /// @notice Contract version (semantic versioning)
+    string public constant VERSION = "1.0.0";
+
+    /// @notice Numeric version code (10000 = 1.0.0)
+    uint256 public constant VERSION_CODE = 10000;
+
+    // ====================================
     // Storage
     // ====================================
 

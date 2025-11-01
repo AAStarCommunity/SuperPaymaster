@@ -42,7 +42,7 @@ contract MySBT_v2_4_0 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     string public constant VERSION = "2.4.0";
 
     /// @notice Contract version code
-    uint256 public constant VERSION_CODE = 240;
+    uint256 public constant VERSION_CODE = 20400;
 
     // ====================================
     // Storage

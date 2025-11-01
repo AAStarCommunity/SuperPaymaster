@@ -93,6 +93,12 @@ contract DVTValidator is Ownable {
     /// @notice Minimum validators required: 7 (for 7/13 threshold)
     uint256 public constant MIN_VALIDATORS = 7;
 
+    /// @notice Contract version string
+    string public constant VERSION = "2.0.0";
+
+    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
+    uint256 public constant VERSION_CODE = 20000;
+
     // ====================================
     // Events
     // ====================================

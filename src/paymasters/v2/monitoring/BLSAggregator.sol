@@ -77,6 +77,12 @@ contract BLSAggregator is Ownable {
     /// @notice Maximum validators: 13
     uint256 public constant MAX_VALIDATORS = 13;
 
+    /// @notice Contract version string
+    string public constant VERSION = "2.0.0";
+
+    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
+    uint256 public constant VERSION_CODE = 20000;
+
     // ====================================
     // Events
     // ====================================
