@@ -105,6 +105,12 @@ contract Registry is Ownable, ReentrancyGuard {
     /// @notice Maximum string field length for ENS, description, etc.
     uint256 public constant MAX_STRING_LENGTH = 500;
 
+    /// @notice Contract version string
+    string public constant VERSION = "2.1.3";
+
+    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
+    uint256 public constant VERSION_CODE = 20103;
+
     // ====================================
     // Storage
     // ====================================

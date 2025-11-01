@@ -97,6 +97,12 @@ contract GTokenStaking is Ownable {
     /// @notice Minimum stake amount: 0.01 GToken (Lido-like low barrier)
     uint256 public constant MIN_STAKE = 0.01 ether;
 
+    /// @notice Contract version string
+    string public constant VERSION = "2.0.0";
+
+    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
+    uint256 public constant VERSION_CODE = 20000;
+
     // ====================================
     // Events
     // ====================================
