@@ -59,8 +59,8 @@ contract Registry is Ownable, ReentrancyGuard {
 
     uint256 public constant MAX_SUPPORTED_SBTS = 10;
     uint256 public constant MAX_NAME_LENGTH = 100;
-    string public constant VERSION = "2.1.3";
-    uint256 public constant VERSION_CODE = 20103;
+    string public constant VERSION = "2.1.4";
+    uint256 public constant VERSION_CODE = 20104;
 
     // ====================================
     // Storage
@@ -168,6 +168,7 @@ contract Registry is Ownable, ReentrancyGuard {
         profile.registeredAt = block.timestamp;
         profile.lastUpdatedAt = block.timestamp;
         profile.isActive = true;
+        profile.allowPermissionlessMint = true; // Default: allow permissionless minting
 
         communities[communityAddress] = profile;
         communityStakes[communityAddress] = CommunityStake({
