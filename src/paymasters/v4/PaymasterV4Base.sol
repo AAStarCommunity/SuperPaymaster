@@ -31,6 +31,9 @@ using SafeERC20 for IERC20;
 /// @dev CHANGED: immutable → storage variables for factory pattern support
 /// @custom:security-contact security@aastar.community
 abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
+    /// @notice Constructor for abstract base
+    /// @dev Initializes Ownable with msg.sender, actual owner set in _initializeV4Base
+    constructor() Ownable(msg.sender) {}
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/

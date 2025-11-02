@@ -91,22 +91,14 @@ contract RegisterTestCommunities is Script {
         Registry.CommunityProfile memory profile = Registry.CommunityProfile({
             name: name,
             ensName: ensName,
-            description: description,
-            website: website,
-            logoURI: logoURI,
-            twitterHandle: twitterHandle,
-            githubOrg: githubOrg,
-            telegramGroup: telegramGroup,
             xPNTsToken: address(0),  // No xPNTs token for test communities
             supportedSBTs: new address[](0),
-            mode: Registry.PaymasterMode.INDEPENDENT,
             nodeType: Registry.NodeType.PAYMASTER_AOA,
             paymasterAddress: address(0),  // No paymaster for test communities
             community: communityAddress,
             registeredAt: 0,  // Will be set by contract
             lastUpdatedAt: 0,  // Will be set by contract
             isActive: true,
-            memberCount: 0,
             allowPermissionlessMint: true  // Enable permissionless mint by default
         });
 

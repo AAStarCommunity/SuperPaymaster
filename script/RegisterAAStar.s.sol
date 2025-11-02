@@ -41,7 +41,8 @@ contract RegisterAAStar is Script {
             community: address(0), // Will be set to msg.sender
             registeredAt: 0, // Will be set by contract
             lastUpdatedAt: 0, // Will be set by contract
-            isActive: false // Will be set by contract
+            isActive: false, // Will be set by contract
+            allowPermissionlessMint: true
         });
 
         // Register with 0 stGToken (use existing locked stake)
@@ -57,25 +58,16 @@ contract RegisterAAStar is Script {
         vm.stopBroadcast();
 
         // Verify registration
-        try REGISTRY.getCommunity(deployer) returns (
-            string memory name,
-            string memory ensName,
-            address xPNTsToken,
-            address[] memory sbts,
-            Registry.NodeType nodeType,
-            address paymasterAddress,
-            address community,
-            uint256 registeredAt,
-            uint256 lastUpdatedAt,
-            bool isActive
+        try REGISTRY.getCommunityProfile(deployer) returns (
+            Registry.CommunityProfile memory profile
         ) {
             console.log();
             console.log("=== Verification ===");
-            console.log("Name:", name);
-            console.log("ENS:", ensName);
-            console.log("xPNTs Token:", xPNTsToken);
-            console.log("Supported SBTs:", sbts.length);
-            console.log("Is Active:", isActive);
+            console.log("Name:", profile.name);
+            console.log("ENS:", profile.ensName);
+            console.log("xPNTs Token:", profile.xPNTsToken);
+            console.log("Supported SBTs:", profile.supportedSBTs.length);
+            console.log("Is Active:", profile.isActive);
         } catch {
             console.log();
             console.log("Community not found after registration attempt");

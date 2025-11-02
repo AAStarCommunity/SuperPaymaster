@@ -72,22 +72,14 @@ contract PrepareForMySBTTest is Script {
             Registry.CommunityProfile memory profile = Registry.CommunityProfile({
                 name: "Test Community",
                 ensName: "",
-                description: "Test community for MySBT testing",
-                website: "https://example.com",
-                logoURI: "https://example.com/logo.png",
-                twitterHandle: "",
-                githubOrg: "",
-                telegramGroup: "",
                 xPNTsToken: address(0),
                 supportedSBTs: emptySBTs,
-                mode: Registry.PaymasterMode.SUPER,
                 nodeType: Registry.NodeType.PAYMASTER_SUPER,
                 paymasterAddress: address(0),
                 community: user,
                 registeredAt: 0,
                 lastUpdatedAt: 0,
                 isActive: true,
-                memberCount: 0,
                 allowPermissionlessMint: true
             });
 

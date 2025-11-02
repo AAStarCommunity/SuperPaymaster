@@ -390,7 +390,7 @@ contract PaymasterFactory is Ownable {
     function hasPaymaster(address operator)
         external
         view
-        returns (bool hasPaymaster)
+        returns (bool)
     {
         return paymasterByOperator[operator] != address(0);
     }

@@ -383,6 +383,6 @@ contract MySBT_v2_4_0_Test is Test {
 
     function test_Version() public {
         assertEq(mysbt.VERSION(), "2.4.0");
-        assertEq(mysbt.VERSION_CODE(), 240);
+        assertEq(mysbt.VERSION_CODE(), 20400);  // Fixed: should be 20400 (2.4.0 * 10000)
     }
 }
