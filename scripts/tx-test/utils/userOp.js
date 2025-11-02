@@ -107,23 +107,34 @@ async function buildUserOp(params) {
 }
 
 /**
- * 计算 userOpHash
+ * 计算 userOpHash (EntryPoint v0.7)
  */
 async function getUserOpHash(userOp) {
   const provider = getProvider();
   const entryPoint = getContract("ENTRYPOINT", CONTRACTS.ENTRYPOINT, provider);
 
-  // 将 UserOp 转换为 tuple 格式
+  // EntryPoint v0.7 使用 PackedUserOperation 格式
+  // accountGasLimits = (verificationGasLimit << 128) | callGasLimit
+  // gasFees = (maxPriorityFeePerGas << 128) | maxFeePerGas
+  const accountGasLimits = ethers.solidityPacked(
+    ["uint128", "uint128"],
+    [userOp.verificationGasLimit, userOp.callGasLimit]
+  );
+
+  const gasFees = ethers.solidityPacked(
+    ["uint128", "uint128"],
+    [userOp.maxPriorityFeePerGas, userOp.maxFeePerGas]
+  );
+
+  // 将 UserOp 转换为 PackedUserOperation tuple 格式 (v0.7)
   const userOpTuple = [
     userOp.sender,
     userOp.nonce,
     userOp.initCode,
     userOp.callData,
-    userOp.callGasLimit,
-    userOp.verificationGasLimit,
+    accountGasLimits,
     userOp.preVerificationGas,
-    userOp.maxFeePerGas,
-    userOp.maxPriorityFeePerGas,
+    gasFees,
     userOp.paymasterAndData,
     userOp.signature,
   ];
@@ -152,24 +163,33 @@ async function signUserOp(userOp, signer) {
 }
 
 /**
- * 执行 UserOperation
+ * 执行 UserOperation (EntryPoint v0.7)
  */
 async function executeUserOp(userOp, beneficiary, signer) {
   logger.subsection("执行 UserOperation");
 
   const entryPoint = getContract("ENTRYPOINT", CONTRACTS.ENTRYPOINT, signer);
 
-  // 将 UserOp 转换为 tuple 格式
+  // EntryPoint v0.7 使用 PackedUserOperation 格式
+  const accountGasLimits = ethers.solidityPacked(
+    ["uint128", "uint128"],
+    [userOp.verificationGasLimit, userOp.callGasLimit]
+  );
+
+  const gasFees = ethers.solidityPacked(
+    ["uint128", "uint128"],
+    [userOp.maxPriorityFeePerGas, userOp.maxFeePerGas]
+  );
+
+  // 将 UserOp 转换为 PackedUserOperation tuple 格式 (v0.7)
   const userOpTuple = [
     userOp.sender,
     userOp.nonce,
     userOp.initCode,
     userOp.callData,
-    userOp.callGasLimit,
-    userOp.verificationGasLimit,
+    accountGasLimits,
     userOp.preVerificationGas,
-    userOp.maxFeePerGas,
-    userOp.maxPriorityFeePerGas,
+    gasFees,
     userOp.paymasterAndData,
     userOp.signature,
   ];

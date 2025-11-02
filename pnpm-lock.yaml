@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@aastar/shared-config':
+        specifier: ^0.2.9
+        version: 0.2.10
       '@openzeppelin/contracts':
         specifier: ^5.0.2
         version: 5.4.0
@@ -19,6 +22,9 @@ importers:
         version: 6.15.0
 
 packages:
+
+  '@aastar/shared-config@0.2.10':
+    resolution: {integrity: sha512-SkCt2PFgovPuu9KJGL7Xfr0EW1ibhN5koyGecbriyu7zVIzKvPJqklnBMr+2OTrUWauqvoq8PEeJ4fQPwE1iPA==}
 
   '@adraffy/ens-normalize@1.10.1':
     resolution: {integrity: sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw==}
@@ -66,6 +72,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@aastar/shared-config@0.2.10': {}
 
   '@adraffy/ens-normalize@1.10.1': {}
 

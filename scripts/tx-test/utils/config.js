@@ -44,22 +44,33 @@ const CONTRACTS = {
 
   // 测试代币（需要部署）
   APNTS: process.env.APNTS_ADDRESS || "",
-  BPNTS: process.env.BPNTS_ADDRESS || "",
+  BPNTS: process.env.APNTS_ADDRESS || "",  // 暂时使用 aPNTs 代替 bPNTs (deployer 拥有 aPNTs)
 };
 
 // ============= ABI 配置 =============
+// 辅助函数：安全加载 ABI，如果失败则返回 null
+function loadABI(path) {
+  try {
+    return require(path).abi;
+  } catch (error) {
+    console.warn(`⚠️  无法加载 ABI: ${path}，将使用通用接口`);
+    return null;
+  }
+}
+
 const ABIS = {
-  GTOKEN: require("../../../out/GToken.sol/GToken.json").abi,
-  GTOKEN_STAKING: require("../../../out/GTokenStaking.sol/GTokenStaking.json").abi,
-  SUPER_PAYMASTER_V2: require("../../../out/SuperPaymasterV2.sol/SuperPaymasterV2.json").abi,
-  REGISTRY: require("../../../out/Registry.sol/Registry.json").abi,
-  MYSBT: require("../../../out/MySBT.sol/MySBT.json").abi,
-  XPNTS_FACTORY: require("../../../out/xPNTsFactory.sol/xPNTsFactory.json").abi,
-  XPNTS: require("../../../out/xPNTs.sol/xPNTs.json").abi,
-  PAYMASTER_V4_1: require("../../../out/PaymasterV4.sol/PaymasterV4.json").abi,
+  GTOKEN: loadABI("../../../out/GToken.sol/GToken.json"),
+  GTOKEN_STAKING: loadABI("../../../out/GTokenStaking.sol/GTokenStaking.json"),
+  SUPER_PAYMASTER_V2: loadABI("../../../out/SuperPaymasterV2.sol/SuperPaymasterV2.json"),
+  REGISTRY: loadABI("../../../out/Registry.sol/Registry.json"),
+  MYSBT: loadABI("../../../out/MySBT_v2.4.0.sol/MySBT_v2_4_0.json"),
+  XPNTS_FACTORY: loadABI("../../../out/xPNTsFactory.sol/xPNTsFactory.json"),
+  XPNTS: loadABI("../../../out/xPNTsToken.sol/xPNTsToken.json"),
+  PAYMASTER_V4_1: loadABI("../../../out/PaymasterV4_1.sol/PaymasterV4_1.json"),
+  // EntryPoint v0.7 - PackedUserOperation
   ENTRYPOINT: [
-    "function getUserOpHash(tuple(address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp) view returns (bytes32)",
-    "function handleOps(tuple(address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[] ops, address beneficiary)",
+    "function getUserOpHash(tuple(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes) userOp) view returns (bytes32)",
+    "function handleOps(tuple(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes)[] ops, address beneficiary)",
     "function getNonce(address sender, uint192 key) view returns (uint256)",
   ],
   SIMPLE_ACCOUNT: [
@@ -103,10 +114,26 @@ function getOwner2Signer() {
 }
 
 function getContract(contractName, address, signerOrProvider) {
-  if (!ABIS[contractName]) {
-    throw new Error(`ABI not found for contract: ${contractName}`);
+  let abi = ABIS[contractName];
+
+  // 如果 ABI 为 null，尝试使用通用接口
+  if (!abi) {
+    // GTOKEN, XPNTS_FACTORY, XPNTS 都可以使用 ERC20 接口
+    if (["GTOKEN", "XPNTS", "XPNTS_FACTORY"].includes(contractName)) {
+      console.warn(`⚠️  使用 ERC20 通用接口for ${contractName}`);
+      abi = ABIS.ERC20;
+    }
+    // MYSBT 使用 ERC721 接口
+    else if (contractName === "MYSBT") {
+      console.warn(`⚠️  使用 ERC721 通用接口 for ${contractName}`);
+      abi = ABIS.ERC721;
+    }
+    else {
+      throw new Error(`ABI not found for contract: ${contractName}`);
+    }
   }
-  return new ethers.Contract(address, ABIS[contractName], signerOrProvider);
+
+  return new ethers.Contract(address, abi, signerOrProvider);
 }
 
 // ============= 导出 =============

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@aastar/shared-config": "^0.2.9",
     "@openzeppelin/contracts": "^5.0.2",
     "dotenv": "^17.2.3",
     "ethers": "^6.15.0"
