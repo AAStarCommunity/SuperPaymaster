@@ -11,10 +11,12 @@
 
   2. GTokenStaking (质押合约)
 
-  - 版本: v2.0.0
-  - 地址: 0x60Bd54645b0fDabA1114B701Df6f33C4ecE87fEa
+  - 版本: v2.0.1
+  - 地址: 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0
   - 类型: Staking + Lock + Slash 机制
   - 作用: GToken 质押、锁定、惩罚系统
+  - 新功能: stakeFor() - 为其他用户质押
+  - API变更: 使用 balanceOf() 替代 stakedBalance()
 
   3. Registry (社区注册中心)
 
@@ -25,10 +27,13 @@
 
   4. MySBT (灵魂绑定代币)
 
-  - 版本: v2.4.0
-  - 地址: 0x73E635Fc9eD362b7061495372B6eDFF511D9E18F
+  - 版本: v2.4.3
+  - 地址: 0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C
   - 类型: ERC721 (Soulbound) + Reputation
   - 作用: 用户身份、社区会员、声誉系统
+  - 新功能: mintWithAutoStake() - 单次交易完成质押+铸造
+  - 优化: 代码精简至 509 行,合约大小 24,395 bytes (在 24KB 限制内)
+  - 测试社区: Mycelium (0x411BD567E46C0781248dbB6a9211891C032885e5)
 
   5. SuperPaymasterV2 (AOA+ 模式 Paymaster)
 
