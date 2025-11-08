@@ -83,6 +83,51 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 
 ### Core Contracts (7 Main Components)
 
+#### Contract Dependency Graph
+
+```mermaid
+graph TB
+    GToken[GToken v2.0.0<br/>ERC20 Governance Token]
+
+    GTokenStaking[GTokenStaking v2.0.1<br/>Staking + Lock + Slash]
+    GToken --> GTokenStaking
+
+    Registry[Registry v2.2.0<br/>Community Registry]
+    GTokenStaking --> Registry
+
+    MySBT[MySBT v2.4.3<br/>Soulbound Token + Reputation]
+    GToken --> MySBT
+    GTokenStaking --> MySBT
+    Registry --> MySBT
+
+    SuperPaymasterV2[SuperPaymasterV2 v2.0.1<br/>AOA+ Shared Paymaster]
+    GTokenStaking --> SuperPaymasterV2
+    Registry --> SuperPaymasterV2
+
+    xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas Token Factory]
+    SuperPaymasterV2 --> xPNTsFactory
+    Registry --> xPNTsFactory
+
+    PaymasterFactory[PaymasterFactory v1.0.0<br/>AOA Mode Factory]
+
+    style GToken fill:#e1f5ff
+    style GTokenStaking fill:#fff4e1
+    style Registry fill:#ffe1f5
+    style MySBT fill:#e1ffe1
+    style SuperPaymasterV2 fill:#ffe1e1
+    style xPNTsFactory fill:#f5e1ff
+    style PaymasterFactory fill:#e1e1e1
+```
+
+**Deployment Order**:
+1. GToken (no dependencies)
+2. GTokenStaking (depends on GToken)
+3. Registry (depends on GTokenStaking)
+4. MySBT (depends on GToken, GTokenStaking, Registry)
+5. SuperPaymasterV2 (depends on GTokenStaking, Registry, Chainlink Price Feed)
+6. xPNTsFactory (depends on SuperPaymasterV2, Registry)
+7. PaymasterFactory (no dependencies)
+
 #### 1. **GToken** (Governance Token)
 - **Version**: v2.0.0
 - **Type**: ERC20 with Cap + Ownable
@@ -662,6 +707,51 @@ SuperPaymaster 是一个用于 ERC-4337 账户抽象的**去中心化燃料费�
 ```
 
 ### 核心合约（7 个主要组件）
+
+#### 合约依赖关系图
+
+```mermaid
+graph TB
+    GToken[GToken v2.0.0<br/>ERC20 治理代币]
+
+    GTokenStaking[GTokenStaking v2.0.1<br/>质押 + 锁定 + 惩罚]
+    GToken --> GTokenStaking
+
+    Registry[Registry v2.2.0<br/>社区注册中心]
+    GTokenStaking --> Registry
+
+    MySBT[MySBT v2.4.3<br/>灵魂绑定代币 + 声誉系统]
+    GToken --> MySBT
+    GTokenStaking --> MySBT
+    Registry --> MySBT
+
+    SuperPaymasterV2[SuperPaymasterV2 v2.0.1<br/>AOA+ 共享 Paymaster]
+    GTokenStaking --> SuperPaymasterV2
+    Registry --> SuperPaymasterV2
+
+    xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas 代币工厂]
+    SuperPaymasterV2 --> xPNTsFactory
+    Registry --> xPNTsFactory
+
+    PaymasterFactory[PaymasterFactory v1.0.0<br/>AOA 模式工厂]
+
+    style GToken fill:#e1f5ff
+    style GTokenStaking fill:#fff4e1
+    style Registry fill:#ffe1f5
+    style MySBT fill:#e1ffe1
+    style SuperPaymasterV2 fill:#ffe1e1
+    style xPNTsFactory fill:#f5e1ff
+    style PaymasterFactory fill:#e1e1e1
+```
+
+**部署顺序**:
+1. GToken（无依赖）
+2. GTokenStaking（依赖 GToken）
+3. Registry（依赖 GTokenStaking）
+4. MySBT（依赖 GToken, GTokenStaking, Registry）
+5. SuperPaymasterV2（依赖 GTokenStaking, Registry, Chainlink Price Feed）
+6. xPNTsFactory（依赖 SuperPaymasterV2, Registry）
+7. PaymasterFactory（无依赖）
 
 #### 1. **GToken**（治理代币）
 - **版本**: v2.0.0
