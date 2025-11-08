@@ -30,9 +30,24 @@ import "src/paymasters/v2/core/SuperPaymasterV2.sol";
  */
 contract DeploySuperPaymasterV2_0_1 is Script {
     function run() external {
-        // Load environment variables
-        address gtokenStaking = vm.envAddress("GTOKEN_STAKING");
-        address registry = vm.envAddress("REGISTRY");
+        // Load environment variables (try both naming conventions)
+        address gtokenStaking;
+        address registry;
+
+        // Try GTOKEN_STAKING first, fallback to GTOKEN_STAKING_ADDRESS
+        try vm.envAddress("GTOKEN_STAKING") returns (address addr) {
+            gtokenStaking = addr;
+        } catch {
+            gtokenStaking = vm.envAddress("GTOKEN_STAKING_ADDRESS");
+        }
+
+        // Try REGISTRY first, fallback to REGISTRY_ADDRESS
+        try vm.envAddress("REGISTRY") returns (address addr) {
+            registry = addr;
+        } catch {
+            registry = vm.envAddress("REGISTRY_ADDRESS");
+        }
+
         address ethUsdPriceFeed = vm.envAddress("ETH_USD_PRICE_FEED");
         address entrypoint = vm.envAddress("ENTRYPOINT_V07");
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
