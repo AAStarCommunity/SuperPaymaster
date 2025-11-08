@@ -13,8 +13,7 @@ import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/Safe
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import { ISBT } from "../../interfaces/ISBT.sol";
-import { IMySBT } from "../v2/interfaces/IMySBT.sol";
-import { PostOpMode } from "../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
+import { PostOpMode } from "../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
 
@@ -26,25 +25,30 @@ interface IGasTokenPrice {
 using UserOperationLib for PackedUserOperation;
 using SafeERC20 for IERC20;
 
-/// @title PaymasterV4
-/// @notice Direct payment mode without Settlement - gas optimized
-/// @dev Based on V3.2, removes Settlement dependency for ~79% gas savings
-/// @dev Treasury receives PNT immediately in validatePaymasterUserOp
-/// @dev Supports multiple SBTs and GasTokens for flexibility
+/// @title PaymasterV4Base
+/// @notice Base contract with shared business logic for v4.1 and v4.1i
+/// @dev Abstract contract - use PaymasterV4_1 (direct) or PaymasterV4_1i (factory)
+/// @dev CHANGED: immutable → storage variables for factory pattern support
 /// @custom:security-contact security@aastar.community
-contract PaymasterV4 is Ownable, ReentrancyGuard {
+abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
+    /// @notice Constructor for abstract base
+    /// @dev Initializes Ownable with msg.sender, actual owner set in _initializeV4Base
+    constructor() Ownable(msg.sender) {}
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice EntryPoint contract address (immutable for security)
-    IEntryPoint public immutable entryPoint;
+    /// @notice EntryPoint contract address
+    /// @dev CHANGED: immutable → storage for factory pattern
+    IEntryPoint public entryPoint;
 
-    /// @notice Chainlink ETH/USD price feed (immutable)
-    AggregatorV3Interface public immutable ethUsdPriceFeed;
+    /// @notice Chainlink ETH/USD price feed
+    /// @dev CHANGED: immutable → storage for factory pattern
+    AggregatorV3Interface public ethUsdPriceFeed;
 
-    /// @notice xPNTs Factory for aPNTs price (immutable)
-    IxPNTsFactory public immutable xpntsFactory;
+    /// @notice xPNTs Factory for aPNTs price
+    /// @dev CHANGED: immutable → storage for factory pattern
+    IxPNTsFactory public xpntsFactory;
 
     /// @notice Paymaster data offset in paymasterAndData
     uint256 private constant PAYMASTER_DATA_OFFSET = 52;
@@ -53,7 +57,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
     /// @notice Contract version
-    string public constant VERSION = "PaymasterV4-Direct-v1.0.0";
+    string public constant VERSION = "PaymasterV4Base-v1.0.0";
 
     /// @notice Basis points denominator
     uint256 private constant BPS_DENOMINATOR = 10000;
@@ -91,10 +95,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @notice Supported SBT contracts
     address[] public supportedSBTs;
     mapping(address => bool) public isSBTSupported;
-    
-    /// @notice SBTs that support recordActivity (MySBT contracts)
-    address[] public activitySBTs;
-    mapping(address => bool) public isActivitySBT;
 
     /// @notice Supported GasToken contracts (basePNTs, aPNTs, bPNTs)
     address[] public supportedGasTokens;
@@ -116,7 +116,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     error PaymasterV4__AlreadyExists();
     error PaymasterV4__NotFound();
     error PaymasterV4__MaxLimitReached();
-    error PaymasterV4__ActivityRecordFailed();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -143,13 +142,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         uint256 actualGasCost,
         uint256 pntCharged
     );
-    
-    event ActivityRecorded(
-        address indexed user,
-        address indexed sbt,
-        address indexed community,
-        uint256 timestamp
-    );
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        MODIFIERS                           */
@@ -170,10 +162,11 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                        CONSTRUCTOR                         */
+    /*                  INTERNAL INITIALIZATION                   */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Initializes PaymasterV4
+    /// @notice Internal initialization function (called by subclasses)
+    /// @dev CHANGED: constructor → internal function for factory pattern
     /// @param _entryPoint EntryPoint contract address
     /// @param _owner Contract owner address
     /// @param _treasury Treasury address for receiving PNT
@@ -181,7 +174,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @param _serviceFeeRate Service fee rate in basis points
     /// @param _maxGasCostCap Maximum gas cost cap (wei)
     /// @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
-    constructor(
+    function _initializeV4Base(
         address _entryPoint,
         address _owner,
         address _treasury,
@@ -189,7 +182,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
         address _xpntsFactory
-    ) Ownable(_owner) {
+    ) internal {
         // Input validation
         if (_entryPoint == address(0)) revert PaymasterV4__ZeroAddress();
         if (_owner == address(0)) revert PaymasterV4__ZeroAddress();
@@ -205,6 +198,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         serviceFeeRate = _serviceFeeRate;
         maxGasCostCap = _maxGasCostCap;
         paused = false;
+
+        _transferOwnership(_owner);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -275,7 +270,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
 
     /// @notice PostOp handler (minimal implementation)
     /// @dev Emits event for off-chain analysis only, no refund logic
-    /// @dev Records activity on supported MySBT contracts
     function postOp(
         PostOpMode /* mode */,
         bytes calldata /* context */,
@@ -285,14 +279,9 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         external
         onlyEntryPoint
     {
-        address user = tx.origin;
-        
-        // Record activity on supported MySBT contracts
-        _recordUserActivity(user);
-        
         // Emit event for off-chain analysis (multi-pay without refund)
         // Context is empty, but we can emit actualGasCost for tracking
-        emit PostOpProcessed(user, actualGasCost, 0);
+        emit PostOpProcessed(tx.origin, actualGasCost, 0);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -310,34 +299,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
             }
         }
         return false;
-    }
-
-    /// @notice Record user activity on supported MySBT contracts
-    /// @param user User address to record activity for
-    function _recordUserActivity(address user) internal {
-        uint256 length = activitySBTs.length;
-        for (uint256 i = 0; i < length; i++) {
-            address sbt = activitySBTs[i];
-            
-            // Only record if user owns this SBT
-            if (ISBT(sbt).balanceOf(user) > 0) {
-                try IMySBT(sbt).recordActivity(user) {
-                    // Try to get the user's token ID and first community for event
-                    try IMySBT(sbt).getUserSBT(user) returns (uint256 tokenId) {
-                        try IMySBT(sbt).getSBTData(tokenId) returns (IMySBT.SBTData memory data) {
-                            emit ActivityRecorded(user, sbt, data.firstCommunity, block.timestamp);
-                        } catch {
-                            emit ActivityRecorded(user, sbt, address(0), block.timestamp);
-                        }
-                    } catch {
-                        emit ActivityRecorded(user, sbt, address(0), block.timestamp);
-                    }
-                } catch {
-                    // Silently fail if recordActivity fails (e.g., due to permissions)
-                    // This ensures the paymaster operation doesn't fail due to activity recording
-                }
-            }
-        }
     }
 
     /// @notice Find which GasToken user can use for payment
@@ -470,13 +431,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         _addSBT(sbt);
     }
 
-    /// @notice Add SBT contract with activity recording support
-    /// @param sbt SBT contract address that supports recordActivity
-    function addSBTWithActivity(address sbt) external onlyOwner {
-        _addSBT(sbt);
-        _addActivitySBT(sbt);
-    }
-
     /// @notice Remove supported SBT contract
     /// @param sbt SBT contract address
     function removeSBT(address sbt) external onlyOwner {
@@ -495,41 +449,6 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         isSBTSupported[sbt] = false;
 
         emit SBTRemoved(sbt);
-    }
-
-    /// @notice Internal helper to add activity SBT contract
-    /// @param sbt SBT contract address that supports recordActivity
-    function _addActivitySBT(address sbt) internal {
-        if (sbt == address(0)) revert PaymasterV4__ZeroAddress();
-        if (isActivitySBT[sbt]) revert PaymasterV4__AlreadyExists();
-        if (activitySBTs.length >= MAX_SBTS) revert PaymasterV4__MaxLimitReached();
-
-        activitySBTs.push(sbt);
-        isActivitySBT[sbt] = true;
-    }
-
-    /// @notice Add activity SBT contract
-    /// @param sbt SBT contract address that supports recordActivity
-    function addActivitySBT(address sbt) external onlyOwner {
-        _addActivitySBT(sbt);
-    }
-
-    /// @notice Remove activity SBT contract
-    /// @param sbt SBT contract address
-    function removeActivitySBT(address sbt) external onlyOwner {
-        if (!isActivitySBT[sbt]) revert PaymasterV4__NotFound();
-
-        // Find and remove from array
-        uint256 length = activitySBTs.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (activitySBTs[i] == sbt) {
-                activitySBTs[i] = activitySBTs[length - 1];
-                activitySBTs.pop();
-                break;
-            }
-        }
-
-        isActivitySBT[sbt] = false;
     }
 
     /// @notice Internal helper to add supported GasToken contract

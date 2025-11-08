@@ -1,6 +1,6 @@
 [profile.default]
-src = "src"
-test = "test"
+src = "contracts/src"
+test = "contracts/test"
 script = "script"
 out = "out"
 libs = ["contracts/lib", "singleton-paymaster/lib"]
@@ -11,14 +11,17 @@ optimizer_runs = 1000000
 via_ir = true
 
 # Include singleton-paymaster libs but exclude tests to avoid conflicts
-exclude = ["singleton-paymaster/test/**/*", "singleton-paymaster/**/*.t.sol"]
+# Also exclude old test location to prevent duplicates
+exclude = ["singleton-paymaster/test/**/*", "singleton-paymaster/**/*.t.sol", "test/**/*.t.sol"]
 
 # Remappings for dependencies
 remappings = [
     "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
-    "solady/=singleton-paymaster/lib/solady/src/"
+    "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+    "solady/=singleton-paymaster/lib/solady/src/",
+    "src/=contracts/src/"
 ]
 
 # Allow writing deployment info

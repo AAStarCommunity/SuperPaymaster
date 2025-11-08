@@ -607,15 +607,28 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
      * @return aPNTsAmount Required aPNTs amount
      */
     function _calculateAPNTsAmount(uint256 gasCostWei) internal view returns (uint256) {
-        // Step 1: Get ETH/USD price from Chainlink with staleness check
-        (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        // Step 1: Get ETH/USD price from Chainlink with comprehensive validation
+        (
+            uint80 roundId,
+            int256 ethUsdPrice,
+            ,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = ethUsdPriceFeed.latestRoundData();
 
-        // Check if price is stale (not updated within 3600 seconds / 1 hour)
+        // ✅ SECURITY: Validate oracle consensus round (Chainlink best practice)
+        // If answeredInRound < roundId, the price data is from an incomplete consensus round
+        if (answeredInRound < roundId) {
+            revert InvalidConfiguration(); // Stale price from failed consensus
+        }
+
+        // ✅ SECURITY: Check if price is stale (not updated within 3600 seconds / 1 hour)
         if (block.timestamp - updatedAt > 3600) {
             revert InvalidConfiguration(); // Price feed is stale
         }
 
-        // ✅ FIXED: Add price sanity bounds check (prevents oracle manipulation)
+        // ✅ SECURITY: Price sanity bounds check (prevents oracle manipulation)
+        // Valid range: $100 - $100,000 per ETH
         if (ethUsdPrice <= 0 || ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) {
             revert InvalidConfiguration(); // Price out of reasonable range
         }

@@ -13,16 +13,15 @@ import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { ISBT } from "../../interfaces/ISBT.sol";
 import { ISettlement } from "../../interfaces/ISettlement.sol";
 import { ISuperPaymasterV3 } from "../../interfaces/ISuperPaymasterV3.sol";
-import { PostOpMode } from "../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
+import { PostOpMode } from "../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
 
-/// @title PaymasterV3
-/// @notice A simplified ERC-4337 Paymaster with on-chain SBT and token balance verification
-/// @dev Removes all off-chain signature verification, adds on-chain qualification checks
-/// @dev Implements delayed batch settlement instead of real-time token transfers
+/// @title PaymasterV3_2
+/// @notice V3.2 for OP Mainnet with SettlementV3_2 (L2-optimized)
+/// @dev Uses L2-optimized Settlement that retains mappings for better UX
 /// @custom:security-contact security@aastar.community
-contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
+contract PaymasterV3_2 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -37,7 +36,7 @@ contract PaymasterV3 is ISuperPaymasterV3, Ownable, ReentrancyGuard {
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
     /// @notice Contract version for tracking deployments
-    string public constant VERSION = "PaymasterV3-v1.0.5-FINAL";
+    string public constant VERSION = "PaymasterV3.2-OP-Mainnet";
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */

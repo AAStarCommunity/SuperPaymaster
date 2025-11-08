@@ -59,15 +59,15 @@ contract RegisterAAStar is Script {
 
         // Verify registration
         try REGISTRY.getCommunityProfile(deployer) returns (
-            Registry.CommunityProfile memory profile
+            Registry.CommunityProfile memory registeredProfile
         ) {
             console.log();
             console.log("=== Verification ===");
-            console.log("Name:", profile.name);
-            console.log("ENS:", profile.ensName);
-            console.log("xPNTs Token:", profile.xPNTsToken);
-            console.log("Supported SBTs:", profile.supportedSBTs.length);
-            console.log("Is Active:", profile.isActive);
+            console.log("Name:", registeredProfile.name);
+            console.log("ENS:", registeredProfile.ensName);
+            console.log("xPNTs Token:", registeredProfile.xPNTsToken);
+            console.log("Supported SBTs:", registeredProfile.supportedSBTs.length);
+            console.log("Is Active:", registeredProfile.isActive);
         } catch {
             console.log();
             console.log("Community not found after registration attempt");

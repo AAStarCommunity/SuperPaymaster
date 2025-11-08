@@ -25,9 +25,9 @@ contract DeployRegistry_v2_2_0 is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
-        console2.log("=".repeat(80));
+        console2.log("================================================================================");
         console2.log("Deploying Registry v2.2.0");
-        console2.log("=".repeat(80));
+        console2.log("================================================================================");
         console2.log("Deployer:", deployer);
         console2.log("GToken:", GTOKEN_SEPOLIA);
         console2.log("GTokenStaking:", GTOKEN_STAKING_SEPOLIA);
@@ -48,9 +48,9 @@ contract DeployRegistry_v2_2_0 is Script {
         vm.stopBroadcast();
 
         console2.log("");
-        console2.log("=".repeat(80));
+        console2.log("================================================================================");
         console2.log("Deployment Complete!");
-        console2.log("=".repeat(80));
+        console2.log("================================================================================");
         console2.log("");
         console2.log("Next Steps:");
         console2.log("1. Verify contract on Etherscan");
