@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
-import "../src/paymasters/v4/PaymasterV4_1i.sol";
+import "src/paymasters/v4/PaymasterV4_1i.sol";
 
 /**
  * @title DeployPaymasterV4_1i

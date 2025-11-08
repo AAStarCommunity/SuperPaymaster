@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/mocks/TestSBT.sol";
+import "src/mocks/TestSBT.sol";
 
 contract DeployTestSBT is Script {
     function run() external {

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Registry} from "../src/paymasters/v2/core/Registry.sol";
+import {Registry} from "src/paymasters/v2/core/Registry.sol";
 
 /**
  * @title RegisterTestCommunities

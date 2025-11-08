@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/paymasters/v2/tokens/xPNTsFactory.sol";
+import "src/paymasters/v2/tokens/xPNTsFactory.sol";
 
 /**
  * @title DeployAPNTs

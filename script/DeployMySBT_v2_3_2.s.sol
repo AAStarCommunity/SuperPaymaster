@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/paymasters/v2/tokens/MySBT_v2.3.2.sol";
+import "src/paymasters/v2/tokens/MySBT_v2.3.2.sol";
 
 /**
  * @title DeployMySBT_v2_3_2

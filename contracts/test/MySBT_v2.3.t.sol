@@ -2,9 +2,9 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../src/paymasters/v2/tokens/MySBT_v2.3.sol";
+import "src/paymasters/v2/tokens/MySBT_v2.3.sol";
 // Note: DefaultReputationCalculator removed (deprecated)
-import "../../src/paymasters/v2/interfaces/IMySBT.sol";
+import "src/paymasters/v2/interfaces/IMySBT.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 

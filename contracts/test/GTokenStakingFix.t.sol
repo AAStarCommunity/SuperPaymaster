@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../src/paymasters/v2/core/GTokenStaking.sol";
+import "src/paymasters/v2/core/GTokenStaking.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 
 /**

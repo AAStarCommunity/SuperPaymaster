@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {Registry} from "../src/paymasters/v2/core/Registry_v2_2_0.sol";
+import {Registry} from "src/paymasters/v2/core/Registry_v2_2_0.sol";
 
 /**
  * @title DeployRegistry v2.2.0

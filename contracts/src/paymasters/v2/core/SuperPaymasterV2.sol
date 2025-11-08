@@ -135,10 +135,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     uint256 public treasuryAPNTsBalance;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.0.0";
+    string public constant VERSION = "2.0.1"; // Oracle security fix (answeredInRound validation)
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20000;
+    uint256 public constant VERSION_CODE = 20001;
 
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [

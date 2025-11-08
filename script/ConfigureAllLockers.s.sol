@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/paymasters/v2/core/GTokenStaking.sol";
+import "src/paymasters/v2/core/GTokenStaking.sol";
 
 /**
  * @title ConfigureAllLockers

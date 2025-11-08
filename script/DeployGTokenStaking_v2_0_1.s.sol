@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/paymasters/v2/core/GTokenStaking_v2_0_1.sol";
+import "src/paymasters/v2/core/GTokenStaking_v2_0_1.sol";
 
 /**
  * @title Deploy GTokenStaking v2.0.1
