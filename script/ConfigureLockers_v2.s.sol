@@ -22,18 +22,11 @@ import "src/paymasters/v2/core/GTokenStaking.sol";
  */
 contract ConfigureLockers_v2 is Script {
 
-    // Sepolia testnet addresses
+    // Sepolia testnet addresses (2025-11-08 deployment)
     address constant GTOKEN_STAKING = 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0;  // v2.0.1
     address constant MYSBT = 0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C;              // v2.4.3
-
-    // To be deployed
-    address immutable SUPER_PAYMASTER_V2;  // v2.0.1 (to be deployed)
-    address immutable REGISTRY;             // v2.2.0 (to be deployed)
-
-    constructor(address _superPaymaster, address _registry) {
-        SUPER_PAYMASTER_V2 = _superPaymaster;
-        REGISTRY = _registry;
-    }
+    address constant SUPER_PAYMASTER_V2 = 0xfaB5B2A129DF8308a70DA2fE77c61001e4Df58BC;  // v2.0.1 (2025-11-08)
+    address constant REGISTRY = 0x028aB52B4E0EF26820043ca4F1B5Fe14FfC1EF75;           // v2.2.0 (2025-11-08)
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
