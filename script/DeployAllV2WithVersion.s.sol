@@ -36,8 +36,9 @@ contract DeployAllV2WithVersion is Script {
         console.log("");
 
         // ====== Phase 3: SuperPaymasterV2 ======
-        console.log("Phase 3: Deploying SuperPaymasterV2 v2.0.0...");
+        console.log("Phase 3: Deploying SuperPaymasterV2 v2.1.0...");
         SuperPaymasterV2 superPaymaster = new SuperPaymasterV2(
+            GTOKEN,
             GTOKEN_STAKING,
             address(registry),
             ETH_USD_PRICE_FEED

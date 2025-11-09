@@ -68,6 +68,7 @@ contract SuperPaymasterV2Test is Test {
         gtokenStaking = new GTokenStaking(address(gtoken));
         registry = new Registry(address(gtokenStaking));
         superPaymaster = new SuperPaymasterV2(
+            address(gtoken),
             address(gtokenStaking),
             address(registry),
             address(ethUsdPriceFeed)

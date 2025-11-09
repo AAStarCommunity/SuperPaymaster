@@ -7,17 +7,19 @@ import "src/paymasters/v2/core/SuperPaymasterV2.sol";
 
 /**
  * @title DeploySuperPaymasterV2
- * @notice Deploy SuperPaymasterV2 v2.0.0 with VERSION interface
+ * @notice Deploy SuperPaymasterV2 v2.1.0 with registerOperatorWithAutoStake
  */
 contract DeploySuperPaymasterV2 is Script {
     function run() external {
+        address gtoken = vm.envAddress("GTOKEN");
         address gtokenStaking = vm.envAddress("GTOKEN_STAKING");
         address registry = vm.envAddress("REGISTRY");
         address ethUsdPriceFeed = vm.envAddress("ETH_USD_PRICE_FEED");
         address entrypoint = vm.envAddress("ENTRYPOINT_V07");
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        console.log("=== Deploying SuperPaymasterV2 v2.0.0 ===");
+        console.log("=== Deploying SuperPaymasterV2 v2.1.0 ===");
+        console.log("GToken:", gtoken);
         console.log("GTokenStaking:", gtokenStaking);
         console.log("Registry:", registry);
         console.log("ETH/USD Price Feed:", ethUsdPriceFeed);
@@ -27,6 +29,7 @@ contract DeploySuperPaymasterV2 is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         SuperPaymasterV2 superPaymaster = new SuperPaymasterV2(
+            gtoken,
             gtokenStaking,
             registry,
             ethUsdPriceFeed

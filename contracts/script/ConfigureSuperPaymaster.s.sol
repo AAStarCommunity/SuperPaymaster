@@ -17,7 +17,7 @@ import {SuperPaymasterV2} from "../src/paymasters/v2/core/SuperPaymasterV2.sol";
 contract ConfigureSuperPaymaster is Script {
     // Sepolia addresses from shared-config v0.3.1
     address constant SUPERPAYMASTER_V2 = 0xfaB5B2A129DF8308a70DA2fE77c61001e4Df58BC;
-    address constant APNTS_TOKEN = 0x2EE6b2bC43022c37B5eFb533836495209dE5ecA8;
+    address constant APNTS_TOKEN = 0xBD0710596010a157B88cd141d797E8Ad4bb2306b;  // ✅ CORRECT: shared-config/src/contract-addresses.ts:33
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");

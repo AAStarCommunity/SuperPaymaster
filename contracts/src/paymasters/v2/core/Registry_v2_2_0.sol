@@ -8,9 +8,10 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title Registry v2.2.0 (Auto-Register)
+ * @title Registry v2.2.1 (Auto-Register + Duplicate Prevention)
  * @notice Community metadata storage with auto-stake registration
- * @dev Added MySBT-style auto-stake pattern: approve + stake + lock + register in one transaction
+ * @dev v2.2.0: Added MySBT-style auto-stake pattern: approve + stake + lock + register in one transaction
+ * @dev v2.2.1: Added isRegistered mapping to prevent duplicate entries in communityList
  */
 contract Registry is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -62,8 +63,8 @@ contract Registry is Ownable, ReentrancyGuard {
 
     uint256 public constant MAX_SUPPORTED_SBTS = 10;
     uint256 public constant MAX_NAME_LENGTH = 100;
-    string public constant VERSION = "2.2.0";
-    uint256 public constant VERSION_CODE = 20200;
+    string public constant VERSION = "2.2.1";
+    uint256 public constant VERSION_CODE = 20201;
 
     // ====================================
     // Storage
@@ -80,6 +81,10 @@ contract Registry is Ownable, ReentrancyGuard {
     mapping(string => address) public communityByENS;
     mapping(address => address) public communityBySBT;
     address[] public communityList;
+
+    /// @notice Track registered communities to prevent duplicates
+    /// @dev v2.2.1: Added to solve duplicate entries in communityList
+    mapping(address => bool) public isRegistered;
 
     // ====================================
     // Events
@@ -148,6 +153,8 @@ contract Registry is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         address communityAddress = msg.sender;
 
+        // v2.2.1: Check isRegistered mapping to prevent duplicates
+        if (isRegistered[communityAddress]) revert CommunityAlreadyRegistered(communityAddress);
         if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
         if (bytes(profile.name).length == 0) revert NameEmpty();
         if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
@@ -200,6 +207,9 @@ contract Registry is Ownable, ReentrancyGuard {
             }
         }
         communityList.push(communityAddress);
+
+        // v2.2.1: Mark as registered to prevent duplicates
+        isRegistered[communityAddress] = true;
 
         emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, communityStakes[communityAddress].stGTokenLocked);
     }
@@ -341,8 +351,8 @@ contract Registry is Ownable, ReentrancyGuard {
         return result;
     }
 
-    function getCommunityStatus(address communityAddress) external view returns (bool isRegistered, bool isActive) {
-        isRegistered = communities[communityAddress].registeredAt != 0;
+    function getCommunityStatus(address communityAddress) external view returns (bool registered, bool isActive) {
+        registered = communities[communityAddress].registeredAt != 0;
         isActive = communities[communityAddress].isActive;
     }
 
@@ -505,6 +515,8 @@ contract Registry is Ownable, ReentrancyGuard {
         address communityAddress = msg.sender;
 
         // === Validation checks (same as registerCommunity) ===
+        // v2.2.1: Check isRegistered mapping to prevent duplicates
+        if (isRegistered[communityAddress]) revert CommunityAlreadyRegistered(communityAddress);
         if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
         if (bytes(profile.name).length == 0) revert NameEmpty();
         if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
@@ -554,6 +566,9 @@ contract Registry is Ownable, ReentrancyGuard {
             }
         }
         communityList.push(communityAddress);
+
+        // v2.2.1: Mark as registered to prevent duplicates
+        isRegistered[communityAddress] = true;
 
         // === Emit events ===
         emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, stakeAmount);

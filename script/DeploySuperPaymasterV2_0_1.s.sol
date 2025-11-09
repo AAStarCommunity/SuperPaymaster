@@ -7,14 +7,15 @@ import "src/paymasters/v2/core/SuperPaymasterV2.sol";
 
 /**
  * @title DeploySuperPaymasterV2_0_1
- * @notice Deploy SuperPaymasterV2 v2.0.1 with Oracle Security Fix
+ * @notice Deploy SuperPaymasterV2 v2.1.0 with registerOperatorWithAutoStake
  *
- * @dev Security Updates in v2.0.1:
- *   - Added Chainlink oracle answeredInRound validation (prevents stale price data)
+ * @dev Updates in v2.1.0:
+ *   - Added registerOperatorWithAutoStake (one-step registration)
+ *   - v2.0.1: Added Chainlink oracle answeredInRound validation
  *   - Industry-standard oracle security (Aave V3, Compound V3 pattern)
- *   - 3-layer validation: consensus round + staleness + price bounds
  *
  * @dev Required Environment Variables:
+ *   - GTOKEN: GToken ERC20 contract address
  *   - GTOKEN_STAKING: GTokenStaking contract address
  *   - REGISTRY: Registry contract address
  *   - ETH_USD_PRICE_FEED: Chainlink ETH/USD price feed address
@@ -31,8 +32,16 @@ import "src/paymasters/v2/core/SuperPaymasterV2.sol";
 contract DeploySuperPaymasterV2_0_1 is Script {
     function run() external {
         // Load environment variables (try both naming conventions)
+        address gtoken;
         address gtokenStaking;
         address registry;
+
+        // Try GTOKEN first, fallback to GTOKEN_ADDRESS
+        try vm.envAddress("GTOKEN") returns (address addr) {
+            gtoken = addr;
+        } catch {
+            gtoken = vm.envAddress("GTOKEN_ADDRESS");
+        }
 
         // Try GTOKEN_STAKING first, fallback to GTOKEN_STAKING_ADDRESS
         try vm.envAddress("GTOKEN_STAKING") returns (address addr) {
@@ -53,8 +62,9 @@ contract DeploySuperPaymasterV2_0_1 is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         console.log("================================================================================");
-        console.log("=== Deploying SuperPaymasterV2 v2.0.1 (Oracle Security Fix) ===");
+        console.log("=== Deploying SuperPaymasterV2 v2.1.0 (Auto-Stake Registration) ===");
         console.log("================================================================================");
+        console.log("GToken:            ", gtoken);
         console.log("GTokenStaking:     ", gtokenStaking);
         console.log("Registry:          ", registry);
         console.log("ETH/USD Price Feed:", ethUsdPriceFeed);
@@ -65,6 +75,7 @@ contract DeploySuperPaymasterV2_0_1 is Script {
 
         // Deploy SuperPaymasterV2
         SuperPaymasterV2 superPaymaster = new SuperPaymasterV2(
+            gtoken,
             gtokenStaking,
             registry,
             ethUsdPriceFeed

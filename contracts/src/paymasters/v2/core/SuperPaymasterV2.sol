@@ -10,7 +10,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title SuperPaymasterV2
+ * @title SuperPaymasterV2.1
  * @notice Multi-operator Paymaster with reputation system and DVT-based slash mechanism
  * @dev Implements ERC-4337 IPaymaster interface with enhanced features:
  *      - Multi-account management (multiple operators in single contract)
@@ -18,6 +18,7 @@ import "../interfaces/Interfaces.sol";
  *      - DVT + BLS slash execution
  *      - SBT-based user verification
  *      - xPNTs → aPNTs balance management
+ *      - V2.1: One-step registration (auto-stake + register)
  *
  * Architecture:
  * - Registry: Stores community metadata
@@ -86,6 +87,9 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     /// @notice Slash history for each operator
     mapping(address => SlashRecord[]) public slashHistory;
 
+    /// @notice GToken ERC20 contract
+    address public immutable GTOKEN;
+
     /// @notice GTokenStaking contract
     address public immutable GTOKEN_STAKING;
 
@@ -135,10 +139,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     uint256 public treasuryAPNTsBalance;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.0.1"; // Oracle security fix (answeredInRound validation)
+    string public constant VERSION = "2.1.0"; // Added registerOperatorWithAutoStake (one-step registration)
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20001;
+    uint256 public constant VERSION_CODE = 20100;
 
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [
@@ -163,6 +167,13 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     event OperatorRegistered(
         address indexed operator,
         uint256 stakedAmount,
+        uint256 timestamp
+    );
+
+    event OperatorRegisteredWithAutoStake(
+        address indexed operator,
+        uint256 gtStaked,
+        uint256 aPNTsDeposited,
         uint256 timestamp
     );
 
@@ -265,19 +276,22 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Initialize SuperPaymasterV2
+     * @param _gtoken GToken ERC20 contract address
      * @param _gtokenStaking GTokenStaking contract address
      * @param _registry Registry contract address
      * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
      */
     constructor(
+        address _gtoken,
         address _gtokenStaking,
         address _registry,
         address _ethUsdPriceFeed
     ) Ownable(msg.sender) {
-        if (_gtokenStaking == address(0) || _registry == address(0) || _ethUsdPriceFeed == address(0)) {
+        if (_gtoken == address(0) || _gtokenStaking == address(0) || _registry == address(0) || _ethUsdPriceFeed == address(0)) {
             revert InvalidAddress(address(0));
         }
 
+        GTOKEN = _gtoken;
         GTOKEN_STAKING = _gtokenStaking;
         REGISTRY = _registry;
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
@@ -340,6 +354,91 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         );
 
         emit OperatorRegistered(msg.sender, stGTokenAmount, block.timestamp);
+    }
+
+    /**
+     * @notice Register operator with auto-stake (one-step registration)
+     * @param stGTokenAmount Amount of GT to stake
+     * @param aPNTsAmount Initial aPNTs deposit (optional, can be 0)
+     * @param supportedSBTs List of supported SBT contracts
+     * @param xPNTsToken Community points token address
+     * @param treasury Treasury address for receiving user payments
+     * @dev Combines transfer + approve + stake + lock + register in one transaction
+     *      User must approve both GT and aPNTs to this contract beforehand
+     */
+    function registerOperatorWithAutoStake(
+        uint256 stGTokenAmount,
+        uint256 aPNTsAmount,
+        address[] memory supportedSBTs,
+        address xPNTsToken,
+        address treasury
+    ) external nonReentrant {
+        // 1. Validation
+        if (stGTokenAmount < minOperatorStake) {
+            revert InsufficientStake(stGTokenAmount, minOperatorStake);
+        }
+        if (accounts[msg.sender].stakedAt != 0) {
+            revert AlreadyRegistered(msg.sender);
+        }
+        if (treasury == address(0)) {
+            revert InvalidAddress(treasury);
+        }
+
+        // 2. Auto-stake: Transfer GT from user and stake
+        uint256 available = IGTokenStaking(GTOKEN_STAKING).availableBalance(msg.sender);
+        uint256 need = available < stGTokenAmount ? stGTokenAmount - available : 0;
+
+        if (need > 0) {
+            // Transfer GT from user to this contract
+            IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), need);
+
+            // Approve GT to GTokenStaking
+            IERC20(GTOKEN).approve(GTOKEN_STAKING, need);
+
+            // Stake for user
+            IGTokenStaking(GTOKEN_STAKING).stakeFor(msg.sender, need);
+        }
+
+        // 3. Lock stake
+        IGTokenStaking(GTOKEN_STAKING).lockStake(
+            msg.sender,
+            stGTokenAmount,
+            "SuperPaymaster operator"
+        );
+
+        // 4. Transfer aPNTs if provided
+        uint256 initialBalance = 0;
+        if (aPNTsAmount > 0 && aPNTsToken != address(0)) {
+            IERC20(aPNTsToken).safeTransferFrom(msg.sender, address(this), aPNTsAmount);
+            initialBalance = aPNTsAmount;
+        }
+
+        // 5. Create operator account (CEI: Effects before any remaining interactions)
+        accounts[msg.sender] = OperatorAccount({
+            stGTokenLocked: stGTokenAmount,
+            stakedAt: block.timestamp,
+            aPNTsBalance: initialBalance,
+            totalSpent: 0,
+            lastRefillTime: block.timestamp,
+            minBalanceThreshold: minAPNTsBalance,
+            supportedSBTs: supportedSBTs,
+            xPNTsToken: xPNTsToken,
+            treasury: treasury,
+            exchangeRate: 1 ether,  // 默认1:1汇率
+            reputationScore: 0,
+            consecutiveDays: 0,
+            totalTxSponsored: 0,
+            reputationLevel: 1,
+            lastCheckTime: block.timestamp,
+            isPaused: false
+        });
+
+        emit OperatorRegisteredWithAutoStake(
+            msg.sender,
+            stGTokenAmount,
+            initialBalance,
+            block.timestamp
+        );
     }
 
     /**
