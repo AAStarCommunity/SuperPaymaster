@@ -1,0 +1,41 @@
+# Echidna Configuration for All Core Contracts
+# Quick test run for all contracts
+
+# Test settings
+testMode: property
+testLimit: 50000        # 5万次测试（快速验证）
+timeout: 3600           # 1小时
+
+# Worker configuration
+workers: 4
+
+# Coverage settings
+coverage: true
+corpusDir: "corpus-all"
+
+# Property testing
+checkAsserts: true
+propMaxGas: 12000000
+estimateGas: true
+
+# Shrinking
+shrinkLimit: 5000
+
+# Corpus management
+corpusMutate: true
+maxValue: 100000000000000000000  # 100 ether
+
+# Filtering
+filterBlacklist: true
+
+# Solc settings
+solcArgs: "--via-ir --optimize --optimize-runs 200"
+
+# Multi-ABI support
+allContracts: true
+
+# Format
+format: text
+
+# Output
+quiet: false

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/paymasters/v2/core/GTokenStaking.sol";
+import "src/paymasters/v2/core/GTokenStaking.sol";
 
 /**
  * @title ConfigureLocker
@@ -21,7 +21,9 @@ contract ConfigureLocker is Script {
 
     // Locker 配置参数
     bool constant AUTHORIZED = true;
-    uint256 constant BASE_EXIT_FEE = 5 ether;  // 5 个 stGToken 基础退出费用
+    uint256 constant FEE_RATE_BPS = 100;       // 1% 基础费率 (100 bps)
+    uint256 constant MIN_EXIT_FEE = 0.01 ether; // 最低退出费用 0.01 GT
+    uint256 constant MAX_FEE_PERCENT = 500;     // 最高 5% (500 bps)
 
     // 时间层级配置 (秒)
     uint256[] timeTiers;
@@ -37,12 +39,12 @@ contract ConfigureLocker is Script {
         timeTiers[1] = 180 days;
         timeTiers[2] = 365 days;
 
-        // 配置层级费用: [<90天, 90-180天, 180-365天, ≥365天]
+        // 配置层级费率 (basis points): [<90天, 90-180天, 180-365天, ≥365天]
         tierFees = new uint256[](4);
-        tierFees[0] = 15 ether;  // < 90天: 15 stGToken
-        tierFees[1] = 10 ether;  // 90-180天: 10 stGToken
-        tierFees[2] = 7 ether;   // 180-365天: 7 stGToken
-        tierFees[3] = 5 ether;   // ≥365天: 5 stGToken (最低)
+        tierFees[0] = 150;  // < 90天: 1.5%
+        tierFees[1] = 100;  // 90-180天: 1%
+        tierFees[2] = 70;   // 180-365天: 0.7%
+        tierFees[3] = 50;   // ≥365天: 0.5% (最低)
     }
 
     function run() external {
@@ -57,15 +59,17 @@ contract ConfigureLocker is Script {
 
         console.log("\nLocker Configuration:");
         console.log("  Authorized:", AUTHORIZED);
-        console.log("  Base Exit Fee (stGToken):", BASE_EXIT_FEE / 1e18);
+        console.log("  Base Fee Rate (bps):", FEE_RATE_BPS);
+        console.log("  Min Exit Fee (GT):", MIN_EXIT_FEE / 1e18);
+        console.log("  Max Fee Percent (bps):", MAX_FEE_PERCENT);
         console.log("\nTime Tiers:");
         console.log("  Tier 1 (days):", timeTiers[0] / 1 days);
-        console.log("  Tier 1 Fee (stGToken):", tierFees[0] / 1e18);
+        console.log("  Tier 1 Fee (bps):", tierFees[0]);
         console.log("  Tier 2 (days):", timeTiers[1] / 1 days);
-        console.log("  Tier 2 Fee (stGToken):", tierFees[1] / 1e18);
+        console.log("  Tier 2 Fee (bps):", tierFees[1]);
         console.log("  Tier 3 (days):", timeTiers[2] / 1 days);
-        console.log("  Tier 3 Fee (stGToken):", tierFees[2] / 1e18);
-        console.log("  Tier 4 Fee (stGToken):", tierFees[3] / 1e18);
+        console.log("  Tier 3 Fee (bps):", tierFees[2]);
+        console.log("  Tier 4 Fee (bps):", tierFees[3]);
 
         // 开始广播交易
         vm.startBroadcast();
@@ -76,7 +80,9 @@ contract ConfigureLocker is Script {
         gTokenStaking.configureLocker(
             SUPERPAYMASTER_V2,
             AUTHORIZED,
-            BASE_EXIT_FEE,
+            FEE_RATE_BPS,
+            MIN_EXIT_FEE,
+            MAX_FEE_PERCENT,
             timeTiers,
             tierFees,
             FEE_RECIPIENT
@@ -95,11 +101,15 @@ contract ConfigureLocker is Script {
         GTokenStaking.LockerConfig memory config = gTokenStaking.getLockerConfig(SUPERPAYMASTER_V2);
 
         console.log("  Authorized:", config.authorized);
-        console.log("  Base Exit Fee (stGToken):", config.baseExitFee / 1e18);
+        console.log("  Fee Rate (bps):", config.feeRateBps);
+        console.log("  Min Exit Fee (GT):", config.minExitFee / 1e18);
+        console.log("  Max Fee Percent (bps):", config.maxFeePercent);
         console.log("  Fee Recipient:", config.feeRecipient);
 
         require(config.authorized == AUTHORIZED, "Authorization mismatch");
-        require(config.baseExitFee == BASE_EXIT_FEE, "Base exit fee mismatch");
+        require(config.feeRateBps == FEE_RATE_BPS, "Fee rate mismatch");
+        require(config.minExitFee == MIN_EXIT_FEE, "Min exit fee mismatch");
+        require(config.maxFeePercent == MAX_FEE_PERCENT, "Max fee percent mismatch");
         require(config.feeRecipient == FEE_RECIPIENT, "Fee recipient mismatch");
 
         console.log("\nVerification passed!");

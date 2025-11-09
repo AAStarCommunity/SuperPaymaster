@@ -3,15 +3,32 @@
 使用SuperPaymaster repo的js脚本，直接和entrypoint交互，无需bundler。
 
 ## 目标
+
 Paymaster V4.1 AOA模式，社区独立部署的合约地址
 地址：0x4D6A367aA183903968833Ec4AE361CFc8dDDBA38，
 
 AOA+模式，SuperPaymaster地址：0x50c4Daf685170aa29513BA6dd89B8417b5b0FE4a
 和xPNTs（社区自己的Gas Token）：0x13da8229f5ca3e1Ab2be3c010BBBb5dbAed85621
 
+通过@aastar/shared-config v0.2.10动态获取合约地址：
+
+**AOA模式（PaymasterV4_1）**: 社区独立部署的合约
+- 从shared-config获取: `getPaymasterV4_1('sepolia')`
+- 当前地址：0x4D6A367aA183903968833Ec4AE361CFc8dDDBA38
+
+**AOA+模式（SuperPaymasterV2）**: 共享paymaster
+- 从shared-config获取: `getSuperPaymasterV2('sepolia')`
+- 当前地址：0x95B20d8FdF173a1190ff71e41024991B2c5e58eF
+
+**测试Token**:
+- aPNTs (AAStar): `getTestTokenContracts('sepolia').aPNTs`
+- bPNTs (BuilderDAO): `getTestTokenContracts('sepolia').bPNTs`
+
+
 使用两种paymaster，完成完整的无gas交易
 
 ### 配置
+
 
 SBT： 0xc1085841307d85d4a8dC973321Df2dF7c01cE5C8，来自于mysbt 2.3（需要验证
 xPNTs token：0x13da8229f5ca3e1Ab2be3c010BBBb5dbAed85621，来自于xpnts（需要验证)
@@ -19,6 +36,33 @@ xPNTs token：0x13da8229f5ca3e1Ab2be3c010BBBb5dbAed85621，来自于xpnts（需�
 
 OWNER2_PRIVATE_KEY="0xc801db57d05466a8f16d645c39f50000000000000"
 这个到env找完整的私钥
+
+所有合约地址从@aastar/shared-config获取：
+
+```javascript
+const { getCoreContracts, getTokenContracts, getTestTokenContracts } = require("@aastar/shared-config");
+const core = getCoreContracts('sepolia');
+const tokens = getTokenContracts('sepolia');
+const testTokens = getTestTokenContracts('sepolia');
+```
+
+**核心合约**:
+- MySBT v2.4.0: `tokens.mySBT` = 0x73E635Fc9eD362b7061495372B6eDFF511D9E18F
+- GToken: `core.gToken` = 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc
+- GTokenStaking: `core.gTokenStaking` = 0x60Bd54645b0fDabA1114B701Df6f33C4ecE87fEa
+
+**测试Token (xPNTs实例)**:
+- aPNTs: `testTokens.aPNTs` = 0xBD0710596010a157B88cd141d797E8Ad4bb2306b
+- bPNTs: `testTokens.bPNTs` = 0xF223660d24c436B5BfadFEF68B5051bf45E7C995
+
+**私钥配置**:
+```bash
+# 私钥从env/.env文件获取，不在文档中暴露
+# 请参考env/.env文件获取以下变量：
+OWNER2_PRIVATE_KEY=<从env/.env获取>
+DEPLOYER_PRIVATE_KEY=<从env/.env获取>
+```
+
 
 OWNER2_ADDRESS="0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA"
 TEST_AA_ACCOUNT_ADDRESS_A="0xf0e96d5fDCCCA9B67929600615EB04e5f11D4584"
@@ -29,6 +73,7 @@ TEST_AA_ACCOUNT_ADDRESS_C="0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce"
 不需要approve gas token 给paymaster，因为 gas token工厂已经内置了approve给结算合约（AOA+模式下superpaymaster扮演结算合约，可以直接从用户账户扣除xpnts）
 
 ## 测试准备
+
 ### 检查
 1. paymaster支持的sbt和xpnts是否和测试提供的地址一致
 2. paymaster是否是xpnts合约的内置预approved地址，否则无法扣除测试账户的xpnts
@@ -51,6 +96,75 @@ mint xpnts：
 xpnts是自动选择，如果多个都可以支付gas的话。
 
 
+### 验证步骤（使用scripts/test-prepare-assets.js）
+
+运行验证脚本检查所有配置：
+```bash
+node scripts/test-prepare-assets.js
+```
+
+该脚本将自动验证：
+
+1. **Paymaster配置检查**
+   - ✅ PaymasterV4_1支持的SBT地址是否匹配MySBT v2.4.0
+   - ✅ SuperPaymasterV2的operator是否已注册
+   - ✅ aPNTs价格USD是否已设置（默认0.02 USD）
+
+2. **Token预授权检查**
+   - ✅ aPNTs是否已预授权给PaymasterV4_1（工厂部署时设置）
+   - ✅ bPNTs是否已预授权给PaymasterV4_1
+   - ✅ aPNTs是否已预授权给SuperPaymasterV2
+   - ✅ bPNTs是否已预授权给SuperPaymasterV2
+
+3. **汇率设置检查**
+   - ✅ PaymasterV4_1中bPNTs→aPNTs汇率
+   - ✅ SuperPaymasterV2中operator的xPNTs汇率
+
+4. **Token所有权检查**
+   - ✅ aPNTs owner是否为DEPLOYER（0x411BD567...）
+   - ✅ bPNTs owner是否可mint
+   - ✅ GToken owner权限验证
+
+
+### 测试账户资产准备
+
+使用准备脚本自动化资产配置：
+
+```bash
+# 1. Mint tokens (GToken, aPNTs, bPNTs)
+node scripts/mint-tokens.js
+
+# 2. Stake GToken to get stGToken
+node scripts/stake-gtoken.js
+
+# 3. Mint SBT for test accounts
+node scripts/mint-sbt.js
+```
+
+**资产要求**：
+
+1. **GToken + stGToken**
+   - Mint 1000 GToken给测试账户
+   - Stake至少30 GT到GTokenStaking获得stGToken
+   - GToken owner: DEPLOYER (0x411BD567...)
+
+2. **SBT (社区身份)**
+   - 通过MySBT合约mint
+   - 每个测试账户需要至少1个SBT
+   - SBT地址从`getTokenContracts('sepolia').mySBT`获取
+
+3. **Gas Tokens (xPNTs实例)**
+   - **AOA测试**: 使用bPNTs (BuilderDAO token)
+     - Mint 2000 bPNTs给测试账户
+     - bPNTs已预授权给PaymasterV4_1
+   - **AOA+测试**: 使用aPNTs (AAStar token)
+     - Mint 2000 aPNTs给测试账户
+     - aPNTs已预授权给SuperPaymasterV2
+
+**注意**：xPNTs是工厂合约，aPNTs和bPNTs是具体实例。每个社区可以通过xPNTsFactory部署自己的gas token。
+
+
+
 ## 核心过程
 entrypoint 调用paymaster v4.1 的validateOps函数，或者Superpaymaster的函数，
 进行如下操作：
@@ -67,6 +181,7 @@ entrypoint 调用paymaster v4.1 的validateOps函数，或者Superpaymaster的�
 请根据代码，先一步步根据合约代码，验证我说的过程，并修正和完善，然后执行
 
 禁止更改方案，必须用我说的流程
+
 
 ## 相关合约地址
 V2核心系统（2025-10-24/25）
@@ -99,7 +214,215 @@ DVT监控系统
 | BLSAggregator | 0xA7df6789218C5a270D6DF033979698CAB7D7b728 | 2025-10-25 | BLS签名聚合 |
 
 官方依赖
+=======
+## 🆕 最新合约地址（@aastar/shared-config v0.2.10 - 2025-11-01）
+
+### V2核心系统
+
+| 合约               | 版本    | 地址                                         | 部署日期       | 功能              |
+|------------------|-------|--------------------------------------------|-----------|--------------------|
+| SuperPaymasterV2 | 2.0.0 | 0x95B20d8FdF173a1190ff71e41024991B2c5e58eF | 2025-11-01 | AOA+共享paymaster   |
+| Registry         | 2.1.3 | 0xb6286F53d8ff25eF99e6a43b2907B8e6BD0f019A | 2025-11-01 | 社区注册+转移所有权      |
+| GToken           | 2.0.0 | 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc | 2025-11-01 | 治理代币 (21M cap)   |
+| GTokenStaking    | 2.0.0 | 0x60Bd54645b0fDabA1114B701Df6f33C4ecE87fEa | 2025-11-01 | 用户级slash+1:1股份   |
+| PaymasterFactory | 1.0.0 | 0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920 | 2025-11-01 | EIP-1167 最小代理    |
+
+### Token系统
+
+| 合约           | 版本    | 地址                                         | 部署日期       | 功能              |
+|--------------|-------|--------------------------------------------|-----------|--------------------|
+| xPNTsFactory | 2.0.0 | 0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd | 2025-11-01 | 统一架构gas token工厂 |
+| MySBT        | 2.4.0 | 0x73E635Fc9eD362b7061495372B6eDFF511D9E18F | 2025-11-01 | SBT+NFT重构        |
+
+### 测试代币（开发测试用）
+
+| 合约    | 版本    | 地址                                         | 部署日期       | 所属社区       |
+|-------|-------|--------------------------------------------|-----------|--------------------|
+| aPNTs | 2.0.0 | 0xBD0710596010a157B88cd141d797E8Ad4bb2306b | 2025-11-01 | AAStar Community   |
+| bPNTs | 2.0.0 | 0xF223660d24c436B5BfadFEF68B5051bf45E7C995 | 2025-11-01 | BuilderDAO Community |
+
+### AOA模式
+
+| 合约            | 版本    | 地址                                         | 部署日期       | 功能                    |
+|---------------|-------|--------------------------------------------|-----------|-----------------------|
+| PaymasterV4_1 | 4.1   | 0x4D6A367aA183903968833Ec4AE361CFc8dDDBA38 | 2025-10-15 | 独立paymaster（无需server） |
+
+### DVT监控系统
+
+| 合约            | 版本    | 地址                                         | 部署日期       | 功能      |
+|---------------|-------|--------------------------------------------|-----------|-----------------------|
+| DVTValidator  | 2.0.0 | 0x937CdD172fb0674Db688149093356F6dA95498FD | 2025-11-01 | 分布式验证节点 |
+| BLSAggregator | 2.0.0 | 0x3Cf0587912c692aa0f5FEEEDC52959ABEEEFaEc6 | 2025-11-01 | BLS签名聚合   |
+
+### 测试社区（开发测试用）
+
+| 社区名称      | Owner                                      | Gas Token (xPNTs) | ENS             | Stake   |
+|-----------|--------------------------------------------|--------------------|-----------------|---------|
+| AAStar    | 0x411BD567E46C0781248dbB6a9211891C032885e5 | aPNTs              | aastar.eth      | 50 GT   |
+| BuilderDAO | 0x3c053322AfBEB5B2C9917A6Cbda590f1736590cd | bPNTs              | builderdao.eth  | 50 GT   |
+
+### 官方依赖
+
 
 | 合约              | 地址                                         | 说明               |
 |-----------------|--------------------------------------------|------------------|
 | EntryPoint v0.7 | 0x0000000071727De22E5E9d8BAf0edAc6f37da032 | ERC-4337官方（跨链统一） |
+
+
+---
+
+## 📋 2025-11-01更新：基于 v0.2.10 的完整测试流程
+
+### 测试准备流程（基于当前合约状态）
+
+#### 阶段1：部署与配置验证
+
+**1.1 检查已部署合约配置**
+```bash
+# 使用 deployer (0x411BD567E46C0781248dbB6a9211891C032885e5)
+
+# 检查 GTokenStaking locker配置
+cast call 0xDAD0EC96335f88A5A38aAd838daD4FE541744C2a "lockerConfigs(address)(bool,uint256,uint256,uint256,uint256[],uint256[],address)" 0x50c4Daf685170aa29513BA6dd89B8417b5b0FE4a
+
+# 检查 SuperPaymasterV2 配置
+cast call 0x50c4Daf685170aa29513BA6dd89B8417b5b0FE4a "minOperatorStake()(uint256)"
+cast call 0x50c4Daf685170aa29513BA6dd89B8417b5b0FE4a "aPNTsPriceUSD()(uint256)"
+```
+
+**1.2 部署社区xPNTs token**
+- 使用 deployer 调用 `xPNTsFactory.deployToken()`
+- 记录部署的 xPNTs 地址
+- 更新到 `@aastar/shared-config`
+
+#### 阶段2：准备测试账户资产
+
+**测试账户信息：**
+- **Deployer**: `0x411BD567E46C0781248dbB6a9211891C032885e5` (有PRIVATE_KEY)
+- **Test User**: `0xe24b6f321B0140716a2b671ed0D983bb64E7DaFA` (OWNER2，有私钥)
+- **Simple Accounts**:
+  - A: `0xf0e96d5fDCCCA9B67929600615EB04e5f11D4584`
+  - B: `0x57b2e6f08399c276b2c1595825219d29990d0921`
+  - C: `0x8135c8c3BbF2EdFa19409650527E02B47233a9Ce`
+
+**2.1 准备GToken + stGToken**
+```javascript
+// 基于历史脚本更新（scripts/mint-gtoken.js或类似）
+1. deployer mint GToken 1000给测试账户
+2. 测试账户approve GTokenStaking
+3. 测试账户调用 GTokenStaking.stake(300 GT)
+4. GTokenStaking自动lock到SuperPaymaster（如果需要AOA+）
+```
+
+**2.2 注册到Registry获得SBT**
+```javascript
+// 基于历史脚本更新（scripts/register-community.js或类似）
+1. deployer注册社区到Registry（如果未注册）
+2. 测试账户调用 MySBT.mintSBT(community)
+3. 验证测试账户拥有SBT: balanceOf(testAccount) > 0
+```
+
+**2.3 Mint xPNTs给测试账户**
+```javascript
+// 基于历史脚本更新（scripts/mint-xpnts.js或类似）
+1. deployer作为xPNTs owner
+2. deployer.mint(testAccount, 1000 xPNTs)
+3. 验证余额: xPNTs.balanceOf(testAccount)
+4. xPNTs已内置approve给SuperPaymaster（工厂部署时设置）
+```
+
+#### 阶段3：SuperPaymaster运营方准备（AOA+模式）
+
+**3.1 Deployer注册为运营方**
+```javascript
+// 如果deployer尚未注册
+SuperPaymasterV2.registerOperator(
+  stGTokenAmount: 30 ether,  // 最小质押
+  supportedSBTs: [mySBT_address],
+  xPNTsToken: deployed_xPNTs_address,
+  treasury: deployer_address
+)
+```
+
+**3.2 Deployer充值aPNTs**
+```javascript
+// aPNTs是抽象点数（不是真实ERC20）
+// SuperPaymaster内部记账系统
+SuperPaymasterV2.depositAPNTs(2000 ether)
+// 注意：需要实际实现或模拟aPNTs充值机制
+```
+
+**3.3 配置xPNTs <-> aPNTs汇率**
+```javascript
+SuperPaymasterV2.setExchangeRate(
+  operator: deployer,
+  rate: 1 ether  // 1:1汇率
+)
+```
+
+#### 阶段4：核心交易流程验证
+
+**基于合约代码的实际流程：**
+
+1. **EntryPoint调用Paymaster.validatePaymasterUserOp()**
+
+2. **Paymaster验证流程（PaymasterV4 / SuperPaymasterV2）：**
+   - ✅ 检查用户是否持有支持的SBT
+   - ✅ 从paymasterAndData解析userSpecifiedGasToken（xPNTs地址）
+   - ✅ 计算gas费用（从EntryPoint获取gas limits）
+   - ✅ 获取ETH/USD实时价格（Chainlink）
+   - ✅ 转换为aPNTs成本（按0.02 USD/aPNT）
+   - ✅ 转换为xPNTs成本（按operator设置的汇率）
+   - ✅ 检查用户xPNTs余额是否充足
+   - ✅ **PaymasterV4**: 直接从用户账户扣除xPNTs
+   - ✅ **SuperPaymasterV2**:
+     - 从用户账户扣除xPNTs
+     - 从operator内部账户扣除aPNTs
+     - 记录到operator.totalSpent
+
+3. **EntryPoint执行callData**（实际交易逻辑）
+
+4. **postOp回调**（如有需要）
+
+#### 阶段5：测试执行
+
+**5.1 AOA模式测试（PaymasterV4）**
+```javascript
+// 基于 scripts/test-v4-transaction-report.js 更新
+测试场景：Simple Account A 向 B 转账0.5 xPNTs
+验证：
+- A余额减少0.5 + gas fee（xPNTs计价）
+- B余额增加0.5 xPNTs
+- PaymasterV4 treasury收到gas fee
+- A的ETH余额不变（gasless）
+```
+
+**5.2 AOA+模式测试（SuperPaymasterV2）**
+```javascript
+// 基于 scripts/e2e-test-v3.js 更新
+测试场景：Simple Account A 向 B 转账0.5 xPNTs
+验证：
+- A余额减少0.5 + gas fee（xPNTs计价）
+- B余额增加0.5 xPNTs
+- Operator内部aPNTs余额减少
+- SuperPaymaster treasury收到消耗的aPNTs
+- A的ETH余额不变（gasless）
+```
+
+### 当前待办事项清单
+
+**立即执行（deployer操作）：**
+- [ ] 部署社区的xPNTs token
+- [ ] 验证GTokenStaking locker配置（MySBT + SuperPaymaster）
+- [ ] 检查deployer是否已在SuperPaymasterV2注册
+- [ ] 准备测试账户资产（GToken, SBT, xPNTs）
+- [ ] 配置SuperPaymaster运营方的aPNTs余额
+
+**脚本更新（基于历史脚本）：**
+- [ ] 更新 `scripts/e2e-test-v3.js` → AOA+测试
+- [ ] 更新 `scripts/test-v4-transaction-report.js` → AOA测试
+- [ ] 创建统一的准备脚本 `scripts/prepare-test-assets.js`（基于历史mint/stake脚本）
+
+**文档更新：**
+- [x] 追加最新合约地址和状态
+- [ ] 更新核心流程（根据代码验证）
+- [ ] 记录测试结果和问题

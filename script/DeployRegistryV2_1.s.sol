@@ -2,8 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/paymasters/v2/core/Registry.sol";
-import "../src/paymasters/v2/core/GTokenStaking.sol";
+import "src/paymasters/v2/core/Registry.sol";
+import "src/paymasters/v2/core/GTokenStaking.sol";
 
 /**
  * @title DeployRegistryV2_1
@@ -72,7 +72,9 @@ contract DeployRegistryV2_1 is Script {
         gtokenStaking.configureLocker(
             address(registryV2_1),  // locker
             true,                   // authorized
-            0,                      // baseExitFee (no fee)
+            0,                      // feeRateBps (no percentage fee)
+            0,                      // minExitFee (no minimum)
+            0,                      // maxFeePercent (no cap needed if rate is 0)
             emptyTimeTiers,         // timeTiers
             emptyTierFees,          // tierFees
             address(0)              // feeRecipient (not applicable)

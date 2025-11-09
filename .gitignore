@@ -144,3 +144,11 @@ broadcast/
 !.env.example
 src/vendor/
 /test-accounts/
+
+# Fuzzing and Security Testing Output
+corpus/
+corpus-*/
+crytic-export/
+echidna*.txt
+mythril*.txt
+slither*.txt

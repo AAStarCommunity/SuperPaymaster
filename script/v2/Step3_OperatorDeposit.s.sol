@@ -3,8 +3,8 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../../src/paymasters/v2/core/SuperPaymasterV2.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "src/paymasters/v2/core/SuperPaymasterV2.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Step3_OperatorDeposit

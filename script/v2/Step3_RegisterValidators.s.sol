@@ -2,8 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../../src/paymasters/v2/monitoring/DVTValidator.sol";
-import "../../src/paymasters/v2/monitoring/BLSAggregator.sol";
+import "src/paymasters/v2/monitoring/DVTValidator.sol";
+import "src/paymasters/v2/monitoring/BLSAggregator.sol";
 
 /**
  * @title Step3_RegisterValidators

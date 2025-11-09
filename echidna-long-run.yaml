@@ -1,0 +1,44 @@
+# Echidna 24-Hour Long-Running Configuration
+# For comprehensive security fuzzing
+
+# Test settings
+testMode: property
+testLimit: 1000000  # 100万次测试（24小时足够完成）
+timeout: 86400      # 24小时 = 86400秒
+
+# Worker configuration
+workers: 4          # 使用4个并行worker加速测试
+
+# Coverage settings
+coverage: true
+corpusDir: "corpus-long"
+
+# Property testing
+checkAsserts: true
+propMaxGas: 12000000
+estimateGas: true
+
+# Shrinking (发现问题时的最小化)
+shrinkLimit: 10000  # 更多的收缩尝试
+
+# Corpus management
+corpusMutate: true
+maxValue: 100000000000000000000  # 100 ether
+
+# Filtering
+filterBlacklist: true
+
+# Solc settings
+solcArgs: "--via-ir --optimize --optimize-runs 200"
+
+# Multi-ABI support
+allContracts: true
+
+# Seed for reproducibility (optional)
+# seed: 12345
+
+# Format
+format: text
+
+# Output
+quiet: false
