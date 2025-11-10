@@ -3,20 +3,20 @@ pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
-import {Registry} from "src/paymasters/v2/core/Registry_v2_2_0.sol";
+import {Registry} from "src/paymasters/v2/core/Registry.sol";
 
 /**
  * @title DeployRegistry v2.2.0
  * @notice Deployment script for Registry v2.2.0 with auto-stake functionality
  *
  * Usage:
- *   forge script script/DeployRegistry_v2_2_0.s.sol:DeployRegistry_v2_2_0 \
+ *   forge script script/DeployRegistry.s.sol:DeployRegistry \
  *     --rpc-url $RPC_URL \
  *     --private-key $PRIVATE_KEY \
  *     --broadcast \
  *     --verify
  */
-contract DeployRegistry_v2_2_0 is Script {
+contract DeployRegistry is Script {
     // Sepolia addresses
     address constant GTOKEN_SEPOLIA = 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc;
     address constant GTOKEN_STAKING_SEPOLIA = 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0;
