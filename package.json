@@ -6,7 +6,10 @@
     "test:gasless": "node script/gasless-tests/run-all-tests.sh"
   },
   "dependencies": {
-    "ethers": "^6.13.4",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "viem": "^2.38.6"
   }
 }

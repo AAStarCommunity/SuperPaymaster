@@ -187,6 +187,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         uint256 newRate
     );
 
+    event SupportedSBTsUpdated(
+        address indexed operator,
+        address[] supportedSBTs
+    );
+
     event aPNTsDeposited(
         address indexed operator,
         uint256 amount,
@@ -497,6 +502,19 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
         accounts[msg.sender].exchangeRate = newRate;
         emit ExchangeRateUpdated(msg.sender, newRate);
+    }
+
+    /**
+     * @notice Update operator's supported SBTs list
+     * @param newSupportedSBTs New list of supported SBT contracts
+     */
+    function updateSupportedSBTs(address[] memory newSupportedSBTs) external {
+        if (accounts[msg.sender].stakedAt == 0) {
+            revert NotRegistered(msg.sender);
+        }
+
+        accounts[msg.sender].supportedSBTs = newSupportedSBTs;
+        emit SupportedSBTsUpdated(msg.sender, newSupportedSBTs);
     }
 
     /**
@@ -916,6 +934,20 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     function unpauseOperator(address operator) external onlyOwner {
         accounts[operator].isPaused = false;
         emit OperatorUnpaused(operator, block.timestamp);
+    }
+
+    /**
+     * @notice Update operator's supported SBTs (owner-only, for emergency management)
+     * @param operator Operator address
+     * @param newSupportedSBTs New list of supported SBT contracts
+     */
+    function updateOperatorSupportedSBTs(address operator, address[] memory newSupportedSBTs) external onlyOwner {
+        if (accounts[operator].stakedAt == 0) {
+            revert NotRegistered(operator);
+        }
+
+        accounts[operator].supportedSBTs = newSupportedSBTs;
+        emit SupportedSBTsUpdated(operator, newSupportedSBTs);
     }
 
     // ====================================

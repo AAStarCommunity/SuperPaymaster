@@ -50,8 +50,8 @@ async function main() {
   const senderPrivateKey = process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
   const recipientAddress = process.env.OWNER2_ADDRESS || process.env.TEST_EOA_ADDRESS;
 
-  // Get operator from env (who registered SuperPaymaster)
-  const operatorAddress = process.env.COMMUNITY_SUPER_ADDRESS || process.env.USER_ADDRESS;
+  // Use the registered operator for SuperPaymaster + xPNTs1
+  const operatorAddress = '0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c';
 
   if (!rpcUrl || !senderPrivateKey || !recipientAddress || !operatorAddress) {
     throw new Error('Required env variables not found');
