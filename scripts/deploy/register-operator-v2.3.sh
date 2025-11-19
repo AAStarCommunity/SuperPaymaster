@@ -1,154 +1,121 @@
 #!/bin/bash
-# Operator注册脚本 - 使用bPNT token
+# 注册operator到SuperPaymasterV2_3（使用shared-config v0.3.4地址）
 
 set -e
 
-echo "========================================="
-echo "注册Operator到SuperPaymasterV2.3"
-echo "使用bPNT Token (Bread Points)"
-echo "========================================="
-echo ""
+# 新部署的SuperPaymasterV2_3
+PAYMASTER_V2_3="0x081084612AAdFdbe135A24D933c440CfA2C983d2"
 
-# 加载环境变量
-source /Volumes/UltraDisk/Dev2/aastar/env/.env
-source .env.v2.3
-
-if [ -z "$PAYMASTER_V2_3" ]; then
-    echo "❌ 未找到PAYMASTER_V2_3地址"
-    exit 1
-fi
-
-# Operator配置
+# Operator信息
 OPERATOR="0x411BD567E46C0781248dbB6a9211891C032885e5"
-BPNT_TOKEN="0x70Da2c1B7Fcf471247Bc3B09f8927a4ab1751Ba3"  # Bread Points
-TREASURY=$OPERATOR  # 使用同一地址作为treasury
+BPNT="0x70Da2c1B7Fcf471247Bc3B09f8927a4ab1751Ba3"  # bPNT token
 STAKE_AMOUNT="30000000000000000000"  # 30 GT
 
-GTOKEN="0x36b699a921fc792119D84f1429e2c00a38c09f7f"
-GTOKEN_STAKING="0x83f9554641b2Eb8984C4dD03D27f1f75EC537d36"
+# shared-config v0.3.4地址
+GTOKEN="0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc"
+GTOKEN_STAKING="0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0"
 
-echo "📋 Operator配置:"
-echo "  Operator: $OPERATOR"
-echo "  bPNT Token: $BPNT_TOKEN"
-echo "  Treasury: $TREASURY"
-echo "  Stake Amount: 30 GT"
+SEPOLIA_RPC_URL=$(grep "^SEPOLIA_RPC_URL=" /Volumes/UltraDisk/Dev2/aastar/env/.env | cut -d'=' -f2- | sed 's/"//g')
+PRIVATE_KEY=$(grep "^PRIVATE_KEY=" /Volumes/UltraDisk/Dev2/aastar/env/.env | head -1 | cut -d'=' -f2- | sed 's/"//g')
+
+echo "========================================="
+echo "注册Operator到SuperPaymasterV2_3"
+echo "========================================="
+echo ""
+echo "SuperPaymasterV2_3: $PAYMASTER_V2_3"
+echo "Operator: $OPERATOR"
+echo "Stake: 30 GT"
+echo "xPNTsToken: $BPNT (bPNT)"
 echo ""
 
-# 检查operator的私钥
-if [ -z "$OPERATOR_PRIVATE_KEY" ]; then
-    echo "⚠️  警告: 未找到OPERATOR_PRIVATE_KEY环境变量"
-    echo "使用PRIVATE_KEY作为operator密钥"
-    OPERATOR_KEY=$PRIVATE_KEY
-else
-    OPERATOR_KEY=$OPERATOR_PRIVATE_KEY
+# 1. 检查operator在SuperPaymasterV2_3的状态
+echo "🔍 检查operator注册状态..."
+ACCOUNT=$(cast call $PAYMASTER_V2_3 \
+  "accounts(address)" \
+  $OPERATOR \
+  --rpc-url "$SEPOLIA_RPC_URL" 2>&1 || echo "")
+
+if [ ! -z "$ACCOUNT" ]; then
+    STAKED_AT=$(echo "$ACCOUNT" | head -1)
+    if [ "$STAKED_AT" != "0" ] && [ ! -z "$STAKED_AT" ]; then
+        echo "  ✅ Operator已注册"
+        echo ""
+        echo "========================================="
+        echo "✅ Operator已存在，无需重复注册"
+        echo "========================================="
+        exit 0
+    fi
 fi
 
-# 1. 检查GT余额
+echo "  ⚠️  Operator未注册，开始注册流程..."
+echo ""
+
+# 2. 检查GT余额
 echo "🔍 检查GT余额..."
 GT_BALANCE=$(cast call $GTOKEN \
   "balanceOf(address)(uint256)" \
   $OPERATOR \
-  --rpc-url $SEPOLIA_RPC_URL)
+  --rpc-url "$SEPOLIA_RPC_URL" 2>&1)
 
-echo "  GT余额: $(cast --to-dec $GT_BALANCE) wei"
+GT_DEC=$(cast --to-dec "$GT_BALANCE" 2>/dev/null || echo "0")
+GT_ETHER=$(echo "scale=2; $GT_DEC / 1000000000000000000" | bc 2>/dev/null || echo "0")
 
-if [ "$(cast --to-dec $GT_BALANCE)" -lt "$STAKE_AMOUNT" ]; then
-    echo "❌ GT余额不足，需要至少30 GT"
+echo "  GT余额: $GT_ETHER GT"
+
+if [ "$GT_DEC" -lt "$STAKE_AMOUNT" ]; then
+    echo "  ❌ GT余额不足，需要至少30 GT"
     exit 1
 fi
 
-# 2. Approve GT给GTokenStaking
-echo "⚙️  Approve GT给GTokenStaking..."
+echo "  ✅ GT余额充足"
+echo ""
+
+# 3-5. 执行注册流程
+echo "⚙️  Approve GT..."
 cast send $GTOKEN \
   "approve(address,uint256)" \
   $GTOKEN_STAKING \
   $STAKE_AMOUNT \
-  --private-key $OPERATOR_KEY \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --legacy
+  --private-key $PRIVATE_KEY \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --legacy > /dev/null
 
-echo "✅ Approve成功"
+echo "  ✅ Approve成功"
 sleep 2
 
-# 3. Stake GT
-echo "⚙️  Stake 30 GT..."
+echo ""
+echo "⚙️  Stake GT..."
 cast send $GTOKEN_STAKING \
   "stake(uint256)" \
   $STAKE_AMOUNT \
-  --private-key $OPERATOR_KEY \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --legacy
+  --private-key $PRIVATE_KEY \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --legacy > /dev/null
 
-echo "✅ Stake成功"
+echo "  ✅ Stake成功"
 sleep 2
 
-# 4. 注册Operator (⚡ V2.3: 无需supportedSBTs参数)
-echo "⚙️  注册Operator (使用bPNT)..."
-echo "  参数:"
-echo "    - stGTokenAmount: $STAKE_AMOUNT"
-echo "    - xPNTsToken: $BPNT_TOKEN (bPNT)"
-echo "    - treasury: $TREASURY"
 echo ""
-
-cast send $PAYMASTER_V2_3 \
+echo "⚙️  注册Operator..."
+REGISTER_TX=$(cast send $PAYMASTER_V2_3 \
   "registerOperator(uint256,address,address)" \
   $STAKE_AMOUNT \
-  $BPNT_TOKEN \
-  $TREASURY \
-  --private-key $OPERATOR_KEY \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --legacy
+  $BPNT \
+  $OPERATOR \
+  --private-key $PRIVATE_KEY \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --legacy 2>&1)
 
-if [ $? -eq 0 ]; then
-    echo "✅ Operator注册成功!"
+if echo "$REGISTER_TX" | grep -q "transactionHash"; then
+    REGISTER_HASH=$(echo "$REGISTER_TX" | grep "transactionHash" | awk '{print $2}')
+    echo "  ✅ Operator注册成功!"
+    echo "  TX: $REGISTER_HASH"
+    echo ""
+    echo "========================================="
+    echo "✅ 注册完成!"
+    echo "========================================="
 else
-    echo "❌ Operator注册失败"
+    echo "  ❌ 注册失败"
+    echo "$REGISTER_TX"
     exit 1
 fi
-
-sleep 3
-
-# 5. 验证注册
-echo ""
-echo "🔍 验证Operator注册..."
-ACCOUNT_INFO=$(cast call $PAYMASTER_V2_3 \
-  "getOperatorAccount(address)" \
-  $OPERATOR \
-  --rpc-url $SEPOLIA_RPC_URL)
-
-echo "Operator账户信息:"
-echo "$ACCOUNT_INFO"
-echo ""
-
-# 检查xPNTsToken是否为bPNT
-# 注意: getOperatorAccount返回的是tuple，需要解析
-echo "验证xPNTsToken配置..."
-XPNT_TOKEN=$(cast call $PAYMASTER_V2_3 \
-  "accounts(address)" \
-  $OPERATOR \
-  --rpc-url $SEPOLIA_RPC_URL | grep -o "0x70Da2c1B7Fcf471247Bc3B09f8927a4ab1751Ba3" || echo "")
-
-if [ ! -z "$XPNT_TOKEN" ]; then
-    echo "✅ xPNTsToken配置正确 (bPNT)"
-else
-    echo "⚠️  无法验证xPNTsToken配置"
-fi
-
-echo ""
-echo "========================================="
-echo "✅ Operator注册完成!"
-echo "========================================="
-echo ""
-echo "Operator信息:"
-echo "  地址: $OPERATOR"
-echo "  Token: bPNT (0x70Da2...)"
-echo "  Stake: 30 GT"
-echo ""
-echo "下一步:"
-echo "1. 测试updateOperatorXPNTsToken:"
-echo "   bash scripts/deploy/test-update-xpnt.sh"
-echo ""
-echo "2. 运行Gasless测试:"
-echo "   cd scripts/gasless-test"
-echo "   node test-v2.3-gasless.js"
-echo "========================================="
