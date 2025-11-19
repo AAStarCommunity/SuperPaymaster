@@ -15,10 +15,10 @@ contract DeployV2_3 is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        // Sepolia addresses
-        address gtoken = 0x36b699a921fc792119D84f1429e2c00a38c09f7f;
-        address gtokenStaking = 0x83f9554641b2Eb8984C4dD03D27f1f75EC537d36;
-        address registry = 0xfc1d62e41a86b11cF19Ce2C0B610bE8D58A5aa4F;
+        // Sepolia addresses (from @aastar/shared-config v0.3.4)
+        address gtoken = 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc;
+        address gtokenStaking = 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0;
+        address registry = 0x49245E1f3c2dD99b3884ffeD410d0605Cf4dC696;
         address ethUsdPriceFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Sepolia ETH/USD
         address defaultSBT = 0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C; // MySBT
 
