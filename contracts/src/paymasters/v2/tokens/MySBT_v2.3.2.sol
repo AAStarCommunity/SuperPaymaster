@@ -384,6 +384,112 @@ contract MySBT_v2_3_2 is ERC721, ReentrancyGuard, Pausable, IMySBT {
     }
 
     /**
+     * @notice Airdrop mint: Operator pays all fees on behalf of user (no user approval needed)
+     * @param user Target user to receive SBT
+     * @param metadata Community-specific metadata (JSON string)
+     * @return tokenId The minted or existing SBT token ID
+     * @return isNewMint True if new SBT was minted, false if adding membership
+     * @dev OPERATOR-PAID MODE:
+     *      - Operator (msg.sender) must be a registered community
+     *      - Operator pays mintFee from their own balance
+     *      - Operator stakes GToken for user using stakeFor()
+     *      - User does NOT need to approve anything
+     *      - This enables true "airdrop" experience
+     */
+    function airdropMint(address user, string memory metadata)
+        external
+        whenNotPaused
+        nonReentrant
+        onlyRegisteredCommunity
+        returns (uint256 tokenId, bool isNewMint)
+    {
+        // ✅ Input validation
+        if (user == address(0)) revert InvalidAddress(user);
+        if (bytes(metadata).length == 0) revert InvalidParameter("metadata empty");
+        if (bytes(metadata).length > 1024) revert InvalidParameter("metadata too long");
+
+        tokenId = userToSBT[user];
+        address operator = msg.sender; // The community/operator calling this function
+
+        if (tokenId == 0) {
+            // FIRST MINT: Create SBT (operator pays all fees)
+            tokenId = nextTokenId++;
+            isNewMint = true;
+
+            // Set SBT data
+            sbtData[tokenId] = SBTData({
+                holder: user,
+                firstCommunity: operator,  // Immutable record
+                mintedAt: block.timestamp,
+                totalCommunities: 1
+            });
+
+            // Map user to SBT
+            userToSBT[user] = tokenId;
+
+            // Add first community membership
+            _memberships[tokenId].push(CommunityMembership({
+                community: operator,
+                joinedAt: block.timestamp,
+                lastActiveTime: block.timestamp,
+                isActive: true,
+                metadata: metadata
+            }));
+
+            membershipIndex[tokenId][operator] = 0;
+
+            // ✅ OPERATOR PAYS: Stake GToken for user
+            // Operator must have approved GToken to this contract
+            IERC20(GTOKEN).safeTransferFrom(operator, address(this), minLockAmount);
+
+            // Approve GTokenStaking to spend
+            IERC20(GTOKEN).approve(GTOKEN_STAKING, minLockAmount);
+
+            // Stake for user (user becomes the beneficiary)
+            IGTokenStaking(GTOKEN_STAKING).stakeFor(user, minLockAmount);
+
+            // Lock the stake
+            IGTokenStaking(GTOKEN_STAKING).lockStake(user, minLockAmount, "MySBT Airdrop");
+
+            // ✅ OPERATOR PAYS: Burn GToken mint fee from operator's balance
+            IERC20(GTOKEN).safeTransferFrom(operator, BURN_ADDRESS, mintFee);
+
+            // Mint SBT to user
+            _mint(user, tokenId);
+
+            emit SBTMinted(user, tokenId, operator, block.timestamp);
+        } else {
+            // IDEMPOTENT: Add community membership (no fees for existing SBT)
+            isNewMint = false;
+
+            // Check if membership already exists
+            uint256 idx = membershipIndex[tokenId][operator];
+            if (idx < _memberships[tokenId].length &&
+                _memberships[tokenId][idx].community == operator) {
+                revert MembershipAlreadyExists(tokenId, operator);
+            }
+
+            // Add new membership
+            _memberships[tokenId].push(CommunityMembership({
+                community: operator,
+                joinedAt: block.timestamp,
+                lastActiveTime: block.timestamp,
+                isActive: true,
+                metadata: metadata
+            }));
+
+            membershipIndex[tokenId][operator] = _memberships[tokenId].length - 1;
+
+            // Increment community count
+            sbtData[tokenId].totalCommunities++;
+
+            emit MembershipAdded(tokenId, operator, metadata, block.timestamp);
+        }
+
+        return (tokenId, isNewMint);
+    }
+
+    /**
      * @notice Verify user has active membership in community
      * @param user User address
      * @param community Community address
