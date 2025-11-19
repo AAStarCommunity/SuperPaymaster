@@ -66,7 +66,7 @@ contract SuperPaymasterV2Test is Test {
 
         // Deploy core contracts
         gtokenStaking = new GTokenStaking(address(gtoken));
-        registry = new Registry(address(gtokenStaking));
+        registry = new Registry(address(gtoken), address(gtokenStaking));
         superPaymaster = new SuperPaymasterV2(
             address(gtoken),
             address(gtokenStaking),

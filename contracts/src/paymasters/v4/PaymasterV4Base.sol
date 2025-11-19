@@ -508,7 +508,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     /// @param amount Amount to withdraw
     function withdrawPNT(address to, address token, uint256 amount) external onlyOwner {
         if (to == address(0)) revert PaymasterV4__ZeroAddress();
-        IERC20(token).transfer(to, amount);
+        IERC20(token).safeTransfer(to, amount);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

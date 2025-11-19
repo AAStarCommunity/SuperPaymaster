@@ -74,7 +74,7 @@ contract NFTRatingSystemTest is Test {
 
         gtoken = new GToken(dao);
         staking = new GTokenStaking(address(gtoken));
-        registry = new Registry(address(staking));
+        registry = new Registry(address(0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc), address(staking));
 
         mysbt = new MySBT_v2_4_0(
             address(gtoken),

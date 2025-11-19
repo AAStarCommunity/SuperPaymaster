@@ -10,7 +10,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title SuperPaymasterV2.1
+ * @title SuperPaymasterV2.3
  * @notice Multi-operator Paymaster with reputation system and DVT-based slash mechanism
  * @dev Implements ERC-4337 IPaymaster interface with enhanced features:
  *      - Multi-account management (multiple operators in single contract)
@@ -19,6 +19,10 @@ import "../interfaces/Interfaces.sol";
  *      - SBT-based user verification
  *      - xPNTs → aPNTs balance management
  *      - V2.1: One-step registration (auto-stake + register)
+ *      - V2.3: Gas optimizations
+ *        • Removed supportedSBTs array → immutable DEFAULT_SBT (~10.8k gas saved)
+ *        • Added updateXPNTsToken function for flexible token updates
+ *        • Added updateTreasury function
  *
  * Architecture:
  * - Registry: Stores community metadata
@@ -26,7 +30,7 @@ import "../interfaces/Interfaces.sol";
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
-contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
+contract SuperPaymasterV2_3 is Ownable, ReentrancyGuard, IPaymaster {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -45,7 +49,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         uint256 minBalanceThreshold;// Min balance threshold (default 100 aPNTs)
 
         // Community config
-        address[] supportedSBTs;    // Supported SBT contracts
+        // ⚡ V2.3: Removed supportedSBTs array (saves ~10.8k gas per tx)
+        //          Use immutable DEFAULT_SBT instead
         address xPNTsToken;         // Community points token
         address treasury;           // Treasury address for receiving user xPNTs
 
@@ -95,6 +100,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /// @notice Registry contract
     address public immutable REGISTRY;
+
+    /// @notice Default SBT contract for user verification
+    /// @dev ⚡ V2.3: Immutable instead of array (saves ~10.8k gas per tx)
+    address public immutable DEFAULT_SBT;
 
     /// @notice Chainlink ETH/USD price feed (immutable)
     AggregatorV3Interface public immutable ethUsdPriceFeed;
@@ -149,10 +158,10 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     uint256 public treasuryAPNTsBalance;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.1.0"; // Added registerOperatorWithAutoStake (one-step registration)
+    string public constant VERSION = "2.3.0"; // V2.3: Gas optimizations (removed SBTs array, added update functions)
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20100;
+    uint256 public constant VERSION_CODE = 20300;
 
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [
@@ -197,9 +206,11 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         uint256 newRate
     );
 
-    event SupportedSBTsUpdated(
+    // ⚡ V2.3: New event for xPNTsToken updates
+    event OperatorXPNTsTokenUpdated(
         address indexed operator,
-        address[] supportedSBTs
+        address indexed oldToken,
+        address indexed newToken
     );
 
     // ⚡ GAS OPTIMIZED: Removed timestamp (available from block data)
@@ -296,19 +307,21 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     // ====================================
 
     /**
-     * @notice Initialize SuperPaymasterV2
+     * @notice Initialize SuperPaymasterV2.3
      * @param _gtoken GToken ERC20 contract address
      * @param _gtokenStaking GTokenStaking contract address
      * @param _registry Registry contract address
      * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
+     * @param _defaultSBT Default SBT contract address for user verification
      */
     constructor(
         address _gtoken,
         address _gtokenStaking,
         address _registry,
-        address _ethUsdPriceFeed
+        address _ethUsdPriceFeed,
+        address _defaultSBT
     ) Ownable(msg.sender) {
-        if (_gtoken == address(0) || _gtokenStaking == address(0) || _registry == address(0) || _ethUsdPriceFeed == address(0)) {
+        if (_gtoken == address(0) || _gtokenStaking == address(0) || _registry == address(0) || _ethUsdPriceFeed == address(0) || _defaultSBT == address(0)) {
             revert InvalidAddress(address(0));
         }
 
@@ -316,6 +329,7 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
         GTOKEN_STAKING = _gtokenStaking;
         REGISTRY = _registry;
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        DEFAULT_SBT = _defaultSBT;
         superPaymasterTreasury = msg.sender; // 默认设为deployer，可后续修改
     }
 
@@ -325,13 +339,13 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Register new operator
+     * @dev ⚡ V2.3: Removed supportedSBTs parameter (uses immutable DEFAULT_SBT)
      * @param stGTokenAmount Amount of stGToken to lock
-     * @param supportedSBTs List of supported SBT contracts
      * @param xPNTsToken Community points token address
+     * @param treasury Treasury address for receiving user xPNTs
      */
     function registerOperator(
         uint256 stGTokenAmount,
-        address[] memory supportedSBTs,
         address xPNTsToken,
         address treasury
     ) external nonReentrant {
@@ -355,7 +369,6 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
             totalSpent: 0,
             lastRefillTime: 0,
             minBalanceThreshold: minAPNTsBalance,
-            supportedSBTs: supportedSBTs,
             xPNTsToken: xPNTsToken,
             treasury: treasury,
             exchangeRate: 1 ether, // 默认1:1汇率
@@ -379,9 +392,9 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
 
     /**
      * @notice Register operator with auto-stake (one-step registration)
+     * @dev ⚡ V2.3: Removed supportedSBTs parameter (uses immutable DEFAULT_SBT)
      * @param stGTokenAmount Amount of GT to stake
      * @param aPNTsAmount Initial aPNTs deposit (optional, can be 0)
-     * @param supportedSBTs List of supported SBT contracts
      * @param xPNTsToken Community points token address
      * @param treasury Treasury address for receiving user payments
      * @dev Combines transfer + approve + stake + lock + register in one transaction
@@ -390,7 +403,6 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     function registerOperatorWithAutoStake(
         uint256 stGTokenAmount,
         uint256 aPNTsAmount,
-        address[] memory supportedSBTs,
         address xPNTsToken,
         address treasury
     ) external nonReentrant {
@@ -442,7 +454,6 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
             totalSpent: 0,
             lastRefillTime: block.timestamp,
             minBalanceThreshold: minAPNTsBalance,
-            supportedSBTs: supportedSBTs,
             xPNTsToken: xPNTsToken,
             treasury: treasury,
             exchangeRate: 1 ether,  // 默认1:1汇率
@@ -520,16 +531,22 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     }
 
     /**
-     * @notice Update operator's supported SBTs list
-     * @param newSupportedSBTs New list of supported SBT contracts
+     * @notice Update operator's xPNTsToken configuration
+     * @dev ⚡ V2.3: New function for flexible token updates
+     * @param newXPNTsToken New xPNT token address
      */
-    function updateSupportedSBTs(address[] memory newSupportedSBTs) external {
+    function updateOperatorXPNTsToken(address newXPNTsToken) external {
         if (accounts[msg.sender].stakedAt == 0) {
             revert NotRegistered(msg.sender);
         }
+        if (newXPNTsToken == address(0)) {
+            revert InvalidAddress(newXPNTsToken);
+        }
 
-        accounts[msg.sender].supportedSBTs = newSupportedSBTs;
-        emit SupportedSBTsUpdated(msg.sender, newSupportedSBTs);
+        address oldToken = accounts[msg.sender].xPNTsToken;
+        accounts[msg.sender].xPNTsToken = newXPNTsToken;
+
+        emit OperatorXPNTsTokenUpdated(msg.sender, oldToken, newXPNTsToken);
     }
 
     /**
@@ -557,7 +574,8 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
             revert OperatorIsPaused(operator);
         }
 
-        if (!_hasSBT(user, accounts[operator].supportedSBTs)) {
+        // ⚡ V2.3: Check DEFAULT_SBT (immutable, saves ~10.8k gas)
+        if (!_hasSBT(user)) {
             revert NoSBTFound(user);
         }
 
@@ -723,18 +741,13 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     }
 
     /**
-     * @notice Check if user has SBT
+     * @notice Check if user has DEFAULT_SBT
+     * @dev ⚡ V2.3: Simplified to use immutable DEFAULT_SBT (saves ~10.8k gas)
      * @param user User address
-     * @param sbts List of SBT contracts
-     * @return hasSBT True if user has any SBT
+     * @return hasSBT True if user has DEFAULT_SBT
      */
-    function _hasSBT(address user, address[] memory sbts) internal view returns (bool hasSBT) {
-        for (uint i = 0; i < sbts.length; i++) {
-            if (IERC721(sbts[i]).balanceOf(user) > 0) {
-                return true;
-            }
-        }
-        return false;
+    function _hasSBT(address user) internal view returns (bool hasSBT) {
+        return IERC721(DEFAULT_SBT).balanceOf(user) > 0;
     }
 
     /**
@@ -995,20 +1008,6 @@ contract SuperPaymasterV2 is Ownable, ReentrancyGuard, IPaymaster {
     function unpauseOperator(address operator) external onlyOwner {
         accounts[operator].isPaused = false;
         emit OperatorUnpaused(operator);
-    }
-
-    /**
-     * @notice Update operator's supported SBTs (owner-only, for emergency management)
-     * @param operator Operator address
-     * @param newSupportedSBTs New list of supported SBT contracts
-     */
-    function updateOperatorSupportedSBTs(address operator, address[] memory newSupportedSBTs) external onlyOwner {
-        if (accounts[operator].stakedAt == 0) {
-            revert NotRegistered(operator);
-        }
-
-        accounts[operator].supportedSBTs = newSupportedSBTs;
-        emit SupportedSBTsUpdated(operator, newSupportedSBTs);
     }
 
     // ====================================

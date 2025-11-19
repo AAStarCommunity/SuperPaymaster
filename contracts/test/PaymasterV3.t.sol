@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
-import "../src/v3/PaymasterV3.sol";
+import "../src/paymasters/v3/PaymasterV3.sol";
 import "../test/mocks/MockSBT.sol";
 import "../test/mocks/MockPNT.sol";
 

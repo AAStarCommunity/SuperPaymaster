@@ -56,7 +56,7 @@ contract MySBT_v2_4_0_Test is Test {
         staking = new GTokenStaking(address(gtoken));
 
         // Deploy minimal Registry for testing (v2.1.3+: only needs staking)
-        registry = new Registry(address(staking));
+        registry = new Registry(address(0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc), address(staking));
 
         mysbt = new MySBT_v2_4_0(
             address(gtoken),
