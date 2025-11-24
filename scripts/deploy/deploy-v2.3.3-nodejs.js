@@ -43,7 +43,7 @@ async function main() {
   const GTOKEN_STAKING = '0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0';
   const REGISTRY = '0x49245E1f3c2dD99b3884ffeD410d0605Cf4dC696';
   const CHAINLINK = '0x694AA1769357215DE4FAC081bf1f309aDC325306';
-  const DAO = '0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C';
+  const DEFAULT_SBT = '0xa4eda5d023ea94a60b1d4b5695f022e1972858e7'; // MySBT v2.4.5
 
   console.log('Step 1: Deploying SuperPaymasterV2_3_3...');
 
@@ -54,7 +54,7 @@ async function main() {
   const { encodeAbiParameters } = require('viem');
   const encodedArgs = encodeAbiParameters(
     constructorAbi.inputs,
-    [ENTRY_POINT, GTOKEN, GTOKEN_STAKING, REGISTRY, CHAINLINK, DAO]
+    [ENTRY_POINT, GTOKEN, GTOKEN_STAKING, REGISTRY, CHAINLINK, DEFAULT_SBT]
   );
 
   // Ensure bytecode doesn't have 0x prefix before combining
