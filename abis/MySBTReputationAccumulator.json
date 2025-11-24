@@ -1,0 +1,606 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_mysbt",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "MYSBT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IMySBT"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "batchUpdateCachedScores",
+    "inputs": [
+      {
+        "name": "tokenIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "communities",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cacheValidityPeriod",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cachingEnabled",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "communityRules",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "baseScore",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "activityBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "activityWindow",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxActivities",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timeDecayFactor",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minInterval",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "configureCaching",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "validityPeriod",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "defaultRules",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "baseScore",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "activityBonus",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "activityWindow",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxActivities",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timeDecayFactor",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minInterval",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCommunityReputation",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "score",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getGlobalReputation",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "score",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReputationBreakdown",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "communityScore",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "activityCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timeWeightedScore",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "baseScore",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getScoringRules",
+    "inputs": [
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MySBTReputationAccumulator.ScoringRules",
+        "components": [
+          {
+            "name": "baseScore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityBonus",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityWindow",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxActivities",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timeDecayFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minInterval",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasCustomRules",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isCachedScoreValid",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isCached",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "cacheAge",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setScoringRules",
+    "inputs": [
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "rules",
+        "type": "tuple",
+        "internalType": "struct MySBTReputationAccumulator.ScoringRules",
+        "components": [
+          {
+            "name": "baseScore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityBonus",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityWindow",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxActivities",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timeDecayFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minInterval",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateCachedScore",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "community",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CachingConfigured",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "validityPeriod",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReputationCalculated",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "community",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "score",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ScoringRulesUpdated",
+    "inputs": [
+      {
+        "name": "community",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "rules",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct MySBTReputationAccumulator.ScoringRules",
+        "components": [
+          {
+            "name": "baseScore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityBonus",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activityWindow",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxActivities",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timeDecayFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minInterval",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  }
+]
