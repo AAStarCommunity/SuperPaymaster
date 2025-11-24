@@ -10,7 +10,7 @@ import "../interfaces/Interfaces.sol";
 import "./BasePaymaster.sol";
 
 /**
- * @title SuperPaymasterV2.3.2
+ * @title SuperPaymasterV2.3.3
  * @notice Multi-operator Paymaster with reputation system and DVT-based slash mechanism
  * @dev Implements ERC-4337 IPaymaster interface with enhanced features:
  *      - Multi-account management (multiple operators in single contract)
@@ -33,14 +33,20 @@ import "./BasePaymaster.sol";
  *   ✅ GAS: Fixed price cache auto-update mechanism (was broken, now saves ~5-10k gas)
  *   ✅ GAS: Storage packing optimization in OperatorAccount struct (saves 1 slot = ~2.1k gas)
  *   ✅ GAS: Batch state updates in validatePaymasterUserOp (reduces SLOAD/SSTORE overhead)
+ * - V2.3.3: SBT Internal Registry (MySBT callback pattern)
+ *   ✅ GAS: Internal SBT registry - no external balanceOf() calls (~800 gas saved per tx)
+ *   ✅ ARCH: MySBT calls registerSBTHolder() on mint, removeSBTHolder() on burn
+ *   ✅ ARCH: _hasSBT() now uses internal sbtHolders mapping (SLOAD vs external CALL)
+ *   ✅ MIGRATION: batchRegisterSBTHolders() for migrating existing SBT holders
  *
  * Architecture:
  * - Registry: Stores community metadata
  * - SuperPaymaster: Manages operator accounts and execution
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
+ * - MySBT: Calls back to register/remove SBT holders
  */
-contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
+contract SuperPaymasterV2_3_3 is BasePaymaster, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -83,6 +89,17 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
         MAJOR                       // 10% slash + pause
     }
 
+    /**
+     * @notice SBT Holder registration (V2.3.3)
+     * @dev Simplified structure - only stores essential data
+     *      Having a record means user has SBT (no isActive flag needed)
+     *      No timestamp - events contain all timing information
+     */
+    struct SBTHolder {
+        address holder;             // SBT owner address
+        uint256 tokenId;            // MySBT token ID
+    }
+
     // ====================================
     // Storage
     // ====================================
@@ -92,6 +109,34 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
 
     /// @notice Slash history for each operator
     mapping(address => SlashRecord[]) public slashHistory;
+
+    // ====================================
+    // V2.3.3: SBT Internal Registry
+    // ====================================
+
+    /// @notice SBT holders registry (V2.3.3)
+    /// @dev holder address => SBT info
+    mapping(address => SBTHolder) public sbtHolders;
+
+    /// @notice Token ID to holder mapping (V2.3.3)
+    /// @dev tokenId => holder address
+    mapping(uint256 => address) public tokenIdToHolder;
+
+    /// @notice Total SBT holders count (V2.3.3)
+    uint256 public totalSBTHolders;
+
+    // ====================================
+    // V2.3.3: User Debts Tracking (PostOp Payment)
+    // ====================================
+
+    /// @notice User xPNTs payment debts (V2.3.3)
+    /// @dev Tracks failed xPNTs payments from postOp
+    ///      user => total debt amount (across all tokens)
+    mapping(address => uint256) public userDebts;
+
+    /// @notice User debt details per token (V2.3.3)
+    /// @dev user => token => debt amount
+    mapping(address => mapping(address => uint256)) public userDebtsByToken;
 
     /// @notice GToken ERC20 contract
     address public immutable GTOKEN;
@@ -156,10 +201,10 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
     uint256 public treasuryAPNTsBalance;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.3.2"; // V2.3.2: Security fixes + gas optimizations (CEI fix, cache fix, storage packing)
+    string public constant VERSION = "2.3.3"; // V2.3.3: ERC-4337 Compliant PostOp Payment + SBT Internal Registry
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20302;
+    uint256 public constant VERSION_CODE = 20303;
 
     /// @notice Fibonacci reputation levels
     uint256[12] public REPUTATION_LEVELS = [
@@ -283,6 +328,68 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
     event PriceCacheUpdated(
         int256 indexed price,
         uint80 roundId
+    );
+
+    // ====================================
+    // V2.3.3: SBT Registry Events
+    // ====================================
+
+    /// @notice SBT holder registered (V2.3.3)
+    event SBTHolderRegistered(
+        address indexed holder,
+        uint256 indexed tokenId,
+        uint256 timestamp
+    );
+
+    /// @notice SBT holder removed (V2.3.3)
+    event SBTHolderRemoved(
+        address indexed holder,
+        uint256 indexed tokenId,
+        uint256 timestamp
+    );
+
+    /// @notice Batch SBT holders registered (V2.3.3)
+    event SBTHoldersBatchRegistered(
+        uint256 count,
+        uint256 timestamp
+    );
+
+    // ====================================
+    // V2.3.3: PostOp Payment Events
+    // ====================================
+
+    /// @notice xPNTs payment succeeded in postOp (V2.3.3)
+    event XPNTsPaid(
+        address indexed user,
+        address indexed token,
+        uint256 amount,
+        uint256 timestamp
+    );
+
+    /// @notice xPNTs payment failed in postOp (V2.3.3)
+    event XPNTsPaymentFailed(
+        address indexed user,
+        address indexed token,
+        uint256 amount,
+        string reason,
+        uint256 timestamp
+    );
+
+    /// @notice User debt recorded (V2.3.3)
+    event UserDebtRecorded(
+        address indexed user,
+        address indexed token,
+        uint256 amount,
+        uint256 totalDebt,
+        uint256 timestamp
+    );
+
+    /// @notice User debt cleared (V2.3.3)
+    event UserDebtCleared(
+        address indexed user,
+        address indexed token,
+        uint256 amount,
+        uint256 timestamp
     );
 
     // ====================================
@@ -551,12 +658,13 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
 
     /**
      * @notice Validate paymaster user operation (ERC-4337)
-     * @dev PaymasterV4模式：基于maxCost直接收费，含2% markup，不退款
-     * @dev ⚡ V2.3.2 SECURITY: Fixed CEI pattern + added nonReentrant + batch state updates
+     * @dev ⚡ V2.3.3 ERC-4337 COMPLIANT: Moved xPNTs transfer to postOp
+     * @dev ✅ VALIDATION PHASE: Only view calls allowed (no state modifications of external contracts)
+     * @dev ✅ PAYMENT PHASE: Actual xPNTs transfer happens in postOp (allowed by EIP-4337)
      * @param userOp User operation (PackedUserOperation struct)
      * @param userOpHash User operation hash
      * @param maxCost Maximum cost (in wei)
-     * @return context Empty context (不使用postOp退款)
+     * @return context Context for postOp (contains payment info)
      * @return validationData Validation result
      */
     function validatePaymasterUserOp(
@@ -574,9 +682,14 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
             revert OperatorIsPaused(operator);
         }
 
-        // ⚡ V2.3: Check DEFAULT_SBT (immutable, saves ~10.8k gas)
+        // ⚡ V2.3.3: Check SBT using internal registry (~800 gas saved)
         if (!_hasSBT(user)) {
             revert NoSBTFound(user);
+        }
+
+        // ✅ V2.3.3: Check user has no outstanding debts (prevents free-riding)
+        if (userDebts[user] > 0) {
+            revert("User has outstanding debt");
         }
 
         // Calculate costs
@@ -598,38 +711,58 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
             revert InvalidConfiguration();
         }
 
-        // ✅ EFFECTS: Update state BEFORE external calls (CEI pattern)
-        // ⚡ V2.3.2 GAS OPTIMIZATION: Batch state updates using memory struct
-        // Reduces multiple SLOADs/SSTOREs to single operation
+        // ✅ V2.3.3 ERC-4337 COMPLIANT: Only VIEW calls in validation phase
+        // Check user xPNTs balance (view call - allowed)
+        uint256 userBalance = IERC20(xPNTsToken).balanceOf(user);
+        if (userBalance < xPNTsAmount) {
+            revert("Insufficient xPNTs balance");
+        }
+
+        // Check user xPNTs allowance (view call - allowed)
+        uint256 allowance = IERC20(xPNTsToken).allowance(user, address(this));
+        if (allowance < xPNTsAmount) {
+            revert("Insufficient xPNTs allowance");
+        }
+
+        // ✅ EFFECTS: Update state BEFORE returning context
+        // ⚡ V2.3.2 GAS OPTIMIZATION: Batch state updates
         accounts[operator].aPNTsBalance -= aPNTsAmount;
         accounts[operator].totalSpent += aPNTsAmount;
         accounts[operator].totalTxSponsored += 1;
 
         treasuryAPNTsBalance += aPNTsAmount;
 
-        // Emit event BEFORE external call
-        // ⚡ GAS OPTIMIZED: Removed timestamp parameter (saves ~1000-1500 gas)
+        // Emit event (payment will happen in postOp)
+        // ⚡ GAS OPTIMIZED: Removed timestamp parameter
         emit TransactionSponsored(operator, user, aPNTsAmount, xPNTsAmount);
 
-        // ✅ INTERACTIONS: External call LAST (CEI pattern)
-        // Transfer xPNTs from user to operator's treasury (no refund)
-        IERC20(xPNTsToken).safeTransferFrom(user, treasury, xPNTsAmount);
+        // ✅ V2.3.3: Return context for postOp to execute payment
+        // Encode payment information for postOp
+        context = abi.encode(
+            user,           // 0: User address
+            operator,       // 1: Operator address
+            xPNTsToken,     // 2: xPNTs token address
+            xPNTsAmount,    // 3: xPNTs amount to transfer
+            treasury        // 4: Treasury address
+        );
 
         // ⚡ GAS OPTIMIZATION: Reputation moved to off-chain computation
         // Off-chain indexer computes reputation based on TransactionSponsored events
-        // For on-chain queries, owner can call batchUpdateReputation
 
-        // Return empty context (no postOp refund)
-        return ("", 0);
+        return (context, 0);
     }
 
     /**
      * @notice Post operation (ERC-4337)
-     * @dev 空实现：不退款（已在validatePaymasterUserOp中完成收费）
+     * @dev ✅ V2.3.3 ERC-4337 COMPLIANT: Execute xPNTs transfer in postOp
+     * @dev ✅ ALLOWED: State modifications in postOp phase (after validation)
+     * @dev ⚠️  IMPORTANT: PostOp failure does NOT revert the UserOp
+     *      - If transfer fails, debt is recorded and user is blocked from future txs
+     *      - Operator can slash user's SBT stake to recover debts
      * @param mode Operation mode (opSucceeded, opReverted, postOpReverted)
-     * @param context Context from validatePaymasterUserOp (empty)
-     * @param actualGasCost Actual gas cost (unused)
-     * @param actualUserOpFeePerGas The gas price this UserOp pays (unused)
+     * @param context Context from validatePaymasterUserOp (payment info)
+     * @param actualGasCost Actual gas cost (unused in V2.3.3)
+     * @param actualUserOpFeePerGas The gas price this UserOp pays (unused in V2.3.3)
      */
     function postOp(
         PostOpMode mode,
@@ -638,8 +771,38 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint {
 
-        // 空实现：所有收费已在validatePaymasterUserOp中完成
-        // 不退款，2% markup作为协议收入
+        // Skip if no context (shouldn't happen, but safety check)
+        if (context.length == 0) {
+            return;
+        }
+
+        // Decode payment info from context
+        (
+            address user,
+            address operator,
+            address xPNTsToken,
+            uint256 xPNTsAmount,
+            address treasury
+        ) = abi.decode(context, (address, address, address, uint256, address));
+
+        // ✅ V2.3.3: Execute xPNTs transfer in postOp (ERC-4337 compliant)
+        // PostOp runs AFTER UserOp execution, state modifications are allowed
+        if (mode == PostOpMode.opSucceeded || mode == PostOpMode.opReverted) {
+            // Try to transfer xPNTs from user to treasury
+            try IERC20(xPNTsToken).transferFrom(user, treasury, xPNTsAmount) {
+                // ✅ Payment succeeded
+                emit XPNTsPaid(user, xPNTsToken, xPNTsAmount, block.timestamp);
+            } catch Error(string memory reason) {
+                // ❌ Payment failed - record debt
+                _recordDebt(user, xPNTsToken, xPNTsAmount, reason);
+            } catch (bytes memory lowLevelData) {
+                // ❌ Payment failed - record debt (unknown error)
+                _recordDebt(user, xPNTsToken, xPNTsAmount, "Low-level error");
+            }
+        }
+
+        // Note: No refunds - maxCost pricing with 2% markup remains
+        // Reputation computation moved to off-chain indexer
     }
 
     /**
@@ -753,7 +916,10 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
      * @return hasSBT True if user has DEFAULT_SBT
      */
     function _hasSBT(address user) internal view returns (bool hasSBT) {
-        return IERC721(DEFAULT_SBT).balanceOf(user) > 0;
+        // ⚡ V2.3.3: Use internal SBT registry instead of external call
+        // Gas optimization: SLOAD (~2,100 gas) vs external CALL (~2,894 gas)
+        // tokenId > 0 means user has SBT (MySBT tokenIds start from 1)
+        return sbtHolders[user].tokenId > 0;
     }
 
     /**
@@ -1068,5 +1234,208 @@ contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
                account.totalTxSponsored >= 1000 &&
                account.aPNTsBalance * 100 / account.minBalanceThreshold >= 150 &&
                account.reputationLevel < 12;
+    }
+
+    // ====================================
+    // V2.3.3: SBT Registry Management
+    // ====================================
+
+    /**
+     * @notice Register SBT holder (V2.3.3 - called by MySBT contract)
+     * @dev Only DEFAULT_SBT contract can call this function
+     *      MySBT calls this after minting a new SBT
+     * @param holder User address who owns the SBT
+     * @param tokenId MySBT token ID
+     */
+    function registerSBTHolder(address holder, uint256 tokenId) external {
+        require(msg.sender == DEFAULT_SBT, "Only MySBT");
+        require(holder != address(0), "Invalid holder");
+        require(tokenId > 0, "Invalid tokenId");
+
+        // Idempotent: if holder already registered, update tokenId
+        bool isNew = sbtHolders[holder].tokenId == 0;
+
+        if (isNew) {
+            totalSBTHolders++;
+        } else {
+            // Remove old tokenId mapping
+            delete tokenIdToHolder[sbtHolders[holder].tokenId];
+        }
+
+        // Register new SBT
+        sbtHolders[holder] = SBTHolder({
+            holder: holder,
+            tokenId: tokenId
+        });
+
+        tokenIdToHolder[tokenId] = holder;
+
+        emit SBTHolderRegistered(holder, tokenId, block.timestamp);
+    }
+
+    /**
+     * @notice Remove SBT holder (V2.3.3 - called by MySBT on burn)
+     * @dev Only DEFAULT_SBT contract can call this function
+     *      MySBT calls this when SBT is burned
+     * @param holder User address whose SBT was burned
+     */
+    function removeSBTHolder(address holder) external {
+        require(msg.sender == DEFAULT_SBT, "Only MySBT");
+        require(sbtHolders[holder].tokenId > 0, "Not registered");
+
+        uint256 tokenId = sbtHolders[holder].tokenId;
+
+        // Remove mappings
+        delete tokenIdToHolder[tokenId];
+        delete sbtHolders[holder];
+
+        totalSBTHolders--;
+
+        emit SBTHolderRemoved(holder, tokenId, block.timestamp);
+    }
+
+    /**
+     * @notice Batch register existing SBT holders (V2.3.3 - migration)
+     * @dev Only DAO can call this function
+     *      Used to migrate existing SBT holders from MySBT contract
+     * @param holders Array of holder addresses
+     * @param tokenIds Array of token IDs (must match holders length)
+     */
+    function batchRegisterSBTHolders(
+        address[] calldata holders,
+        uint256[] calldata tokenIds
+    ) external onlyOwner {
+        require(holders.length == tokenIds.length, "Length mismatch");
+        require(holders.length > 0, "Empty arrays");
+
+        for (uint256 i = 0; i < holders.length; i++) {
+            address holder = holders[i];
+            uint256 tokenId = tokenIds[i];
+
+            require(holder != address(0), "Invalid holder");
+            require(tokenId > 0, "Invalid tokenId");
+
+            // Skip if already registered
+            if (sbtHolders[holder].tokenId > 0) {
+                continue;
+            }
+
+            sbtHolders[holder] = SBTHolder({
+                holder: holder,
+                tokenId: tokenId
+            });
+
+            tokenIdToHolder[tokenId] = holder;
+            totalSBTHolders++;
+        }
+
+        emit SBTHoldersBatchRegistered(holders.length, block.timestamp);
+    }
+
+    // ====================================
+    // V2.3.3: SBT Registry View Functions
+    // ====================================
+
+    /**
+     * @notice Get SBT holder info (V2.3.3)
+     * @param holder User address
+     * @return SBT holder struct
+     */
+    function getSBTHolder(address holder) external view returns (SBTHolder memory) {
+        return sbtHolders[holder];
+    }
+
+    /**
+     * @notice Get holder by token ID (V2.3.3)
+     * @param tokenId MySBT token ID
+     * @return holder Holder address
+     */
+    function getHolderByTokenId(uint256 tokenId) external view returns (address holder) {
+        return tokenIdToHolder[tokenId];
+    }
+
+    /**
+     * @notice Check if user is SBT holder (V2.3.3)
+     * @param user User address
+     * @return True if user has SBT registered
+     */
+    function isSBTHolder(address user) external view returns (bool) {
+        return sbtHolders[user].tokenId > 0;
+    }
+
+    // ====================================
+    // V2.3.3: User Debt Management
+    // ====================================
+
+    /**
+     * @notice Record user debt (V2.3.3 - internal)
+     * @dev Called when xPNTs payment fails in postOp
+     * @param user User address
+     * @param token xPNTs token address
+     * @param amount Debt amount
+     * @param reason Failure reason
+     */
+    function _recordDebt(
+        address user,
+        address token,
+        uint256 amount,
+        string memory reason
+    ) internal {
+        // Update total debt
+        userDebts[user] += amount;
+
+        // Update debt by token
+        userDebtsByToken[user][token] += amount;
+
+        // Emit events
+        emit XPNTsPaymentFailed(user, token, amount, reason, block.timestamp);
+        emit UserDebtRecorded(user, token, amount, userDebts[user], block.timestamp);
+    }
+
+    /**
+     * @notice Clear user debt (V2.3.3 - only owner/DAO)
+     * @dev Allows DAO to clear debt after user pays back off-chain
+     *      or after slashing SBT stake to recover debt
+     * @param user User address
+     * @param token xPNTs token address
+     */
+    function clearUserDebt(address user, address token) external onlyOwner {
+        uint256 debtAmount = userDebtsByToken[user][token];
+        require(debtAmount > 0, "No debt for this token");
+
+        // Clear debt
+        userDebts[user] -= debtAmount;
+        delete userDebtsByToken[user][token];
+
+        emit UserDebtCleared(user, token, debtAmount, block.timestamp);
+    }
+
+    /**
+     * @notice Pay user debt (V2.3.3 - user pays back)
+     * @dev User can pay back their debt to regain access to paymaster
+     * @param token xPNTs token address
+     */
+    function payUserDebt(address token) external nonReentrant {
+        uint256 debtAmount = userDebtsByToken[msg.sender][token];
+        require(debtAmount > 0, "No debt for this token");
+
+        // Transfer debt amount from user
+        IERC20(token).safeTransferFrom(msg.sender, address(this), debtAmount);
+
+        // Clear debt
+        userDebts[msg.sender] -= debtAmount;
+        delete userDebtsByToken[msg.sender][token];
+
+        emit UserDebtCleared(msg.sender, token, debtAmount, block.timestamp);
+    }
+
+    /**
+     * @notice Get user debt by token (V2.3.3)
+     * @param user User address
+     * @param token xPNTs token address
+     * @return Debt amount for specific token
+     */
+    function getUserDebtByToken(address user, address token) external view returns (uint256) {
+        return userDebtsByToken[user][token];
     }
 }
