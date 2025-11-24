@@ -36,7 +36,11 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     mapping(uint256 => SBTData) public sbtData;
     mapping(uint256 => CommunityMembership[]) private _m;
     mapping(uint256 => mapping(address => uint256)) public membershipIndex;
+    mapping(uint256 => NFTBinding[]) private _n;
+    mapping(uint256 => AvatarSetting) public sbtAvatars;
+    mapping(address => string) public communityDefaultAvatar;
     mapping(uint256 => mapping(address => mapping(uint256 => bool))) public weeklyActivity;
+    mapping(address => mapping(uint256 => mapping(address => bool))) public avatarDelegation;
     mapping(uint256 => mapping(address => uint256)) public lastActivityTime;
 
     address public immutable GTOKEN;
@@ -59,6 +63,9 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     uint256 public mintFee = 0.1 ether;
 
     uint256 constant BASE_REP = 20;
+    uint256 constant NFT_UNIT = 30 days;
+    uint256 constant NFT_SCORE = 1;
+    uint256 constant NFT_MAX = 12;
     uint256 constant ACT_BONUS = 1;
     uint256 constant ACT_WIN = 4;
     uint256 constant MIN_INT = 5 minutes;
@@ -149,6 +156,7 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
 
     function mintOrAddMembership(address u, string memory meta)
         external
+        override
         whenNotPaused
         nonReentrant
         onlyReg
@@ -387,6 +395,7 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
                 emit MembershipDeactivated(tid, mems[i].community, block.timestamp);
             }
         }
+        delete _n[tid];
         delete userToSBT[u];
         _burn(tid);
         net = IGTokenStaking(GTOKEN_STAKING).unlockStake(u, minLockAmount);
@@ -408,6 +417,7 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     function verifyCommunityMembership(address u, address comm)
         external
         view
+        override
         returns (bool)
     {
         uint256 tid = userToSBT[u];
@@ -418,17 +428,18 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
         return mem.community == comm && mem.isActive;
     }
 
-    function getUserSBT(address u) external view returns (uint256) {
+    function getUserSBT(address u) external view override returns (uint256) {
         return userToSBT[u];
     }
 
-    function getSBTData(uint256 tid) external view returns (SBTData memory) {
+    function getSBTData(uint256 tid) external view override returns (SBTData memory) {
         return sbtData[tid];
     }
 
     function getMemberships(uint256 tid)
         external
         view
+        override
         returns (CommunityMembership[] memory)
     {
         return _m[tid];
@@ -437,6 +448,7 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     function getCommunityMembership(uint256 tid, address comm)
         external
         view
+        override
         returns (CommunityMembership memory mem)
     {
         uint256 idx = membershipIndex[tid][comm];
@@ -445,9 +457,88 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
         require(mem.community == comm);
     }
 
-    // NFT binding functions removed for contract size optimization (v2.4.5-optimized)
+    function bindNFT(address nc, uint256 nid) external whenNotPaused nonReentrant {
+        require(nc != address(0));
+        uint256 tid = userToSBT[msg.sender];
+        require(tid != 0);
+        address owner;
+        try IERC721(nc).ownerOf(nid) returns (address o) {
+            owner = o;
+        } catch {
+            revert E();
+        }
+        require(owner == msg.sender);
+        NFTBinding[] storage bs = _n[tid];
+        for (uint256 i = 0; i < bs.length; i++) {
+            require(!(bs[i].nftContract == nc && bs[i].nftTokenId == nid && bs[i].isActive));
+        }
+        _n[tid].push(NFTBinding(nc, nid, block.timestamp, true));
+        if (sbtAvatars[tid].nftContract == address(0)) {
+            sbtAvatars[tid] = AvatarSetting(nc, nid, false);
+            emit AvatarSet(tid, nc, nid, false, block.timestamp);
+        }
+        emit NFTBound(tid, address(0), nc, nid, block.timestamp);
+    }
 
-    function recordActivity(address u) external whenNotPaused {
+    function bindCommunityNFT(address, address nc, uint256 nid)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        this.bindNFT(nc, nid);
+    }
+
+    function getAllNFTBindings(uint256 tid) external view returns (NFTBinding[] memory) {
+        return _n[tid];
+    }
+
+    function setAvatar(address nc, uint256 nid) external override whenNotPaused nonReentrant {
+        uint256 tid = userToSBT[msg.sender];
+        require(tid != 0);
+        address owner;
+        try IERC721(nc).ownerOf(nid) returns (address o) {
+            owner = o;
+        } catch {
+            revert E();
+        }
+        require(owner == msg.sender || avatarDelegation[nc][nid][msg.sender]);
+        sbtAvatars[tid] = AvatarSetting(nc, nid, true);
+        emit AvatarSet(tid, nc, nid, true, block.timestamp);
+    }
+
+    function delegateAvatarUsage(address nc, uint256 nid, address del) external {
+        address owner;
+        try IERC721(nc).ownerOf(nid) returns (address o) {
+            owner = o;
+        } catch {
+            revert E();
+        }
+        require(owner == msg.sender);
+        avatarDelegation[nc][nid][del] = true;
+    }
+
+    function getAvatarURI(uint256 tid) external view override returns (string memory uri) {
+        if (sbtAvatars[tid].isCustom && sbtAvatars[tid].nftContract != address(0)) {
+            try IERC721Metadata(sbtAvatars[tid].nftContract).tokenURI(sbtAvatars[tid].nftTokenId)
+                returns (string memory u) {
+                return u;
+            } catch {}
+        }
+        if (!sbtAvatars[tid].isCustom && sbtAvatars[tid].nftContract != address(0)) {
+            try IERC721Metadata(sbtAvatars[tid].nftContract).tokenURI(sbtAvatars[tid].nftTokenId)
+                returns (string memory u) {
+                return u;
+            } catch {}
+        }
+        return communityDefaultAvatar[sbtData[tid].firstCommunity];
+    }
+
+    function setCommunityDefaultAvatar(string memory uri) external override onlyReg {
+        communityDefaultAvatar[msg.sender] = uri;
+    }
+
+    function recordActivity(address u) external override whenNotPaused {
         require(_isValid(msg.sender));
         uint256 tid = userToSBT[u];
         require(tid != 0);
@@ -459,8 +550,68 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
         emit ActivityRecorded(tid, msg.sender, block.timestamp / 1 weeks, block.timestamp);
     }
 
-    // Reputation calculation functions removed for contract size optimization (v2.4.5-optimized)
-    // Use external reputationCalculator contract for reputation queries
+    function getCommunityReputation(address u, address comm)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        uint256 tid = userToSBT[u];
+        if (tid == 0) return 0;
+        if (reputationCalculator != address(0)) {
+            try IReputationCalculator(reputationCalculator).calculateReputation(u, comm, tid)
+                returns (uint256 cs, uint256) {
+                return cs;
+            } catch {}
+        }
+        return _calcRep(tid, comm);
+    }
+
+    function getGlobalReputation(address u) external view override returns (uint256) {
+        uint256 tid = userToSBT[u];
+        if (tid == 0) return 0;
+        if (reputationCalculator != address(0)) {
+            try IReputationCalculator(reputationCalculator).calculateReputation(u, address(0), tid)
+                returns (uint256, uint256 gs) {
+                return gs;
+            } catch {}
+        }
+        uint256 total = 0;
+        CommunityMembership[] memory mems = _m[tid];
+        for (uint256 i = 0; i < mems.length; i++) {
+            if (mems[i].isActive) {
+                total += _calcRep(tid, mems[i].community);
+            }
+        }
+        return total;
+    }
+
+    function _calcRep(uint256 tid, address comm) internal view returns (uint256 score) {
+        uint256 idx = membershipIndex[tid][comm];
+        if (idx >= _m[tid].length || _m[tid][idx].community != comm || !_m[tid][idx].isActive) {
+            return 0;
+        }
+        score = BASE_REP + _calcNFT(tid);
+    }
+
+    function _calcNFT(uint256 tid) internal view returns (uint256 total) {
+        NFTBinding[] storage bs = _n[tid];
+        address h = sbtData[tid].holder;
+        for (uint256 i = 0; i < bs.length; i++) {
+            if (!bs[i].isActive) continue;
+            address owner;
+            try IERC721(bs[i].nftContract).ownerOf(bs[i].nftTokenId) returns (address o) {
+                owner = o;
+            } catch {
+                continue;
+            }
+            if (owner != h) continue;
+            uint256 mos = (block.timestamp - bs[i].bindTime) / NFT_UNIT;
+            uint256 s = mos * NFT_SCORE;
+            if (s > NFT_MAX) s = NFT_MAX;
+            total += s;
+        }
+    }
 
     // ====================================
     // V2.4.5: SuperPaymaster Configuration
@@ -481,33 +632,33 @@ contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     // Admin Functions
     // ====================================
 
-    function setReputationCalculator(address c) external onlyDAO {
+    function setReputationCalculator(address c) external override onlyDAO {
         address old = reputationCalculator;
         reputationCalculator = c;
         emit ReputationCalculatorUpdated(old, c, block.timestamp);
     }
 
-    function setMinLockAmount(uint256 a) external onlyDAO {
+    function setMinLockAmount(uint256 a) external override onlyDAO {
         require(a != 0);
         uint256 old = minLockAmount;
         minLockAmount = a;
         emit MinLockAmountUpdated(old, a, block.timestamp);
     }
 
-    function setMintFee(uint256 f) external onlyDAO {
+    function setMintFee(uint256 f) external override onlyDAO {
         uint256 old = mintFee;
         mintFee = f;
         emit MintFeeUpdated(old, f, block.timestamp);
     }
 
-    function setDAOMultisig(address d) external onlyDAO {
+    function setDAOMultisig(address d) external override onlyDAO {
         require(d != address(0));
         address old = daoMultisig;
         daoMultisig = d;
         emit DAOMultisigUpdated(old, d, block.timestamp);
     }
 
-    function setRegistry(address r) external onlyDAO {
+    function setRegistry(address r) external override onlyDAO {
         require(r != address(0));
         address old = REGISTRY;
         REGISTRY = r;
