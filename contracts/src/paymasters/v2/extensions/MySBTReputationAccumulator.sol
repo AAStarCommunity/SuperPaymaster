@@ -348,7 +348,17 @@ contract MySBTReputationAccumulator is Ownable {
         view
         returns (IMySBT.CommunityMembership memory mem, bool exists)
     {
-        (mem, exists) = MYSBT.getCommunityMembership(tokenId, community);
+        // Get all memberships and find the matching one
+        IMySBT.CommunityMembership[] memory memberships = MYSBT.getMemberships(tokenId);
+        exists = false;
+
+        for (uint256 i = 0; i < memberships.length; i++) {
+            if (memberships[i].community == community) {
+                mem = memberships[i];
+                exists = true;
+                break;
+            }
+        }
     }
 
     // ====================================

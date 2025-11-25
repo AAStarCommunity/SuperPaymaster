@@ -15,9 +15,9 @@ const { privateKeyToAccount } = require('viem/accounts');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../env/.env') });
 
-// V2.3.3 合约地址 (待部署)
-const SUPER_PAYMASTER = '0xTBD'; // TODO: 部署后更新
-const XPNTS1_TOKEN = '0xfb56CB85C9a214328789D3C92a496d6AA185e3d3';
+// V2.3.3 合约地址
+const SUPER_PAYMASTER = '0x7c3c355d9aa4723402bec2a35b61137b8a10d5db';
+const XPNTS1_TOKEN = '0xBD0710596010a157B88cd141d797E8Ad4bb2306b'; // aPNTs
 const ENTRYPOINT = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
 const OPERATOR = '0x411BD567E46C0781248dbB6a9211891C032885e5';
 const AA_ACCOUNT = '0x57b2e6f08399c276b2c1595825219d29990d0921';

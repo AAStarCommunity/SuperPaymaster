@@ -26,7 +26,7 @@ import "../../../interfaces/IVersioned.sol";
  *   - NOTE: ISuperPaymaster interface is defined in Interfaces.sol
  */
 
-contract MySBT_v2_4_5 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
+contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "2.4.5";
