@@ -527,15 +527,8 @@ Coming soon after security audit.
 
 ### User Guides
 
-- **[Community Registration Guide](./docs/COMMUNITY_REGISTRATION.md)** - How to register your community
 - **[Paymaster Operator Guide](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - Operating AOA/AOA+ paymasters
-- **[MySBT User Guide](./docs/MYSBT_USER_GUIDE.md)** - Minting and managing SBTs
-
-### API References
-
-- **[Registry API](./docs/API_REGISTRY.md)** - Registry contract functions
-- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 functions
-- **[MySBT API](./docs/API_MYSBT.md)** - MySBT contract functions
+- **[Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md)** - Testing gasless transactions
 
 ---
 
@@ -570,7 +563,7 @@ Coming soon after security audit.
 
 **Security Contact**: security@aastar.io
 
-For sensitive reports, use our PGP key: [View Key](./docs/SECURITY_PGP.md)
+For security details, see: **[Security Policy](./docs/SECURITY.md)**
 
 ---
 
@@ -1163,15 +1156,8 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 ### 用户指南
 
-- **[社区注册指南](./docs/COMMUNITY_REGISTRATION.md)** - 如何注册你的社区
 - **[Paymaster 运营指南](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - 运营 AOA/AOA+ paymaster
-- **[MySBT 用户指南](./docs/MYSBT_USER_GUIDE.md)** - 铸造和管理 SBT
-
-### API 参考
-
-- **[Registry API](./docs/API_REGISTRY.md)** - Registry 合约函数
-- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 函数
-- **[MySBT API](./docs/API_MYSBT.md)** - MySBT 合约函数
+- **[Gasless 测试指南](./docs/GASLESS_TEST_GUIDE.md)** - 测试 gasless 交易
 
 ---
 
@@ -1206,7 +1192,7 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 **安全联系**: security@aastar.io
 
-对于敏感报告，请使用我们的 PGP 密钥：[查看密钥](./docs/SECURITY_PGP.md)
+安全详情请参阅：**[安全策略](./docs/SECURITY.md)**
 
 ---
 
