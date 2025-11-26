@@ -48,11 +48,11 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 │                                                              │
 │  【SuperPaymaster】(Core Contracts)                          │
 │   Solidity Smart Contracts                                  │
-│   ├─ SuperPaymasterV2 v2.0.1 (AOA+ Shared Mode)            │
+│   ├─ SuperPaymasterV2 v2.3.3 (AOA+ Shared Mode)            │
 │   ├─ PaymasterV4/V4_1 (AOA Independent Mode)               │
-│   ├─ Registry v2.2.0 (Community Registry)                  │
+│   ├─ Registry v2.2.1 (Community Registry)                  │
 │   ├─ GTokenStaking v2.0.1 (Staking + Slash)                │
-│   ├─ MySBT v2.4.3 (Identity System)                        │
+│   ├─ MySBT v2.4.5 (Identity System)                        │
 │   └─ xPNTsFactory v2.0.0 (Gas Token Factory)               │
 │        ↓ Deployment                                          │
 │        ↓ ABI + Addresses                                     │
@@ -92,17 +92,20 @@ graph TB
     GTokenStaking[GTokenStaking v2.0.1<br/>Staking + Lock + Slash]
     GToken --> GTokenStaking
 
-    Registry[Registry v2.2.0<br/>Community Registry]
+    Registry[Registry v2.2.1<br/>Community Registry]
+    GToken --> Registry
     GTokenStaking --> Registry
 
-    MySBT[MySBT v2.4.3<br/>Soulbound Token + Reputation]
+    MySBT[MySBT v2.4.5<br/>Soulbound Token + Reputation]
     GToken --> MySBT
     GTokenStaking --> MySBT
     Registry --> MySBT
 
-    SuperPaymasterV2[SuperPaymasterV2 v2.0.1<br/>AOA+ Shared Paymaster]
+    SuperPaymasterV2[SuperPaymasterV2 v2.3.3<br/>AOA+ Shared Paymaster]
+    GToken --> SuperPaymasterV2
     GTokenStaking --> SuperPaymasterV2
     Registry --> SuperPaymasterV2
+    MySBT -.->|SBT Callback| SuperPaymasterV2
 
     xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas Token Factory]
     SuperPaymasterV2 --> xPNTsFactory
@@ -144,17 +147,20 @@ graph TB
 - **Security**: Authorized locker system for Registry, MySBT, and SuperPaymaster
 
 #### 3. **Registry** (Community Registry)
-- **Version**: v2.1.4 → **v2.2.0** (latest)
+- **Version**: v2.2.1 (latest)
 - **Type**: Community Registry + Slash System
 - **Purpose**: Community registration, node management, slashing mechanism
 - **Node Types**:
-  - `PAYMASTER_AOA`: Independent paymaster (AOA mode)
-  - `PAYMASTER_SUPER`: Shared paymaster (AOA+ mode)
-  - `ANODE`: Community compute node
-  - `KMS`: Key management service
+  - `PAYMASTER_AOA`: Independent paymaster (30 GT stake)
+  - `PAYMASTER_SUPER`: Shared paymaster (50 GT stake)
+  - `ANODE`: Community compute node (20 GT stake)
+  - `KMS`: Key management service (100 GT stake)
+- **New Features (v2.2.1)**:
+  - `registerCommunityWithAutoStake()` - Single transaction registration
+  - Duplicate prevention with `isRegistered` mapping
 
 #### 4. **MySBT** (Soulbound Token)
-- **Version**: v2.4.3
+- **Version**: v2.4.5 (latest)
 - **Type**: ERC721 (Soulbound) + Reputation System
 - **Purpose**: User identity, community membership, reputation tracking
 - **Key Features**:
@@ -162,17 +168,20 @@ graph TB
   - NFT avatar binding
   - Multi-community membership support
   - Reputation scoring with activity bonuses
-- **Size**: 24,395 bytes (within 24KB limit)
+  - **SuperPaymaster callback** - Auto-register SBT holders in paymaster
+- **Size**: 21.4KB (optimized from 27.2KB)
 
 #### 5. **SuperPaymasterV2** (AOA+ Mode Paymaster)
-- **Version**: v2.0.0 → **v2.0.1** (latest, with oracle security fix)
+- **Version**: v2.3.3 (latest)
 - **Type**: ERC-4337 Paymaster + Multi-operator
 - **Purpose**: Shared paymaster for AOA+ mode, aPNTs payment
-- **Security Enhancements (v2.0.1)**:
-  - ✅ Chainlink oracle `answeredInRound` validation
-  - ✅ 1-hour staleness check
+- **Key Features (v2.3.3)**:
+  - ✅ **PostOp Payment**: xPNTs transfer in postOp phase
+  - ✅ **SBT Internal Registry**: MySBT callback integration
+  - ✅ **Debt Tracking**: User debt management system
+  - ✅ **Price Caching**: Optimized Chainlink oracle calls
+  - ✅ Chainlink oracle validation with staleness check
   - ✅ Price bounds validation ($100-$100k)
-  - **References**: Aave V3, Compound V3, MakerDAO standards
 
 #### 6. **PaymasterFactory** (Paymaster Factory)
 - **Version**: v1.0.0
@@ -481,15 +490,16 @@ cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
 |----------|---------|---------|
 | GToken | v2.0.0 | `0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc` |
 | GTokenStaking | v2.0.1 | `0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0` |
-| Registry | v2.1.4 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
-| MySBT | v2.4.3 | `0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C` |
-| SuperPaymasterV2 | v2.0.0 | `0x95B20d8FdF173a1190ff71e41024991B2c5e58eF` |
+| Registry | v2.2.1 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
+| MySBT | **v2.4.5** | `0xa4eda5d023ea94a60b1d4b5695f022e1972858e7` |
+| SuperPaymasterV2 | **v2.3.3** | `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db` |
 | PaymasterFactory | v1.0.0 | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
 | xPNTsFactory | v2.0.0 | `0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd` |
 
-**Latest Updates**:
-- SuperPaymasterV2 **v2.0.1**: Oracle security fix (ready for deployment)
-- Registry **v2.2.0**: Enhanced locker management (ready for deployment)
+**Latest Updates (2025-11-25)**:
+- MySBT **v2.4.5**: Contract size optimized (27.2KB → 21.4KB), SuperPaymaster callback
+- SuperPaymasterV2 **v2.3.3**: PostOp payment, SBT internal registry, debt tracking
+- ✅ Gasless transaction verified: [0x9ea5ca...](https://sepolia.etherscan.io/tx/0x9ea5ca33fd7790a422cf27f2999d344f8a8f999beb5a15f03cd441ad07b494bb)
 
 **Import via Shared Config**:
 ```typescript
@@ -509,7 +519,8 @@ Coming soon after security audit.
 
 ### Technical Documentation
 
-- **[Contract Relations](./docs/data-relation.md)** - Complete dependency graph and data structures
+- **[Contract Relations](./docs/data-relation.md)** - Complete dependency graph, data structures, and constructor params
+- **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration (NEW)
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
 - **[Repository Refactoring](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - Recent improvements
 - **[Deployment Guide](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - Step-by-step deployment
@@ -673,11 +684,11 @@ SuperPaymaster 是一个用于 ERC-4337 账户抽象的**去中心化燃料费�
 │                                                              │
 │  【SuperPaymaster】(核心合约)                                │
 │   Solidity智能合约                                            │
-│   ├─ SuperPaymasterV2 v2.0.1 (AOA+共享模式)                 │
+│   ├─ SuperPaymasterV2 v2.3.3 (AOA+共享模式)                 │
 │   ├─ PaymasterV4/V4_1 (AOA独立模式)                         │
-│   ├─ Registry v2.2.0 (社区注册中心)                         │
+│   ├─ Registry v2.2.1 (社区注册中心)                         │
 │   ├─ GTokenStaking v2.0.1 (质押+slash)                      │
-│   ├─ MySBT v2.4.3 (身份系统)                                │
+│   ├─ MySBT v2.4.5 (身份系统)                                │
 │   └─ xPNTsFactory v2.0.0 (Gas代币工厂)                      │
 │        ↓ 部署                                                │
 │        ↓ ABI + 地址                                          │
@@ -717,17 +728,20 @@ graph TB
     GTokenStaking[GTokenStaking v2.0.1<br/>质押 + 锁定 + 惩罚]
     GToken --> GTokenStaking
 
-    Registry[Registry v2.2.0<br/>社区注册中心]
+    Registry[Registry v2.2.1<br/>社区注册中心]
+    GToken --> Registry
     GTokenStaking --> Registry
 
-    MySBT[MySBT v2.4.3<br/>灵魂绑定代币 + 声誉系统]
+    MySBT[MySBT v2.4.5<br/>灵魂绑定代币 + 声誉系统]
     GToken --> MySBT
     GTokenStaking --> MySBT
     Registry --> MySBT
 
-    SuperPaymasterV2[SuperPaymasterV2 v2.0.1<br/>AOA+ 共享 Paymaster]
+    SuperPaymasterV2[SuperPaymasterV2 v2.3.3<br/>AOA+ 共享 Paymaster]
+    GToken --> SuperPaymasterV2
     GTokenStaking --> SuperPaymasterV2
     Registry --> SuperPaymasterV2
+    MySBT -.->|SBT 回调| SuperPaymasterV2
 
     xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas 代币工厂]
     SuperPaymasterV2 --> xPNTsFactory
@@ -769,17 +783,20 @@ graph TB
 - **安全性**: 为 Registry、MySBT 和 SuperPaymaster 提供授权锁定系统
 
 #### 3. **Registry**（社区注册中心）
-- **版本**: v2.1.4 → **v2.2.0**（最新）
+- **版本**: v2.2.1（最新）
 - **类型**: 社区注册 + 惩罚系统
 - **用途**: 社区注册、节点管理、惩罚机制
 - **节点类型**:
-  - `PAYMASTER_AOA`: 独立 paymaster（AOA 模式）
-  - `PAYMASTER_SUPER`: 共享 paymaster（AOA+ 模式）
-  - `ANODE`: 社区计算节点
-  - `KMS`: 密钥管理服务
+  - `PAYMASTER_AOA`: 独立 paymaster（30 GT 质押）
+  - `PAYMASTER_SUPER`: 共享 paymaster（50 GT 质押）
+  - `ANODE`: 社区计算节点（20 GT 质押）
+  - `KMS`: 密钥管理服务（100 GT 质押）
+- **新功能 (v2.2.1)**:
+  - `registerCommunityWithAutoStake()` - 单笔交易注册
+  - 使用 `isRegistered` 映射防止重复注册
 
 #### 4. **MySBT**（灵魂绑定代币）
-- **版本**: v2.4.3
+- **版本**: v2.4.5（最新）
 - **类型**: ERC721（灵魂绑定）+ 声誉系统
 - **用途**: 用户身份、社区会员、声誉追踪
 - **关键功能**:
@@ -787,17 +804,20 @@ graph TB
   - NFT 头像绑定
   - 多社区会员支持
   - 带活动奖励的声誉评分
-- **大小**: 24,395 字节（在 24KB 限制内）
+  - **SuperPaymaster 回调** - 自动注册 SBT 持有者到 paymaster
+- **大小**: 21.4KB（从 27.2KB 优化）
 
 #### 5. **SuperPaymasterV2**（AOA+ 模式 Paymaster）
-- **版本**: v2.0.0 → **v2.0.1**（最新，包含预言机安全修复）
+- **版本**: v2.3.3（最新）
 - **类型**: ERC-4337 Paymaster + 多运营商
 - **用途**: AOA+ 模式共享 paymaster，aPNTs 支付
-- **安全增强（v2.0.1）**:
-  - ✅ Chainlink 预言机 `answeredInRound` 验证
-  - ✅ 1 小时过期检查
+- **核心功能 (v2.3.3)**:
+  - ✅ **PostOp 支付**: xPNTs 在 postOp 阶段转账
+  - ✅ **SBT 内部注册**: MySBT 回调集成
+  - ✅ **债务追踪**: 用户债务管理系统
+  - ✅ **价格缓存**: 优化 Chainlink 预言机调用
+  - ✅ Chainlink 预言机验证与过期检查
   - ✅ 价格边界验证（$100-$100k）
-  - **参考**: Aave V3, Compound V3, MakerDAO 标准
 
 #### 6. **PaymasterFactory**（Paymaster 工厂）
 - **版本**: v1.0.0
@@ -1106,15 +1126,16 @@ cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
 |------|------|------|
 | GToken | v2.0.0 | `0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc` |
 | GTokenStaking | v2.0.1 | `0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0` |
-| Registry | v2.1.4 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
-| MySBT | v2.4.3 | `0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C` |
-| SuperPaymasterV2 | v2.0.0 | `0x95B20d8FdF173a1190ff71e41024991B2c5e58eF` |
+| Registry | v2.2.1 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
+| MySBT | **v2.4.5** | `0xa4eda5d023ea94a60b1d4b5695f022e1972858e7` |
+| SuperPaymasterV2 | **v2.3.3** | `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db` |
 | PaymasterFactory | v1.0.0 | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
 | xPNTsFactory | v2.0.0 | `0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd` |
 
-**最新更新**:
-- SuperPaymasterV2 **v2.0.1**: 预言机安全修复（准备部署）
-- Registry **v2.2.0**: 增强的锁定器管理（准备部署）
+**最新更新 (2025-11-25)**:
+- MySBT **v2.4.5**: 合约大小优化 (27.2KB → 21.4KB)，SuperPaymaster 回调
+- SuperPaymasterV2 **v2.3.3**: PostOp 支付，SBT 内部注册，债务追踪
+- ✅ Gasless 交易已验证: [0x9ea5ca...](https://sepolia.etherscan.io/tx/0x9ea5ca33fd7790a422cf27f2999d344f8a8f999beb5a15f03cd441ad07b494bb)
 
 **通过 Shared Config 导入**:
 ```typescript
@@ -1134,7 +1155,8 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 ### 技术文档
 
-- **[合约关系](./docs/data-relation.md)** - 完整的依赖图和数据结构
+- **[合约关系](./docs/data-relation.md)** - 完整的依赖图、数据结构和构造函数参数
+- **[开发者集成指南](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless 交易集成（新）
 - **[预言机安全修复](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 安全增强详情
 - **[仓库重构](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - 最近的改进
 - **[部署指南](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - 分步部署说明
