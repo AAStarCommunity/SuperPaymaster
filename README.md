@@ -527,8 +527,20 @@ Coming soon after security audit.
 
 ### User Guides
 
+- **[MySBT User Guide](./docs/MYSBT_USER_GUIDE.md)** - Minting and managing SBT tokens
+- **[Community Registration](./docs/COMMUNITY_REGISTRATION.md)** - Registering your community
 - **[Paymaster Operator Guide](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - Operating AOA/AOA+ paymasters
 - **[Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md)** - Testing gasless transactions
+
+### API References
+
+- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
+- **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
+- **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
+
+### Security
+
+- **[Security Policy](./docs/SECURITY_PGP.md)** - Vulnerability reporting and bug bounty
 
 ---
 
@@ -1156,8 +1168,20 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 ### 用户指南
 
+- **[MySBT 用户指南](./docs/MYSBT_USER_GUIDE.md)** - 铸造和管理 SBT 代币
+- **[社区注册指南](./docs/COMMUNITY_REGISTRATION.md)** - 注册你的社区
 - **[Paymaster 运营指南](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - 运营 AOA/AOA+ paymaster
 - **[Gasless 测试指南](./docs/GASLESS_TEST_GUIDE.md)** - 测试 gasless 交易
+
+### API 参考
+
+- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
+- **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
+- **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
+
+### 安全
+
+- **[安全策略](./docs/SECURITY_PGP.md)** - 漏洞报告和赏金计划
 
 ---
 
