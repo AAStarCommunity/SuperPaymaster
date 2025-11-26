@@ -519,7 +519,7 @@ Coming soon after security audit.
 
 ### Technical Documentation
 
-- **[Contract Relations](./docs/data-relation.md)** - Complete dependency graph, data structures, and constructor params
+- **[Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)** - Complete dependency graph, data structures, and constructor params
 - **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration (NEW)
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
 - **[Repository Refactoring](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - Recent improvements
@@ -1155,7 +1155,7 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 ### 技术文档
 
-- **[合约关系](./docs/data-relation.md)** - 完整的依赖图、数据结构和构造函数参数
+- **[合约架构](./docs/CONTRACT_ARCHITECTURE.md)** - 完整的依赖图、数据结构和构造函数参数
 - **[开发者集成指南](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless 交易集成（新）
 - **[预言机安全修复](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 安全增强详情
 - **[仓库重构](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - 最近的改进
