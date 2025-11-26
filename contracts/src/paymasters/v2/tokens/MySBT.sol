@@ -11,26 +11,28 @@ import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
 import "../interfaces/Interfaces.sol";
 import "../interfaces/IMySBT.sol";
 import "../interfaces/IReputationCalculator.sol";
+import "../interfaces/IERC8004IdentityRegistry.sol";
 import "../../../interfaces/IVersioned.sol";
 
 /**
- * @title MySBT v2.4.5
- * @notice SuperPaymaster V2.3.3 SBT Registry Integration
- * @dev Changelog from v2.4.4:
- *   - V2.3.3 INTEGRATION: Added SuperPaymaster callback on mint/burn
- *   - ARCH: MySBT now calls SuperPaymaster.registerSBTHolder() after _mint()
- *   - ARCH: MySBT now calls SuperPaymaster.removeSBTHolder() before _burn()
- *   - GAS: Enables SuperPaymaster internal SBT verification (~800 gas saved per tx)
- *   - SECURITY: Uses try/catch for optional external calls (graceful degradation)
- *   - CONFIG: Added setSuperPaymaster() function (DAO only)
- *   - NOTE: ISuperPaymaster interface is defined in Interfaces.sol
+ * @title MySBT v2.5.0
+ * @notice SuperPaymaster SBT with ERC-8004 Identity Registry Support
+ * @dev Changelog from v2.4.5:
+ *   - ERC-8004 INTEGRATION: Native Identity Registry implementation
+ *   - NEW: register() overloads for ERC-8004 agent registration
+ *   - NEW: getMetadata() / setMetadata() for on-chain agent metadata
+ *   - NEW: setTokenURI() for customizable token URIs
+ *   - NEW: batchSetMetadata() for efficient batch updates
+ *   - NEW: getMetadataKeys() to enumerate metadata
+ *   - ARCH: Token ID = Agent ID (1:1 mapping, no adapter needed)
+ *   - COMPAT: All existing MySBT functionality preserved
  */
 
-contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
+contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned, IERC8004IdentityRegistry {
     using SafeERC20 for IERC20;
 
-    string public constant VERSION = "2.4.5";
-    uint256 public constant VERSION_CODE = 20405;
+    string public constant VERSION = "2.5.0";
+    uint256 public constant VERSION_CODE = 20500;
 
     mapping(address => uint256) public userToSBT;
     mapping(uint256 => SBTData) public sbtData;
@@ -38,6 +40,22 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     mapping(uint256 => mapping(address => uint256)) public membershipIndex;
     mapping(uint256 => mapping(address => mapping(uint256 => bool))) public weeklyActivity;
     mapping(uint256 => mapping(address => uint256)) public lastActivityTime;
+
+    // ====================================
+    // V2.5.0: ERC-8004 Identity Registry Storage
+    // ====================================
+
+    /// @notice Custom token URIs (agentId => URI)
+    mapping(uint256 => string) private _tokenURIs;
+
+    /// @notice Agent metadata storage (agentId => key => value)
+    mapping(uint256 => mapping(string => bytes)) private _agentMetadata;
+
+    /// @notice Metadata keys for enumeration (agentId => keys[])
+    mapping(uint256 => string[]) private _metadataKeys;
+
+    /// @notice Track if key exists for agent (agentId => key => exists)
+    mapping(uint256 => mapping(string => bool)) private _metadataKeyExists;
 
     address public immutable GTOKEN;
     address public immutable GTOKEN_STAKING;
@@ -72,6 +90,16 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     /// @notice SuperPaymaster address updated (V2.4.5)
     event SuperPaymasterUpdated(address indexed oldPaymaster, address indexed newPaymaster, uint256 timestamp);
 
+    // ====================================
+    // V2.5.0: ERC-8004 Events
+    // ====================================
+
+    /// @notice Emitted when token URI is updated
+    event TokenURIUpdated(uint256 indexed agentId, string oldUri, string newUri);
+
+    /// @notice Emitted when batch metadata is set
+    event BatchMetadataSet(uint256 indexed agentId, uint256 count);
+
     modifier onlyDAO() {
         require(msg.sender == daoMultisig);
         _;
@@ -100,11 +128,11 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     // ====================================
 
     function version() external pure override returns (uint256) {
-        return 2004005; // v2.4.5: 2 * 1000000 + 4 * 1000 + 5
+        return 2005000; // v2.5.0: 2 * 1000000 + 5 * 1000 + 0
     }
 
     function versionString() external pure override returns (string memory) {
-        return "v2.4.5";
+        return "v2.5.0";
     }
 
     // ====================================
@@ -542,5 +570,216 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
         address from = _ownerOf(tid);
         require(from == address(0) || to == address(0));
         return super._update(to, tid, auth);
+    }
+
+    // ====================================
+    // V2.5.0: ERC-8004 Identity Registry
+    // ====================================
+
+    /**
+     * @notice Register a new agent with token URI and metadata (ERC-8004)
+     * @dev This is a simplified registration - no staking required
+     *      For full MySBT benefits, use userMint() or mintWithAutoStake()
+     * @param agentTokenURI URI pointing to agent registration JSON
+     * @param metadata Array of metadata entries
+     * @return agentId The newly registered agent ID (= token ID)
+     */
+    function register(string calldata agentTokenURI, MetadataEntry[] calldata metadata)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256 agentId)
+    {
+        require(userToSBT[msg.sender] == 0, "Already registered");
+
+        agentId = nextTokenId++;
+        sbtData[agentId] = SBTData(msg.sender, address(0), block.timestamp, 0);
+        userToSBT[msg.sender] = agentId;
+
+        // Set token URI
+        if (bytes(agentTokenURI).length > 0) {
+            _tokenURIs[agentId] = agentTokenURI;
+        }
+
+        // Set metadata
+        for (uint256 i = 0; i < metadata.length; i++) {
+            _setMetadataInternal(agentId, metadata[i].key, metadata[i].value);
+        }
+
+        _mint(msg.sender, agentId);
+        _registerSBTHolder(msg.sender, agentId);
+
+        emit Registered(agentId, agentTokenURI, msg.sender);
+    }
+
+    /**
+     * @notice Register a new agent with token URI only (ERC-8004)
+     * @param agentTokenURI URI pointing to agent registration JSON
+     * @return agentId The newly registered agent ID
+     */
+    function register(string calldata agentTokenURI)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256 agentId)
+    {
+        require(userToSBT[msg.sender] == 0, "Already registered");
+
+        agentId = nextTokenId++;
+        sbtData[agentId] = SBTData(msg.sender, address(0), block.timestamp, 0);
+        userToSBT[msg.sender] = agentId;
+
+        if (bytes(agentTokenURI).length > 0) {
+            _tokenURIs[agentId] = agentTokenURI;
+        }
+
+        _mint(msg.sender, agentId);
+        _registerSBTHolder(msg.sender, agentId);
+
+        emit Registered(agentId, agentTokenURI, msg.sender);
+    }
+
+    /**
+     * @notice Register a new agent with default settings (ERC-8004)
+     * @return agentId The newly registered agent ID
+     */
+    function register()
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256 agentId)
+    {
+        require(userToSBT[msg.sender] == 0, "Already registered");
+
+        agentId = nextTokenId++;
+        sbtData[agentId] = SBTData(msg.sender, address(0), block.timestamp, 0);
+        userToSBT[msg.sender] = agentId;
+
+        _mint(msg.sender, agentId);
+        _registerSBTHolder(msg.sender, agentId);
+
+        emit Registered(agentId, "", msg.sender);
+    }
+
+    /**
+     * @notice Get metadata value for agent (ERC-8004)
+     * @param agentId The agent token ID
+     * @param key The metadata key
+     * @return value The metadata value as bytes
+     */
+    function getMetadata(uint256 agentId, string calldata key)
+        external
+        view
+        override
+        returns (bytes memory value)
+    {
+        require(_ownerOf(agentId) != address(0), "Agent not found");
+        return _agentMetadata[agentId][key];
+    }
+
+    /**
+     * @notice Set metadata for agent (ERC-8004)
+     * @param agentId The agent token ID
+     * @param key The metadata key
+     * @param value The metadata value as bytes
+     */
+    function setMetadata(uint256 agentId, string calldata key, bytes calldata value)
+        external
+        override
+    {
+        require(ownerOf(agentId) == msg.sender, "Not agent owner");
+        _setMetadataInternal(agentId, key, value);
+        emit MetadataSet(agentId, key, key, value);
+    }
+
+    /**
+     * @notice Internal helper to set metadata
+     */
+    function _setMetadataInternal(uint256 agentId, string memory key, bytes memory value) internal {
+        if (!_metadataKeyExists[agentId][key]) {
+            _metadataKeys[agentId].push(key);
+            _metadataKeyExists[agentId][key] = true;
+        }
+        _agentMetadata[agentId][key] = value;
+    }
+
+    /**
+     * @notice Set token URI for existing token (V2.5.0)
+     * @param agentId Token/Agent ID
+     * @param uri New token URI
+     */
+    function setTokenURI(uint256 agentId, string calldata uri) external {
+        require(ownerOf(agentId) == msg.sender, "Not agent owner");
+        string memory oldUri = _tokenURIs[agentId];
+        _tokenURIs[agentId] = uri;
+        emit TokenURIUpdated(agentId, oldUri, uri);
+    }
+
+    /**
+     * @notice Batch set metadata (V2.5.0)
+     * @param agentId Agent ID
+     * @param entries Array of metadata entries
+     */
+    function batchSetMetadata(uint256 agentId, MetadataEntry[] calldata entries) external {
+        require(ownerOf(agentId) == msg.sender, "Not agent owner");
+        for (uint256 i = 0; i < entries.length; i++) {
+            _setMetadataInternal(agentId, entries[i].key, entries[i].value);
+            emit MetadataSet(agentId, entries[i].key, entries[i].key, entries[i].value);
+        }
+        emit BatchMetadataSet(agentId, entries.length);
+    }
+
+    /**
+     * @notice Get all metadata keys for agent (V2.5.0)
+     * @param agentId Agent ID
+     * @return keys Array of metadata keys
+     */
+    function getMetadataKeys(uint256 agentId) external view returns (string[] memory keys) {
+        require(_ownerOf(agentId) != address(0), "Agent not found");
+        return _metadataKeys[agentId];
+    }
+
+    /**
+     * @notice Override tokenURI to support custom URIs (V2.5.0)
+     * @param agentId Token ID
+     * @return URI for the token
+     */
+    function tokenURI(uint256 agentId) public view override(ERC721, IERC8004IdentityRegistry) returns (string memory) {
+        require(_ownerOf(agentId) != address(0), "Token not found");
+
+        string memory customUri = _tokenURIs[agentId];
+        if (bytes(customUri).length > 0) {
+            return customUri;
+        }
+
+        // Fall back to default behavior
+        return super.tokenURI(agentId);
+    }
+
+    /**
+     * @notice Check if address has MySBT (convenience function)
+     * @param account Address to check
+     * @return True if account has MySBT
+     */
+    function hasMySBT(address account) external view returns (bool) {
+        return userToSBT[account] != 0;
+    }
+
+    /**
+     * @notice Get next token ID (convenience function)
+     * @return Next token ID to be minted
+     */
+    function getNextTokenId() external view returns (uint256) {
+        return nextTokenId;
+    }
+
+    /**
+     * @notice Override ownerOf to satisfy IERC8004IdentityRegistry
+     */
+    function ownerOf(uint256 agentId) public view override(ERC721, IERC8004IdentityRegistry) returns (address) {
+        return super.ownerOf(agentId);
     }
 }
