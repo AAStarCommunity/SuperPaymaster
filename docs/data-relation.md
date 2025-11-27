@@ -1,15 +1,41 @@
-  SuperPaymaster 核心合约体系架构文档
+  # AAStar 核心合约体系架构文档
+  SuperPaymaster包括如下合约：
+  | Contract Name      | Address                                    | Config  | On-Chain | ✓ | Config Code  | On-Chain Code | ✓ |
+  |────────────────────|──────────────────────────────────────────|─────────|─────────|───|──────────────|──────────────|───|
+  | GToken             | 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
+  | SuperPaymasterV2   | 0xD6aa17587737C59cbb82986Afbac88Db75771857 | 2.1.0   | 2.1.0   | ✅ | 20100        | 20100        | ✅ |
+  | Registry           | 0x49245E1f3c2dD99b3884ffeD410d0605Cf4dC696 | 2.2.1   | 2.2.1   | ✅ | 20201        | 20201        | ✅ |
+  | GTokenStaking      | 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0 | 2.0.1   | 2.0.1   | ✅ | 20001        | 20001        | ✅ |
+  | PaymasterFactory   | 0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920 | 1.0.0   | 1.0.0   | ✅ | 10000        | 10000        | ✅ |
+  | xPNTsFactory       | 0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
+  | MySBT              | 0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C | 2.4.3   | 2.4.3   | ✅ | 20403        | 20403        | ✅ |
+  | aPNTs              | 0xBD0710596010a157B88cd141d797E8Ad4bb2306b | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
+  | bPNTs              | 0x70Da2c1B7Fcf471247Bc3B09f8927a4ab1751Ba3 | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
+  | DVTValidator       | 0x937CdD172fb0674Db688149093356F6dA95498FD | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
+  | BLSAggregator      | 0x3Cf0587912c692aa0f5FEEEDC52959ABEEEFaEc6 | 2.0.0   | 2.0.0   | ✅ | 20000        | 20000        | ✅ |
 
-  一、核心合约列表 (7个主要合约)
 
-  1. GToken (治理代币)
+而规划中:
+- AirAccount合约体系会包括核心的AA账户合约、代理和工具合约、7702合约，以及MySBT和xPNTs合约，同样和SuperPaymaster合约体系会有交集。
+- COS72会包括Tasks、Shops和xPNTs系列合约，和SuperPaymaster合约体系会有交集；
+- 应用体系，例如基于AAStar构建一个DApp，叫Zu.Coffee，则几乎会涉及到上述三个体系的所有合约：账户（凭证和积分、安全）、免Gas（Paymaster和凭证积分）以及围绕业务建立的社区体系（三步循环：进社区账户和凭证、领任务挣积分、兑换和交易）
+- 应用体系扩展，会围绕交易进行业务层的扩展：支付、收款、活动、Coupon、基础分润、创作分润等模式。
+
+以上所有合约名称、最新版本号、链上部署地址（不同链都有）、ABI（全），都发布为shared-config npm包，任何人可以下载安装，根据范例来引用。
+
+```
+pnpm install @aastar/shared-config@latest
+```
+
+## 一、核心合约列表 (7个主要合约)
+
+### 1. GToken (治理代币)
 
   - 版本: v2.0.0
   - 地址: 0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc
   - 类型: ERC20 with Cap + Ownable
   - 作用: 系统治理代币，支持质押、铸造
-
-  2. GTokenStaking (质押合约)
+### 2. GTokenStaking (质押合约)
 
   - 版本: v2.0.1
   - 地址: 0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0
@@ -17,15 +43,14 @@
   - 作用: GToken 质押、锁定、惩罚系统
   - 新功能: stakeFor() - 为其他用户质押
   - API变更: 使用 balanceOf() 替代 stakedBalance()
-
-  3. Registry (社区注册中心)
+### 3. Registry (社区注册中心)
 
   - 版本: v2.1.4
   - 地址: 0xf384c592D5258c91805128291c5D4c069DD30CA6
   - 类型: Community Registry + Slash System
   - 作用: 社区注册、节点管理、惩罚机制
 
-  4. MySBT (灵魂绑定代币)
+### 4. MySBT (灵魂绑定代币)
 
   - 版本: v2.4.3
   - 地址: 0xD1e6BDfb907EacD26FF69a40BBFF9278b1E7Cf5C
@@ -35,26 +60,37 @@
   - 优化: 代码精简至 509 行,合约大小 24,395 bytes (在 24KB 限制内)
   - 测试社区: Mycelium (0x411BD567E46C0781248dbB6a9211891C032885e5)
 
-  5. SuperPaymasterV2 (AOA+ 模式 Paymaster)
+### 5. SuperPaymasterV2 (AOA+ 模式 Paymaster)
 
   - 版本: v2.0.0
   - 地址: 0x95B20d8FdF173a1190ff71e41024991B2c5e58eF
   - 类型: ERC-4337 Paymaster + Multi-operator
   - 作用: AOA+ 模式共享 Paymaster，aPNTs 支付
+  - 能力：多租户的paymaster，提供双重扣除机制：扣除用户的xPNTs到paymaster owner trearsury，扣除owner 预存的aPNTs到superpaymaster。
+  - 支持：支持所有paymaster的特性，为社区提供无server、无合约的paymaster运营服务，包括MySBT验证、xPNTs扣除等特性。
 
-  6. PaymasterFactory (Paymaster 工厂)
+
+### 6. PaymasterFactory (Paymaster 工厂)
 
   - 版本: v1.0.0
   - 地址: 0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920
   - 类型: EIP-1167 Minimal Proxy Factory
   - 作用: 部署 AOA 模式独立 Paymaster
+  - 能力：从singleton模式精简的专用paymaster合约，提供可定义的VaidateUserOps，验证身份，从用户账户转账xPNTs支付gas。
+  - Price：内置chainlink合约来获取实时ETH价格，从而计算合理的xPNTs扣除额度。
+  - 内置：所有paymaster都内置了协议共享的白板MySBT验证，任何社区都可以写入注册信息，成员可以无许可加入或退出任意社区。
 
-  7. xPNTsFactory (xPNTs Token 工厂)
+### 7. xPNTsFactory (xPNTs Token 工厂)
 
   - 版本: v2.0.0
   - 地址: 0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd
   - 类型: Token Factory
-  - 作用: 为社区部署自定义 xPNTs Token
+  - 作用: 为自己社区部署自定义 xPNTs Token
+  - 部署时需要设置社区的paymaster为settler，可以无需approve就从拥有积分的账户进行转账，用于gas支付。
+  - 动机保护：因为paymaster被社区管理和控制，从动机角度讲，不会滥用权利进行非法转移用户积分，这会造成社区信任崩塌而双输。
+  - DVT防护：DVT会进行每日对账，发现合约event中有非法的转移，会对paymaster进行slash并提醒用户，去中心化运作（TODO）。
+  - 接口防护：只有在VaidateUserOps函数进行转账，其他都是非法，合约不接受调用。
+  - 更多细节参考OpenPNTs协议。
 
   ---
   二、核心数据结构
