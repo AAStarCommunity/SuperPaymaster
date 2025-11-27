@@ -3,14 +3,18 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Interfaces.sol";
 
 /**
- * @title Registry v2.1.3 (Optimized)
- * @notice Community metadata storage - size-optimized version
- * @dev Removed non-critical fields to fit under 24KB limit
+ * @title Registry v2.2.1 (Auto-Register + Duplicate Prevention)
+ * @notice Community metadata storage with auto-stake registration
+ * @dev v2.2.0: Added MySBT-style auto-stake pattern: approve + stake + lock + register in one transaction
+ * @dev v2.2.1: Added isRegistered mapping to prevent duplicate entries in communityList
  */
 contract Registry is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
 
     /// @notice Node type
     enum NodeType {
@@ -59,13 +63,14 @@ contract Registry is Ownable, ReentrancyGuard {
 
     uint256 public constant MAX_SUPPORTED_SBTS = 10;
     uint256 public constant MAX_NAME_LENGTH = 100;
-    string public constant VERSION = "2.1.4";
-    uint256 public constant VERSION_CODE = 20104;
+    string public constant VERSION = "2.2.1";
+    uint256 public constant VERSION_CODE = 20201;
 
     // ====================================
     // Storage
     // ====================================
 
+    IERC20 public immutable GTOKEN;
     IGTokenStaking public immutable GTOKEN_STAKING;
     address public oracle;
     address public superPaymasterV2;
@@ -76,6 +81,10 @@ contract Registry is Ownable, ReentrancyGuard {
     mapping(string => address) public communityByENS;
     mapping(address => address) public communityBySBT;
     address[] public communityList;
+
+    /// @notice Track registered communities to prevent duplicates
+    /// @dev v2.2.1: Added to solve duplicate entries in communityList
+    mapping(address => bool) public isRegistered;
 
     // ====================================
     // Events
@@ -93,6 +102,8 @@ contract Registry is Ownable, ReentrancyGuard {
     event SuperPaymasterV2Updated(address indexed newSuperPaymasterV2);
     event NodeTypeConfigured(NodeType indexed nodeType, uint256 minStake, uint256 slashThreshold);
     event PermissionlessMintToggled(address indexed community, bool enabled);
+    event CommunityRegisteredWithAutoStake(address indexed community, string name, uint256 staked, uint256 autoStaked);
+    event PaymasterRegisteredWithAutoStake(address indexed paymaster, address indexed owner, NodeType indexed nodeType, uint256 staked, uint256 autoStaked);
 
     // ====================================
     // Errors
@@ -109,13 +120,17 @@ contract Registry is Ownable, ReentrancyGuard {
     error UnauthorizedOracle(address caller);
     error NameEmpty();
     error NotFound();
+    error InsufficientGTokenBalance(uint256 available, uint256 required);
+    error AutoStakeFailed(string reason);
 
     // ====================================
     // Constructor
     // ====================================
 
-    constructor(address _gtokenStaking) Ownable(msg.sender) {
+    constructor(address _gtoken, address _gtokenStaking) Ownable(msg.sender) {
+        if (_gtoken == address(0)) revert InvalidAddress(_gtoken);
         if (_gtokenStaking == address(0)) revert InvalidAddress(_gtokenStaking);
+        GTOKEN = IERC20(_gtoken);
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
 
         // PAYMASTER_AOA: 30 GT, 10 failures, 2%-10%
@@ -138,6 +153,8 @@ contract Registry is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         address communityAddress = msg.sender;
 
+        // v2.2.1: Check isRegistered mapping to prevent duplicates
+        if (isRegistered[communityAddress]) revert CommunityAlreadyRegistered(communityAddress);
         if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
         if (bytes(profile.name).length == 0) revert NameEmpty();
         if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
@@ -190,6 +207,9 @@ contract Registry is Ownable, ReentrancyGuard {
             }
         }
         communityList.push(communityAddress);
+
+        // v2.2.1: Mark as registered to prevent duplicates
+        isRegistered[communityAddress] = true;
 
         emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, communityStakes[communityAddress].stGTokenLocked);
     }
@@ -331,8 +351,8 @@ contract Registry is Ownable, ReentrancyGuard {
         return result;
     }
 
-    function getCommunityStatus(address communityAddress) external view returns (bool isRegistered, bool isActive) {
-        isRegistered = communities[communityAddress].registeredAt != 0;
+    function getCommunityStatus(address communityAddress) external view returns (bool registered, bool isActive) {
+        registered = communities[communityAddress].registeredAt != 0;
         isActive = communities[communityAddress].isActive;
     }
 
@@ -430,5 +450,133 @@ contract Registry is Ownable, ReentrancyGuard {
             }
         }
         return string(result);
+    }
+
+    /**
+     * @notice Internal helper: Auto-stake for user if needed (MySBT pattern)
+     * @param user User address
+     * @param stakeAmount Required stake amount
+     * @return autoStaked Amount auto-staked (0 if already sufficient)
+     */
+    function _autoStakeForUser(address user, uint256 stakeAmount) internal returns (uint256 autoStaked) {
+        // Check user's available balance
+        uint256 available = GTOKEN_STAKING.availableBalance(user);
+
+        // Calculate how much we need to stake
+        uint256 need = available < stakeAmount ? stakeAmount - available : 0;
+
+        if (need > 0) {
+            // Check user's wallet balance
+            uint256 walletBalance = GTOKEN.balanceOf(user);
+            if (walletBalance < need) {
+                revert InsufficientGTokenBalance(walletBalance, need);
+            }
+
+            // Transfer GToken from user to this contract
+            GTOKEN.safeTransferFrom(user, address(this), need);
+
+            // Approve GTokenStaking to spend
+            GTOKEN.approve(address(GTOKEN_STAKING), need);
+
+            // Stake for user
+            try GTOKEN_STAKING.stakeFor(user, need) returns (uint256) {
+                autoStaked = need;
+            } catch Error(string memory reason) {
+                revert AutoStakeFailed(reason);
+            } catch {
+                revert AutoStakeFailed("Unknown error during stakeFor");
+            }
+        }
+
+        return autoStaked;
+    }
+
+    // ====================================
+    // Auto-Register Functions (v2.2.0)
+    // ====================================
+
+    /**
+     * @notice Register community with auto-stake (one transaction)
+     * @param profile Community profile
+     * @param stakeAmount Amount to stake and lock
+     * @dev User must approve this contract for GToken first
+     *      This function will:
+     *      1. Check user's available balance
+     *      2. If insufficient, pull GToken from user and stake for them
+     *      3. Register community (which locks the stake)
+     *
+     * IMPORTANT: This function combines auto-stake + register logic inline
+     * to avoid external call issues and maintain proper msg.sender context
+     */
+    function registerCommunityWithAutoStake(
+        CommunityProfile memory profile,
+        uint256 stakeAmount
+    ) external nonReentrant {
+        address communityAddress = msg.sender;
+
+        // === Validation checks (same as registerCommunity) ===
+        // v2.2.1: Check isRegistered mapping to prevent duplicates
+        if (isRegistered[communityAddress]) revert CommunityAlreadyRegistered(communityAddress);
+        if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
+        if (bytes(profile.name).length == 0) revert NameEmpty();
+        if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
+        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) revert InvalidParameter("Too many SBTs");
+
+        NodeTypeConfig memory config = nodeTypeConfigs[profile.nodeType];
+        if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
+
+        // === Auto-stake logic ===
+        uint256 autoStaked = _autoStakeForUser(msg.sender, stakeAmount);
+
+        // === Lock stake ===
+        GTOKEN_STAKING.lockStake(msg.sender, stakeAmount, "Registry registration");
+
+        // === Name and ENS uniqueness checks ===
+        string memory lowercaseName = _toLowercase(profile.name);
+        if (communityByName[lowercaseName] != address(0)) revert NameAlreadyTaken(profile.name);
+
+        if (bytes(profile.ensName).length > 0) {
+            if (communityByENS[profile.ensName] != address(0)) revert ENSAlreadyTaken(profile.ensName);
+        }
+
+        // === Set profile data ===
+        profile.community = communityAddress;
+        profile.registeredAt = block.timestamp;
+        profile.lastUpdatedAt = block.timestamp;
+        profile.isActive = true;
+        profile.allowPermissionlessMint = true;
+
+        communities[communityAddress] = profile;
+        communityStakes[communityAddress] = CommunityStake({
+            stGTokenLocked: stakeAmount,
+            failureCount: 0,
+            lastFailureTime: 0,
+            totalSlashed: 0,
+            isActive: true
+        });
+
+        // === Update indices ===
+        communityByName[lowercaseName] = communityAddress;
+        if (bytes(profile.ensName).length > 0) {
+            communityByENS[profile.ensName] = communityAddress;
+        }
+        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
+            if (profile.supportedSBTs[i] != address(0)) {
+                communityBySBT[profile.supportedSBTs[i]] = communityAddress;
+            }
+        }
+        communityList.push(communityAddress);
+
+        // v2.2.1: Mark as registered to prevent duplicates
+        isRegistered[communityAddress] = true;
+
+        // === Emit events ===
+        emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, stakeAmount);
+        emit CommunityRegisteredWithAutoStake(
+            msg.sender,
+            profile.name,
+            stakeAmount,
+            autoStaked
+        );
     }
 }

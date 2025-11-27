@@ -1,0 +1,16 @@
+{
+  "name": "superpaymaster-tests",
+  "version": "1.0.0",
+  "description": "Gasless transfer tests for SuperPaymaster",
+  "scripts": {
+    "test:gasless": "node script/gasless-tests/run-all-tests.sh"
+  },
+  "dependencies": {
+    "@aastar/shared-config": "^0.3.4",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "viem": "^2.38.6"
+  }
+}

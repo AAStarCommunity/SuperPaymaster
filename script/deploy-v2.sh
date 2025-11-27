@@ -58,7 +58,7 @@ echo "📝 步骤 2/2: 部署 Registry v2.2.0"
 echo "============================================"
 echo ""
 
-forge script script/DeployRegistry_v2_2_0.s.sol:DeployRegistry_v2_2_0 \
+forge script script/DeployRegistry.s.sol:DeployRegistry \
   --rpc-url "$SEPOLIA_RPC_URL" \
   --broadcast \
   --verify \
@@ -66,7 +66,7 @@ forge script script/DeployRegistry_v2_2_0.s.sol:DeployRegistry_v2_2_0 \
   -vvv
 
 # 提取部署地址
-REGISTRY_ADDR=$(cat broadcast/DeployRegistry_v2_2_0.s.sol/11155111/run-latest.json 2>/dev/null | jq -r '.transactions[0].contractAddress' || echo "")
+REGISTRY_ADDR=$(cat broadcast/DeployRegistry.s.sol/11155111/run-latest.json 2>/dev/null | jq -r '.transactions[0].contractAddress' || echo "")
 
 if [ -n "$REGISTRY_ADDR" ] && [ "$REGISTRY_ADDR" != "null" ]; then
     echo ""

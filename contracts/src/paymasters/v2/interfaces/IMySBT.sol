@@ -193,21 +193,12 @@ interface IMySBT {
      * @param nftContract NFT contract address
      * @param nftTokenId NFT token ID
      */
-    function bindCommunityNFT(
-        address community,
-        address nftContract,
-        uint256 nftTokenId
-    ) external;
 
     /**
      * @notice Get all NFT bindings for an SBT (v2.4.0+)
      * @param tokenId Token ID
      * @return bindings Array of NFT bindings
      */
-    function getAllNFTBindings(uint256 tokenId)
-        external
-        view
-        returns (NFTBinding[] memory bindings);
 
     // ====================================
     // Avatar Functions
@@ -218,20 +209,6 @@ interface IMySBT {
      * @param nftContract NFT contract address
      * @param nftTokenId NFT token ID
      */
-    function setAvatar(address nftContract, uint256 nftTokenId) external;
-
-    /**
-     * @notice Get avatar URI for SBT
-     * @param tokenId Token ID
-     * @return uri Avatar URI (from NFT or community default)
-     */
-    function getAvatarURI(uint256 tokenId) external view returns (string memory uri);
-
-    /**
-     * @notice Set community default avatar
-     * @param avatarURI Default avatar URI
-     */
-    function setCommunityDefaultAvatar(string memory avatarURI) external;
 
     // ====================================
     // Reputation Functions
@@ -249,20 +226,12 @@ interface IMySBT {
      * @param community Community address
      * @return score Reputation score
      */
-    function getCommunityReputation(address user, address community)
-        external
-        view
-        returns (uint256 score);
 
     /**
      * @notice Get global reputation score
      * @param user User address
      * @return score Global reputation score
      */
-    function getGlobalReputation(address user)
-        external
-        view
-        returns (uint256 score);
 
     // ====================================
     // Admin Functions

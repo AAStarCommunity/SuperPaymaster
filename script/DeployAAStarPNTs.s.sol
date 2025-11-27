@@ -13,7 +13,7 @@ import "src/paymasters/v2/tokens/xPNTsToken.sol";
  * @dev AAStar Points (aPNTs):
  *   - Base community token for AAStar ecosystem
  *   - 1:1 exchange rate with system aPNTs
- *   - Sold as recharge cards in Shops (100 points @ 97% = 1.94 USD)
+ *   - Sold as recharge cards in Shops (100 points at 97% discount = 1.94 USD)
  *
  * @dev Usage:
  *   XPNTS_FACTORY_ADDRESS=0x... \

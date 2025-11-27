@@ -1,0 +1,17 @@
+{
+  "contract": "MySBT_v2_4_5",
+  "version": "2.4.5-optimized",
+  "address": "0xa4eda5d023ea94a60b1d4b5695f022e1972858e7",
+  "deployer": "0x411BD567E46C0781248dbB6a9211891C032885e5",
+  "txHash": "0x7520deecbee38a08edd5b004d085a621b2dfde12a1195f78d5d87138462c6009",
+  "blockNumber": "9696301",
+  "gasUsed": "4592611",
+  "timestamp": "2025-11-24T10:54:25.167Z",
+  "network": "sepolia",
+  "constructorArgs": {
+    "GTOKEN": "0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc",
+    "GTOKEN_STAKING": "0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0",
+    "REGISTRY": "0x49245E1f3c2dD99b3884ffeD410d0605Cf4dC696",
+    "DAO": "0x411BD567E46C0781248dbB6a9211891C032885e5"
+  }
+}

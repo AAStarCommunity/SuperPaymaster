@@ -35,6 +35,53 @@ struct PackedUserOperation {
 }
 
 // ====================================
+// ERC-4337 IEntryPoint Interface (EntryPoint v0.7)
+// ====================================
+
+/**
+ * @title IEntryPoint
+ * @notice Minimal EntryPoint interface for paymaster operations
+ */
+interface IEntryPoint {
+    /**
+     * @notice Deposit ETH for a given account
+     * @param account Account to credit
+     */
+    function depositTo(address account) external payable;
+
+    /**
+     * @notice Withdraw ETH for caller
+     * @param withdrawAddress Address to send withdrawn ETH
+     * @param withdrawAmount Amount to withdraw
+     */
+    function withdrawTo(address payable withdrawAddress, uint256 withdrawAmount) external;
+
+    /**
+     * @notice Add stake for caller
+     * @param unstakeDelaySec Delay before stake can be unlocked (seconds)
+     */
+    function addStake(uint32 unstakeDelaySec) external payable;
+
+    /**
+     * @notice Unlock stake (must wait unstakeDelay before withdrawing)
+     */
+    function unlockStake() external;
+
+    /**
+     * @notice Withdraw stake
+     * @param withdrawAddress Address to send withdrawn stake
+     */
+    function withdrawStake(address payable withdrawAddress) external;
+
+    /**
+     * @notice Get deposit balance for account
+     * @param account Account to check
+     * @return Deposit balance
+     */
+    function balanceOf(address account) external view returns (uint256);
+}
+
+// ====================================
 // ERC-4337 IPaymaster Interface (EntryPoint v0.7)
 // ====================================
 
@@ -126,6 +173,23 @@ interface ISuperPaymaster {
         SlashLevel level,
         bytes memory proof
     ) external;
+
+    // ====================================
+    // V2.3.3: SBT Registry Callbacks
+    // ====================================
+
+    /**
+     * @notice Register SBT holder (V2.3.3 - called by MySBT on mint)
+     * @param holder SBT owner address
+     * @param tokenId MySBT token ID
+     */
+    function registerSBTHolder(address holder, uint256 tokenId) external;
+
+    /**
+     * @notice Remove SBT holder (V2.3.3 - called by MySBT on burn)
+     * @param holder SBT owner address
+     */
+    function removeSBTHolder(address holder) external;
 }
 
 // ====================================
