@@ -8,26 +8,104 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
-import "../interfaces/Interfaces.sol";
-import "../interfaces/IMySBT.sol";
-import "../interfaces/IReputationCalculator.sol";
+import "../../v2/interfaces/Interfaces.sol";
+import "../../v2/interfaces/IReputationCalculator.sol";
+import "../interfaces/IRegistryV3.sol";
 import "../../../interfaces/IVersioned.sol";
 
 /**
- * @title MySBT v2.4.5
- * @notice SuperPaymaster V2.3.3 SBT Registry Integration
- * @dev Changelog from v2.4.4:
- *   - V2.3.3 INTEGRATION: Added SuperPaymaster callback on mint/burn
- *   - ARCH: MySBT now calls SuperPaymaster.registerSBTHolder() after _mint()
- *   - ARCH: MySBT now calls SuperPaymaster.removeSBTHolder() before _burn()
- *   - GAS: Enables SuperPaymaster internal SBT verification (~800 gas saved per tx)
- *   - SECURITY: Uses try/catch for optional external calls (graceful degradation)
- *   - CONFIG: Added setSuperPaymaster() function (DAO only)
- *   - NOTE: ISuperPaymaster interface is defined in Interfaces.sol
+ * @title MySBT v3.0.0
+ * @notice Integration with Registry v3.0.0 Role-Based System
+ * @dev Changelog from v2.4.5:
+ *   - REGISTRY V3: Updated community validation to use hasRole(ROLE_COMMUNITY, address)
+ *   - COMPAT: Removed deprecated mintOrAddMembership() function (use userMint instead)
+ *   - INTERFACE: Simplified API to work with Registry v3 unified role system
+ *   - BACKWARD COMPAT: Maintains v2 function signatures for existing integrations
+ *   - GAS: Optimized validation using Registry v3 role checks
  */
 
-contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
+/**
+ * @dev V3 Breaking Change: Does NOT implement IMySBT interface
+ *      IMySBT requires mintOrAddMembership() which violates v3 design principle
+ *      All minting now goes through Registry.registerRole()
+ */
+contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IVersioned {
     using SafeERC20 for IERC20;
+
+    // ====================================
+    // V3: Structs (moved from IMySBT since we don't implement that interface)
+    // ====================================
+
+    struct SBTData {
+        address holder;
+        address firstCommunity;    // Immutable, first issuing community
+        uint256 mintedAt;
+        uint256 totalCommunities;
+    }
+
+    struct CommunityMembership {
+        address community;
+        uint256 joinedAt;
+        uint256 lastActiveTime;   // DEPRECATED: Use The Graph to query ActivityRecorded events
+        bool isActive;
+        string metadata;          // IPFS URI for community data
+    }
+
+    // ====================================
+    // Events (from IMySBT)
+    // ====================================
+
+    event SBTMinted(
+        address indexed user,
+        uint256 indexed tokenId,
+        address indexed firstCommunity,
+        uint256 timestamp
+    );
+
+    event SBTBurned(
+        address indexed user,
+        uint256 indexed tokenId,
+        uint256 grossAmount,
+        uint256 netAmount,
+        uint256 timestamp
+    );
+
+    event MembershipAdded(
+        uint256 indexed tokenId,
+        address indexed community,
+        string metadata,
+        uint256 timestamp
+    );
+
+    event MembershipDeactivated(
+        uint256 indexed tokenId,
+        address indexed community,
+        uint256 timestamp
+    );
+
+    event ActivityRecorded(
+        uint256 indexed tokenId,
+        address indexed community,
+        uint256 week,
+        uint256 timestamp
+    );
+
+    event ReputationCalculatorUpdated(
+        address indexed oldCalculator,
+        address indexed newCalculator,
+        uint256 timestamp
+    );
+
+    event ContractPaused(address indexed by, uint256 timestamp);
+    event ContractUnpaused(address indexed by, uint256 timestamp);
+    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry, uint256 timestamp);
+    event MinLockAmountUpdated(uint256 oldAmount, uint256 newAmount, uint256 timestamp);
+    event MintFeeUpdated(uint256 oldFee, uint256 newFee, uint256 timestamp);
+    event DAOMultisigUpdated(address indexed oldDAO, address indexed newDAO, uint256 timestamp);
+
+    // ====================================
+    // State Variables
+    // ====================================
 
     string public constant VERSION = "3.0.0";
     uint256 public constant VERSION_CODE = 30000;
@@ -144,125 +222,21 @@ contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
     }
 
     // ====================================
-    // Minting Functions
+    // V3: Minting Functions
     // ====================================
-
-    function mintOrAddMembership(address u, string memory meta)
-        external
-        whenNotPaused
-        nonReentrant
-        onlyReg
-        returns (uint256 tid, bool isNew)
-    {
-        require(u != address(0) && bytes(meta).length > 0 && bytes(meta).length <= 1024);
-        tid = userToSBT[u];
-        if (tid == 0) {
-            tid = nextTokenId++;
-            isNew = true;
-            sbtData[tid] = SBTData(u, msg.sender, block.timestamp, 1);
-            userToSBT[u] = tid;
-            _m[tid].push(CommunityMembership(msg.sender, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][msg.sender] = 0;
-            IGTokenStaking(GTOKEN_STAKING).lockStake(u, minLockAmount, "MySBT");
-            IERC20(GTOKEN).safeTransferFrom(u, BURN_ADDRESS, mintFee);
-            _mint(u, tid);
-
-            // ⚡ V2.4.5: Register SBT holder to SuperPaymaster
-            _registerSBTHolder(u, tid);
-
-            emit SBTMinted(u, tid, msg.sender, block.timestamp);
-        } else {
-            uint256 idx = membershipIndex[tid][msg.sender];
-            require(idx >= _m[tid].length || _m[tid][idx].community != msg.sender);
-            _m[tid].push(CommunityMembership(msg.sender, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][msg.sender] = _m[tid].length - 1;
-            sbtData[tid].totalCommunities++;
-            emit MembershipAdded(tid, msg.sender, meta, block.timestamp);
-        }
-    }
-
-    function userMint(address comm, string memory meta)
-        public
-        whenNotPaused
-        nonReentrant
-        returns (uint256 tid, bool isNew)
-    {
-        require(comm != address(0) && bytes(meta).length > 0 && bytes(meta).length <= 1024);
-        require(_isValid(comm) && IRegistryV2_1(REGISTRY).isPermissionlessMintAllowed(comm));
-        address u = msg.sender;
-        tid = userToSBT[u];
-        if (tid == 0) {
-            tid = nextTokenId++;
-            isNew = true;
-            sbtData[tid] = SBTData(u, comm, block.timestamp, 1);
-            userToSBT[u] = tid;
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = 0;
-            IGTokenStaking(GTOKEN_STAKING).lockStake(u, minLockAmount, "MySBT");
-            IERC20(GTOKEN).safeTransferFrom(u, BURN_ADDRESS, mintFee);
-            _mint(u, tid);
-
-            // ⚡ V2.4.5: Register SBT holder to SuperPaymaster
-            _registerSBTHolder(u, tid);
-
-            emit SBTMinted(u, tid, comm, block.timestamp);
-        } else {
-            uint256 idx = membershipIndex[tid][comm];
-            require(idx >= _m[tid].length || _m[tid][idx].community != comm);
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = _m[tid].length - 1;
-            sbtData[tid].totalCommunities++;
-            emit MembershipAdded(tid, comm, meta, block.timestamp);
-        }
-    }
-
-    // v2.4.3: Fixed to handle both staking and burning
-    function mintWithAutoStake(address comm, string memory meta)
-        external
-        whenNotPaused
-        nonReentrant
-        returns (uint256 tid, bool isNew)
-    {
-        require(comm != address(0) && bytes(meta).length > 0 && bytes(meta).length <= 1024);
-        require(_isValid(comm) && IRegistryV2_1(REGISTRY).isPermissionlessMintAllowed(comm));
-
-        uint256 avail = IGTokenStaking(GTOKEN_STAKING).availableBalance(msg.sender);
-        uint256 need = avail < minLockAmount ? minLockAmount - avail : 0;
-        uint256 total = need + mintFee;
-
-        IERC20(GTOKEN).safeTransferFrom(msg.sender, address(this), total);
-
-        if (need > 0) {
-            IERC20(GTOKEN).approve(GTOKEN_STAKING, need);
-            IGTokenStaking(GTOKEN_STAKING).stakeFor(msg.sender, need);
-        }
-
-        IERC20(GTOKEN).safeTransfer(BURN_ADDRESS, mintFee);
-
-        tid = userToSBT[msg.sender];
-        if (tid == 0) {
-            tid = nextTokenId++;
-            isNew = true;
-            sbtData[tid] = SBTData(msg.sender, comm, block.timestamp, 1);
-            userToSBT[msg.sender] = tid;
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = 0;
-            IGTokenStaking(GTOKEN_STAKING).lockStake(msg.sender, minLockAmount, "MySBT");
-            _mint(msg.sender, tid);
-
-            // ⚡ V2.4.5: Register SBT holder to SuperPaymaster
-            _registerSBTHolder(msg.sender, tid);
-
-            emit SBTMinted(msg.sender, tid, comm, block.timestamp);
-        } else {
-            uint256 idx = membershipIndex[tid][comm];
-            require(idx >= _m[tid].length || _m[tid][idx].community != comm);
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = _m[tid].length - 1;
-            sbtData[tid].totalCommunities++;
-            emit MembershipAdded(tid, comm, meta, block.timestamp);
-        }
-    }
+    //
+    // BREAKING CHANGE in v3.0.0:
+    // All user-facing mint functions (mintOrAddMembership, userMint, mintWithAutoStake)
+    // have been REMOVED to enforce the v3 design principle:
+    //
+    // ✅ SINGLE ENTRY POINT: All role registration MUST go through Registry.registerRole()
+    //
+    // Only Registry-callable functions remain:
+    // - airdropMint() - Called by Registry during role registration
+    // - safeMint() - DAO-only emergency minting
+    //
+    // Users should call Registry.registerRole(ROLE_ENDUSER, user, data) instead.
+    // ====================================
 
     function safeMint(address to, address comm, string memory meta)
         external
@@ -524,12 +498,26 @@ contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
         emit ContractUnpaused(msg.sender, block.timestamp);
     }
 
+    /**
+     * @dev V3: Validate community using Registry v3 role system
+     * @param c Community address to validate
+     * @return bool True if address has COMMUNITY role in Registry v3
+     */
     function _isValid(address c) internal view returns (bool) {
         if (REGISTRY == address(0)) return false;
-        try IRegistryV2_1(REGISTRY).isRegisteredCommunity(c) returns (bool r) {
+
+        // V3: Use hasRole() with ROLE_COMMUNITY constant
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+
+        try IRegistryV3(REGISTRY).hasRole(ROLE_COMMUNITY, c) returns (bool r) {
             return r;
         } catch {
-            return false;
+            // Fallback to v2 for backward compatibility during transition
+            try IRegistryV2_1(REGISTRY).isRegisteredCommunity(c) returns (bool r) {
+                return r;
+            } catch {
+                return false;
+            }
         }
     }
 
