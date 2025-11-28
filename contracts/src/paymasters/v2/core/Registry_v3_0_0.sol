@@ -187,6 +187,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
 
     // V3: Dynamic role registration
     mapping(bytes32 => string) public proposedRoleNames;    // roleId -> role name (for proposed roles)
+    mapping(bytes32 => address) public roleOwners;          // roleId -> owner address (who can configure this role)
 
     // v3.0.0 - Burn history tracking
     BurnRecord[] public burnHistory;
@@ -316,13 +317,24 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     /**
      * @notice Initialize default role configs (v3.0.0)
      * @dev Maps NodeType enum to bytes32 roleIds for unified system
+     *      Sets registry owner as default role owner for system roles
      */
     function _initializeDefaultRoles() internal {
         // Convert NodeType to roleId
-        roleConfigs[keccak256("PAYMASTER_AOA")] = nodeTypeConfigs[NodeType.PAYMASTER_AOA];
-        roleConfigs[keccak256("PAYMASTER_SUPER")] = nodeTypeConfigs[NodeType.PAYMASTER_SUPER];
+        roleConfigs[ROLE_PAYMASTER_AOA] = nodeTypeConfigs[NodeType.PAYMASTER_AOA];
+        roleConfigs[ROLE_PAYMASTER_SUPER] = nodeTypeConfigs[NodeType.PAYMASTER_SUPER];
         roleConfigs[keccak256("ANODE")] = nodeTypeConfigs[NodeType.ANODE];
-        roleConfigs[keccak256("KMS")] = nodeTypeConfigs[NodeType.KMS];
+        roleConfigs[ROLE_KMS] = nodeTypeConfigs[NodeType.KMS];
+
+        // V3: Set registry owner as default owner for system roles
+        // This allows DAO/Multisig to manage system role configurations
+        address registryOwner = owner();
+        roleOwners[ROLE_COMMUNITY] = registryOwner;
+        roleOwners[ROLE_ENDUSER] = registryOwner;
+        roleOwners[ROLE_PAYMASTER_AOA] = registryOwner;
+        roleOwners[ROLE_PAYMASTER_SUPER] = registryOwner;
+        roleOwners[keccak256("ANODE")] = registryOwner;
+        roleOwners[ROLE_KMS] = registryOwner;
     }
 
     // ====================================
@@ -330,11 +342,20 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // ====================================
 
     /**
-     * @notice Configure a role (owner only)
+     * @notice Configure a role (role owner or registry admin)
      * @param roleId Role identifier (e.g., keccak256("VALIDATOR"))
      * @param config Role configuration
+     * @dev Can be called by:
+     *      - Role owner (e.g., Paymaster owner can configure ROLE_PAYMASTER parameters)
+     *      - Registry admin (DAO/Multisig for system-level config)
      */
-    function configureRole(bytes32 roleId, RoleConfig calldata config) external onlyOwner {
+    function configureRole(bytes32 roleId, RoleConfig calldata config) external {
+        // V3: Permission check - allow role owner OR registry admin
+        address roleOwner = roleOwners[roleId];
+        if (msg.sender != roleOwner && msg.sender != owner()) {
+            revert Unauthorized();
+        }
+
         if (config.minStake == 0) revert InvalidParameter("Min stake must be > 0");
         if (config.slashThreshold == 0) revert InvalidParameter("Threshold must be > 0");
         if (config.slashMax < config.slashBase) revert InvalidParameter("Max must be >= base");
@@ -347,17 +368,21 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
      * @notice Propose a new custom role (owner only)
      * @param roleName Human-readable role name (e.g., "VIP_MEMBER", "KMS", "PAYMASTER_SUPER")
      * @param config Role configuration (stake requirements, slashing params, etc.)
+     * @param roleOwner Address that will own this role (can configure it later)
      * @return roleId The computed roleId (keccak256 of roleName)
      * @dev Owner (多签) can propose new roles, then activate them via activateRole()
      *      This allows for a two-step review process for new role types
+     *      roleOwner can later call configureRole() to update role parameters
      */
     function proposeNewRole(
         string calldata roleName,
-        RoleConfig calldata config
+        RoleConfig calldata config,
+        address roleOwner
     ) external onlyOwner returns (bytes32 roleId) {
         // Validate role name
         if (bytes(roleName).length == 0) revert InvalidParameter("Role name required");
         if (bytes(roleName).length > 32) revert InvalidParameter("Role name too long");
+        if (roleOwner == address(0)) revert InvalidParameter("Invalid role owner");
 
         // Compute roleId
         roleId = keccak256(bytes(roleName));
@@ -376,6 +401,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         proposedConfig.isActive = false;  // Needs owner activation
         roleConfigs[roleId] = proposedConfig;
         proposedRoleNames[roleId] = roleName;
+
+        // V3: Set role owner (who can configure this role)
+        roleOwners[roleId] = roleOwner;
 
         emit RoleProposed(roleId, msg.sender, roleName);
     }
