@@ -573,7 +573,7 @@ Coming soon after security audit.
 
 ### Report a Vulnerability
 
-**Security Contact**: security@aastar.io
+**Security Contact**: jason@aastar.io or david@aastar.io
 
 For security details, see: **[Security Policy](./docs/SECURITY.md)**
 
@@ -627,7 +627,6 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 - **Docs**: [docs.aastar.io](https://docs.aastar.io)
 - **GitHub**: [AAStarCommunity/SuperPaymaster](https://github.com/AAStarCommunity/SuperPaymaster)
 - **Registry Frontend**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-- **Discord**: [discord.gg/aastar](https://discord.gg/aastar)
 - **Twitter**: [@AAStarCommunity](https://twitter.com/AAStarCommunity)
 
 ---
@@ -636,8 +635,7 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 
 - **Documentation**: [docs.aastar.io](https://docs.aastar.io)
 - **GitHub Issues**: [Report a bug](https://github.com/AAStarCommunity/SuperPaymaster/issues)
-- **Discord Community**: [discord.gg/aastar](https://discord.gg/aastar)
-- **Email**: support@aastar.io
+- **Email**: jason@aastar.io
 
 ---
 
@@ -1214,7 +1212,7 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 ### 报告漏洞
 
-**安全联系**: security@aastar.io
+**安全联系**: jason@aastar.io or david@aastar.io
 
 安全详情请参阅：**[安全策略](./docs/SECURITY.md)**
 
@@ -1268,7 +1266,6 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 - **文档**: [docs.aastar.io](https://docs.aastar.io)
 - **GitHub**: [AAStarCommunity/SuperPaymaster](https://github.com/AAStarCommunity/SuperPaymaster)
 - **Registry 前端**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-- **Discord**: [discord.gg/aastar](https://discord.gg/aastar)
 - **Twitter**: [@AAStarCommunity](https://twitter.com/AAStarCommunity)
 
 ---
@@ -1277,8 +1274,7 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 
 - **文档**: [docs.aastar.io](https://docs.aastar.io)
 - **GitHub Issues**: [报告错误](https://github.com/AAStarCommunity/SuperPaymaster/issues)
-- **Discord 社区**: [discord.gg/aastar](https://discord.gg/aastar)
-- **邮箱**: support@aastar.io
+- **邮箱**: jason@aastar.io
 
 ---
 
