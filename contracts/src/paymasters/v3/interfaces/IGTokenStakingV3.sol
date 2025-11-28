@@ -98,12 +98,13 @@ interface IGTokenStakingV3 {
     ) external returns (uint256 lockId);
 
     /**
-     * @notice Unlock stake for a role
+     * @notice Unlock stake for a role and transfer to user (Registry only)
+     * @dev SECURITY: Automatically transfers unlocked tokens to prevent re-lock attacks
      * @param user User whose stake to unlock
      * @param roleId Role to unlock from
-     * @return netAmount Amount returned after exit fee
+     * @return netAmount Amount transferred to user after exit fee
      */
-    function unlockStake(
+    function unlockAndTransfer(
         address user,
         bytes32 roleId
     ) external returns (uint256 netAmount);
@@ -143,17 +144,17 @@ interface IGTokenStakingV3 {
         uint256 amount
     ) external returns (uint256 shares);
 
-    /**
-     * @notice Request unstake (starts cooldown)
-     * @param shares Shares to unstake
-     */
-    function requestUnstake(uint256 shares) external;
-
-    /**
-     * @notice Complete unstake after cooldown
-     * @return amount GToken amount returned
-     */
-    function completeUnstake() external returns (uint256 amount);
+    // ====================================
+    // SECURITY FIX: Removed user-callable unstake functions
+    // ====================================
+    // REMOVED: function requestUnstake(uint256 shares) external;
+    // REMOVED: function completeUnstake() external returns (uint256);
+    //
+    // Reason: Security vulnerability - users could unstake while keeping active roles,
+    //         enabling zero-stake attacks and Sybil attacks
+    //
+    // New behavior: Unstake is automatically handled by Registry.exitRole()
+    //               via unlockAndTransfer() function below
 
     // ====================================
     // View Functions - Role Queries

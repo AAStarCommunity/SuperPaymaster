@@ -487,10 +487,12 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         userBurnHistory[msg.sender].push(burnHistory.length - 1);
 
         // === Interactions ===
-        // V3: Unlock stake by roleId (may have exit fee)
-        uint256 netAmount = GTOKEN_STAKING.unlockStake(msg.sender, roleId);
+        // V3 SECURITY FIX: unlockAndTransfer automatically transfers to user
+        // This prevents users from unstaking while keeping active roles
+        uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
 
-        // Burn the unlocked tokens
+        // SECURITY: Tokens are now in user's wallet (transferred by unlockAndTransfer)
+        // Burn from user's balance
         GTOKEN.safeTransferFrom(msg.sender, address(this), netAmount);
         IGToken(address(GTOKEN)).burn(netAmount);
 
