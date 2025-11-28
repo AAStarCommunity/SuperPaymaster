@@ -280,31 +280,4 @@ interface IGTokenStakingV3 {
      * @param authorized Authorization status
      */
     function setAuthorizedSlasher(address slasher, bool authorized) external;
-
-    // ====================================
-    // Backward Compatibility (v2 support)
-    // ====================================
-
-    /**
-     * @notice Lock stake with locker address (v2 compatibility)
-     * @param user User to lock for
-     * @param amount Amount to lock
-     * @param purpose Lock purpose
-     */
-    function lockStake(
-        address user,
-        uint256 amount,
-        string calldata purpose
-    ) external;
-
-    /**
-     * @notice Get locked amount by locker (v2 compatibility)
-     * @param user User address
-     * @param locker Locker address
-     * @return Locked amount
-     */
-    function getLockedStake(address user, address locker)
-        external
-        view
-        returns (uint256);
 }

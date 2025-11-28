@@ -6,6 +6,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Interfaces.sol";
+import "../../v3/interfaces/IGTokenStakingV3.sol";
 
 /**
  * @title Registry v3.0.0 - Unified Role Management System
@@ -97,7 +98,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
 
     // Core contract dependencies
     IERC20 public immutable GTOKEN;
-    IGTokenStaking public immutable GTOKEN_STAKING;
+    IGTokenStakingV3 public immutable GTOKEN_STAKING;  // V3: Using roleId-based interface
     address public oracle;
     address public superPaymasterV2;
 
@@ -182,7 +183,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (_gtoken == address(0)) revert InvalidAddress(_gtoken);
         if (_gtokenStaking == address(0)) revert InvalidAddress(_gtokenStaking);
         GTOKEN = IERC20(_gtoken);
-        GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
+        GTOKEN_STAKING = IGTokenStakingV3(_gtokenStaking);
 
         // Initialize default NodeType configs (v2 backward compatibility)
         // PAYMASTER_AOA: 30 GT, 10 failures, 2%-10%
@@ -307,7 +308,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         roleMembers[roleId].push(user);
 
         // === Interactions ===
-        GTOKEN_STAKING.lockStake(user, stakeAmount, string(abi.encodePacked("Role: ", _bytes32ToString(roleId))));
+        // V3: Use roleId-based lockStake with entryBurn tracking
+        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
 
         emit RoleGranted(roleId, user, stakeAmount);
     }
@@ -344,8 +346,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         userBurnHistory[msg.sender].push(burnHistory.length - 1);
 
         // === Interactions ===
-        // Unlock stake (may have exit fee)
-        uint256 netAmount = GTOKEN_STAKING.unlockStake(msg.sender, stakedAmount);
+        // V3: Unlock stake by roleId (may have exit fee)
+        uint256 netAmount = GTOKEN_STAKING.unlockStake(msg.sender, roleId);
 
         // Burn the unlocked tokens
         GTOKEN.safeTransferFrom(msg.sender, address(this), netAmount);
@@ -400,7 +402,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         roleMembers[roleId].push(user);
 
         // === Interactions ===
-        GTOKEN_STAKING.lockStake(user, stakeAmount, string(abi.encodePacked("Community airdrop: ", _bytes32ToString(roleId))));
+        // V3: Role-based lockStake for airdrop
+        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
 
         emit RoleGranted(roleId, user, stakeAmount);
         emit RoleMintedByCommunity(roleId, user, msg.sender, stakeAmount);
@@ -495,11 +498,14 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         RoleConfig memory config = nodeTypeConfigs[profile.nodeType];
 
         // Check stake requirement
+        bytes32 communityRole = keccak256("COMMUNITY");
         if (stGTokenAmount > 0) {
             if (stGTokenAmount < config.minStake) revert InsufficientStake(stGTokenAmount, config.minStake);
-            GTOKEN_STAKING.lockStake(msg.sender, stGTokenAmount, "Registry registration");
+            // V3: Use roleId-based lockStake
+            GTOKEN_STAKING.lockStake(msg.sender, communityRole, stGTokenAmount, config.entryBurn);
         } else {
-            uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, address(this));
+            // Check existing locked stake for COMMUNITY role
+            uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, communityRole);
             if (existingLock < config.minStake) revert InsufficientStake(existingLock, config.minStake);
         }
 
@@ -874,7 +880,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         uint256 autoStaked = _autoStakeForUser(msg.sender, stakeAmount);
 
         // === Lock stake ===
-        GTOKEN_STAKING.lockStake(msg.sender, stakeAmount, "Registry registration");
+        // V3: Use roleId-based lockStake
+        bytes32 communityRole = keccak256("COMMUNITY");
+        GTOKEN_STAKING.lockStake(msg.sender, communityRole, stakeAmount, config.entryBurn);
 
         // === Name and ENS uniqueness checks ===
         string memory lowercaseName = _toLowercase(profile.name);
