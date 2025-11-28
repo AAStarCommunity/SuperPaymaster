@@ -624,7 +624,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
      * @dev Caller must have ENDUSER role
      */
     function updateEndUserRole(EndUserRoleData memory newData) external nonReentrant {
-        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        // Gas optimization: Use contract constant
 
         // Verify caller has ENDUSER role
         if (!hasRole[ROLE_ENDUSER][msg.sender]) {
