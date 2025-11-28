@@ -83,7 +83,9 @@ interface IGTokenStakingV3 {
     // ====================================
 
     /**
-     * @notice Lock stake for a specific role
+     * @notice Lock stake for a specific role (Registry only)
+     * @dev MUST be called only by authorized Registry contract
+     *      Implementation should have onlyRegistry modifier
      * @param user User whose stake to lock
      * @param roleId Role identifier
      * @param stakeAmount Amount to stake (if new stake)
@@ -100,6 +102,14 @@ interface IGTokenStakingV3 {
     /**
      * @notice Unlock stake for a role and transfer to user (Registry only)
      * @dev SECURITY: Automatically transfers unlocked tokens to prevent re-lock attacks
+     *      MUST be called only by authorized Registry contract
+     *      Implementation should have onlyRegistry modifier
+     *
+     * Why auto-transfer?
+     *   - If we just unlock without transfer, user could call lockStake() again
+     *   - This would bypass the exitRole() flow and keep role active with no stake
+     *   - Auto-transfer ensures user gets tokens immediately, can't re-lock
+     *
      * @param user User whose stake to unlock
      * @param roleId Role to unlock from
      * @return netAmount Amount transferred to user after exit fee
