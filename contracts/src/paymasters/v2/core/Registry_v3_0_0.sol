@@ -7,6 +7,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Interfaces.sol";
 import "../../v3/interfaces/IGTokenStakingV3.sol";
+import "../../v3/interfaces/IMySBTV3.sol";
 
 /**
  * @title Registry v3.0.0 - Unified Role Management System
@@ -42,12 +43,40 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     /// @notice Role configuration (v3.0.0 - dynamic role system)
     struct RoleConfig {
         uint256 minStake;           // Minimum stake required
+        uint256 entryBurn;          // Entry burn amount (v3.0.0)
         uint256 slashThreshold;     // Failure count before slashing
         uint256 slashBase;          // Base slash percentage
         uint256 slashIncrement;     // Slash increment per excess failure
         uint256 slashMax;           // Maximum slash percentage
         bool isActive;              // Whether this role is active
         string description;         // Role description
+    }
+
+    /// @notice V3: Community role metadata (纯v3,移除supportedSBTs)
+    struct CommunityRoleData {
+        string name;              // Required
+        string ensName;           // Optional
+        string website;           // Optional
+        string description;       // Optional
+        string logoURI;           // Optional (IPFS)
+        uint256 stakeAmount;      // Optional (0 = use minStake)
+    }
+
+    /// @notice V3: End user role metadata
+    struct EndUserRoleData {
+        address account;          // Required (用户的AA account地址)
+        address community;        // Required (加入的社区)
+        string avatarURI;         // Optional (IPFS)
+        string ensName;           // Optional
+        uint256 stakeAmount;      // Optional (0 = use minStake)
+    }
+
+    /// @notice V3: Paymaster role metadata
+    struct PaymasterRoleData {
+        address paymasterContract;  // Required
+        string name;                // Required
+        string apiEndpoint;         // Optional
+        uint256 stakeAmount;        // Optional (0 = use minStake)
     }
 
     /// @notice Community profile (optimized)
@@ -99,6 +128,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // Core contract dependencies
     IERC20 public immutable GTOKEN;
     IGTokenStakingV3 public immutable GTOKEN_STAKING;  // V3: Using roleId-based interface
+    IMySBTV3 public immutable MYSBT;  // V3: MySBT contract for role SBT minting
     address public oracle;
     address public superPaymasterV2;
 
@@ -117,6 +147,13 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     mapping(bytes32 => mapping(address => uint256)) public roleStakes;
     mapping(bytes32 => address[]) public roleMembers;
+    mapping(bytes32 => mapping(address => uint256)) public roleSBTTokenIds;  // V3: role => user => sbtTokenId
+    mapping(bytes32 => mapping(address => bytes)) public roleMetadata;       // V3: role => user => metadata bytes
+
+    // V3: Index mappings (替代legacy mappings)
+    mapping(string => address) public communityByNameV3;    // name -> community address
+    mapping(string => address) public communityByENSV3;     // ENS -> community address
+    mapping(address => address) public accountToUser;       // AA account -> user EOA
 
     // v3.0.0 - Burn history tracking
     BurnRecord[] public burnHistory;
@@ -144,10 +181,11 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
 
     // v3.0.0 - New events for unified role system
     event RoleConfigured(bytes32 indexed roleId, uint256 minStake, uint256 slashThreshold, string description);
-    event RoleGranted(bytes32 indexed roleId, address indexed user, uint256 stakeAmount);
+    event RoleGranted(bytes32 indexed roleId, address indexed user, uint256 stakeAmount);  // TODO: add sbtTokenId
     event RoleRevoked(bytes32 indexed roleId, address indexed user, uint256 burnedAmount);
     event RoleMintedByCommunity(bytes32 indexed roleId, address indexed user, address indexed community, uint256 amount);
     event RoleBurned(bytes32 indexed roleId, address indexed user, uint256 amount, string reason);
+    event RoleMetadataUpdated(bytes32 indexed roleId, address indexed user);
 
     // ====================================
     // Errors
@@ -179,16 +217,19 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // Constructor
     // ====================================
 
-    constructor(address _gtoken, address _gtokenStaking) Ownable(msg.sender) {
+    constructor(address _gtoken, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
         if (_gtoken == address(0)) revert InvalidAddress(_gtoken);
         if (_gtokenStaking == address(0)) revert InvalidAddress(_gtokenStaking);
+        if (_mysbt == address(0)) revert InvalidAddress(_mysbt);
         GTOKEN = IERC20(_gtoken);
         GTOKEN_STAKING = IGTokenStakingV3(_gtokenStaking);
+        MYSBT = IMySBTV3(_mysbt);
 
         // Initialize default NodeType configs (v2 backward compatibility)
-        // PAYMASTER_AOA: 30 GT, 10 failures, 2%-10%
+        // PAYMASTER_AOA: 30 GT, 3 GT entry burn, 10 failures, 2%-10%
         nodeTypeConfigs[NodeType.PAYMASTER_AOA] = RoleConfig({
             minStake: 30 ether,
+            entryBurn: 3 ether,  // 10% of minStake
             slashThreshold: 10,
             slashBase: 2,
             slashIncrement: 1,
@@ -197,9 +238,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             description: "AOA Independent Paymaster"
         });
 
-        // PAYMASTER_SUPER: 50 GT, 10 failures, 2%-10%
+        // PAYMASTER_SUPER: 50 GT, 5 GT entry burn, 10 failures, 2%-10%
         nodeTypeConfigs[NodeType.PAYMASTER_SUPER] = RoleConfig({
             minStake: 50 ether,
+            entryBurn: 5 ether,  // 10% of minStake
             slashThreshold: 10,
             slashBase: 2,
             slashIncrement: 1,
@@ -208,9 +250,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             description: "SuperPaymaster v2 Shared Mode"
         });
 
-        // ANODE: 20 GT, 15 failures, 1%-5%
+        // ANODE: 20 GT, 2 GT entry burn, 15 failures, 1%-5%
         nodeTypeConfigs[NodeType.ANODE] = RoleConfig({
             minStake: 20 ether,
+            entryBurn: 2 ether,  // 10% of minStake
             slashThreshold: 15,
             slashBase: 1,
             slashIncrement: 1,
@@ -219,9 +262,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             description: "Community Computation Node"
         });
 
-        // KMS: 100 GT, 5 failures, 5%-20%
+        // KMS: 100 GT, 10 GT entry burn, 5 failures, 5%-20%
         nodeTypeConfigs[NodeType.KMS] = RoleConfig({
             minStake: 100 ether,
+            entryBurn: 10 ether,  // 10% of minStake
             slashThreshold: 5,
             slashBase: 5,
             slashIncrement: 2,
@@ -310,6 +354,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         // === Interactions ===
         // V3: Use roleId-based lockStake with entryBurn tracking
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
+
+        // V3: Mint SBT for user (self-service registration)
+        // MySBT.mintForRole() creates/updates user's SBT with role data
+        MYSBT.mintForRole(user, roleId, roleData);
 
         emit RoleGranted(roleId, user, stakeAmount);
     }
@@ -404,6 +452,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         // === Interactions ===
         // V3: Role-based lockStake for airdrop
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
+
+        // V3: Admin airdrop - community pays for user's SBT
+        // MySBT.airdropMint() creates/updates user's SBT (community covers costs)
+        MYSBT.airdropMint(user, roleId, data);
 
         emit RoleGranted(roleId, user, stakeAmount);
         emit RoleMintedByCommunity(roleId, user, msg.sender, stakeAmount);
@@ -526,8 +578,12 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         profile.allowPermissionlessMint = true; // Default: allow permissionless minting
 
         communities[communityAddress] = profile;
+
+        // V3: Reuse communityRole bytes32 from line 518
+        uint256 recordedStake = stGTokenAmount > 0 ? stGTokenAmount : GTOKEN_STAKING.getLockedStake(msg.sender, communityRole);
+
         communityStakes[communityAddress] = CommunityStake({
-            stGTokenLocked: stGTokenAmount > 0 ? stGTokenAmount : GTOKEN_STAKING.getLockedStake(msg.sender, address(this)),
+            stGTokenLocked: recordedStake,
             failureCount: 0,
             lastFailureTime: 0,
             totalSlashed: 0,
@@ -765,13 +821,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         emit SuperPaymasterV2Updated(_superPaymasterV2);
     }
 
-    function configureNodeType(NodeType nodeType, RoleConfig calldata config) external onlyOwner {
-        if (config.minStake == 0) revert InvalidParameter("Min stake must be > 0");
-        if (config.slashThreshold == 0) revert InvalidParameter("Threshold must be > 0");
-        if (config.slashMax < config.slashBase) revert InvalidParameter("Max >= base");
-        nodeTypeConfigs[nodeType] = config;
-        emit NodeTypeConfigured(nodeType, config.minStake, config.slashThreshold);
-    }
+    // REMOVED: configureNodeType() - Use configureRole(keccak256("ROLE_NAME"), config) instead
+    // V3: Dynamic role system replaces fixed NodeType enum
 
     // ====================================
     // Internal Helpers
@@ -846,90 +897,6 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // Auto-Register Functions (v2.2.0)
     // ====================================
 
-    /**
-     * @notice Register community with auto-stake (one transaction)
-     * @param profile Community profile
-     * @param stakeAmount Amount to stake and lock
-     * @dev User must approve this contract for GToken first
-     *      This function will:
-     *      1. Check user's available balance
-     *      2. If insufficient, pull GToken from user and stake for them
-     *      3. Register community (which locks the stake)
-     *
-     * IMPORTANT: This function combines auto-stake + register logic inline
-     * to avoid external call issues and maintain proper msg.sender context
-     */
-    function registerCommunityWithAutoStake(
-        CommunityProfile memory profile,
-        uint256 stakeAmount
-    ) external nonReentrant {
-        address communityAddress = msg.sender;
-
-        // === Validation checks (same as registerCommunity) ===
-        // v2.2.1: Check isRegistered mapping to prevent duplicates
-        if (isRegistered[communityAddress]) revert CommunityAlreadyRegistered(communityAddress);
-        if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
-        if (bytes(profile.name).length == 0) revert NameEmpty();
-        if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
-        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) revert InvalidParameter("Too many SBTs");
-
-        RoleConfig memory config = nodeTypeConfigs[profile.nodeType];
-        if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
-
-        // === Auto-stake logic ===
-        uint256 autoStaked = _autoStakeForUser(msg.sender, stakeAmount);
-
-        // === Lock stake ===
-        // V3: Use roleId-based lockStake
-        bytes32 communityRole = keccak256("COMMUNITY");
-        GTOKEN_STAKING.lockStake(msg.sender, communityRole, stakeAmount, config.entryBurn);
-
-        // === Name and ENS uniqueness checks ===
-        string memory lowercaseName = _toLowercase(profile.name);
-        if (communityByName[lowercaseName] != address(0)) revert NameAlreadyTaken(profile.name);
-
-        if (bytes(profile.ensName).length > 0) {
-            if (communityByENS[profile.ensName] != address(0)) revert ENSAlreadyTaken(profile.ensName);
-        }
-
-        // === Set profile data ===
-        profile.community = communityAddress;
-        profile.registeredAt = block.timestamp;
-        profile.lastUpdatedAt = block.timestamp;
-        profile.isActive = true;
-        profile.allowPermissionlessMint = true;
-
-        communities[communityAddress] = profile;
-        communityStakes[communityAddress] = CommunityStake({
-            stGTokenLocked: stakeAmount,
-            failureCount: 0,
-            lastFailureTime: 0,
-            totalSlashed: 0,
-            isActive: true
-        });
-
-        // === Update indices ===
-        communityByName[lowercaseName] = communityAddress;
-        if (bytes(profile.ensName).length > 0) {
-            communityByENS[profile.ensName] = communityAddress;
-        }
-        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
-            if (profile.supportedSBTs[i] != address(0)) {
-                communityBySBT[profile.supportedSBTs[i]] = communityAddress;
-            }
-        }
-        communityList.push(communityAddress);
-
-        // v2.2.1: Mark as registered to prevent duplicates
-        isRegistered[communityAddress] = true;
-
-        // === Emit events ===
-        emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, stakeAmount);
-        emit CommunityRegisteredWithAutoStake(
-            msg.sender,
-            profile.name,
-            stakeAmount,
-            autoStaked
-        );
-    }
+    // REMOVED: registerCommunityWithAutoStake() - Use registerCommunity() instead
+    // V3: registerRole() provides cleaner auto-stake via _autoStakeForUser() internally
 }

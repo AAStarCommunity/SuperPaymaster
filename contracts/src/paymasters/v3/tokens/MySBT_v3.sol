@@ -151,12 +151,16 @@ contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IVersioned {
     event SuperPaymasterUpdated(address indexed oldPaymaster, address indexed newPaymaster, uint256 timestamp);
 
     modifier onlyDAO() {
-        require(msg.sender == daoMultisig);
+        require(msg.sender == daoMultisig, "Only DAO");
         _;
     }
 
-    modifier onlyReg() {
-        require(_isValid(msg.sender));
+    /**
+     * @notice V3: Only Registry can call mint functions
+     * @dev Prevents communities from bypassing Registry
+     */
+    modifier onlyRegistry() {
+        require(msg.sender == REGISTRY, "Only Registry");
         _;
     }
 
@@ -226,123 +230,167 @@ contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
     //
     // BREAKING CHANGE in v3.0.0:
-    // All user-facing mint functions (mintOrAddMembership, userMint, mintWithAutoStake)
-    // have been REMOVED to enforce the v3 design principle:
+    // ====================================
+    // V3 Minting Functions (Registry-only)
+    // ====================================
+    // All user-facing mint functions (mintOrAddMembership, userMint, mintWithAutoStake, safeMint)
+    // have been REMOVED to enforce the v3 single responsibility principle:
     //
     // ✅ SINGLE ENTRY POINT: All role registration MUST go through Registry.registerRole()
     //
     // Only Registry-callable functions remain:
-    // - airdropMint() - Called by Registry during role registration
-    // - safeMint() - DAO-only emergency minting
+    // - mintForRole() - Self-service registration (user pays)
+    // - airdropMint() - Admin airdrop (DAO/community pays)
     //
-    // Users should call Registry.registerRole(ROLE_ENDUSER, user, data) instead.
+    // Users/DAO should call Registry.registerRole() or Registry.safeMintForRole() instead.
     // ====================================
 
-    function safeMint(address to, address comm, string memory meta)
+    /**
+     * @notice V3: Mint SBT for role registration (self-service registration)
+     * @dev Called by Registry when user registers a role via registerRole()
+     *      - Creates new SBT if user doesn't have one
+     *      - Records role metadata on existing SBT
+     *      - No staking/burning here (Registry handles that)
+     * @param user User address to receive SBT
+     * @param roleId Role identifier (e.g., ROLE_COMMUNITY, ROLE_ENDUSER)
+     * @param roleData Role-specific metadata (community address, etc.)
+     * @return tokenId Token ID (new or existing)
+     * @return isNewMint True if new SBT was minted
+     */
+    function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
         external
-        onlyDAO
         whenNotPaused
         nonReentrant
-        returns (uint256 tid)
+        onlyRegistry
+        returns (uint256 tokenId, bool isNewMint)
     {
-        require(to != address(0) && comm != address(0) && bytes(meta).length > 0 && bytes(meta).length <= 1024);
-        require(_isValid(comm));
-        tid = userToSBT[to];
-        if (tid == 0) {
-            tid = nextTokenId++;
-            sbtData[tid] = SBTData(to, comm, block.timestamp, 1);
-            userToSBT[to] = tid;
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = 0;
-            _mint(to, tid);
+        require(user != address(0), "Invalid user");
 
-            // ⚡ V2.4.5: Register SBT holder to SuperPaymaster
-            _registerSBTHolder(to, tid);
+        tokenId = userToSBT[user];
 
-            emit SBTMinted(to, tid, comm, block.timestamp);
+        if (tokenId == 0) {
+            // Create new SBT
+            tokenId = nextTokenId++;
+            isNewMint = true;
+
+            // Decode community address from roleData
+            address community = abi.decode(roleData, (address));
+
+            sbtData[tokenId] = SBTData(user, community, block.timestamp, 1);
+            userToSBT[user] = tokenId;
+
+            // Decode full metadata if provided
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
+
+            // Add community membership
+            _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            membershipIndex[tokenId][community] = 0;
+
+            // Mint SBT to user
+            _mint(user, tokenId);
+
+            // Register SBT holder to SuperPaymaster
+            _registerSBTHolder(user, tokenId);
+
+            emit SBTMinted(user, tokenId, community, block.timestamp);
         } else {
-            uint256 idx = membershipIndex[tid][comm];
-            require(idx >= _m[tid].length || _m[tid][idx].community != comm);
-            _m[tid].push(CommunityMembership(comm, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][comm] = _m[tid].length - 1;
-            sbtData[tid].totalCommunities++;
-            emit MembershipAdded(tid, comm, meta, block.timestamp);
+            // Add role to existing SBT
+            isNewMint = false;
+
+            address community = abi.decode(roleData, (address));
+
+            // Check if membership exists
+            uint256 idx = membershipIndex[tokenId][community];
+            require(idx >= _m[tokenId].length || _m[tokenId][idx].community != community, "Already member");
+
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
+
+            // Add new membership
+            _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            membershipIndex[tokenId][community] = _m[tokenId].length - 1;
+            sbtData[tokenId].totalCommunities++;
+
+            emit MembershipAdded(tokenId, community, meta, block.timestamp);
         }
     }
 
     /**
-     * @notice Airdrop mint - Operator-paid batch minting (v2.4.4)
-     * @dev Operator pays all costs (0.4 GT total):
-     *      - Operator stakes 0.3 GT on behalf of user using stakeFor()
-     *      - Operator burns 0.1 GT mint fee
-     *      - User receives SBT with no interaction required
-     *      - Idempotent: if user already has SBT, adds community membership (free)
+     * @notice V3: Admin airdrop (DAO-paid minting)
+     * @dev REMOVED staking logic - Registry handles all financial operations
+     *      MySBT only mints the SBT token itself
+     *      Called by Registry.safeMintForRole() for admin airdrops
      * @param u User address to receive SBT
-     * @param meta Community metadata (JSON string, max 1024 bytes)
+     * @param roleId Role identifier
+     * @param roleData Role-specific metadata
      * @return tid Token ID (new or existing)
-     * @return isNew True if new SBT was minted, false if membership added
+     * @return isNew True if new SBT was minted
      */
-    function airdropMint(address u, string memory meta)
+    function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
         external
         whenNotPaused
         nonReentrant
-        onlyReg
+        onlyRegistry
         returns (uint256 tid, bool isNew)
     {
-        require(u != address(0) && bytes(meta).length > 0 && bytes(meta).length <= 1024);
+        require(u != address(0), "Invalid user");
 
         tid = userToSBT[u];
-        address op = msg.sender; // Community/operator calling this function
 
         if (tid == 0) {
-            // FIRST MINT: Create SBT (operator pays all fees)
+            // Create new SBT
             tid = nextTokenId++;
             isNew = true;
 
-            // Set SBT data
-            sbtData[tid] = SBTData(u, op, block.timestamp, 1);
+            // Decode community address
+            address community = abi.decode(roleData, (address));
+
+            sbtData[tid] = SBTData(u, community, block.timestamp, 1);
             userToSBT[u] = tid;
 
-            // Add first community membership
-            _m[tid].push(CommunityMembership(op, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][op] = 0;
+            // Decode metadata if provided
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
 
-            // ✅ OPERATOR PAYS: Transfer GToken from operator to this contract
-            IERC20(GTOKEN).safeTransferFrom(op, address(this), minLockAmount);
-
-            // Approve GTokenStaking to spend
-            IERC20(GTOKEN).approve(GTOKEN_STAKING, minLockAmount);
-
-            // Stake for user (user becomes the beneficiary)
-            IGTokenStaking(GTOKEN_STAKING).stakeFor(u, minLockAmount);
-
-            // Lock the stake
-            IGTokenStaking(GTOKEN_STAKING).lockStake(u, minLockAmount, "MySBT Airdrop");
-
-            // ✅ OPERATOR PAYS: Burn mintFee from operator's balance
-            IERC20(GTOKEN).safeTransferFrom(op, BURN_ADDRESS, mintFee);
+            // Add community membership
+            _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            membershipIndex[tid][community] = 0;
 
             // Mint SBT to user
             _mint(u, tid);
 
-            // ⚡ V2.4.5: Register SBT holder to SuperPaymaster
+            // Register SBT holder to SuperPaymaster
             _registerSBTHolder(u, tid);
 
-            emit SBTMinted(u, tid, op, block.timestamp);
+            emit SBTMinted(u, tid, community, block.timestamp);
         } else {
-            // IDEMPOTENT: Add community membership (no fees for existing SBT)
+            // Add role to existing SBT
             isNew = false;
 
-            // Check if membership already exists
-            uint256 idx = membershipIndex[tid][op];
-            require(idx >= _m[tid].length || _m[tid][idx].community != op);
+            address community = abi.decode(roleData, (address));
+
+            // Check if membership exists
+            uint256 idx = membershipIndex[tid][community];
+            require(idx >= _m[tid].length || _m[tid][idx].community != community, "Already member");
+
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
 
             // Add new membership
-            _m[tid].push(CommunityMembership(op, block.timestamp, block.timestamp, true, meta));
-            membershipIndex[tid][op] = _m[tid].length - 1;
+            _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            membershipIndex[tid][community] = _m[tid].length - 1;
             sbtData[tid].totalCommunities++;
 
-            emit MembershipAdded(tid, op, meta, block.timestamp);
+            emit MembershipAdded(tid, community, meta, block.timestamp);
         }
     }
 
