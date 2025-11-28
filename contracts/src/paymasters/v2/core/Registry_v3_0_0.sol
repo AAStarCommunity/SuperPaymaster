@@ -803,6 +803,12 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // v2 Legacy Functions (Backward Compatibility)
     // ====================================
 
+    /**
+     * @notice DEPRECATED: Register a community (v2 compatibility)
+     * @dev Use registerRole(ROLE_COMMUNITY, ...) instead
+     *      Will be removed in v4.0.0 (estimated: Q2 2025)
+     * @custom:deprecated Use registerRole() for new integrations
+     */
     function registerCommunity(
         CommunityProfile memory profile,
         uint256 stGTokenAmount
@@ -873,6 +879,12 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         emit CommunityRegistered(communityAddress, profile.name, profile.nodeType, communityStakes[communityAddress].stGTokenLocked);
     }
 
+    /**
+     * @notice DEPRECATED: Update community profile (v2 compatibility)
+     * @dev Use role-specific update functions instead
+     *      Will be removed in v4.0.0 (estimated: Q2 2025)
+     * @custom:deprecated Use updateCommunityRole() for new integrations
+     */
     function updateCommunityProfile(CommunityProfile memory profile) external {
         address communityAddress = msg.sender;
         if (communities[communityAddress].registeredAt == 0) revert CommunityNotRegistered(communityAddress);
@@ -916,6 +928,11 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         emit CommunityUpdated(communityAddress, profile.name);
     }
 
+    /**
+     * @notice Deactivate community (v2 compatibility, still useful)
+     * @dev Temporarily disable community without exiting role
+     *      Kept in v3+ as it provides useful temporary deactivation functionality
+     */
     function deactivateCommunity() external {
         if (communities[msg.sender].registeredAt == 0) revert CommunityNotRegistered(msg.sender);
         communities[msg.sender].isActive = false;
@@ -923,6 +940,11 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         emit CommunityDeactivated(msg.sender);
     }
 
+    /**
+     * @notice Reactivate community (v2 compatibility, still useful)
+     * @dev Re-enable previously deactivated community
+     *      Kept in v3+ as it provides useful reactivation functionality
+     */
     function reactivateCommunity() external {
         if (communities[msg.sender].registeredAt == 0) revert CommunityNotRegistered(msg.sender);
         communities[msg.sender].isActive = true;
