@@ -51,6 +51,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         bool isActive;              // Whether this role is active
         string description;         // Role description
     }
+    // ====================================
+    // V3 Role Data Structures
+    // ====================================
 
     /// @notice V3: Community role metadata (纯v3,移除supportedSBTs)
     struct CommunityRoleData {
@@ -72,6 +75,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     }
 
     /// @notice V3: Paymaster role metadata
+    /// @dev 设计说明: AOA和SUPER使用不同的roleId (PAYMASTER_AOA, PAYMASTER_SUPER)
+    ///      以支持不同的 stake requirements 和 slashing 参数
     struct PaymasterRoleData {
         address paymasterContract;  // Required
         string name;                // Required
@@ -79,12 +84,30 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         uint256 stakeAmount;        // Optional (0 = use minStake)
     }
 
-    /// @notice Community profile (optimized)
+    /// @notice V3: KMS (Key Management Service) role metadata
+    struct KMSRoleData {
+        address kmsContract;        // Required (KMS合约地址)
+        string name;                // Required
+        string apiEndpoint;         // Required (KMS API endpoint)
+        bytes32[] supportedAlgos;   // Required (支持的加密算法,如"RSA","ECDSA")
+        uint256 maxKeysPerUser;     // Required (每用户最大密钥数)
+        uint256 stakeAmount;        // Optional (0 = use minStake)
+    }
+
+    /// @notice V3: Generic role metadata (for custom roles)
+    /// @dev Used when role doesn't have a predefined struct
+    struct GenericRoleData {
+        string name;                // Required
+        bytes extraData;            // Optional (ABI-encoded custom data)
+        uint256 stakeAmount;        // Optional (0 = use minStake)
+    }
+
+    /// @notice Community profile (v3: removed supportedSBTs, only MySBT supported)
     struct CommunityProfile {
         string name;
         string ensName;
         address xPNTsToken;
-        address[] supportedSBTs;
+        // REMOVED in v3: supportedSBTs[] - only MySBT is supported
         NodeType nodeType;
         address paymasterAddress;
         address community;
@@ -116,7 +139,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // Constants
     // ====================================
 
-    uint256 public constant MAX_SUPPORTED_SBTS = 10;
+    // REMOVED in v3: MAX_SUPPORTED_SBTS - only MySBT is supported
     uint256 public constant MAX_NAME_LENGTH = 100;
     string public constant VERSION = "3.0.0";
     uint256 public constant VERSION_CODE = 30000;
@@ -138,7 +161,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     mapping(address => CommunityStake) public communityStakes;
     mapping(string => address) public communityByName;
     mapping(string => address) public communityByENS;
-    mapping(address => address) public communityBySBT;
+    // REMOVED in v3: communityBySBT - only MySBT is supported
     address[] public communityList;
     mapping(address => bool) public isRegistered;
 
@@ -154,6 +177,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     mapping(string => address) public communityByNameV3;    // name -> community address
     mapping(string => address) public communityByENSV3;     // ENS -> community address
     mapping(address => address) public accountToUser;       // AA account -> user EOA
+
+    // V3: Dynamic role registration
+    mapping(bytes32 => string) public proposedRoleNames;    // roleId -> role name (for proposed roles)
 
     // v3.0.0 - Burn history tracking
     BurnRecord[] public burnHistory;
@@ -181,6 +207,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
 
     // v3.0.0 - New events for unified role system
     event RoleConfigured(bytes32 indexed roleId, uint256 minStake, uint256 slashThreshold, string description);
+    event RoleProposed(bytes32 indexed roleId, address indexed proposer, string roleName);
+    event RoleActivated(bytes32 indexed roleId, string roleName);
     event RoleGranted(bytes32 indexed roleId, address indexed user, uint256 stakeAmount);  // TODO: add sbtTokenId
     event RoleRevoked(bytes32 indexed roleId, address indexed user, uint256 burnedAmount);
     event RoleMintedByCommunity(bytes32 indexed roleId, address indexed user, address indexed community, uint256 amount);
@@ -309,6 +337,59 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Propose a new custom role (owner only)
+     * @param roleName Human-readable role name (e.g., "VIP_MEMBER", "KMS", "PAYMASTER_SUPER")
+     * @param config Role configuration (stake requirements, slashing params, etc.)
+     * @return roleId The computed roleId (keccak256 of roleName)
+     * @dev Owner (多签) can propose new roles, then activate them via activateRole()
+     *      This allows for a two-step review process for new role types
+     */
+    function proposeNewRole(
+        string calldata roleName,
+        RoleConfig calldata config
+    ) external onlyOwner returns (bytes32 roleId) {
+        // Validate role name
+        if (bytes(roleName).length == 0) revert InvalidParameter("Role name required");
+        if (bytes(roleName).length > 32) revert InvalidParameter("Role name too long");
+
+        // Compute roleId
+        roleId = keccak256(bytes(roleName));
+
+        // Check if role already exists
+        if (roleConfigs[roleId].isActive) revert InvalidParameter("Role already active");
+        if (bytes(proposedRoleNames[roleId]).length > 0) revert InvalidParameter("Role already proposed");
+
+        // Validate config
+        if (config.minStake == 0) revert InvalidParameter("Min stake must be > 0");
+        if (config.slashThreshold == 0) revert InvalidParameter("Threshold must be > 0");
+        if (config.slashMax < config.slashBase) revert InvalidParameter("Max must be >= base");
+
+        // Store proposed role (inactive)
+        RoleConfig memory proposedConfig = config;
+        proposedConfig.isActive = false;  // Needs owner activation
+        roleConfigs[roleId] = proposedConfig;
+        proposedRoleNames[roleId] = roleName;
+
+        emit RoleProposed(roleId, msg.sender, roleName);
+    }
+
+    /**
+     * @notice Activate a proposed role (owner only)
+     * @param roleId Role identifier to activate
+     * @dev Once activated, users can register for this role via registerRole()
+     */
+    function activateRole(bytes32 roleId) external onlyOwner {
+        // Check if role exists and is not yet active
+        if (roleConfigs[roleId].minStake == 0) revert InvalidParameter("Role not configured");
+        if (roleConfigs[roleId].isActive) revert InvalidParameter("Role already active");
+
+        // Activate role
+        roleConfigs[roleId].isActive = true;
+
+        emit RoleActivated(roleId, proposedRoleNames[roleId]);
+    }
+
+    /**
      * @notice Register for a role (unified entry point)
      * @param roleId Role identifier
      * @param user User address to grant role to
@@ -328,13 +409,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (!config.isActive) revert RoleNotConfigured(roleId);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
 
-        // Decode roleData to get stake amount
-        uint256 stakeAmount;
-        if (roleData.length > 0) {
-            stakeAmount = abi.decode(roleData, (uint256));
-        } else {
-            stakeAmount = config.minStake; // Default to minimum
-        }
+        // V3: Role-specific validation and stake extraction
+        uint256 stakeAmount = _validateAndExtractStake(roleId, user, roleData);
 
         if (stakeAmount < config.minStake) {
             revert InsufficientStake(stakeAmount, config.minStake);
@@ -351,15 +427,25 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         roleStakes[roleId][user] = stakeAmount;
         roleMembers[roleId].push(user);
 
+        // V3: Store role metadata
+        roleMetadata[roleId][user] = roleData;
+
         // === Interactions ===
         // V3: Use roleId-based lockStake with entryBurn tracking
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
 
         // V3: Mint SBT for user (self-service registration)
         // MySBT.mintForRole() creates/updates user's SBT with role data
-        MYSBT.mintForRole(user, roleId, roleData);
+        (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, roleData);
+
+        // Store SBT tokenId for this role registration
+        roleSBTTokenIds[roleId][user] = sbtTokenId;
+
+        // V3: Role-specific post-registration (update indices, etc.)
+        _postRegisterRole(roleId, user, roleData);
 
         emit RoleGranted(roleId, user, stakeAmount);
+        emit RoleMetadataUpdated(roleId, user);
     }
 
     /**
@@ -423,19 +509,20 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (!config.isActive) revert RoleNotConfigured(roleId);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
 
-        // Verify caller is registered community
-        if (communities[msg.sender].registeredAt == 0) {
-            revert CommunityNotRegistered(msg.sender);
-        }
-        if (!communities[msg.sender].isActive) {
-            revert CommunityNotActive(msg.sender);
+        // Verify caller is registered community (v2 compatibility check)
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        if (!hasRole[ROLE_COMMUNITY][msg.sender]) {
+            // Fallback: check legacy communities mapping
+            if (communities[msg.sender].registeredAt == 0) {
+                revert CommunityNotRegistered(msg.sender);
+            }
+            if (!communities[msg.sender].isActive) {
+                revert CommunityNotActive(msg.sender);
+            }
         }
 
-        // Decode stake amount
-        uint256 stakeAmount = config.minStake; // Default
-        if (data.length > 0) {
-            stakeAmount = abi.decode(data, (uint256));
-        }
+        // V3: Role-specific validation and stake extraction
+        uint256 stakeAmount = _validateAndExtractStake(roleId, user, data);
 
         if (stakeAmount < config.minStake) {
             revert InsufficientStake(stakeAmount, config.minStake);
@@ -449,16 +536,141 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         roleStakes[roleId][user] = stakeAmount;
         roleMembers[roleId].push(user);
 
+        // V3: Store role metadata
+        roleMetadata[roleId][user] = data;
+
         // === Interactions ===
         // V3: Role-based lockStake for airdrop
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
 
         // V3: Admin airdrop - community pays for user's SBT
         // MySBT.airdropMint() creates/updates user's SBT (community covers costs)
-        MYSBT.airdropMint(user, roleId, data);
+        (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, data);
+
+        // Store SBT tokenId for this role registration
+        roleSBTTokenIds[roleId][user] = sbtTokenId;
+
+        // V3: Role-specific post-registration (update indices, etc.)
+        _postRegisterRole(roleId, user, data);
 
         emit RoleGranted(roleId, user, stakeAmount);
         emit RoleMintedByCommunity(roleId, user, msg.sender, stakeAmount);
+        emit RoleMetadataUpdated(roleId, user);
+    }
+
+    // ====================================
+    // v3.0.0 - Role Update Functions
+    // ====================================
+
+    /**
+     * @notice Update community role metadata
+     * @param newData New community role data
+     * @dev Caller must be the community owner (msg.sender)
+     */
+    function updateCommunityRole(CommunityRoleData memory newData) external nonReentrant {
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+
+        // Verify caller has COMMUNITY role
+        if (!hasRole[ROLE_COMMUNITY][msg.sender]) {
+            revert RoleNotGranted(ROLE_COMMUNITY, msg.sender);
+        }
+
+        // Validate new data
+        if (bytes(newData.name).length == 0) revert InvalidParameter("Community name required");
+
+        // Decode existing metadata
+        bytes memory existingBytes = roleMetadata[ROLE_COMMUNITY][msg.sender];
+        CommunityRoleData memory existing = abi.decode(existingBytes, (CommunityRoleData));
+
+        // Check if name changed and new name is available
+        if (keccak256(bytes(newData.name)) != keccak256(bytes(existing.name))) {
+            if (communityByNameV3[newData.name] != address(0)) {
+                revert InvalidParameter("Community name already taken");
+            }
+            // Update name index
+            delete communityByNameV3[existing.name];
+            communityByNameV3[newData.name] = msg.sender;
+        }
+
+        // Check if ENS changed and new ENS is available
+        if (bytes(newData.ensName).length > 0 &&
+            keccak256(bytes(newData.ensName)) != keccak256(bytes(existing.ensName))) {
+            if (communityByENSV3[newData.ensName] != address(0)) {
+                revert InvalidParameter("Community ENS already taken");
+            }
+            // Update ENS index
+            if (bytes(existing.ensName).length > 0) {
+                delete communityByENSV3[existing.ensName];
+            }
+            communityByENSV3[newData.ensName] = msg.sender;
+        }
+
+        // Store updated metadata
+        roleMetadata[ROLE_COMMUNITY][msg.sender] = abi.encode(newData);
+
+        emit RoleMetadataUpdated(ROLE_COMMUNITY, msg.sender);
+    }
+
+    /**
+     * @notice Update end user role metadata
+     * @param newData New end user role data
+     * @dev Caller must have ENDUSER role
+     */
+    function updateEndUserRole(EndUserRoleData memory newData) external nonReentrant {
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+
+        // Verify caller has ENDUSER role
+        if (!hasRole[ROLE_ENDUSER][msg.sender]) {
+            revert RoleNotGranted(ROLE_ENDUSER, msg.sender);
+        }
+
+        // Validate new data
+        if (newData.account == address(0)) revert InvalidParameter("Account address required");
+        if (newData.community == address(0)) revert InvalidParameter("Community required");
+
+        // Decode existing metadata
+        bytes memory existingBytes = roleMetadata[ROLE_ENDUSER][msg.sender];
+        EndUserRoleData memory existing = abi.decode(existingBytes, (EndUserRoleData));
+
+        // Check if account changed
+        if (newData.account != existing.account) {
+            // Check if new account is available
+            if (accountToUser[newData.account] != address(0) &&
+                accountToUser[newData.account] != msg.sender) {
+                revert InvalidParameter("Account already registered");
+            }
+            // Update account mapping
+            delete accountToUser[existing.account];
+            accountToUser[newData.account] = msg.sender;
+        }
+
+        // Store updated metadata
+        roleMetadata[ROLE_ENDUSER][msg.sender] = abi.encode(newData);
+
+        emit RoleMetadataUpdated(ROLE_ENDUSER, msg.sender);
+    }
+
+    /**
+     * @notice Update paymaster role metadata
+     * @param newData New paymaster role data
+     * @dev Caller must have PAYMASTER role
+     */
+    function updatePaymasterRole(PaymasterRoleData memory newData) external nonReentrant {
+        bytes32 ROLE_PAYMASTER = keccak256("PAYMASTER");
+
+        // Verify caller has PAYMASTER role
+        if (!hasRole[ROLE_PAYMASTER][msg.sender]) {
+            revert RoleNotGranted(ROLE_PAYMASTER, msg.sender);
+        }
+
+        // Validate new data
+        if (newData.paymasterContract == address(0)) revert InvalidParameter("Paymaster contract required");
+        if (bytes(newData.name).length == 0) revert InvalidParameter("Paymaster name required");
+
+        // Store updated metadata (no index updates needed for Paymaster)
+        roleMetadata[ROLE_PAYMASTER][msg.sender] = abi.encode(newData);
+
+        emit RoleMetadataUpdated(ROLE_PAYMASTER, msg.sender);
     }
 
     // ====================================
@@ -504,6 +716,26 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Get user's SBT tokenId for a specific role
+     * @param roleId Role identifier
+     * @param user User address
+     * @return SBT token ID (0 if no SBT)
+     */
+    function getRoleSBTTokenId(bytes32 roleId, address user) external view returns (uint256) {
+        return roleSBTTokenIds[roleId][user];
+    }
+
+    /**
+     * @notice Get user's role metadata
+     * @param roleId Role identifier
+     * @param user User address
+     * @return ABI-encoded role metadata
+     */
+    function getRoleMetadata(bytes32 roleId, address user) external view returns (bytes memory) {
+        return roleMetadata[roleId][user];
+    }
+
+    /**
      * @notice Get user's burn history
      * @param user User address
      * @return Array of burn record indices
@@ -545,7 +777,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (communities[communityAddress].registeredAt != 0) revert CommunityAlreadyRegistered(communityAddress);
         if (bytes(profile.name).length == 0) revert NameEmpty();
         if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
-        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) revert InvalidParameter("Too many SBTs");
+        // REMOVED in v3: supportedSBTs validation - only MySBT is supported
 
         RoleConfig memory config = nodeTypeConfigs[profile.nodeType];
 
@@ -595,11 +827,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (bytes(profile.ensName).length > 0) {
             communityByENS[profile.ensName] = communityAddress;
         }
-        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
-            if (profile.supportedSBTs[i] != address(0)) {
-                communityBySBT[profile.supportedSBTs[i]] = communityAddress;
-            }
-        }
+        // REMOVED in v3: supportedSBTs loop - only MySBT is supported
         communityList.push(communityAddress);
 
         // v2.2.1: Mark as registered to prevent duplicates
@@ -612,7 +840,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         address communityAddress = msg.sender;
         if (communities[communityAddress].registeredAt == 0) revert CommunityNotRegistered(communityAddress);
         if (bytes(profile.name).length > MAX_NAME_LENGTH) revert InvalidParameter("Name too long");
-        if (profile.supportedSBTs.length > MAX_SUPPORTED_SBTS) revert InvalidParameter("Too many SBTs");
+        // REMOVED in v3: supportedSBTs validation - only MySBT is supported
 
         CommunityProfile storage existing = communities[communityAddress];
 
@@ -638,23 +866,13 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             if (bytes(profile.ensName).length > 0) communityByENS[profile.ensName] = communityAddress;
         }
 
-        // Update SBT indices
-        for (uint256 i = 0; i < existing.supportedSBTs.length; i++) {
-            if (communityBySBT[existing.supportedSBTs[i]] == communityAddress) {
-                delete communityBySBT[existing.supportedSBTs[i]];
-            }
-        }
-        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
-            if (profile.supportedSBTs[i] != address(0)) {
-                communityBySBT[profile.supportedSBTs[i]] = communityAddress;
-            }
-        }
+        // REMOVED in v3: SBT indices update loops - only MySBT is supported
 
         // Update profile
         existing.name = profile.name;
         existing.ensName = profile.ensName;
         existing.xPNTsToken = profile.xPNTsToken;
-        existing.supportedSBTs = profile.supportedSBTs;
+        // REMOVED in v3: supportedSBTs assignment - only MySBT is supported
         existing.paymasterAddress = profile.paymasterAddress;
         existing.lastUpdatedAt = block.timestamp;
 
@@ -690,9 +908,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         string memory lowerName = _toLowercase(profile.name);
         if (bytes(lowerName).length > 0) communityByName[lowerName] = newOwner;
         if (bytes(profile.ensName).length > 0) communityByENS[profile.ensName] = newOwner;
-        for (uint256 i = 0; i < profile.supportedSBTs.length; i++) {
-            if (profile.supportedSBTs[i] != address(0)) communityBySBT[profile.supportedSBTs[i]] = newOwner;
-        }
+        // REMOVED in v3: supportedSBTs loop - only MySBT is supported
 
         delete communities[currentOwner];
         emit CommunityOwnershipTransferred(currentOwner, newOwner, block.timestamp);
@@ -724,10 +940,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (communityAddress == address(0)) revert NotFound();
     }
 
-    function getCommunityBySBT(address sbtAddress) external view returns (address communityAddress) {
-        communityAddress = communityBySBT[sbtAddress];
-        if (communityAddress == address(0)) revert NotFound();
-    }
+    // REMOVED in v3: getCommunityBySBT() - only MySBT is supported, no multi-SBT tracking
 
     function getCommunityCount() external view returns (uint256) {
         return communityList.length;
@@ -852,6 +1065,146 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             bytesArray[i] = data[i];
         }
         return string(bytesArray);
+    }
+
+    // ====================================
+    // V3 Internal Helper Functions
+    // ====================================
+
+    /**
+     * @notice Validate role-specific data and extract stake amount
+     * @param roleId Role identifier
+     * @param user User address
+     * @param roleData ABI-encoded role-specific data
+     * @return stakeAmount Stake amount to lock
+     */
+    function _validateAndExtractStake(
+        bytes32 roleId,
+        address user,
+        bytes calldata roleData
+    ) internal view returns (uint256 stakeAmount) {
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+        bytes32 ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+        bytes32 ROLE_KMS = keccak256("KMS");
+
+        if (roleId == ROLE_COMMUNITY) {
+            // Decode CommunityRoleData
+            CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
+
+            // Validate required fields
+            if (bytes(data.name).length == 0) revert InvalidParameter("Community name required");
+
+            // Check if name/ENS already taken
+            if (communityByNameV3[data.name] != address(0)) {
+                revert InvalidParameter("Community name already taken");
+            }
+            if (bytes(data.ensName).length > 0 && communityByENSV3[data.ensName] != address(0)) {
+                revert InvalidParameter("Community ENS already taken");
+            }
+
+            stakeAmount = data.stakeAmount;
+
+        } else if (roleId == ROLE_ENDUSER) {
+            // Decode EndUserRoleData
+            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+
+            // Validate required fields
+            if (data.account == address(0)) revert InvalidParameter("Account address required");
+            if (data.community == address(0)) revert InvalidParameter("Community required");
+
+            // Verify community is active
+            if (!hasRole[ROLE_COMMUNITY][data.community]) {
+                revert InvalidParameter("Community not registered");
+            }
+
+            // Check if account already mapped
+            if (accountToUser[data.account] != address(0) && accountToUser[data.account] != user) {
+                revert InvalidParameter("Account already registered");
+            }
+
+            stakeAmount = data.stakeAmount;
+
+        } else if (roleId == ROLE_PAYMASTER_AOA || roleId == ROLE_PAYMASTER_SUPER) {
+            // Decode PaymasterRoleData (同样的数据结构,不同的stake requirements)
+            PaymasterRoleData memory data = abi.decode(roleData, (PaymasterRoleData));
+
+            // Validate required fields
+            if (data.paymasterContract == address(0)) revert InvalidParameter("Paymaster contract required");
+            if (bytes(data.name).length == 0) revert InvalidParameter("Paymaster name required");
+
+            stakeAmount = data.stakeAmount;
+
+        } else if (roleId == ROLE_KMS) {
+            // Decode KMSRoleData
+            KMSRoleData memory data = abi.decode(roleData, (KMSRoleData));
+
+            // Validate required fields
+            if (data.kmsContract == address(0)) revert InvalidParameter("KMS contract required");
+            if (bytes(data.name).length == 0) revert InvalidParameter("KMS name required");
+            if (bytes(data.apiEndpoint).length == 0) revert InvalidParameter("KMS API endpoint required");
+            if (data.supportedAlgos.length == 0) revert InvalidParameter("At least one algorithm required");
+            if (data.maxKeysPerUser == 0) revert InvalidParameter("maxKeysPerUser must be > 0");
+
+            stakeAmount = data.stakeAmount;
+
+        } else {
+            // Generic role: try to decode as GenericRoleData
+            if (roleData.length > 0) {
+                try this._tryDecodeGenericRole(roleData) returns (GenericRoleData memory data) {
+                    stakeAmount = data.stakeAmount;
+                } catch {
+                    // Fallback: assume roleData is just uint256 stakeAmount
+                    stakeAmount = abi.decode(roleData, (uint256));
+                }
+            } else {
+                stakeAmount = roleConfigs[roleId].minStake;
+            }
+        }
+
+        // Use minStake if stakeAmount is 0
+        if (stakeAmount == 0) {
+            stakeAmount = roleConfigs[roleId].minStake;
+        }
+    }
+
+    /// @notice Helper function to decode GenericRoleData (public for try/catch)
+    function _tryDecodeGenericRole(bytes calldata roleData) external pure returns (GenericRoleData memory) {
+        return abi.decode(roleData, (GenericRoleData));
+    }
+
+    /**
+     * @notice Post-registration hook for role-specific logic
+     * @param roleId Role identifier
+     * @param user User address
+     * @param roleData ABI-encoded role-specific data
+     */
+    function _postRegisterRole(
+        bytes32 roleId,
+        address user,
+        bytes calldata roleData
+    ) internal {
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+
+        if (roleId == ROLE_COMMUNITY) {
+            // Update community indices
+            CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
+
+            communityByNameV3[data.name] = user;
+            if (bytes(data.ensName).length > 0) {
+                communityByENSV3[data.ensName] = user;
+            }
+
+        } else if (roleId == ROLE_ENDUSER) {
+            // Update account mapping
+            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+
+            accountToUser[data.account] = user;
+        }
+
+        // PAYMASTER and other roles: no special post-registration logic needed
     }
 
     /**
