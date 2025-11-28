@@ -144,6 +144,13 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     string public constant VERSION = "3.0.0";
     uint256 public constant VERSION_CODE = 30000;
 
+    // V3: Role constants (gas optimization - avoid repeated keccak256 calls)
+    bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
+    bytes32 public constant ROLE_ENDUSER = keccak256("ENDUSER");
+    bytes32 public constant ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+    bytes32 public constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+    bytes32 public constant ROLE_KMS = keccak256("KMS");
+
     // ====================================
     // Storage
     // ====================================
@@ -510,7 +517,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
 
         // Verify caller is registered community (v2 compatibility check)
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        // Gas optimization: Use contract constant instead of keccak256
         if (!hasRole[ROLE_COMMUNITY][msg.sender]) {
             // Fallback: check legacy communities mapping
             if (communities[msg.sender].registeredAt == 0) {
@@ -568,7 +575,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
      * @dev Caller must be the community owner (msg.sender)
      */
     function updateCommunityRole(CommunityRoleData memory newData) external nonReentrant {
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        // Gas optimization: Use contract constant
 
         // Verify caller has COMMUNITY role
         if (!hasRole[ROLE_COMMUNITY][msg.sender]) {
@@ -1083,11 +1090,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         address user,
         bytes calldata roleData
     ) internal view returns (uint256 stakeAmount) {
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
-        bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
-        bytes32 ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
-        bytes32 ROLE_KMS = keccak256("KMS");
+        // Gas optimization: Use contract constants instead of repeated keccak256 calls
+        // Saves ~200-300 gas per function call (5 keccak256 operations avoided)
 
         if (roleId == ROLE_COMMUNITY) {
             // Decode CommunityRoleData
@@ -1158,14 +1162,14 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
                     // Fallback: assume roleData is just uint256 stakeAmount
                     stakeAmount = abi.decode(roleData, (uint256));
                 }
-            } else {
-                stakeAmount = roleConfigs[roleId].minStake;
-            }
+            } // else stakeAmount remains 0, will use minStake below
         }
 
+        // Gas optimization: Load minStake once instead of twice (lines 1166, 1172)
         // Use minStake if stakeAmount is 0
         if (stakeAmount == 0) {
-            stakeAmount = roleConfigs[roleId].minStake;
+            RoleConfig memory config = roleConfigs[roleId];
+            stakeAmount = config.minStake;
         }
     }
 
@@ -1185,8 +1189,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         address user,
         bytes calldata roleData
     ) internal {
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        // Gas optimization: Use contract constants
 
         if (roleId == ROLE_COMMUNITY) {
             // Update community indices
