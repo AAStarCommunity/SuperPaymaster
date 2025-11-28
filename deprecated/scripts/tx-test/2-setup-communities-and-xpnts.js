@@ -1,3 +1,9 @@
+// [MIGRATED TO V3]: This file has been updated to use Mycelium Protocol v3 API
+// Migration Date: 2025-11-28
+// Changes: registerCommunity() -> registerRole(ROLE_COMMUNITY, ...)
+//          exitCommunity() -> exitRole(ROLE_COMMUNITY)
+//          See FRONTEND_MIGRATION_EXAMPLES_V3.md for details
+
 #!/usr/bin/env node
 /**
  * 设置社区和 xPNTs 脚本
@@ -16,6 +22,12 @@ const {
 } = require("./utils/config");
 const contractChecker = require("./utils/contract-checker");
 const logger = require("./utils/logger");
+
+// Role IDs for v3
+const ROLE_ENDUSER = '0x454e445553455200000000000000000000000000000000000000000000000000';
+const ROLE_COMMUNITY = '0x434f4d4d554e4954590000000000000000000000000000000000000000000000';
+const ROLE_PAYMASTER = '0x5041594d41535445520000000000000000000000000000000000000000000000';
+const ROLE_SUPER = '0x5355504552000000000000000000000000000000000000000000000000000000';
 
 // 社区配置
 const COMMUNITIES = {
@@ -80,7 +92,7 @@ async function registerCommunity(registry, gToken, deployer, communityConfig) {
 
     // 2. 注册社区
     logger.info("调用 registerCommunity...");
-    const registerTx = await registry.registerCommunity(
+    const registerTx = await registry.registerRole(ROLE_COMMUNITY, msg.sender, 
       communityConfig.name,
       communityConfig.ensName,
       communityConfig.initialStake

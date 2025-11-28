@@ -10,6 +10,7 @@ import "../interfaces/IRegistryV3.sol";
 import "../interfaces/IGTokenStakingV3.sol";
 import "../../v2/interfaces/IMySBT.sol";
 import "../../v2/interfaces/IReputationCalculator.sol";
+import "../../v2/interfaces/Interfaces.sol";
 import "../../../interfaces/IVersioned.sol";
 import "../../../config/shared-config.sol";
 
@@ -83,6 +84,11 @@ contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IMySBT, IVersioned {
 
     event RegistryV3Updated(address indexed oldRegistry, address indexed newRegistry, uint256 timestamp);
     event RoleBasedMint(uint256 indexed tokenId, address indexed user, bytes32 indexed roleId, uint256 timestamp);
+    event SBTMinted(uint256 indexed tokenId, address indexed user, uint256 timestamp);
+    event SBTBurned(uint256 indexed tokenId, address indexed user, uint256 timestamp);
+    event CommunityJoined(uint256 indexed tokenId, address indexed community, uint256 timestamp);
+    event CommunityExited(uint256 indexed tokenId, address indexed community, uint256 timestamp);
+    event SuperPaymasterUpdated(address indexed oldPaymaster, address indexed newPaymaster, uint256 timestamp);
 
     // ====================================
     // Modifiers

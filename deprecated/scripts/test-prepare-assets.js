@@ -1,3 +1,9 @@
+// [MIGRATED TO V3]: This file has been updated to use Mycelium Protocol v3 API
+// Migration Date: 2025-11-28
+// Changes: registerCommunity() -> registerRole(ROLE_COMMUNITY, ...)
+//          exitCommunity() -> exitRole(ROLE_COMMUNITY)
+//          See FRONTEND_MIGRATION_EXAMPLES_V3.md for details
+
 #!/usr/bin/env node
 /**
  * Test Assets Preparation Script
@@ -15,6 +21,12 @@ const {
   getPaymasterV4_1,
   getSuperPaymasterV2
 } = require("@aastar/shared-config");
+
+// Role IDs for v3
+const ROLE_ENDUSER = '0x454e445553455200000000000000000000000000000000000000000000000000';
+const ROLE_COMMUNITY = '0x434f4d4d554e4954590000000000000000000000000000000000000000000000';
+const ROLE_PAYMASTER = '0x5041594d41535445520000000000000000000000000000000000000000000000';
+const ROLE_SUPER = '0x5355504552000000000000000000000000000000000000000000000000000000';
 
 // Network configuration
 const NETWORK = "sepolia";
