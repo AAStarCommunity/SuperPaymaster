@@ -460,7 +460,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         // === Effects ===
         hasRole[roleId][user] = true;
         roleStakes[roleId][user] = stakeAmount;
-        roleMembers[roleId].push(user);
+        unchecked {
+            roleMembers[roleId].push(user);  // Gas: Array push cannot overflow
+        }
 
         // V3: Store role metadata
         roleMetadata[roleId][user] = roleData;
@@ -511,8 +513,10 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             reason: "User initiated exit"
         });
 
-        burnHistory.push(record);
-        userBurnHistory[msg.sender].push(burnHistory.length - 1);
+        unchecked {
+            burnHistory.push(record);  // Gas: Array push cannot overflow
+            userBurnHistory[msg.sender].push(burnHistory.length - 1);
+        }
 
         // === Interactions ===
         // V3 SECURITY FIX: unlockAndTransfer automatically transfers to user
@@ -571,7 +575,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         // === Effects ===
         hasRole[roleId][user] = true;
         roleStakes[roleId][user] = stakeAmount;
-        roleMembers[roleId].push(user);
+        unchecked {
+            roleMembers[roleId].push(user);  // Gas: Array push cannot overflow
+        }
 
         // V3: Store role metadata
         roleMetadata[roleId][user] = data;
@@ -871,7 +877,9 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             communityByENS[profile.ensName] = communityAddress;
         }
         // REMOVED in v3: supportedSBTs loop - only MySBT is supported
-        communityList.push(communityAddress);
+        unchecked {
+            communityList.push(communityAddress);  // Gas: Array push cannot overflow
+        }
 
         // v2.2.1: Mark as registered to prevent duplicates
         isRegistered[communityAddress] = true;
