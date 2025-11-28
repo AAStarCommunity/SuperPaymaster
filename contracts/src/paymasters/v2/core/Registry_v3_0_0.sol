@@ -342,18 +342,18 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     // ====================================
 
     /**
-     * @notice Configure a role (role owner or registry admin)
+     * @notice Configure a role (role owner ONLY)
      * @param roleId Role identifier (e.g., keccak256("VALIDATOR"))
      * @param config Role configuration
-     * @dev Can be called by:
-     *      - Role owner (e.g., Paymaster owner can configure ROLE_PAYMASTER parameters)
-     *      - Registry admin (DAO/Multisig for system-level config)
+     * @dev Only the role owner can configure their role
+     *      Example: Paymaster owner can configure ROLE_PAYMASTER parameters
+     *      Registry admin CANNOT modify other roles' configurations
      */
     function configureRole(bytes32 roleId, RoleConfig calldata config) external {
-        // V3: Permission check - allow role owner OR registry admin
+        // V3: Permission check - ONLY role owner can configure
         address roleOwner = roleOwners[roleId];
-        if (msg.sender != roleOwner && msg.sender != owner()) {
-            revert Unauthorized();
+        if (msg.sender != roleOwner) {
+            revert Unauthorized(msg.sender);
         }
 
         if (config.minStake == 0) revert InvalidParameter("Min stake must be > 0");
@@ -1263,43 +1263,18 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Internal helper: Auto-stake for user if needed (MySBT pattern)
-     * @param user User address
-     * @param stakeAmount Required stake amount
-     * @return autoStaked Amount auto-staked (0 if already sufficient)
+     * @notice REMOVED: _autoStakeForUser()
+     * @dev V3: All staking is handled by lockStake()
+     *      User transfers GToken to GTokenStaking before calling registerRole()
+     *      Or Registry pulls GToken and calls lockStake() which handles staking internally
+     *
+     * Old flow (v2):
+     *   User → Registry.registerRole() → stakeFor() → lockStake()
+     *
+     * New flow (v3):
+     *   User approves GToken to GTokenStaking → Registry.registerRole() → lockStake()
+     *   (lockStake internally pulls tokens and stakes)
      */
-    function _autoStakeForUser(address user, uint256 stakeAmount) internal returns (uint256 autoStaked) {
-        // Check user's available balance
-        uint256 available = GTOKEN_STAKING.availableBalance(user);
-
-        // Calculate how much we need to stake
-        uint256 need = available < stakeAmount ? stakeAmount - available : 0;
-
-        if (need > 0) {
-            // Check user's wallet balance
-            uint256 walletBalance = GTOKEN.balanceOf(user);
-            if (walletBalance < need) {
-                revert InsufficientGTokenBalance(walletBalance, need);
-            }
-
-            // Transfer GToken from user to this contract
-            GTOKEN.safeTransferFrom(user, address(this), need);
-
-            // Approve GTokenStaking to spend
-            GTOKEN.approve(address(GTOKEN_STAKING), need);
-
-            // Stake for user
-            try GTOKEN_STAKING.stakeFor(user, need) returns (uint256) {
-                autoStaked = need;
-            } catch Error(string memory reason) {
-                revert AutoStakeFailed(reason);
-            } catch {
-                revert AutoStakeFailed("Unknown error during stakeFor");
-            }
-        }
-
-        return autoStaked;
-    }
 
     // ====================================
     // Auto-Register Functions (v2.2.0)

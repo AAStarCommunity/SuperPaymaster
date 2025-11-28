@@ -123,26 +123,16 @@ interface IGTokenStakingV3 {
     ) external returns (uint256 slashedAmount);
 
     // ====================================
-    // Staking Functions
+    // REMOVED: User-callable staking functions
     // ====================================
-
-    /**
-     * @notice Stake GToken to receive stGToken shares
-     * @param amount Amount to stake
-     * @return shares stGToken shares received
-     */
-    function stake(uint256 amount) external returns (uint256 shares);
-
-    /**
-     * @notice Stake for another user
-     * @param beneficiary User to stake for
-     * @param amount Amount to stake
-     * @return shares stGToken shares received
-     */
-    function stakeFor(
-        address beneficiary,
-        uint256 amount
-    ) external returns (uint256 shares);
+    // REMOVED: function stake(uint256 amount) external returns (uint256 shares);
+    // REMOVED: function stakeFor(address beneficiary, uint256 amount) external returns (uint256 shares);
+    //
+    // Reason: All staking must go through Registry.registerRole()
+    //         This ensures stake is always locked for a specific role
+    //         Prevents users from staking without commitment
+    //
+    // Internal staking is handled by Registry via lockStake()
 
     // ====================================
     // SECURITY FIX: Removed user-callable unstake functions
