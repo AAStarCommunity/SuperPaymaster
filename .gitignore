@@ -152,3 +152,4 @@ crytic-export/
 echidna*.txt
 mythril*.txt
 slither*.txt
+output_file.json
