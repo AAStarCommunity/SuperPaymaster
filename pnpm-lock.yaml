@@ -12,8 +12,8 @@ importers:
         specifier: ^0.3.4
         version: 0.3.4
       dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
+        specifier: ^17.2.3
+        version: 17.2.3
       ethers:
         specifier: ^6.13.4
         version: 6.15.0
@@ -78,8 +78,8 @@ packages:
   aes-js@4.0.0-beta.5:
     resolution: {integrity: sha512-G965FqalsNyrPqgEGON7nIx1e/OVENSgiEIzyC63haUMuvNnwIgIjMs52hlTCKhkBny7A2ORNlfY9Zu+jmGk1Q==}
 
-  dotenv@16.6.1:
-    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+  dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
     engines: {node: '>=12'}
 
   ethers@6.15.0:
@@ -183,7 +183,7 @@ snapshots:
 
   aes-js@4.0.0-beta.5: {}
 
-  dotenv@16.6.1: {}
+  dotenv@17.2.3: {}
 
   ethers@6.15.0:
     dependencies:
