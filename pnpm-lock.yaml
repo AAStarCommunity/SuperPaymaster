@@ -19,8 +19,8 @@ importers:
         version: 6.15.0
     devDependencies:
       viem:
-        specifier: ^2.38.6
-        version: 2.39.3
+        specifier: ^2.40.3
+        version: 2.40.3
 
 packages:
 
@@ -108,8 +108,8 @@ packages:
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
 
-  viem@2.39.3:
-    resolution: {integrity: sha512-s11rPQRvUEdc5qHK3xT4fIk4qvgPAaLwaTFq+EbFlcJJD+Xn3R4mc9H6B6fquEiHl/mdsdbG/uKCnYpoNtHNHw==}
+  viem@2.40.3:
+    resolution: {integrity: sha512-feYfEpbgjRkZYQpwcgxqkWzjxHI5LSDAjcGetHHwDRuX9BRQHUdV8ohrCosCYpdEhus/RknD3/bOd4qLYVPPuA==}
     peerDependencies:
       typescript: '>=5.0.4'
     peerDependenciesMeta:
@@ -221,7 +221,7 @@ snapshots:
 
   undici-types@6.19.8: {}
 
-  viem@2.39.3:
+  viem@2.40.3:
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
