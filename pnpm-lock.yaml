@@ -15,8 +15,8 @@ importers:
         specifier: ^16.4.5
         version: 16.6.1
       ethers:
-        specifier: ^6.13.4
-        version: 6.15.0
+        specifier: ^6.16.0
+        version: 6.16.0
     devDependencies:
       viem:
         specifier: ^2.38.6
@@ -82,8 +82,8 @@ packages:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
 
-  ethers@6.15.0:
-    resolution: {integrity: sha512-Kf/3ZW54L4UT0pZtsY/rf+EkBU7Qi5nnhonjUb8yTXcxH3cdcWrV2cRyk0Xk/4jK6OoHhxxZHriyhje20If2hQ==}
+  ethers@6.16.0:
+    resolution: {integrity: sha512-U1wulmetNymijEhpSEQ7Ct/P/Jw9/e7R1j5XIbPRydgV2DjLVMsULDlNksq3RQnFgKoLlZf88ijYtWEXcPa07A==}
     engines: {node: '>=14.0.0'}
 
   eventemitter3@5.0.1:
@@ -185,7 +185,7 @@ snapshots:
 
   dotenv@16.6.1: {}
 
-  ethers@6.15.0:
+  ethers@6.16.0:
     dependencies:
       '@adraffy/ens-normalize': 1.10.1
       '@noble/curves': 1.2.0
