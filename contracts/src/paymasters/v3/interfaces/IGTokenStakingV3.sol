@@ -96,7 +96,8 @@ interface IGTokenStakingV3 {
         address user,
         bytes32 roleId,
         uint256 stakeAmount,
-        uint256 entryBurn
+        uint256 entryBurn,
+        address payer
     ) external returns (uint256 lockId);
 
     /**

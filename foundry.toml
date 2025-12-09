@@ -12,7 +12,7 @@ via_ir = true
 
 # Include singleton-paymaster libs but exclude tests to avoid conflicts
 # Also exclude old test location to prevent duplicates
-exclude = ["singleton-paymaster/test/**/*", "singleton-paymaster/**/*.t.sol", "test/**/*.t.sol"]
+exclude = ["singleton-paymaster/test/**/*", "singleton-paymaster/**/*.t.sol"]
 
 # Remappings for dependencies
 remappings = [

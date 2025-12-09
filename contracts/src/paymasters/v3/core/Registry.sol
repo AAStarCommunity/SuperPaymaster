@@ -2,12 +2,14 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/Interfaces.sol";
-import "../../v3/interfaces/IGTokenStakingV3.sol";
-import "../../v3/interfaces/IMySBTV3.sol";
+import "../interfaces/IRegistryV3.sol";
+import "../interfaces/IGTokenStakingV3.sol";
+import "../interfaces/IMySBTV3.sol";
+import "../../v2/interfaces/Interfaces.sol";
 
 /**
  * @title Registry v3.0.0 - Unified Role Management System
@@ -25,7 +27,7 @@ import "../../v3/interfaces/IMySBTV3.sol";
  * - CommunityStake: Staking and slash tracking per community
  * - BurnRecord: Historical tracking of all role exits and burns
  */
-contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
+contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -469,7 +471,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
 
         // === Interactions ===
         // V3: Use roleId-based lockStake with entryBurn tracking
-        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
+        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
 
         // V3: Mint SBT for user (self-service registration)
         // MySBT.mintForRole() creates/updates user's SBT with role data
@@ -569,8 +571,6 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
             revert InsufficientStake(stakeAmount, config.minStake);
         }
 
-        // Auto-stake for user if needed
-        uint256 autoStaked = _autoStakeForUser(user, stakeAmount);
 
         // === Effects ===
         hasRole[roleId][user] = true;
@@ -583,8 +583,8 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         roleMetadata[roleId][user] = data;
 
         // === Interactions ===
-        // V3: Role-based lockStake for airdrop
-        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn);
+        // V3: Role-based lockStake for airdrop (community pays)
+        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, msg.sender);
 
         // V3: Admin airdrop - community pays for user's SBT
         // MySBT.airdropMint() creates/updates user's SBT (community covers costs)
@@ -835,7 +835,7 @@ contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
         if (stGTokenAmount > 0) {
             if (stGTokenAmount < config.minStake) revert InsufficientStake(stGTokenAmount, config.minStake);
             // V3: Use roleId-based lockStake
-            GTOKEN_STAKING.lockStake(msg.sender, communityRole, stGTokenAmount, config.entryBurn);
+            GTOKEN_STAKING.lockStake(msg.sender, communityRole, stGTokenAmount, config.entryBurn, msg.sender);
         } else {
             // Check existing locked stake for COMMUNITY role
             uint256 existingLock = GTOKEN_STAKING.getLockedStake(msg.sender, communityRole);

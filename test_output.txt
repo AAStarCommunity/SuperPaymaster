@@ -1,0 +1,9 @@
+Warning: Found unknown `exclude` config for profile `default` defined in foundry.toml.
+Compiler run failed:
+Error (7920): Identifier not found or not unique.
+  --> contracts/src/paymasters/v3/core/Registry.sol:30:37:
+   |
+30 | contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
+   |                                     ^^^^^^^^^^^^
+
+Error: Compilation failed

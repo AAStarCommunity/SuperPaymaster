@@ -29,7 +29,7 @@ import "../../../interfaces/IVersioned.sol";
  *      IMySBT requires mintOrAddMembership() which violates v3 design principle
  *      All minting now goes through Registry.registerRole()
  */
-contract MySBT_v3 is ERC721, ReentrancyGuard, Pausable, IVersioned {
+contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     using SafeERC20 for IERC20;
 
     // ====================================
