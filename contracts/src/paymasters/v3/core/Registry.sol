@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/access/Ownable2Step.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
@@ -34,25 +35,9 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
     // Type Definitions
     // ====================================
 
-    /// @notice Node type (maintained for v2 compatibility)
-    enum NodeType {
-        PAYMASTER_AOA,      // 0: AOA independent Paymaster
-        PAYMASTER_SUPER,    // 1: SuperPaymaster v2 shared mode
-        ANODE,              // 2: Community computation node
-        KMS                 // 3: Key Management Service node
-    }
 
-    /// @notice Role configuration (v3.0.0 - dynamic role system)
-    struct RoleConfig {
-        uint256 minStake;           // Minimum stake required
-        uint256 entryBurn;          // Entry burn amount (v3.0.0)
-        uint256 slashThreshold;     // Failure count before slashing
-        uint256 slashBase;          // Base slash percentage
-        uint256 slashIncrement;     // Slash increment per excess failure
-        uint256 slashMax;           // Maximum slash percentage
-        bool isActive;              // Whether this role is active
-        string description;         // Role description
-    }
+
+
     // ====================================
     // V3 Role Data Structures
     // ====================================
@@ -104,20 +89,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         uint256 stakeAmount;        // Optional (0 = use minStake)
     }
 
-    /// @notice Community profile (v3: removed supportedSBTs, only MySBT supported)
-    struct CommunityProfile {
-        string name;
-        string ensName;
-        address xPNTsToken;
-        // REMOVED in v3: supportedSBTs[] - only MySBT is supported
-        NodeType nodeType;
-        address paymasterAddress;
-        address community;
-        uint256 registeredAt;
-        uint256 lastUpdatedAt;
-        bool isActive;
-        bool allowPermissionlessMint;
-    }
+
 
     /// @notice Community staking
     struct CommunityStake {
@@ -128,14 +100,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         bool isActive;
     }
 
-    /// @notice Burn record for history tracking (v3.0.0)
-    struct BurnRecord {
-        bytes32 roleId;             // Role identifier
-        address user;               // User who burned
-        uint256 amount;             // Amount burned
-        uint256 timestamp;          // When burned
-        string reason;              // Reason for burn
-    }
+
 
     // ====================================
     // Constants
@@ -145,6 +110,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
     uint256 public constant MAX_NAME_LENGTH = 100;
     string public constant VERSION = "3.0.0";
     uint256 public constant VERSION_CODE = 30000;
+    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     // V3: Role constants (gas optimization - avoid repeated keccak256 calls)
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -440,7 +406,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         bytes32 roleId,
         address user,
         bytes calldata roleData
-    ) external nonReentrant {
+    ) public nonReentrant {
         // === Checks ===
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId);
@@ -485,6 +451,20 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
 
         emit RoleGranted(roleId, user, stakeAmount);
         emit RoleMetadataUpdated(roleId, user);
+    }
+
+    /**
+     * @notice Register self for a role
+     * @param roleId Role identifier
+     * @param roleData Encoded role-specific data
+     */
+    function registerRoleSelf(
+        bytes32 roleId,
+        bytes calldata roleData
+    ) external returns (uint256 sbtTokenId) {
+        // Delegate to registerRole with msg.sender
+        registerRole(roleId, msg.sender, roleData);
+        return roleSBTTokenIds[roleId][msg.sender];
     }
 
     /**
@@ -795,6 +775,20 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
     function getBurnRecord(uint256 index) external view returns (BurnRecord memory) {
         if (index >= burnHistory.length) revert InvalidParameter("Invalid index");
         return burnHistory[index];
+    }
+
+    /**
+     * @notice Get all roles a user has
+     * @param user User address
+     * @return Array of role identifiers
+     */
+    function getUserRoles(address user) external view returns (bytes32[] memory) {
+        IGTokenStakingV3.RoleLock[] memory locks = GTOKEN_STAKING.getUserRoleLocks(user);
+        bytes32[] memory roles = new bytes32[](locks.length);
+        for (uint256 i = 0; i < locks.length; i++) {
+            roles[i] = locks[i].roleId;
+        }
+        return roles;
     }
 
     /**

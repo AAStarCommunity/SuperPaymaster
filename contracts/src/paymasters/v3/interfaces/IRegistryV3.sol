@@ -11,6 +11,14 @@ interface IRegistryV3 {
     // Data Structures
     // ====================================
 
+    /// @notice Node type (maintained for v2 compatibility)
+    enum NodeType {
+        PAYMASTER_AOA,      // 0: AOA independent Paymaster
+        PAYMASTER_SUPER,    // 1: SuperPaymaster v2 shared mode
+        ANODE,              // 2: Community computation node
+        KMS                 // 3: Key Management Service node
+    }
+
     /**
      * @notice Role configuration parameters
      * @param minStake Minimum stake required for this role
@@ -23,24 +31,42 @@ interface IRegistryV3 {
     struct RoleConfig {
         uint256 minStake;
         uint256 entryBurn;
-        uint256 exitFeePercent;
-        uint256 minExitFee;
-        bool allowPermissionlessMint;
+        uint256 slashThreshold;
+        uint256 slashBase;
+        uint256 slashIncrement;
+        uint256 slashMax;
         bool isActive;
+        string description;
     }
 
     /**
      * @notice Burn record for tracking token burns
      * @param roleId Role associated with this burn
+     * @param user User who performed the burn
      * @param amount Amount burned
      * @param timestamp When the burn occurred
-     * @param purpose Description of burn purpose
+     * @param reason Description of burn reason
      */
     struct BurnRecord {
         bytes32 roleId;
+        address user;
         uint256 amount;
         uint256 timestamp;
-        string purpose;
+        string reason;
+    }
+
+    /// @notice Community profile (v3: removed supportedSBTs, only MySBT supported)
+    struct CommunityProfile {
+        string name;
+        string ensName;
+        address xPNTsToken;
+        NodeType nodeType;
+        address paymasterAddress;
+        address community;
+        uint256 registeredAt;
+        uint256 lastUpdatedAt;
+        bool isActive;
+        bool allowPermissionlessMint;
     }
 
     // ====================================
@@ -71,7 +97,7 @@ interface IRegistryV3 {
         address indexed user,
         bytes32 indexed roleId,
         uint256 amount,
-        string purpose
+        string reason
     );
 
     // ====================================
@@ -89,7 +115,7 @@ interface IRegistryV3 {
         bytes32 roleId,
         address user,
         bytes calldata roleData
-    ) external returns (uint256 sbtTokenId);
+    ) external;
 
     /**
      * @notice Register self for a role (convenience wrapper)
@@ -105,9 +131,8 @@ interface IRegistryV3 {
     /**
      * @notice Exit from a role
      * @param roleId Role to exit from
-     * @return exitFee Fee charged for exit
      */
-    function exitRole(bytes32 roleId) external returns (uint256 exitFee);
+    function exitRole(bytes32 roleId) external;
 
     /**
      * @notice Configure role parameters (DAO only)
@@ -173,12 +198,7 @@ interface IRegistryV3 {
         view
         returns (uint256 exitFee);
 
-    /**
-     * @notice Check if permissionless minting is allowed for a role
-     * @param roleId Role to check
-     * @return True if permissionless minting is allowed
-     */
-    function isPermissionlessMintAllowed(bytes32 roleId) external view returns (bool);
+
 
     /**
      * @notice Get total users with a specific role
@@ -201,16 +221,10 @@ interface IRegistryV3 {
     /**
      * @notice Get community profile (v2 compatibility)
      * @param community Community address
-     * @return name Community name
-     * @return ensName ENS name
-     * @return isActive Active status
+     * @return profile full community profile
      */
     function getCommunityProfile(address community)
         external
         view
-        returns (
-            string memory name,
-            string memory ensName,
-            bool isActive
-        );
+        returns (CommunityProfile memory profile);
 }

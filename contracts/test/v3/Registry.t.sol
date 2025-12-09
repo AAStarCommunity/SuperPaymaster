@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/paymasters/v3/core/Registry.sol";
+import "src/paymasters/v3/interfaces/IRegistryV3.sol";
 import "src/paymasters/v3/core/GTokenStaking.sol";
 import "src/paymasters/v3/tokens/MySBT.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
@@ -80,8 +81,9 @@ contract RegistryTest is Test {
         vm.stopPrank();
         vm.startPrank(owner);
         
+
         // Configure ENDUSER
-        Registry.RoleConfig memory endUserConfig = Registry.RoleConfig({
+        IRegistryV3.RoleConfig memory endUserConfig = IRegistryV3.RoleConfig({
             minStake: 0.3 ether,
             entryBurn: 0.1 ether,
             slashThreshold: 5,
@@ -94,7 +96,7 @@ contract RegistryTest is Test {
         registry.configureRole(ROLE_ENDUSER, endUserConfig);
         
         // Configure COMMUNITY
-        Registry.RoleConfig memory communityConfig = Registry.RoleConfig({
+        IRegistryV3.RoleConfig memory communityConfig = IRegistryV3.RoleConfig({
             minStake: 30 ether,
             entryBurn: 3 ether,
             slashThreshold: 10,
@@ -140,7 +142,7 @@ contract RegistryTest is Test {
         vm.stopPrank();
         vm.startPrank(owner);
         
-        Registry.RoleConfig memory communityConfig = Registry.RoleConfig({
+        IRegistryV3.RoleConfig memory communityConfig = IRegistryV3.RoleConfig({
             minStake: 30 ether,
             entryBurn: 3 ether,
             slashThreshold: 10,
