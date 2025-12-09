@@ -736,7 +736,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
      * @param roleId Role identifier
      * @return Number of members
      */
-    function getRoleMemberCount(bytes32 roleId) external view returns (uint256) {
+    function getRoleUserCount(bytes32 roleId) external view returns (uint256) {
         return roleMembers[roleId].length;
     }
 
