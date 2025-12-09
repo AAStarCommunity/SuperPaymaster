@@ -212,7 +212,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // Internal Helpers
     // ====================================
 
-    function _previewExitFee(address user, bytes32 roleId, uint256 amount) internal view returns (uint256 fee, uint256 net) {
+    function _previewExitFee(address /* user */, bytes32 /* roleId */, uint256 amount) internal pure returns (uint256 fee, uint256 net) {
         RoleExitConfig memory config = roleExitConfigs[roleId];
         fee = (amount * config.feePercent) / 10000;
         if (fee < config.minFee) {
@@ -262,7 +262,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         return info.amount - info.slashedAmount;
     }
 
-    function availableBalance(address user) external view returns (uint256) {
+    function availableBalance(address /* user */) external pure returns (uint256) {
         // In V3, all stakes are locked by roles. Available is what?
         // If stake was done outside roles... but stake() is removed.
         // So available is likely 0 unless we allow general staking (disabled).

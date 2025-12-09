@@ -815,7 +815,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
      * @param lockedAmount Amount locked
      * @return exitFee Calculated exit fee
      */
-    function calculateExitFee(bytes32 roleId, uint256 lockedAmount) external pure returns (uint256) {
+    function calculateExitFee(bytes32 /* roleId */, uint256 /* lockedAmount */) external pure returns (uint256) {
         return 0; // V3 uses GTokenStaking logic or Slash logic, native exit fee is 0
     }
 

@@ -257,7 +257,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      * @return tokenId Token ID (new or existing)
      * @return isNewMint True if new SBT was minted
      */
-    function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    function mintForRole(address user, bytes32 /* roleId */, bytes calldata roleData)
         external
         whenNotPaused
         nonReentrant
@@ -331,7 +331,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      * @return tid Token ID (new or existing)
      * @return isNew True if new SBT was minted
      */
-    function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    function airdropMint(address u, bytes32 /* roleId */, bytes calldata roleData)
         external
         whenNotPaused
         nonReentrant
