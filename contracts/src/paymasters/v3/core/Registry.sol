@@ -437,8 +437,9 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
 
         // V3: Mint SBT for user (self-service registration)
-        // MySBT.mintForRole() creates/updates user's SBT with role data
-        (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, roleData);
+        // MySBT expects (address, string) format, convert from full struct
+        bytes memory sbtData = _convertRoleDataForSBT(roleId, user, roleData);
+        (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, sbtData);
 
         // Store SBT tokenId for this role registration
         roleSBTTokenIds[roleId][user] = sbtTokenId;
@@ -564,8 +565,9 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, msg.sender);
 
         // V3: Admin airdrop - community pays for user's SBT
-        // MySBT.airdropMint() creates/updates user's SBT (community covers costs)
-        (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, data);
+        // MySBT expects (address, string) format, convert from full struct
+        bytes memory sbtData = _convertRoleDataForSBT(roleId, user, data);
+        (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, sbtData);
 
         // Store SBT tokenId for this role registration
         roleSBTTokenIds[roleId][user] = sbtTokenId;
@@ -1309,6 +1311,33 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
      *   User approves GToken to GTokenStaking → Registry.registerRole() → lockStake()
      *   (lockStake internally pulls tokens and stakes)
      */
+
+    /**
+     * @notice Convert roleData from Registry format to MySBT format
+     * @dev MySBT expects (address, string) where address is community/user
+     *      and string is optional metadata
+     * @param roleId Role identifier
+     * @param user User address
+     * @param roleData Full role data from Registry
+     * @return SBT-compatible encoded data
+     */
+    function _convertRoleDataForSBT(
+        bytes32 roleId,
+        address user,
+        bytes calldata roleData
+    ) internal pure returns (bytes memory) {
+        if (roleId == ROLE_COMMUNITY) {
+            // For community: use user address (community itself) + empty metadata
+            return abi.encode(user, "");
+        } else if (roleId == ROLE_ENDUSER) {
+            // For end user: decode to get community address
+            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            return abi.encode(data.community, "");
+        } else {
+            // For other roles: use user address + empty metadata
+            return abi.encode(user, "");
+        }
+    }
 
     // ====================================
     // Auto-Register Functions (v2.2.0)

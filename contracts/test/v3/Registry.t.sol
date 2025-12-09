@@ -46,19 +46,34 @@ contract RegistryTest is Test {
         // 2. Deploy Staking
         staking = new GTokenStaking(address(gtoken), treasury);
 
-        // 3. Deploy MySBT
-        sbt = new MySBT(address(gtoken), address(staking), address(0), dao);
+        // 3. Deploy Registry先 (with temporary MySBT placeholder)
+        // We'll create a temporary MySBT address then update Registry later
+        address tempMySBT = address(0x1); // Temporary non-zero placeholder
+        registry = new Registry(
+            address(gtoken),
+            address(staking),
+            tempMySBT
+        );
 
-        // 4. Deploy Registry
+        // 4. Deploy MySBT (now we can pass Registry address)
+        sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
+
+        // 5. Update Registry with real MySBT address
+        // Registry needs to be updated to use the real MySBT
+        // Since Registry doesn't have a setMySBT function, we need to deploy Registry again
+        vm.stopPrank();
+        vm.startPrank(owner);
+        
+        // Re-deploy Registry with correct MySBT
         registry = new Registry(
             address(gtoken),
             address(staking),
             address(sbt)
         );
 
-        // 5. Configuration Wiring
+        // 6. Configuration Wiring
         
-        // Update MySBT registry
+        // Update MySBT registry to point to final Registry
         vm.stopPrank();
         vm.startPrank(dao);
         sbt.setRegistry(address(registry));
@@ -76,12 +91,11 @@ contract RegistryTest is Test {
     }
 
     function test_RegisterEndUser() public {
-        vm.startPrank(user);
+        // First register a community
+        test_RegisterCommunity();
         
-        vm.stopPrank();
         vm.startPrank(owner);
         
-
         // Configure ENDUSER
         IRegistryV3.RoleConfig memory endUserConfig = IRegistryV3.RoleConfig({
             minStake: 0.3 ether,
@@ -95,31 +109,18 @@ contract RegistryTest is Test {
         });
         registry.configureRole(ROLE_ENDUSER, endUserConfig);
         
-        // Configure COMMUNITY
-        IRegistryV3.RoleConfig memory communityConfig = IRegistryV3.RoleConfig({
-            minStake: 30 ether,
-            entryBurn: 3 ether,
-            slashThreshold: 10,
-            slashBase: 2,
-            slashIncrement: 1,
-            slashMax: 10,
-            isActive: true,
-            description: "Community"
-        });
-        registry.configureRole(ROLE_COMMUNITY, communityConfig);
-        
         vm.stopPrank();
         vm.startPrank(user);
         
-        // 2. Register
+        // 2. Register with proper approvals
         uint256 required = 0.3 ether + 0.1 ether;
         gtoken.approve(address(staking), required); 
         
-        // Preparing Role Data
+        // Preparing Role Data - use registered community
         bytes memory roleData = abi.encode(
             Registry.EndUserRoleData({
                 account: address(0x123),
-                community: address(0x456),
+                community: communityUser, // Use the registered community
                 avatarURI: "ipfs://avatar",
                 ensName: "user.eth",
                 stakeAmount: 0 // use min
@@ -137,9 +138,6 @@ contract RegistryTest is Test {
     }
     
     function test_RegisterCommunity() public {
-        vm.startPrank(communityUser);
-        
-        vm.stopPrank();
         vm.startPrank(owner);
         
         IRegistryV3.RoleConfig memory communityConfig = IRegistryV3.RoleConfig({
@@ -157,6 +155,7 @@ contract RegistryTest is Test {
         
         vm.startPrank(communityUser);
         
+        // Approve total required amount (stake + burn)
         uint256 required = 30 ether + 3 ether;
         gtoken.approve(address(staking), required);
         
@@ -167,7 +166,7 @@ contract RegistryTest is Test {
                 website: "https://dao.com",
                 description: "Best DAO",
                 logoURI: "ipfs://logo",
-                stakeAmount: 0
+                stakeAmount: 30 ether // Explicitly set stake amount
             })
         );
         
