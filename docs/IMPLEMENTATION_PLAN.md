@@ -57,3 +57,10 @@ Update React application to use new contracts and flows.
     3. Register as Paymaster.
     4. Register as SuperPaymaster.
     5. Exit flows for each.
+
+-----
+✅ 合约开发完成 (SuperPaymaster V3)
+⏭️ 部署新版本 (使用 env 变量 + 部署脚本)
+⏭️ 同步 ABIs (shared-config repo 的脚本)
+⏭️ 发布 npm 包 (shared-config)
+⏭️ 前端重构 (registry，按 implementation_plan.md)

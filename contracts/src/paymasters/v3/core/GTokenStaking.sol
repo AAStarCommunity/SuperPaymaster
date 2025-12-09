@@ -212,7 +212,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // Internal Helpers
     // ====================================
 
-    function _previewExitFee(address /* user */, bytes32 /* roleId */, uint256 amount) internal pure returns (uint256 fee, uint256 net) {
+    function _previewExitFee(address /* user */, bytes32 roleId, uint256 amount) internal view returns (uint256 fee, uint256 net) {
         RoleExitConfig memory config = roleExitConfigs[roleId];
         fee = (amount * config.feePercent) / 10000;
         if (fee < config.minFee) {
