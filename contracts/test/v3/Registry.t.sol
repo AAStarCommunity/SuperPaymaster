@@ -132,7 +132,8 @@ contract RegistryTest is Test {
         // Asserts
         assertTrue(registry.hasRole(ROLE_ENDUSER, user));
         assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0.3 ether);
-        assertEq(gtoken.balanceOf(registry.BURN_ADDRESS()), 0.1 ether);
+        // Community burned 3 ether + user burned 0.1 ether = 3.1 ether total
+        assertEq(gtoken.balanceOf(registry.BURN_ADDRESS()), 3.1 ether);
         
         vm.stopPrank();
     }
