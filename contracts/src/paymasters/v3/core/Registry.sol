@@ -526,7 +526,7 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         bytes32 roleId,
         address user,
         bytes calldata data
-    ) external nonReentrant {
+    ) external nonReentrant returns (uint256 tokenId) {
         // === Checks ===
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId);
@@ -579,6 +579,8 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         emit RoleGranted(roleId, user, stakeAmount);
         emit RoleMintedByCommunity(roleId, user, msg.sender, stakeAmount);
         emit RoleMetadataUpdated(roleId, user);
+        
+        return sbtTokenId;
     }
 
     // ====================================
@@ -797,6 +799,39 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
      */
     function getBurnHistoryCount() external view returns (uint256) {
         return burnHistory.length;
+    }
+
+    /**
+     * @notice Get role configuration
+     * @param roleId Role identifier
+     * @return Role configuration
+     */
+    function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) {
+        return roleConfigs[roleId];
+    }
+
+    /**
+     * @notice Calculate exit fee for a role
+     * @param roleId Role identifier
+     * @param lockedAmount Amount locked
+     * @return exitFee Calculated exit fee
+     */
+    function calculateExitFee(bytes32 roleId, uint256 lockedAmount) external pure returns (uint256) {
+        return 0; // V3 uses GTokenStaking logic or Slash logic, native exit fee is 0
+    }
+
+    /**
+     * @notice Get burn history for a user (Interface compliance)
+     * @param user User address
+     * @return Array of burn records
+     */
+    function getBurnHistory(address user) external view returns (BurnRecord[] memory) {
+        uint256[] memory indices = userBurnHistory[user];
+        BurnRecord[] memory records = new BurnRecord[](indices.length);
+        for (uint256 i = 0; i < indices.length; i++) {
+            records[i] = burnHistory[indices[i]];
+        }
+        return records;
     }
 
     // ====================================

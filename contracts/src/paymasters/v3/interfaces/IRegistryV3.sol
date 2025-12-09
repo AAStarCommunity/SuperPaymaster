@@ -109,7 +109,6 @@ interface IRegistryV3 {
      * @param roleId Role identifier (e.g., ROLE_COMMUNITY, ROLE_PAYMASTER)
      * @param user User address to register
      * @param roleData Encoded role-specific data
-     * @return sbtTokenId Token ID if SBT was minted
      */
     function registerRole(
         bytes32 roleId,
