@@ -419,11 +419,8 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
             revert InsufficientStake(stakeAmount, config.minStake);
         }
 
-        // Check user has sufficient available balance
-        uint256 available = GTOKEN_STAKING.availableBalance(user);
-        if (available < stakeAmount) {
-            revert InsufficientRoleStake(available, stakeAmount);
-        }
+        // V3: lockStake will transfer tokens from user (via payer param)
+        // No need to check availableBalance since V3 doesn't support pre-staking
 
         // === Effects ===
         hasRole[roleId][user] = true;
