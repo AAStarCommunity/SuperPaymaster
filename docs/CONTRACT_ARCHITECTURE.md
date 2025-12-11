@@ -7,7 +7,7 @@
 
 ## 项目目标
 
-SuperPaymaster 项目的核心目标是提供符合 **ERC-4337** 标准的 Paymaster 服务，支持 EntryPoint v0.7 和 v0.8 版本。通过 `paymasterAndData` 字段，用户可以实现 gasless 交易。
+SuperPaymaster 项目的核心目标是提供符合 **ERC-4337** 标准的 Paymaster 服务，支持 EntryPoint v0.7 和 v0.8 版本。通过在UserOp中指定Paymaster合约地址和`paymasterAndData`字段，用户可以实现 gasless 交易。
 
 ### 两种 Paymaster 模式
 

@@ -215,7 +215,7 @@ Level 12: 144 GT (大师)
 mapping(address => bool) public autoApprovedSpenders;
 
 function allowance(address owner, address spender) public view override returns (uint256) {
-    if (autoApprovedSpenders[spender]) {
+    if (autoApprovedSpenders[spender]) {****
         return type(uint256).max;  // 无限授权
     }
     return super.allowance(owner, spender);
