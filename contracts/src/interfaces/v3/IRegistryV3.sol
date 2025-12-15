@@ -12,12 +12,7 @@ interface IRegistryV3 {
     // ====================================
 
     /// @notice Node type (maintained for v2 compatibility)
-    enum NodeType {
-        PAYMASTER_AOA,      // 0: AOA independent Paymaster
-        PAYMASTER_SUPER,    // 1: SuperPaymaster v2 shared mode
-        ANODE,              // 2: Community computation node
-        KMS                 // 3: Key Management Service node
-    }
+
 
     /**
      * @notice Role configuration parameters
@@ -55,19 +50,7 @@ interface IRegistryV3 {
         string reason;
     }
 
-    /// @notice Community profile (v3: removed supportedSBTs, only MySBT supported)
-    struct CommunityProfile {
-        string name;
-        string ensName;
-        address xPNTsToken;
-        NodeType nodeType;
-        address paymasterAddress;
-        address community;
-        uint256 registeredAt;
-        uint256 lastUpdatedAt;
-        bool isActive;
-        bool allowPermissionlessMint;
-    }
+
 
     // ====================================
     // Events
@@ -206,24 +189,4 @@ interface IRegistryV3 {
      */
     function getRoleUserCount(bytes32 roleId) external view returns (uint256);
 
-    // ====================================
-    // Backward Compatibility (v2 support)
-    // ====================================
-
-    /**
-     * @notice Check if a community is registered (v2 compatibility)
-     * @param community Community address
-     * @return True if registered as COMMUNITY role
-     */
-    function isRegisteredCommunity(address community) external view returns (bool);
-
-    /**
-     * @notice Get community profile (v2 compatibility)
-     * @param community Community address
-     * @return profile full community profile
-     */
-    function getCommunityProfile(address community)
-        external
-        view
-        returns (CommunityProfile memory profile);
 }

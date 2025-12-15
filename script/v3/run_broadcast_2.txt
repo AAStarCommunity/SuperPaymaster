@@ -1,0 +1,2 @@
+Warning: Found unknown `exclude` config for profile `default` defined in foundry.toml.
+Compiling 110 files with Solc 0.8.28
