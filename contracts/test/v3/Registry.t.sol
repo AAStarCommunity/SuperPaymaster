@@ -187,19 +187,15 @@ contract RegistryTest is Test {
         
         uint256 beforeBalance = gtoken.balanceOf(user);
         
-        // Approve Registry to burn tokens upon exit
-        gtoken.approve(address(registry), 0.3 ether);
-
         // Exit
         registry.exitRole(ROLE_ENDUSER);
         
         assertFalse(registry.hasRole(ROLE_ENDUSER, user));
         assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0);
         
-        // Check refund
-        // Check refund (Consumed by exit burn)
+        // Check refund (Full refund since no exit fee configured in test)
         uint256 afterBalance = gtoken.balanceOf(user);
-        assertEq(afterBalance, beforeBalance);
+        assertEq(afterBalance, beforeBalance + 0.3 ether);
         
         vm.stopPrank();
     }

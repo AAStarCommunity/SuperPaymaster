@@ -507,10 +507,9 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         // This prevents users from unstaking while keeping active roles
         uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
 
-        // SECURITY: Tokens are now in user's wallet (transferred by unlockAndTransfer)
-        // Burn from user's balance
-        GTOKEN.safeTransferFrom(msg.sender, address(this), netAmount);
-        IGToken(address(GTOKEN)).burn(netAmount);
+        // V3 FIX: unlockAndTransfer handles exit fee deduction and refunds netAmount to user.
+        // We do NOT burn the netAmount here. Entry burn happened at registration.
+        // uint256 netAmount = ... (already called)
 
         emit RoleRevoked(roleId, msg.sender, netAmount);
         emit RoleBurned(roleId, msg.sender, netAmount, "User initiated exit");
