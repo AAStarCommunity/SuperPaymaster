@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "src/paymasters/v4/PaymasterV4_1.sol";
 import "./mocks/MockSBT.sol";
-import "src/paymasters/v2/tokens/xPNTsToken.sol";
+import "src/tokens/xPNTsToken.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { ISuperPaymasterRegistry } from "src/interfaces/ISuperPaymasterRegistry.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";

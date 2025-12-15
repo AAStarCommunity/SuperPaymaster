@@ -8,10 +8,19 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
-import "../../v2/interfaces/Interfaces.sol";
-import "../../v2/interfaces/IReputationCalculator.sol";
-import "../interfaces/IRegistryV3.sol";
-import "../../../interfaces/IVersioned.sol";
+
+import "../paymasters/v2/interfaces/IReputationCalculator.sol";
+import "../interfaces/v3/IRegistryV3.sol";
+import "../interfaces/IVersioned.sol";
+
+interface ISuperPaymasterCallback {
+    function registerSBTHolder(address holder, uint256 tokenId) external;
+    function removeSBTHolder(address holder) external;
+}
+
+interface IRegistryLegacy {
+    function isRegisteredCommunity(address community) external view returns (bool);
+}
 
 /**
  * @title MySBT v3.0.0
@@ -201,7 +210,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      */
     function _registerSBTHolder(address holder, uint256 tokenId) internal {
         if (SUPER_PAYMASTER != address(0)) {
-            try ISuperPaymaster(SUPER_PAYMASTER).registerSBTHolder(holder, tokenId) {
+            try ISuperPaymasterCallback(SUPER_PAYMASTER).registerSBTHolder(holder, tokenId) {
                 // Success - SBT registered to SuperPaymaster
             } catch {
                 // Graceful degradation - continue without SuperPaymaster registration
@@ -217,7 +226,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      */
     function _removeSBTHolder(address holder) internal {
         if (SUPER_PAYMASTER != address(0)) {
-            try ISuperPaymaster(SUPER_PAYMASTER).removeSBTHolder(holder) {
+            try ISuperPaymasterCallback(SUPER_PAYMASTER).removeSBTHolder(holder) {
                 // Success - SBT removed from SuperPaymaster
             } catch {
                 // Graceful degradation - continue without SuperPaymaster removal
@@ -561,7 +570,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             return r;
         } catch {
             // Fallback to v2 for backward compatibility during transition
-            try IRegistryV2_1(REGISTRY).isRegisteredCommunity(c) returns (bool r) {
+            try IRegistryLegacy(REGISTRY).isRegisteredCommunity(c) returns (bool r) {
                 return r;
             } catch {
                 return false;

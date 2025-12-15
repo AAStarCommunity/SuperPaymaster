@@ -3,8 +3,12 @@
 # V3 Deployment Script
 
 # Load env variables from project env
-if [ -f "../env/.env" ]; then
-    source ../env/.env
+if [ -f "../env/.env.v3" ]; then
+    echo "Loading .env.v3..."
+    source "../env/.env.v3"
+elif [ -f "../env/.env" ]; then
+    echo "Loading ../env/.env..."
+    source "../env/.env"
 elif [ -f ".env" ]; then
     source .env
 else

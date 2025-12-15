@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {SuperPaymasterV2} from "../src/paymasters/v2/core/SuperPaymasterV2.sol";
+import {SuperPaymasterV2} from "../src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
 
 /**
  * @title ConfigureSuperPaymaster

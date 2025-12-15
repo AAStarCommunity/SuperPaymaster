@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/v3/core/Registry.sol";
+import "src/core/Registry.sol";
 
 contract DebugTest is Test {
     function test_DecodeRoleData() public pure {

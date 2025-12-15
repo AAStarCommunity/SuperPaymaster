@@ -7,10 +7,14 @@ import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/IRegistryV3.sol";
-import "../interfaces/IGTokenStakingV3.sol";
-import "../interfaces/IMySBTV3.sol";
-import "../../v2/interfaces/Interfaces.sol";
+import "../interfaces/v3/IRegistryV3.sol";
+import "../interfaces/v3/IGTokenStakingV3.sol";
+import "../interfaces/v3/IMySBTV3.sol";
+
+
+interface IGToken {
+    function burn(uint256 amount) external;
+}
 
 /**
  * @title Registry v3.0.0 - Unified Role Management System
@@ -1343,4 +1347,49 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
 
     // REMOVED: registerCommunityWithAutoStake() - Use registerCommunity() instead
     // V3: registerRole() provides cleaner auto-stake via _autoStakeForUser() internally
+
+    // ====================================
+    // Compatibility Functions (Settlement/Paymaster Support)
+    // ====================================
+
+    function getPaymasterInfo(address paymaster) external view returns (
+        uint256 feeRate,
+        bool isActive,
+        uint256 successCount,
+        uint256 totalAttempts,
+        string memory name
+    ) {
+        // Check PAYMASTER_AOA or PAYMASTER_SUPER role
+        isActive = roleMembers[keccak256("PAYMASTER_AOA")][paymaster] || 
+                   roleMembers[keccak256("PAYMASTER_SUPER")][paymaster];
+        feeRate = isActive ? 100 : 0; // Default 1% if active
+        successCount = 0;
+        totalAttempts = 0;
+        name = "V3 Paymaster";
+    }
+
+    function isPaymasterActive(address paymaster) external view returns (bool) {
+        return roleMembers[keccak256("PAYMASTER_AOA")][paymaster] || 
+               roleMembers[keccak256("PAYMASTER_SUPER")][paymaster];
+    }
+
+    function deactivate() external {
+        // V3 doesn't support self-deactivation via this interface yet
+    }
+
+    function activate() external {
+        // V3 doesn't support self-activation via this interface yet
+    }
+
+    function getBestPaymaster() external view returns (address, uint256) {
+        return (address(0), 0);
+    }
+
+    function getActivePaymasters() external view returns (address[] memory) {
+        return new address[](0);
+    }
+
+    function getRouterStats() external view returns (uint256, uint256, uint256, uint256) {
+        return (0, 0, 0, 0);
+    }
 }

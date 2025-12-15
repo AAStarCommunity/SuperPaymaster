@@ -6,8 +6,8 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "../interfaces/Interfaces.sol";
-import "./BasePaymaster.sol";
+import "../../v2/interfaces/Interfaces.sol";
+import "../../v2/core/BasePaymaster.sol";
 
 /**
  * @title SuperPaymasterV2.3.2
@@ -40,7 +40,7 @@ import "./BasePaymaster.sol";
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
-contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
+contract PaymasterV2 is BasePaymaster, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ====================================

@@ -5,7 +5,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/IGTokenStakingV3.sol";
+import "../interfaces/v3/IGTokenStakingV3.sol";
 
 /**
  * @title GTokenStaking v3.0.0

@@ -2,10 +2,10 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/v3/core/Registry.sol";
-import "src/paymasters/v3/core/GTokenStaking.sol";
-import "src/paymasters/v3/tokens/MySBT.sol";
-import "src/paymasters/v3/interfaces/IRegistryV3.sol";
+import "src/core/Registry.sol";
+import "src/core/GTokenStaking.sol";
+import "src/tokens/MySBT.sol";
+import "src/interfaces/v3/IRegistryV3.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 
 contract MockGToken is ERC20 {
