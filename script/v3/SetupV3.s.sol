@@ -25,6 +25,7 @@ contract MockV3Aggregator {
 
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {SimpleAccountFactory} from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
 contract SetupV3 is Script {
     // Configuration
@@ -39,17 +40,39 @@ contract SetupV3 is Script {
     MySBT public sbt;
     SuperPaymasterV3 public superPaymaster;
     xPNTsFactory public xpntsFactory;
+    
+    // Paymaster Factory
     PaymasterFactory public paymasterFactory;
     PaymasterV4_1i public paymasterV4Impl;
+    SimpleAccountFactory public simpleAccountFactory;
+
     MockV3Aggregator public priceFeed;
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
-        address treasury = vm.envOr("TREASURY_ADDRESS", deployer);
-        address dao = vm.envOr("DAO_MULTISIG", deployer);
+        // Load Config
+        entryPointAddress = vm.envOr("ENTRYPOINT_ADDRESS_V07", address(0));
+        
+        // Get Private Key first to determine deployer
+        uint256 privateKey = vm.envUint("PRIVATE_KEY_JASON");
+        address broadcaster = vm.addr(privateKey);
+        
+        address deployer;
+        address treasury;
+        address dao;
 
-        vm.startBroadcast(deployerPrivateKey);
+        // For Anvil, use broadcaster as deployer to ensure tokens are minted correctly
+        if (block.chainid == 31337) {
+            deployer = broadcaster;
+            treasury = broadcaster;
+            dao = broadcaster; // For local testing, DAO can also be the broadcaster
+        } else {
+            deployer = vm.envAddress("ADDRESS_JASON_EOA");
+            treasury = vm.envOr("TREASURY_ADDRESS", deployer);
+            dao = vm.envOr("DAO_MULTISIG", deployer);
+        }
+        
+        // Start Broadcasting
+        vm.startBroadcast(privateKey);
 
         // 0. Environment Setup (Local vs Testnet)
         address priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306; 
@@ -67,6 +90,10 @@ contract SetupV3 is Script {
 
         // 2. Deploy GToken & Staking
         gToken = new GToken(1_000_000_000 ether); // 1 Billion cap
+        
+        // Mint initial supply to deployer (for testing)
+        gToken.mint(deployer, 100_000_000 ether); // 100 Million tokens
+        
         staking = new GTokenStaking(address(gToken), treasury);
 
         // 4. Deploy MySBT (Circular Dependency: MySBT needs Registry, Registry needs MySBT)
@@ -114,26 +141,30 @@ contract SetupV3 is Script {
         address proxyAddr = paymasterFactory.deployPaymasterDefault("");
         PaymasterV4_1i paymasterV4Proxy = PaymasterV4_1i(payable(proxyAddr));
 
+        // 8. Deploy SimpleAccountFactory (for Test Users)
+        simpleAccountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddress));
+
         vm.stopBroadcast();
 
         // Output JSON
-        string memory json = "json";
-        vm.serializeAddress(json, "gToken", address(gToken));
-        vm.serializeAddress(json, "staking", address(staking));
-        vm.serializeAddress(json, "registry", address(registry));
-        vm.serializeAddress(json, "sbt", address(sbt));
-        vm.serializeAddress(json, "superPaymaster", address(superPaymaster));
+        string memory jsonObj = "json";
+        vm.serializeAddress(jsonObj, "gToken", address(gToken));
+        vm.serializeAddress(jsonObj, "staking", address(staking));
+        vm.serializeAddress(jsonObj, "registry", address(registry));
+        vm.serializeAddress(jsonObj, "sbt", address(sbt));
+        vm.serializeAddress(jsonObj, "superPaymaster", address(superPaymaster));
         // aPNTs is string, convert to address logic? 
         // Or just use Setup logic correctly.
         // vm.serializeAddress(json, "aPNTs", aPNTs); // aPNTs is string type in local var?
         // Let's use vm.serializeString for aPNTs
-        vm.serializeString(json, "aPNTs", aPNTs);
+        vm.serializeString(jsonObj, "aPNTs", aPNTs);
         
-        vm.serializeAddress(json, "xPNTsFactory", address(xpntsFactory));
-        vm.serializeAddress(json, "paymasterFactory", address(paymasterFactory));
-        vm.serializeAddress(json, "paymasterV4Impl", address(paymasterV4Impl));
-        vm.serializeAddress(json, "paymasterV4Proxy", address(paymasterV4Proxy));
-        string memory finalJson = vm.serializeAddress(json, "entryPoint", entryPointAddress);
+        vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(paymasterFactory));
+        vm.serializeAddress(jsonObj, "paymasterV4Impl", address(paymasterV4Impl));
+        vm.serializeAddress(jsonObj, "paymasterV4Proxy", address(paymasterV4Proxy));
+        vm.serializeAddress(jsonObj, "simpleAccountFactory", address(simpleAccountFactory));
+        string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddress);
 
         vm.writeFile("script/v3/config.json", finalJson);
     }
