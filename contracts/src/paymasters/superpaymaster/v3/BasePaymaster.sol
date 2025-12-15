@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/core/Helpers.sol";
 
 /**

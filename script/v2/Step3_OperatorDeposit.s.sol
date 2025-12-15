@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
+import "src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -22,7 +22,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  */
 contract Step3_OperatorDeposit is Script {
 
-    SuperPaymasterV2 superPaymaster;
+    SuperPaymasterV2_3 superPaymaster;
     IERC20 apntsToken;
 
     address operator;
@@ -31,7 +31,7 @@ contract Step3_OperatorDeposit is Script {
 
     function setUp() public {
         // 加载合约
-        superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
+        superPaymaster = SuperPaymasterV2_3(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         apntsToken = IERC20(vm.envAddress("APNTS_TOKEN_ADDRESS"));
 
         // Operator账户
@@ -73,7 +73,7 @@ contract Step3_OperatorDeposit is Script {
 
         // 3. 验证
         console.log("\n3.3 Verifying deposit...");
-        SuperPaymasterV2.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator);
+        SuperPaymasterV2_3.OperatorAccount memory account = superPaymaster.getOperatorAccount(operator);
         uint256 contractAPNTs = apntsToken.balanceOf(address(superPaymaster));
 
         console.log("    Operator internal balance:");

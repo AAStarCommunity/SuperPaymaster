@@ -107,7 +107,8 @@ contract DeploySuperPaymasterV3 is Script {
             deployer,
             registry,
             apntsToken,
-            ethUsdPriceFeed
+            ethUsdPriceFeed,
+            treasury // Protocol Treasury
         );
         console.log("SuperPaymaster V3 deployed at:", address(superPaymaster));
 

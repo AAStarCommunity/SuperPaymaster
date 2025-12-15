@@ -1360,8 +1360,8 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
         string memory name
     ) {
         // Check PAYMASTER_AOA or PAYMASTER_SUPER role
-        isActive = roleMembers[keccak256("PAYMASTER_AOA")][paymaster] || 
-                   roleMembers[keccak256("PAYMASTER_SUPER")][paymaster];
+        isActive = hasRole[ROLE_PAYMASTER_AOA][paymaster] || 
+                   hasRole[ROLE_PAYMASTER_SUPER][paymaster];
         feeRate = isActive ? 100 : 0; // Default 1% if active
         successCount = 0;
         totalAttempts = 0;
@@ -1369,8 +1369,8 @@ contract Registry is Initializable, Ownable2Step, ReentrancyGuard, IRegistryV3 {
     }
 
     function isPaymasterActive(address paymaster) external view returns (bool) {
-        return roleMembers[keccak256("PAYMASTER_AOA")][paymaster] || 
-               roleMembers[keccak256("PAYMASTER_SUPER")][paymaster];
+        return hasRole[ROLE_PAYMASTER_AOA][paymaster] || 
+               hasRole[ROLE_PAYMASTER_SUPER][paymaster];
     }
 
     function deactivate() external {

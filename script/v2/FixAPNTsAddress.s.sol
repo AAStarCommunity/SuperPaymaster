@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
+import "src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
 
 /**
  * @title FixAPNTsAddress
@@ -31,7 +31,7 @@ contract FixAPNTsAddress is Script {
         console.log("Correct aPNTs:", CORRECT_APNTS);
         console.log();
 
-        SuperPaymasterV2 superPaymaster = SuperPaymasterV2(payable(SUPERPAYMASTER));
+        SuperPaymasterV2_3 superPaymaster = SuperPaymasterV2_3(payable(SUPERPAYMASTER));
 
         // Check current configuration
         address currentAPNTs = superPaymaster.aPNTsToken();

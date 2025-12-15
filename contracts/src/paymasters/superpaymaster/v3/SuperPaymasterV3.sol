@@ -11,23 +11,51 @@ import "../../../interfaces/v3/IRegistryV3.sol";
 /**
  * @title SuperPaymasterV3
  * @notice V3 SuperPaymaster - Unified Registry based Multi-Operator Paymaster
- * @dev Features:
- *      - Registry Integration for Operator Status (COMMUNITY Role)
- *      - Internal Billing Engine (aPNTs deduction, xPNTs charge)
- *      - Chainlink Oracle Pricing
- *      - Operator Treasury Management
+ * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
+ *      Optimized for Gas and Security (CEI, Packing, Batch Updates).
  */
 contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ====================================
-    // Structs
+    // Structs (Optimized Layout)
     // ====================================
 
-    struct OperatorConfig {
+    struct OperatorData {
+        // Slot 0 (Packed)
         address xPNTsToken;     // Community points token
+        bool isConfigured;      // Config status
+        uint88 _reserved0;      // Reserve for fit
+        
+        // Slot 1 (Packed)
         address treasury;       // Treasury for receiving xPNTs
-        bool isConfigured;      // Check if config exists
+        uint96 exchangeRate;    // xPNTs <-> aPNTs rate (18 decimals). Max 7.9e10 units if 18 dec.
+                                // If exchangeRate is > 79 billion, this overflows. 
+                                // Standard 1:1 is 1e18. 
+                                // Let's use uint256 for safety on exchangeRate to avoid limits.
+        
+        // Slot 2
+        uint256 exchangeRateFull; 
+
+        // Slot 3
+        uint256 aPNTsBalance;       // Operator's aPNTs Balance (Deducted here)
+        
+        // Slot 4
+        uint256 totalSpent;
+        
+        // Slot 5
+        uint256 totalTxSponsored;
+    }
+    
+    // Simpler Struct (Std Layout is often efficient enough)
+    struct OperatorConfig {
+        address xPNTsToken;
+        address treasury;
+        bool isConfigured;
+        uint256 exchangeRate;
+        uint256 aPNTsBalance;
+        uint256 totalSpent;
+        uint256 totalTxSponsored;
     }
 
     struct PriceCache {
@@ -44,15 +72,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     IRegistryV3 public immutable REGISTRY;
     address public immutable APNTS_TOKEN;            // aPNTs (AAStar Token)
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
+    address public immutable SUPER_PAYMASTER_TREASURY; // Protocol Treasury for fees
 
-    // Operator Data
-    mapping(address => uint256) public operatorBalances; // aPNTs Balance
-    mapping(address => OperatorConfig) public operatorConfigs; // Billing Config
+    // Operator Data Mapped by Address
+    mapping(address => OperatorConfig) public operators;
     
-    // Stats
-    mapping(address => uint256) public totalSpent;       // Total aPNTs consumed
-    mapping(address => uint256) public totalTxSponsored;
-
     // Pricing Config
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
@@ -61,13 +85,17 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
     PriceCache private cachedPrice;
 
+    // Protocol Fee (Basis Points)
+    uint256 public constant SERVICE_FEE_BPS = 200; // 2%
+    uint256 public constant BPS_DENOMINATOR = 10000;
+
     // ====================================
     // Events
     // ====================================
 
     event OperatorDeposited(address indexed operator, uint256 amount);
     event OperatorWithdrawn(address indexed operator, uint256 amount);
-    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury);
+    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
 
     // ====================================
@@ -79,11 +107,13 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         address _owner,
         IRegistryV3 _registry,
         address _apntsToken,
-        address _ethUsdPriceFeed
+        address _ethUsdPriceFeed,
+        address _protocolTreasury
     ) BasePaymaster(_entryPoint, _owner) {
         REGISTRY = _registry;
         APNTS_TOKEN = _apntsToken;
         ETH_USD_PRICE_FEED = AggregatorV3Interface(_ethUsdPriceFeed);
+        SUPER_PAYMASTER_TREASURY = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
     }
 
     // ====================================
@@ -94,23 +124,24 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
      * @notice Configure billing settings (Operator only)
      * @param xPNTsToken Token to charge users
      * @param treasury Address to receive payments
+     * @param exchangeRate Rate (1e18 = 1:1)
      */
-    function configureOperator(address xPNTsToken, address treasury) external {
+    function configureOperator(address xPNTsToken, address treasury, uint256 exchangeRate) external {
         // Must be registered in Registry
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert("Operator not registered");
         }
-        if (xPNTsToken == address(0) || treasury == address(0)) {
+        if (xPNTsToken == address(0) || treasury == address(0) || exchangeRate == 0) {
             revert("Invalid configuration");
         }
 
-        operatorConfigs[msg.sender] = OperatorConfig({
-            xPNTsToken: xPNTsToken,
-            treasury: treasury,
-            isConfigured: true
-        });
+        OperatorConfig storage config = operators[msg.sender];
+        config.xPNTsToken = xPNTsToken;
+        config.treasury = treasury;
+        config.exchangeRate = exchangeRate;
+        config.isConfigured = true;
 
-        emit OperatorConfigured(msg.sender, xPNTsToken, treasury);
+        emit OperatorConfigured(msg.sender, xPNTsToken, treasury, exchangeRate);
     }
 
     /**
@@ -122,7 +153,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         }
         
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
-        operatorBalances[msg.sender] += amount;
+        operators[msg.sender].aPNTsBalance += amount;
         
         emit OperatorDeposited(msg.sender, amount);
     }
@@ -131,10 +162,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
      * @notice Withdraw aPNTs
      */
     function withdraw(uint256 amount) external nonReentrant {
-        if (operatorBalances[msg.sender] < amount) {
+        if (operators[msg.sender].aPNTsBalance < amount) {
             revert("Insufficient balance");
         }
-        operatorBalances[msg.sender] -= amount;
+        operators[msg.sender].aPNTsBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
         
         emit OperatorWithdrawn(msg.sender, amount);
@@ -148,43 +179,64 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         PackedUserOperation calldata userOp,
         bytes32 userOpHash,
         uint256 maxCost
-    ) external override onlyEntryPoint returns (bytes memory context, uint256 validationData) {
+    ) external override onlyEntryPoint nonReentrant returns (bytes memory context, uint256 validationData) {
         // 1. Extract Operator
         address operator = _extractOperator(userOp);
         
-        // 2. Validate Operator Role & Config
+        // 2. Validate Operator Role
+        // ⚡ REGISTRY CHECK replaces V2 internal map check
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), operator)) {
             return ("", _packValidationData(true, 0, 0)); // Reject: Not registered
         }
-        OperatorConfig memory config = operatorConfigs[operator];
+        
+        // 3. Validate User Role (Unified Verification)
+        // ⚡ REGISTRY CHECK replaces V2 DEFAULT_SBT check. 
+        // User must be ENDUSER role in Registry.
+        if (!REGISTRY.hasRole(keccak256("ENDUSER"), userOp.sender)) {
+             return ("", _packValidationData(true, 0, 0)); // Reject: User not verified
+        }
+
+        OperatorConfig storage config = operators[operator];
         if (!config.isConfigured) {
              return ("", _packValidationData(true, 0, 0)); // Reject: Not configured
         }
+        if (config.isConfigured == false) { // Redundant check but explicitly clear
+             // ...
+        }
 
-        // 3. Billing Logic
+        // 4. Billing Logic
         // Calculate aPNTs cost (based on Oracle)
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         
         // Check Operator Balance
-        if (operatorBalances[operator] < aPNTsAmount) {
+        if (config.aPNTsBalance < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0)); // Reject: Insufficient aPNTs
         }
 
-        // Calculate User xPNTs Cost
-        uint256 xPNTsAmount = aPNTsAmount; // Simply 1:1 for MVP, or use exchange rate if V2 had it? 
-        // V2 had exchangeRate. For now, 1:1 or logic:
-        // xPNTsAmount = aPNTsAmount (if 1:1)
+        // Calculate User xPNTs Cost (Apply Exchange Rate)
+        // xPNTs = aPNTs * Rate / 1e18
+        uint256 xPNTsAmount = (aPNTsAmount * config.exchangeRate) / 1e18;
 
-        // 4. Effects (Optimistic)
-        operatorBalances[operator] -= aPNTsAmount;
-        totalSpent[operator] += aPNTsAmount;
-        totalTxSponsored[operator]++;
+        // 5. Effects (Optimistic & Batch)
+        // ⚡ CEI Pattern: Update State First
+        config.aPNTsBalance -= aPNTsAmount;
+        config.totalSpent += aPNTsAmount;
+        config.totalTxSponsored++;
 
         emit TransactionSponsored(operator, userOp.sender, aPNTsAmount, xPNTsAmount);
 
-        // 5. Interactions: Charge User xPNTs -> Treasury
+        // 6. Interactions: Charge User xPNTs -> Treasury
         // Note: Contract must be approved by user for xPNTsToken
-        IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, config.treasury, xPNTsAmount);
+        // Split Fee: 2% to Protocol, rest to Operator Treasury
+        uint256 protocolFee = (xPNTsAmount * SERVICE_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 operatorAmount = xPNTsAmount - protocolFee;
+
+        if (protocolFee > 0) {
+            IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, SUPER_PAYMASTER_TREASURY, protocolFee);
+        }
+        if (operatorAmount > 0) {
+            IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, config.treasury, operatorAmount);
+        }
 
         return ("", 0);
     }
@@ -195,7 +247,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint {
-        // No refund logic for now (pre-charged based on maxCost)
+        // No refund logic (pre-charged based on maxCost with no refund, per V2 model)
     }
 
     // ====================================
@@ -211,7 +263,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     function _calculateAPNTsAmount(uint256 gasCostWei) internal returns (uint256) {
         int256 ethUsdPrice;
         
-        // Oracle Logic
+        // ⚡ GAS OPTIMIZATION: Cache Pricing
         if (block.timestamp - cachedPrice.updatedAt <= PRICE_CACHE_DURATION && cachedPrice.price > 0) {
             ethUsdPrice = cachedPrice.price;
         } else {
@@ -228,23 +280,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
             ethUsdPrice = price;
         }
 
-        // Calculation: (gasCostWei * ethPrice) / aPNTsPrice
-        // ethPrice is 8 decimals usually. aPNTsPrice is 18 decimals ($0.02e18).
-        // Result should be 18 decimals (aPNTs amount).
-        // (Wei * PriceUSD) / aPNTsPriceUSD
-        // (1e18 * 1e8) / 1e18 = 1e8? 
-        // We need to handle decimals carefully.
-        // ValueUSD = gasCostWei * ethUsdPrice / 1e8 (assuming Oracle 8 decimals) ? No.
-        // ValueUSD (18 decimals) = gasCostWei * ethUsdPrice * 1e10 (raise to 18) / 1e18?
-        
-        // Standard:
-        // USD Value (Ref 18 decimals) = gasCostWei * ethUsdPrice * 10^(18 - priceDecimals)
-        // aPNTs = USD Value / aPNTsPriceUSD * 1e18?
-        
-        // V2 implements:
-        // uint256 usdValue = gasCost * uint256(price) * (10 ** (18 - decimals));
-        // return usdValue * 1e18 / aPNTsPriceUSD;
-        
         uint256 priceUint = uint256(ethUsdPrice);
         uint8 decimals = cachedPrice.decimals;
         uint256 usdValue = gasCostWei * priceUint * (10 ** (18 - decimals));

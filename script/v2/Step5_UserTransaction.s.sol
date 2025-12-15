@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
+import "src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
 import "src/tokens/xPNTsToken.sol";
 
 /**
@@ -21,7 +21,7 @@ import "src/tokens/xPNTsToken.sol";
  */
 contract Step5_UserTransaction is Script {
 
-    SuperPaymasterV2 superPaymaster;
+    SuperPaymasterV2_3 superPaymaster;
     xPNTsToken operatorXPNTs;
 
     address user;
@@ -31,7 +31,7 @@ contract Step5_UserTransaction is Script {
 
     function setUp() public {
         // 加载合约
-        superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
+        superPaymaster = SuperPaymasterV2_3(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
         operatorXPNTs = xPNTsToken(vm.envAddress("OPERATOR_XPNTS_TOKEN_ADDRESS"));
 
         // 账户 - 使用与Step4相同的用户私钥
@@ -71,7 +71,7 @@ contract Step5_UserTransaction is Script {
         uint256 userXPNTsBefore = operatorXPNTs.balanceOf(user);
         uint256 treasuryXPNTsBefore = operatorXPNTs.balanceOf(operatorTreasury);
 
-        SuperPaymasterV2.OperatorAccount memory accountBefore = superPaymaster.getOperatorAccount(operator);
+        SuperPaymasterV2_3.OperatorAccount memory accountBefore = superPaymaster.getOperatorAccount(operator);
         uint256 treasuryAPNTsBefore = superPaymaster.treasuryAPNTsBalance();
 
         console.log("    [BEFORE]");

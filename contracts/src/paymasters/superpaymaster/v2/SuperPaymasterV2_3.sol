@@ -40,7 +40,7 @@ import "../../v2/core/BasePaymaster.sol";
  * - GTokenStaking: Handles stake and slash
  * - DVT/BLS: Distributed monitoring and slash consensus
  */
-contract PaymasterV2 is BasePaymaster, ReentrancyGuard {
+contract SuperPaymasterV2_3 is BasePaymaster, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ====================================

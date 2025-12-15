@@ -22,6 +22,10 @@ interface IRegistryLegacy {
     function isRegisteredCommunity(address community) external view returns (bool);
 }
 
+interface IGTokenStaking {
+    function unlockStake(address user, uint256 amount) external returns (uint256);
+}
+
 /**
  * @title MySBT v3.0.0
  * @notice Integration with Registry v3.0.0 Role-Based System

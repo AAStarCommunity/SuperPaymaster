@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "../../src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
+import "../../src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
 import "../../src/paymasters/v2/core/GTokenStaking.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 

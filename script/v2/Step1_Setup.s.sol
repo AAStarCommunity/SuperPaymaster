@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v2/SuperPaymasterV2.sol";
+import "src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -21,14 +21,14 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  */
 contract Step1_Setup is Script {
 
-    SuperPaymasterV2 superPaymaster;
+    SuperPaymasterV2_3 superPaymaster;
     IERC20 apntsToken;
 
     address superPaymasterTreasury;
 
     function setUp() public {
         // 加载已部署的SuperPaymaster合约
-        superPaymaster = SuperPaymasterV2(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
+        superPaymaster = SuperPaymasterV2_3(vm.envAddress("SUPER_PAYMASTER_V2_ADDRESS"));
 
         // 设置treasury地址
         superPaymasterTreasury = address(0x888);
