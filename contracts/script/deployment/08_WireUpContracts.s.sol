@@ -30,7 +30,11 @@ contract Deploy08_WireUpContracts is Script {
 
         // Set the SuperPaymaster address in the Token (for burnFromWithOpHash)
         xPNTsToken(apntsTokenAddr).setSuperPaymasterAddress(superPaymasterAddr);
-        console.log("aPNTs token wired with SuperPaymaster.");
+        console.log("aPNTs token's SuperPaymaster address set.");
+
+        // Manually add the SuperPaymaster to the auto-approved list for our mock token
+        xPNTsToken(apntsTokenAddr).addAutoApprovedSpender(superPaymasterAddr);
+        console.log("Mock aPNTs token has now auto-approved the SuperPaymaster.");
 
         // Set the Registry address in MySBT and GTokenStaking
         MySBT(mySBTAddr).setRegistry(registryAddr);

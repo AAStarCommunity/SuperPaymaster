@@ -124,11 +124,11 @@ contract xPNTsFactory is Ownable {
      * @param _registry Registry contract address
      */
     constructor(address _superPaymaster, address _registry) Ownable(msg.sender) {
-        if (_superPaymaster == address(0) || _registry == address(0)) {
+        if (_registry == address(0)) {
             revert InvalidAddress(address(0));
         }
 
-        SUPERPAYMASTER = _superPaymaster;
+        SUPERPAYMASTER = _superPaymaster; // Can be address(0) initially
         REGISTRY = _registry;
 
         // Initialize aPNTs price (default: $0.02)
@@ -181,8 +181,10 @@ contract xPNTsFactory is Ownable {
         token = address(newToken);
 
         // Auto-configure pre-authorization
-        // AOA+ mode: Always approve SuperPaymaster V2
-        newToken.addAutoApprovedSpender(SUPERPAYMASTER);
+        // AOA+ mode: Always approve SuperPaymaster, if the address has been set.
+        if (SUPERPAYMASTER != address(0)) {
+            newToken.addAutoApprovedSpender(SUPERPAYMASTER);
+        }
 
         // AOA mode: Approve operator's specific paymaster (if provided)
         if (paymasterAOA != address(0)) {
@@ -213,7 +215,7 @@ contract xPNTsFactory is Ownable {
             return MIN_SUGGESTED_AMOUNT;
         }
 
-        // Formula: dailyTx * avgGasCost * 30 days * industryMultiplier * safetyFactor / 1e18
+        // Formula: dailyTx * avgGasCost * 30 days * industryMultiplier * safetyFactor / 1e36
         uint256 dailyCost = params.avgDailyTx * params.avgGasCost;
         uint256 monthlyCost = dailyCost * 30;
 
@@ -295,6 +297,16 @@ contract xPNTsFactory is Ownable {
     // ====================================
     // Admin Functions
     // ====================================
+    
+    /**
+     * @notice Sets the SuperPaymaster address after deployment
+     * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
+     * @param _superPaymaster The address of the deployed SuperPaymasterV3 contract.
+     */
+    function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
+        require(_superPaymaster != address(0), "Invalid address");
+        SUPERPAYMASTER = _superPaymaster;
+    }
 
     /**
      * @notice Update aPNTs USD price (only owner)
