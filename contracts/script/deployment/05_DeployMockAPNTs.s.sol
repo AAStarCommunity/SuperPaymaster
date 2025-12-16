@@ -45,6 +45,6 @@ contract Deploy05_MockAPNTs is Script {
 
         vm.stopBroadcast();
 
-        console.log("✅ aPNTs (Mock) deployed to:", address(aPNTs));
+        console.log("aPNTs (Mock) deployed to:", address(aPNTs));
     }
 }

@@ -38,8 +38,14 @@ contract xPNTsToken is ERC20, ERC20Permit {
     /// @notice Community owner/admin address
     address public communityOwner;
 
+    /// @notice The address of the trusted SuperPaymaster, which can call special functions.
+    address public SUPERPAYMASTER_ADDRESS;
+
     /// @notice Pre-authorized spenders (no approve needed)
     mapping(address => bool) public autoApprovedSpenders;
+
+    /// @notice Ensures a UserOperation hash is only used once for payment.
+    mapping(bytes32 => bool) public usedOpHashes;
 
     /// @notice Community name
     string public communityName;
@@ -52,10 +58,10 @@ contract xPNTsToken is ERC20, ERC20Permit {
     uint256 public exchangeRate;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.0.0";
+    string public constant VERSION = "2.1.0-security"; // Version updated to reflect security patch
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20000;
+    uint256 public constant VERSION_CODE = 20100;
 
     // ====================================
     // Events
@@ -65,6 +71,8 @@ contract xPNTsToken is ERC20, ERC20Permit {
     event AutoApprovedSpenderRemoved(address indexed spender);
     event CommunityOwnerUpdated(address indexed oldOwner, address indexed newOwner);
     event ExchangeRateUpdated(uint256 oldRate, uint256 newRate);
+    event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
+
 
     // ====================================
     // Errors
@@ -72,6 +80,7 @@ contract xPNTsToken is ERC20, ERC20Permit {
 
     error Unauthorized(address caller);
     error InvalidAddress(address addr);
+    error OperationAlreadyProcessed(bytes32 userOpHash);
 
     // ====================================
     // Constructor
@@ -108,16 +117,13 @@ contract xPNTsToken is ERC20, ERC20Permit {
     }
 
     // ====================================
-    // Pre-Authorization Mechanism
+    // Pre-Authorization & Security Mechanism
     // ====================================
 
     /**
      * @notice Override allowance() to implement pre-authorization
-     * @param owner Token owner
-     * @param spender Spender address
-     * @return Current allowance (type(uint256).max if pre-authorized)
-     * @dev This is the core of the pre-authorization mechanism!
-     *      Trusted contracts get infinite allowance without user approval
+     * @dev For UI and compatibility, we still show max allowance for auto-approved spenders.
+     *      However, the actual transfer is firewalled by the _spendAllowance override.
      */
     function allowance(address owner, address spender)
         public
@@ -125,20 +131,68 @@ contract xPNTsToken is ERC20, ERC20Permit {
         override
         returns (uint256)
     {
-        // If spender is pre-authorized, return max allowance
         if (autoApprovedSpenders[spender]) {
             return type(uint256).max;
         }
-
-        // Otherwise return normal allowance
         return super.allowance(owner, spender);
     }
 
     /**
-     * @notice Add trusted spender to pre-authorization list
-     * @param spender Contract address to trust
-     * @dev Only community owner or factory can add trusted spenders
+     * @dev FIREWALL: Overrides the internal allowance spending mechanism.
+     * This is the core security feature that prevents the SuperPaymaster from using
+     * its infinite allowance with standard `transferFrom`.
      */
+    function _spendAllowance(address owner, address spender, uint256 amount) internal virtual override {
+        if (spender == SUPERPAYMASTER_ADDRESS) {
+            revert("SuperPaymaster cannot use transferFrom; must use burnFromWithOpHash()");
+        }
+        super._spendAllowance(owner, spender, amount);
+    }
+
+    /**
+     * @notice The ONLY function the SuperPaymaster can call to deduct funds.
+     * @param from The user's address to burn tokens from.
+     * @param amount The amount of tokens to burn.
+     * @param userOpHash The unique hash of the UserOperation, preventing replays.
+     */
+    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {
+        // 1. Identity Check: Only the registered SuperPaymaster can call this.
+        if (msg.sender != SUPERPAYMASTER_ADDRESS) {
+            revert Unauthorized(msg.sender);
+        }
+        
+        // 2. Replay Protection: Ensure this UserOp hasn't been processed.
+        if (usedOpHashes[userOpHash]) {
+            revert OperationAlreadyProcessed(userOpHash);
+        }
+
+        // 3. Record Hash: Mark this operation as processed immediately.
+        usedOpHashes[userOpHash] = true;
+
+        // 4. Execute Burn: Burn the tokens from the user's account.
+        // This calls the internal _burn, which does not trigger the _spendAllowance firewall.
+        _burn(from, amount);
+    }
+
+    // ====================================
+    // Admin & Setup Functions
+    // ====================================
+
+    /**
+     * @notice Sets or updates the trusted SuperPaymaster address.
+     * @dev Can only be called by the factory or the community owner.
+     */
+    function setSuperPaymasterAddress(address _spAddress) external {
+        if (msg.sender != FACTORY && msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        if (_spAddress == address(0)) {
+            revert InvalidAddress(_spAddress);
+        }
+        SUPERPAYMASTER_ADDRESS = _spAddress;
+        emit SuperPaymasterAddressUpdated(_spAddress);
+    }
+
     function addAutoApprovedSpender(address spender) external {
         if (msg.sender != communityOwner && msg.sender != FACTORY) {
             revert Unauthorized(msg.sender);
@@ -151,10 +205,6 @@ contract xPNTsToken is ERC20, ERC20Permit {
         emit AutoApprovedSpenderAdded(spender);
     }
 
-    /**
-     * @notice Remove spender from pre-authorization list
-     * @param spender Contract address to remove
-     */
     function removeAutoApprovedSpender(address spender) external {
         if (msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
@@ -164,24 +214,10 @@ contract xPNTsToken is ERC20, ERC20Permit {
         emit AutoApprovedSpenderRemoved(spender);
     }
 
-    /**
-     * @notice Check if spender is pre-authorized
-     * @param spender Address to check
-     * @return isApproved True if pre-authorized
-     */
-    function isAutoApproved(address spender) external view returns (bool isApproved) {
-        return autoApprovedSpenders[spender];
-    }
-
     // ====================================
-    // Minting & Burning
+    // Minting & Standard Burning
     // ====================================
 
-    /**
-     * @notice Mint xPNTs (only Factory or Owner)
-     * @param to Recipient address
-     * @param amount Amount to mint
-     */
     function mint(address to, uint256 amount) external {
         if (msg.sender != FACTORY && msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
@@ -189,50 +225,33 @@ contract xPNTsToken is ERC20, ERC20Permit {
         if (to == address(0)) {
             revert InvalidAddress(to);
         }
-
         _mint(to, amount);
     }
 
-    /**
-     * @notice Burn xPNTs (for converting to aPNTs)
-     * @param from Address to burn from
-     * @param amount Amount to burn
-     * @dev Automatically checks allowance (pre-auth returns max)
-     */
     function burn(address from, uint256 amount) external {
-        // If caller is not the owner, check allowance
+        // SECURITY: The SuperPaymaster is explicitly forbidden from using this function.
+        if (msg.sender == SUPERPAYMASTER_ADDRESS) {
+            revert("SuperPaymaster must use burnFromWithOpHash()");
+        }
+
         if (msg.sender != from) {
             uint256 allowed = allowance(from, msg.sender);
-
             if (allowed < amount) {
-                revert("Insufficient allowance");
+                revert("ERC20: burn amount exceeds allowance");
             }
-
-            // If not infinite allowance, decrease it
             if (allowed != type(uint256).max) {
                 _approve(from, msg.sender, allowed - amount);
             }
         }
-
         _burn(from, amount);
     }
 
-    /**
-     * @notice Burn xPNTs from caller
-     * @param amount Amount to burn
-     */
     function burn(uint256 amount) external {
         _burn(msg.sender, amount);
     }
 
-    // ====================================
-    // Admin Functions
-    // ====================================
-
-    /**
-     * @notice Update exchange rate with aPNTs (only community owner)
-     * @param newRate New exchange rate (18 decimals, e.g., 1e18 = 1:1)
-     */
+    // ... (rest of the original functions: updateExchangeRate, transferCommunityOwnership, getMetadata, etc.) ...
+    
     function updateExchangeRate(uint256 newRate) external {
         if (msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
@@ -245,10 +264,6 @@ contract xPNTsToken is ERC20, ERC20Permit {
         emit ExchangeRateUpdated(oldRate, newRate);
     }
 
-    /**
-     * @notice Transfer community ownership
-     * @param newOwner New owner address
-     */
     function transferCommunityOwnership(address newOwner) external {
         if (msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
@@ -263,18 +278,6 @@ contract xPNTsToken is ERC20, ERC20Permit {
         emit CommunityOwnerUpdated(oldOwner, newOwner);
     }
 
-    // ====================================
-    // View Functions
-    // ====================================
-
-    /**
-     * @notice Get token metadata
-     * @return _name Token name
-     * @return _symbol Token symbol
-     * @return _communityName Community name
-     * @return _communityENS Community ENS
-     * @return _communityOwner Community owner
-     */
     function getMetadata()
         external
         view
@@ -295,13 +298,6 @@ contract xPNTsToken is ERC20, ERC20Permit {
         );
     }
 
-    /**
-     * @notice Check if address needs approval
-     * @param owner Token owner
-     * @param spender Spender address
-     * @param amount Amount to spend
-     * @return needsApproval True if approve() call is needed
-     */
     function needsApproval(address owner, address spender, uint256 amount)
         external
         view

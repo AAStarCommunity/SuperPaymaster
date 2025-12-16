@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// 02_DeployGTokenStaking.s.sol
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -7,7 +8,7 @@ import "src/core/GTokenStaking.sol";
 
 contract Deploy02_GTokenStaking is Script {
     function run(address gTokenAddr) external {
-        require(gTokenAddr != address(0), "GToken address cannot be zero. Please pass it as an argument.");
+        require(gTokenAddr != address(0), "GToken address cannot be zero.");
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
@@ -15,15 +16,10 @@ contract Deploy02_GTokenStaking is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        GTokenStaking gTokenStaking = new GTokenStaking(GTOKEN_ADDR, deployer);
+        GTokenStaking gTokenStaking = new GTokenStaking(gTokenAddr, deployer);
 
         vm.stopBroadcast();
 
-        console.log("✅ GTokenStaking deployed to:", address(gTokenStaking));
-    }
-}
-opBroadcast();
-
-        console.log("✅ GTokenStaking deployed to:", address(gTokenStaking));
+        console.log("GTokenStaking deployed to:", address(gTokenStaking));
     }
 }

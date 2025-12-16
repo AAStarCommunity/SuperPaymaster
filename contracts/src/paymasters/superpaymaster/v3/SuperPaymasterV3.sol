@@ -9,6 +9,13 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistryV3.sol";
 
 /**
+ * @dev Interface for the securely-upgraded xPNTsToken.
+ */
+interface IModernXPNTsToken {
+    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
+}
+
+/**
  * @title SuperPaymasterV3
  * @notice V3 SuperPaymaster - Unified Registry based Multi-Operator Paymaster
  * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
@@ -184,14 +191,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         address operator = _extractOperator(userOp);
         
         // 2. Validate Operator Role
-        // ⚡ REGISTRY CHECK replaces V2 internal map check
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), operator)) {
             return ("", _packValidationData(true, 0, 0)); // Reject: Not registered
         }
         
         // 3. Validate User Role (Unified Verification)
-        // ⚡ REGISTRY CHECK replaces V2 DEFAULT_SBT check. 
-        // User must be ENDUSER role in Registry.
         if (!REGISTRY.hasRole(keccak256("ENDUSER"), userOp.sender)) {
              return ("", _packValidationData(true, 0, 0)); // Reject: User not verified
         }
@@ -200,43 +204,37 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         if (!config.isConfigured) {
              return ("", _packValidationData(true, 0, 0)); // Reject: Not configured
         }
-        if (config.isConfigured == false) { // Redundant check but explicitly clear
-             // ...
-        }
 
         // 4. Billing Logic
-        // Calculate aPNTs cost (based on Oracle)
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         
-        // Check Operator Balance
         if (config.aPNTsBalance < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0)); // Reject: Insufficient aPNTs
         }
 
-        // Calculate User xPNTs Cost (Apply Exchange Rate)
-        // xPNTs = aPNTs * Rate / 1e18
         uint256 xPNTsAmount = (aPNTsAmount * config.exchangeRate) / 1e18;
 
         // 5. Effects (Optimistic & Batch)
-        // ⚡ CEI Pattern: Update State First
         config.aPNTsBalance -= aPNTsAmount;
         config.totalSpent += aPNTsAmount;
         config.totalTxSponsored++;
 
         emit TransactionSponsored(operator, userOp.sender, aPNTsAmount, xPNTsAmount);
 
-        // 6. Interactions: Charge User xPNTs -> Treasury
-        // Note: Contract must be approved by user for xPNTsToken
-        // Split Fee: 2% to Protocol, rest to Operator Treasury
-        uint256 protocolFee = (xPNTsAmount * SERVICE_FEE_BPS) / BPS_DENOMINATOR;
-        uint256 operatorAmount = xPNTsAmount - protocolFee;
+        // 6. Interactions: Charge User xPNTs via Secure Hash-Locked Burn
+        // This is the new, secure way to charge the user. It calls the special
+        // function in the xPNTsToken which verifies the userOpHash.
+        IModernXPNTsToken(config.xPNTsToken).burnFromWithOpHash(userOp.sender, xPNTsAmount, userOpHash);
 
-        if (protocolFee > 0) {
-            IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, SUPER_PAYMASTER_TREASURY, protocolFee);
-        }
-        if (operatorAmount > 0) {
-            IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, config.treasury, operatorAmount);
-        }
+        // The old, insecure transferFrom calls are now disabled at the token level.
+        // uint256 protocolFee = (xPNTsAmount * SERVICE_FEE_BPS) / BPS_DENOMINATOR;
+        // uint256 operatorAmount = xPNTsAmount - protocolFee;
+        // if (protocolFee > 0) {
+        //     IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, SUPER_PAYMASTER_TREASURY, protocolFee);
+        // }
+        // if (operatorAmount > 0) {
+        //     IERC20(config.xPNTsToken).safeTransferFrom(userOp.sender, config.treasury, operatorAmount);
+        // }
 
         return ("", 0);
     }
@@ -263,7 +261,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     function _calculateAPNTsAmount(uint256 gasCostWei) internal returns (uint256) {
         int256 ethUsdPrice;
         
-        // ⚡ GAS OPTIMIZATION: Cache Pricing
         if (block.timestamp - cachedPrice.updatedAt <= PRICE_CACHE_DURATION && cachedPrice.price > 0) {
             ethUsdPrice = cachedPrice.price;
         } else {
@@ -286,7 +283,5 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         return (usdValue * 1e18) / aPNTsPriceUSD;
     }
 
-    function _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter) internal pure returns (uint256) {
-        return (sigFailed ? 1 : 0) | (uint256(validUntil) << 160) | (uint256(validAfter) << (160 + 48));
-    }
+    
 }

@@ -43,7 +43,7 @@ contract xPNTsFactory is Ownable {
     // ====================================
 
     /// @notice SuperPaymaster contract address
-    address public immutable SUPERPAYMASTER;
+    address public SUPERPAYMASTER;
 
     /// @notice Registry contract address
     address public immutable REGISTRY;

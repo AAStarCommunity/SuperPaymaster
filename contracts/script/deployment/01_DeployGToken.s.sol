@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// 01_DeployGToken.s.sol
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -18,6 +19,6 @@ contract Deploy01_GToken is Script {
         
         vm.stopBroadcast();
         
-        console.log("✅ GToken deployed to:", address(gToken));
+        console.log("GToken deployed to:", address(gToken));
     }
 }

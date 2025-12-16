@@ -18,19 +18,11 @@ contract Deploy07_WireUpContracts is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        MySBT(MYSBT_ADDR).setRegistry(REGISTRY_ADDR);
-        GTokenStaking(GTOKEN_STAKING_ADDR).setRegistry(REGISTRY_ADDR);
-
-        vm.stopBroadcast();
-
-        console.log("✅ Contracts wired up successfully.");
-    }
-}
-     MySBT(mySBTAddr).setRegistry(registryAddr);
+        MySBT(mySBTAddr).setRegistry(registryAddr);
         GTokenStaking(gTokenStakingAddr).setRegistry(registryAddr);
 
         vm.stopBroadcast();
 
-        console.log("✅ Contracts wired up successfully.");
+        console.log("Contracts wired up successfully.");
     }
 }

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
+// 09_MintInitialTokens.s.sol
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/tokens/GToken.sol";
-import "contracts/script/deployment/05_DeployMockAPNTs.s.sol"; // To get MockERC20 contract
+import "src/tokens/xPNTsToken.sol";
 
-contract Deploy08_MintInitialTokens is Script {
-    function run(address gTokenAddr, address aPNTsAddr) external {
+contract Deploy09_MintInitialTokens is Script {
+    function run(address gTokenAddr, address apntsTokenAddr) external {
         require(gTokenAddr != address(0), "GToken address cannot be zero.");
-        require(aPNTsAddr != address(0), "aPNTs address cannot be zero.");
+        require(apntsTokenAddr != address(0), "aPNTs address cannot be zero.");
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
@@ -18,7 +19,8 @@ contract Deploy08_MintInitialTokens is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         GToken(gTokenAddr).mint(deployer, 1_000_000 * 1e18);
-        MockERC20(aPNTsAddr).mint(deployer, 1_000_000 * 1e18);
+        // The mock aPNTs token is an xPNTsToken, which has a restricted mint function
+        xPNTsToken(apntsTokenAddr).mint(deployer, 1_000_000 * 1e18);
 
         vm.stopBroadcast();
 
