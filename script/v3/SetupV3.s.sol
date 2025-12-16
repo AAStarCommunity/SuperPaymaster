@@ -10,7 +10,7 @@ import "src/tokens/xPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 import "src/paymasters/v4/PaymasterV4_1i.sol";
-import "src/paymasters/v2/core/PaymasterFactory.sol";
+import "src/paymasters/v4/core/PaymasterFactory.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // Minimal Mock Price Feed

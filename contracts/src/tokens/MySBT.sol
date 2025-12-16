@@ -132,7 +132,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     address public immutable GTOKEN;
     address public immutable GTOKEN_STAKING;
-    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
+    
 
     address public REGISTRY;
     address public daoMultisig;
