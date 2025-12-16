@@ -183,7 +183,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         address _r,
         address _d
     ) ERC721("Mycelium Soul Bound Token", "MySBT") {
-        require(_g != address(0) && _s != address(0) && _r != address(0) && _d != address(0));
+        require(_g != address(0) && _s != address(0) && _d != address(0));
         GTOKEN = _g;
         GTOKEN_STAKING = _s;
         REGISTRY = _r;
