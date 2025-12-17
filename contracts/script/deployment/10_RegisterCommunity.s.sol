@@ -32,14 +32,15 @@ contract Deploy10_RegisterCommunity is Script {
         console.log("Registering Deployer as a Community with account:", deployer);
 
         // The minimum stake for a community is defined in the Registry contract.
-        // We will use that amount. Let's assume it's 10 GToken.
-        uint256 stakeAmount = 11 * 1e18;
+        // We will approve a large amount to cover any logic (stake + fees).
+        uint256 stakeAmount = 11 * 1e18; // Actual stake needed
+        uint256 approveAmount = 100000 * 1e18; // Large approval as requested
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // 1. Approve the GTokenStaking contract to spend our GToken for the stake
-        GToken(gTokenAddr).approve(gTokenStakingAddr, stakeAmount);
-        console.log("Approved GTokenStaking to spend", stakeAmount / 1e18, "GToken.");
+        // 1. Approve the GTokenStaking contract to spend our GToken
+        GToken(gTokenAddr).approve(gTokenStakingAddr, approveAmount);
+        console.log("Approved GTokenStaking to spend", approveAmount / 1e18, "GToken.");
 
         // 2. Prepare the community data
         CommunityRoleData memory communityData = CommunityRoleData({
