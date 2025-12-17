@@ -33,7 +33,7 @@ contract Deploy10_RegisterCommunity is Script {
 
         // The minimum stake for a community is defined in the Registry contract.
         // We will use that amount. Let's assume it's 10 GToken.
-        uint256 stakeAmount = 10 * 1e18;
+        uint256 stakeAmount = 11 * 1e18;
 
         vm.startBroadcast(deployerPrivateKey);
 
