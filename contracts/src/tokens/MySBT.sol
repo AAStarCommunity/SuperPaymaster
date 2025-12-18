@@ -23,7 +23,7 @@ interface IRegistryLegacy {
 }
 
 interface IGTokenStaking {
-    function unlockStake(address user, uint256 amount) external returns (uint256);
+    function unlockAndTransfer(address user, bytes32 roleId) external returns (uint256);
 }
 
 /**
@@ -195,11 +195,11 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
 
     function version() external pure override returns (uint256) {
-        return 2004005; // v2.4.5: 2 * 1000000 + 4 * 1000 + 5
+        return 3001000; // v3.1.0
     }
 
     function versionString() external pure override returns (string memory) {
-        return "v2.4.5";
+        return "v3.1.0";
     }
 
     // ====================================
@@ -388,14 +388,22 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             isNew = false;
 
             address community = abi.decode(roleData, (address));
-
-            // Check if membership exists
-            uint256 idx = membershipIndex[tid][community];
-            require(idx >= _m[tid].length || _m[tid][idx].community != community, "Already member");
-
             string memory meta = "";
             if (roleData.length > 32) {
                 (, meta) = abi.decode(roleData, (address, string));
+            }
+
+            // Check if membership exists
+            uint256 idx = membershipIndex[tid][community];
+            if (idx < _m[tid].length && _m[tid][idx].community == community) {
+                if (_m[tid][idx].isActive) {
+                    return (tid, false); // Already an active member, nothing to do
+                }
+                // Reactivate membership
+                _m[tid][idx].isActive = true;
+                _m[tid][idx].joinedAt = block.timestamp;
+                emit MembershipAdded(tid, community, meta, block.timestamp);
+                return (tid, false);
             }
 
             // Add new membership
@@ -424,7 +432,9 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         }
         delete userToSBT[u];
         _burn(tid);
-        net = IGTokenStaking(GTOKEN_STAKING).unlockStake(u, minLockAmount);
+        // V3 fix: call unlockAndTransfer instead of unlockStake
+        // Using keccak256("COMMUNITY") as a default role for manual burning
+        net = IGTokenStaking(GTOKEN_STAKING).unlockAndTransfer(u, keccak256("COMMUNITY"));
         emit SBTBurned(u, tid, minLockAmount, net, block.timestamp);
     }
 
