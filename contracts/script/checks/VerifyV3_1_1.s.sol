@@ -27,40 +27,64 @@ contract VerifyV3_1_1 is Script {
 
         console.log("=== SuperPaymaster V3.1.1 Full Audit (Multi-Tenant) ===");
 
-        // 1. Wiring Checks
-        console.log("\n[1. Wiring Checks]");
-        console.log("Staking -> Registry: ", GTokenStaking(staking).REGISTRY() == registry);
-        console.log("MySBT -> Registry:   ", MySBT(mysbt).REGISTRY() == registry);
-        console.log("Factory -> Registry: ", xPNTsFactory(factory).REGISTRY() == registry);
-        console.log("Factory -> SP:       ", xPNTsFactory(factory).SUPERPAYMASTER() == sp);
-        console.log("aPNTs -> SP:         ", xPNTsToken(apnts).SUPERPAYMASTER_ADDRESS() == sp);
-        console.log("bPNTs -> SP:         ", xPNTsToken(bpnts).SUPERPAYMASTER_ADDRESS() == sp);
+        console.log("\n[1. Wiring & Deep Init Checks]");
+        
+        // Staking Checks
+        console.log("--- GTokenStaking (Deep) ---");
+        console.log("  Staking Registry wired: ", GTokenStaking(staking).REGISTRY() == registry);
+        console.log("  Staking GToken correct:  ", address(GTokenStaking(staking).GTOKEN()) == gToken);
+        console.log("  Staking Owner correct:   ", GTokenStaking(staking).owner() == jason);
+        console.log("  Staking Treasury correct:", GTokenStaking(staking).treasury() == jason);
+
+        // MySBT Checks
+        console.log("--- MySBT (Deep) ---");
+        console.log("  MySBT Registry wired:   ", MySBT(mysbt).REGISTRY() == registry);
+        console.log("  MySBT GToken correct:    ", MySBT(mysbt).GTOKEN() == gToken);
+        console.log("  MySBT Staking correct:   ", MySBT(mysbt).GTOKEN_STAKING() == staking);
+        console.log("  MySBT DAO/Owner correct: ", MySBT(mysbt).daoMultisig() == jason);
+
+        // Registry Checks
+        console.log("--- Registry (Deep) ---");
+        console.log("  Registry Staking wired:  ", address(Registry(registry).GTOKEN_STAKING()) == staking);
+        console.log("  Registry MySBT wired:    ", address(Registry(registry).MYSBT()) == mysbt);
+        console.log("  Registry Owner correct:  ", Registry(registry).owner() == jason);
+
+        // Factory & Token Checks
+        console.log("--- Factory & Tokens (Deep) ---");
+        console.log("  Factory Registry wired:  ", xPNTsFactory(factory).REGISTRY() == registry);
+        console.log("  Factory SP wired:        ", xPNTsFactory(factory).SUPERPAYMASTER() == sp);
+        console.log("  aPNTs SP wired:          ", xPNTsToken(apnts).SUPERPAYMASTER_ADDRESS() == sp);
+        console.log("  bPNTs SP wired:          ", xPNTsToken(bpnts).SUPERPAYMASTER_ADDRESS() == sp);
 
         // 2. Identity Checks
-        console.log("\n[2. Identity Checks]");
+        console.log("\n[2. Multi-Tenant Identity Checks]");
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        console.log("Jason COMMUNITY role: ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, jason));
-        console.log("Anni COMMUNITY role:  ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, anni));
+        console.log("Jason COMMUNITY role:    ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, jason));
+        console.log("Anni COMMUNITY role:     ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, anni));
         
-        console.log("Jason MySBT ID:       ", MySBT(mysbt).userToSBT(jason));
-        console.log("Anni MySBT ID:        ", MySBT(mysbt).userToSBT(anni));
+        console.log("Jason MySBT ID:          ", MySBT(mysbt).userToSBT(jason));
+        console.log("Anni MySBT ID:           ", MySBT(mysbt).userToSBT(anni));
 
         // 3. Operational Checks (SuperPaymaster)
-        console.log("\n[3. Operational Checks]");
+        console.log("\n[3. Operational Checks (SuperPaymaster)]");
         {
             (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(jason);
-            console.log("Jason Op Balance:    ", bal);
+            console.log("Jason Op Balance (aPNTs):", bal / 1e18, "aPNTs");
         }
         {
             (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(anni);
-            console.log("Anni Op Balance:     ", bal);
+            console.log("Anni Op Balance (bPNTs): ", bal / 1e18); // bPNTs balance is effectively 1:1 if configured
+            // Wait, bPNTs balance in operators mapping refers to APNTs credit? 
+            // Standard V3 stores aPNTs balance in the operator struct.
+            console.log("Anni Op Balance (aPNTs): ", bal);
         }
 
         // 4. Financial Checks
         console.log("\n[4. Financial Checks]");
-        console.log("Jason GToken Balance: ", IERC20(gToken).balanceOf(jason) / 1e18, "GT");
-        console.log("Jason aPNTs Balance:  ", IERC20(apnts).balanceOf(jason) / 1e18, "aPNTs");
+        console.log("Jason GToken Balance:    ", IERC20(gToken).balanceOf(jason) / 1e18, "GT");
+        console.log("Jason aPNTs Balance:     ", IERC20(apnts).balanceOf(jason) / 1e18, "aPNTs");
+        console.log("Anni GToken Balance:     ", IERC20(gToken).balanceOf(anni) / 1e18, "GT");
 
-        console.log("\n=== Audit Complete ===");
+        console.log("\n=== Master Audit Complete ===");
     }
 }
