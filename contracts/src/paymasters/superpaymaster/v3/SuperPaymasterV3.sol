@@ -520,6 +520,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // 5. Effects (Optimistic & Batch)
         config.aPNTsBalance -= aPNTsAmount;
         config.totalSpent += aPNTsAmount;
+        protocolRevenue += aPNTsAmount;
         config.totalTxSponsored++;
 
         emit TransactionSponsored(operator, userOp.sender, aPNTsAmount, xPNTsAmount);
@@ -658,7 +659,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
         uint256 priceUint = uint256(ethUsdPrice);
         uint8 decimals = cachedPrice.decimals;
-        uint256 usdValue = (gasCostWei * priceUint * (10**(18 - decimals)));
+        uint256 usdValue = (gasCostWei * priceUint * (10**(18 - decimals))) / 1e18;
 
         // To get aPNTs (18 decimals), we take usdValue (36 decimals) and divide by aPNTs price (18 decimals)
         return usdValue / aPNTsPriceUSD;

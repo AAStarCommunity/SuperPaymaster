@@ -7,6 +7,8 @@ import "../../../../src/tokens/xPNTsToken.sol";
 import "../../../../src/interfaces/v3/IRegistryV3.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 
 // Mock Contracts
 // Mock Contracts
@@ -35,9 +37,18 @@ contract MockRegistry is IRegistryV3 {
     function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
     
-    // V3.1 Mock
+    // V3.1 Mock Logic
+    mapping(address => uint256) public creditLimits;
+    
+    function setCreditForUser(address user, uint256 limit) external {
+        creditLimits[user] = limit;
+    }
+
     function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 0.1 ether; } // Default User has credit
+    
+    function getCreditLimit(address user) external view override returns (uint256) { 
+        return creditLimits[user]; 
+    }
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {
@@ -96,6 +107,9 @@ contract SuperPaymasterV3Test is Test {
         
         entryPoint = new MockEntryPoint();
         registry = new MockRegistry();
+        registry.grantRole(COMMUNITY_ROLE, operator);
+        registry.grantRole(ENDUSER_ROLE, user);
+        
         priceFeed = new MockAggregatorV3(2000 * 1e8, 8); // $2000 ETH
         
         // Deploy Token
@@ -277,5 +291,94 @@ contract SuperPaymasterV3Test is Test {
         paymaster.withdrawProtocolRevenue(treasury, revenue);
         assertEq(apnts.balanceOf(treasury), treasuryBalBefore + revenue);
         vm.stopPrank();
+    }
+
+
+    // ====================================
+    // V3.1 Refactor Tests
+    // ====================================
+
+    function _setupV3Env() internal {
+        vm.startPrank(operator);
+        paymaster.configureOperator(address(apnts), treasury, 1e18);
+        apnts.transfer(address(paymaster), 100 ether);
+        paymaster.notifyDeposit(100 ether);
+        vm.stopPrank();
+    }
+
+    function test_V31_CreditPayment_Success() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 10 ether);
+        
+        PackedUserOperation memory op = _createOp(user);
+        bytes32 opHash = keccak256("test_hash");
+
+        vm.startPrank(address(entryPoint));
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
+        vm.stopPrank();
+
+        assertEq(validationData, 0, "Validation should pass via Credit");
+        (address token, uint256 xAmount, , ) = abi.decode(context, (address, uint256, address, uint256));
+        assertEq(token, address(apnts));
+        assertGt(xAmount, 0);
+    }
+
+    function _createOp(address sender) internal view returns (PackedUserOperation memory) {
+        return PackedUserOperation({
+            sender: sender,
+            nonce: 0,
+            initCode: "",
+            callData: "",
+            accountGasLimits: bytes32(abi.encodePacked(uint128(100000), uint128(100000))),
+            preVerificationGas: 21000,
+            gasFees: bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei))),
+            paymasterAndData: abi.encodePacked(
+                address(paymaster),
+                uint128(100000), // gasLimit
+                uint128(0),      // postOpGas
+                operator         // PaymasterData: Operator (Packed 20 bytes)
+            ),
+            signature: ""
+        });
+    }
+
+    function test_V31_DebtRecording_OnBurnFail() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 10 ether);
+        
+        PackedUserOperation memory op = _createOp(user);
+        bytes32 opHash = keccak256("test_hash");
+        
+        vm.prank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
+        
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
+        
+        uint256 debt = paymaster.userDebts(user);
+        assertGt(debt, 0, "Debt should be recorded");
+    }
+
+    function test_V31_InsufficientCredit_Revert() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 0);
+        
+        vm.prank(user);
+        apnts.transfer(address(0xdead), apnts.balanceOf(user));
+
+        PackedUserOperation memory op = _createOp(user);
+        
+        vm.prank(address(entryPoint));
+        vm.expectRevert(); 
+        paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
+    }
+
+    function test_V31_ReputationEvent() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 10 ether);
+        PackedUserOperation memory op = _createOp(user);
+        
+        vm.prank(address(entryPoint));
+        paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
     }
 }
