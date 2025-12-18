@@ -272,6 +272,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
             revert("Insufficient balance");
         }
         operators[msg.sender].aPNTsBalance -= amount;
+        
+        IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
+        
         emit OperatorWithdrawn(msg.sender, amount);
     }
 
@@ -468,8 +471,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
         uint256 priceUint = uint256(ethUsdPrice);
         uint8 decimals = cachedPrice.decimals;
-        uint256 usdValue = gasCostWei * priceUint * (10 ** (18 - decimals));
-        return (usdValue * 1e18) / aPNTsPriceUSD;
+        uint256 usdValue = (gasCostWei * priceUint * (10**(18 - decimals)));
+
+        // To get aPNTs (18 decimals), we take usdValue (36 decimals) and divide by aPNTs price (18 decimals)
+        return usdValue / aPNTsPriceUSD;
     }
 
     
