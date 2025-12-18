@@ -16,6 +16,13 @@ interface IModernXPNTsToken {
 }
 
 /**
+ * @dev Interface for ERC1363Receiver for push-based deposits
+ */
+interface IERC1363Receiver {
+    function onTransferReceived(address operator, address from, uint256 value, bytes calldata data) external returns (bytes4);
+}
+
+/**
  * @title SuperPaymasterV3
  * @notice V3 SuperPaymaster - Unified Registry based Multi-Operator Paymaster
  * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
@@ -77,7 +84,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // ====================================
 
     IRegistryV3 public immutable REGISTRY;
-    address public immutable APNTS_TOKEN;            // aPNTs (AAStar Token)
+    address public APNTS_TOKEN;            // aPNTs (AAStar Token) - Mutable to allow updates
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
     address public immutable SUPER_PAYMASTER_TREASURY; // Protocol Treasury for fees
 
@@ -104,6 +111,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     event OperatorWithdrawn(address indexed operator, uint256 amount);
     event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
+    event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
 
     // ====================================
     // Constructor
@@ -152,16 +160,78 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     }
 
     /**
+     * @notice Set the APNTS Token address (Owner Only)
+     */
+    function setAPNTsToken(address newAPNTsToken) external onlyOwner {
+        require(newAPNTsToken != address(0), "Invalid address");
+        address oldToken = APNTS_TOKEN;
+        APNTS_TOKEN = newAPNTsToken;
+        emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+    }
+
+    /**
      * @notice Deposit aPNTs
+     */
+    /**
+     * @notice Deposit aPNTs (Legacy Pull Mode)
+     * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert("Operator not registered");
         }
         
+        // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         operators[msg.sender].aPNTsBalance += amount;
         
+        emit OperatorDeposited(msg.sender, amount);
+    }
+
+    /**
+     * @notice Handle ERC1363 transferAndCall (Push Mode)
+     * @dev Safe deposit mechanism for tokens blocking transferFrom
+     */
+    function onTransferReceived(address, address from, uint256 value, bytes calldata) external returns (bytes4) {
+        require(msg.sender == APNTS_TOKEN, "Only APNTS_TOKEN");
+
+        // Ensure operator is registered
+        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), from)) {
+             revert("Operator not registered");
+        }
+
+        operators[from].aPNTsBalance += value;
+        // Update tracked balance to keep sync with manual transfers
+        totalTrackedBalance += value;
+        
+        emit OperatorDeposited(from, value);
+
+        return this.onTransferReceived.selector;
+    }
+
+    // Track total balance for notifyDeposit pattern
+    uint256 public totalTrackedBalance;
+
+    /**
+     * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
+     * @dev Fallback for tokens that don't support ERC1363.
+     *      User must transfer tokens first, then call this.
+     */
+    function notifyDeposit(uint256 amount) external nonReentrant {
+        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
+            revert("Operator not registered");
+        }
+
+        uint256 currentBalance = IERC20(APNTS_TOKEN).balanceOf(address(this));
+        uint256 untracked = currentBalance - totalTrackedBalance;
+        
+        if (amount > untracked) {
+            revert("Deposit not verified");
+        }
+
+        operators[msg.sender].aPNTsBalance += amount;
+        totalTrackedBalance += amount;
+
         emit OperatorDeposited(msg.sender, amount);
     }
 
@@ -253,9 +323,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // ====================================
 
     function _extractOperator(PackedUserOperation calldata userOp) internal pure returns (address) {
-        // paymasterAndData: [paymaster(20)] [operator(20)]
-        if (userOp.paymasterAndData.length < 40) return address(0);
-        return address(bytes20(userOp.paymasterAndData[20:40]));
+        // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)]
+        // Fix: Read from offset 52 (standard ERC-4337 v0.7 layout)
+        if (userOp.paymasterAndData.length < 72) return address(0);
+        return address(bytes20(userOp.paymasterAndData[52:72]));
     }
 
     function _calculateAPNTsAmount(uint256 gasCostWei) internal returns (uint256) {
