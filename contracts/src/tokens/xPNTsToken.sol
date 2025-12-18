@@ -4,6 +4,10 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
+interface IERC1363Receiver {
+    function onTransferReceived(address operator, address from, uint256 value, bytes calldata data) external returns (bytes4);
+}
+
 /**
  * @title xPNTsToken
  * @notice Community points token with pre-authorization mechanism
@@ -95,6 +99,38 @@ contract xPNTsToken is ERC20, ERC20Permit {
      * @param _communityENS Community ENS domain
      * @param _exchangeRate Exchange rate with aPNTs (18 decimals, 0 = default 1:1)
      */
+    // ====================================
+    // IERC1363 Support (Push-based transfers)
+    // ====================================
+
+    /**
+     * @notice Transfer tokens to a contract and call onTransferReceived
+     */
+    function transferAndCall(address to, uint256 amount) external returns (bool) {
+        return transferAndCall(to, amount, "");
+    }
+
+    /**
+     * @notice Transfer tokens to a contract and call onTransferReceived with data
+     */
+    function transferAndCall(address to, uint256 amount, bytes memory data) public returns (bool) {
+        transfer(to, amount);
+        require(_checkOnTransferReceived(msg.sender, to, amount, data), "ERC1363: transfer to non-receiver");
+        return true;
+    }
+
+    /**
+     * @dev Internal function to invoke onTransferReceived on a target address.
+     */
+    function _checkOnTransferReceived(address from, address to, uint256 amount, bytes memory data) internal returns (bool) {
+        if (to.code.length == 0) return true;
+        try IERC1363Receiver(to).onTransferReceived(msg.sender, from, amount, data) returns (bytes4 retval) {
+            return retval == IERC1363Receiver.onTransferReceived.selector;
+        } catch {
+            return false;
+        }
+    }
+
     constructor(
         string memory name,
         string memory symbol,

@@ -1152,6 +1152,42 @@ console.log(SEPOLIA_ADDRESSES.REGISTRY);
 console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 ```
 
+```mermaid
+graph TD
+    subgraph "Governance (Step 1-2)"
+        GToken["GToken (ERC20)"]
+        Staking["GTokenStaking (Locker)"]
+    end
+
+    subgraph "Identity (Step 3-4)"
+        Registry["Registry V3.1 (Brain)"]
+        MySBT["MySBT (Identity)"]
+    end
+
+    subgraph "Payment System (Step 5-7)"
+        SP["SuperPaymaster V3.1 (Muscle)"]
+        Factory["xPNTsFactory"]
+        APNTS["aPNTs (Mock Token)"]
+    end
+
+    %% Dependencies during Initialization/Wiring (Step 8)
+    Staking -- "setRegistry" --> Registry
+    MySBT -- "setRegistry" --> Registry
+    Registry -- "Immutable" --> Staking
+    Registry -- "Immutable" --> MySBT
+    
+    Factory -- "setSuperPaymaster" --> SP
+    APNTS -- "setSuperPaymaster" --> SP
+    SP -- "Immutable" --> Registry
+    SP -- "Query Credit/Rep" --> Registry
+
+    %% Runtime Flow
+    UserOp["UserOperation"] -- "Validate" --> SP
+    SP -- "1. Check Credit/Burn" --> APNTS
+    SP -- "2. Record Debt (if fail)" --> Registry
+    DVT["DVT Validators"] -- "Batch Update Rep" --> Registry
+```
+
 ### 主网
 
 安全审计后即将推出。
