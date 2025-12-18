@@ -10,6 +10,8 @@ import {xPNTsToken} from "src/tokens/xPNTsToken.sol";
 import {SuperPaymasterV3} from "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 import {IRegistryV3} from "src/interfaces/v3/IRegistryV3.sol";
 import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import {PaymasterV4_1} from "src/paymasters/v4/PaymasterV4_1.sol";
+import {ISuperPaymasterRegistry} from "src/interfaces/ISuperPaymasterRegistry.sol";
 
 contract VerifyV3_1_1 is Script {
     function run() external view {
@@ -24,6 +26,7 @@ contract VerifyV3_1_1 is Script {
         address apnts = 0x55aB6Ea95fE74c9116AaA634caBC2E774C90d3fa;
         address bpnts = 0xa12C8B032F6007E963F86Cd05Aa0D451879f65E2;
         address sp = 0x311E9024b38aFdD657dDf4F338a0492317DF6811;
+        address pmV4 = 0xD16224cAE2df7A6D443f7b3Ad989E16E42650CaC;
 
         console.log("=== SuperPaymaster V3.1.1 Full Audit (Multi-Tenant) ===");
 
@@ -56,6 +59,12 @@ contract VerifyV3_1_1 is Script {
         console.log("  aPNTs SP wired:          ", xPNTsToken(apnts).SUPERPAYMASTER_ADDRESS() == sp);
         console.log("  bPNTs SP wired:          ", xPNTsToken(bpnts).SUPERPAYMASTER_ADDRESS() == sp);
 
+        // Paymaster V4 Checks
+        console.log("--- Paymaster V4 AOA Mode (Deep) ---");
+        console.log("  V4 Registry wired:      ", PaymasterV4_1(payable(pmV4)).registry() == ISuperPaymasterRegistry(registry));
+        console.log("  V4 MySBT wired:         ", PaymasterV4_1(payable(pmV4)).isSBTSupported(mysbt));
+        console.log("  V4 aPNTs wired:         ", PaymasterV4_1(payable(pmV4)).isGasTokenSupported(apnts));
+
         // 2. Identity Checks
         console.log("\n[2. Multi-Tenant Identity Checks]");
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -73,9 +82,6 @@ contract VerifyV3_1_1 is Script {
         }
         {
             (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(anni);
-            console.log("Anni Op Balance (bPNTs): ", bal / 1e18); // bPNTs balance is effectively 1:1 if configured
-            // Wait, bPNTs balance in operators mapping refers to APNTs credit? 
-            // Standard V3 stores aPNTs balance in the operator struct.
             console.log("Anni Op Balance (aPNTs): ", bal);
         }
 
