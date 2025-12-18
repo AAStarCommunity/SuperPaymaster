@@ -234,8 +234,13 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         return this.onTransferReceived.selector;
     }
 
+        return this.onTransferReceived.selector;
+    }
+
     // Track total balance for notifyDeposit pattern
     uint256 public totalTrackedBalance;
+    // Track total accumulated protocol revenue (burnt aPNTs from operators)
+    uint256 public protocolRevenue;
 
     /**
      * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
@@ -268,9 +273,23 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
             revert("Insufficient balance");
         }
         operators[msg.sender].aPNTsBalance -= amount;
-        IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
-        
         emit OperatorWithdrawn(msg.sender, amount);
+    }
+
+    /**
+     * @notice Withdraw accumulated Protocol Revenue
+     * @param amount Amount of aPNTs to withdraw
+     * @param to Address to receive funds (usually treasury)
+     */
+    function withdrawProtocolRevenue(address to, uint256 amount) external onlyOwner nonReentrant {
+        if (to == address(0)) revert("Invalid address");
+        if (amount > protocolRevenue) revert("Insufficient revenue");
+        
+        protocolRevenue -= amount;
+        IERC20(APNTS_TOKEN).safeTransfer(to, amount);
+        
+        // Note: No event needed for internal transfers? Or reuse Withdrawn?
+        // Let's rely on ERC20 Transfer event.
     }
 
     // ====================================
@@ -384,6 +403,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         config.aPNTsBalance -= aPNTsAmount;
         config.totalSpent += aPNTsAmount;
         config.totalTxSponsored++;
+
+        // Accumulate revenue for the protocol
+        // Since V3 burns user xPNTs, the "profit" comes from the consuming the operator's aPNTs deposit.
+        protocolRevenue += aPNTsAmount;
 
         emit TransactionSponsored(operator, userOp.sender, aPNTsAmount, xPNTsAmount);
 
