@@ -66,10 +66,26 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         address xPNTsToken;
         address treasury;
         bool isConfigured;
+        bool isPaused;         // Added for Slash/Pause logic
         uint256 exchangeRate;
         uint256 aPNTsBalance;
         uint256 totalSpent;
         uint256 totalTxSponsored;
+        uint256 reputation;    // Restored Reputation Score
+    }
+
+    struct SlashRecord {
+        uint256 timestamp;
+        uint256 amount;        // Penalty amount (if any, e.g. aPNTs burned)
+        uint256 reputationLoss;
+        string reason;
+        SlashLevel level;
+    }
+
+    enum SlashLevel {
+        WARNING,
+        MINOR,
+        MAJOR
     }
 
     struct PriceCache {
@@ -90,6 +106,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
     // Operator Data Mapped by Address
     mapping(address => OperatorConfig) public operators;
+    
+    // Slash History
+    mapping(address => SlashRecord[]) public slashHistory;
     
     // Pricing Config
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -112,6 +131,12 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    
+    // Restored Events
+    event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
+    event ReputationUpdated(address indexed operator, uint256 newScore);
+    event OperatorPaused(address indexed operator);
+    event OperatorUnpaused(address indexed operator);
 
     // ====================================
     // Constructor
@@ -249,6 +274,73 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     }
 
     // ====================================
+    // Reputation & Slash Management (Restored)
+    // ====================================
+
+    /**
+     * @notice Slash an operator (Admin/Governance only)
+     * @dev Reduces reputation and optionally pauses operator
+     */
+    function slashOperator(address operator, SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
+        OperatorConfig storage config = operators[operator];
+        
+        uint256 reputationLoss = 0;
+        if (level == SlashLevel.WARNING) {
+            reputationLoss = 10;
+        } else if (level == SlashLevel.MINOR) {
+            reputationLoss = 20;
+        } else if (level == SlashLevel.MAJOR) {
+            reputationLoss = 50;
+            config.isPaused = true;
+            emit OperatorPaused(operator);
+        }
+
+        // Apply Reputation Loss
+        if (config.reputation > reputationLoss) {
+            config.reputation -= reputationLoss;
+        } else {
+            config.reputation = 0;
+        }
+
+        // Apply Financial Penalty (Burn aPNTs)
+        if (penaltyAmount > 0) {
+            if (config.aPNTsBalance >= penaltyAmount) {
+                config.aPNTsBalance -= penaltyAmount;
+            } else {
+                config.aPNTsBalance = 0;
+            }
+        }
+
+        slashHistory[operator].push(SlashRecord({
+            timestamp: block.timestamp,
+            amount: penaltyAmount,
+            reputationLoss: reputationLoss,
+            reason: reason,
+            level: level
+        }));
+
+        emit OperatorSlashed(operator, penaltyAmount, level);
+        emit ReputationUpdated(operator, config.reputation);
+    }
+
+    /**
+     * @notice Update Operator Reputation (External Credit Manager)
+     */
+    function updateReputation(address operator, uint256 newScore) external onlyOwner {
+        operators[operator].reputation = newScore;
+        emit ReputationUpdated(operator, newScore);
+    }
+
+    function setOperatorPause(address operator, bool paused) external onlyOwner {
+        operators[operator].isPaused = paused;
+        if (paused) {
+            emit OperatorPaused(operator);
+        } else {
+            emit OperatorUnpaused(operator);
+        }
+    }
+
+    // ====================================
     // Paymaster Implementation
     // ====================================
 
@@ -273,6 +365,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         OperatorConfig storage config = operators[operator];
         if (!config.isConfigured) {
              return ("", _packValidationData(true, 0, 0)); // Reject: Not configured
+        }
+        
+        if (config.isPaused) {
+             return ("", _packValidationData(true, 0, 0)); // Reject: Operator Paused
         }
 
         // 4. Billing Logic
