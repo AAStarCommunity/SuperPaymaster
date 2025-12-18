@@ -234,8 +234,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         return this.onTransferReceived.selector;
     }
 
-        return this.onTransferReceived.selector;
-    }
+
 
     // Track total balance for notifyDeposit pattern
     uint256 public totalTrackedBalance;
