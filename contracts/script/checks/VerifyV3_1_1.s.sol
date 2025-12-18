@@ -13,7 +13,8 @@ import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 contract VerifyV3_1_1 is Script {
     function run() external view {
-        address deployer = 0xb5600060e6de5E11D3636731964218E53caadf0E;
+        address jason = 0xb5600060e6de5E11D3636731964218E53caadf0E;
+        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
         
         address gToken = 0x4eEF13E130fA5f2aA17089aEf2754234f49f1D49;
         address staking = 0x462037Cf25dBCD414EcEe8f93475fE6cdD8b23c2;
@@ -21,50 +22,44 @@ contract VerifyV3_1_1 is Script {
         address registry = 0xBD936920F40182f5C80F0Ee2Ffc0de6bc2Ae12c8;
         address factory = 0x52cC246cc4f4c49e2BAE98b59241b30947bA6013;
         address apnts = 0x55aB6Ea95fE74c9116AaA634caBC2E774C90d3fa;
+        address bpnts = 0xa12C8B032F6007E963F86Cd05Aa0D451879f65E2;
         address sp = 0x311E9024b38aFdD657dDf4F338a0492317DF6811;
 
-        console.log("=== SuperPaymaster V3.1.1 Full Audit ===");
+        console.log("=== SuperPaymaster V3.1.1 Full Audit (Multi-Tenant) ===");
 
         // 1. Wiring Checks
         console.log("\n[1. Wiring Checks]");
-        console.log("Staking Registry wired:", GTokenStaking(staking).REGISTRY() == registry);
-        console.log("MySBT Registry wired:  ", MySBT(mysbt).REGISTRY() == registry);
-        console.log("Factory Registry wired:", xPNTsFactory(factory).REGISTRY() == registry);
-        console.log("Factory SP wired:      ", xPNTsFactory(factory).SUPERPAYMASTER() == sp);
-        console.log("aPNTs SP wired:        ", xPNTsToken(apnts).SUPERPAYMASTER_ADDRESS() == sp);
+        console.log("Staking -> Registry: ", GTokenStaking(staking).REGISTRY() == registry);
+        console.log("MySBT -> Registry:   ", MySBT(mysbt).REGISTRY() == registry);
+        console.log("Factory -> Registry: ", xPNTsFactory(factory).REGISTRY() == registry);
+        console.log("Factory -> SP:       ", xPNTsFactory(factory).SUPERPAYMASTER() == sp);
+        console.log("aPNTs -> SP:         ", xPNTsToken(apnts).SUPERPAYMASTER_ADDRESS() == sp);
+        console.log("bPNTs -> SP:         ", xPNTsToken(bpnts).SUPERPAYMASTER_ADDRESS() == sp);
 
         // 2. Identity Checks
         console.log("\n[2. Identity Checks]");
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        bool hasCommRole = IRegistryV3(registry).hasRole(ROLE_COMMUNITY, deployer);
-        console.log("Deployer has COMMUNITY role:", hasCommRole);
+        console.log("Jason COMMUNITY role: ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, jason));
+        console.log("Anni COMMUNITY role:  ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, anni));
         
-        uint256 sbtId = MySBT(mysbt).userToSBT(deployer);
-        console.log("Deployer has MySBT Token ID:", sbtId);
+        console.log("Jason MySBT ID:       ", MySBT(mysbt).userToSBT(jason));
+        console.log("Anni MySBT ID:        ", MySBT(mysbt).userToSBT(anni));
 
-        // 3. Operational Checks
+        // 3. Operational Checks (SuperPaymaster)
         console.log("\n[3. Operational Checks]");
-        (
-            address opToken,
-            address treasury,
-            bool isConfigured,
-            bool isPaused,
-            uint256 exchangeRate,
-            uint256 balance,
-            uint256 spent,
-            uint256 sponsored,
-            uint256 reputation
-        ) = SuperPaymasterV3(sp).operators(deployer);
-        
-        console.log("Operator Configured (SP):", isConfigured);
-        console.log("Operator Token in SP:    ", opToken == apnts);
-        console.log("Operator Treasury in SP: ", treasury == deployer);
-        console.log("Operator Balance in SP:  ", balance);
+        {
+            (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(jason);
+            console.log("Jason Op Balance:    ", bal);
+        }
+        {
+            (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(anni);
+            console.log("Anni Op Balance:     ", bal);
+        }
 
         // 4. Financial Checks
         console.log("\n[4. Financial Checks]");
-        console.log("Deployer GToken Balance: ", IERC20(gToken).balanceOf(deployer) / 1e18, "GT");
-        console.log("Deployer aPNTs Balance: ", IERC20(apnts).balanceOf(deployer) / 1e18, "aPNTs");
+        console.log("Jason GToken Balance: ", IERC20(gToken).balanceOf(jason) / 1e18, "GT");
+        console.log("Jason aPNTs Balance:  ", IERC20(apnts).balanceOf(jason) / 1e18, "aPNTs");
 
         console.log("\n=== Audit Complete ===");
     }
