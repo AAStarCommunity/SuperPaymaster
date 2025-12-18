@@ -363,8 +363,7 @@ contract SuperPaymasterV3Test is Test {
         _setupV3Env();
         registry.setCreditForUser(user, 0);
         
-        vm.prank(user);
-        apnts.transfer(address(0xdead), apnts.balanceOf(user));
+        deal(address(apnts), user, 0);
 
         PackedUserOperation memory op = _createOp(user);
         
