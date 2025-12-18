@@ -137,6 +137,29 @@ interface IRegistryV3 {
     ) external returns (uint256 tokenId);
 
     // ====================================
+    // V3.1: Reputation & Credit Management
+    // ====================================
+
+    /**
+     * @notice Batch update global reputation
+     * @param users Users to update
+     * @param newScores New scores
+     * @param epoch Update epoch
+     * @param proof DVT signature proof
+     */
+    function batchUpdateGlobalReputation(
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch,
+        bytes calldata proof
+    ) external;
+
+    /**
+     * @notice Get credit limit for user based on reputation
+     * @param user User address
+     * @return Credit limit in aPNTs (18 decimals)
+     */
+    function getCreditLimit(address user) external view returns (uint256);
     // View Functions
     // ====================================
 

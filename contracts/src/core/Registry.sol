@@ -41,6 +41,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     mapping(string => address) public communityByENSV3;
     mapping(address => address) public accountToUser;
 
+    // V3.1 Credit & Reputation Storage
+    mapping(address => uint256) public globalReputation;
+    mapping(address => uint256) public lastReputationEpoch;
+    mapping(uint256 => uint256) public creditTierConfig; // Level => Credit Limit
+    mapping(address => bool) public isReputationSource;  // Trusted DVT Aggregators
+
     mapping(bytes32 => string) public proposedRoleNames;
     mapping(bytes32 => address) public roleOwners;
 
@@ -65,7 +71,17 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, true, "ANODE", regOwner);
         _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, true, "KMS", regOwner);
         _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
+        _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
         _initRole(ROLE_ENDUSER, 0, 0, 0, 0, 0, 0, true, "EndUser", regOwner);
+
+        // Initialize Credit Tiers (Default)
+        creditTierConfig[1] = 0 ether;      // Level 1: No Credit
+        creditTierConfig[2] = 0.05 ether;   // Level 2: Small Credit
+        creditTierConfig[3] = 0.1 ether;    // Level 3: Standard Credit
+        creditTierConfig[4] = 0.5 ether;    // Level 4: High Credit
+        creditTierConfig[5] = 1.0 ether;    // Level 5: Max Credit
+
+        isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
     }
 
     function _initRole(bytes32 roleId, uint256 min, uint256 burn, uint256 thresh, uint256 base, uint256 inc, uint256 max, bool active, string memory desc, address owner) internal {
@@ -146,6 +162,80 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         if (msg.sender != roleOwners[roleId]) revert("Unauthorized");
         roleConfigs[roleId] = config;
         emit RoleConfigured(roleId, config, block.timestamp);
+    }
+
+    // ====================================
+    // V3.1: Reputation & Credit Management
+    // ====================================
+
+    event GlobalReputationUpdated(address indexed user, uint256 newScore, uint256 epoch);
+    event CreditTierUpdated(uint256 level, uint256 creditLimit);
+    event ReputationSourceUpdated(address indexed source, bool isActive);
+
+    /**
+     * @notice Batch update global reputation (called by DVT Aggregator)
+     * @dev Uses Epoch to prevent replay attacks.
+     * @param users Array of users to update
+     * @param newScores Array of new reputation scores
+     * @param epoch Batch epoch/nonce
+     * @param proof BLS Aggregate Signature (Mocked for now)
+     */
+    function batchUpdateGlobalReputation(
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch,
+        bytes calldata proof
+    ) external nonReentrant {
+        // 1. Verify Caller (DVT Aggregator or Trusted Source)
+        // In fully decentralized mode, this checks if msg.sender is DVT contract
+        // or verifies 'proof' against a set of BLS public keys.
+        if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
+
+        require(users.length == newScores.length, "Length mismatch");
+
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+
+            // 2. Anti-Replay Check
+            if (epoch <= lastReputationEpoch[user]) {
+                continue; // Skip stale updates
+            }
+
+            // 3. Update State
+            globalReputation[user] = newScores[i];
+            lastReputationEpoch[user] = epoch;
+
+            emit GlobalReputationUpdated(user, newScores[i], epoch);
+        }
+    }
+
+    function setCreditTier(uint256 level, uint256 limit) external onlyOwner {
+        creditTierConfig[level] = limit;
+        emit CreditTierUpdated(level, limit);
+    }
+
+    function setReputationSource(address source, bool active) external onlyOwner {
+        isReputationSource[source] = active;
+        emit ReputationSourceUpdated(source, active);
+    }
+
+    function getCreditLimit(address user) external view returns (uint256) {
+        uint256 rep = globalReputation[user];
+        
+        // Simple mapping logic (can be optimized or moved to library)
+        // 0-10: Level 1 (0 credit)
+        // 11-50: Level 2
+        // 51-100: Level 3
+        // 101-500: Level 4
+        // >500: Level 5
+        
+        uint256 level = 1;
+        if (rep > 500) level = 5;
+        else if (rep > 100) level = 4;
+        else if (rep > 50) level = 3;
+        else if (rep > 10) level = 2;
+
+        return creditTierConfig[level];
     }
 
     function _validateAndExtractStake(bytes32 roleId, address user, bytes calldata roleData) internal view returns (uint256 stakeAmount) {

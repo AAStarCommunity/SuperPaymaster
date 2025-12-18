@@ -34,6 +34,10 @@ contract MockRegistry is IRegistryV3 {
     function registerRole(bytes32, address, bytes calldata) external override {}
     function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+    
+    // V3.1 Mock
+    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function getCreditLimit(address) external view override returns (uint256) { return 0.1 ether; } // Default User has credit
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {
