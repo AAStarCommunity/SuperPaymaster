@@ -71,7 +71,6 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, true, "ANODE", regOwner);
         _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, true, "KMS", regOwner);
         _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
-        _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
         _initRole(ROLE_ENDUSER, 0, 0, 0, 0, 0, 0, true, "EndUser", regOwner);
 
         // Initialize Credit Tiers (Default in aPNTs)

@@ -8,106 +8,83 @@ import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
-import "src/interfaces/v3/IEntryPoint.sol";
+import "src/tokens/xPNTsToken.sol";
+import "src/modules/reputation/ReputationSystemV3.sol";
+import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
  * @title DeployV3Full
- * @notice Deploys the complete V3.1 System: Registry (Upgraded), SuperPaymaster, GToken, etc.
+ * @notice Deploys the complete V3.1.1 System: Registry, SuperPaymaster, GToken, ReputationSystem, etc.
  */
 contract DeployV3Full is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
-        console.log("--- SuperPaymaster V3.1 Full System Deployment ---");
+        console.log("--- SuperPaymaster V3.1.1 Full System Deployment ---");
         console.log("Deployer:", deployer);
 
         // Env Config
-        address entryPointAddr = vm.envAddress("ENTRY_POINT_V07");
-        address priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Sepolia ETH/USD
+        address entryPointAddr = vm.envOr("ENTRY_POINT_V07", 0x0000000071727De22E5E9d8BAf0edAc6f37da032);
+        address priceFeedAddr = vm.envOr("PRICE_FEED", 0x694AA1769357215DE4FAC081bf1f309aDC325306); 
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // 1. Deploy Foundation (GToken, Staking)
-        // Check if we want to reuse existing? For "Full", let's be fresh to test V3 features cleanly.
-        // Or we can load from Env if provided. Let's Deploy FRESH for safety.
-        
-        GToken gtoken = new GToken("Governance Token", "GT", 1_000_000 * 1e18, deployer);
+        // 1. Deploy Foundation
+        GToken gtoken = new GToken(21_000_000 * 1e18);
         console.log("GToken:", address(gtoken));
 
         GTokenStaking staking = new GTokenStaking(address(gtoken), deployer);
         console.log("Staking:", address(staking));
 
-        // 2. Deploy Registry V3.1 (With Global Rep)
-        // Assuming MySBT depends on Registry, but Registry depends on MySBT?
-        // Circular dependency check:
-        // Registry constructor(gtoken, staking, mysbt)
-        // MySBT constructor(name, symbol, gtoken, staking, registry)
-        // SOLUTION: Deploy one, then the other, but constructors need addresses.
-        // Usually we pre-compute address or set later.
-        // Registry V3 constructor requires MySBT.
-        // MySBT requires Registry.
-        // Checking code... 
-        
-        // Registry code: constructor(..., _mysbt) 
-        // MySBT code: constructor(..., _registry)
-        
-        // Use CREATE2 or Pre-compute to solve this?
-        // Or deploy a "Mock" SBT first?
-        // Or update Registry to allow setting MySBT via setter?
-        // Let's check Registry code... it sets `immutable MYSBT`. This is a hard loop.
-        
-        // HACK: We will pre-compute the address of MySBT (nonce+1)
+        // 2. Circular Dependency Management (Registry <-> MySBT)
         uint256 deployerNonce = vm.getNonce(deployer);
-        address precomputedRegistry = computeCreateAddress(deployer, deployerNonce); 
-        address precomputedSBT = computeCreateAddress(deployer, deployerNonce + 1);
+        // Registry is Nonce N, MySBT is Nonce N+1
+        address precomputedSBT = vm.computeCreateAddress(deployer, deployerNonce + 1);
 
-        // Wait, if I do `new Registry` first, it uses nonce.
-        // If I pass `precomputedSBT`, it's fine.
-        // Then I do `new MySBT` and it must land on `precomputedSBT`.
-        
-        // Let's simply deploy Registry first with a placeholder, but MYSBT is immutable!
-        // We must know SBT address.
-        // OK, Pre-compute strategy:
-        // Nonce N: Registry
-        // Nonce N+1: MySBT
-        
         Registry registry = new Registry(address(gtoken), address(staking), precomputedSBT);
-        console.log("Registry (V3.1):", address(registry));
+        console.log("Registry (V3.1.1):", address(registry));
         
-        MySBT mysbt = new MySBT("MySBT", "SBT", address(gtoken), address(staking), address(registry));
-        console.log("MySBT:", address(mysbt));
+        MySBT mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+        console.log("MySBT (SBT):", address(mysbt));
         
-        require(address(mysbt) == precomputedSBT, "SBT Address Mismatch! Pre-computation failed.");
+        require(address(mysbt) == precomputedSBT, "SBT Address Mismatch!");
 
-        // 3. Deploy SuperPaymaster V3.1
-        // Needs a Token (aPNTs) to be "Global Token".
-        // Let's deploy a fresh Test Token.
-        address testToken = address(0); // TODO: Deploy a Mock Token or use existing? 
-        // For script, let's leave it 0 and set later or deploy one?
-        // Let's deploy a dummy token.
-        // ... (Skipping Token for brevity, assuming existing is fine or set to 0)
-        // Actually SuperPaymaster needs it in constructor.
-        
-        // Deploy a basic ERC20 for aPNTs
-        // Or better, reuse GToken as aPNTs for test? No, confusing.
-        // Let's use `aPNTsAddr` from env if available, else 0.
-        address aPNTsAddr = vm.envOr("APNTS_ADDRESS", address(0));
-        
+        // 3. Deploy Reputation System
+        ReputationSystemV3 repSystem = new ReputationSystemV3(address(registry));
+        console.log("ReputationSystem:", address(repSystem));
+
+        // 4. Deploy Global Token (aPNTs)
+        xPNTsToken apnts = new xPNTsToken("aPNTs", "aPNTs", deployer, "Global", "aastar.eth", 1e18);
+        console.log("aPNTs:", address(apnts));
+
+        // 5. Deploy SuperPaymaster
         SuperPaymasterV3 paymaster = new SuperPaymasterV3(
             IEntryPoint(entryPointAddr),
             deployer,
             registry,
-            aPNTsAddr,
+            address(apnts),
             priceFeedAddr,
             deployer // Treasury
         );
-        console.log("SuperPaymaster V3.1:", address(paymaster));
+        console.log("SuperPaymaster V3.1.1:", address(paymaster));
 
-        // 4. Manual Setup
-        // Set Credit Tiers? Already in constructor defaults.
-        // Set Trusted Rep Source? Deployer is set by default.
+        // 6. Wiring
+        staking.setRegistry(address(registry));
+        mysbt.setRegistry(address(registry));
+        registry.setReputationSource(address(repSystem), true);
+        apnts.setSuperPaymasterAddress(address(paymaster));
 
         vm.stopBroadcast();
+        
+        console.log("\n=== Deployment Complete ===");
+        console.log("Export these addresses to your .env:");
+        console.log("GTOKEN_ADDRESS=", address(gtoken));
+        console.log("STAKING_ADDRESS=", address(staking));
+        console.log("REGISTRY_ADDRESS=", address(registry));
+        console.log("MYSBT_ADDRESS=", address(mysbt));
+        console.log("REPUTATION_SYSTEM_ADDRESS=", address(repSystem));
+        console.log("APNTS_ADDRESS=", address(apnts));
+        console.log("SUPERPAYMASTER_ADDRESS=", address(paymaster));
     }
 }

@@ -19,7 +19,7 @@ importers:
         version: 6.15.0
     devDependencies:
       viem:
-        specifier: ^2.38.6
+        specifier: ^2.39.3
         version: 2.39.3
 
 packages:

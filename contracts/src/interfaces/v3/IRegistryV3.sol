@@ -212,4 +212,11 @@ interface IRegistryV3 {
      */
     function getRoleUserCount(bytes32 roleId) external view returns (uint256);
 
+    /**
+     * @notice Get role owner
+     * @param roleId Role identifier
+     * @return Owner address
+     */
+    function roleOwners(bytes32 roleId) external view returns (address);
+
 }
