@@ -74,12 +74,19 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
         _initRole(ROLE_ENDUSER, 0, 0, 0, 0, 0, 0, true, "EndUser", regOwner);
 
-        // Initialize Credit Tiers (Default)
-        creditTierConfig[1] = 0 ether;      // Level 1: No Credit
-        creditTierConfig[2] = 0.05 ether;   // Level 2: Small Credit
-        creditTierConfig[3] = 0.1 ether;    // Level 3: Standard Credit
-        creditTierConfig[4] = 0.5 ether;    // Level 4: High Credit
-        creditTierConfig[5] = 1.0 ether;    // Level 5: Max Credit
+        // Initialize Credit Tiers (Default in aPNTs)
+        // Level 1: Rep < 13
+        creditTierConfig[1] = 0; 
+        // Level 2: Rep 13-33 (Fib 7)
+        creditTierConfig[2] = 100 ether; 
+        // Level 3: Rep 34-88 (Fib 9)
+        creditTierConfig[3] = 300 ether;
+        // Level 4: Rep 89-232 (Fib 11) 
+        creditTierConfig[4] = 600 ether;
+        // Level 5: Rep 233-609 (Fib 13)
+        creditTierConfig[5] = 1000 ether;
+        // Level 6: Rep 610+ (Fib 15)
+        creditTierConfig[6] = 2000 ether;
 
         isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
     }
@@ -173,39 +180,42 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     event ReputationSourceUpdated(address indexed source, bool isActive);
 
     /**
-     * @notice Batch update global reputation (called by DVT Aggregator)
+     * @notice Batch update global reputation (called by DVT Aggregator or Reputation System)
      * @dev Uses Epoch to prevent replay attacks.
-     * @param users Array of users to update
-     * @param newScores Array of new reputation scores
-     * @param epoch Batch epoch/nonce
-     * @param proof BLS Aggregate Signature (Mocked for now)
+     *      Safety: Limits the maximum score change per update to prevent malicious spikes.
      */
     function batchUpdateGlobalReputation(
         address[] calldata users,
         uint256[] calldata newScores,
         uint256 epoch,
-        bytes calldata proof
+        bytes calldata /* proof */
     ) external nonReentrant {
-        // 1. Verify Caller (DVT Aggregator or Trusted Source)
-        // In fully decentralized mode, this checks if msg.sender is DVT contract
-        // or verifies 'proof' against a set of BLS public keys.
         if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
-
         require(users.length == newScores.length, "Length mismatch");
+
+        uint256 maxChange = 100; // Protocol safety limit
 
         for (uint256 i = 0; i < users.length; i++) {
             address user = users[i];
 
-            // 2. Anti-Replay Check
             if (epoch <= lastReputationEpoch[user]) {
-                continue; // Skip stale updates
+                continue;
             }
 
-            // 3. Update State
-            globalReputation[user] = newScores[i];
+            uint256 oldScore = globalReputation[user];
+            uint256 newScore = newScores[i];
+
+            // Safety check: Prevent extreme swings
+            if (newScore > oldScore) {
+                if (newScore - oldScore > maxChange) newScore = oldScore + maxChange;
+            } else if (oldScore > newScore) {
+                if (oldScore - newScore > maxChange) newScore = oldScore - maxChange;
+            }
+
+            globalReputation[user] = newScore;
             lastReputationEpoch[user] = epoch;
 
-            emit GlobalReputationUpdated(user, newScores[i], epoch);
+            emit GlobalReputationUpdated(user, newScore, epoch);
         }
     }
 
@@ -230,10 +240,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         // >500: Level 5
         
         uint256 level = 1;
-        if (rep > 500) level = 5;
-        else if (rep > 100) level = 4;
-        else if (rep > 50) level = 3;
-        else if (rep > 10) level = 2;
+        if (rep >= 610) level = 6;
+        else if (rep >= 233) level = 5;
+        else if (rep >= 89) level = 4;
+        else if (rep >= 34) level = 3;
+        else if (rep >= 13) level = 2;
 
         return creditTierConfig[level];
     }

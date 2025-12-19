@@ -7,6 +7,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistryV3.sol";
+import "../../../interfaces/IERC1363.sol";
 
 /**
  * @dev Interface for the securely-upgraded xPNTsToken.
@@ -15,12 +16,6 @@ interface IModernXPNTsToken {
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
 }
 
-/**
- * @dev Interface for ERC1363Receiver for push-based deposits
- */
-interface IERC1363Receiver {
-    function onTransferReceived(address operator, address from, uint256 value, bytes calldata data) external returns (bytes4);
-}
 
 /**
  * @title SuperPaymasterV3
@@ -35,43 +30,24 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // Structs (Optimized Layout)
     // ====================================
 
-    struct OperatorData {
-        // Slot 0 (Packed)
-        address xPNTsToken;     // Community points token
-        bool isConfigured;      // Config status
-        uint88 _reserved0;      // Reserve for fit
-        
-        // Slot 1 (Packed)
-        address treasury;       // Treasury for receiving xPNTs
-        uint96 exchangeRate;    // xPNTs <-> aPNTs rate (18 decimals). Max 7.9e10 units if 18 dec.
-                                // If exchangeRate is > 79 billion, this overflows. 
-                                // Standard 1:1 is 1e18. 
-                                // Let's use uint256 for safety on exchangeRate to avoid limits.
-        
-        // Slot 2
-        uint256 exchangeRateFull; 
-
-        // Slot 3
-        uint256 aPNTsBalance;       // Operator's aPNTs Balance (Deducted here)
-        
-        // Slot 4
-        uint256 totalSpent;
-        
-        // Slot 5
-        uint256 totalTxSponsored;
-    }
     
     // Simpler Struct (Std Layout is often efficient enough)
     struct OperatorConfig {
-        address xPNTsToken;
-        address treasury;
-        bool isConfigured;
-        bool isPaused;         // Added for Slash/Pause logic
-        uint256 exchangeRate;
+        // Slot 0: Packed
+        address xPNTsToken;     // 20 bytes
+        bool isConfigured;      // 1 byte
+        bool isPaused;          // 1 byte
+        uint80 _reserved;       // 10 bytes
+        
+        // Slot 1: Packed
+        address treasury;       // 20 bytes
+        uint96 exchangeRate;    // 12 bytes (max 7.9e10 * 1e18)
+
+        // Slot 2+
         uint256 aPNTsBalance;
         uint256 totalSpent;
         uint256 totalTxSponsored;
-        uint256 reputation;    // Restored Reputation Score
+        uint256 reputation;
     }
 
     struct SlashRecord {
@@ -127,6 +103,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // Protocol Fee (Basis Points)
     uint256 public constant SERVICE_FEE_BPS = 200; // 2%
     uint256 public constant BPS_DENOMINATOR = 10000;
+
+    address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
     // ====================================
     // Events
@@ -189,7 +167,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
         config.treasury = treasury;
-        config.exchangeRate = exchangeRate;
+        config.exchangeRate = uint96(exchangeRate);
         config.isConfigured = true;
 
         emit OperatorConfigured(msg.sender, xPNTsToken, treasury, exchangeRate);
@@ -414,6 +392,52 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Execute slash triggered by BLS consensus (DVT Module only)
+     */
+    function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {
+        require(msg.sender == BLS_AGGREGATOR, "Only BLS Aggregator");
+        
+        // Logical penalty (Warning=0, Minor=10%, Major=Full & Pause)
+        uint256 penalty = 0;
+        if (level == SlashLevel.MINOR) {
+            penalty = operators[operator].aPNTsBalance / 10;
+        } else if (level == SlashLevel.MAJOR) {
+            penalty = operators[operator].aPNTsBalance;
+        }
+
+        _slash(operator, level, penalty, "DVT BLS Slash", proof);
+    }
+
+    function _slash(address operator, SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
+        OperatorConfig storage config = operators[operator];
+        
+        uint256 reputationLoss = level == SlashLevel.WARNING ? 10 : (level == SlashLevel.MINOR ? 20 : 50);
+        if (level == SlashLevel.MAJOR) config.isPaused = true;
+
+        if (config.reputation > reputationLoss) config.reputation -= reputationLoss;
+        else config.reputation = 0;
+
+        if (penaltyAmount > 0) {
+            config.aPNTsBalance -= penaltyAmount;
+            protocolRevenue += penaltyAmount;
+        }
+
+        slashHistory[operator].push(SlashRecord({
+            timestamp: block.timestamp,
+            amount: penaltyAmount,
+            reputationLoss: reputationLoss,
+            reason: reason,
+            level: level
+        }));
+
+        emit OperatorSlashed(operator, penaltyAmount, level);
+    }
+
+    function setBLSAggregator(address _bls) external onlyOwner {
+        BLS_AGGREGATOR = _bls;
+    }
+
     // ====================================
     // Paymaster Implementation
     // ====================================
@@ -493,7 +517,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         //    - FALLBACK to V3 Original: Burn NOW in validation.
         //    - If burn fails -> Validation Reverts -> UserOp Rejected (Bundler Safe).
         
-        bool useCredit = xPNTsAmount <= availableCredit;
+        bool useCredit = aPNTsAmount <= availableCredit;
         
         if (!useCredit) {
              // Attempt Immediate Burn (V3 Legacy Mode)
@@ -613,8 +637,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // If Credit Mode: Always Record Debt first.
         // Then try to "Auto-Repay" using Burn.
         
-        userDebts[user] += xPNTsAmount;
-        emit DebtRecorded(user, xPNTsAmount);
+        userDebts[user] += aPNTsAmount;
+        emit DebtRecorded(user, aPNTsAmount);
         
         // TODO: Try to clear debt immediately if token balance exists?
         // For now, leave as Debt. User deposits will clear it.

@@ -3,10 +3,8 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "../interfaces/IERC1363.sol";
 
-interface IERC1363Receiver {
-    function onTransferReceived(address operator, address from, uint256 value, bytes calldata data) external returns (bytes4);
-}
 
 /**
  * @title xPNTsToken
