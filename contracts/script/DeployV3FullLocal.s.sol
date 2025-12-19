@@ -11,6 +11,10 @@ import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+// import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
+// SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+// address aliceAccount = accountFactory.createAccount(alice, 0);
+// console.log("Alice AA Account:", aliceAccount);
 
 // Minimal Mock for local wiring
 contract MockEntryPoint is IStakeManager {
@@ -43,7 +47,7 @@ contract DeployV3FullLocal is Script {
         address deployer = vm.addr(deployerPK);
         address alice = vm.addr(alicePK);
 
-// 0. Fund accounts heavily on local
+        // 0. Fund accounts heavily on local
         vm.deal(deployer, 1000 ether);
         vm.deal(alice, 1000 ether);
 
@@ -80,7 +84,19 @@ contract DeployV3FullLocal is Script {
             deployer
         );
 
-        // 4. Wiring
+        // 4. AA Setup (SimpleAccountFactory)
+        // 4. AA Setup (SimpleAccountFactory)
+// // 4. AA Setup (SimpleAccountFactory) - skipped for local test
+// SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+// address aliceAccount = accountFactory.createAccount(alice, 0);
+// console.log("Alice AA Account:", aliceAccount);
+
+
+        // Using alice directly as account
+        address aliceAccount = alice; // no AA factory needed
+        console.log("Alice Account (no AA):", aliceAccount);
+
+        // 5. Wiring
         staking.setRegistry(address(registry));
         mysbt.setRegistry(address(registry));
         registry.setReputationSource(address(repSystem), true);
@@ -89,7 +105,7 @@ contract DeployV3FullLocal is Script {
         // Deposit some ETH to EntryPoint for Paymaster
         IEntryPoint(entryPointAddr).depositTo{value: 10 ether}(address(paymaster));
 
-        // 5. Orchestrate Local Environment (Roles)
+        // 6. Orchestrate Local Environment (Roles)
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
         bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
 
@@ -103,9 +119,14 @@ contract DeployV3FullLocal is Script {
         );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
 
-        // Register Alice as End User
-        bytes memory aliceData = abi.encode("Alice Local Account");
-        registry.registerRole(ROLE_ENDUSER, alice, aliceData);
+                // Mint GTokens for Alice (End User) and approve staking
+        // Mint GTokens for Alice (End User) and approve staking
+// gtoken.mint(alice, 1000 ether);
+// gtoken.approve(address(staking), 1000 ether);
+
+// bytes memory aliceData = abi.encode(Registry.EndUserRoleData({account: aliceAccount, community: deployer, avatarURI: "", ensName: "", stakeAmount: 0}));
+// registry.registerRole(ROLE_ENDUSER, aliceAccount, aliceData);
+
 
         // Set an Entropy Factor for testing (0.5 resistance)
         repSystem.setEntropyFactor(deployer, 0.5 * 1e18);
@@ -120,5 +141,8 @@ contract DeployV3FullLocal is Script {
         console.log("PAYMASTER=", address(paymaster));
         console.log("APNTS=", address(apnts));
         console.log("REP_SYSTEM=", address(repSystem));
+        console.log("GTOKEN=", address(gtoken));
+        // console.log("ACCOUNT_FACTORY=", address(accountFactory)); // AccountFactory not used in local test
+        console.log("ALICE_ACCOUNT=", aliceAccount);
     }
 }
