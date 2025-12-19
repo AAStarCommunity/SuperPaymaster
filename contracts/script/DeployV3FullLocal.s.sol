@@ -11,7 +11,7 @@ import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-// import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
+import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 // SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
 // address aliceAccount = accountFactory.createAccount(alice, 0);
 // console.log("Alice AA Account:", aliceAccount);
@@ -85,16 +85,10 @@ contract DeployV3FullLocal is Script {
         );
 
         // 4. AA Setup (SimpleAccountFactory)
-        // 4. AA Setup (SimpleAccountFactory)
-// // 4. AA Setup (SimpleAccountFactory) - skipped for local test
-// SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
-// address aliceAccount = accountFactory.createAccount(alice, 0);
-// console.log("Alice AA Account:", aliceAccount);
-
-
-        // Using alice directly as account
-        address aliceAccount = alice; // no AA factory needed
-        console.log("Alice Account (no AA):", aliceAccount);
+        SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+        address aliceAccount = address(accountFactory.createAccount(alice, 0));
+        console.log("Alice AA Account:", aliceAccount);
+        vm.deal(aliceAccount, 10 ether); // Fund Alice's AA account
 
         // 5. Wiring
         staking.setRegistry(address(registry));
@@ -119,13 +113,30 @@ contract DeployV3FullLocal is Script {
         );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
 
-                // Mint GTokens for Alice (End User) and approve staking
-        // Mint GTokens for Alice (End User) and approve staking
-// gtoken.mint(alice, 1000 ether);
-// gtoken.approve(address(staking), 1000 ether);
+        // Mint GTokens for Alice (End User)
+        gtoken.mint(alice, 1000 ether);
+        
+        // --- 切换到 Alice 的环境进行授权 ---
+        vm.stopBroadcast();
+        
+        vm.startBroadcast(alicePK);
+        gtoken.approve(address(staking), 1000 ether);
+        vm.stopBroadcast();
+        
+        // --- 恢复部署者环境进行后续注册 ---
+        vm.startBroadcast(deployerPK);
 
-// bytes memory aliceData = abi.encode(Registry.EndUserRoleData({account: aliceAccount, community: deployer, avatarURI: "", ensName: "", stakeAmount: 0}));
-// registry.registerRole(ROLE_ENDUSER, aliceAccount, aliceData);
+        // Encode EndUserRoleData: LINK TO DEPLOYER AS COMMUNITY
+        bytes memory aliceData = abi.encode(Registry.EndUserRoleData({
+            account: aliceAccount, 
+            community: deployer,   // Deployer is the operator/community
+            avatarURI: "ipfs://alice", 
+            ensName: "alice.local.eth", 
+            stakeAmount: 0        // Min stake is used if 0
+        }));
+        
+        // Register AliceRole via Registry (Single Entrypoint)
+        registry.registerRole(ROLE_ENDUSER, aliceAccount, aliceData);
 
 
         // Set an Entropy Factor for testing (0.5 resistance)
