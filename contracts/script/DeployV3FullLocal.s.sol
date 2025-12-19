@@ -10,8 +10,27 @@ import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
-import "@account-abstraction-v7/core/EntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+
+// Minimal Mock for local wiring
+contract MockEntryPoint is IStakeManager {
+    function depositTo(address account) external payable {
+        // Just accept funds
+    }
+    function getUserOpHash(PackedUserOperation calldata) external view returns (bytes32) {
+        return keccak256("mock_hash");
+    }
+    function balanceOf(address account) external view returns (uint256) {
+        return 0;
+    }
+    // Implement other IStakeManager if needed
+    function getDepositInfo(address account) external view returns (DepositInfo memory info) {}
+    function balanceAt(address account, uint256 blockNumber) external view returns (uint256) {}
+    function addStake(uint32 unstakeDelaySec) external payable {}
+    function unlockStake() external {}
+    function withdrawStake(address payable withdrawAddress) external {}
+    function withdrawTo(address payable withdrawAddress, uint256 withdrawAmount) external {}
+}
 
 /**
  * @title DeployV3FullLocal
@@ -30,10 +49,10 @@ contract DeployV3FullLocal is Script {
 
         vm.startBroadcast(deployerPK);
 
-        // Deploy Local EntryPoint
-        EntryPoint entryPoint = new EntryPoint();
+        // Deploy Local MockEntryPoint for local orchestration
+        MockEntryPoint entryPoint = new MockEntryPoint();
         address entryPointAddr = address(entryPoint);
-        console.log("EntryPoint Local:", entryPointAddr);
+        console.log("MockEntryPoint Local:", entryPointAddr);
 
         address priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
 

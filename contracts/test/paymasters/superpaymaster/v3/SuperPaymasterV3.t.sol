@@ -14,11 +14,20 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 // Mock Contracts
 contract MockRegistry is IRegistryV3 {
     mapping(bytes32 => mapping(address => bool)) public roles;
+    mapping(bytes32 => address) public _roleOwners;
 
     function hasRole(bytes32 role, address account) external view override returns (bool) {
         return roles[role][account];
     }
+
+    function roleOwners(bytes32 roleId) external view override returns (address) {
+        return _roleOwners[roleId];
+    }
     
+    function setRoleOwner(bytes32 roleId, address owner) external {
+        _roleOwners[roleId] = owner;
+    }
+
     function grantRole(bytes32 role, address account) external {
         roles[role][account] = true;
     }

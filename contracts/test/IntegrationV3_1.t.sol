@@ -122,12 +122,17 @@ contract IntegrationV3_1Test is Test {
         // 2. Perform Sync
         address[] memory comms = new address[](1);
         comms[0] = operator; 
-        uint256[] memory acts = new uint256[](1);
-        acts[0] = 10; // 10 activities * 1 bonus (default) + 10 base = 20.
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[0][0] = bytes32(0); // Default rule
+
+        uint256[][] memory acts = new uint256[][](1);
+        acts[0] = new uint256[](1);
+        acts[0][0] = 10; // 10 activities * 1 bonus (default) + 10 base = 20.
         // Total expected: 20 (activity) + 50 (NFT) = 70.
 
         // Sync from authorized source (repSystem is authorized)
-        repSystem.syncToRegistry(alice, comms, acts, 1);
+        repSystem.syncToRegistry(alice, comms, ruleIds, acts, 1);
 
         uint256 finalRep = registry.globalReputation(alice);
         assertEq(finalRep, 70, "Reputation should be 70 (20 activity + 50 NFT)");
