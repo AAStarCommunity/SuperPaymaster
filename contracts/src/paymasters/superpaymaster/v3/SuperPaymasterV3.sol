@@ -325,6 +325,12 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // Let's rely on ERC20 Transfer event.
     }
 
+    function getAvailableCredit(address user) public view returns (uint256) {
+        uint256 creditLimit = REGISTRY.getCreditLimit(user);
+        uint256 currentDebt = userDebts[user];
+        return creditLimit > currentDebt ? creditLimit - currentDebt : 0;
+    }
+
     // ====================================
     // Reputation & Slash Management (Restored)
     // ====================================

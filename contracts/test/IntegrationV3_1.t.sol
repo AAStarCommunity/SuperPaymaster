@@ -39,12 +39,19 @@ contract IntegrationV3_1Test is Test {
         gToken = new GToken(21_000_000 ether);
         staking = new GTokenStaking(address(gToken), treasury);
         
-        // Predict MySBT address for Registry's immutable field
-        address predSBT = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        uint256 n2 = vm.getNonce(owner);
+        // Current nonce is N. Registry (currently deploying) will be N, MySBT will be N+1.
+        address predSBT = vm.computeCreateAddress(owner, n2 + 1);
+        
         registry = new Registry(address(gToken), address(staking), predSBT);
         mySBT = new MySBT(address(gToken), address(staking), address(registry), owner);
         
-        require(address(mySBT) == predSBT, "Prediction mismatch");
+        if (address(mySBT) != predSBT) {
+            console.log("Expected:", predSBT);
+            console.log("Actual:", address(mySBT));
+            console.log("Owner Nonce N2:", n2);
+            revert("Prediction mismatch");
+        }
         
         // Wiring
         staking.setRegistry(address(registry));
@@ -69,19 +76,28 @@ contract IntegrationV3_1Test is Test {
         registry.setReputationSource(address(repSystem), true);
         aPNTs.setSuperPaymasterAddress(address(paymaster));
         
-        // 5. Registration Flow (Replace grantRole with real logic)
+        // 5. Registration Flow (Real registration to ensure all stats/mappings are right)
         bytes32 ROLE_COMM = registry.ROLE_COMMUNITY();
         bytes32 ROLE_USER = registry.ROLE_ENDUSER();
         
-        // Mock Roles for speed (or perform full register if required)
-        // Since we are testing Integration, let's use the Registry's internal state if possible
-        // or just mock it since hasRole is public.
-        vm.store(address(registry), keccak256(abi.encode(operator, keccak256(abi.encode(ROLE_COMM, uint256(34))))), bytes32(uint256(1)));
-        vm.store(address(registry), keccak256(abi.encode(alice, keccak256(abi.encode(ROLE_USER, uint256(34))))), bytes32(uint256(1)));
+        gToken.mint(operator, 100 ether);
+        gToken.mint(alice, 100 ether);
+
+        vm.startPrank(operator);
+        gToken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_COMM, operator, abi.encode(Registry.CommunityRoleData("Comm", "", "", "", "", 10 ether)));
+        vm.stopPrank();
         
-        // Confirm mock worked
+        vm.startPrank(alice);
+        gToken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_USER, alice, abi.encode(Registry.EndUserRoleData(address(0xdead), operator, "", "", 1 ether)));
+        vm.stopPrank();
+        
+        // Confirm roles
         require(registry.hasRole(ROLE_COMM, operator), "Role grant failed");
         require(registry.hasRole(ROLE_USER, alice), "Role grant failed");
+
+        vm.startPrank(owner); // Reset to owner prank for rest of setup
 
         vm.stopPrank();
     }
@@ -126,10 +142,14 @@ contract IntegrationV3_1Test is Test {
         vm.prank(owner);
         registry.batchUpdateGlobalReputation(_toArr(alice), _toArr(70), 2, "");
         
-        // Operator Setup
+        // 1. Give Operator balance as Owner
+        vm.startPrank(owner);
+        aPNTs.mint(operator, 1000 ether);
+        vm.stopPrank();
+
+        // 2. Configure and Deposit as Operator
         vm.startPrank(operator);
         paymaster.configureOperator(address(aPNTs), treasury, 1e18);
-        aPNTs.mint(operator, 1000 ether);
         aPNTs.transfer(address(paymaster), 1000 ether);
         paymaster.notifyDeposit(1000 ether);
         vm.stopPrank();
@@ -137,7 +157,7 @@ contract IntegrationV3_1Test is Test {
         // 1. Manually Record Debt for Alice (250 aPNTs)
         // Simulate a transaction that just happened
         vm.prank(address(0xdead)); // Mock EntryPoint
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, abi.encode(address(aPNTs), 250 ether, operator, 0), 250 ether, 1);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, abi.encode(address(aPNTs), 250 ether, alice, 250 ether), 250 ether, 1);
 
         assertEq(paymaster.userDebts(alice), 250 ether);
 
