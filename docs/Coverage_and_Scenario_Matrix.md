@@ -35,7 +35,7 @@
 | **Staking** | `stake` | ✅ `01_2_*.ts` | 质押 GToken 获取社区准入资格 |
 | | `unlockAndTransfer` | ✅ `funding.ts` | 角色退出/质押金解锁逻辑 |
 
----
+--- 
 
 ## 2. 多角色典型测试场景 (Scenarios Matrix)
 
