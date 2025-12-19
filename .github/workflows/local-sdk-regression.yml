@@ -46,9 +46,9 @@ jobs:
           pnpm install
 
       - name: Start Anvil
-          run: |
-            anvil --block-time 1 &
-            sleep 5
+        run: |
+          anvil --block-time 1 &
+          sleep 5
 
       - name: Deploy SuperPaymaster Stack (Contract Repo)
         run: |

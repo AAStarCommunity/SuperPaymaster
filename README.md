@@ -540,6 +540,10 @@ Coming soon after security audit.
 - **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
 - **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
 
+### Testing & Evaluation
+- **[Local Test Guide](./docs/Local_Test_Guide.md)** - Getting started with local Anvil testing (NEW)
+- **[Coverage & Scenario Matrix](./docs/Coverage_and_Scenario_Matrix.md)** - Function coverage audit and multi-role testing (NEW)
+
 ### Security
 
 - **[Security Policy](./docs/SECURITY_PGP.md)** - Vulnerability reporting and bug bounty
@@ -1217,6 +1221,10 @@ graph TD
 - **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
 - **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
 - **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
+
+### 测试与评估
+- **[本地测试新手指南](./docs/Local_Test_Guide.md)** - 本地 Anvil 环境下的快速上手路径 (新)
+- **[覆盖率与场景矩阵](./docs/Coverage_and_Scenario_Matrix.md)** - 函数级覆盖率审计与多角色场景测试 (新)
 
 ### 安全
 

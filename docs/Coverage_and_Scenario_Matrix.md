@@ -15,8 +15,25 @@
 | **Execution** | `validatePaymasterUserOp` | ✅ `execution.ts` | Paymaster 预核身逻辑（支持信用/余额） |
 | | `postOp` | ✅ `execution.ts` | 交易后置结算与债务记录 (Debt Logic) |
 | | `_extractOperator` | ✅ `execution.ts` | 多运营商地址精准识别与隔离 |
-| **Security** | `slashOperator` | ⚠️ 待定 | SlashLevel (Warning/Minor/Major) 逻辑覆盖需模拟证明 |
+| **Security / System** | `slashOperator` | ⚠️ 待定 | SlashLevel (Warning/Minor/Major) 逻辑 |
+| | `MySBT.mint` | ✅ `01_2_*.ts` | AA 账户初始化与 SBT 身份绑定验证 |
+| | `Registry.isEndUser` | ✅ `execution.ts` | 交易时实时身份校验 (SBT-Check) |
 | | `setBLSAggregator` | ⚠️ 待定 | DVT BLS 验证链路需特定 Mock 环境 |
+
+## 1.1 核心支持合约路径审计 (Registry & Identity)
+
+| 合约 (Contract) | 核心函数 (Core Functions) | 覆盖情况 | 业务功能 (Business Impact) |
+| :--- | :--- | :--- | :--- |
+| **Registry** | `registerRole` | ✅ `01_2_*.ts` | 角色（社区/用户）注册入口 |
+| | `registerRoleSelf` | ✅ `01_2_*.ts` | 自助注册 + 质押 + 铸造 SBT |
+| | `batchUpdateGlobalReputation` | ✅ `admin.ts` | 跨社区声誉共识同步 |
+| | `getCreditLimit` | ✅ `execution.ts` | 信用额度分级 (基于 Fibonacci) |
+| | `configureRole` | ✅ `01_2_*.ts` | 角色质押参数、准入门槛控制 |
+| **MySBT** | `mintForRole` | ✅ `01_2_*.ts` | 身份绑定 (Soulbound) 唯一标识 |
+| | `_registerSBTHolder` | ✅ `execution.ts` | 用户注册至 Paymaster 的联动回调 |
+| | `airdropMint` | ⚠️ 待定 | 社区空投/地推场景验证 |
+| **Staking** | `stake` | ✅ `01_2_*.ts` | 质押 GToken 获取社区准入资格 |
+| | `unlockAndTransfer` | ✅ `funding.ts` | 角色退出/质押金解锁逻辑 |
 
 ---
 
@@ -34,26 +51,35 @@
 - [x] **场景 5**: 开启信用模式。余额不足但声誉高，交易成功并产生欠费 (Debt)。
 - [ ] **场景 6**: 触发黑名单。用户声誉过低，Paymaster 拒绝验证，交易失败。
 
-### C. 多租户运营商 (Tenant / Operator Bob)
-- [ ] **场景 7**: 资金隔离。运营商 Bob 充值的 $aPNTs$ 只能赞助其麾下的用户，不应被运营商 Alice 使用。
+### C. 独立 Paymaster 运营者 (Independent PM Operator - V4.1)
+- [ ] **场景 7**: **生态自治**。独立的 DApp 开发者发行自己的 Gas Token，并部署独立的 `PaymasterV4.1` 协议实例进行闭环运营。
+- [ ] **场景 8**: **资金结算**。验证该独立实例与全局 Registry 的计费隔离。
+
+### D. 多租户运营商 (Tenant / Operator Bob)
+- [ ] **场景 9**: **资金隔离**。运营商 Bob 充值的 $aPNTs$ 只能赞助其麾下的用户，不应被运营商 Alice 使用。
 
 ---
 
-## 3. SDK 化演进与开放计划 (SDK Roadmap)
+## 3. SDK 化演进细化 (Detailed SDK Roadmap)
 
-当前本地脚本向成熟 SDK 转化的三个阶段：
+### 第一阶段：核心架构标准化 (v0.4.x - Alpha)
+- **SuperPaymasterClient**: 封装 `viem` 的底层交互。
+  - `admin()`: 运营商配置、暂停、充值逻辑。
+  - `billing()`: 费率计算、Oracle 缓存预览。
+- **自定义错误处理**: 实现从 EVM Revert 到 TypeScript 异常的语义化映射（如 `ErrorCode.OPERATOR_PAUSED`）。
 
-1. **标准化阶段 (Refactor)**:
-    - 将 `06_local_*.ts` 中的逻辑封装为 `SuperPaymasterClient` 类型。
-    - 统一错误处理逻辑（如 `InsufficientBalance`, `OperatorPaused` 等 Error 映射）。
+### 第二阶段：开发者生产力工具 (v0.5.x - Beta)
+- **UserOp 工厂 (UserOp Factory)**: 
+  - 自动根据运营商地址填充 `paymasterAndData`。
+  - 支持多币种手续费（xPNTs/aPNTs）自动估算。
+- **场景测试套件 (Test Hooks)**: 将 `06_local_*.ts` 重构为可复用的 `RegressionSuite`，支持第三方开发者快速验证自己的 Paymaster 实例。
 
-2. **接口开放阶段 (Exporter)**:
-    - 提供 `client.buildUserOp(operator, callData)` 级联接口。
-    - 暴露 `reputationSystem.getExpectedScore(user)` 模拟预览。
+### 第三阶段：前端集成与交互面板 (v0.6.x - Stable)
+- **React Hooks (aastar-react)**:
+  - `useSuperPaymaster(pmAddr)`: 实时监听运营商余额、声誉、出价。
+  - `useEndUserCredit(userAddr)`: 查询用户的信用评分及当前债务余额。
+- **UI Components**: 沉淀即插即用的运营商管理看板组件。
 
-3. **前端适配阶段 (UI Tools)**:
-    - 基于 SDK 提供 React Hooks (如 `usePaymasterStatus`)。
-    - 沉淀常用的“运营商管理后台”及“用户信用面板”组件示例。
 
 ---
 
