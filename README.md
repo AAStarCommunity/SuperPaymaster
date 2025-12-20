@@ -523,7 +523,8 @@ Coming soon after security audit.
 
 - **[Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)** - Complete dependency graph, data structures, and constructor params
 - **[Registry Role Mechanism](./contracts/docs/Registry_Role_Mechanism.md)** - Role configuration, management, and exit fee system
-- **[Two-Tier Slashing Mechanism](./contracts/docs/Two_Tier_Slashing_Mechanism.md)** - DVT-based slashing for operational funds and staked assets
+- [Two-Tier Slashing Mechanism](docs/Two_Tier_Slashing_Mechanism.md)
+- [Admin Configuration Rights](docs/Admin_Configuration_Rights.md)
 - **[Phase 6 Verification Report](./contracts/docs/Phase6_Verification_Report.md)** - V3.1.1 test results and deployment readiness
 - **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details

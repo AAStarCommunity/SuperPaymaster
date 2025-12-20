@@ -138,6 +138,13 @@ interface IRegistryV3 {
     function createNewRole(bytes32 roleId, RoleConfig calldata config, address roleOwner) external;
 
     /**
+     * @notice Transfer role ownership (Admin only)
+     * @param roleId Role to transfer
+     * @param newOwner New owner address
+     */
+    function setRoleOwner(bytes32 roleId, address newOwner) external;
+
+    /**
      * @notice Mint SBT for multiple users in a role (admin function)
      * @param roleId Role for minting
      * @param user User to mint for

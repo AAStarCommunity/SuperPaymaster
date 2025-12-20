@@ -40,16 +40,16 @@ contract StakingRefactorTest is Test {
         vm.startPrank(user);
         gToken.approve(address(staking), 100 ether);
         
-        // Use Registry to lock stake (Community role requires 10 ether)
+        // Use Registry to lock stake (Community role requires 30 ether)
         bytes32 role = registry.ROLE_COMMUNITY();
-        bytes memory data = abi.encode(Registry.CommunityRoleData("TestComm", "", "", "", "", 10 ether));
+        bytes memory data = abi.encode(Registry.CommunityRoleData("TestComm", "", "", "", "", 30 ether));
         registry.registerRole(role, user, data);
         
-        // Verify balance is 10 ether (not 11 because 1 was burned)
-        assertEq(staking.balanceOf(user), 10 ether);
+        // Verify balance is 30 ether (not 33 because 3 was burned)
+        assertEq(staking.balanceOf(user), 30 ether);
         
         // Verify totalStaked
-        assertEq(staking.totalStaked(), 10 ether);
+        assertEq(staking.totalStaked(), 30 ether);
         
         // Verify no shares functions exist (this would fail compilation if called, 
         // but here we just check consistency of the model)
@@ -62,7 +62,7 @@ contract StakingRefactorTest is Test {
         vm.prank(user);
         gToken.approve(address(staking), 100 ether);
         vm.prank(user);
-        registry.registerRole(registry.ROLE_COMMUNITY(), user, abi.encode(Registry.CommunityRoleData("TestComm", "", "", "", "", 10 ether)));
+        registry.registerRole(registry.ROLE_COMMUNITY(), user, abi.encode(Registry.CommunityRoleData("TestComm", "", "", "", "", 30 ether)));
 
         // Authorize owner as slasher
         vm.prank(owner);
@@ -72,11 +72,12 @@ contract StakingRefactorTest is Test {
         assertTrue(staking.authorizedSlashers(owner), "Owner should be authorized slasher");
 
         // Slash 2 ether
+        bytes32 role = registry.ROLE_COMMUNITY();
         vm.prank(owner);
-        staking.slashByDVT(user, registry.ROLE_COMMUNITY(), 2 ether, "Testing");
+        staking.slashByDVT(user, role, 2 ether, "Testing");
 
-        // Verify balance reduced
-        assertEq(staking.balanceOf(user), 8 ether);
-        assertEq(staking.totalStaked(), 8 ether);
+        // Verify balance reduced (30 - 2 = 28)
+        assertEq(staking.balanceOf(user), 28 ether);
+        assertEq(staking.totalStaked(), 28 ether);
     }
 }

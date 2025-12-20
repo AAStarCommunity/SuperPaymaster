@@ -78,7 +78,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner);
         _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner);
         _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner);
-        _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, 1000, 0.5 ether, true, "Community", regOwner);
+        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", regOwner);
         _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner);
 
         // Initialize Credit Tiers (Default in aPNTs)
@@ -210,7 +210,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     }
 
     function configureRole(bytes32 roleId, RoleConfig calldata config) external {
-        if (msg.sender != roleOwners[roleId]) revert("Unauthorized");
+        if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
         roleConfigs[roleId] = config;
         // Sync exit fee to GTokenStaking when role is reconfigured
         GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
@@ -235,6 +235,17 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
         
         emit RoleConfigured(roleId, config, block.timestamp);
+    }
+
+    /**
+     * @notice Set the owner of a role (Protocol Admin only)
+     * @param roleId Role to update
+     * @param newOwner New owner address
+     */
+    function setRoleOwner(bytes32 roleId, address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Invalid owner");
+        roleOwners[roleId] = newOwner;
+        // No event needed specifically for ownership transfer in minimal V3, but can be added if needed
     }
 
     // ====================================
@@ -322,8 +333,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             if (communityByNameV3[data.name] != address(0)) revert InvalidParameter("Name taken");
             stakeAmount = data.stakeAmount;
         } else if (roleId == ROLE_ENDUSER) {
-            (address _acc, address _comm, string memory _avi, string memory _ens, uint256 _stake) = abi.decode(roleData, (address, address, string, string, uint256));
-            EndUserRoleData memory data = EndUserRoleData(_acc, _comm, _avi, _ens, _stake);
+            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
             bool commActive = hasRole[ROLE_COMMUNITY][data.community];
             if (!commActive) revert InvalidParameter("Invalid community");
             stakeAmount = data.stakeAmount;

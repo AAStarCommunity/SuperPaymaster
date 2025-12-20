@@ -43,7 +43,7 @@ contract MockRegistry {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
-            exitFeePercent: 1000,
+            exitFeePercent: 500,
             minExitFee: 1 ether,
             isActive: true,
             description: "Test"

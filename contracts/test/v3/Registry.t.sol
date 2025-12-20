@@ -99,13 +99,13 @@ contract RegistryTest is Test {
         // Configure ENDUSER
         IRegistryV3.RoleConfig memory endUserConfig = IRegistryV3.RoleConfig({
             minStake: 0.3 ether,
-            entryBurn: 0.1 ether,
+            entryBurn: 0.05 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashIncrement: 5,
             slashMax: 50,
-            exitFeePercent: 500,
-            minExitFee: 0.1 ether,
+            exitFeePercent: 1000,
+            minExitFee: 0.05 ether,
             isActive: true,
             description: "End User"
         });
@@ -115,7 +115,7 @@ contract RegistryTest is Test {
         vm.startPrank(user);
         
         // 2. Register with proper approvals
-        uint256 required = 0.3 ether + 0.1 ether;
+        uint256 required = 0.3 ether + 0.05 ether;
         gtoken.approve(address(staking), required); 
         
         // Preparing Role Data - use registered community
@@ -134,8 +134,8 @@ contract RegistryTest is Test {
         // Asserts
         assertTrue(registry.hasRole(ROLE_ENDUSER, user));
         assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0.3 ether);
-        // Community burned 3 ether + user burned 0.1 ether = 3.1 ether total
-        assertEq(gtoken.balanceOf(0x000000000000000000000000000000000000dEaD), 3.1 ether);
+        // Community burned 3 ether + user burned 0.05 ether = 3.05 ether total
+        assertEq(gtoken.balanceOf(0x000000000000000000000000000000000000dEaD), 3.05 ether);
         
         vm.stopPrank();
     }
@@ -160,9 +160,7 @@ contract RegistryTest is Test {
         
         vm.startPrank(communityUser);
         
-        // Approve total required amount (stake + burn)
-        uint256 required = 30 ether + 3 ether;
-        gtoken.approve(address(staking), required);
+        gtoken.approve(address(staking), 33 ether);
         
         bytes memory roleData = abi.encode(
             Registry.CommunityRoleData({
