@@ -90,7 +90,7 @@ contract IntegrationV3_1Test is Test {
         
         vm.startPrank(alice);
         gToken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_USER, alice, abi.encode(Registry.EndUserRoleData(address(0xdead), operator, "", "", 1 ether)));
+        registry.registerRole(ROLE_USER, alice, abi.encode(address(0xdead), operator, "", "", 1 ether));
         vm.stopPrank();
         
         // Confirm roles
@@ -164,11 +164,11 @@ contract IntegrationV3_1Test is Test {
         vm.prank(address(0xdead)); // Mock EntryPoint
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, abi.encode(address(aPNTs), 250 ether, alice, 250 ether), 250 ether, 1);
 
-        assertEq(paymaster.userDebts(alice), 250 ether);
+        assertEq(aPNTs.getDebt(alice), 250 ether);
 
         // 2. Check remaining credit for a NEW transaction
         // Limit (300) - Debt (250) = 50 available.
-        uint256 available = paymaster.getAvailableCredit(alice);
+        uint256 available = paymaster.getAvailableCredit(alice, address(aPNTs));
         assertEq(available, 50 ether, "Available credit should be 50");
 
         // 3. Attempt a 60 aPNTs sponsorship -> Should fail

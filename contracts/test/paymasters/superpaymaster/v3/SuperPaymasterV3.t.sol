@@ -365,7 +365,7 @@ contract SuperPaymasterV3Test is Test {
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
         
-        uint256 debt = paymaster.userDebts(user);
+        uint256 debt = apnts.getDebt(user);
         assertGt(debt, 0, "Debt should be recorded");
     }
 

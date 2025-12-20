@@ -183,6 +183,7 @@ contract xPNTsFactory is Ownable {
         // Auto-configure pre-authorization
         // AOA+ mode: Always approve SuperPaymaster, if the address has been set.
         if (SUPERPAYMASTER != address(0)) {
+            newToken.setSuperPaymasterAddress(SUPERPAYMASTER);
             newToken.addAutoApprovedSpender(SUPERPAYMASTER);
         }
 

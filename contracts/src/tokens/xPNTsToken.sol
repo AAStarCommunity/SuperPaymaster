@@ -217,8 +217,7 @@ contract xPNTsToken is ERC20, ERC20Permit {
         _burn(from, amount);
     }
 
-        _burn(from, amount);
-    }
+
     
     // ====================================
     // Debt Management (V3.2)

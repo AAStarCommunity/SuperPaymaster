@@ -262,38 +262,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     function _autoRepayDebt(address user, uint256 depositedAmount) internal {
         // V3.2: Deprecated. Auto-Repayment is handled by xPNTsToken._update() hook.
     }
-            // But wait, callers added to `operators[msg.sender].aPNTsBalance`
-            // If we repay debt, we should consume that balance?
-            // Operators Logic vs User Logic:
-            // `operators` mapping tracks OPERATOR balances.
-            // `userDebts` tracks USER debts.
-            // When USER deposits, it usually goes to their credit?
-            // Wait, V3 is "Multi-Operator".
-            // Users don't deposit to Paymaster directly usually?
-            // Users pay Operators. Operators pay Paymaster.
-            // The `userDebts` here... is it EndUser Debt or Operator Debt?
-            // Context says "User".
-            // But `deposit` function is for OPERATORS.
-            
-            // CORRECTION:
-            // `deposit` is for Operators to fund their Gas Tank.
-            // Users pay via xPNTs.
-            // If User enters Debt, it means they owe xPNTs to the Operator?
-            // Or they owe xPNTs to the Protocol?
-            // In V3, Operator pays aPNTs to Protocol. User pays xPNTs to Operator.
-            // If User uses Credit, Operator PAYS aPNTs effectively (balance deducted).
-            // User OWES xPNTs to Operator.
-            // So `userDebts` should track: "User U owes X amount of xPNTs to Operator O".
-            // mapping(address => mapping(address => uint256)) public userDebts; // User -> Operator -> Amount
-            
-            // This is complex. 
-            // Simplified V3.1: "Global Credit".
-            // If simple mapping `userDebts[user]`, who do they owe?
-            // They owe the "System" (SuperPaymaster).
-            // Meaning future usage requires repayment.
-            // WE NEED TO FIX THE MAPPING KEY.
-        }
-    }
+
+
 
     /**
      * @notice Withdraw aPNTs

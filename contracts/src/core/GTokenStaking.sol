@@ -50,7 +50,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
 
     // Global stats
     uint256 public totalStaked;
-    uint256 public totalShares;
+
 
     // Authorized slashers
     mapping(address => bool) public authorizedSlashers;
@@ -106,7 +106,6 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         
         // Update user global stake info
         stakes[user].amount += stakeAmount;
-        stakes[user].stGTokenShares += stakeAmount; // 1:1 ratio
         if (stakes[user].stakedAt == 0) {
             stakes[user].stakedAt = block.timestamp;
         }
@@ -125,7 +124,6 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         
         // Update global stats
         totalStaked += stakeAmount;
-        totalShares += stakeAmount;
 
         emit StakeLocked(user, roleId, stakeAmount, entryBurn, block.timestamp);
         return uint256(roleId); // Use roleId as lockId
@@ -166,10 +164,8 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         
         // Global accounting uses the original lock amount
         stakes[user].amount -= originalAmount;
-        stakes[user].stGTokenShares -= originalAmount;
         
         totalStaked -= originalAmount;
-        totalShares -= originalAmount;
 
         // Transfers
         if (exitFee > 0) {
@@ -285,24 +281,14 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         return 0; 
     }
 
-    function sharesOf(address user) external view returns (uint256) {
-        return stakes[user].stGTokenShares;
-    }
+
 
     function previewExitFee(address user, bytes32 roleId) external view returns (uint256 fee, uint256 netAmount) {
         uint256 amount = roleLocks[user][roleId].amount;
         return _previewExitFee(user, roleId, amount);
     }
 
-    // Use default getter for totalStaked/totalShares
 
-    function convertToAssets(uint256 shares) external pure returns (uint256) {
-        return shares; // 1:1
-    }
-
-    function convertToShares(uint256 amount) external pure returns (uint256) {
-        return amount; // 1:1
-    }
 
     // ====================================
     // Admin Functions
@@ -350,10 +336,10 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         // Deduct from role lock
         lock.amount -= penaltyAmount;
         
-        // Deduct from total stake and track slashed amount
+        // Deduct from total stake
         StakeInfo storage stake = stakes[operator];
+        require(stake.amount >= penaltyAmount, "Insufficient stake");
         stake.amount -= penaltyAmount;
-        stake.slashedAmount += penaltyAmount;
         totalStaked -= penaltyAmount;
         
         // Transfer slashed amount to treasury
@@ -375,7 +361,6 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         // Return a view showing role-specific locked amount
         return StakeInfo({
             amount: lock.amount,  // Role-specific locked amount
-            stGTokenShares: stake.stGTokenShares,
             slashedAmount: stake.slashedAmount,
             stakedAt: lock.lockedAt,
             unstakeRequestedAt: 0  // Role locks don't track unstake requests

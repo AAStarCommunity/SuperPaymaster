@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title PaymasterFactory
@@ -15,7 +16,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
  * - Operator → Paymaster mapping for easy tracking
  * - Upgradeable implementation without affecting existing Paymasters
  */
-contract PaymasterFactory is Ownable {
+contract PaymasterFactory is Ownable, ReentrancyGuard {
     using Clones for address;
 
     // ====================================
@@ -107,7 +108,7 @@ contract PaymasterFactory is Ownable {
     function deployPaymaster(
         string memory version,
         bytes memory initData
-    ) external returns (address paymaster) {
+    ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
         // Check if operator already has a Paymaster
@@ -147,10 +148,11 @@ contract PaymasterFactory is Ownable {
      */
     function deployPaymasterDefault(bytes memory initData)
         external
+        nonReentrant
         returns (address paymaster)
     {
         require(bytes(defaultVersion).length > 0, "No default version set");
-        return this.deployPaymaster(defaultVersion, initData);
+        return deployPaymaster(defaultVersion, initData);
     }
 
     /**
@@ -164,7 +166,7 @@ contract PaymasterFactory is Ownable {
         string memory version,
         bytes32 salt,
         bytes memory initData
-    ) external returns (address paymaster) {
+    ) external nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
         if (paymasterByOperator[operator] != address(0)) {

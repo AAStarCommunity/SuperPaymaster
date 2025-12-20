@@ -14,14 +14,12 @@ interface IGTokenStakingV3 {
     /**
      * @notice Stake information for a user
      * @param amount Original staked GToken amount
-     * @param stGTokenShares User's stGToken shares
      * @param slashedAmount Amount slashed from this user
      * @param stakedAt Stake timestamp
      * @param unstakeRequestedAt Unstake request timestamp (0 = not requested)
      */
     struct StakeInfo {
         uint256 amount;
-        uint256 stGTokenShares;
         uint256 slashedAmount;
         uint256 stakedAt;
         uint256 unstakeRequestedAt;
@@ -227,13 +225,6 @@ interface IGTokenStakingV3 {
     function availableBalance(address user) external view returns (uint256);
 
     /**
-     * @notice Get user's stGToken shares
-     * @param user User address
-     * @return Number of shares
-     */
-    function sharesOf(address user) external view returns (uint256);
-
-    /**
      * @notice Preview exit fee for a role
      * @param user User address
      * @param roleId Role to exit
@@ -255,25 +246,6 @@ interface IGTokenStakingV3 {
      */
     function totalStaked() external view returns (uint256);
 
-    /**
-     * @notice Get total shares issued
-     * @return Total stGToken shares
-     */
-    function totalShares() external view returns (uint256);
-
-    /**
-     * @notice Convert shares to GToken amount
-     * @param shares Number of shares
-     * @return Amount in GToken
-     */
-    function convertToAssets(uint256 shares) external view returns (uint256);
-
-    /**
-     * @notice Convert GToken amount to shares
-     * @param amount GToken amount
-     * @return Number of shares
-     */
-    function convertToShares(uint256 amount) external view returns (uint256);
 
     // ====================================
     // Configuration Functions
