@@ -8,7 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IRegistryV3.sol";
 import "../interfaces/v3/IGTokenStakingV3.sol";
 import "../interfaces/v3/IMySBTV3.sol";
-import "forge-std/console.sol";
+
 
 contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     using SafeERC20 for IERC20;
@@ -119,9 +119,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
-        console.log("Registry: registerRole starting for role and user");
         RoleConfig memory config = roleConfigs[roleId];
-        console.log("Registry: config isActive:", config.isActive);
         if (!config.isActive) revert RoleNotConfigured(roleId);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
 
@@ -324,14 +322,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             if (communityByNameV3[data.name] != address(0)) revert InvalidParameter("Name taken");
             stakeAmount = data.stakeAmount;
         } else if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            (address _acc, address _comm, string memory _avi, string memory _ens, uint256 _stake) = abi.decode(roleData, (address, address, string, string, uint256));
+            EndUserRoleData memory data = EndUserRoleData(_acc, _comm, _avi, _ens, _stake);
             bool commActive = hasRole[ROLE_COMMUNITY][data.community];
-            console.log("Registry: Checking community:", data.community);
-            console.log("Registry: Community active status:", commActive);
             if (!commActive) revert InvalidParameter("Invalid community");
             stakeAmount = data.stakeAmount;
         } else {
-            console.log("Registry: Generic role data length:", roleData.length);
             if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
         }
         if (stakeAmount == 0) stakeAmount = roleConfigs[roleId].minStake;
