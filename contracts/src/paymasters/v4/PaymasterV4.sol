@@ -269,8 +269,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         // Emit payment event
         emit GasPaymentProcessed(sender, userGasToken, tokenAmount, cappedMaxCost, maxCost);
 
-        // Return empty context (no refund logic)
-        return ("", 0);
+        return (abi.encode(sender), 0);
     }
 
     /// @notice PostOp handler (minimal implementation)
@@ -278,14 +277,14 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @dev Records activity on supported MySBT contracts
     function postOp(
         PostOpMode /* mode */,
-        bytes calldata /* context */,
+        bytes calldata context,
         uint256 actualGasCost,
         uint256 /* actualUserOpFeePerGas */
     )
         external
         onlyEntryPoint
     {
-        address user = tx.origin;
+        address user = abi.decode(context, (address));
         
         // Record activity on supported MySBT contracts
         _recordUserActivity(user);
@@ -386,7 +385,10 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @return Required xPNTs token amount
     function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken) internal view returns (uint256) {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
-        (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        (uint80 roundId, int256 ethUsdPrice,, uint256 updatedAt, uint80 answeredInRound) =
+            ethUsdPriceFeed.latestRoundData();
+
+        if (ethUsdPrice <= 0 || answeredInRound < roundId) revert PaymasterV4__InvalidTokenBalance();
 
         // ✅ FIXED: Use PRICE_STALENESS_THRESHOLD (900s / 15 min for L2)
         // Reduced from 3600s (1 hour) for better price accuracy on L2
