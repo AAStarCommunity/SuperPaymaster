@@ -104,6 +104,8 @@ contract RegistryTest is Test {
             slashBase: 10,
             slashIncrement: 5,
             slashMax: 50,
+            exitFeePercent: 500,
+            minExitFee: 0.1 ether,
             isActive: true,
             description: "End User"
         });
@@ -148,6 +150,8 @@ contract RegistryTest is Test {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
+            exitFeePercent: 500,
+            minExitFee: 1 ether,
             isActive: true,
             description: "Community"
         });

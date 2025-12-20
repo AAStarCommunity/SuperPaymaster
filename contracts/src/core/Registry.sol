@@ -8,6 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IRegistryV3.sol";
 import "../interfaces/v3/IGTokenStakingV3.sol";
 import "../interfaces/v3/IMySBTV3.sol";
+import "forge-std/console.sol";
 
 contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     using SafeERC20 for IERC20;
@@ -67,12 +68,13 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         MYSBT = IMySBTV3(_mysbt);
         
         address regOwner = msg.sender;
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, true, "AOA Paymaster", regOwner);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, true, "SuperPaymaster", regOwner);
-        _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, true, "ANODE", regOwner);
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, true, "KMS", regOwner);
-        _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, true, "Community", regOwner);
-        _initRole(ROLE_ENDUSER, 0, 0, 0, 0, 0, 0, true, "EndUser", regOwner);
+        // Format: _initRole(roleId, minStake, entryBurn, slashThresh, slashBase, slashInc, slashMax, exitFeePercent, minExitFee, active, desc, owner)
+        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner);
+        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner);
+        _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner);
+        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner);
+        _initRole(ROLE_COMMUNITY, 10 ether, 1 ether, 10, 2, 1, 10, 1000, 0.5 ether, true, "Community", regOwner);
+        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner);
 
         // Initialize Credit Tiers (Default in aPNTs)
         // Level 1: Rep < 13
@@ -91,13 +93,30 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
     }
 
-    function _initRole(bytes32 roleId, uint256 min, uint256 burn, uint256 thresh, uint256 base, uint256 inc, uint256 max, bool active, string memory desc, address owner) internal {
-        roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, active, desc);
+    function _initRole(
+        bytes32 roleId, 
+        uint256 min, 
+        uint256 burn, 
+        uint256 thresh, 
+        uint256 base, 
+        uint256 inc, 
+        uint256 max,
+        uint256 exitFeePercent,
+        uint256 minExitFee,
+        bool active, 
+        string memory desc, 
+        address owner
+    ) internal {
+        roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, minExitFee, active, desc);
         roleOwners[roleId] = owner;
+        // Sync exit fee to GTokenStaking
+        GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
+        console.log("Registry: registerRole starting for role and user");
         RoleConfig memory config = roleConfigs[roleId];
+        console.log("Registry: config isActive:", config.isActive);
         if (!config.isActive) revert RoleNotConfigured(roleId);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
 
@@ -190,6 +209,28 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     function configureRole(bytes32 roleId, RoleConfig calldata config) external {
         if (msg.sender != roleOwners[roleId]) revert("Unauthorized");
         roleConfigs[roleId] = config;
+        // Sync exit fee to GTokenStaking when role is reconfigured
+        GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
+        emit RoleConfigured(roleId, config, block.timestamp);
+    }
+    
+    /**
+     * @notice Create a new role (Owner only)
+     * @dev This allows the protocol admin to dynamically add new roles
+     * @param roleId Unique role identifier (e.g., keccak256("NEW_ROLE"))
+     * @param config Role configuration
+     * @param roleOwner Address that will own this role (can reconfigure it later)
+     */
+    function createNewRole(bytes32 roleId, RoleConfig calldata config, address roleOwner) external onlyOwner {
+        require(roleOwners[roleId] == address(0), "Role already exists");
+        require(roleOwner != address(0), "Invalid owner");
+        
+        roleConfigs[roleId] = config;
+        roleOwners[roleId] = roleOwner;
+        
+        // Sync exit fee to GTokenStaking
+        GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
+        
         emit RoleConfigured(roleId, config, block.timestamp);
     }
 
@@ -279,10 +320,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             stakeAmount = data.stakeAmount;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
-            if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParameter("Invalid community");
+            bool commActive = hasRole[ROLE_COMMUNITY][data.community];
+            console.log("Registry: Checking community:", data.community);
+            console.log("Registry: Community active status:", commActive);
+            if (!commActive) revert InvalidParameter("Invalid community");
             stakeAmount = data.stakeAmount;
         } else {
-             if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
+            console.log("Registry: Generic role data length:", roleData.length);
+            if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
         }
         if (stakeAmount == 0) stakeAmount = roleConfigs[roleId].minStake;
     }

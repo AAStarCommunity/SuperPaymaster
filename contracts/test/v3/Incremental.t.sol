@@ -58,6 +58,8 @@ contract IncrementalTest is Test {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
+            exitFeePercent: 500,
+            minExitFee: 1 ether,
             isActive: true,
             description: "Community"
         });
@@ -111,6 +113,8 @@ contract IncrementalTest is Test {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
+            exitFeePercent: 500,
+            minExitFee: 1 ether,
             isActive: true,
             description: "Community"
         });

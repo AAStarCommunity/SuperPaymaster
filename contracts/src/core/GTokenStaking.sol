@@ -308,7 +308,8 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // Admin Functions
     // ====================================
 
-    function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external onlyOwner {
+    function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
+        require(msg.sender == owner() || msg.sender == REGISTRY, "Only owner or registry");
         roleExitConfigs[roleId] = RoleExitConfig(feePercent, minFee);
     }
 

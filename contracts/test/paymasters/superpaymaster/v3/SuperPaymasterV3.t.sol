@@ -35,10 +35,11 @@ contract MockRegistry is IRegistryV3 {
     // Stub implementations for interface compliance
     function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }
     function configureRole(bytes32, RoleConfig calldata) external override {}
+    function createNewRole(bytes32, RoleConfig calldata, address) external override {}
     function exitRole(bytes32) external override {}
     function getBurnHistory(address) external view override returns (BurnRecord[] memory) { return new BurnRecord[](0); }
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,false,"stub"); 
+        return RoleConfig(0,0,0,0,0,0,0,0,false,"stub"); 
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }

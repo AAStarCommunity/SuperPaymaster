@@ -38,25 +38,32 @@ contract RegistrySimpleTest is Test {
         gtoken = new MockGToken();
         staking = new GTokenStaking(address(gtoken), treasury);
         
-        // Temp Registry for MySBT
+        // Deploy Registry first (with temp MySBT)
         registry = new Registry(address(gtoken), address(staking), address(0x1));
+        
+        // IMPORTANT: Set registry in staking BEFORE Registry constructor calls setRoleExitFee
+        staking.setRegistry(address(registry));
+        
+        // Now deploy MySBT
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
         
         // Re-deploy Registry with real MySBT
-        registry = new Registry(address(gtoken), address(staking), address(sbt));
+        Registry newRegistry = new Registry(address(gtoken), address(staking), address(sbt));
+        registry = newRegistry;
         
-        // Wire up
+        // Update staking to point to new registry
+        staking.setRegistry(address(registry));
+        
         vm.stopPrank();
+        
+        // Wire up MySBT
         vm.startPrank(dao);
         sbt.setRegistry(address(registry));
         vm.stopPrank();
         
-        vm.startPrank(owner);
-        staking.setRegistry(address(registry));
-        
         // Mint tokens
+        vm.startPrank(owner);
         gtoken.mint(communityUser, 1000 ether);
-        
         vm.stopPrank();
     }
 
@@ -71,6 +78,8 @@ contract RegistrySimpleTest is Test {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
+            exitFeePercent: 500,
+            minExitFee: 1 ether,
             isActive: true,
             description: "Community"
         });

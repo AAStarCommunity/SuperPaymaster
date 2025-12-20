@@ -18,10 +18,14 @@ interface IRegistryV3 {
      * @notice Role configuration parameters
      * @param minStake Minimum stake required for this role
      * @param entryBurn Amount burned on registration
-     * @param exitFeePercent Exit fee percentage (basis points)
+     * @param slashThreshold Slash trigger threshold (e.g., error count)
+     * @param slashBase Base slash amount
+     * @param slashIncrement Slash increment per violation
+     * @param slashMax Maximum slash amount
+     * @param exitFeePercent Exit fee percentage in basis points (100 = 1%)
      * @param minExitFee Minimum exit fee amount
-     * @param allowPermissionlessMint Allow users to mint without invitation
      * @param isActive Whether this role is currently active
+     * @param description Role description
      */
     struct RoleConfig {
         uint256 minStake;
@@ -30,6 +34,8 @@ interface IRegistryV3 {
         uint256 slashBase;
         uint256 slashIncrement;
         uint256 slashMax;
+        uint256 exitFeePercent;
+        uint256 minExitFee;
         bool isActive;
         string description;
     }
@@ -122,6 +128,14 @@ interface IRegistryV3 {
      * @param config New configuration
      */
     function configureRole(bytes32 roleId, RoleConfig calldata config) external;
+    
+    /**
+     * @notice Create a new role (Owner only)
+     * @param roleId Unique role identifier
+     * @param config Role configuration
+     * @param roleOwner Address that will own this role
+     */
+    function createNewRole(bytes32 roleId, RoleConfig calldata config, address roleOwner) external;
 
     /**
      * @notice Mint SBT for multiple users in a role (admin function)

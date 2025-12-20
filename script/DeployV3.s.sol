@@ -79,6 +79,8 @@ contract DeploySuperPaymasterV3 is Script {
             slashBase: 2,
             slashIncrement: 1,
             slashMax: 10,
+            exitFeePercent: 1000,
+            minExitFee: 1 ether,
             isActive: true,
             description: "Community"
         });
@@ -87,12 +89,14 @@ contract DeploySuperPaymasterV3 is Script {
         // EndUser Role
         IRegistryV3.RoleConfig memory userConfig = IRegistryV3.RoleConfig({
             minStake: 0.3 ether,
-            entryBurn: 0.1 ether, // Mint fee
+            entryBurn: 0.05 ether,
             slashThreshold: 0,
             slashBase: 0,
             slashIncrement: 0,
             slashMax: 0,
-            isActive: true, // Auto-active for self-register
+            exitFeePercent: 1000,
+            minExitFee: 0.05 ether,
+            isActive: true,
             description: "EndUser"
         });
         registry.configureRole(keccak256("ENDUSER"), userConfig);

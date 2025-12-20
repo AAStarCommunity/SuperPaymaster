@@ -13,9 +13,9 @@ contract RegisterScenarioCommunities is Script {
         address deployer = vm.addr(deployerPK);
         
         // Addresses from local deployment (Update if fresh deploy changes these!)
-        address registryAddr = 0x01E21d7B8c39dc4C764c19b308Bd8b14B1ba139E;
-        address gtokenAddr = 0x193521C8934bCF3473453AF4321911E7A89E0E12;
-        address stakingAddr = 0x9Fcca440F19c62CDF7f973eB6DDF218B15d4C71D;
+        address registryAddr = 0xf5c4a909455C00B99A90d93b48736F3196DB5621;
+        address gtokenAddr = 0xCa1D199b6F53Af7387ac543Af8e8a34455BBe5E0;
+        address stakingAddr = 0xdF46e54aAadC1d55198A4a8b4674D7a4c927097A;
 
         Registry registry = Registry(registryAddr);
         GToken gtoken = GToken(gtokenAddr);

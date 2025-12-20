@@ -27,4 +27,58 @@ remappings = [
 # Allow writing deployment info
 fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }]
 
+# ============================================
+# V3-Only Profile (Fast Build for Deployment)
+# ============================================
+# Usage: forge build --profile v3-only
+# This profile only compiles V3 core contracts, excluding legacy versions and test contracts
+[profile.v3-only]
+src = "contracts/src"
+test = "contracts/test"
+script = "script"
+out = "out"
+libs = ["contracts/lib", "singleton-paymaster/lib"]
+cache_path = "cache"
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+
+# Exclude all non-V3 contracts
+exclude = [
+    # Legacy paymasters (v1, v2, v4 base versions)
+    "contracts/src/paymasters/v1/**/*",
+    "contracts/src/paymasters/v2/**/*",
+    "contracts/src/paymasters/superpaymaster/v1/**/*",
+    "contracts/src/paymasters/superpaymaster/v2/**/*",
+    "contracts/src/paymasters/PaymasterFactory.sol",
+    
+    # Legacy base contracts (keep only what V3 needs)
+    "contracts/src/base/GToken_v1.sol",
+    "contracts/src/base/Registry_v1.sol",
+    "contracts/src/base/Registry_v2.sol",
+    
+    # Test contracts (exclude when building for deployment)
+    "contracts/test/**/*",
+    "contracts/src/test/**/*",
+    
+    # Mock contracts
+    "contracts/src/mocks/**/*",
+    
+    # Singleton paymaster tests
+    "singleton-paymaster/test/**/*",
+    "singleton-paymaster/**/*.t.sol"
+]
+
+remappings = [
+    "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+    "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+    "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+    "solady/=singleton-paymaster/lib/solady/src/",
+    "src/=contracts/src/"
+]
+
+fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }]
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
