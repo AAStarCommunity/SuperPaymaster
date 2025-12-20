@@ -13,4 +13,18 @@ interface IxPNTsToken {
      * @return rate Exchange rate (18 decimals, 1e18 = 1:1)
      */
     function exchangeRate() external view returns (uint256 rate);
+
+    /**
+     * @notice Record user debt (only SuperPaymaster)
+     * @param user User address
+     * @param amountXPNTs Debt amount in xPNTs
+     */
+    function recordDebt(address user, uint256 amountXPNTs) external;
+
+    /**
+     * @notice Get user debt amount
+     * @param user User address
+     * @return debt Debt amount in xPNTs
+     */
+    function getDebt(address user) external view returns (uint256 debt);
 }

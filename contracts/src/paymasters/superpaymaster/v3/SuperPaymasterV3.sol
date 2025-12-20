@@ -14,6 +14,9 @@ import "../../../interfaces/IERC1363.sol";
  */
 interface IModernXPNTsToken {
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
+    function exchangeRate() external view returns (uint256);
+    function getDebt(address user) external view returns (uint256);
+    function recordDebt(address user, uint256 amountXPNTs) external;
 }
 
 
@@ -87,8 +90,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // Slash History
     mapping(address => SlashRecord[]) public slashHistory;
     
-    // V3.1: Debt Tracking
-    mapping(address => uint256) public userDebts;
+    // V3.2: Debt Tracking (Moved to xPNTsToken)
+    // mapping(address => uint256) public userDebts; // Removed in V3.2
     
     // Pricing Config
     
@@ -124,8 +127,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
-    event DebtRecorded(address indexed user, uint256 amount);
-    event DebtRepaid(address indexed user, uint256 amount);
+    // event DebtRecorded(address indexed user, uint256 amount); // Moved to token
+    // event DebtRepaid(address indexed user, uint256 amount);   // Moved to token
 
     // ====================================
     // Constructor
@@ -257,11 +260,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     }
     
     function _autoRepayDebt(address user, uint256 depositedAmount) internal {
-        uint256 debt = userDebts[user];
-        if (debt > 0) {
-            uint256 repay = debt > depositedAmount ? depositedAmount : debt;
-            userDebts[user] -= repay;
-            // Balance is already updated by callers
+        // V3.2: Deprecated. Auto-Repayment is handled by xPNTsToken._update() hook.
+    }
             // But wait, callers added to `operators[msg.sender].aPNTsBalance`
             // If we repay debt, we should consume that balance?
             // Operators Logic vs User Logic:
@@ -325,10 +325,19 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // Let's rely on ERC20 Transfer event.
     }
 
-    function getAvailableCredit(address user) public view returns (uint256) {
-        uint256 creditLimit = REGISTRY.getCreditLimit(user);
-        uint256 currentDebt = userDebts[user];
-        return creditLimit > currentDebt ? creditLimit - currentDebt : 0;
+    function getAvailableCredit(address user, address token) public view returns (uint256) {
+        // Calculate Credit in APNTs
+        uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
+        
+        // Get Debt from Token (in xPNTs)
+        uint256 currentDebtXPNTs = IModernXPNTsToken(token).getDebt(user);
+        
+        // Convert Debt to APNTs for comparison
+        // xPNTs = aPNTs * Rate / 1e18 => aPNTs = xPNTs * 1e18 / Rate
+        uint256 rate = IModernXPNTsToken(token).exchangeRate();
+        uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / rate;
+
+        return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
     }
 
     // ====================================
@@ -500,62 +509,32 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
         OperatorConfig storage config = operators[operator];
 
-        // 3. User Validation & Credit Check (V3.1)
+        // 3. User Validation & Credit Check (V3.2 Credit System Redesign)
         // ----------------------------------------
-        // Logic:
-        // 1. Get Credit Limit (based on Global Rep)
-        // 2. Available Credit = Limit - Debt
-        // 3. Required Payment = xPNTs Amount
-        // 4. Pass if: (Deposit >= Cost) OR (Available Credit >= Cost)
         
-        uint256 creditLimit = REGISTRY.getCreditLimit(userOp.sender);
-        uint256 currentDebt = userDebts[userOp.sender];
-        uint256 availableCredit = creditLimit > currentDebt ? creditLimit - currentDebt : 0;
+        uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(userOp.sender);
+        
+        // Get Debt from Token (xPNTs units)
+        uint256 currentDebtXPNTs = IModernXPNTsToken(config.xPNTsToken).getDebt(userOp.sender);
+        
+        // Convert Debt to aPNTs units for comparison
+        uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / config.exchangeRate;
+        
+        uint256 availableCreditAPNTs = creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
         
         // Billing Calculation
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         uint256 xPNTsAmount = (aPNTsAmount * config.exchangeRate) / 1e18; // Est. xPNTs cost
 
-        // Check if user can pay (Credit or Balance - Balance check is done by Token implicitly, but we pre-check credit to allow 0-balance txs)
-        // Note: We cannot easily check user's xPNTs balance here without extra gas, so we rely on:
-        // A. If Credit is sufficient -> Allow
-        // B. If Credit insufficient -> Rely on Token.burn execution (which will fail if no balance) in postOp
-        
         // Critical: If user has debt > limit, block them immediately
-        if (currentDebt >= creditLimit && creditLimit > 0) {
-             // Allow execution only if they have sufficient DEPOSIT to cover it? 
-             // Simplest: Block if over limit.
+        if (currentDebtAPNTs >= creditLimitAPNTs && creditLimitAPNTs > 0) {
              return ("", _packValidationData(true, 0, 0)); 
         }
 
-        // We optimistically allow the specific opcode if they have credit.
-        // If they don't have credit, we let it proceed to `postOp`, where `burn` will fail and revert the tx?
-        // Wait, if `burn` fails in postOp, the Bundler pays!
-        // So we MUST ensure payment security.
+        // V3.2 HYBRID APPROACH:
+        // Use Credit if available, otherwise User MUST have balance to burn immediately.
         
-        // Refined Logic:
-        // If xPNTsAmount < availableCredit: Safe to proceed (we can record debt).
-        // If xPNTsAmount > availableCredit: DANGEROUS. 
-        // We can't check xPNTs balance cheaply.
-        // But standard Paymaster rule: if validation passes, Paymaster PAYS.
-        // So if we rely on Debt, we are safe.
-        // If we rely on Token Balance... we can't ensure it during validation (User could drain it before tx).
-        // SOLUTION:
-        // 1. If `xPNTsAmount <= availableCredit`: Pass.
-        // 2. If `xPNTsAmount > availableCredit`: REJECT (unless we add validUntil/validAfter strictness, but let's be safe).
-        //    (This means Rep=0 users MUST have balance? No, Rep=0 implies Credit=0)
-        //    (Wait, how do Rep=0 users pay? They pay with Token Balance. But we can't verify balance!)
-        //    (Ah, V3 original design: burn in validation! That guarantees payment.)
-        
-        // HYBRID APPROACH V3.1:
-        // If (xPNTsAmount <= availableCredit):
-        //    - Return context(PAY_LATER=true)
-        //    - Use Credit.
-        // If (xPNTsAmount > availableCredit):
-        //    - FALLBACK to V3 Original: Burn NOW in validation.
-        //    - If burn fails -> Validation Reverts -> UserOp Rejected (Bundler Safe).
-        
-        bool useCredit = aPNTsAmount <= availableCredit;
+        bool useCredit = aPNTsAmount <= availableCreditAPNTs;
         
         if (!useCredit) {
              // Attempt Immediate Burn (V3 Legacy Mode)
@@ -671,22 +650,16 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // Let's just Record Debt 100% of the time for Credit users?
         // No, that's inefficient.
         
-        // Proposed V3.1 Logic:
-        // If Credit Mode: Always Record Debt first.
-        // Then try to "Auto-Repay" using Burn.
+        // Proposed V3.2 Logic:
+        // If Credit Mode: Record Debt in Token.
         
-        userDebts[user] += aPNTsAmount;
-        emit DebtRecorded(user, aPNTsAmount);
+        IModernXPNTsToken(token).recordDebt(user, xPNTsAmount);
+        // Note: No immediate burn logic here (handled by Token auto-repay on next transfer)
         
-        // TODO: Try to clear debt immediately if token balance exists?
-        // For now, leave as Debt. User deposits will clear it.
     }
     
     function repayDebt(address user, uint256 amount) external nonReentrant {
-        // Allow anyone to repay debt for user (usually User themselves via Deposit)
-        // But here we might want a specific function if they pay via Token?
-        // For now, rely on `deposit()` or `onTransferReceived` to handle this?
-        // Let's update `notifyDeposit` to clear debt.
+        // V3.2: Deprecated. Use Token transfer to repay.
     }
 
     // ====================================

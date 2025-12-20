@@ -60,7 +60,14 @@ contract xPNTsToken is ERC20, ERC20Permit {
     uint256 public exchangeRate;
 
     /// @notice Contract version string
-    string public constant VERSION = "2.1.0-security"; // Version updated to reflect security patch
+    string public constant VERSION = "2.2.0-credit"; // Updated for Credit V3.2
+    
+    // ====================================
+    // Debt Storage
+    // ====================================
+    
+    /// @notice User debt balance in xPNTs
+    mapping(address => uint256) public debts;
 
     /// @notice Contract version code (major * 10000 + medium * 100 + minor)
     uint256 public constant VERSION_CODE = 20100;
@@ -74,6 +81,8 @@ contract xPNTsToken is ERC20, ERC20Permit {
     event CommunityOwnerUpdated(address indexed oldOwner, address indexed newOwner);
     event ExchangeRateUpdated(uint256 oldRate, uint256 newRate);
     event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
+    event DebtRecorded(address indexed user, uint256 amount);
+    event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
 
 
     // ====================================
@@ -208,9 +217,86 @@ contract xPNTsToken is ERC20, ERC20Permit {
         _burn(from, amount);
     }
 
+        _burn(from, amount);
+    }
+    
     // ====================================
-    // Admin & Setup Functions
+    // Debt Management (V3.2)
     // ====================================
+
+    /**
+     * @notice Record user debt (only SuperPaymaster)
+     */
+    function recordDebt(address user, uint256 amountXPNTs) external {
+        if (msg.sender != SUPERPAYMASTER_ADDRESS) {
+            revert Unauthorized(msg.sender);
+        }
+        debts[user] += amountXPNTs;
+        emit DebtRecorded(user, amountXPNTs);
+    }
+    
+    function getDebt(address user) external view returns (uint256) {
+        return debts[user];
+    }
+    
+    /**
+     * @notice Override _update to implement Auto-Repayment
+     */
+    function _update(address from, address to, uint256 value) internal virtual override {
+        // Skip minting/burning (address(0)) unless it's a real transfer
+        // But minting (from=0) IS income, so we should intercept it!
+        // Burning (to=0) is outgoing, so we ignore.
+        
+        if (to != address(0) && value > 0) {
+            uint256 debt = debts[to];
+            if (debt > 0) {
+                // Auto-Repay Logic
+                uint256 repayAmount = value > debt ? debt : value;
+                
+                // 1. Reduce Debt
+                debts[to] -= repayAmount;
+                
+                // 2. Reduce Incoming Value (effectively burn it)
+                // We do this by calling super._update with reduced value?
+                // No, ERC20 _update updates balances. 
+                // We want to burn `repayAmount` and credit `value - repayAmount`.
+                
+                // If we are minting (from=0), simple:
+                // super._update(0, to, value - repayAmount)
+                
+                // If we are transferring (from != 0):
+                // User A sends 100 to User B (debt=30).
+                // A balance -= 100.
+                // B balance += 70.
+                // Repaid 30 (Burned).
+                
+                // Standard ERC20._update(from, to, value) does:
+                // _balances[from] -= value
+                // _balances[to] += value
+                
+                // We want:
+                // _balances[from] -= value
+                // _balances[to] += (value - repayAmount)
+                // Emit Transfer(from, to, value) ?? Or Transfer(from, to, value-repay) + Transfer(from, 0, repay)?
+                
+                // Cleanest way:
+                // Let the standard update happen for the FULL amount first.
+                // Then immediately burn the repaid amount from 'to'.
+                
+                super._update(from, to, value); // Balance increases by value
+                
+                // Now burn from 'to'
+                if (repayAmount > 0) {
+                    _burn(to, repayAmount);
+                    emit DebtRepaid(to, repayAmount, debts[to]);
+                }
+                
+                return;
+            }
+        }
+        
+        super._update(from, to, value);
+    }
 
     /**
      * @notice Sets or updates the trusted SuperPaymaster address.
