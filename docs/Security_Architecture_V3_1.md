@@ -79,21 +79,115 @@ graph TD
 
 ---
 
-## 5. Slashing Governance & Community Management
+## 5. Two-Tier Slashing Governance & Deterrence Mechanism (V3.1.1)
 
-The protocol employs a multi-layered governance model to manage slashing rules and consensus parameters.
+SuperPaymaster V3.1.1 implements a **two-tier slashing architecture** to provide flexible and proportional penalties for different severity levels of operator misbehavior.
 
-### Slashing Rules (Standard Tiers)
-| Tier | Trigger Condition | Penalty | Action |
-| :--- | :--- | :--- | :--- |
-| **WARNING** | Minor downtime, oracle lag | 10 Reputation | Warning recorded, no financial loss. |
-| **MINOR** | Repeated sponsorship failures, invalid data | 20 Reputation + 10% aPNTs Bal | Partial stake burn to protocol treasury. |
-| **MAJOR** | Intentional fraud, double-spending detection | 50 Reputation + 100% aPNTs Bal | Full stake burn + Permanent Operator Pause. |
+### Architecture Overview
+
+```mermaid
+graph TD
+    subgraph "DVT Network (13 Validators)"
+        V[DVT Validators]
+        V -->|Monitor Operators| M[Off-chain Monitoring]
+    end
+    
+    subgraph "Tier 1: Operational Funds (aPNTs)"
+        SP[SuperPaymasterV3]
+        SP -->|executeSlashWithBLS| T1[Slash aPNTs Balance]
+        T1 -->|WARNING| W[0% penalty, -10 reputation]
+        T1 -->|MINOR| MI[10% penalty, -20 reputation]
+        T1 -->|MAJOR| MA[100% penalty + pause, -50 reputation]
+    end
+    
+    subgraph "Tier 2: Staked Assets (GToken)"
+        GTS[GTokenStaking]
+        GTS -->|slashByDVT| T2[Slash GToken Stake]
+        T2 -->|Serious Violations| SV[Deduct from locked stake]
+    end
+    
+    M -->|Service Quality Issues| SP
+    M -->|Serious Violations| GTS
+```
+
+### Tier 1: SuperPaymaster Slash (aPNTs - Operational Funds)
+
+**Target**: Operator's aPNTs balance (operational liquidity for sponsoring transactions)
+
+**Trigger Conditions**:
+- Transaction failure rate > threshold
+- Short-term offline (< 1 hour)
+- Slow response times
+- Service quality degradation
+
+**Penalty Levels**:
+| Level | Trigger | aPNTs Penalty | Reputation Loss | Operator Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **WARNING** | Minor downtime, oracle lag | 0% (Warning only) | -10 | Active |
+| **MINOR** | Repeated failures, invalid data | 10% of balance | -20 | Active |
+| **MAJOR** | Intentional fraud, persistent failures | 100% of balance | -50 | **Paused** |
+
+**Authorization**: Only `BLS_AGGREGATOR` can call `executeSlashWithBLS()`
+
+**Query Interfaces** (V3.1.1):
+- `getSlashHistory(address operator)`: Returns complete slash record array
+- `getSlashCount(address operator)`: Returns total number of slashes
+- `getLatestSlash(address operator)`: Returns most recent slash record
+
+### Tier 2: GTokenStaking Slash (GToken - Staked Assets)
+
+**Target**: Operator's locked GToken stake (role qualification collateral)
+
+**Trigger Conditions**:
+- Malicious behavior (double-spending, fraud)
+- Long-term offline (> 24 hours)
+- Major security incidents
+- Repeated Tier 1 violations without improvement
+
+**Authorization Mechanism** (Upgradeable):
+```solidity
+// Owner can authorize/revoke DVT slashers
+function setAuthorizedSlasher(address slasher, bool authorized) external onlyOwner;
+
+// Only authorized slashers can execute
+function slashByDVT(
+    address operator,
+    bytes32 roleId,
+    uint256 penaltyAmount,
+    string calldata reason
+) external {
+    require(authorizedSlashers[msg.sender], "Not authorized slasher");
+    // ... slash logic ...
+}
+```
+
+**Upgradeability**: The protocol owner can:
+1. Deploy new DVT/BLS contracts with improved logic
+2. Authorize new slasher: `setAuthorizedSlasher(newDVT, true)`
+3. Revoke old slasher: `setAuthorizedSlasher(oldDVT, false)`
+4. Multiple slashers can coexist during transition
+
+**Query Interface** (V3.1.1):
+- `getStakeInfo(address operator, bytes32 roleId)`: Returns role-specific stake information
+
+### Deterrence Strategy
+
+**Why Two Tiers?**
+1. **Proportional Response**: Light penalties for service issues, heavy penalties for serious violations
+2. **Asset Isolation**: Operational funds (aPNTs) and qualification collateral (GToken) are managed separately
+3. **Flexible Enforcement**: DVT can choose appropriate tier based on violation severity
+4. **Upgrade Path**: Authorization mechanism allows protocol evolution without contract migration
+
+**Deterrence Effectiveness**:
+- **Tier 1**: Immediate financial impact on operator revenue
+- **Tier 2**: Risk of losing role qualification and staked capital
+- **Combined**: Multi-layered deterrence prevents both negligence and malicious behavior
 
 ### Governance Mechanism (Multi-Sig & DAO)
-1. **Rule Setting**: The `DAO_MULTISIG` (Jason's multisig/community treasury) defines the `THRESHOLD` (currently 7/13) and `MAX_VALIDATORS`.
-2. **Validator Selection**: Only the DAO can call `registerBLSPublicKey` in `BLSAggregatorV3` to onboard decentralized monitors.
-3. **Consensus Parameters**: The DAO manages the `maxChange` (speed limit) in `Registry.sol` to tune system sensitivity vs. safety.
+1. **Rule Setting**: The `DAO_MULTISIG` defines the `THRESHOLD` (currently 7/13) and `MAX_VALIDATORS`
+2. **Validator Selection**: Only the DAO can call `registerBLSPublicKey` in `BLSAggregatorV3` to onboard decentralized monitors
+3. **Slasher Authorization**: Only the protocol owner can authorize DVT contracts to execute Tier 2 slashes
+4. **Consensus Parameters**: The DAO manages the `maxChange` (speed limit) in `Registry.sol` to tune system sensitivity vs. safety
 
 ---
 
