@@ -415,7 +415,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         }
     }
 
-    function burnSBT() external whenNotPaused nonReentrant returns (uint256 net) {
+    function burnSBT() external whenNotPaused nonReentrant {
         address u = msg.sender;
         uint256 tid = userToSBT[u];
         require(tid != 0 && ownerOf(tid) == u);
@@ -432,22 +432,30 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         }
         delete userToSBT[u];
         _burn(tid);
-        // V3 fix: call unlockAndTransfer instead of unlockStake
-        // Using keccak256("COMMUNITY") as a default role for manual burning
-        net = IGTokenStaking(GTOKEN_STAKING).unlockAndTransfer(u, keccak256("COMMUNITY"));
-        emit SBTBurned(u, tid, minLockAmount, net, block.timestamp);
+        // V3: Staking is handled by Registry, removed unlockAndTransfer call here
+        emit SBTBurned(u, tid, minLockAmount, 0, block.timestamp);
     }
 
     function leaveCommunity(address comm) external whenNotPaused nonReentrant {
-        address u = msg.sender;
-        uint256 tid = userToSBT[u];
-        require(tid != 0 && ownerOf(tid) == u);
-        uint256 idx = membershipIndex[tid][comm];
-        require(idx < _m[tid].length);
+        _deactivateMembership(msg.sender, comm);
+    }
+
+    function deactivateMembership(address user, address community) external onlyRegistry {
+        _deactivateMembership(user, community);
+    }
+
+    function _deactivateMembership(address user, address community) internal {
+        uint256 tid = userToSBT[user];
+        if (tid == 0) return;
+        
+        uint256 idx = membershipIndex[tid][community];
+        if (idx >= _m[tid].length) return;
+        
         CommunityMembership storage mem = _m[tid][idx];
-        require(mem.community == comm && mem.isActive);
-        mem.isActive = false;
-        emit MembershipDeactivated(tid, comm, block.timestamp);
+        if (mem.community == community && mem.isActive) {
+            mem.isActive = false;
+            emit MembershipDeactivated(tid, community, block.timestamp);
+        }
     }
 
     function verifyCommunityMembership(address u, address comm)

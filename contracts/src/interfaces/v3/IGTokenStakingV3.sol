@@ -193,6 +193,21 @@ interface IGTokenStakingV3 {
         view
         returns (bool);
 
+    /**
+     * @notice Get role lock details
+     * @param user User address
+     * @param roleId Role identifier
+     * @return roleId_ The role ID
+     * @return amount Locked stGToken amount
+     * @return entryBurn Amount burned on entry
+     * @return lockedAt Lock timestamp
+     * @return metadata Additional role-specific data
+     */
+    function roleLocks(address user, bytes32 roleId)
+        external
+        view
+        returns (bytes32 roleId_, uint256 amount, uint256 entryBurn, uint256 lockedAt, bytes memory metadata);
+
     // ====================================
     // View Functions - Balances
     // ====================================

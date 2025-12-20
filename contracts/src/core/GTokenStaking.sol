@@ -141,21 +141,35 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         RoleLock storage lock = roleLocks[user][roleId];
         if (lock.amount == 0) revert("No lock found");
         
-        uint256 grossAmount = lock.amount;
+        uint256 originalAmount = lock.amount;
+        uint256 slashDeduction = 0;
+        
+        // Handle slashes from global debt
+        StakeInfo storage info = stakes[user];
+        if (info.slashedAmount > 0) {
+            slashDeduction = originalAmount > info.slashedAmount ? info.slashedAmount : originalAmount;
+            info.slashedAmount -= slashDeduction;
+            
+            // Tokens already in contract, just transfer the slashed part to treasury
+            GTOKEN.safeTransfer(treasury, slashDeduction);
+        }
+
+        uint256 grossForFee = originalAmount - slashDeduction;
         uint256 exitFee = 0;
         
-        // Calculate fee
-        (exitFee, netAmount) = _previewExitFee(user, roleId, grossAmount);
+        // Calculate fee on remaining amount
+        (exitFee, netAmount) = _previewExitFee(user, roleId, grossForFee);
         
         // Update state before transfer (CEI)
         delete roleLocks[user][roleId];
         _removeUserRole(user, roleId);
         
-        stakes[user].amount -= grossAmount;
-        stakes[user].stGTokenShares -= grossAmount;
+        // Global accounting uses the original lock amount
+        stakes[user].amount -= originalAmount;
+        stakes[user].stGTokenShares -= originalAmount;
         
-        totalStaked -= grossAmount;
-        totalShares -= grossAmount;
+        totalStaked -= originalAmount;
+        totalShares -= originalAmount;
 
         // Transfers
         if (exitFee > 0) {
@@ -166,7 +180,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
             GTOKEN.safeTransfer(user, netAmount);
         }
 
-        emit StakeUnlocked(user, roleId, grossAmount, exitFee, netAmount, block.timestamp);
+        emit StakeUnlocked(user, roleId, originalAmount, exitFee + slashDeduction, netAmount, block.timestamp);
         return netAmount;
     }
 

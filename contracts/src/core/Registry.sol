@@ -49,6 +49,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     mapping(bytes32 => string) public proposedRoleNames;
     mapping(bytes32 => address) public roleOwners;
+    mapping(bytes32 => uint256) public roleLockDurations; // NEW
 
     BurnRecord[] public burnHistory;
     mapping(address => uint256[]) public userBurnHistory;
@@ -125,10 +126,32 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
+        
+        // --- TIMELOCK CHECK ---
+        uint256 lockDuration = roleLockDurations[roleId];
+        if (lockDuration > 0) {
+            uint256 lockedAt;
+            // Get lockedAt from Staking
+            (,,,lockedAt,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
+            if (block.timestamp < lockedAt + lockDuration) revert("Lock duration not met");
+        }
+
         uint256 stakedAmount = roleStakes[roleId][msg.sender];
         
         hasRole[roleId][msg.sender] = false;
         roleStakes[roleId][msg.sender] = 0;
+
+        // --- SBT LINKAGE ---
+        if (roleId == ROLE_ENDUSER) {
+            bytes memory metadata = roleMetadata[roleId][msg.sender];
+            if (metadata.length > 0) {
+                EndUserRoleData memory data = abi.decode(metadata, (EndUserRoleData));
+                MYSBT.deactivateMembership(msg.sender, data.community);
+            }
+        } else if (roleId == ROLE_COMMUNITY) {
+             // For community role, we might want to deactivate its own record?
+             // But usually it is the user role that has membership.
+        }
 
         burnHistory.push(BurnRecord(roleId, msg.sender, stakedAmount, block.timestamp, "Exit"));
         userBurnHistory[msg.sender].push(burnHistory.length - 1);
