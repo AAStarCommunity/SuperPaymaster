@@ -151,6 +151,8 @@ contract DeployV3FullLocal is Script {
         console.log("REGISTRY=", address(registry));
         console.log("PAYMASTER=", address(paymaster));
         console.log("APNTS=", address(apnts));
+        console.log("MYSBT=", address(mysbt));
+        console.log("STAKING=", address(staking));
         console.log("REP_SYSTEM=", address(repSystem));
         console.log("GTOKEN=", address(gtoken));
         // console.log("ACCOUNT_FACTORY=", address(accountFactory)); // AccountFactory not used in local test
