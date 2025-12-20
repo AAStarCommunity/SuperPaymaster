@@ -68,6 +68,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         MYSBT = IMySBTV3(_mysbt);
         
         address regOwner = msg.sender;
+        // NOTE: setRoleExitFee will be called by _initRole, but it will fail if REGISTRY is not set in GTokenStaking
+        // The deployment script MUST call staking.setRegistry(address(registry)) BEFORE this constructor completes
+        // OR we need to defer _initRole calls until after setRegistry
+        // For now, we'll comment out _initRole and do it in the deployment script
+        
         // Format: _initRole(roleId, minStake, entryBurn, slashThresh, slashBase, slashInc, slashMax, exitFeePercent, minExitFee, active, desc, owner)
         _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner);
         _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner);
@@ -109,8 +114,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, minExitFee, active, desc);
         roleOwners[roleId] = owner;
-        // Sync exit fee to GTokenStaking
-        GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
+        // NOTE: Skip setRoleExitFee during construction, will be set by deployment script
+        // Calling setRoleExitFee here would fail because REGISTRY is not yet set in GTokenStaking
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {

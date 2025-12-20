@@ -96,12 +96,26 @@ contract DeployV3FullLocal is Script {
         registry.setReputationSource(address(repSystem), true);
         apnts.setSuperPaymasterAddress(address(paymaster));
         
+        // 5.1 Set role exit fees (since _initRole doesn't call setRoleExitFee during construction)
+        bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+        bytes32 ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+        bytes32 ROLE_ANODE = keccak256("ANODE");
+        bytes32 ROLE_KMS = keccak256("KMS");
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        
+        staking.setRoleExitFee(ROLE_PAYMASTER_AOA, 1000, 1 ether);
+        staking.setRoleExitFee(ROLE_PAYMASTER_SUPER, 1000, 2 ether);
+        staking.setRoleExitFee(ROLE_ANODE, 1000, 1 ether);
+        staking.setRoleExitFee(ROLE_KMS, 1000, 5 ether);
+        staking.setRoleExitFee(ROLE_COMMUNITY, 1000, 0.5 ether);
+        staking.setRoleExitFee(ROLE_ENDUSER, 1000, 0.05 ether);
+        
         // Deposit some ETH to EntryPoint for Paymaster
         IEntryPoint(entryPointAddr).depositTo{value: 10 ether}(address(paymaster));
 
         // 6. Orchestrate Local Environment (Roles)
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        // (ROLE_COMMUNITY and ROLE_ENDUSER already defined above)
 
         // Mint GTokens for Deployer (Operator)
         gtoken.mint(deployer, 5000 ether);
@@ -113,30 +127,29 @@ contract DeployV3FullLocal is Script {
         );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
 
-        // Mint GTokens for Alice (End User)
-        gtoken.mint(alice, 1000 ether);
+        // Mint GTokens for Alice's AA Account (not Alice EOA)
+        // Because registerRole uses aliceAccount as payer
+        // NOTE: Commented out because AA account can't directly approve in deployment script
+        // Test scripts will handle Alice registration with proper AA transaction flow
+        // gtoken.mint(aliceAccount, 1000 ether);
         
-        // --- 切换到 Alice 的环境进行授权 ---
-        vm.stopBroadcast();
+        // --- Skip Alice registration in deployment, will be done in test scripts ---
+        // vm.stopBroadcast();
+        // vm.prank(aliceAccount);
+        // gtoken.approve(address(staking), 1000 ether);
+        // vm.startBroadcast(deployerPK);
         
-        vm.startBroadcast(alicePK);
-        gtoken.approve(address(staking), 1000 ether);
-        vm.stopBroadcast();
-        
-        // --- 恢复部署者环境进行后续注册 ---
-        vm.startBroadcast(deployerPK);
-
         // Encode EndUserRoleData: LINK TO DEPLOYER AS COMMUNITY
-        bytes memory aliceData = abi.encode(Registry.EndUserRoleData({
-            account: aliceAccount, 
-            community: deployer,   // Deployer is the operator/community
-            avatarURI: "ipfs://alice", 
-            ensName: "alice.local.eth", 
-            stakeAmount: 0        // Min stake is used if 0
-        }));
+        // bytes memory aliceData = abi.encode(Registry.EndUserRoleData({
+        //     account: aliceAccount, 
+        //     community: deployer,   // Deployer is the operator/community
+        //     avatarURI: "ipfs://alice", 
+        //     ensName: "alice.local.eth", 
+        //     stakeAmount: 0        // Min stake is used if 0
+        // }));
         
         // Register AliceRole via Registry (Single Entrypoint)
-        registry.registerRole(ROLE_ENDUSER, aliceAccount, aliceData);
+        // registry.registerRole(ROLE_ENDUSER, aliceAccount, aliceData);
 
 
         // Set an Entropy Factor for testing (0.5 resistance)

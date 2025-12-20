@@ -297,4 +297,10 @@ interface IGTokenStakingV3 {
      * @param authorized Authorization status
      */
     function setAuthorizedSlasher(address slasher, bool authorized) external;
+
+    /**
+     * @notice Set Registry contract address (Owner only)
+     * @param _registry Registry contract address
+     */
+    function setRegistry(address _registry) external;
 }

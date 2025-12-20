@@ -445,6 +445,38 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     }
 
     // ====================================
+    // Slash Query Interfaces
+    // ====================================
+
+    /**
+     * @notice Get complete slash history for an operator
+     * @param operator Operator address
+     * @return Array of slash records
+     */
+    function getSlashHistory(address operator) external view returns (SlashRecord[] memory) {
+        return slashHistory[operator];
+    }
+
+    /**
+     * @notice Get total number of times an operator has been slashed
+     * @param operator Operator address
+     * @return Total slash count
+     */
+    function getSlashCount(address operator) external view returns (uint256) {
+        return slashHistory[operator].length;
+    }
+
+    /**
+     * @notice Get the most recent slash record for an operator
+     * @param operator Operator address
+     * @return Most recent slash record (reverts if no history)
+     */
+    function getLatestSlash(address operator) external view returns (SlashRecord memory) {
+        require(slashHistory[operator].length > 0, "No slash history");
+        return slashHistory[operator][slashHistory[operator].length - 1];
+    }
+
+    // ====================================
     // Paymaster Implementation
     // ====================================
 

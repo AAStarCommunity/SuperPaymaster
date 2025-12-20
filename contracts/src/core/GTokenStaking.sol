@@ -316,4 +316,57 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     function setAuthorizedSlasher(address slasher, bool authorized) external onlyOwner {
         authorizedSlashers[slasher] = authorized;
     }
+
+    // ====================================
+    // DVT Slash Interface (Two-Tier Penalty)
+    // ====================================
+
+    event StakeSlashed(
+        address indexed operator,
+        bytes32 indexed roleId,
+        uint256 amount,
+        string reason,
+        uint256 timestamp
+    );
+
+    /**
+     * @notice Slash operator's stake (DVT Validator only)
+     * @param operator Operator to slash
+     * @param roleId Role being slashed
+     * @param penaltyAmount Amount of GToken to slash
+     * @param reason Reason for slashing
+     */
+    // FIXME: This function has incorrect mapping access
+    // stakes is mapping(address => StakeInfo), not mapping(address => mapping(bytes32 => StakeInfo))
+    // function slashByDVT(
+    //     address operator,
+    //     bytes32 roleId,
+    //     uint256 penaltyAmount,
+    //     string calldata reason
+    // ) external {
+    //     require(authorizedSlashers[msg.sender], "Not authorized slasher");
+    //     
+    //     StakeInfo storage stake = stakes[operator][roleId];
+    //     require(stake.lockedAmount >= penaltyAmount, "Insufficient stake");
+    //     
+    //     // Deduct from locked stake
+    //     stake.lockedAmount -= penaltyAmount;
+    //     totalStaked -= penaltyAmount;
+    //     
+    //     // Transfer slashed amount to treasury
+    //     require(GTOKEN.transfer(treasury, penaltyAmount), "Transfer failed");
+    //     
+    //     emit StakeSlashed(operator, roleId, penaltyAmount, reason, block.timestamp);
+    // }
+
+    /**
+     * @notice Get operator's stake info for a role
+     * @param operator Operator address
+     * @param roleId Role identifier
+     * @return Stake information
+     */
+    // FIXME: This function has incorrect mapping access
+    // function getStakeInfo(address operator, bytes32 roleId) external view returns (StakeInfo memory) {
+    //     return stakes[operator][roleId];
+    // }
 }
