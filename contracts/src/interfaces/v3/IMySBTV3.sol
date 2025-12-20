@@ -66,4 +66,11 @@ interface IMySBTV3 {
      * @param user User address
      */
     function recordActivity(address user) external;
+
+    /**
+     * @notice Deactivate user membership in community (called by Registry only)
+     * @param user User address
+     * @param community Community address
+     */
+    function deactivateMembership(address user, address community) external;
 }
