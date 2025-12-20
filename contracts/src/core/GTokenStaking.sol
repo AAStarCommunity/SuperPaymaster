@@ -336,37 +336,49 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
      * @param penaltyAmount Amount of GToken to slash
      * @param reason Reason for slashing
      */
-    // FIXME: This function has incorrect mapping access
-    // stakes is mapping(address => StakeInfo), not mapping(address => mapping(bytes32 => StakeInfo))
-    // function slashByDVT(
-    //     address operator,
-    //     bytes32 roleId,
-    //     uint256 penaltyAmount,
-    //     string calldata reason
-    // ) external {
-    //     require(authorizedSlashers[msg.sender], "Not authorized slasher");
-    //     
-    //     StakeInfo storage stake = stakes[operator][roleId];
-    //     require(stake.lockedAmount >= penaltyAmount, "Insufficient stake");
-    //     
-    //     // Deduct from locked stake
-    //     stake.lockedAmount -= penaltyAmount;
-    //     totalStaked -= penaltyAmount;
-    //     
-    //     // Transfer slashed amount to treasury
-    //     require(GTOKEN.transfer(treasury, penaltyAmount), "Transfer failed");
-    //     
-    //     emit StakeSlashed(operator, roleId, penaltyAmount, reason, block.timestamp);
-    // }
+    function slashByDVT(
+        address operator,
+        bytes32 roleId,
+        uint256 penaltyAmount,
+        string calldata reason
+    ) external {
+        require(authorizedSlashers[msg.sender], "Not authorized slasher");
+        
+        RoleLock storage lock = roleLocks[operator][roleId];
+        require(lock.amount >= penaltyAmount, "Insufficient stake");
+        
+        // Deduct from role lock
+        lock.amount -= penaltyAmount;
+        
+        // Deduct from total stake and track slashed amount
+        StakeInfo storage stake = stakes[operator];
+        stake.amount -= penaltyAmount;
+        stake.slashedAmount += penaltyAmount;
+        totalStaked -= penaltyAmount;
+        
+        // Transfer slashed amount to treasury
+        GTOKEN.safeTransfer(treasury, penaltyAmount);
+        
+        emit StakeSlashed(operator, roleId, penaltyAmount, reason, block.timestamp);
+    }
 
     /**
      * @notice Get operator's stake info for a role
      * @param operator Operator address
      * @param roleId Role identifier
-     * @return Stake information
+     * @return Stake information (role-specific view)
      */
-    // FIXME: This function has incorrect mapping access
-    // function getStakeInfo(address operator, bytes32 roleId) external view returns (StakeInfo memory) {
-    //     return stakes[operator][roleId];
-    // }
+    function getStakeInfo(address operator, bytes32 roleId) external view returns (StakeInfo memory) {
+        RoleLock memory lock = roleLocks[operator][roleId];
+        StakeInfo memory stake = stakes[operator];
+        
+        // Return a view showing role-specific locked amount
+        return StakeInfo({
+            amount: lock.amount,  // Role-specific locked amount
+            stGTokenShares: stake.stGTokenShares,
+            slashedAmount: stake.slashedAmount,
+            stakedAt: lock.lockedAt,
+            unstakeRequestedAt: 0  // Role locks don't track unstake requests
+        });
+    }
 }
