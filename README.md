@@ -33,6 +33,7 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
   - 🧪 [V3.1.1 Testing Framework (Beginner Ready)](./docs/V3_Testing_Framework.md) - How to run V3 tests
   - 📜 [Stage 1 Audit Summary](./docs/Stage1_Audit_Summary.md) - Coverage & security audit report
   - 🛡️ [Security Architecture V3.1.1](./docs/Security_Architecture_V3_1.md) - DVT Slashing & Reputation System
+  - 🚀 [Security & Performance Action Plan](./docs/SECURITY_AND_PERFORMANCE.md) - Best practices workflow
 - **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md) on Sepolia testnet
 - Mainnet deployment ready (pending audit)
 
@@ -689,6 +690,7 @@ SuperPaymaster 是一个用于 ERC-4337 账户抽象的**去中心化燃料费�
 - 206/206 测试通过
 - 已部署在 Sepolia 测试网
 - 主网部署就绪（等待审计）
+- **安全与性能**: [🛡️ 安全与性能最佳实践](./docs/SECURITY_AND_PERFORMANCE.md)
 - **V3 重构计划**: [基于信用的架构与 DVT 安全](./docs/V3_REFACTOR_DESIGN.md)
 
 ---
