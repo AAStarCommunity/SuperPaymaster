@@ -171,17 +171,17 @@ contract SuperPaymasterV3Test is Test {
         assertEq(paymaster.totalTrackedBalance(), 100 ether, "Total Tracked Mismatch");
 
         (
-            address v1, bool v2, bool v3, uint80 v4, 
-            address v5, uint96 v6, uint256 v7, uint256 v8, uint256 v9, uint256 v10
+            address v1, bool v2, bool v3, 
+            address v4, uint96 v5, uint256 v6, uint256 v7, uint256 v8, uint256 v9
         ) = paymaster.operators(operator);
         
-        // v7 is aPNTsBalance (100 ether) in new packed layout.
-        if (v7 != 100 ether) {
+        // v6 is aPNTsBalance (100 ether) in new packed layout.
+        if (v6 != 100 ether) {
+             console.log("v6:", v6);
              console.log("v7:", v7);
-             console.log("v8:", v8);
              fail();
         }
-        assertEq(v7, 100 ether);
+        assertEq(v6, 100 ether);
         
         vm.stopPrank();
     }
@@ -210,7 +210,7 @@ contract SuperPaymasterV3Test is Test {
 
         paymaster.withdraw(50 ether);
         
-        (,,,,,, uint256 bal,,,) = paymaster.operators(operator); // v7 is balance
+        (,,,,, uint256 bal,,,) = paymaster.operators(operator); 
         assertEq(bal, 50 ether);
         assertEq(apnts.balanceOf(operator), 950 ether);
         vm.stopPrank();
@@ -219,7 +219,7 @@ contract SuperPaymasterV3Test is Test {
     function testConfigureOperator() public {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
-        (address token, bool isConf,,, address treas,, uint256 bal,,,) = paymaster.operators(operator); 
+        (address token, bool isConf,, address treas,, uint256 bal,,,) = paymaster.operators(operator); 
         assertEq(token, address(apnts));
         vm.stopPrank();
     }
@@ -229,13 +229,13 @@ contract SuperPaymasterV3Test is Test {
         paymaster.updateReputation(operator, 100);
         
         // Slash Minor
-        paymaster.slashOperator(operator, SuperPaymasterV3.SlashLevel.MINOR, 0, "Test Minor");
-        (,,,,,,,,, uint256 repMinor) = paymaster.operators(operator); // v10
+        paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MINOR, 0, "Test Minor");
+        (,,,,,,,, uint256 repMinor) = paymaster.operators(operator); 
         assertEq(repMinor, 80);
 
         // Slash Major (Pause)
-        paymaster.slashOperator(operator, SuperPaymasterV3.SlashLevel.MAJOR, 0, "Test Major");
-        (,,,,,,,,, uint256 repMajor) = paymaster.operators(operator); 
+        paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MAJOR, 0, "Test Major");
+        (,,,,,,,, uint256 repMajor) = paymaster.operators(operator); 
         assertEq(repMajor, 30);
         
         vm.stopPrank();
@@ -290,7 +290,7 @@ contract SuperPaymasterV3Test is Test {
         // Struct: 6=Balance, 7=TotalSpent. 
         // Tuple: (v1..v9).
         // If v6 is Balance, then v7 is TotalSpent.
-        (,,,,,,, uint256 spent,,) = paymaster.operators(operator); 
+        (,,,,,, uint256 spent,,) = paymaster.operators(operator); 
         
         uint256 revenue = paymaster.protocolRevenue();
         console.log("Revenue detected:", revenue);

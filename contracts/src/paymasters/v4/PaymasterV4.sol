@@ -18,11 +18,6 @@ import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
 
-/// @notice Interface for GasToken price query (deprecated, use xPNTs)
-interface IGasTokenPrice {
-    function getEffectivePrice() external view returns (uint256);
-}
-
 using UserOperationLib for PackedUserOperation;
 using SafeERC20 for IERC20;
 

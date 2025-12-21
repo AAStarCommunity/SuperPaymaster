@@ -2,163 +2,87 @@
 pragma solidity ^0.8.23;
 
 /**
- * @title ISuperPaymasterV3 - SuperPaymaster V3 Interface
- * @notice Interface for SuperPaymaster V3 with SBT + PNT validation
- * @dev Extends ERC-4337 Paymaster functionality with on-chain qualification checks
+ * @title ISuperPaymasterV3 - Multi-tenant SuperPaymaster Interface
+ * @notice Interface for SuperPaymaster V3 with per-operator configuration
  */
 interface ISuperPaymasterV3 {
+    
+    enum SlashLevel { WARNING, MINOR, MAJOR }
+
+    struct OperatorConfig {
+        address xPNTsToken;
+        bool isConfigured;
+        bool isPaused;
+        address treasury;
+        uint96 exchangeRate;
+        uint256 aPNTsBalance;
+        uint256 totalSpent;
+        uint256 totalTxSponsored;
+        uint256 reputation;
+    }
+
+    struct SlashRecord {
+        uint256 timestamp;
+        uint256 amount;
+        uint256 reputationLoss;
+        string reason;
+        SlashLevel level;
+    }
+
     // ============ Events ============
 
-    /**
-     * @notice Emitted when SBT contract is updated
-     * @param oldSBT Previous SBT contract address
-     * @param newSBT New SBT contract address
-     */
-    event SBTContractUpdated(
-        address indexed oldSBT,
-        address indexed newSBT
-    );
+    event OperatorDeposited(address indexed operator, uint256 amount);
+    event OperatorWithdrawn(address indexed operator, uint256 amount);
+    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
+    event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
+    event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
+    event ReputationUpdated(address indexed operator, uint256 newScore);
+    event ValidationRejected(address indexed user, address indexed operator, uint8 reasonCode);
+
+    // ============ Functions ============
 
     /**
-     * @notice Emitted when gas token is updated
-     * @param oldToken Previous gas token address
-     * @param newToken New gas token address
+     * @notice Configure operator billing settings
      */
-    event GasTokenUpdated(
-        address indexed oldToken,
-        address indexed newToken
-    );
+    function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external;
 
     /**
-     * @notice Emitted when settlement contract is updated
-     * @param oldSettlement Previous settlement contract
-     * @param newSettlement New settlement contract
+     * @notice Deposit aPNTs as gas collateral
      */
-    event SettlementContractUpdated(
-        address indexed oldSettlement,
-        address indexed newSettlement
-    );
+    function deposit(uint256 amount) external;
 
     /**
-     * @notice Emitted when minimum token balance is updated
-     * @param oldBalance Previous minimum balance
-     * @param newBalance New minimum balance
+     * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
      */
-    event MinTokenBalanceUpdated(
-        uint256 oldBalance,
-        uint256 newBalance
-    );
+    function notifyDeposit(uint256 amount) external;
 
     /**
-     * @notice Emitted when gas is sponsored for a user
-     * @param user User address
-     * @param amount Gas cost amount
-     * @param token Token used for payment
+     * @notice Withdraw aPNTs collateral
      */
-    event GasSponsored(
-        address indexed user,
-        uint256 amount,
-        address indexed token
-    );
+    function withdraw(uint256 amount) external;
 
     /**
-     * @notice Emitted when gas fee is recorded in settlement
-     * @param user User address
-     * @param amount Fee amount
-     * @param token Token address
+     * @notice Get operator credit limit for a user
      */
-    event GasRecorded(
-        address indexed user,
-        uint256 amount,
-        address indexed token
-    );
+    function getAvailableCredit(address user, address token) external view returns (uint256);
 
     /**
-     * @notice Emitted when user qualification check fails
-     * @param user User address
-     * @param reason Failure reason (0: No SBT, 1: Insufficient balance)
+     * @notice Slash operator via BLS consensus
      */
-    event QualificationCheckFailed(
-        address indexed user,
-        uint8 reason
-    );
-
-    // ============ Configuration Functions ============
+    function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 
     /**
-     * @notice Set SBT contract address
-     * @dev Only callable by owner
-     * @param sbt SBT contract address
+     * @notice Get operator configuration
      */
-    function setSBTContract(address sbt) external;
-
-    /**
-     * @notice Set gas token address
-     * @dev Only callable by owner
-     * @param token ERC20 token address
-     */
-    function setGasToken(address token) external;
-
-    /**
-     * @notice Set settlement contract address
-     * @dev Only callable by owner
-     * @param settlement Settlement contract address
-     */
-    function setSettlementContract(address settlement) external;
-
-    /**
-     * @notice Set minimum token balance requirement
-     * @dev Only callable by owner
-     * @param minBalance Minimum balance in wei
-     */
-    function setMinTokenBalance(uint256 minBalance) external;
-
-    /**
-     * @notice Pauses paymaster operations
-     * @dev Only callable by owner
-     */
-    function pause() external;
-
-    /**
-     * @notice Unpauses paymaster operations
-     * @dev Only callable by owner
-     */
-    function unpause() external;
-
-    // ============ View Functions ============
-
-    /**
-     * @notice Get SBT contract address
-     * @return sbt SBT contract address
-     */
-    function sbtContract() external view returns (address sbt);
-
-    /**
-     * @notice Get gas token address
-     * @return token Gas token address
-     */
-    function gasToken() external view returns (address token);
-
-    /**
-     * @notice Get settlement contract address
-     * @return settlement Settlement contract address
-     */
-    function settlementContract() external view returns (address settlement);
-
-    /**
-     * @notice Get minimum token balance requirement
-     * @return minBalance Minimum balance in wei
-     */
-    function minTokenBalance() external view returns (uint256 minBalance);
-
-    /**
-     * @notice Check if a user is qualified for gas sponsorship
-     * @param user User address to check
-     * @return qualified True if user meets all requirements
-     * @return reason Failure reason if not qualified (0: No SBT, 1: Low balance)
-     */
-    function isUserQualified(address user) external view returns (
-        bool qualified,
-        uint8 reason
+    function operators(address operator) external view returns (
+        address xPNTsToken,
+        bool isConfigured,
+        bool isPaused,
+        address treasury,
+        uint96 exchangeRate,
+        uint256 aPNTsBalance,
+        uint256 totalSpent,
+        uint256 totalTxSponsored,
+        uint256 reputation
     );
 }

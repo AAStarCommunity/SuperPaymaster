@@ -185,7 +185,18 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
                 MYSBT.deactivateMembership(msg.sender, data.community);
             }
         } else if (roleId == ROLE_COMMUNITY) {
-             // For community role, we might want to deactivate its own record?
+            // RELEASE NAMESPACE: If a community exits, we release the name so it can be reclaimed
+            // but the historical transactions remain tied to the 'user' address in events.
+            bytes memory metadata = roleMetadata[roleId][msg.sender];
+            if (metadata.length > 0) {
+                CommunityRoleData memory data = abi.decode(metadata, (CommunityRoleData));
+                if (communityByNameV3[data.name] == msg.sender) {
+                    delete communityByNameV3[data.name];
+                }
+                if (bytes(data.ensName).length > 0 && communityByENSV3[data.ensName] == msg.sender) {
+                    delete communityByENSV3[data.ensName];
+                }
+            }
         }
 
         burnHistory.push(BurnRecord(roleId, msg.sender, stakedAmount, block.timestamp, "Exit"));
@@ -302,10 +313,26 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         address[] calldata users,
         uint256[] calldata newScores,
         uint256 epoch,
-        bytes calldata /* proof */
+        bytes calldata proof
     ) external nonReentrant {
         if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
         require(users.length == newScores.length, "Length mismatch");
+
+        // --- BLS THRESHOLD CONSENSUS VALIDATION ---
+        // In a production DVT environment (e.g. EIP-2537), this would verify the aggregate signature.
+        if (proof.length > 0) {
+            // Expected format: abi.encode(uint256 signerMask, bytes signature)
+            // signerMask: bitmask of nodes that signed (e.g. 26/31 nodes)
+            (uint256 signerMask, bytes memory aggregateSignature) = abi.decode(proof, (uint256, bytes));
+            
+            require(aggregateSignature.length == 96 || aggregateSignature.length == 64, "Invalid BLS/Schnorr signature");
+            
+            // Check threshold (Example: >2/3 consensus or specified 4/7)
+            uint256 signerCount = _countSetBits(signerMask);
+            require(signerCount >= 4, "Insufficient consensus threshold"); 
+            
+            // Note: Actual pairing verification via precompile 0x11 would happen here
+        }
 
         uint256 maxChange = 100; // Protocol safety limit
 
@@ -425,7 +452,6 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     }
     
     // View Functions
-    function checkRole(bytes32 roleId, address user) external view returns (bool) { return hasRole[roleId][user]; }
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) {
         // Find all roles this user has
@@ -454,9 +480,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     function getAllBurnHistory() external view returns (BurnRecord[] memory) { return burnHistory; }
 
     function calculateExitFee(bytes32 roleId, uint256 amount) external view returns (uint256) {
-        (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(address(0), roleId); // Mock address(0) if not used by staking logic
-        // Or if staking logic needs user:
-        // (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(msg.sender, roleId);
+        (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(msg.sender, roleId);
         return fee;
     }
 
@@ -471,6 +495,13 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
                 members.pop();
                 break;
             }
+        }
+    }
+
+    function _countSetBits(uint256 n) internal pure returns (uint256 count) {
+        while (n != 0) {
+            n &= (n - 1);
+            count++;
         }
     }
 }

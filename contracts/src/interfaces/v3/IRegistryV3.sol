@@ -189,7 +189,7 @@ interface IRegistryV3 {
     /**
      * @notice Authorize or revoke a reputation source
      */
-    function setReputationSource(address source, bool authorized) external;
+    function setReputationSource(address source, bool isActive) external;
 
     /**
      * @notice Configure credit limit for a level
@@ -202,6 +202,8 @@ interface IRegistryV3 {
      * @return Credit limit in aPNTs (18 decimals)
      */
     function getCreditLimit(address user) external view returns (uint256);
+    
+    // ====================================
     // View Functions
     // ====================================
 

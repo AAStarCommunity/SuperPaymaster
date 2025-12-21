@@ -27,4 +27,12 @@ interface IxPNTsToken {
      * @return debt Debt amount in xPNTs
      */
     function getDebt(address user) external view returns (uint256 debt);
+
+    /**
+     * @notice Secure burn by Paymaster with replay protection
+     * @param from User address
+     * @param amount Token amount to burn
+     * @param userOpHash UserOperation hash for replay protection
+     */
+    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
 }

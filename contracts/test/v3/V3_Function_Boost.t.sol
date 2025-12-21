@@ -172,11 +172,11 @@ contract V3_Function_BoostTest is Test {
         // 3. Pause as OWNER
         vm.startPrank(owner);
         paymaster.setOperatorPaused(manager, true);
-        (,,bool isPaused,,,,,,,) = paymaster.operators(manager);
+        (,,bool isPaused,,,,,,) = paymaster.operators(manager);
         assertTrue(isPaused);
         
         paymaster.setOperatorPaused(manager, false);
-        (,,bool isPaused2,,,,,,,) = paymaster.operators(manager);
+        (,,bool isPaused2,,,,,,) = paymaster.operators(manager);
         assertFalse(isPaused2);
         vm.stopPrank();
     }

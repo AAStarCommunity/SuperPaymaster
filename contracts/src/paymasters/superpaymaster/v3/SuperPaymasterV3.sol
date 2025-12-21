@@ -7,17 +7,9 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistryV3.sol";
-import "../../../interfaces/IERC1363.sol";
+import "../../../interfaces/IxPNTsToken.sol";
+import "../../../interfaces/ISuperPaymasterV3.sol";
 
-/**
- * @dev Interface for the securely-upgraded xPNTsToken.
- */
-interface IModernXPNTsToken {
-    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
-    function exchangeRate() external view returns (uint256);
-    function getDebt(address user) external view returns (uint256);
-    function recordDebt(address user, uint256 amountXPNTs) external;
-}
 
 
 /**
@@ -26,46 +18,10 @@ interface IModernXPNTsToken {
  * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
  *      Optimized for Gas and Security (CEI, Packing, Batch Updates).
  */
-contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
+contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     using SafeERC20 for IERC20;
 
-    // ====================================
-    // Structs (Optimized Layout)
-    // ====================================
 
-    
-    // Simpler Struct (Std Layout is often efficient enough)
-    struct OperatorConfig {
-        // Slot 0: Packed
-        address xPNTsToken;     // 20 bytes
-        bool isConfigured;      // 1 byte
-        bool isPaused;          // 1 byte
-        uint80 _reserved;       // 10 bytes
-        
-        // Slot 1: Packed
-        address treasury;       // 20 bytes
-        uint96 exchangeRate;    // 12 bytes (max 7.9e10 * 1e18)
-
-        // Slot 2+
-        uint256 aPNTsBalance;
-        uint256 totalSpent;
-        uint256 totalTxSponsored;
-        uint256 reputation;
-    }
-
-    struct SlashRecord {
-        uint256 timestamp;
-        uint256 amount;        // Penalty amount (if any, e.g. aPNTs burned)
-        uint256 reputationLoss;
-        string reason;
-        SlashLevel level;
-    }
-
-    enum SlashLevel {
-        WARNING,
-        MINOR,
-        MAJOR
-    }
 
     struct PriceCache {
         int256 price;
@@ -84,11 +40,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     address public treasury; // Protocol Treasury for fees
 
     // Operator Data Mapped by Address
-    mapping(address => OperatorConfig) public operators;
+    mapping(address => ISuperPaymasterV3.OperatorConfig) public operators;
     
     // Slash History
-    // Slash History
-    mapping(address => SlashRecord[]) public slashHistory;
+    mapping(address => ISuperPaymasterV3.SlashRecord[]) public slashHistory;
     
     // V3.2: Debt Tracking (Moved to xPNTsToken)
     // mapping(address => uint256) public userDebts; // Removed in V3.2
@@ -109,34 +64,16 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
-    // ====================================
-    // Events
-    // ====================================
-
-    event OperatorDeposited(address indexed operator, uint256 amount);
-    event OperatorWithdrawn(address indexed operator, uint256 amount);
-    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
-    event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
-    event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
-    
-    // Restored Events
-    event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
-    event ReputationUpdated(address indexed operator, uint256 newScore);
-    event OperatorPaused(address indexed operator);
-    event OperatorUnpaused(address indexed operator);
 
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
-    // event DebtRecorded(address indexed user, uint256 amount); // Moved to token
-    // event DebtRepaid(address indexed user, uint256 amount);   // Moved to token
 
     /**
-     * @notice Emitted when validation is rejected with a specific reason code
-     * @param user The user whose operation was rejected
-     * @param operator The operator address
-     * @param reasonCode Rejection reason: 1=Operator not registered, 2=User not verified, 3=Credit limit exceeded
+     * @notice Emitted when aPNTs token is updated
      */
-    event ValidationRejected(address indexed user, address indexed operator, uint8 reasonCode);
+    event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    event OperatorPaused(address indexed operator);
+    event OperatorUnpaused(address indexed operator);
 
     // ====================================
     // Constructor
@@ -292,14 +229,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         totalTrackedBalance += amount;
 
         emit OperatorDeposited(msg.sender, amount);
-        
-        // V3.1: Auto-Repay Debt
-        _autoRepayDebt(msg.sender, amount);
     }
     
-    function _autoRepayDebt(address user, uint256 depositedAmount) internal {
-        // V3.2: Deprecated. Auto-Repayment is handled by xPNTsToken._update() hook.
-    }
 
 
 
@@ -338,11 +269,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
         
         // Get Debt from Token (in xPNTs)
-        uint256 currentDebtXPNTs = IModernXPNTsToken(token).getDebt(user);
+        uint256 currentDebtXPNTs = IxPNTsToken(token).getDebt(user);
         
         // Convert Debt to APNTs for comparison
         // xPNTs = aPNTs * Rate / 1e18 => aPNTs = xPNTs * 1e18 / Rate
-        uint256 rate = IModernXPNTsToken(token).exchangeRate();
+        uint256 rate = IxPNTsToken(token).exchangeRate();
         uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / rate;
 
         return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
@@ -356,15 +287,15 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
      * @notice Slash an operator (Admin/Governance only)
      * @dev Reduces reputation and optionally pauses operator
      */
-    function slashOperator(address operator, SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        OperatorConfig storage config = operators[operator];
+    function slashOperator(address operator, ISuperPaymasterV3.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
+        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
         
         uint256 reputationLoss = 0;
-        if (level == SlashLevel.WARNING) {
+        if (level == ISuperPaymasterV3.SlashLevel.WARNING) {
             reputationLoss = 10;
-        } else if (level == SlashLevel.MINOR) {
+        } else if (level == ISuperPaymasterV3.SlashLevel.MINOR) {
             reputationLoss = 20;
-        } else if (level == SlashLevel.MAJOR) {
+        } else if (level == ISuperPaymasterV3.SlashLevel.MAJOR) {
             reputationLoss = 50;
             config.isPaused = true;
             emit OperatorPaused(operator);
@@ -418,25 +349,25 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     /**
      * @notice Execute slash triggered by BLS consensus (DVT Module only)
      */
-    function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {
+    function executeSlashWithBLS(address operator, ISuperPaymasterV3.SlashLevel level, bytes calldata proof) external override {
         require(msg.sender == BLS_AGGREGATOR, "Only BLS Aggregator");
         
         // Logical penalty (Warning=0, Minor=10%, Major=Full & Pause)
         uint256 penalty = 0;
-        if (level == SlashLevel.MINOR) {
+        if (level == ISuperPaymasterV3.SlashLevel.MINOR) {
             penalty = operators[operator].aPNTsBalance / 10;
-        } else if (level == SlashLevel.MAJOR) {
+        } else if (level == ISuperPaymasterV3.SlashLevel.MAJOR) {
             penalty = operators[operator].aPNTsBalance;
         }
 
         _slash(operator, level, penalty, "DVT BLS Slash", proof);
     }
 
-    function _slash(address operator, SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
-        OperatorConfig storage config = operators[operator];
+    function _slash(address operator, ISuperPaymasterV3.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
+        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
         
-        uint256 reputationLoss = level == SlashLevel.WARNING ? 10 : (level == SlashLevel.MINOR ? 20 : 50);
-        if (level == SlashLevel.MAJOR) config.isPaused = true;
+        uint256 reputationLoss = level == ISuperPaymasterV3.SlashLevel.WARNING ? 10 : (level == ISuperPaymasterV3.SlashLevel.MINOR ? 20 : 50);
+        if (level == ISuperPaymasterV3.SlashLevel.MAJOR) config.isPaused = true;
 
         if (config.reputation > reputationLoss) config.reputation -= reputationLoss;
         else config.reputation = 0;
@@ -446,7 +377,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
             protocolRevenue += penaltyAmount;
         }
 
-        slashHistory[operator].push(SlashRecord({
+        slashHistory[operator].push(ISuperPaymasterV3.SlashRecord({
             timestamp: block.timestamp,
             amount: penaltyAmount,
             reputationLoss: reputationLoss,
@@ -465,12 +396,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // Slash Query Interfaces
     // ====================================
 
-    /**
-     * @notice Get complete slash history for an operator
-     * @param operator Operator address
-     * @return Array of slash records
-     */
-    function getSlashHistory(address operator) external view returns (SlashRecord[] memory) {
+    function getSlashHistory(address operator) external view returns (ISuperPaymasterV3.SlashRecord[] memory) {
         return slashHistory[operator];
     }
 
@@ -488,7 +414,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
      * @param operator Operator address
      * @return Most recent slash record (reverts if no history)
      */
-    function getLatestSlash(address operator) external view returns (SlashRecord memory) {
+    function getLatestSlash(address operator) external view returns (ISuperPaymasterV3.SlashRecord memory) {
         require(slashHistory[operator].length > 0, "No slash history");
         return slashHistory[operator][slashHistory[operator].length - 1];
     }
@@ -519,7 +445,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
              return ("", _packValidationData(true, 0, 0)); 
         }
 
-        OperatorConfig storage config = operators[operator];
+        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
 
         // 3. User Validation & Credit Check (V3.2 Credit System Redesign)
         // ----------------------------------------
@@ -527,7 +453,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(userOp.sender);
         
         // Get Debt from Token (xPNTs units)
-        uint256 currentDebtXPNTs = IModernXPNTsToken(config.xPNTsToken).getDebt(userOp.sender);
+        uint256 currentDebtXPNTs = IxPNTsToken(config.xPNTsToken).getDebt(userOp.sender);
         
         // Convert Debt to aPNTs units for comparison
         uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / config.exchangeRate;
@@ -553,7 +479,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         if (!useCredit) {
              // Attempt Immediate Burn (V3 Legacy Mode)
              // This ensures we don't pay for broke users
-             IModernXPNTsToken(config.xPNTsToken).burnFromWithOpHash(userOp.sender, xPNTsAmount, userOpHash);
+             IxPNTsToken(config.xPNTsToken).burnFromWithOpHash(userOp.sender, xPNTsAmount, userOpHash);
         }
 
         // ... Config Checks ...
@@ -585,7 +511,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         if (useCredit) {
              return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount), 0);
         } else {
-             return ("", 0);
+             return (bytes(""), 0);
         }
     }
 
@@ -658,14 +584,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // Proposed V3.2 Logic:
         // If Credit Mode: Record Debt in Token.
         
-        IModernXPNTsToken(token).recordDebt(user, xPNTsAmount);
+        IxPNTsToken(token).recordDebt(user, xPNTsAmount);
         // Note: No immediate burn logic here (handled by Token auto-repay on next transfer)
         
     }
     
-    function repayDebt(address user, uint256 amount) external nonReentrant {
-        // V3.2: Deprecated. Use Token transfer to repay.
-    }
 
     // ====================================
     // Internal & View
