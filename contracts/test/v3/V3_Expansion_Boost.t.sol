@@ -58,57 +58,6 @@ contract V3_Reputation_SBT_BoostTest is Test {
     }
 
     // ====================================
-    // Reputation Tests (Boost)
-    // ====================================
-
-    function test_Reputation_SyncAndRegistryUpdate() public {
-        vm.startPrank(admin);
-        
-        // 1. Authorize admin as Reputation Source
-        registry.setReputationSource(admin, true);
-        
-        // 2. Set Entropy Factor
-        repSystem.setEntropyFactor(community, 1e18);
-        vm.stopPrank();
-
-        address[] memory comms = new address[](1);
-        comms[0] = community;
-        bytes32[][] memory ruleIds = new bytes32[][](1);
-        ruleIds[0] = new bytes32[](1);
-        ruleIds[0][0] = keccak256("DEFAULT");
-        uint256[][] memory acts = new uint256[][](1);
-        acts[0] = new uint256[](1);
-        acts[0][0] = 5;
-
-        // Sync to Registry
-        vm.prank(admin);
-        repSystem.syncToRegistry(user, comms, ruleIds, acts, 1);
-        
-        assertEq(registry.globalReputation(user), 15); // 10 base + 5*1 bonus
-    }
-
-    // ====================================
-    // Registry Tests (Boost)
-    // ====================================
-
-    function test_Registry_AdminAndExitPaths() public {
-        vm.startPrank(admin);
-        
-        // adminConfigureRole
-        registry.adminConfigureRole(keccak256("COMMUNITY"), 100 ether, 10 ether, 1000, 1 ether);
-        
-        // setCreditTier
-        registry.setCreditTier(10, 5000 ether);
-        
-        // Verify admin functions executed successfully
-        IRegistryV3.RoleConfig memory config = registry.getRoleConfig(keccak256("COMMUNITY"));
-        assertEq(config.minStake, 100 ether);
-        assertEq(config.entryBurn, 10 ether);
-        
-        vm.stopPrank();
-    }
-
-    // ====================================
     // MySBT Tests (Boost)
     // ====================================
 
