@@ -28,7 +28,7 @@
 **行动项:**
 1.  **单元测试覆盖率 (Coverage)**:
     *   目标：核心合约 (如 Paymaster, Registry) 覆盖率 **> 95%**。
-    *   命令: `forge coverage`
+    *   命令: `forge coverage --ir-minimum` (避免 Stack too deep 错误)
 2.  **模糊测试 (Fuzzing)**:
     *   针对资金处理逻辑编写 Fuzz Test。
     *   **不变量 (Invariants)**:
@@ -46,7 +46,7 @@
 
 在提交代码前，使用工具扫描已知漏洞和优化点。
 
-#### 1. Slither (安全与优化)
+#### 1. Slither (安全扫描)
 Slither 是我们的核心扫描工具。
 
 **安装**: `pip3 install slither-analyzer`
@@ -60,14 +60,10 @@ Slither 是我们的核心扫描工具。
     ```bash
     slither .
     ```
-*   **Gas 优化建议 (重点关注)**:
-    ```bash
-    slither . --print gas
-    ```
-    *   *Action*: 根据报告将状态变量打包 (Packing)，使用 `unchecked` 块，缓存数组长度等。
+    *(注: 如缺少 `gas` printer，请直接参考 forge snapshot 结果)*
 
 #### 2. Aderyn (Foundry 专精)
-作为 Slither 的补充，速度极快。
+作为 Slither 的现代化补充。
 
 **安装**: `curl -L https://raw.githubusercontent.com/Cyfrin/aderyn/dev/cyfrinup/install | bash`
 
