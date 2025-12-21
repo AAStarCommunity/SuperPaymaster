@@ -130,6 +130,17 @@ interface IRegistryV3 {
     function configureRole(bytes32 roleId, RoleConfig calldata config) external;
     
     /**
+     * @notice Admin-only role configuration with full parameter control
+     */
+    function adminConfigureRole(
+        bytes32 roleId,
+        uint256 minStake,
+        uint256 entryBurn,
+        uint256 exitFeePercent,
+        uint256 minExitFee
+    ) external;
+    
+    /**
      * @notice Create a new role (Owner only)
      * @param roleId Unique role identifier
      * @param config Role configuration
@@ -174,6 +185,16 @@ interface IRegistryV3 {
         uint256 epoch,
         bytes calldata proof
     ) external;
+
+    /**
+     * @notice Authorize or revoke a reputation source
+     */
+    function setReputationSource(address source, bool authorized) external;
+
+    /**
+     * @notice Configure credit limit for a level
+     */
+    function setCreditTier(uint256 level, uint256 limit) external;
 
     /**
      * @notice Get credit limit for user based on reputation

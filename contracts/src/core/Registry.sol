@@ -47,6 +47,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     mapping(address => uint256) public lastReputationEpoch;
     mapping(uint256 => uint256) public creditTierConfig; // Level => Credit Limit
     mapping(address => bool) public isReputationSource;  // Trusted DVT Aggregators
+    
+    // V3.2: Dynamic Level Thresholds (Reputation Score → Level)
+    // levelThresholds[i] = minimum reputation score for level i+2 (level 1 is default)
+    // Example: levelThresholds[0] = 13 means rep >= 13 → level 2
+    uint256[] public levelThresholds;
 
     mapping(bytes32 => string) public proposedRoleNames;
     mapping(bytes32 => address) public roleOwners;
@@ -94,6 +99,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         creditTierConfig[5] = 1000 ether;
         // Level 6: Rep 610+ (Fib 15)
         creditTierConfig[6] = 2000 ether;
+
+        // Initialize Level Thresholds (Fibonacci sequence)
+        // levelThresholds[i] = min reputation for level i+2 (level 1 is default)
+        levelThresholds.push(13);   // Level 2: rep >= 13
+        levelThresholds.push(34);   // Level 3: rep >= 34
+        levelThresholds.push(89);   // Level 4: rep >= 89
+        levelThresholds.push(233);  // Level 5: rep >= 233
+        levelThresholds.push(610);  // Level 6: rep >= 610
 
         isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
     }
@@ -220,6 +233,26 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
         emit RoleConfigured(roleId, config, block.timestamp);
     }
+
+    /**
+     * @notice Admin-only role configuration with full parameter control
+     */
+    function adminConfigureRole(
+        bytes32 roleId,
+        uint256 minStake,
+        uint256 entryBurn,
+        uint256 exitFeePercent,
+        uint256 minExitFee
+    ) external onlyOwner {
+        RoleConfig storage config = roleConfigs[roleId];
+        config.minStake = minStake;
+        config.entryBurn = entryBurn;
+        config.exitFeePercent = exitFeePercent;
+        config.minExitFee = minExitFee;
+        
+        GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
+        emit RoleConfigured(roleId, config, block.timestamp);
+    }
     
     /**
      * @notice Create a new role (Owner only)
@@ -310,22 +343,47 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         emit ReputationSourceUpdated(source, active);
     }
 
+    /**
+     * @notice Set or update a level threshold
+     * @param index Index in levelThresholds array (0-based)
+     * @param threshold Minimum reputation score for this level
+     * @dev levelThresholds[i] defines the min score for level i+2 (level 1 is default)
+     */
+    function setLevelThreshold(uint256 index, uint256 threshold) external onlyOwner {
+        require(index < levelThresholds.length, "Index out of bounds");
+        if (index > 0) {
+            require(threshold > levelThresholds[index - 1], "Thresholds must be ascending");
+        }
+        if (index < levelThresholds.length - 1) {
+            require(threshold < levelThresholds[index + 1], "Thresholds must be ascending");
+        }
+        levelThresholds[index] = threshold;
+    }
+
+    /**
+     * @notice Add a new level threshold (extends the level system)
+     * @param threshold Minimum reputation score for the new level
+     */
+    function addLevelThreshold(uint256 threshold) external onlyOwner {
+        if (levelThresholds.length > 0) {
+            require(threshold > levelThresholds[levelThresholds.length - 1], "Threshold must be higher than last");
+        }
+        levelThresholds.push(threshold);
+    }
+
     function getCreditLimit(address user) external view returns (uint256) {
         uint256 rep = globalReputation[user];
         
-        // Simple mapping logic (can be optimized or moved to library)
-        // 0-10: Level 1 (0 credit)
-        // 11-50: Level 2
-        // 51-100: Level 3
-        // 101-500: Level 4
-        // >500: Level 5
+        // Dynamic level lookup using threshold array
+        uint256 level = 1; // Default level
         
-        uint256 level = 1;
-        if (rep >= 610) level = 6;
-        else if (rep >= 233) level = 5;
-        else if (rep >= 89) level = 4;
-        else if (rep >= 34) level = 3;
-        else if (rep >= 13) level = 2;
+        // Linear scan from highest to lowest (optimized for common case: high rep users)
+        for (uint256 i = levelThresholds.length; i > 0; i--) {
+            if (rep >= levelThresholds[i - 1]) {
+                level = i + 1; // levelThresholds[0] → level 2, etc.
+                break;
+            }
+        }
 
         return creditTierConfig[level];
     }

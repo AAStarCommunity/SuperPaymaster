@@ -13,8 +13,8 @@ import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/Safe
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import { ISBT } from "../../interfaces/ISBT.sol";
-import { IMySBT } from "../v2/interfaces/IMySBT.sol";
-import { PostOpMode } from "../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
+import { IMySBT } from "../../interfaces/v3/IMySBT.sol";
+import { PostOpMode } from "../../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
 

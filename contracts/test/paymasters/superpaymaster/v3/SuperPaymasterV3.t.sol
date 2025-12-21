@@ -59,6 +59,11 @@ contract MockRegistry is IRegistryV3 {
     function getCreditLimit(address user) external view override returns (uint256) { 
         return creditLimits[user]; 
     }
+
+    // New V3.1 Admin Functions
+    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
+    function setReputationSource(address, bool) external override {}
+    function setCreditTier(uint256, uint256) external override {}
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {

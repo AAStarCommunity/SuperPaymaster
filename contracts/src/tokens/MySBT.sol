@@ -9,7 +9,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
 
-import "../paymasters/v2/interfaces/IReputationCalculator.sol";
+import "../interfaces/v3/IReputationCalculator.sol";
 import "../interfaces/v3/IRegistryV3.sol";
 import "../interfaces/IVersioned.sol";
 

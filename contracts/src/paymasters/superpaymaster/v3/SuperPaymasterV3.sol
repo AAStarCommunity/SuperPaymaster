@@ -130,6 +130,14 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     // event DebtRecorded(address indexed user, uint256 amount); // Moved to token
     // event DebtRepaid(address indexed user, uint256 amount);   // Moved to token
 
+    /**
+     * @notice Emitted when validation is rejected with a specific reason code
+     * @param user The user whose operation was rejected
+     * @param operator The operator address
+     * @param reasonCode Rejection reason: 1=Operator not registered, 2=User not verified, 3=Credit limit exceeded
+     */
+    event ValidationRejected(address indexed user, address indexed operator, uint8 reasonCode);
+
     // ====================================
     // Constructor
     // ====================================
@@ -500,12 +508,14 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // 2. Validate Operator Role
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), operator)) {
             // Rejection code 1: Operator not registered
+            emit ValidationRejected(userOp.sender, operator, 1);
             return ("", _packValidationData(true, 0, 0)); 
         }
         
         // 3. Validate User Role (Unified Verification)
         if (!REGISTRY.hasRole(keccak256("ENDUSER"), userOp.sender)) {
              // Rejection code 2: User not verified
+             emit ValidationRejected(userOp.sender, operator, 2);
              return ("", _packValidationData(true, 0, 0)); 
         }
 
@@ -531,6 +541,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         // Critical: If user has debt > limit, block them immediately
         if (currentDebtAPNTs >= creditLimitAPNTs && creditLimitAPNTs > 0) {
              // Rejection code 3: Credit Limit Exceeded
+             emit ValidationRejected(userOp.sender, operator, 3);
              return ("", _packValidationData(true, 0, 0)); 
         }
 

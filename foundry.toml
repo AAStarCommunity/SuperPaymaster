@@ -54,12 +54,11 @@ exclude = [
     "contracts/src/paymasters/PaymasterFactory.sol",
     
     # Legacy base contracts (keep only what V3 needs)
-    "contracts/src/base/GToken_v1.sol",
     "contracts/src/base/Registry_v1.sol",
-    "contracts/src/base/Registry_v2.sol",
+    "contracts/src/history/**/*",
+    "script/**/*",
     
-    # Test contracts (exclude when building for deployment)
-    "contracts/test/**/*",
+    # Test contracts (selective inclusion)
     "contracts/src/test/**/*",
     
     # Mock contracts
