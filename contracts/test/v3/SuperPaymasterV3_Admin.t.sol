@@ -214,7 +214,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
 
     function test_ConfigureOperator_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert("Operator not registered");
+        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
         paymaster.configureOperator(address(0x555), address(0x444), 1 ether);
     }
 
@@ -234,7 +234,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
 
     function test_Deposit_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert("Operator not registered");
+        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
         paymaster.deposit(100 ether);
     }
 
@@ -259,7 +259,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         paymaster.deposit(100 ether);
         
         vm.prank(operator1);
-        vm.expectRevert("Insufficient balance");
+        vm.expectRevert(SuperPaymasterV3.InsufficientBalance.selector);
         paymaster.withdraw(200 ether);
     }
 

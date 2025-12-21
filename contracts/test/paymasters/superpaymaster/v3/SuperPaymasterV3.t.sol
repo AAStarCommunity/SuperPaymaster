@@ -159,7 +159,7 @@ contract SuperPaymasterV3Test is Test {
 
     function testUnregisteredOperatorCannotDeposit() public {
         vm.startPrank(address(0xdead));
-        vm.expectRevert("Operator not registered");
+        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
         paymaster.deposit(100 ether);
         vm.stopPrank();
     }

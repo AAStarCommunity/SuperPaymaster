@@ -412,12 +412,9 @@ contract CoverageSupplementTest is Test {
         address u = user;
         uint256 aPNTsAmount = 100;
         
-        bytes memory context = abi.encode(token, xPNTsAmount, u, aPNTsAmount);
+        bytes memory context = abi.encode(token, xPNTsAmount, u, aPNTsAmount, bytes32(0));
         
         vm.prank(address(entryPoint));
-        // Call postOp with opReverted
-        // The implementation falls through to charge anyway
-        // Check logs or just execution success
         paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), context, 1000, 1000);
         
         // Call with empty context (should return)
@@ -428,10 +425,10 @@ contract CoverageSupplementTest is Test {
     function test_Paymaster_Deposit_NotRegistered() public {
         vm.startPrank(user); // User is not operator
         gtoken.approve(address(paymaster), 100 ether);
-        vm.expectRevert("Operator not registered");
+        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
         paymaster.deposit(10 ether);
         
-        vm.expectRevert("Operator not registered");
+        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
         paymaster.notifyDeposit(10 ether);
         vm.stopPrank();
     }

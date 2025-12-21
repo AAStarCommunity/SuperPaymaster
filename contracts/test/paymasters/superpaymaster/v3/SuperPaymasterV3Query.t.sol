@@ -158,7 +158,7 @@ contract SuperPaymasterV3QueryTest is Test {
     // ====================================
 
     function test_GetLatestSlash_NoHistory() public {
-        vm.expectRevert("No slash history");
+        vm.expectRevert(SuperPaymasterV3.NoSlashHistory.selector);
         paymaster.getLatestSlash(operator);
     }
 
