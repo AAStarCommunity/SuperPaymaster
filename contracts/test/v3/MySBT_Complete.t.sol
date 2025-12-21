@@ -313,6 +313,25 @@ contract MySBT_Simplified_Test is Test {
         assertFalse(mysbt.verifyCommunityMembership(user2, community1));
     }
 
+    function test_GetActiveMemberships() public {
+        bytes memory roleData1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData1);
+        
+        bytes memory roleData2 = abi.encode(community2);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData2);
+        
+        // Deactivate one
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1);
+        
+        address[] memory active = mysbt.getActiveMemberships(tokenId);
+        
+        assertEq(active.length, 1);
+        assertEq(active[0], community2);
+    }
+
     // ====================================
     // Admin Functions Tests
     // ====================================

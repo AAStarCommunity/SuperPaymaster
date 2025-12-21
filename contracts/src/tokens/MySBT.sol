@@ -498,6 +498,33 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(mem.community == comm);
     }
 
+    /**
+     * @notice Get all active memberships for an SBT
+     * @param tid Token ID
+     * @return active Array of active community addresses
+     */
+    function getActiveMemberships(uint256 tid) external view returns (address[] memory active) {
+        CommunityMembership[] memory all = _m[tid];
+        uint256 count = 0;
+        
+        // Count active memberships
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].isActive) {
+                count++;
+            }
+        }
+        
+        // Build active array
+        active = new address[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].isActive) {
+                active[j] = all[i].community;
+                j++;
+            }
+        }
+    }
+
     // NFT binding functions removed for contract size optimization (v2.4.5-optimized)
 
     function recordActivity(address u) external whenNotPaused {
