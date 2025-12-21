@@ -87,7 +87,7 @@ aderyn .
 **性能优化 (Gas)**:
 - [ ] **循环**: 避免在循环中读写 Storage。
 - [ ] **内存 vs Calldata**: 函数参数尽可能使用 `calldata`。
-- [ ] **自定义错误**: 使用 `error Code()` 代替 `require(..., "string")`。
+- [ ] **自定义1 错误**: 使用 `error Code()` 代替 `require(..., "string")`。
 - [ ] **不可变量**: 构造函数后不变的变量是否设为 `immutable`?
 
 ---

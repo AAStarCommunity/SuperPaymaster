@@ -10,6 +10,7 @@ contract xPNTsFactoryTest is Test {
     address owner = address(1);
     address mockSP = address(2);
     address mockRegistry = address(3);
+    address user = address(4);
     
     function setUp() public {
         vm.startPrank(owner);
@@ -17,62 +18,172 @@ contract xPNTsFactoryTest is Test {
         vm.stopPrank();
     }
     
-    function test_Deployment() public {
-        vm.prank(address(4)); // Community
+    function test_Constructor_Reverts() public {
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidAddress.selector, address(0)));
+        new xPNTsFactory(mockSP, address(0));
+    }
+    
+    function test_Deployment_Success() public {
+        vm.prank(user);
         address token = factory.deployxPNTsToken(
             "Test", "TEST", "TestComm", "test.eth", 1e18, address(0)
         );
         
         assertTrue(token != address(0));
-        assertTrue(factory.hasToken(address(4)));
+        assertTrue(factory.hasToken(user));
+        assertEq(factory.getTokenAddress(user), token);
         assertEq(factory.getDeployedCount(), 1);
         
-        xPNTsToken t = xPNTsToken(token);
-        assertEq(t.name(), "Test");
+        // AOA mode with specific paymaster
+        address user2 = address(5);
+        address mockPaymaster = address(6);
+        vm.prank(user2);
+        address token2 = factory.deployxPNTsToken(
+            "Test2", "TEST2", "TestComm2", "test2.eth", 1e18, mockPaymaster
+        );
+        assertTrue(token2 != address(0));
+        assertEq(factory.getDeployedCount(), 2);
     }
     
-    function test_Prediction() public {
+    function test_Deployment_SwitchModes() public {
+        // Test without predefined SP
+        vm.prank(owner);
+        xPNTsFactory f2 = new xPNTsFactory(address(0), mockRegistry);
+        
+        vm.prank(user);
+        address t1 = f2.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        assertTrue(t1 != address(0));
+        
+        // Set SP later
+        vm.prank(owner);
+        f2.setSuperPaymasterAddress(mockSP);
+        assertEq(f2.SUPERPAYMASTER(), mockSP);
+        
+        vm.prank(address(5));
+        address t2 = f2.deployxPNTsToken("T2", "T2", "C2", "C2", 1e18, address(0));
+        assertTrue(t2 != address(0));
+    }
+    
+    function test_Deployment_AlreadyDeployed() public {
+        vm.startPrank(user);
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.AlreadyDeployed.selector, user));
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        vm.stopPrank();
+    }
+
+    function test_Prediction_Update() public {
         address comm = address(5);
         
+        // Test update with known industry
         vm.prank(comm);
         factory.updatePrediction(100, 1 gwei, "DeFi", 0);
         
-        uint256 suggested = factory.predictDepositAmount(comm);
-        // Calc: 100 * 1e9 * 30 = 3000e9 = 3e12 wei monthly cost
-        // Multiplier DeFi = 2.0 (2e18). Safety = 1.5 (1.5e18).
-        // 3e12 * 2e18 * 1.5e18 / 1e36 = 3e12 * 3 = 9e12
-        // Wait, price is not involved in predictDepositAmount?
-        // Reading source:
-        // dailyCost = tx * gasCost
-        // monthly = daily * 30
-        // result = monthly * mult * safety / 1e36
-        // 100 * 1 gwei = 100 gwei = 1e11 wei.
-        // Monthly = 30e11 = 3e12 wei.
-        // 3e12 * 2 * 1.5 = 9e12.
-        // MIN_SUGGESTED is 100 ether (100e18).
-        // 9e12 is tiny. So currently expecting MIN.
+        xPNTsFactory.PredictionParams memory p = factory.getPredictionParams(comm);
+        assertEq(p.industryMultiplier, 2e18); // DeFi = 2.0
+        assertEq(p.safetyFactor, 1.5 ether); // Default
         
-        assertEq(suggested, 100 ether); // Min threshold hit
-        
-        // Let's try larger numbers to exceed min
-        // 10000 tx/day. 1e7 gwei average cost (oops, 1e16 wei = 0.01 eth)
-        // 10000 * 0.01 eth = 100 eth daily.
-        // 3000 eth monthly.
-        // * 3 = 9000 eth.
-        
+        // Test update with unknown industry
         vm.prank(comm);
-        factory.updatePrediction(10000, 0.01 ether, "DeFi", 0);
-        suggested = factory.predictDepositAmount(comm);
-        assertEq(suggested, 9000 ether);
+        factory.updatePrediction(100, 1 gwei, "Unknown", 0);
+        p = factory.getPredictionParams(comm);
+        assertEq(p.industryMultiplier, 1 ether); // Default 1.0
+        
+        // Test custom update
+        vm.prank(comm);
+        factory.updatePredictionCustom(100, 1 gwei, 3e18, 2e18);
+        p = factory.getPredictionParams(comm);
+        assertEq(p.industryMultiplier, 3e18);
+        assertEq(p.safetyFactor, 2e18);
+        
+        // Custom with zero multiplier defaults to 1.0
+        vm.prank(comm);
+        factory.updatePredictionCustom(100, 1 gwei, 0, 0);
+        p = factory.getPredictionParams(comm);
+        assertEq(p.industryMultiplier, 1 ether);
+        assertEq(p.safetyFactor, 1.5 ether);
     }
     
-    function test_Admin() public {
+    function test_Prediction_Calculation() public {
+        address comm = address(6);
+        
+        // Case 1: Minimal -> Returns MIN
+        vm.prank(comm);
+        factory.updatePrediction(1, 100, "Social", 0);
+        uint256 predicted = factory.predictDepositAmount(comm);
+        assertEq(predicted, 100 ether); // MIN_SUGGESTED_AMOUNT
+        
+        // Case 2: New community (0 tx) -> Returns MIN
+        assertEq(factory.predictDepositAmount(address(7)), 100 ether);
+        
+        // Case 3: Large calculation
+        // 1000 tx/day * 0.01 ether cost * 30 days * 2.0 (DeFi) * 1.5 (Safety)
+        // 1000 * 1e16 wei = 1e19 wei daily
+        // Monthly = 30e19 = 3e20
+        // * 2.0 = 6e20
+        // * 1.5 = 9e20
+        vm.prank(comm);
+        factory.updatePrediction(1000, 0.01 ether, "DeFi", 0);
+        
+        predicted = factory.predictDepositAmount(comm);
+        assertEq(predicted, 900 ether); // Wait: 9e20 wei? 
+        // Logic: monthly * mult * safety / 1e36?
+        // Let's trace calculation in contract:
+        // daily = 1000 * 1e16 = 1e19
+        // monthly = 3e20
+        // result = 3e20 * 2e18 * 1.5e18 / 1e36 = 9e20 * 1e36 / 1e36 = 9e20 (900 ether)
+        // Correct.
+        
+        // Verify breakdown
+        (uint256 daily, uint256 monthly, uint256 sugg, uint256 mUsed, uint256 sUsed) 
+            = factory.getDepositBreakdown(comm);
+        assertEq(daily, 1e19);
+        assertEq(monthly, 3e20);
+        assertEq(sugg, 900 ether);
+        assertEq(mUsed, 2e18);
+        assertEq(sUsed, 1.5 ether);
+    }
+    
+    function test_Admin_Functions() public {
         vm.startPrank(owner);
+        
+        // setSuperPaymasterAddress
+        factory.setSuperPaymasterAddress(address(99));
+        assertEq(factory.SUPERPAYMASTER(), address(99));
+        vm.expectRevert("Invalid address");
+        factory.setSuperPaymasterAddress(address(0));
+        
+        // updateAPNTsPrice
         factory.updateAPNTsPrice(1 ether);
         assertEq(factory.getAPNTsPrice(), 1 ether);
+        vm.expectRevert("Price must be positive");
+        factory.updateAPNTsPrice(0);
         
-        factory.setIndustryMultiplier("New", 5 ether);
-        assertEq(factory.getIndustryMultiplier("New"), 5 ether);
+        // setIndustryMultiplier
+        factory.setIndustryMultiplier("Custom", 5 ether);
+        assertEq(factory.getIndustryMultiplier("Custom"), 5 ether);
+        
+        vm.expectRevert("Invalid multiplier");
+        factory.setIndustryMultiplier("Bad", 0);
+        
+        vm.expectRevert("Invalid multiplier");
+        factory.setIndustryMultiplier("Bad", 11 ether);
+        
         vm.stopPrank();
+        
+        // Access control
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
+        factory.updateAPNTsPrice(2 ether);
+    }
+    
+    function test_View_Functions() public {
+        vm.prank(user);
+        address t1 = factory.deployxPNTsToken("A", "A", "A", "A", 1e18, address(0));
+        
+        address[] memory all = factory.getAllTokens();
+        assertEq(all.length, 1);
+        assertEq(all[0], t1);
     }
 }

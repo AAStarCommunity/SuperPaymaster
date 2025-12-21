@@ -75,7 +75,7 @@ contract PaymasterV4Test is Test {
     
     address owner = address(1);
     address treasury = address(2);
-    address user = address(3);
+    address user = address(0x1234);
 
     function setUp() public {
         vm.startPrank(owner);
@@ -130,8 +130,9 @@ contract PaymasterV4Test is Test {
         op.sender = user;
         
         // Ensure user has no valid token balance to fallback to
+        uint256 bal = token.balanceOf(user);
         vm.prank(user);
-        token.transfer(owner, token.balanceOf(user));
+        token.transfer(owner, bal);
         
         address badToken = address(0xDead);
         bytes memory data = abi.encodePacked(badToken);
