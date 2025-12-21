@@ -75,6 +75,15 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     event OperatorPaused(address indexed operator);
     event OperatorUnpaused(address indexed operator);
 
+    error Unauthorized();
+    error InvalidAddress();
+    error InvalidConfiguration();
+    error InsufficientBalance();
+    error DepositNotVerified();
+    error OracleError();
+    error NoSlashHistory();
+    error InsufficientRevenue();
+
     // ====================================
     // Constructor
     // ====================================
@@ -106,10 +115,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
-            revert("Operator not registered");
+            revert Unauthorized();
         }
         if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
-            revert("Invalid configuration");
+            revert InvalidConfiguration();
         }
 
         OperatorConfig storage config = operators[msg.sender];
@@ -126,7 +135,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Set the APNTS Token address (Owner Only)
      */
     function setAPNTsToken(address newAPNTsToken) external onlyOwner {
-        require(newAPNTsToken != address(0), "Invalid address");
+        if (newAPNTsToken == address(0)) revert InvalidAddress();
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = newAPNTsToken;
         emit APNTsTokenUpdated(oldToken, newAPNTsToken);
@@ -150,7 +159,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Set the protocol treasury address (Owner Only)
      */
     function setTreasury(address _treasury) external onlyOwner {
-        require(_treasury != address(0), "Invalid treasury");
+        if (_treasury == address(0)) revert InvalidAddress();
         treasury = _treasury;
     }
 
@@ -171,7 +180,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function deposit(uint256 amount) external nonReentrant {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
-            revert("Operator not registered");
+            revert Unauthorized();
         }
         
         // This might revert if Token blocks transferFrom (Secure Token)
@@ -186,11 +195,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @dev Safe deposit mechanism for tokens blocking transferFrom
      */
     function onTransferReceived(address, address from, uint256 value, bytes calldata) external returns (bytes4) {
-        require(msg.sender == APNTS_TOKEN, "Only APNTS_TOKEN");
+        if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), from)) {
-             revert("Operator not registered");
+             revert Unauthorized();
         }
 
         operators[from].aPNTsBalance += value;
@@ -216,14 +225,14 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function notifyDeposit(uint256 amount) external nonReentrant {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
-            revert("Operator not registered");
+            revert Unauthorized();
         }
 
         uint256 currentBalance = IERC20(APNTS_TOKEN).balanceOf(address(this));
         uint256 untracked = currentBalance - totalTrackedBalance;
         
         if (amount > untracked) {
-            revert("Deposit not verified");
+            revert DepositNotVerified();
         }
 
         operators[msg.sender].aPNTsBalance += amount;
@@ -240,7 +249,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function withdraw(uint256 amount) external nonReentrant {
         if (operators[msg.sender].aPNTsBalance < amount) {
-            revert("Insufficient balance");
+            revert InsufficientBalance();
         }
         operators[msg.sender].aPNTsBalance -= amount;
         
@@ -255,8 +264,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @param to Address to receive funds (usually treasury)
      */
     function withdrawProtocolRevenue(address to, uint256 amount) external onlyOwner nonReentrant {
-        if (to == address(0)) revert("Invalid address");
-        if (amount > protocolRevenue) revert("Insufficient revenue");
+        if (to == address(0)) revert InvalidAddress();
+        if (amount > protocolRevenue) revert InsufficientRevenue();
         
         protocolRevenue -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(to, amount);
@@ -351,7 +360,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Execute slash triggered by BLS consensus (DVT Module only)
      */
     function executeSlashWithBLS(address operator, ISuperPaymasterV3.SlashLevel level, bytes calldata proof) external override {
-        require(msg.sender == BLS_AGGREGATOR, "Only BLS Aggregator");
+        if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
         
         // Logical penalty (Warning=0, Minor=10%, Major=Full & Pause)
         uint256 penalty = 0;
@@ -416,7 +425,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @return Most recent slash record (reverts if no history)
      */
     function getLatestSlash(address operator) external view returns (ISuperPaymasterV3.SlashRecord memory) {
-        require(slashHistory[operator].length > 0, "No slash history");
+        if (slashHistory[operator].length == 0) revert NoSlashHistory();
         return slashHistory[operator][slashHistory[operator].length - 1];
     }
 
@@ -554,7 +563,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         } else {
             (uint80 roundId, int256 price, , uint256 updatedAt, uint80 answeredInRound) = ETH_USD_PRICE_FEED.latestRoundData();
             if (answeredInRound < roundId || block.timestamp - updatedAt > 3600 || price <= MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) {
-                 revert("Oracle error");
+                 revert OracleError();
             }
             cachedPrice = PriceCache({
                 price: price,

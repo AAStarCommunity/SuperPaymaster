@@ -45,6 +45,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     mapping(bytes32 => mapping(address => uint256)) public roleStakes;
     mapping(bytes32 => address[]) public roleMembers;
+    mapping(bytes32 => mapping(address => uint256)) public roleMemberIndex; // 1-based index (0 means not in array)
     mapping(bytes32 => mapping(address => uint256)) public roleSBTTokenIds;
     mapping(bytes32 => mapping(address => bytes)) public roleMetadata;
 
@@ -152,6 +153,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         hasRole[roleId][user] = true;
         roleStakes[roleId][user] = stakeAmount;
         roleMembers[roleId].push(user);
+        roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
         roleMetadata[roleId][user] = roleData;
 
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
@@ -236,6 +238,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         hasRole[roleId][user] = true;
         roleStakes[roleId][user] = stakeAmount;
         roleMembers[roleId].push(user);
+        roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
         roleMetadata[roleId][user] = data;
 
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, msg.sender);
@@ -507,14 +510,21 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     function getRoleUserCount(bytes32 roleId) external view returns (uint256) { return roleMembers[roleId].length; }
 
     function _removeFromRoleMembers(bytes32 roleId, address user) internal {
+        uint256 indexPlusOne = roleMemberIndex[roleId][user];
+        if (indexPlusOne == 0) return;
+
         address[] storage members = roleMembers[roleId];
-        for (uint256 i = 0; i < members.length; i++) {
-            if (members[i] == user) {
-                members[i] = members[members.length - 1];
-                members.pop();
-                break;
-            }
+        uint256 index = indexPlusOne - 1;
+        uint256 lastIndex = members.length - 1;
+
+        if (index != lastIndex) {
+            address lastUser = members[lastIndex];
+            members[index] = lastUser;
+            roleMemberIndex[roleId][lastUser] = indexPlusOne; // Update lastUser's index
         }
+
+        members.pop();
+        delete roleMemberIndex[roleId][user];
     }
 
     function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {

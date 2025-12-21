@@ -210,7 +210,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     /// @dev Direct payment mode: transfers PNT to treasury immediately
     /// @param userOp The user operation
     /// @param maxCost Maximum cost for this userOp (in wei)
-    /// @return context Empty context (not used in direct mode)
+    /// @return context Encoded sender for postOp attribution
     /// @return validationData Always returns 0 (success) or reverts
     function validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
@@ -264,24 +264,25 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
         // Emit payment event
         emit GasPaymentProcessed(sender, userGasToken, tokenAmount, cappedMaxCost, maxCost);
 
-        // Return empty context (no refund logic)
-        return ("", 0);
+        return (abi.encode(sender), 0);
     }
 
     /// @notice PostOp handler (minimal implementation)
     /// @dev Emits event for off-chain analysis only, no refund logic
     function postOp(
         PostOpMode /* mode */,
-        bytes calldata /* context */,
+        bytes calldata context,
         uint256 actualGasCost,
         uint256 /* actualUserOpFeePerGas */
     )
         external
         onlyEntryPoint
     {
+        address user = context.length == 0 ? address(0) : abi.decode(context, (address));
+
         // Emit event for off-chain analysis (multi-pay without refund)
         // Context is empty, but we can emit actualGasCost for tracking
-        emit PostOpProcessed(tx.origin, actualGasCost, 0);
+        emit PostOpProcessed(user, actualGasCost, 0);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
