@@ -499,12 +499,14 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         
         // 2. Validate Operator Role
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), operator)) {
-            return ("", _packValidationData(true, 0, 0)); // Reject: Not registered
+            // Rejection code 1: Operator not registered
+            return ("", _packValidationData(true, 0, 0)); 
         }
         
         // 3. Validate User Role (Unified Verification)
         if (!REGISTRY.hasRole(keccak256("ENDUSER"), userOp.sender)) {
-             return ("", _packValidationData(true, 0, 0)); // Reject: User not verified
+             // Rejection code 2: User not verified
+             return ("", _packValidationData(true, 0, 0)); 
         }
 
         OperatorConfig storage config = operators[operator];
@@ -522,12 +524,13 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         
         uint256 availableCreditAPNTs = creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
         
-        // Billing Calculation
+        // Billing Calculation (Standard Wei based)
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         uint256 xPNTsAmount = (aPNTsAmount * config.exchangeRate) / 1e18; // Est. xPNTs cost
 
         // Critical: If user has debt > limit, block them immediately
         if (currentDebtAPNTs >= creditLimitAPNTs && creditLimitAPNTs > 0) {
+             // Rejection code 3: Credit Limit Exceeded
              return ("", _packValidationData(true, 0, 0)); 
         }
 
@@ -544,19 +547,17 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
 
         // ... Config Checks ...
         if (!config.isConfigured) {
-             return ("", _packValidationData(true, 0, 0)); // Reject: Not configured
+             return ("", _packValidationData(true, 0, 0)); 
         }
         
         if (config.isPaused) {
-             return ("", _packValidationData(true, 0, 0)); // Reject: Operator Paused
+             return ("", _packValidationData(true, 0, 0)); 
         }
 
         // 4. Billing Logic
         if (config.aPNTsBalance < aPNTsAmount) {
-             return ("", _packValidationData(true, 0, 0)); // Reject: Insufficient aPNTs
+             return ("", _packValidationData(true, 0, 0)); 
         }
-
-        // xPNTsAmount already calculated above
 
         // 5. Effects (Optimistic & Batch)
         config.aPNTsBalance -= aPNTsAmount;
@@ -570,16 +571,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         emit UserReputationAccrued(userOp.sender, aPNTsAmount);
 
         // Context Construction
-        // [0]: useCredit (1 or 0)
-        // [1-21]: xPNTsToken
-        // [21-53]: xPNTsAmount
-        // [53-73]: user
-        // [73-105]: actualAPNTs
-        
         if (useCredit) {
              return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount), 0);
         } else {
-             // Already burned, no postOp action needed
              return ("", 0);
         }
     }
