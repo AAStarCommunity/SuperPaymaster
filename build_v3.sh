@@ -25,7 +25,12 @@ forge clean
 
 # Build with v3-only profile
 echo "🔨 Building V3 contracts..."
-forge build --profile v3-only
+FOUNDRY_PROFILE=v3-only forge build
+
+if [ "$1" == "test" ]; then
+    echo -e "\n🧪 Running V3 Core Tests..."
+    FOUNDRY_PROFILE=v3-only forge test
+fi
 
 echo ""
 echo "✅ Build complete!"

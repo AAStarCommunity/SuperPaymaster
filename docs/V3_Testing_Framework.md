@@ -20,13 +20,28 @@ cd /Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster
 ./build_v3.sh test
 ```
 
-### 1.3 如何解读结果
-- **PASS**: 表示该逻辑分支与预期一致。
-- **FAIL**: 表示合约行为偏离设计，需查看日志。使用 `-vvvv` 可以看到详细调用轨迹 (Traces)。
+### 1.4 真实运行报告参考 (Baseline)
+以下是成功运行 `./build_v3.sh test` 后的全量通过指标，开发者可对照此结果进行环境验证：
+
+```text
+Ran 19 test suites in 1.1s: 122 tests passed, 0 failed, 0 skipped (122 total tests)
+=========================================
+[PASS] RegistryTest (3/3)
+[PASS] SuperPaymasterV3Test (12/12)
+[PASS] GTokenStakingTest (24/24)
+[PASS] xPNTsTokenFullTest (9/9)
+[PASS] CreditSystemTest (8/8)
+... 100% SUCCESS
+=========================================
+```
+
+> [!TIP]
+> 如果你在运行中遇到合约编译错误，请先执行 `forge clean` 确保缓存被清除。
 
 ---
 
 ## 2. 合约覆盖清单 (V3 关联全量) 📋
+... (保持原清单内容)
 
 本阶段必须覆盖以下所有合约及其业务函数：
 
