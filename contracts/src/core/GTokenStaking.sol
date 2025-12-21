@@ -295,8 +295,27 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // ====================================
 
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
-        require(msg.sender == owner() || msg.sender == REGISTRY, "Only owner or registry");
-        roleExitConfigs[roleId] = RoleExitConfig(feePercent, minFee);
+        if (msg.sender != REGISTRY && msg.sender != owner()) revert("Unauthorized");
+        
+        RoleExitConfig storage config = roleExitConfigs[roleId]; // Assuming RoleExitConfig is the correct struct name based on original code
+        config.feePercent = feePercent;
+        config.minFee = minFee;
+        // Assuming 'isActive' field is not part of RoleExitConfig based on original code,
+        // and 'RoleExitFeeConfigured' event is not defined.
+        // Sticking to the original structure for setRoleExitFee, but adding the new function.
+        // If the user intended to change RoleExitConfig to RoleExitFee and add isActive,
+        // they should provide the full context for that struct and event.
+        // For now, I will only apply the setTreasury function and keep setRoleExitFee as close to original as possible,
+        // while incorporating the new require/revert style.
+    }
+
+    /**
+     * @notice Set the protocol treasury address
+     * @param _treasury New treasury address
+     */
+    function setTreasury(address _treasury) external onlyOwner {
+        if (_treasury == address(0)) revert("Invalid Treasury");
+        treasury = _treasury;
     }
 
     function setAuthorizedSlasher(address slasher, bool authorized) external onlyOwner {

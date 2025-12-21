@@ -104,7 +104,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     PriceCache private cachedPrice;
 
     // Protocol Fee (Basis Points)
-    uint256 public constant SERVICE_FEE_BPS = 200; // 2%
+    uint256 public protocolFeeBPS = 200; // 2%
     uint256 public constant BPS_DENOMINATOR = 10000;
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
@@ -184,6 +184,36 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = newAPNTsToken;
         emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+    }
+
+    /**
+     * @notice Set the APNTS Price in USD (Owner Only)
+     */
+    function setAPNTSPrice(uint256 newPrice) external onlyOwner {
+        aPNTsPriceUSD = newPrice;
+    }
+
+    /**
+     * @notice Set the protocol fee basis points (Owner Only)
+     */
+    function setProtocolFee(uint256 newFeeBPS) external onlyOwner {
+        protocolFeeBPS = newFeeBPS;
+    }
+
+    /**
+     * @notice Set the protocol treasury address (Owner Only)
+     */
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Invalid treasury");
+        treasury = _treasury;
+    }
+
+    /**
+     * @notice Pause/Unpause an operator (Owner Only)
+     * @dev Used for security emergency stops
+     */
+    function setOperatorPaused(address operator, bool paused) external onlyOwner {
+        operators[operator].isPaused = paused;
     }
 
     /**
