@@ -85,12 +85,20 @@ contract IntegrationV3_1Test is Test {
 
         vm.startPrank(operator);
         gToken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_COMM, operator, abi.encode(Registry.CommunityRoleData("Comm", "", "", "", "", 10 ether)));
+        registry.registerRole(ROLE_COMM, operator, abi.encode(Registry.CommunityRoleData("Comm", "", "", "", "", 30 ether)));
         vm.stopPrank();
         
         vm.startPrank(alice);
         gToken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_USER, alice, abi.encode(address(0xdead), operator, "", "", 1 ether));
+        registry.registerRole(ROLE_USER, alice, abi.encode(
+            Registry.EndUserRoleData({
+                account: address(0xdead),
+                community: operator,
+                avatarURI: "",
+                ensName: "",
+                stakeAmount: 1 ether
+            })
+        ));
         vm.stopPrank();
         
         // Confirm roles

@@ -23,6 +23,17 @@ contract CreditSystemTest is Test {
         
         uint256 debt = token.getDebt(user);
         assertEq(debt, 10 ether, "Debt should be 10 ether");
+
+        // Accumulate debt
+        vm.prank(paymaster);
+        token.recordDebt(user, 5 ether);
+        assertEq(token.getDebt(user), 15 ether, "Debt should accumulate");
+    }
+
+    function testUnauthorizedDebtRecording() public {
+        vm.prank(address(0xbad));
+        vm.expectRevert(); // BasePaymaster/xPNTs usually has OnlyPaymaster or similar
+        token.recordDebt(user, 10 ether);
     }
 
     function testAutoRepayment() public {
@@ -31,7 +42,6 @@ contract CreditSystemTest is Test {
         token.recordDebt(user, 10 ether);
         
         // 2. Mint xPNTs (Income) > Debt
-        // Mint 15 ether. Expected: 10 burned for debt, 5 credited.
         vm.prank(admin);
         token.mint(user, 15 ether);
         
@@ -43,24 +53,17 @@ contract CreditSystemTest is Test {
     }
 
     function testPartialRepayment() public {
-        // 1. Record Debt
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
         
-        // 2. Mint xPNTs (Income) < Debt
-        // Mint 4 ether. Expected: 4 burned, Debt becomes 6, Balance 0.
         vm.prank(admin);
         token.mint(user, 4 ether);
         
-        uint256 debt = token.getDebt(user);
-        uint256 balance = token.balanceOf(user);
-        
-        assertEq(debt, 6 ether, "Debt should be 6 ether (10 - 4)");
-        assertEq(balance, 0, "Balance should be 0");
+        assertEq(token.getDebt(user), 6 ether);
+        assertEq(token.balanceOf(user), 0);
     }
 
     function testTransferRepayment() public {
-        // Test repayment on peer-to-peer transfer
         address sender = address(0x777);
         vm.prank(admin);
         token.mint(sender, 20 ether);
@@ -68,14 +71,48 @@ contract CreditSystemTest is Test {
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
 
-        // Sender transfers 15 to user
         vm.prank(sender);
         token.transfer(user, 15 ether);
 
-        uint256 debt = token.getDebt(user);
-        uint256 balance = token.balanceOf(user);
+        assertEq(token.getDebt(user), 0);
+        assertEq(token.balanceOf(user), 5 ether);
+    }
 
-        assertEq(debt, 0, "Debt should be cleared");
-        assertEq(balance, 5 ether, "Balance should be 5");
+    function testTransferFromRepayment() public {
+        address sender = address(0x777);
+        address spender = address(0x888);
+        
+        vm.prank(admin);
+        token.mint(sender, 20 ether);
+
+        vm.prank(sender);
+        token.approve(spender, 20 ether);
+
+        vm.prank(paymaster);
+        token.recordDebt(user, 10 ether);
+
+        // Spender moves funds to user (triggering user repayment)
+        vm.prank(spender);
+        token.transferFrom(sender, user, 15 ether);
+
+        assertEq(token.getDebt(user), 0);
+        assertEq(token.balanceOf(user), 5 ether);
+    }
+
+    function testMintToMultipleUsers() public {
+        address user2 = address(0x999);
+        vm.startPrank(admin);
+        token.mint(user, 10 ether);
+        token.mint(user2, 10 ether);
+        vm.stopPrank();
+        
+        assertEq(token.balanceOf(user), 10 ether);
+        assertEq(token.balanceOf(user2), 10 ether);
+    }
+
+    function testSetSuperPaymasterUnauthorized() public {
+        vm.prank(user);
+        vm.expectRevert();
+        token.setSuperPaymasterAddress(address(0));
     }
 }

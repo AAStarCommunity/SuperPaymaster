@@ -29,13 +29,16 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 - GToken staking system with slashing mechanism
 - Chainlink oracle integration for price feeds (v2.0.1: enhanced security)
 - Multi-layer validation and reputation tracking
-- **V3.1.1 Security Architecture**: [DVT Slashing & Reputation System](./docs/Security_Architecture_V3_1.md)
+- **V3.1.1 Testing & Security**:
+  - 🧪 [V3.1.1 Testing Framework (Beginner Ready)](./docs/V3_Testing_Framework.md) - How to run V3 tests
+  - 📜 [Stage 1 Audit Summary](./docs/Stage1_Audit_Summary.md) - Coverage & security audit report
+  - 🛡️ [Security Architecture V3.1.1](./docs/Security_Architecture_V3_1.md) - DVT Slashing & Reputation System
+- **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md) on Sepolia testnet
+- Mainnet deployment ready (pending audit)
 
 ✅ **Production Ready**:
 - 206/206 tests passing
 - Deployed on Sepolia testnet
-- Mainnet deployment ready (pending audit)
-- **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md)
 
 ---
 

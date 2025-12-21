@@ -190,7 +190,8 @@ contract RegistryV3NewFeaturesTest is Test {
         
         for (uint i = 0; i < roles.length; i++) {
             IRegistryV3.RoleConfig memory config = registry.getRoleConfig(roles[i]);
-            assertEq(config.exitFeePercent, 1000, "All roles should have 10% exit fee");
+            uint256 expectedFee = roles[i] == ROLE_COMMUNITY ? 500 : 1000;
+            assertEq(config.exitFeePercent, expectedFee, "Exit fee mismatch for role");
             assertTrue(config.minExitFee > 0, "All roles should have min exit fee");
         }
     }

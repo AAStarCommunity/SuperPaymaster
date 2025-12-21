@@ -81,7 +81,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     IRegistryV3 public immutable REGISTRY;
     address public APNTS_TOKEN;            // aPNTs (AAStar Token) - Mutable to allow updates
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
-    address public immutable SUPER_PAYMASTER_TREASURY; // Protocol Treasury for fees
+    address public treasury; // Protocol Treasury for fees
 
     // Operator Data Mapped by Address
     mapping(address => OperatorConfig) public operators;
@@ -145,7 +145,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
         REGISTRY = _registry;
         APNTS_TOKEN = _apntsToken;
         ETH_USD_PRICE_FEED = AggregatorV3Interface(_ethUsdPriceFeed);
-        SUPER_PAYMASTER_TREASURY = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
+        treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
     }
 
     // ====================================
@@ -155,21 +155,21 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard {
     /**
      * @notice Configure billing settings (Operator only)
      * @param xPNTsToken Token to charge users
-     * @param treasury Address to receive payments
+     * @param _opTreasury Address to receive payments
      * @param exchangeRate Rate (1e18 = 1:1)
      */
-    function configureOperator(address xPNTsToken, address treasury, uint256 exchangeRate) external {
+    function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert("Operator not registered");
         }
-        if (xPNTsToken == address(0) || treasury == address(0) || exchangeRate == 0) {
+        if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
             revert("Invalid configuration");
         }
 
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
-        config.treasury = treasury;
+        config.treasury = _opTreasury;
         config.exchangeRate = uint96(exchangeRate);
         config.isConfigured = true;
 
