@@ -123,7 +123,7 @@ contract DeployV3FullLocal is Script {
 
         // Register Deployer as Operator
         bytes memory opData = abi.encode(
-            Registry.CommunityRoleData("Local Operator", "local.eth", "http://localhost", "Local Test Hub", "", 10 ether)
+            Registry.CommunityRoleData("Local Operator", "local.eth", "http://localhost", "Local Test Hub", "", 30 ether)
         );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
 

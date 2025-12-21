@@ -525,6 +525,7 @@ Coming soon after security audit.
 - **[Registry Role Mechanism](./contracts/docs/Registry_Role_Mechanism.md)** - Role configuration, management, and exit fee system
 - [Two-Tier Slashing Mechanism](docs/Two_Tier_Slashing_Mechanism.md)
 - [Admin Configuration Rights](docs/Admin_Configuration_Rights.md)
+- [Phase 7: Credit System Redesign (用户信用债务系统)](docs/Phase7_Credit_System_Redesign.md)
 - **[Phase 6 Verification Report](./contracts/docs/Phase6_Verification_Report.md)** - V3.1.1 test results and deployment readiness
 - **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
