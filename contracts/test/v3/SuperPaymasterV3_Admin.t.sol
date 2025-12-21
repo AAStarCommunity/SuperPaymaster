@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import "forge-std/StdStorage.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
@@ -42,6 +43,8 @@ contract MockAPNTs is ERC20 {
  * @title SuperPaymasterV3_Admin_Test
  */
 contract SuperPaymasterV3_Admin_Test is Test {
+    using stdStorage for StdStorage;
+    
     SuperPaymasterV3 public paymaster;
     Registry public registry;
     GToken public gtoken;
@@ -77,12 +80,29 @@ contract SuperPaymasterV3_Admin_Test is Test {
             treasury
         );
         
+        // Use stdstore to set hasRole[ROLE_COMMUNITY][operator1] = true
+        stdstore
+            .target(address(registry))
+            .sig("hasRole(bytes32,address)")
+            .with_key(ROLE_COMMUNITY)
+            .with_key(operator1)
+            .checked_write(true);
+        
         apnts.mint(operator1, 10000 ether);
         
         vm.stopPrank();
         
         vm.prank(operator1);
         apnts.approve(address(paymaster), type(uint256).max);
+    }
+
+    // ====================================
+    // Debug Test - Verify hasRole
+    // ====================================
+
+    function test_VerifyHasRole() public {
+        bool hasRoleValue = registry.hasRole(ROLE_COMMUNITY, operator1);
+        assertTrue(hasRoleValue, "operator1 should have COMMUNITY role");
     }
 
     // ====================================
@@ -251,7 +271,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.updateReputation(operator1, 500);
         
-        (,,,,,,,, uint256 reputation,) = paymaster.operators(operator1);
+        (,,,,,,,,, uint256 reputation) = paymaster.operators(operator1);
         assertEq(reputation, 500);
     }
 
