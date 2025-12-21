@@ -8,12 +8,37 @@ import "src/tokens/GToken.sol";
 /**
  * @title Mock Registry for MySBT Testing
  */
-contract MockRegistry {
+contract MockRegistry is IRegistryV3 {
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     
     function setRole(bytes32 role, address account, bool value) external {
         hasRole[role][account] = value;
     }
+
+    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
+
+    // Stubs
+    function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }
+    function configureRole(bytes32, RoleConfig calldata) external override {}
+    function createNewRole(bytes32, RoleConfig calldata, address) external override {}
+    function exitRole(bytes32) external override {}
+    function getBurnHistory(address) external view override returns (BurnRecord[] memory) { return new BurnRecord[](0); }
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
+        return RoleConfig(0,0,0,0,0,0,0,0,false,"stub"); 
+    }
+    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
+    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+    function registerRole(bytes32, address, bytes calldata) external override {}
+    function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
+    function setReputationSource(address, bool) external override {}
+    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function getCreditLimit(address) external view override returns (uint256) { return 0; }
+    function setCreditTier(uint256, uint256) external override {}
+    function setRoleOwner(bytes32, address) external override {}
+    function roleOwners(bytes32) external view override returns (address) { return address(0); }
 }
 
 /**

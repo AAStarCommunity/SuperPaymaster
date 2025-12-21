@@ -63,6 +63,9 @@ contract MockRegistry is IRegistryV3 {
     // New V3.1 Admin Functions
     function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
+
+    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
     function setCreditTier(uint256, uint256) external override {}
 }
 

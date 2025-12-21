@@ -262,5 +262,7 @@ interface IRegistryV3 {
      * @return Owner address
      */
     function roleOwners(bytes32 roleId) external view returns (address);
-
+    
+    function ROLE_COMMUNITY() external view returns (bytes32);
+    function ROLE_ENDUSER() external view returns (bytes32);
 }

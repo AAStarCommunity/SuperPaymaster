@@ -49,6 +49,8 @@ contract MockRegistry {
             description: "Test"
         });
     }
+    function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
 }
 
 /**

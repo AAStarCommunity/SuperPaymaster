@@ -105,7 +105,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
-        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert("Operator not registered");
         }
         if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
@@ -117,8 +117,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         config.treasury = _opTreasury;
         config.exchangeRate = uint96(exchangeRate);
         config.isConfigured = true;
+        config.treasury = _opTreasury; // Use operator's treasury
 
-        emit OperatorConfigured(msg.sender, xPNTsToken, treasury, exchangeRate);
+        emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
     }
 
     /**
@@ -169,7 +170,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert("Operator not registered");
         }
         
@@ -188,7 +189,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         require(msg.sender == APNTS_TOKEN, "Only APNTS_TOKEN");
 
         // Ensure operator is registered
-        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), from)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), from)) {
              revert("Operator not registered");
         }
 
@@ -214,7 +215,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      *      User must transfer tokens first, then call this.
      */
     function notifyDeposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert("Operator not registered");
         }
 
@@ -432,14 +433,14 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         address operator = _extractOperator(userOp);
         
         // 2. Validate Operator Role
-        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), operator)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), operator)) {
             // Rejection code 1: Operator not registered
             emit ValidationRejected(userOp.sender, operator, 1);
             return ("", _packValidationData(true, 0, 0)); 
         }
         
         // 3. Validate User Role (Unified Verification)
-        if (!REGISTRY.hasRole(keccak256("ENDUSER"), userOp.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_ENDUSER(), userOp.sender)) {
              // Rejection code 2: User not verified
              emit ValidationRejected(userOp.sender, operator, 2);
              return ("", _packValidationData(true, 0, 0)); 
@@ -509,7 +510,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         // Context Construction
         if (useCredit) {
-             return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount), 0);
+             return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash), 0);
         } else {
              return (bytes(""), 0);
         }
@@ -521,72 +522,16 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint {
-        // If context is empty, we already paid in validation (V3 Mode)
         if (context.length == 0) return;
         
-        // Otherwise, Credit Mode active
-        (address token, uint256 xPNTsAmount, address user, uint256 aPNTsAmount) = 
-            abi.decode(context, (address, uint256, address, uint256));
+        (address token, uint256 xPNTsAmount, address user, , ) = 
+            abi.decode(context, (address, uint256, address, uint256, bytes32));
 
-        // Re-calculate actual cost if needed (optional optimization)
-        // For now use the max estimated to ensure Paymaster safety
-        
-        if (mode == PostOpMode.opReverted) {
-            // User Tx failed, but we still need to charge Gas
-            // Proceed to charge
-        }
-
-        // Try to Burn
-        // Note: We use a dummy hash or 0 here because postOp doesn't have the UserOpHash readily available 
-        // in standard interface arguments without calldata inspection. 
-        // BUT, IModernXPNTsToken expects a hash. 
-        // Ideally we should pass the hash in context, but for Debt recording we might fall back 
-        // to a trusted burn or just record debt if token supports it.
-        // 
-        // Wait, standard V3 token requires hash. 
-        // If we are here, we are "Authorized" Paymaster. 
-        // We should update Token Interface to allow "burnFrom" by trusted Paymaster without Hash?
-        // Or we pass the hash in context!
-        // 
-        // Correct Approach: We need userOpHash in context.
-        // BUT userOpHash is not available in validate() return context easily? 
-        // Actually, it IS passed to validate(). So we can pack it.
-        
-        // REVISION: We need to pass userOpHash in context for this to work with verify userOpHash token.
-        // However, if we resort to Debt, we don't need to burn now. 
-        // We only burn if successful.
-        
-        // Let's assume for V3.1 we optimistically try standard `burnFrom` 
-        // (which might need Token upgrade to allow Paymaster role to burn without hash?)
-        // OR we record debt.
-        
-        // SIMPLIFICATION for V3.1 Prototype:
-        // Just record DEBT for the *entire* amount in PostOp logic?
-        // No, we want to try to burn first.
-        
-        // Since we didn't update Token Interface in this plan, let's assume we maintain `burnFromWithOpHash`.
-        // I will need to update `validate` to pass `userOpHash` in context.
-        
-        // Implementation:
-        // 1. Try Burn (using Hash from context) -- NOT POSSIBLE, Hash is sensitive? No, Hash is public.
-        // 2. Catch -> Record Debt.
-
-        // WARNING: hash is not in context yet. I will update step above.
-        // But for now, let's just implement the "Record Debt" fallback logic assuming failure.
-        
-        // Since we can't easily change Token interface now, and we can't easily pass Hash (context size limit?),
-        // Let's rely on the "Failed Burn" scenario implicitly:
-        // If we are in `useCredit` mode, we deferred payment. 
-        // So we MUST record debt or burn.
-        // Let's just Record Debt 100% of the time for Credit users?
-        // No, that's inefficient.
-        
-        // Proposed V3.2 Logic:
-        // If Credit Mode: Record Debt in Token.
-        
+        // V3.2: Record debt regardless of tx success (User already optimized away in validate)
         IxPNTsToken(token).recordDebt(user, xPNTsAmount);
-        // Note: No immediate burn logic here (handled by Token auto-repay on next transfer)
         
+        // Optional: Log actual cost if it differs significantly from estimate
+        // (Not implemented for gas efficiency)
     }
     
 

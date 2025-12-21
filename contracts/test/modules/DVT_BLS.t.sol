@@ -6,8 +6,32 @@ import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/modules/monitoring/BLSAggregatorV3.sol";
 
 // Mocks
-contract MockRegistryV3 {
-    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
+contract MockRegistryV3 is IRegistryV3 {
+    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function hasRole(bytes32, address) external pure override returns (bool) { return true; }
+    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
+    
+    // Stubs
+    function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }
+    function configureRole(bytes32, RoleConfig calldata) external override {}
+    function createNewRole(bytes32, RoleConfig calldata, address) external override {}
+    function exitRole(bytes32) external override {}
+    function getBurnHistory(address) external view override returns (BurnRecord[] memory) { return new BurnRecord[](0); }
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
+        return RoleConfig(0,0,0,0,0,0,0,0,false,"stub"); 
+    }
+    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
+    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+    function registerRole(bytes32, address, bytes calldata) external override {}
+    function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
+    function setReputationSource(address, bool) external override {}
+    function setCreditTier(uint256, uint256) external override {}
+    function setRoleOwner(bytes32, address) external override {}
+    function roleOwners(bytes32) external view override returns (address) { return address(0); }
+    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
 }
 
 contract MockSuperPaymasterV3 {
