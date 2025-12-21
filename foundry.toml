@@ -21,6 +21,7 @@ remappings = [
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
     "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
     "solady/=singleton-paymaster/lib/solady/src/",
+    "singleton-paymaster/=singleton-paymaster/",
     "src/=contracts/src/"
 ]
 

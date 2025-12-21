@@ -14,7 +14,7 @@ import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/
 
 import { ISBT } from "../../interfaces/ISBT.sol";
 import { IMySBT } from "../../interfaces/v3/IMySBT.sol";
-import { PostOpMode } from "../../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
+import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
 
