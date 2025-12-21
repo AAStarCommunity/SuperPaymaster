@@ -138,6 +138,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         roleSBTTokenIds[roleId][user] = sbtTokenId;
 
         _postRegisterRole(roleId, user, roleData);
+
         emit RoleRegistered(roleId, user, config.entryBurn, block.timestamp);
     }
 
@@ -172,11 +173,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             }
         } else if (roleId == ROLE_COMMUNITY) {
              // For community role, we might want to deactivate its own record?
-             // But usually it is the user role that has membership.
         }
 
         burnHistory.push(BurnRecord(roleId, msg.sender, stakedAmount, block.timestamp, "Exit"));
         userBurnHistory[msg.sender].push(burnHistory.length - 1);
+        
+        hasRole[roleId][msg.sender] = false;
+        // Remove from roleMembers (O(n) but usually small members or handled by indexing)
+        _removeFromRoleMembers(roleId, msg.sender);
 
         uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
         
@@ -365,8 +369,50 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     // View Functions
     function checkRole(bytes32 roleId, address user) external view returns (bool) { return hasRole[roleId][user]; }
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
-    function getUserRoles(address user) external view returns (bytes32[] memory) { return new bytes32[](0); } // Simplified for size
-    function getBurnHistory(address user) external view returns (BurnRecord[] memory) { return new BurnRecord[](0); } 
-    function calculateExitFee(bytes32, uint256) external pure returns (uint256) { return 0; }
+    function getUserRoles(address user) external view returns (bytes32[] memory) {
+        // Find all roles this user has
+        bytes32[3] memory allRoles = [ROLE_KMS, ROLE_COMMUNITY, ROLE_ENDUSER];
+        uint256 count = 0;
+        for(uint i=0; i<3; i++){
+            if(hasRole[allRoles[i]][user]) count++;
+        }
+        bytes32[] memory roles = new bytes32[](count);
+        uint256 idx = 0;
+        for(uint i=0; i<3; i++){
+            if(hasRole[allRoles[i]][user]) roles[idx++] = allRoles[i];
+        }
+        return roles;
+    }
+    
+    function getBurnHistory(address user) external view returns (BurnRecord[] memory) {
+        uint256[] memory indices = userBurnHistory[user];
+        BurnRecord[] memory userHistory = new BurnRecord[](indices.length);
+        for(uint i=0; i<indices.length; i++) {
+            userHistory[i] = burnHistory[indices[i]];
+        }
+        return userHistory;
+    }
+
+    function getAllBurnHistory() external view returns (BurnRecord[] memory) { return burnHistory; }
+
+    function calculateExitFee(bytes32 roleId, uint256 amount) external view returns (uint256) {
+        (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(address(0), roleId); // Mock address(0) if not used by staking logic
+        // Or if staking logic needs user:
+        // (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(msg.sender, roleId);
+        return fee;
+    }
+
+    function getRoleMembers(bytes32 roleId) external view returns (address[] memory) { return roleMembers[roleId]; }
     function getRoleUserCount(bytes32 roleId) external view returns (uint256) { return roleMembers[roleId].length; }
+
+    function _removeFromRoleMembers(bytes32 roleId, address user) internal {
+        address[] storage members = roleMembers[roleId];
+        for (uint256 i = 0; i < members.length; i++) {
+            if (members[i] == user) {
+                members[i] = members[members.length - 1];
+                members.pop();
+                break;
+            }
+        }
+    }
 }

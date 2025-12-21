@@ -1,0 +1,39 @@
+[2m2025-12-21T05:13:26.563703Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.564312Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.564415Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.564514Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.565076Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.565214Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.565304Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+[2m2025-12-21T05:13:26.565401Z[0m [31mERROR[0m [2mfoundry_compilers_artifacts_solc::sources[0m[2m:[0m [3merror[0m[2m=[0m"/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/paymasters/v2/core/Registry.sol": No such file or directory (os error 2)
+Unable to resolve imports:
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/RegisterCommunities.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/DeployRegistry_v2_2_0.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/PrepareForMySBTTest.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/v2/DeployRegistry_v2_2_1.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/RegisterAAStar.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/RegisterTestCommunities.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/UpdateCommunityTokens.s.sol"
+      "src/paymasters/v2/core/Registry.sol" in "/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/script/TestTwoCommunities.s.sol"
+with remappings:
+      @openzeppelin/contracts/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/openzeppelin-contracts/contracts/
+      @openzeppelin-v5.0.2/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/
+      @account-abstraction-v7/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/account-abstraction-v7/contracts/
+      @chainlink/contracts/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/
+      solady/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/solady/src/
+      src/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/
+      account-abstraction-v6/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/account-abstraction-v6/contracts/
+      account-abstraction-v7/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/account-abstraction-v7/contracts/
+      account-abstraction-v8/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/account-abstraction-v8/contracts/
+      chainlink-brownie-contracts/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/
+      ds-test/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/lib/forge-std/lib/ds-test/src/
+      erc4626-tests/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/openzeppelin-contracts/lib/erc4626-tests/
+      forge-std/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/forge-std/src/
+      halmos-cheatcodes/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/
+      hardhat/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/openzeppelin-contracts/node_modules/hardhat/
+      openzeppelin-contracts-v4.8.3/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/openzeppelin-contracts-v4.8.3/
+      openzeppelin-contracts-v5.0.2/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/
+      openzeppelin-contracts-v5.1.0/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/singleton-paymaster/lib/openzeppelin-contracts-v5.1.0/
+      openzeppelin-contracts/=/Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/lib/openzeppelin-contracts/
+Compiling 220 files with Solc 0.8.28
+Solc 0.8.28 finished in 1.38s
