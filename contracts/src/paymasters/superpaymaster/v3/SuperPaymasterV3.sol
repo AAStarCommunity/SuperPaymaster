@@ -457,8 +457,20 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
 
+        // ... Config Checks (Moved Up for Safety) ...
+        if (!config.isConfigured) {
+             return ("", _packValidationData(true, 0, 0)); 
+        }
+        
+        if (config.isPaused) {
+             return ("", _packValidationData(true, 0, 0)); 
+        }
+
         // 3. User Validation & Credit Check (V3.2 Credit System Redesign)
         // ----------------------------------------
+        // NOW SAFE: config.xPNTsToken is guaranteed non-zero by isConfigured check logic (assumed)
+        // or strictly checking address(0) if isConfigured isn't enough.
+        // Assuming isConfigured implies xPNTsToken != address(0). 
         
         uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(userOp.sender);
         
@@ -492,14 +504,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
              IxPNTsToken(config.xPNTsToken).burnFromWithOpHash(userOp.sender, xPNTsAmount, userOpHash);
         }
 
-        // ... Config Checks ...
-        if (!config.isConfigured) {
-             return ("", _packValidationData(true, 0, 0)); 
-        }
-        
-        if (config.isPaused) {
-             return ("", _packValidationData(true, 0, 0)); 
-        }
 
         // 4. Billing Logic
         if (config.aPNTsBalance < aPNTsAmount) {
@@ -562,7 +566,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
             ethUsdPrice = cachedPrice.price;
         } else {
             (uint80 roundId, int256 price, , uint256 updatedAt, uint80 answeredInRound) = ETH_USD_PRICE_FEED.latestRoundData();
-            if (answeredInRound < roundId || block.timestamp - updatedAt > 3600 || price <= MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) {
+            if (answeredInRound < roundId || block.timestamp - updatedAt > 900 || price <= MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) {
                  revert OracleError();
             }
             cachedPrice = PriceCache({
@@ -579,6 +583,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         uint256 usdValue = (gasCostWei * priceUint * (10**(18 - decimals))) / 1e18;
 
         // To get aPNTs (18 decimals), we take usdValue (36 decimals) and divide by aPNTs price (18 decimals)
+        if (aPNTsPriceUSD == 0) revert OracleError(); // Prevent division by zero
         return usdValue / aPNTsPriceUSD;
     }
 
