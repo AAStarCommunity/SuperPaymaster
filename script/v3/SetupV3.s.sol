@@ -11,6 +11,9 @@ import "src/tokens/xPNTsToken.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 import "src/paymasters/v4/PaymasterV4_1i.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
+import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/modules/monitoring/BLSAggregatorV3.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // Minimal Mock Price Feed
@@ -45,6 +48,11 @@ contract SetupV3 is Script {
     PaymasterFactory public paymasterFactory;
     PaymasterV4_1i public paymasterV4Impl;
     SimpleAccountFactory public simpleAccountFactory;
+
+    // Reputation & Monitoring
+    ReputationSystemV3 public reputationSystem;
+    DVTValidatorV3 public dvtValidator;
+    BLSAggregatorV3 public blsAggregator;
 
     MockV3Aggregator public priceFeed;
 
@@ -158,6 +166,14 @@ contract SetupV3 is Script {
         // 8. Deploy SimpleAccountFactory (for Test Users)
         simpleAccountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddress));
 
+        // 9. Deploy Reputation & Monitoring Contracts
+        reputationSystem = new ReputationSystemV3(address(registry));
+        dvtValidator = new DVTValidatorV3(address(registry));
+        blsAggregator = new BLSAggregatorV3(address(registry), address(superPaymaster), address(dvtValidator));
+        
+        // Wire DVT Validator to BLS Aggregator
+        dvtValidator.setBLSAggregator(address(blsAggregator));
+
         vm.stopBroadcast();
 
         // Output JSON
@@ -167,10 +183,6 @@ contract SetupV3 is Script {
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "sbt", address(sbt));
         vm.serializeAddress(jsonObj, "superPaymaster", address(superPaymaster));
-        // aPNTs is string, convert to address logic?
-        // Or just use Setup logic correctly.
-        // vm.serializeAddress(json, "aPNTs", aPNTs); // aPNTs is string type in local var?
-        // Let's use vm.serializeString for aPNTs
         vm.serializeString(jsonObj, "aPNTs", aPNTs);
 
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
@@ -178,6 +190,9 @@ contract SetupV3 is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(paymasterV4Impl));
         vm.serializeAddress(jsonObj, "paymasterV4Proxy", address(paymasterV4Proxy));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(simpleAccountFactory));
+        vm.serializeAddress(jsonObj, "reputationSystem", address(reputationSystem));
+        vm.serializeAddress(jsonObj, "dvtValidator", address(dvtValidator));
+        vm.serializeAddress(jsonObj, "blsAggregator", address(blsAggregator));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddress);
 
         vm.writeFile("script/v3/config.json", finalJson);
