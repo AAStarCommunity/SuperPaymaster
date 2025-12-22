@@ -77,6 +77,7 @@ tests=(
     "06_local_test_v3_admin.ts:Admin Module"
     "06_local_test_v3_funding.ts:Funding Module"
     "06_local_test_v3_execution.ts:Execution Module"
+    "09_local_test_community_simple.ts:Community Verification"
 )
 
 for test_info in "${tests[@]}"; do
