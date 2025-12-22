@@ -66,6 +66,12 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @dev L2 chains have faster block times and more frequent Chainlink updates
     ///      Reduced from 3600s (1 hour) to 900s (15 min) for better price accuracy
     uint256 public constant PRICE_STALENESS_THRESHOLD = 900;
+    
+    /// @notice Minimum valid ETH price (USD) to prevent oracle manipulation (e.g., $100)
+    int256 public constant MIN_PRICE = 100 * 1e8;
+    
+    /// @notice Maximum valid ETH price (USD) to prevent oracle manipulation (e.g., $1,000,000)
+    int256 public constant MAX_PRICE = 1_000_000 * 1e8;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -112,6 +118,11 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     error PaymasterV4__NotFound();
     error PaymasterV4__MaxLimitReached();
     error PaymasterV4__ActivityRecordFailed();
+    error PaymasterV4__InvalidGasToken();
+    error PaymasterV4__InvalidSBT();
+    error PaymasterV4__ZeroPrice();
+    error PaymasterV4__InvalidCap();
+    error PaymasterV4__OraclePriceInvalid();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -198,7 +209,11 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         xpntsFactory = IxPNTsFactory(_xpntsFactory);
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
+        serviceFeeRate = _serviceFeeRate;
+        
+        if (_maxGasCostCap == 0) revert PaymasterV4__InvalidCap();
         maxGasCostCap = _maxGasCostCap;
+        
         paused = false;
     }
 
@@ -383,7 +398,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         (uint80 roundId, int256 ethUsdPrice,, uint256 updatedAt, uint80 answeredInRound) =
             ethUsdPriceFeed.latestRoundData();
 
-        if (ethUsdPrice <= 0 || answeredInRound < roundId) revert PaymasterV4__InvalidTokenBalance();
+        if (ethUsdPrice < MIN_PRICE || ethUsdPrice > MAX_PRICE) revert PaymasterV4__OraclePriceInvalid();
+        if (answeredInRound < roundId) revert PaymasterV4__InvalidTokenBalance(); // Staleness check
 
         // ✅ FIXED: Use PRICE_STALENESS_THRESHOLD (900s / 15 min for L2)
         // Reduced from 3600s (1 hour) for better price accuracy on L2
@@ -404,6 +420,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
 
         // Step 4: Convert USD to aPNTs amount (using factory's aPNTs price)
         uint256 aPNTsPrice = xpntsFactory.getAPNTsPrice(); // Get dynamic aPNTs price
+        if (aPNTsPrice == 0) revert PaymasterV4__ZeroPrice();
+        
         uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPrice;
 
         // Step 5: Convert aPNTs to xPNTs (using token's exchange rate)
@@ -442,6 +460,7 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     /// @notice Set maximum gas cost cap
     /// @param _maxGasCostCap New max gas cost cap (wei)
     function setMaxGasCostCap(uint256 _maxGasCostCap) external onlyOwner {
+        if (_maxGasCostCap == 0) revert PaymasterV4__InvalidCap();
         uint256 oldCap = maxGasCostCap;
         maxGasCostCap = _maxGasCostCap;
 
@@ -454,6 +473,13 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         if (sbt == address(0)) revert PaymasterV4__ZeroAddress();
         if (isSBTSupported[sbt]) revert PaymasterV4__AlreadyExists();
         if (supportedSBTs.length >= MAX_SBTS) revert PaymasterV4__MaxLimitReached();
+
+        // Interface Probe: Check if SBT behaves correctly (V4-02)
+        try ISBT(sbt).balanceOf(address(this)) {
+            // Success
+        } catch {
+            revert PaymasterV4__InvalidSBT();
+        }
 
         supportedSBTs.push(sbt);
         isSBTSupported[sbt] = true;
@@ -535,6 +561,13 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
         if (token == address(0)) revert PaymasterV4__ZeroAddress();
         if (isGasTokenSupported[token]) revert PaymasterV4__AlreadyExists();
         if (supportedGasTokens.length >= MAX_GAS_TOKENS) revert PaymasterV4__MaxLimitReached();
+
+        // Interface Probe: Check if GasToken behaves correctly (V4-01)
+        try IxPNTsToken(token).exchangeRate() returns (uint256 rate) {
+            if (rate == 0) revert PaymasterV4__InvalidGasToken();
+        } catch {
+            revert PaymasterV4__InvalidGasToken();
+        }
 
         supportedGasTokens.push(token);
         isGasTokenSupported[token] = true;
