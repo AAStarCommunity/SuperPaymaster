@@ -59,7 +59,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     PriceCache private cachedPrice;
 
     // Protocol Fee (Basis Points)
-    uint256 public protocolFeeBPS = 200; // 2%
+    uint256 public protocolFeeBPS = 1000; // 10%
     uint256 public constant BPS_DENOMINATOR = 10000;
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
@@ -366,14 +366,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         emit ReputationUpdated(operator, newScore);
     }
 
-    function setOperatorPause(address operator, bool paused) external onlyOwner {
-        operators[operator].isPaused = paused;
-        if (paused) {
-            emit OperatorPaused(operator);
-        } else {
-            emit OperatorUnpaused(operator);
-        }
-    }
+
 
     /**
      * @notice Execute slash triggered by BLS consensus (DVT Module only)
@@ -542,7 +535,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         // Context Construction
         if (useCredit) {
-             return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash), 0);
+             return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), 0);
         } else {
              return (bytes(""), 0);
         }
@@ -556,14 +549,46 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     ) external override onlyEntryPoint {
         if (context.length == 0) return;
         
-        (address token, uint256 xPNTsAmount, address user, , ) = 
-            abi.decode(context, (address, uint256, address, uint256, bytes32));
+        (
+            address token, 
+            uint256 estimatedXPNTs, 
+            address user, 
+            uint256 initialAPNTs, 
+            bytes32 userOpHash, 
+            address operator
+        ) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
 
-        // V3.2: Record debt regardless of tx success (User already optimized away in validate)
-        IxPNTsToken(token).recordDebt(user, xPNTsAmount);
-        
-        // Optional: Log actual cost if it differs significantly from estimate
-        // (Not implemented for gas efficiency)
+        // 1. Calculate Actual Cost in aPNTs
+        // actualGasCost is in Wei. We convert to aPNTs using the same oracle logic (or cached)
+        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
+
+        // 2. Apply Protocol Fee Markup (e.g. 10%)
+        // We want the final deduction to be Actual + 10%.
+        uint256 finalCharge = (actualAPNTsCost * (BPS_DENOMINATOR + protocolFeeBPS)) / BPS_DENOMINATOR;
+
+        // 3. Process Refund
+        // We initially deducted `initialAPNTs` (Max) and credited it ALL to `protocolRevenue`.
+        // Now we need to adjust:
+        // - If finalCharge < initialAPNTs: Refund the difference.
+        // - Funds move: Revenue -> Operator Balance.
+        if (finalCharge < initialAPNTs) {
+            uint256 refund = initialAPNTs - finalCharge;
+            
+            operators[operator].aPNTsBalance += refund;
+            protocolRevenue -= refund;
+            // totalTrackedBalance remains unchanged (funds just moved pockets)
+            
+            // Recalculate User Debt based on Final Charge
+            uint256 exchangeRate = operators[operator].exchangeRate;
+            uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
+            
+            IxPNTsToken(token).recordDebt(user, finalXPNTsDebt);
+            
+            emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
+        } else {
+             // Should rarely happen (Actual > Max), just cap at Max
+             IxPNTsToken(token).recordDebt(user, estimatedXPNTs);
+        }
     }
     
 
@@ -599,11 +624,12 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         uint256 priceUint = uint256(ethUsdPrice);
         uint8 decimals = cachedPrice.decimals;
-        uint256 usdValue = (gasCostWei * priceUint * (10**(18 - decimals))) / 1e18;
-
-        // To get aPNTs (18 decimals), we take usdValue (36 decimals) and divide by aPNTs price (18 decimals)
-        if (aPNTsPriceUSD == 0) revert OracleError(); // Prevent division by zero
-        return usdValue / aPNTsPriceUSD;
+        
+        // Simplified High-Precision Math:
+        // Result = (gasCostWei * ethPriceUSD * 10^10) / aPNTsPriceUSD
+        // Numerator has ~36 decimals (18 + 8 + 10), safe from uint256 overflow (up to 77 decimals)
+        if (aPNTsPriceUSD == 0) revert OracleError();
+        return (gasCostWei * priceUint * (10**(18 - decimals))) / aPNTsPriceUSD;
     }
 
     
