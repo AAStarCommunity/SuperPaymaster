@@ -64,6 +64,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
+    // State Variables (Restored)
+    uint256 public totalTrackedBalance;
+    uint256 public protocolRevenue;
 
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
@@ -145,6 +148,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Set the APNTS Price in USD (Owner Only)
      */
     function setAPNTSPrice(uint256 newPrice) external onlyOwner {
+        if (newPrice == 0) revert InvalidConfiguration();
         aPNTsPriceUSD = newPrice;
     }
 
@@ -152,6 +156,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Set the protocol fee basis points (Owner Only)
      */
     function setProtocolFee(uint256 newFeeBPS) external onlyOwner {
+        if (newFeeBPS > BPS_DENOMINATOR) revert InvalidConfiguration();
         protocolFeeBPS = newFeeBPS;
     }
 
@@ -169,6 +174,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function setOperatorPaused(address operator, bool paused) external onlyOwner {
         operators[operator].isPaused = paused;
+        if (paused) {
+            emit OperatorPaused(operator);
+        } else {
+            emit OperatorUnpaused(operator);
+        }
     }
 
     /**
@@ -187,8 +197,15 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         operators[msg.sender].aPNTsBalance += amount;
         
+        // Fix: Update tracked balance to prevent double counting in notifyDeposit
+        totalTrackedBalance += amount;
+        
         emit OperatorDeposited(msg.sender, amount);
     }
+
+    // ====================================
+    // Push Deposit & Views (Restored)
+    // ====================================
 
     /**
      * @notice Handle ERC1363 transferAndCall (Push Mode)
@@ -210,13 +227,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         return this.onTransferReceived.selector;
     }
-
-
-
-    // Track total balance for notifyDeposit pattern
-    uint256 public totalTrackedBalance;
-    // Track total accumulated protocol revenue (burnt aPNTs from operators)
-    uint256 public protocolRevenue;
 
     /**
      * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
@@ -240,7 +250,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
         emit OperatorDeposited(msg.sender, amount);
     }
-    
+
 
 
 
@@ -252,6 +262,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
             revert InsufficientBalance();
         }
         operators[msg.sender].aPNTsBalance -= amount;
+        // Fix: Reduce tracked balance to prevent underflow in notifyDeposit
+        totalTrackedBalance -= amount;
         
         IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
         
@@ -268,6 +280,8 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         if (amount > protocolRevenue) revert InsufficientRevenue();
         
         protocolRevenue -= amount;
+        // Fix: Reduce tracked balance
+        totalTrackedBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(to, amount);
         
         // Note: No event needed for internal transfers? Or reuse Withdrawn?
@@ -318,12 +332,17 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
             config.reputation = 0;
         }
 
-        // Apply Financial Penalty (Burn aPNTs)
+        // Apply Financial Penalty (Burn aPNTs to Protocol Revenue)
         if (penaltyAmount > 0) {
             if (config.aPNTsBalance >= penaltyAmount) {
                 config.aPNTsBalance -= penaltyAmount;
+                // Fix: Move slashed funds to Protocol Revenue
+                protocolRevenue += penaltyAmount;
             } else {
+                // Slash all remaining
+                uint256 actualBurn = config.aPNTsBalance;
                 config.aPNTsBalance = 0;
+                protocolRevenue += actualBurn;
             }
         }
 
