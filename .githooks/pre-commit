@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# SuperPaymaster pre-commit hook
+# Runs the fast bug hunting suite before allowing a commit.
+
+echo "🔍 Running pre-commit bug hunting suite..."
+
+# Path to the SDK directory
+SDK_DIR="../aastar-sdk"
+
+if [ -d "$SDK_DIR" ]; then
+    cd "$SDK_DIR"
+    # Run the fast bug hunting script
+    # We use pnpm ts-node
+    pnpm ts-node scripts/99_bug_hunting_fast.ts
+    
+    RESULT=$?
+    
+    if [ $RESULT -ne 0 ]; then
+        echo "❌ Pre-commit check failed! Please fix the bugs before committing."
+        exit 1
+    fi
+    
+    echo "✅ Pre-commit check passed."
+else
+    echo "⚠️  aastar-sdk directory not found. Skipping fast bug hunt."
+fi
+
+exit 0
