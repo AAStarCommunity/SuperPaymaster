@@ -13,6 +13,7 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 - **For Communities**: Deploy custom paymasters with your own community tokens (xPNTs)
 - **For Users**: Seamless gas sponsorship using community points instead of ETH
 - **For Developers**: Easy integration with shared configuration and battle-tested contracts
+- **CLI Guide**: [Command Line Interface Guide](./docs/CLI_GUIDE.md)
 
 ### Key Features
 
