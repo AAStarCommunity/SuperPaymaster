@@ -10,9 +10,8 @@ SDK_DIR="../aastar-sdk"
 
 if [ -d "$SDK_DIR" ]; then
     cd "$SDK_DIR"
-    # Run the fast bug hunting script
-    # We use pnpm ts-node
-    pnpm ts-node scripts/99_bug_hunting_fast.ts
+    # Run the fast test suite (Safe for pre-commit)
+    pnpm run test:fast
     
     RESULT=$?
     
