@@ -142,20 +142,6 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Deploy Paymaster with default version
-     * @param initData Initialization data
-     * @return paymaster Address of the newly deployed Paymaster
-     */
-    function deployPaymasterDefault(bytes memory initData)
-        external
-        nonReentrant
-        returns (address paymaster)
-    {
-        require(bytes(defaultVersion).length > 0, "No default version set");
-        return deployPaymaster(defaultVersion, initData);
-    }
-
-    /**
      * @notice Deploy Paymaster using deterministic address (CREATE2)
      * @param version Version of Paymaster implementation
      * @param salt Salt for deterministic deployment
