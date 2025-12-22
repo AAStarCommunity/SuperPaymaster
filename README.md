@@ -550,8 +550,9 @@ Coming soon after security audit.
 - **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
 
 ### Testing & Evaluation
-- **[Local Test Guide](./docs/Local_Test_Guide.md)** - Getting started with local Anvil testing (NEW)
-- **[Coverage & Scenario Matrix](./docs/Coverage_and_Scenario_Matrix.md)** - Function coverage audit and multi-role testing (NEW)
+- **[Anvil Testing Guide](./docs/Anvil_Testing_Guide.md)** - Complete guide for local Anvil testing (NEW)
+- **[Local Test Guide](./docs/Local_Test_Guide.md)** - Getting started with local Anvil testing
+- **[Coverage & Scenario Matrix](./docs/Coverage_and_Scenario_Matrix.md)** - Function coverage audit and multi-role testing
 
 ### Security
 
