@@ -412,7 +412,8 @@ contract CoverageSupplementTest is Test {
         address u = user;
         uint256 aPNTsAmount = 100;
         
-        bytes memory context = abi.encode(token, xPNTsAmount, u, aPNTsAmount, bytes32(0));
+        // V3.3 layout: (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator)
+        bytes memory context = abi.encode(token, xPNTsAmount, u, aPNTsAmount, bytes32(0), operator);
         
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), context, 1000, 1000);
