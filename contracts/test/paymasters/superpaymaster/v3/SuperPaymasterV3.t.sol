@@ -222,7 +222,7 @@ contract SuperPaymasterV3Test is Test {
     function testConfigureOperator() public {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
-        (address token, bool isConf,, address treas, , uint256 bal,,,,) = paymaster.operators(operator); 
+        (address token, bool isConf,, address treas, , uint256 bal,,,) = paymaster.operators(operator); 
         assertEq(token, address(apnts));
         vm.stopPrank();
     }
@@ -293,7 +293,7 @@ contract SuperPaymasterV3Test is Test {
         // Struct: 6=Balance, 7=TotalSpent. 
         // Tuple: (v1..v9).
         // If v6 is Balance, then v7 is TotalSpent.
-        (,,,,,, uint256 spent,,,) = paymaster.operators(operator); 
+        (,,,,,, uint256 spent,,) = paymaster.operators(operator); 
         
         uint256 revenue = paymaster.protocolRevenue();
         console.log("Revenue detected:", revenue);
@@ -326,7 +326,7 @@ contract SuperPaymasterV3Test is Test {
 
     function test_V31_CreditPayment_Success() public {
         _setupV3Env();
-        registry.setCreditForUser(user, 10 ether);
+        registry.setCreditForUser(user, 1000 ether);
         
         PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_hash");
@@ -336,9 +336,9 @@ contract SuperPaymasterV3Test is Test {
         vm.stopPrank();
 
         assertEq(validationData, 0, "Validation should pass via Credit");
-        (address token, uint256 xAmount, address u, uint256 aAmount, bytes32 h, address op) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
+        (address token, uint256 xAmount, address u, uint256 aAmount, bytes32 h, address opAddr) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
         assertEq(token, address(apnts));
-        assertEq(op, operator);
+        assertEq(opAddr, operator);
         assertEq(u, user);
         assertGt(xAmount, 0);
     }
@@ -364,7 +364,7 @@ contract SuperPaymasterV3Test is Test {
 
     function test_V31_DebtRecording_OnBurnFail() public {
         _setupV3Env();
-        registry.setCreditForUser(user, 10 ether);
+        registry.setCreditForUser(user, 1000 ether);
         
         PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_hash");
@@ -394,7 +394,7 @@ contract SuperPaymasterV3Test is Test {
 
     function test_V31_ReputationEvent() public {
         _setupV3Env();
-        registry.setCreditForUser(user, 10 ether);
+        registry.setCreditForUser(user, 1000 ether);
         PackedUserOperation memory op = _createOp(user);
         
         vm.prank(address(entryPoint));
