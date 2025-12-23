@@ -181,7 +181,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
 
     function test_SetOperatorPause() public {
         vm.prank(owner);
-        paymaster.setOperatorPause(operator1, true);
+        paymaster.setOperatorPaused(operator1, true);
         
         (, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
@@ -190,7 +190,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
     function test_SetOperatorPause_OnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        paymaster.setOperatorPause(operator1, true);
+        paymaster.setOperatorPaused(operator1, true);
     }
 
     // ====================================
