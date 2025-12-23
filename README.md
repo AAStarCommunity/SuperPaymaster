@@ -1345,3 +1345,9 @@ graph TD
 ---
 
 **Built with ❤️ by [AAStarCommunity](https://github.com/AAStarCommunity)**
+
+---
+
+## 📈 最新进展 (New Progress)
+
+- [ ] **V3 角色-实体交互完整测试矩阵**: [V3_Test_Matrix.md](./docs/V3_Test_Matrix.md) - 已完成 100% 业务场景穷举与覆盖率规划。
