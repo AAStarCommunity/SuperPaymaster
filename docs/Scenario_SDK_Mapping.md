@@ -1,4 +1,4 @@
-# SuperPaymaster V3 业务场景与 SDK 模块映射表
+****# SuperPaymaster V3 业务场景与 SDK 模块映射表
 
 为了支持“独立 Paymaster 运营商”及“社区独立 Token 发行”的架构需求，我们将 80+ 个业务场景（Entity E1-E14）映射到以下 SDK 核心模块：
 
