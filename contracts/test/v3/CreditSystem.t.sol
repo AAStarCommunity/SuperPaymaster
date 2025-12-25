@@ -74,8 +74,10 @@ contract CreditSystemTest is Test {
         vm.prank(sender);
         token.transfer(user, 15 ether);
 
-        assertEq(token.getDebt(user), 0);
-        assertEq(token.balanceOf(user), 5 ether);
+        // Feature change: transfers no longer auto-repay.
+        // Debt should still be 10, balance should be 15
+        assertEq(token.getDebt(user), 10 ether);
+        assertEq(token.balanceOf(user), 15 ether);
     }
 
     function testTransferFromRepayment() public {
@@ -91,12 +93,14 @@ contract CreditSystemTest is Test {
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
 
-        // Spender moves funds to user (triggering user repayment)
+        // Spender moves funds to user
         vm.prank(spender);
         token.transferFrom(sender, user, 15 ether);
 
-        assertEq(token.getDebt(user), 0);
-        assertEq(token.balanceOf(user), 5 ether);
+        // Feature change: transfers no longer auto-repay.
+        // Debt should still be 10, balance should be 15
+        assertEq(token.getDebt(user), 10 ether);
+        assertEq(token.balanceOf(user), 15 ether);
     }
 
     function testMintToMultipleUsers() public {

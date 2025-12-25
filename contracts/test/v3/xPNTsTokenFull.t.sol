@@ -132,4 +132,56 @@ contract xPNTsTokenFullTest is Test {
         token.burn(2 ether);
         assertEq(token.balanceOf(user), 8 ether);
     }
+
+    function test_AutoRepay_MintOnly() public {
+        // 1. Record Debt
+        vm.prank(paymaster);
+        token.recordDebt(user, 10 ether);
+        assertEq(token.getDebt(user), 10 ether);
+
+        // 2. Mint (Airdrop/Income) - should trigger auto-repay
+        vm.prank(admin);
+        token.mint(user, 15 ether);
+        
+        // Debt should be 0, balance should be 5 ether (15 - 10)
+        assertEq(token.getDebt(user), 0);
+        assertEq(token.balanceOf(user), 5 ether);
+    }
+
+    function test_NoAutoRepay_OnTransfer() public {
+        // 1. Setup Debt
+        vm.prank(paymaster);
+        token.recordDebt(user, 10 ether);
+        
+        // 2. Transfer from another user - should NOT trigger auto-repay
+        vm.prank(admin);
+        token.mint(other, 20 ether);
+        
+        vm.prank(other);
+        token.transfer(user, 15 ether);
+        
+        // Debt should still be 10, balance should be 15
+        assertEq(token.getDebt(user), 10 ether);
+        assertEq(token.balanceOf(user), 15 ether);
+    }
+
+    function test_ManualRepayDebt() public {
+        vm.prank(paymaster);
+        token.recordDebt(user, 10 ether);
+        
+        // Give user some balance via transfer (so it doesn't auto-repay)
+        vm.prank(admin);
+        token.mint(other, 20 ether);
+        vm.prank(other);
+        token.transfer(user, 20 ether);
+        
+        assertEq(token.balanceOf(user), 20 ether);
+        assertEq(token.getDebt(user), 10 ether);
+        
+        vm.prank(user);
+        token.repayDebt(5 ether);
+        
+        assertEq(token.balanceOf(user), 15 ether);
+        assertEq(token.getDebt(user), 5 ether);
+    }
 }

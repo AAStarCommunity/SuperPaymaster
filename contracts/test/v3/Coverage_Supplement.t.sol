@@ -141,6 +141,10 @@ contract CoverageSupplementTest is Test {
         gtoken.mint(operator, 1000 ether);
     }
     
+    function _dummyProof() internal pure returns (bytes memory) {
+        return abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+    }
+    
     // --- Registry Tests ---
     
     function test_Registry_BatchUpdate_Strategies() public {
@@ -151,36 +155,39 @@ contract CoverageSupplementTest is Test {
         users[0] = user;
         uint256[] memory scores = new uint256[](1);
         
+        // Mock BLS
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+
         // 1. Initial Set
         scores[0] = 50;
-        registry.batchUpdateGlobalReputation(users, scores, 1, "");
+        registry.batchUpdateGlobalReputation(users, scores, 1, _dummyProof());
         assertEq(registry.globalReputation(user), 50);
         
         // 2. Increase > maxChange (100) -> Cap at +100
         scores[0] = 500; // Target 500
-        registry.batchUpdateGlobalReputation(users, scores, 2, "");
+        registry.batchUpdateGlobalReputation(users, scores, 2, _dummyProof());
         assertEq(registry.globalReputation(user), 150); // 50 + 100 maxChange
         
         // 3. Decrease > maxChange (100) -> Cap at -100
         scores[0] = 10; // Target 10
-        registry.batchUpdateGlobalReputation(users, scores, 3, "");
+        registry.batchUpdateGlobalReputation(users, scores, 3, _dummyProof());
         assertEq(registry.globalReputation(user), 50); // 150 - 100 maxChange
         
         // 4. Stale Epoch (Should ignore)
         scores[0] = 999;
-        registry.batchUpdateGlobalReputation(users, scores, 2, ""); // Epoch 2 <= Last 3
+        registry.batchUpdateGlobalReputation(users, scores, 2, _dummyProof()); // Epoch 2 <= Last 3
         assertEq(registry.globalReputation(user), 50); // Unchanged
         
         // 5. Length Mismatch check
         uint256[] memory badScores = new uint256[](2);
         vm.expectRevert("Length mismatch");
-        registry.batchUpdateGlobalReputation(users, badScores, 4, "");
+        registry.batchUpdateGlobalReputation(users, badScores, 4, _dummyProof());
         
         // 6. Unauthorized
         vm.stopPrank();
         vm.startPrank(user);
         vm.expectRevert("Unauthorized Reputation Source");
-        registry.batchUpdateGlobalReputation(users, scores, 5, "");
+        registry.batchUpdateGlobalReputation(users, scores, 5, _dummyProof());
         vm.stopPrank();
     }
     

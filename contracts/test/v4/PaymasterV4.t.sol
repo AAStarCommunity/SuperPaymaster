@@ -184,4 +184,40 @@ contract PaymasterV4Test is Test {
         
         vm.stopPrank();
     }
+    
+    function test_V4_Refund_Success() public {
+        PackedUserOperation memory op;
+        op.sender = user;
+        
+        // Setup: Pre-charged 1000 tokens
+        uint256 preCharge = 1000;
+        address gasToken = address(token);
+        bytes memory data = abi.encodePacked(gasToken);
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(1000), uint128(1000), data);
+        
+        // 1. Validate (Escrow tokens)
+        uint256 balBefore = token.balanceOf(user);
+        
+        // Expected amount based on Mock logic: 1000 * 2000 / 0.02 = 1e8
+        uint256 expectedPreCharge = 100000000; 
+        
+        vm.prank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), preCharge);
+        
+        assertEq(token.balanceOf(user), balBefore - expectedPreCharge, "Pre-charge mismatch");
+        assertEq(token.balanceOf(address(paymaster)), expectedPreCharge, "Escrow mismatch");
+        
+        // 2. PostOp (Actual cost is only 400)
+        uint256 actualCost = 400;
+        uint256 treasuryBalBefore = token.balanceOf(treasury);
+        
+        vm.prank(address(entryPoint));
+        paymaster.postOp(PostOpMode.opSucceeded, context, actualCost, 0);
+        
+        // 3. Verify Refund
+        uint256 expectedRefund = 60000000;
+        assertEq(token.balanceOf(user), balBefore - expectedPreCharge + expectedRefund, "User refund mismatch");
+        assertEq(token.balanceOf(treasury), treasuryBalBefore + (expectedPreCharge - expectedRefund), "Treasury payment mismatch");
+        assertEq(token.balanceOf(address(paymaster)), 0, "Escrow not cleared");
+    }
 }

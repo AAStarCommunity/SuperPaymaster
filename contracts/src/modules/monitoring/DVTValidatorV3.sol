@@ -9,11 +9,10 @@ interface IBLSAggregatorV3 {
         uint256 proposalId,
         address operator,
         uint8 slashLevel,
-        address[] calldata validators,
-        bytes[] calldata signatures,
         address[] calldata repUsers,
         uint256[] calldata newScores,
-        uint256 epoch
+        uint256 epoch,
+        bytes calldata proof
     ) external;
 }
 
@@ -96,16 +95,32 @@ contract DVTValidatorV3 is Ownable {
     }
 
     function _forward(uint256 id) internal {
+        // NOTE: In the new BLS-hardened V3, we expect an aggregated proof.
+        // The individual signatures collection is preserved for compatibility,
+        // but real execution should use executeWithProof for the final aggregated result.
+    }
+
+    /**
+     * @notice Direct execution with an aggregated proof
+     */
+    function executeWithProof(
+        uint256 id,
+        address[] calldata repUsers,
+        uint256[] calldata newScores,
+        uint256 epoch,
+        bytes calldata proof
+    ) external {
         SlashProposal storage p = proposals[id];
+        if (p.executed) revert ProposalExecutedAlready();
+        
         IBLSAggregatorV3(BLS_AGGREGATOR).verifyAndExecute(
             id,
             p.operator,
             p.slashLevel,
-            p.validators,
-            p.signatures,
-            new address[](0), // No reputation update in slash flow by default
-            new uint256[](0),
-            0
+            repUsers,
+            newScores,
+            epoch,
+            proof
         );
     }
 

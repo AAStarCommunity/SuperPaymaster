@@ -334,13 +334,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         require(users.length == newScores.length, "Length mismatch");
 
         // --- BLS12-381 PAIRING CHECK (EIP-2537) ---
-        if (proof.length > 0) {
-            // proof: abi.encode(bytes aggregatedPkG1, bytes aggregatedSigG2, bytes msgG2, uint256 signerMask)
-            (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
-            
-            // Check threshold (e.g. 4/7 or 22/31)
-            uint256 count = _countSetBits(signerMask);
-            require(count >= 4, "Insufficient consensus threshold");
+        require(proof.length > 0, "BLS Proof required");
+        
+        // proof: abi.encode(bytes aggregatedPkG1, bytes aggregatedSigG2, bytes msgG2, uint256 signerMask)
+        (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
+        
+        // Check threshold (e.g. 4/7 or 22/31)
+        uint256 count = _countSetBits(signerMask);
+        require(count >= 4, "Insufficient consensus threshold");
 
             require(pkG1.length == 96, "Invalid G1 length"); // Adjusted for uncompressed G1
             require(sigG2.length == 192, "Invalid G2 length"); // Adjusted for uncompressed G2
@@ -354,7 +355,6 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             
             (bool success, bytes memory result) = address(0x11).staticcall(input);
             require(success && abi.decode(result, (uint256)) == 1, "BLS Verification Failed");
-        }
 
         uint256 maxChange = 100; // Protocol safety limit
 

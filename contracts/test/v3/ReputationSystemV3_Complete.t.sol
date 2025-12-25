@@ -384,8 +384,12 @@ contract ReputationSystemV3_Complete_Test is Test {
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
         
+        // Mock BLS precompile
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+
         vm.prank(address(repSystem));
-        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 1);
+        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 1, proof);
         
         assertEq(registry.globalReputation(user1), 15);
     }
@@ -412,8 +416,12 @@ contract ReputationSystemV3_Complete_Test is Test {
         activities[0] = new uint256[](1);
         activities[0][0] = 10;
         
+        // Mock BLS
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+
         vm.prank(address(repSystem));
-        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 2);
+        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 2, proof);
         
         // Computed: Base: 30 + 10*4 = 70, with 1.5x = 105, NFT: 25, Total: 130
         // But maxChange=100 limits the update to 100
@@ -450,8 +458,12 @@ contract ReputationSystemV3_Complete_Test is Test {
         activities[0] = new uint256[](1);
         activities[0][0] = 20;
         
+        // Mock BLS
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+
         vm.prank(address(repSystem));
-        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 3);
+        repSystem.syncToRegistry(user1, communities, ruleIds, activities, 3, proof);
         
         // Base: 15 + 20*2 = 55, with 1.2x = 66, NFT: 30, Total: 96
         assertEq(registry.globalReputation(user1), 96);

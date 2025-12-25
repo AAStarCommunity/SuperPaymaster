@@ -88,10 +88,19 @@ contract DVTBLSTest is Test {
             dvt.signProposal(id, "sig");
         }
         
-        // Check if executed
-        // verifyAndExecute calls are automatic? 
-        // DVTValidatorV3._forward calls BLS.
-        // And BLS calls DVT.markProposalExecuted.
+        // In hardened V3, auto-forward is disabled or requires aggregated proof.
+        // We manually execute with a mock proof.
+        bytes memory mockProof = abi.encode(
+            new bytes(96), // pkG1
+            new bytes(192), // sigG2
+            new bytes(192), // msgG2
+            uint256(0x7F) // mask for 7 signers
+        );
+        
+        // Mock BLS precompile (0x11) to return true (1) for any input
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         
         (,,,bool executed) = dvt.proposals(id);
         // Note: struct order: operator, slashLevel, reason, validators[], signatures[], executed.
@@ -120,17 +129,26 @@ contract DVTBLSTest is Test {
             sigs[i] = "sig";
         }
         
+        // Mock BLS precompile (0x11) for any input
+        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        
+        bytes memory mockProof = abi.encode(
+            new bytes(96),
+            new bytes(192),
+            new bytes(192),
+            uint256(0x7F)
+        );
+
         // Only DVT or owner can call verifyAndExecute
         vm.prank(address(dvt));
         bls.verifyAndExecute(
             99, // manual id
             op,
             1, // level
-            vals,
-            sigs,
             new address[](0),
             new uint256[](0),
-            123
+            123,
+            mockProof
         );
         
         assertTrue(bls.executedProposals(99));

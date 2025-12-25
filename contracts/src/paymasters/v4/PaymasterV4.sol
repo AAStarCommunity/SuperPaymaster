@@ -273,17 +273,18 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
             revert PaymasterV4__InsufficientPNT();
         }
 
-        // Direct transfer tokens to treasury (using SafeERC20 to handle non-compliant tokens)
-        IERC20(userGasToken).safeTransferFrom(sender, treasury, tokenAmount);
+        // Transfer tokens to Paymaster (escrow) instead of treasury
+        IERC20(userGasToken).safeTransferFrom(sender, address(this), tokenAmount);
 
-        // Emit payment event
+        // Emit payment event (using cappedMaxCost as estimated)
         emit GasPaymentProcessed(sender, userGasToken, tokenAmount, cappedMaxCost, maxCost);
 
-        return (abi.encode(sender), 0);
+        // Context: user, token, maxAmount, cappedMaxCost
+        return (abi.encode(sender, userGasToken, tokenAmount, cappedMaxCost), 0);
     }
 
-    /// @notice PostOp handler (minimal implementation)
-    /// @dev Emits event for off-chain analysis only, no refund logic
+    /// @notice PostOp handler with refund logic
+    /// @dev Calculates actual cost and refunds the difference to the user
     /// @dev Records activity on supported MySBT contracts
     function postOp(
         PostOpMode /* mode */,
@@ -293,15 +294,39 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     )
         external
         onlyEntryPoint
+        nonReentrant
     {
-        address user = abi.decode(context, (address));
+        if (context.length == 0) return;
+
+        (address user, address token, uint256 maxTokenAmount, uint256 cappedMaxCost) = 
+            abi.decode(context, (address, address, uint256, uint256));
+
+        // 1. Calculate Actual Cost in PNT (using same logic as validation)
+        // Note: actualGasCost is in wei
+        uint256 actualTokenAmount = _calculatePNTAmount(actualGasCost, token);
+
+        // 2. Cap with what was actually pre-charged if actual > estimate (safety cap)
+        if (actualTokenAmount > maxTokenAmount) {
+            actualTokenAmount = maxTokenAmount;
+        }
+
+        // 3. Process Refund
+        uint256 refund = maxTokenAmount > actualTokenAmount ? maxTokenAmount - actualTokenAmount : 0;
         
-        // Record activity on supported MySBT contracts
+        if (refund > 0) {
+            IERC20(token).safeTransfer(user, refund);
+        }
+
+        // 4. Transfer net amount to treasury
+        if (actualTokenAmount > 0) {
+            IERC20(token).safeTransfer(treasury, actualTokenAmount);
+        }
+
+        // 5. Record user activity on supported MySBT contracts
         _recordUserActivity(user);
         
-        // Emit event for off-chain analysis (multi-pay without refund)
-        // Context is empty, but we can emit actualGasCost for tracking
-        emit PostOpProcessed(user, actualGasCost, 0);
+        // Emit event for off-chain analysis
+        emit PostOpProcessed(user, actualGasCost, actualTokenAmount);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

@@ -134,7 +134,8 @@ contract ReputationSystemV3 is Ownable {
         address[] calldata communities, 
         bytes32[][] calldata ruleIds, 
         uint256[][] calldata activities, 
-        uint256 epoch
+        uint256 epoch,
+        bytes calldata proof
     ) external {
         uint256 score = computeScore(user, communities, ruleIds, activities);
         address[] memory users = new address[](1);
@@ -142,7 +143,7 @@ contract ReputationSystemV3 is Ownable {
         uint256[] memory scores = new uint256[](1);
         scores[0] = score;
         
-        REGISTRY.batchUpdateGlobalReputation(users, scores, epoch, "");
+        REGISTRY.batchUpdateGlobalReputation(users, scores, epoch, proof);
         emit ReputationComputed(user, score);
     }
 }

@@ -234,6 +234,18 @@ contract xPNTsToken is ERC20, ERC20Permit {
         emit DebtRecorded(user, amountXPNTs);
     }
     
+    /**
+     * @notice Manually repay debt using user's xPNTs balance
+     */
+    function repayDebt(uint256 amount) external {
+        uint256 debt = debts[msg.sender];
+        if (debt == 0) return;
+        uint256 repayAmount = amount > debt ? debt : amount;
+        _burn(msg.sender, repayAmount);
+        debts[msg.sender] -= repayAmount;
+        emit DebtRepaid(msg.sender, repayAmount, debts[msg.sender]);
+    }
+    
     function getDebt(address user) external view returns (uint256) {
         return debts[user];
     }
@@ -242,11 +254,9 @@ contract xPNTsToken is ERC20, ERC20Permit {
      * @notice Override _update to implement Auto-Repayment
      */
     function _update(address from, address to, uint256 value) internal virtual override {
-        // Skip minting/burning (address(0)) unless it's a real transfer
-        // But minting (from=0) IS income, so we should intercept it!
-        // Burning (to=0) is outgoing, so we ignore.
-        
-        if (to != address(0) && value > 0) {
+        // Feature: Auto-Repayment ONLY on MINT (Income from Community/Protocol)
+        // This preserves ERC20 standard behavior for regular user-to-user transfers.
+        if (from == address(0) && to != address(0) && value > 0) {
             uint256 debt = debts[to];
             if (debt > 0) {
                 // Auto-Repay Logic
@@ -255,41 +265,14 @@ contract xPNTsToken is ERC20, ERC20Permit {
                 // 1. Reduce Debt
                 debts[to] -= repayAmount;
                 
-                // 2. Reduce Incoming Value (effectively burn it)
-                // We do this by calling super._update with reduced value?
-                // No, ERC20 _update updates balances. 
-                // We want to burn `repayAmount` and credit `value - repayAmount`.
+                // 2. Process Mint (Full amount first for standard event emitting)
+                super._update(from, to, value); 
                 
-                // If we are minting (from=0), simple:
-                // super._update(0, to, value - repayAmount)
-                
-                // If we are transferring (from != 0):
-                // User A sends 100 to User B (debt=30).
-                // A balance -= 100.
-                // B balance += 70.
-                // Repaid 30 (Burned).
-                
-                // Standard ERC20._update(from, to, value) does:
-                // _balances[from] -= value
-                // _balances[to] += value
-                
-                // We want:
-                // _balances[from] -= value
-                // _balances[to] += (value - repayAmount)
-                // Emit Transfer(from, to, value) ?? Or Transfer(from, to, value-repay) + Transfer(from, 0, repay)?
-                
-                // Cleanest way:
-                // Let the standard update happen for the FULL amount first.
-                // Then immediately burn the repaid amount from 'to'.
-                
-                super._update(from, to, value); // Balance increases by value
-                
-                // Now burn from 'to'
+                // 3. Immediately burn the repaid amount from 'to'
                 if (repayAmount > 0) {
                     _burn(to, repayAmount);
                     emit DebtRepaid(to, repayAmount, debts[to]);
                 }
-                
                 return;
             }
         }

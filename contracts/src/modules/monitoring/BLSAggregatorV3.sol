@@ -63,6 +63,15 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
+    event BLSVerificationStatus(uint256 indexed proposalId, bool success);
+
+    // ====================================
+    // Constants (BLS12-381 Math)
+    // ====================================
+    
+    bytes constant G1_Y_BYTES = hex"08b3f481e3aaa9a12174adfa9d9e00912180f1482c0bcd3b0ff955a6d051029441c4a4f147cc520556770e0a5c483a27";
+    uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
+    uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
 
     // ====================================
     // Errors
@@ -100,18 +109,14 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
         emit BLSPublicKeyRegistered(validator, publicKey);
     }
 
-    /**
-     * @notice Verify consensus and trigger Registry reputation update + Optional Slashing
-     */
     function verifyAndExecute(
         uint256 proposalId,
         address operator,
         uint8 slashLevel,
-        address[] calldata validators,
-        bytes[] calldata signatures,
         address[] calldata repUsers,
         uint256[] calldata newScores,
-        uint256 epoch
+        uint256 epoch,
+        bytes calldata proof
     ) external nonReentrant {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
             revert UnauthorizedCaller(msg.sender);
@@ -119,17 +124,13 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
         if (executedProposals[proposalId] && proposalId != 0) {
             revert ProposalAlreadyExecuted(proposalId);
         }
-        if (validators.length < THRESHOLD) {
-            revert InvalidSignatureCount(validators.length, THRESHOLD);
-        }
-
-        // 1. Verify BLS Signatures (Mocked logic for prototype, same as V2)
-        // In production, this uses a precompile or a heavy library for pairing.
-        _checkSignatures(validators, signatures);
+        
+        // 1. Verify BLS Signatures (pairing check)
+        _checkSignatures(proposalId, proof);
 
         // 2. Update Global Reputation in Registry
         if (repUsers.length > 0) {
-            REGISTRY.batchUpdateGlobalReputation(repUsers, newScores, epoch, "");
+            REGISTRY.batchUpdateGlobalReputation(repUsers, newScores, epoch, proof);
             emit ReputationEpochTriggered(epoch, repUsers.length);
         }
 
@@ -150,9 +151,60 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
     // Internal Functions
     // ====================================
 
-    function _checkSignatures(address[] calldata validators, bytes[] calldata signatures) internal view {
-        for (uint i = 0; i < validators.length; i++) {
-            if (!blsPublicKeys[validators[i]].isActive) revert SignatureVerificationFailed();
+    function _checkSignatures(uint256 proposalId, bytes calldata proof) internal view {
+        (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
+        
+        uint256 count = _countSetBits(signerMask);
+        if (count < THRESHOLD) revert InvalidSignatureCount(count, THRESHOLD);
+
+        // Pairing Check: e(G1, Sig) * e(-Pk, Msg) == 1
+        bytes memory input = abi.encodePacked(
+            G1_Y_BYTES, sigG2,
+            _negateG1(pkG1), msgG2
+        );
+        
+        (bool success, bytes memory result) = address(0x11).staticcall(input);
+        if (!success || abi.decode(result, (uint256)) != 1) {
+            revert SignatureVerificationFailed();
+        }
+        // Emit success via internal logic if needed, but staticcall just returns
+    }
+
+    function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {
+        bytes memory x = new bytes(48);
+        bytes memory y = new bytes(48);
+        for(uint i=0; i<48; i++) {
+            x[i] = pkG1[i];
+            y[i] = pkG1[i+48];
+        }
+        
+        uint256 y_lo;
+        uint256 y_hi;
+        assembly {
+            y_lo := mload(add(y, 48))
+            y_hi := mload(add(y, 32))
+            y_hi := shr(128, y_hi)
+        }
+
+        uint256 new_y_lo;
+        uint256 new_y_hi;
+
+        if (P_LO >= y_lo) {
+            new_y_lo = P_LO - y_lo;
+            new_y_hi = P_HI - y_hi;
+        } else {
+            new_y_lo = (type(uint256).max - y_lo + 1) + P_LO;
+            new_y_hi = P_HI - y_hi - 1;
+        }
+
+        bytes memory new_y = abi.encodePacked(uint128(new_y_hi), new_y_lo);
+        return abi.encodePacked(x, new_y);
+    }
+
+    function _countSetBits(uint256 n) internal pure returns (uint256 count) {
+        while (n != 0) {
+            n &= (n - 1);
+            count++;
         }
     }
 
