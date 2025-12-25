@@ -99,6 +99,8 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     /// @notice Supported GasToken contracts (basePNTs, aPNTs, bPNTs)
     address[] public supportedGasTokens;
     mapping(address => bool) public isGasTokenSupported;
+    mapping(address => uint256) public gasTokenIndex; // 1-based index
+    mapping(address => uint256) public sbtIndex;      // 1-based index
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -447,6 +449,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
 
         supportedSBTs.push(sbt);
         isSBTSupported[sbt] = true;
+        sbtIndex[sbt] = supportedSBTs.length;
 
         emit SBTAdded(sbt);
     }
@@ -462,15 +465,18 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     function removeSBT(address sbt) external onlyOwner {
         if (!isSBTSupported[sbt]) revert PaymasterV4__NotFound();
 
-        // Find and remove from array
-        uint256 length = supportedSBTs.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (supportedSBTs[i] == sbt) {
-                supportedSBTs[i] = supportedSBTs[length - 1];
-                supportedSBTs.pop();
-                break;
-            }
+        // Find and remove from array O(1)
+        uint256 idx = sbtIndex[sbt];
+        uint256 lastIdx = supportedSBTs.length;
+        
+        if (idx != lastIdx) {
+            address lastSbt = supportedSBTs[lastIdx - 1];
+            supportedSBTs[idx - 1] = lastSbt;
+            sbtIndex[lastSbt] = idx;
         }
+        
+        supportedSBTs.pop();
+        delete sbtIndex[sbt];
 
         isSBTSupported[sbt] = false;
 
@@ -486,6 +492,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
 
         supportedGasTokens.push(token);
         isGasTokenSupported[token] = true;
+        gasTokenIndex[token] = supportedGasTokens.length;
 
         emit GasTokenAdded(token);
     }
@@ -501,15 +508,18 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     function removeGasToken(address token) external onlyOwner {
         if (!isGasTokenSupported[token]) revert PaymasterV4__NotFound();
 
-        // Find and remove from array
-        uint256 length = supportedGasTokens.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (supportedGasTokens[i] == token) {
-                supportedGasTokens[i] = supportedGasTokens[length - 1];
-                supportedGasTokens.pop();
-                break;
-            }
+        // O(1) removal
+        uint256 idx = gasTokenIndex[token];
+        uint256 lastIdx = supportedGasTokens.length;
+        
+        if (idx != lastIdx) {
+            address lastToken = supportedGasTokens[lastIdx - 1];
+            supportedGasTokens[idx - 1] = lastToken;
+            gasTokenIndex[lastToken] = idx;
         }
+        
+        supportedGasTokens.pop();
+        delete gasTokenIndex[token];
 
         isGasTokenSupported[token] = false;
 

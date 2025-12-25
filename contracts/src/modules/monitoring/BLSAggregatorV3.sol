@@ -51,13 +51,14 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
     mapping(uint256 => bool) public executedProposals;
     mapping(uint256 => uint256) public proposalNonces;
 
-    uint256 public constant THRESHOLD = 7;
+    uint256 public threshold = 7;
     uint256 public constant MAX_VALIDATORS = 13;
-    string public constant VERSION = "3.1.1";
+    string public constant VERSION = "3.1.2"; // Bump version
 
     // ====================================
     // Events
     // ====================================
+    event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
 
     event BLSPublicKeyRegistered(address indexed validator, bytes publicKey);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
@@ -83,6 +84,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
     error UnauthorizedCaller(address caller);
     error InvalidAddress(address addr);
     error InvalidBLSKey();
+    error InvalidParameter(string message);
 
     // ====================================
     // Constructor
@@ -155,7 +157,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
         (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
         
         uint256 count = _countSetBits(signerMask);
-        if (count < THRESHOLD) revert InvalidSignatureCount(count, THRESHOLD);
+        if (count < threshold) revert InvalidSignatureCount(count, threshold);
 
         // Pairing Check: e(G1, Sig) * e(-Pk, Msg) == 1
         bytes memory input = abi.encodePacked(
@@ -220,4 +222,14 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
 
     function setSuperPaymaster(address _sp) external onlyOwner { SUPERPAYMASTER = _sp; }
     function setDVTValidator(address _dv) external onlyOwner { DVT_VALIDATOR = _dv; }
+
+    /**
+     * @notice Set min consensus threshold (e.g. 3)
+     */
+    function setThreshold(uint256 _newThreshold) external onlyOwner {
+        if (_newThreshold < 3) revert InvalidParameter("Threshold too low");
+        if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
+        emit ThresholdUpdated(threshold, _newThreshold);
+        threshold = _newThreshold;
+    }
 }

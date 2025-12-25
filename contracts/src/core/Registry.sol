@@ -38,8 +38,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
 
     // --- Storage ---
-    IGTokenStakingV3 public immutable GTOKEN_STAKING;
-    IMySBTV3 public immutable MYSBT;
+    IGTokenStakingV3 public GTOKEN_STAKING;
+    IMySBTV3 public MYSBT;
 
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
@@ -78,8 +78,6 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     error InsufficientStake(uint256 provided, uint256 required);
 
     constructor(address _gtoken, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
-        require(_gtokenStaking != address(0), "Invalid Staking");
-        require(_mysbt != address(0), "Invalid SBT");
         GTOKEN_STAKING = IGTokenStakingV3(_gtokenStaking);
         MYSBT = IMySBTV3(_mysbt);
         
@@ -140,6 +138,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         roleOwners[roleId] = owner;
         // NOTE: Skip setRoleExitFee during construction, will be set by deployment script
         // Calling setRoleExitFee here would fail because REGISTRY is not yet set in GTokenStaking
+    }
+
+    function setStaking(address _staking) external onlyOwner {
+        GTOKEN_STAKING = IGTokenStakingV3(_staking);
+    }
+
+    function setMySBT(address _mysbt) external onlyOwner {
+        MYSBT = IMySBTV3(_mysbt);
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {

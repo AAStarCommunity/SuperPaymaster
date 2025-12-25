@@ -320,14 +320,16 @@ contract CoverageSupplementTest is Test {
         // Verify info
         IGTokenStakingV3.StakeInfo memory info = staking.getStakeInfo(user, TEST_ROLE);
         assertEq(info.slashedAmount, 3 ether);
+        assertEq(info.amount, 7 ether); // 10 - 3
         
         // Slash > Available (Try to slash 8 more, total 11 > 10)
-        // Should cap at 7 (10 - 3)
+        // Should cap at 7 (already reduced from 10 to 7)
         uint256 slashed = staking.slash(user, 8 ether, "Overflow");
         assertEq(slashed, 7 ether);
         
         info = staking.getStakeInfo(user, TEST_ROLE);
-        assertEq(info.slashedAmount, 10 ether);
+        assertEq(info.slashedAmount, 10 ether); 
+        assertEq(info.amount, 0 ether); 
         
         // Unlock
         vm.stopPrank();

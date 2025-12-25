@@ -8,6 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistryV3.sol";
 import "../../../interfaces/IxPNTsToken.sol";
+import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymasterV3.sol";
 
 
@@ -36,6 +37,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
     IRegistryV3 public immutable REGISTRY;
     address public APNTS_TOKEN;            // aPNTs (AAStar Token) - Mutable to allow updates
+    address public xpntsFactory;           // xPNTs Factory for dynamic pricing
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
     address public treasury; // Protocol Treasury for fees
 
@@ -166,6 +168,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert InvalidAddress();
         treasury = _treasury;
+    }
+
+    function setXPNTsFactory(address _factory) external onlyOwner {
+        xpntsFactory = _factory;
     }
 
     /**
@@ -626,10 +632,17 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         uint8 decimals = cachedPrice.decimals;
         
         // Simplified High-Precision Math:
-        // Result = (gasCostWei * ethPriceUSD * 10^10) / aPNTsPriceUSD
+        // Result = (gasCostWei * ethPriceUSD * 10^10) / currentPrice
         // Numerator has ~36 decimals (18 + 8 + 10), safe from uint256 overflow (up to 77 decimals)
-        if (aPNTsPriceUSD == 0) revert OracleError();
-        return (gasCostWei * priceUint * (10**(18 - decimals))) / aPNTsPriceUSD;
+        uint256 currentPrice = aPNTsPriceUSD;
+        if (xpntsFactory != address(0)) {
+            try IxPNTsFactory(xpntsFactory).getAPNTsPrice() returns (uint256 factoryPrice) {
+                if (factoryPrice > 0) currentPrice = factoryPrice;
+            } catch {}
+        }
+        
+        if (currentPrice == 0) revert OracleError();
+        return (gasCostWei * priceUint * (10**(18 - decimals))) / currentPrice;
     }
 
     

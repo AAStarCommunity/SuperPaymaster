@@ -139,24 +139,9 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         RoleLock storage lock = roleLocks[user][roleId];
         if (lock.amount == 0) revert("No lock found");
         
+        // Slashes are now handled immediately in slash() by transferring to treasury
+        // and reducing totalStaked. Here we just process the remaining lock.
         uint256 originalAmount = lock.amount;
-        uint256 slashDeduction = 0;
-        
-        // Handle slashes from global debt
-        StakeInfo storage info = stakes[user];
-        if (info.slashedAmount > 0) {
-            slashDeduction = originalAmount > info.slashedAmount ? info.slashedAmount : originalAmount;
-            info.slashedAmount -= slashDeduction;
-            
-            // Tokens already in contract, just transfer the slashed part to treasury
-            GTOKEN.safeTransfer(treasury, slashDeduction);
-        }
-
-        uint256 grossForFee = originalAmount - slashDeduction;
-        uint256 exitFee = 0;
-        
-        // Calculate fee on remaining amount
-        (exitFee, netAmount) = _previewExitFee(user, roleId, grossForFee);
         
         // Update state before transfer (CEI)
         delete roleLocks[user][roleId];
@@ -168,6 +153,9 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         totalStaked -= originalAmount;
 
         // Transfers
+        (uint256 exitFee, uint256 net) = _previewExitFee(user, roleId, originalAmount);
+        netAmount = net;
+        
         if (exitFee > 0) {
             GTOKEN.safeTransfer(treasury, exitFee);
         }
@@ -175,8 +163,8 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         if (netAmount > 0) {
             GTOKEN.safeTransfer(user, netAmount);
         }
-
-        emit StakeUnlocked(user, roleId, originalAmount, exitFee + slashDeduction, netAmount, block.timestamp);
+        
+        emit StakeUnlocked(user, roleId, originalAmount, exitFee, netAmount, block.timestamp);
         return netAmount;
     }
 
@@ -199,19 +187,9 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         
         if (slashedAmount > 0) {
             info.slashedAmount += slashedAmount;
-            // Note: Actual token transfer happens at unstake/unlock time if we followed strict stETH
-            // But here, since we lock specific amounts for roles, we should probably reduce the lock?
-            // V3 Design: User-level slash affects global balance. 
-            // Since locks are specific, we just mark the user as slashed.
-            // But if a role exits, can they withdraw full amount?
-            // In unlockAndTransfer, we return `netAmount`. 
-            // If slashed, we should probably deduct there too? 
-            // Current V3 implementation in interface suggests `slash` just updates state.
-            // But logic needs to enforce it.
-            // For simplicity in this V3 migration: We track slashedAmount. 
-            // But `unlockAndTransfer` logic above uses `lock.amount`. 
-            // If slashed, `stakes[user].amount` is used for accounting but `lock.amount` is specific.
-            // We'll trust the simple slash tracking for now as per V2.
+            info.amount -= slashedAmount;
+            totalStaked -= slashedAmount;
+            GTOKEN.safeTransfer(treasury, slashedAmount);
         }
 
         emit UserSlashed(user, slashedAmount, reason, block.timestamp);
