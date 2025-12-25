@@ -49,7 +49,15 @@ contract ReputationSystemV3_Complete_Test is Test {
         // Set community role owner
         registry.setRoleOwner(keccak256("COMMUNITY"), community1);
         
+        // Mock hasRole to return true for community1 (avoids complex storage manipulation)
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSelector(registry.hasRole.selector, registry.ROLE_COMMUNITY(), community1),
+            abi.encode(true)
+        );
+        
         vm.stopPrank();
+
     }
 
     // ====================================
