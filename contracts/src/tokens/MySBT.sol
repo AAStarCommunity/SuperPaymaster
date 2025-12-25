@@ -137,6 +137,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     address public REGISTRY;
     address public daoMultisig;
     address public reputationCalculator;
+    string private _baseTokenURI;
 
     // ====================================
     // V2.4.5: SuperPaymaster Integration
@@ -585,6 +586,14 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         address old = daoMultisig;
         daoMultisig = d;
         emit DAOMultisigUpdated(old, d, block.timestamp);
+    }
+
+    function setBaseURI(string calldata baseURI) external onlyDAO {
+        _baseTokenURI = baseURI;
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
     }
 
     function setRegistry(address r) external onlyDAO {

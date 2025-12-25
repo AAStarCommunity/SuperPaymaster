@@ -174,6 +174,10 @@ contract SetupV3 is Script {
         // Wire DVT Validator to BLS Aggregator
         dvtValidator.setBLSAggregator(address(blsAggregator));
 
+        // V3.2: Set BLS Threshold to 3 (as required) and wire to Registry
+        blsAggregator.setThreshold(3);
+        registry.setBLSAggregator(address(blsAggregator));
+
         vm.stopBroadcast();
 
         // Output JSON

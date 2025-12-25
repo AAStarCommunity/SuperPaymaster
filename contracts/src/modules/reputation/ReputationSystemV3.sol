@@ -60,9 +60,8 @@ contract ReputationSystemV3 is Ownable {
      */
     function setRule(bytes32 ruleId, uint256 base, uint256 bonus, uint256 max, string calldata desc) external {
         address community = msg.sender; 
-        // Verify msg.sender owns the community role in Registry
-        // For SuperPaymaster context, we assume the sender is the community/operator
-        require(REGISTRY.roleOwners(keccak256("COMMUNITY")) == msg.sender || owner() == msg.sender, "Not Authorized");
+        // Verify msg.sender has the community role in Registry
+        require(REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) || owner() == msg.sender, "Not Authorized");
         
         if (communityRules[community][ruleId].baseScore == 0 && base > 0) {
             communityActiveRules[community].push(ruleId);

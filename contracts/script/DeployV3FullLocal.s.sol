@@ -10,6 +10,9 @@ import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/monitoring/BLSAggregatorV3.sol";
+import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/tokens/xPNTsFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 // SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
@@ -83,6 +86,21 @@ contract DeployV3FullLocal is Script {
             priceFeedAddr,
             deployer
         );
+
+        // 3.1 BLS Aggregator Setup (Requested Threshold: 3)
+        BLSAggregatorV3 aggregator = new BLSAggregatorV3(address(registry), address(paymaster), address(0));
+        aggregator.setThreshold(3);
+        registry.setBLSAggregator(address(aggregator));
+        console.log("BLSAggregator Local (Threshold=3):", address(aggregator));
+
+        // 3.2 DVT Validator Setup
+        DVTValidatorV3 dvt = new DVTValidatorV3(address(registry));
+        dvt.setBLSAggregator(address(aggregator));
+        console.log("DVTValidator Local:", address(dvt));
+
+        // 3.3 xPNTs Factory Setup
+        xPNTsFactory factory = new xPNTsFactory(address(registry), address(paymaster), address(repSystem));
+        console.log("xPNTsFactory Local:", address(factory));
 
         // 4. AA Setup (SimpleAccountFactory)
         SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
@@ -168,6 +186,8 @@ contract DeployV3FullLocal is Script {
         console.log("STAKING=", address(staking));
         console.log("REP_SYSTEM=", address(repSystem));
         console.log("GTOKEN=", address(gtoken));
+        console.log("DVT_VALIDATOR=", address(dvt));
+        console.log("XPNTS_FACTORY=", address(factory));
         // console.log("ACCOUNT_FACTORY=", address(accountFactory)); // AccountFactory not used in local test
         console.log("ALICE_ACCOUNT=", aliceAccount);
     }

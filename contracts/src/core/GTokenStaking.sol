@@ -137,7 +137,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         bytes32 roleId
     ) external nonReentrant onlyRegistry returns (uint256 netAmount) {
         RoleLock storage lock = roleLocks[user][roleId];
-        if (lock.amount == 0) revert("No lock found");
+        if (lock.lockedAt == 0) revert("No lock found");
         
         // Slashes are now handled immediately in slash() by transferring to treasury
         // and reducing totalStaked. Here we just process the remaining lock.
@@ -187,8 +187,19 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         
         if (slashedAmount > 0) {
             info.slashedAmount += slashedAmount;
-            info.amount -= slashedAmount;
             totalStaked -= slashedAmount;
+            
+            // For immediate transfer, we must also reduce the specific role locks
+            // to keep totalStaked accounting consistent during unlockAndTransfer
+            bytes32[] storage roles = userActiveRoles[user];
+            uint256 remainingToSlash = slashedAmount;
+            for (uint256 i = 0; i < roles.length && remainingToSlash > 0; i++) {
+                RoleLock storage lock = roleLocks[user][roles[i]];
+                uint256 deduct = remainingToSlash > lock.amount ? lock.amount : remainingToSlash;
+                lock.amount -= deduct;
+                remainingToSlash -= deduct;
+            }
+
             GTOKEN.safeTransfer(treasury, slashedAmount);
         }
 
@@ -355,12 +366,11 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         RoleLock memory lock = roleLocks[operator][roleId];
         StakeInfo memory stake = stakes[operator];
         
-        // Return a view showing role-specific locked amount
         return StakeInfo({
-            amount: lock.amount,  // Role-specific locked amount
+            amount: lock.amount,  // Already reduced by immediate slashes
             slashedAmount: stake.slashedAmount,
             stakedAt: lock.lockedAt,
-            unstakeRequestedAt: 0  // Role locks don't track unstake requests
+            unstakeRequestedAt: 0
         });
     }
 }
