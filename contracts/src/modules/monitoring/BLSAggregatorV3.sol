@@ -70,6 +70,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
     // Constants (BLS12-381 Math)
     // ====================================
     
+    bytes constant G1_X_BYTES = hex"17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb";
     bytes constant G1_Y_BYTES = hex"08b3f481e3aaa9a12174adfa9d9e00912180f1482c0bcd3b0ff955a6d051029441c4a4f147cc520556770e0a5c483a27";
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
@@ -161,7 +162,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
 
         // Pairing Check: e(G1, Sig) * e(-Pk, Msg) == 1
         bytes memory input = abi.encodePacked(
-            G1_Y_BYTES, sigG2,
+            G1_X_BYTES, sigG2,
             _negateG1(pkG1), msgG2
         );
         
