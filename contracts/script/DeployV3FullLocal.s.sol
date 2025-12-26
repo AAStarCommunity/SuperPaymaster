@@ -13,6 +13,7 @@ import "src/modules/reputation/ReputationSystemV3.sol";
 import "src/modules/monitoring/BLSAggregatorV3.sol";
 import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/tokens/xPNTsFactory.sol";
+import "src/paymasters/v4/PaymasterV4.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 // SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
@@ -99,7 +100,7 @@ contract DeployV3FullLocal is Script {
         console.log("DVTValidator Local:", address(dvt));
 
         // 3.3 xPNTs Factory Setup
-        xPNTsFactory factory = new xPNTsFactory(address(registry), address(paymaster), address(repSystem));
+        xPNTsFactory factory = new xPNTsFactory(address(paymaster), address(registry));
         console.log("xPNTsFactory Local:", address(factory));
 
         // 4. AA Setup (SimpleAccountFactory)
@@ -177,6 +178,19 @@ contract DeployV3FullLocal is Script {
         apnts.mint(address(paymaster), 1000 ether);
 
         vm.stopBroadcast();
+        
+        // Deploy PaymasterV4 (after stopBroadcast to avoid nonce issues)
+        vm.startBroadcast(deployerPK);
+        PaymasterV4 paymasterV4 = new PaymasterV4(
+            entryPointAddr,
+            deployer,
+            deployer, // treasury
+            priceFeedAddr, // ethUsdPriceFeed
+            1000, // serviceFeeRate (10%)
+            1 ether, // maxGasCostCap
+            address(factory) // xpntsFactory
+        );
+        vm.stopBroadcast();
 
         console.log("=== Local Beta Environment Ready ===");
         console.log("REGISTRY=", address(registry));
@@ -188,7 +202,9 @@ contract DeployV3FullLocal is Script {
         console.log("GTOKEN=", address(gtoken));
         console.log("DVT_VALIDATOR=", address(dvt));
         console.log("XPNTS_FACTORY=", address(factory));
-        // console.log("ACCOUNT_FACTORY=", address(accountFactory)); // AccountFactory not used in local test
+        console.log("PAYMASTER_V4=", address(paymasterV4));
+        console.log("ENTRYPOINT=", entryPointAddr);
+        console.log("BLS_AGGREGATOR=", address(aggregator));
         console.log("ALICE_ACCOUNT=", aliceAccount);
     }
 }
