@@ -192,19 +192,30 @@ contract DeployV3FullLocal is Script {
         );
         vm.stopBroadcast();
 
+        // ----------------------------------------
+        // Generate config.json (For Regression Scripts)
+        // ----------------------------------------
+        string memory jsonObj = "json";
+        vm.serializeAddress(jsonObj, "registry", address(registry));
+        vm.serializeAddress(jsonObj, "gToken", address(gtoken));
+        vm.serializeAddress(jsonObj, "staking", address(staking));
+        vm.serializeAddress(jsonObj, "superPaymaster", address(paymaster));
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(0)); // Placeholder if needed
+        vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
+        vm.serializeAddress(jsonObj, "sbt", address(mysbt));
+        vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
+        vm.serializeAddress(jsonObj, "dvtValidator", address(dvt));
+        vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
+        vm.serializeAddress(jsonObj, "xPNTsFactory", address(factory));
+        vm.serializeAddress(jsonObj, "paymasterV4", address(paymasterV4)); // New V4
+        string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
+
+        vm.writeFile("script/v3/config.json", finalJson);
+        console.log("Generated script/v3/config.json");
+
         console.log("=== Local Beta Environment Ready ===");
         console.log("REGISTRY=", address(registry));
         console.log("PAYMASTER=", address(paymaster));
-        console.log("APNTS=", address(apnts));
-        console.log("MYSBT=", address(mysbt));
-        console.log("STAKING=", address(staking));
-        console.log("REP_SYSTEM=", address(repSystem));
-        console.log("GTOKEN=", address(gtoken));
-        console.log("DVT_VALIDATOR=", address(dvt));
-        console.log("XPNTS_FACTORY=", address(factory));
         console.log("PAYMASTER_V4=", address(paymasterV4));
-        console.log("ENTRYPOINT=", entryPointAddr);
-        console.log("BLS_AGGREGATOR=", address(aggregator));
-        console.log("ALICE_ACCOUNT=", aliceAccount);
     }
 }
