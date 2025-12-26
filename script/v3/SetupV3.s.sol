@@ -159,8 +159,23 @@ contract SetupV3 is Script {
         paymasterFactory.addImplementation("v4.1i", address(paymasterV4Impl));
         paymasterFactory.setDefaultVersion("v4.1i");
 
-        // Deploy a Proxy Instance for Testing
-        address proxyAddr = paymasterFactory.deployPaymaster("v4.1i", "");
+        // Deploy a Proxy Instance for Testing with proper initialization
+        bytes memory initData = abi.encodeWithSelector(
+            PaymasterV4_1i.initialize.selector,
+            entryPointAddress,
+            deployer,
+            treasury,
+            priceFeedAddr,
+            100,              // _serviceFeeRate: 1%
+            10000000000000000,// _maxGasCostCap: 0.01 ETH
+            0,                // _minTokenBalance (unused)
+            address(superPaymaster),
+            address(0),       // _initialSBT
+            address(0),       // _initialGasToken
+            address(registry)
+        );
+        address proxyAddr = paymasterFactory.deployPaymaster("v4.1i", initData);
+
         PaymasterV4_1i paymasterV4Proxy = PaymasterV4_1i(payable(proxyAddr));
 
         // 8. Deploy SimpleAccountFactory (for Test Users)
