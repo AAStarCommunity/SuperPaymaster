@@ -103,6 +103,7 @@ contract CoverageSupplementTest is Test {
     
     bytes32 constant ROLE_COMMUNITY = keccak256("COMMUNITY");
     bytes32 constant ROLE_ENDUSER = keccak256("ENDUSER");
+    bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
 
     function setUp() public {
         vm.startPrank(owner);
@@ -122,13 +123,16 @@ contract CoverageSupplementTest is Test {
         
         IRegistryV3.RoleConfig memory userConfig = IRegistryV3.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, 0.1 ether, true, "User");
         registry.configureRole(ROLE_ENDUSER, userConfig);
+
+        IRegistryV3.RoleConfig memory pmConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Paymaster");
+        registry.configureRole(ROLE_PAYMASTER_SUPER, pmConfig);
         
         // Paymaster Setup
         paymaster = new SuperPaymasterV3(
             entryPoint,
             owner,
             registry,
-            address(0x999), // APNTS, not used for now
+            address(gtoken), // APNTS
             address(oracle),
             treasury
         );
@@ -459,7 +463,11 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(operator);
         // Setup Operator
         gtoken.approve(address(staking), 100 ether);
+        // Step 1: Register as Community
         registry.registerRole(ROLE_COMMUNITY, operator, abi.encode(Registry.CommunityRoleData("Op2", "", "", "", "", 10 ether)));
+        // Step 2: Register as Paymaster Super
+        registry.registerRole(ROLE_PAYMASTER_SUPER, operator, "");
+        vm.startPrank(operator);
         
         // Deposit For
         gtoken.mint(operator, 1000 ether);
