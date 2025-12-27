@@ -21,10 +21,11 @@ contract MockEntryPoint {
 contract MockPriceFeed {
     int256 public price = 2000 * 1e8;
     
-    function latestRoundData() external view returns (
-        uint80, int256, uint256, uint256, uint80
-    ) {
-        return (1, price, block.timestamp, block.timestamp, 1);
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (1, 2000e8, 0, block.timestamp, 1); // $2000
+    }
+    function decimals() external pure returns (uint8) {
+        return 8;
     }
 }
 
@@ -80,6 +81,10 @@ contract SuperPaymasterV3_Admin_Test is Test {
             address(priceFeed),
             treasury
         );
+        
+        // Fix: Update Price Cache (Warp to permit update)
+        vm.warp(block.timestamp + 2 hours);
+        paymaster.updatePrice();
         
         // Use stdstore to set hasRole[ROLE_PAYMASTER_SUPER][operator1] = true
         stdstore
@@ -178,7 +183,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
         
-        (, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
+        (,, bool isConfigured, bool isPaused,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
 
@@ -192,7 +197,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
         
-        (, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
+        (,, bool isConfigured, bool isPaused,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
 
@@ -214,7 +219,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(operator1);
         paymaster.configureOperator(xPNTsToken, opTreasury, exchangeRate);
         
-        (address token, bool isConfigured, bool isPaused, address treas, uint96 rate,,,,) = paymaster.operators(operator1);
+        (, uint96 rate, bool isConfigured, bool isPaused, address token,, address treas, , ) = paymaster.operators(operator1);
         assertTrue(isConfigured);
         assertEq(token, xPNTsToken);
         assertEq(treas, opTreasury);
@@ -237,7 +242,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(operator1);
         paymaster.deposit(depositAmount);
         
-        (,,,,, uint256 aPNTsBalance,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, depositAmount);
     }
 
@@ -259,7 +264,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         uint256 balanceAfter = apnts.balanceOf(operator1);
         assertEq(balanceAfter - balanceBefore, 50 ether);
         
-        (,,,,, uint256 aPNTsBalance,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 50 ether);
     }
 
@@ -280,7 +285,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.updateReputation(operator1, 500);
         
-        (,,,,,,,, uint256 reputation) = paymaster.operators(operator1);
+        (,,,,, uint32 reputation,,,) = paymaster.operators(operator1);
         assertEq(reputation, 500);
     }
 
@@ -306,7 +311,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
             "Test slash"
         );
         
-        (,,,,, uint256 aPNTsBalance,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 990 ether);
         
         assertEq(paymaster.getSlashCount(operator1), 1);

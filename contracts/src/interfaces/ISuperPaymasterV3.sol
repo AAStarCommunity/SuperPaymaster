@@ -10,15 +10,23 @@ interface ISuperPaymasterV3 {
     enum SlashLevel { WARNING, MINOR, MAJOR }
 
     struct OperatorConfig {
-        address xPNTsToken;
+        // Slot 0: HOT (Validation Critical)
+        uint128 aPNTsBalance;   // Cap: ~3.4e38 (Enough for 18 decimals)
+        uint96 exchangeRate;    // Cap: ~7.9e28
         bool isConfigured;
         bool isPaused;
+        // Remaining: 2 bytes
+        
+        // Slot 1: WARM
+        address xPNTsToken;
+        uint32 reputation;      // Max 4 billion
+        
+        // Slot 2: COLD
         address treasury;
-        uint96 exchangeRate;
-        uint256 aPNTsBalance;
+        
+        // Slot 3+: Stats
         uint256 totalSpent;
         uint256 totalTxSponsored;
-        uint256 reputation;
     }
 
     struct SlashRecord {
@@ -75,14 +83,14 @@ interface ISuperPaymasterV3 {
      * @notice Get operator configuration
      */
     function operators(address operator) external view returns (
-        address xPNTsToken,
+        uint128 aPNTsBalance,
+        uint96 exchangeRate,
         bool isConfigured,
         bool isPaused,
+        address xPNTsToken,
+        uint32 reputation,
         address treasury,
-        uint96 exchangeRate,
-        uint256 aPNTsBalance,
         uint256 totalSpent,
-        uint256 totalTxSponsored,
-        uint256 reputation
+        uint256 totalTxSponsored
     );
 }

@@ -103,7 +103,7 @@ contract DVTSlashTest is Test {
         );
         
         // Verify rep loss (assuming starting rep is 100, MINOR loss is 20)
-        (,,,,,,,, uint256 reputation) = paymaster.operators(operator);
+        (,,,,, uint32 reputation,,,) = paymaster.operators(operator);
         assertEq(reputation, 80);
 
         // 3. Perform Tier 2 Slash (GToken Stake) via GTokenStaking

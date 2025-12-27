@@ -60,7 +60,7 @@ contract xPNTsTokenFullTest is Test {
         
         // SuperPaymaster cannot use transferFrom
         vm.prank(paymaster);
-        vm.expectRevert("SuperPaymaster cannot use transferFrom; must use burnFromWithOpHash()");
+        vm.expectRevert("SuperPaymaster Security: Can only pull funds to self");
         token.transferFrom(user, other, 10 ether);
     }
 
