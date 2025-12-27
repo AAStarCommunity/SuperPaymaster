@@ -396,7 +396,7 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(operator);
         gtoken.mint(operator, 1000 ether);
         gtoken.approve(address(paymaster), 1000 ether);
-        paymaster.deposit(100 ether);
+        paymaster.depositFor(operator, 100 ether);
         vm.stopPrank();
         
         // Now success
@@ -441,24 +441,24 @@ contract CoverageSupplementTest is Test {
         paymaster.deposit(10 ether);
         
         vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
-        paymaster.notifyDeposit(10 ether);
+        paymaster.depositFor(user, 10 ether);
         vm.stopPrank();
     }
     
-    function test_Paymaster_Notify_Unverified() public {
-        // Operator tries to notify deposit without actual transfer
+    function test_Paymaster_DepositFor_Refill() public {
         vm.startPrank(operator);
-        // Operator is registered from previous tests? No, verify setUp flow. 
-        // We need to re-register operator here if we want isolation, but state persists if same test instance.
-        // Assuming isolation per function in Forge? Yes.
-        
-        // Re-setup Operator
+        // Setup Operator
         gtoken.approve(address(staking), 100 ether);
         registry.registerRole(ROLE_COMMUNITY, operator, abi.encode(Registry.CommunityRoleData("Op2", "", "", "", "", 10 ether)));
         
-        // Try notify without transfer
-        vm.expectRevert();
-        paymaster.notifyDeposit(100 ether);
+        // Deposit For
+        gtoken.mint(operator, 1000 ether);
+        gtoken.approve(address(paymaster), 1000 ether);
+        paymaster.depositFor(operator, 100 ether);
+        
+        // Verify
+        (,,,,, uint256 bal,,,) = paymaster.operators(operator);
+        assertEq(bal, 100 ether);
         vm.stopPrank();
     }
 }

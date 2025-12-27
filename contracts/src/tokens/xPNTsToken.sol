@@ -185,10 +185,27 @@ contract xPNTsToken is ERC20, ERC20Permit {
      * This is the core security feature that prevents the SuperPaymaster from using
      * its infinite allowance with standard `transferFrom`.
      */
-    function _spendAllowance(address owner, address spender, uint256 amount) internal virtual override {
-        if (spender == SUPERPAYMASTER_ADDRESS) {
-            revert("SuperPaymaster cannot use transferFrom; must use burnFromWithOpHash()");
+    /**
+     * @notice Secure TransferFrom for SuperPaymaster
+     * @dev Restricts SuperPaymaster to ONLY transfer tokens to itself (Deposit).
+     *      Prevents the Paymaster from draining user funds to arbitrary addresses.
+     */
+    function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
+        if (msg.sender == SUPERPAYMASTER_ADDRESS) {
+            if (to != SUPERPAYMASTER_ADDRESS) {
+                 revert("SuperPaymaster Security: Can only pull funds to self");
+            }
         }
+        return super.transferFrom(from, to, value);
+    }
+
+    /**
+     * @dev FIREWALL: Overrides the internal allowance spending mechanism.
+     * This is the core security feature that prevents the SuperPaymaster from using
+     * its infinite allowance with standard `transferFrom`.
+     */
+    function _spendAllowance(address owner, address spender, uint256 amount) internal virtual override {
+        // Validation moved to transferFrom to support DepositFor
         super._spendAllowance(owner, spender, amount);
     }
 

@@ -54,7 +54,7 @@ interface ISuperPaymasterV3 {
     /**
      * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
      */
-    function notifyDeposit(uint256 amount) external;
+    function depositFor(address targetOperator, uint256 amount) external;
 
     /**
      * @notice Withdraw aPNTs collateral

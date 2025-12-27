@@ -58,7 +58,12 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
     
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
+
     PriceCache private cachedPrice;
+
+    // V3.2.1 SECURITY: Enforce max rate in Validation
+    uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
+    uint256 public constant RATE_OFFSET = 72; // After Operator (20 bytes)
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
@@ -243,22 +248,23 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @dev Fallback for tokens that don't support ERC1363.
      *      User must transfer tokens first, then call this.
      */
-    function notifyDeposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
+    /**
+     * @notice Deposit aPNTs for a specific operator (Secure Push Mode)
+     * @param targetOperator The operator to credit the deposit to
+     * @param amount Amount of aPNTs
+     */
+    function depositFor(address targetOperator, uint256 amount) external nonReentrant {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), targetOperator)) {
             revert Unauthorized();
         }
-
-        uint256 currentBalance = IERC20(APNTS_TOKEN).balanceOf(address(this));
-        uint256 untracked = currentBalance - totalTrackedBalance;
         
-        if (amount > untracked) {
-            revert DepositNotVerified();
-        }
-
-        operators[msg.sender].aPNTsBalance += amount;
+        // Transfer from sender (must approve first)
+        IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
+        
+        operators[targetOperator].aPNTsBalance += amount;
         totalTrackedBalance += amount;
-
-        emit OperatorDeposited(msg.sender, amount);
+        
+        emit OperatorDeposited(targetOperator, amount);
     }
 
 
@@ -470,6 +476,20 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
             return ("", _packValidationData(true, 0, 0)); 
         }
         
+        // 2.1 Validate Rate Commitment (Rug Pull Protection)
+        // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
+        // Total Length >= 104 bytes
+        uint256 maxRate = type(uint256).max;
+        if (userOp.paymasterAndData.length >= 104) {
+             maxRate = abi.decode(userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32], (uint256));
+        }
+        
+        if (operators[operator].exchangeRate > maxRate) {
+             // Rejection code 4: Exchange Rate Rug Pull Attempt
+             emit ValidationRejected(userOp.sender, operator, 4);
+             return ("", _packValidationData(true, 0, 0)); 
+        }
+        
         // 3. Validate User Role (Unified Verification)
         if (!REGISTRY.hasRole(REGISTRY.ROLE_ENDUSER(), userOp.sender)) {
              // Rejection code 2: User not verified
@@ -607,10 +627,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     // ====================================
 
     function _extractOperator(PackedUserOperation calldata userOp) internal pure returns (address) {
-        // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)]
+        // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)] ...
         // Fix: Read from offset 52 (standard ERC-4337 v0.7 layout)
         if (userOp.paymasterAndData.length < 72) return address(0);
-        return address(bytes20(userOp.paymasterAndData[52:72]));
+        return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
     function _calculateAPNTsAmount(uint256 gasCostWei) internal returns (uint256) {

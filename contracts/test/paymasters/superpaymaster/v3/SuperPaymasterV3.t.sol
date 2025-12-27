@@ -174,9 +174,9 @@ contract SuperPaymasterV3Test is Test {
     function testPushDeposit() public {
         vm.startPrank(operator);
         
-        // Push Mode: Transfer + Notify
-        apnts.transfer(address(paymaster), 100 ether);
-        paymaster.notifyDeposit(100 ether);
+        // Push Mode: Approve + DepositFor
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
         
         assertEq(paymaster.totalTrackedBalance(), 100 ether, "Total Tracked Mismatch");
 
@@ -203,20 +203,33 @@ contract SuperPaymasterV3Test is Test {
         vm.stopPrank();
     }
 
-    function testLegacyDepositWorksWithApproval() public {
+    function testDepositWorksWithApproval() public {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         
-        vm.expectRevert("SuperPaymaster cannot use transferFrom; must use burnFromWithOpHash()");
+        // Should succeed now
         paymaster.deposit(100 ether);
+        vm.stopPrank();
+    }
+
+    function testDestinationLockRevert() public {
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 100 ether);
+        vm.stopPrank();
+
+        // Simulate Paymaster trying to steal funds to a 3rd party (user)
+        // We prank the Paymaster address itself
+        vm.startPrank(address(paymaster));
+        vm.expectRevert("SuperPaymaster Security: Can only pull funds to self");
+        apnts.transferFrom(operator, user, 100 ether);
         vm.stopPrank();
     }
 
     function testWithdraw() public {
         // Setup Balance
         vm.startPrank(operator);
-        apnts.transfer(address(paymaster), 100 ether);
-        paymaster.notifyDeposit(100 ether);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
 
         paymaster.withdraw(50 ether);
         
@@ -261,8 +274,8 @@ contract SuperPaymasterV3Test is Test {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         
-        apnts.transfer(address(paymaster), 200000 ether);
-        paymaster.notifyDeposit(200000 ether);
+        apnts.approve(address(paymaster), 200000 ether);
+        paymaster.depositFor(operator, 200000 ether);
         vm.stopPrank();
 
         // 2. Mock Validation Call
@@ -326,8 +339,8 @@ contract SuperPaymasterV3Test is Test {
     function _setupV3Env() internal {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
-        apnts.transfer(address(paymaster), 100 ether);
-        paymaster.notifyDeposit(100 ether);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
         vm.stopPrank();
     }
 

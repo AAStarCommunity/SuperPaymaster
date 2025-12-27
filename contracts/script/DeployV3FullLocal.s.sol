@@ -48,6 +48,8 @@ contract DeployV3FullLocal is Script {
     function run() external {
         uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80; // Anvil #0
         uint256 alicePK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d; // Anvil #1
+        uint256 INITIAL_FUNDING_AA_ACCOUNT = 1 ether; // Reduced from 10 ether
+        uint256 INITIAL_FUNDING_PAYMASTER_DEPOSIT = 1 ether; // Reduced from 10 ether
         address deployer = vm.addr(deployerPK);
         address alice = vm.addr(alicePK);
 
@@ -131,7 +133,7 @@ contract DeployV3FullLocal is Script {
         staking.setRoleExitFee(ROLE_ENDUSER, 1000, 0.05 ether);
         
         // Deposit some ETH to EntryPoint for Paymaster
-        IEntryPoint(entryPointAddr).depositTo{value: 10 ether}(address(paymaster));
+        IEntryPoint(entryPointAddr).depositTo{value: 1 ether}(address(paymaster));
 
         // 6. Orchestrate Local Environment (Roles)
         // (ROLE_COMMUNITY and ROLE_ENDUSER already defined above)
@@ -145,6 +147,7 @@ contract DeployV3FullLocal is Script {
             Registry.CommunityRoleData("Local Operator", "local.eth", "http://localhost", "Local Test Hub", "", 30 ether)
         );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
 
         // Mint GTokens for Alice's AA Account (not Alice EOA)
         // Because registerRole uses aliceAccount as payer
