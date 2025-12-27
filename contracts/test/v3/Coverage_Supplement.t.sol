@@ -364,6 +364,8 @@ contract CoverageSupplementTest is Test {
         gtoken.approve(address(staking), 100 ether);
         bytes memory opData = abi.encode(Registry.CommunityRoleData("Op", "", "", "", "", 10 ether));
         registry.registerRole(ROLE_COMMUNITY, operator, opData);
+        // Also register as SuperPaymaster
+        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(50 ether)));
         // Config Operator
         paymaster.configureOperator(address(xpnts), treasury, 1e18);
         vm.stopPrank();

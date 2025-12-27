@@ -57,6 +57,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
     address public operator1 = address(0x3);
     address public user1 = address(0x5);
     
+    bytes32 public constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
     
     function setUp() public {
@@ -80,7 +81,15 @@ contract SuperPaymasterV3_Admin_Test is Test {
             treasury
         );
         
-        // Use stdstore to set hasRole[ROLE_COMMUNITY][operator1] = true
+        // Use stdstore to set hasRole[ROLE_PAYMASTER_SUPER][operator1] = true
+        stdstore
+            .target(address(registry))
+            .sig("hasRole(bytes32,address)")
+            .with_key(ROLE_PAYMASTER_SUPER)
+            .with_key(operator1)
+            .checked_write(true);
+
+        // Also set hasRole[ROLE_COMMUNITY][operator1] = true (Must be community to be paymaster)
         stdstore
             .target(address(registry))
             .sig("hasRole(bytes32,address)")

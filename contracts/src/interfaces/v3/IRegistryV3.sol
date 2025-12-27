@@ -263,6 +263,11 @@ interface IRegistryV3 {
      */
     function roleOwners(bytes32 roleId) external view returns (address);
     
+    function ROLE_PAYMASTER_SUPER() external view returns (bytes32);
+    function ROLE_PAYMASTER_AOA() external view returns (bytes32);
+    function ROLE_KMS() external view returns (bytes32);
+    function ROLE_DVT() external view returns (bytes32);
+    function ROLE_ANODE() external view returns (bytes32);
     function ROLE_COMMUNITY() external view returns (bytes32);
     function ROLE_ENDUSER() external view returns (bytes32);
 }

@@ -165,6 +165,15 @@ contract V3_Function_BoostTest is Test {
         gToken.approve(address(staking), 100 ether);
         registry.registerRoleSelf(commRole, data);
         
+        // 1.5 Register as SuperPaymaster
+        bytes memory opData = abi.encode(Registry.PaymasterRoleData({
+            paymasterContract: address(0x123),
+            name: "TestPM",
+            apiEndpoint: "https://pm.com",
+            stakeAmount: 50 ether
+        }));
+        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), manager, opData);
+
         // 2. Configure in Paymaster
         paymaster.configureOperator(address(aPNTs), treasury, 1e18);
         vm.stopPrank();

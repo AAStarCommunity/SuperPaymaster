@@ -50,6 +50,7 @@ contract MockRegistry {
         });
     }
     function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
 }
 

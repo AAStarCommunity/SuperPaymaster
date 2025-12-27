@@ -7,10 +7,15 @@ import "src/modules/monitoring/BLSAggregatorV3.sol";
 
 // Mocks
 contract MockRegistryV3 is IRegistryV3 {
+    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
+    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
+    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     function hasRole(bytes32, address) external pure override returns (bool) { return true; }
     function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
     function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
+    function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
+    function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
     
     // Stubs
     function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }

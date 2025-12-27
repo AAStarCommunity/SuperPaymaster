@@ -31,6 +31,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     bytes32 public constant ROLE_ENDUSER = keccak256("ENDUSER");
     bytes32 public constant ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
     bytes32 public constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+    bytes32 public constant ROLE_DVT = keccak256("DVT");
+    bytes32 public constant ROLE_ANODE = keccak256("ANODE");
     bytes32 public constant ROLE_KMS = keccak256("KMS");
     
     // BLS12-381 G1 Generator (bytes)
@@ -77,7 +79,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     mapping(address => uint256[]) public userBurnHistory;
 
     error InvalidParameter(string message);
-    error RoleNotConfigured(bytes32 roleId);
+    error RoleNotConfigured(bytes32 roleId, bool isActive);
     error RoleAlreadyGranted(bytes32 roleId, address user);
     error RoleNotGranted(bytes32 roleId, address user);
     error InsufficientStake(uint256 provided, uint256 required);
@@ -95,7 +97,10 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         // Format: _initRole(roleId, minStake, entryBurn, slashThresh, slashBase, slashInc, slashMax, exitFeePercent, minExitFee, active, desc, owner)
         _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner);
         _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner);
-        _initRole(keccak256("ANODE"), 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner);
+        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", regOwner);
+        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner);
+
+
         _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner);
         _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", regOwner);
         _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner);
@@ -141,9 +146,13 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, minExitFee, active, desc);
         roleOwners[roleId] = owner;
-        // NOTE: Skip setRoleExitFee during construction, will be set by deployment script
-        // Calling setRoleExitFee here would fail because REGISTRY is not yet set in GTokenStaking
+        // Automatically set exit fee in staking contract if setup correctly
+        // NOTE: If this fails during deployment, ensure staking.setRegistry(address(this)) is called first.
+        if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
+            try GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee) {} catch {}
+        }
     }
+
 
     function setStaking(address _staking) external onlyOwner {
         GTOKEN_STAKING = IGTokenStakingV3(_staking);
@@ -159,8 +168,13 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         RoleConfig memory config = roleConfigs[roleId];
-        if (!config.isActive) revert RoleNotConfigured(roleId);
+        if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
+
+        // BUS-RULE: Must be Community to be Paymaster
+        if (roleId == ROLE_PAYMASTER_SUPER || roleId == ROLE_PAYMASTER_AOA) {
+             if (!hasRole[ROLE_COMMUNITY][user]) revert RoleNotGranted(ROLE_COMMUNITY, user);
+        }
 
         uint256 stakeAmount = _validateAndExtractStake(roleId, user, roleData);
         if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
@@ -242,10 +256,15 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function safeMintForRole(bytes32 roleId, address user, bytes calldata data) external nonReentrant returns (uint256 tokenId) {
         RoleConfig memory config = roleConfigs[roleId];
-        if (!config.isActive) revert RoleNotConfigured(roleId);
+        if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
         
         if (!hasRole[ROLE_COMMUNITY][msg.sender]) revert("Caller must be Community");
+
+        // BUS-RULE: Must be Community to be Paymaster
+        if (roleId == ROLE_PAYMASTER_SUPER || roleId == ROLE_PAYMASTER_AOA) {
+             if (!hasRole[ROLE_COMMUNITY][user]) revert RoleNotGranted(ROLE_COMMUNITY, user);
+        }
 
         uint256 stakeAmount = _validateAndExtractStake(roleId, user, data);
         if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
@@ -378,11 +397,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             
             
             (bool success, bytes memory result) = address(0x11).staticcall(input);
-            // TODO: Remove Anvil skip before production deployment
-            bool isAnvil = block.chainid == 31337;
-            if (!isAnvil) {
-                require(success && result.length > 0 && abi.decode(result, (uint256)) == 1, "BLS Verification Failed");
-            }
+            require(success && result.length > 0 && abi.decode(result, (uint256)) == 1, "BLS Verification Failed");
 
         uint256 maxChange = 100; // Protocol safety limit
 
@@ -465,19 +480,34 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         return creditTierConfig[level];
     }
 
-    function _validateAndExtractStake(bytes32 roleId, address user, bytes calldata roleData) internal view returns (uint256 stakeAmount) {
-        // Surgical fix for local test memory allocation error in Forge scripts
-        if (block.chainid == 31337 && roleData.length == 0) {
-            return roleConfigs[roleId].minStake;
+    function _decodeCommunityData(bytes calldata roleData) internal pure returns (CommunityRoleData memory data) {
+        if (roleData.length >= 32 && bytes32(roleData[0:32]) == bytes32(uint256(0x20))) {
+            data = abi.decode(roleData, (CommunityRoleData));
+        } else {
+            (string memory n, string memory e, string memory w, string memory d, string memory l, uint256 s) = 
+                abi.decode(roleData, (string, string, string, string, string, uint256));
+            data = CommunityRoleData(n, e, w, d, l, s);
         }
-        
+    }
+
+    function _decodeEndUserData(bytes calldata roleData) internal pure returns (EndUserRoleData memory data) {
+        if (roleData.length >= 32 && bytes32(roleData[0:32]) == bytes32(uint256(0x20))) {
+            data = abi.decode(roleData, (EndUserRoleData));
+        } else {
+            (address acc, address comm, string memory avatar, string memory ens, uint256 stake) = 
+                abi.decode(roleData, (address, address, string, string, uint256));
+            data = EndUserRoleData(acc, comm, avatar, ens, stake);
+        }
+    }
+
+    function _validateAndExtractStake(bytes32 roleId, address user, bytes calldata roleData) internal view returns (uint256 stakeAmount) {
         if (roleId == ROLE_COMMUNITY) {
-            CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
+            CommunityRoleData memory data = _decodeCommunityData(roleData);
             if (bytes(data.name).length == 0) revert InvalidParameter("Name required");
             if (communityByNameV3[data.name] != address(0)) revert InvalidParameter("Name taken");
             stakeAmount = data.stakeAmount;
         } else if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            EndUserRoleData memory data = _decodeEndUserData(roleData);
             bool commActive = hasRole[ROLE_COMMUNITY][data.community];
             if (!commActive) revert InvalidParameter("Invalid community");
             stakeAmount = data.stakeAmount;
@@ -489,22 +519,19 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function _convertRoleDataForSBT(bytes32 roleId, address user, bytes calldata roleData) internal pure returns (bytes memory) {
         if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            EndUserRoleData memory data = _decodeEndUserData(roleData);
             return abi.encode(data.community, "");
         }
         return abi.encode(user, "");
     }
 
     function _postRegisterRole(bytes32 roleId, address user, bytes calldata roleData) internal {
-        // Surgical fix for local test memory/decode error
-        if (block.chainid == 31337 && roleData.length == 0) return;
-        
         if (roleId == ROLE_COMMUNITY) {
-            CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
+            CommunityRoleData memory data = _decodeCommunityData(roleData);
             communityByNameV3[data.name] = user;
             if (bytes(data.ensName).length > 0) communityByENSV3[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            EndUserRoleData memory data = _decodeEndUserData(roleData);
             accountToUser[data.account] = user;
         }
     }

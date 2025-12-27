@@ -318,7 +318,9 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
             // Check if membership exists
             uint256 idx = membershipIndex[tokenId][community];
-            require(idx >= _m[tokenId].length || _m[tokenId][idx].community != community, "Already member");
+            if (idx < _m[tokenId].length && _m[tokenId][idx].community == community) {
+                return (tokenId, false);
+            }
 
             string memory meta = "";
             if (roleData.length > 32) {

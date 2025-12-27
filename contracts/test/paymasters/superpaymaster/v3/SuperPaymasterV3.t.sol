@@ -13,6 +13,13 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 // Mock Contracts
 // Mock Contracts
 contract MockRegistry is IRegistryV3 {
+    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
+    function ROLE_PAYMASTER_AOA() external view override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
+    function ROLE_KMS() external view override returns (bytes32) { return keccak256("KMS"); }
+    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
+    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
+    function ROLE_COMMUNITY() external view override returns (bytes32) { return keccak256("COMMUNITY"); }
+    function ROLE_ENDUSER() external view override returns (bytes32) { return keccak256("ENDUSER"); }
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(bytes32 => address) public _roleOwners;
 
@@ -64,8 +71,6 @@ contract MockRegistry is IRegistryV3 {
     function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
 
-    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
     function setCreditTier(uint256, uint256) external override {}
 }
 
@@ -125,6 +130,7 @@ contract SuperPaymasterV3Test is Test {
         
         entryPoint = new MockEntryPoint();
         registry = new MockRegistry();
+        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), operator);
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
         
@@ -147,6 +153,7 @@ contract SuperPaymasterV3Test is Test {
         apnts.setSuperPaymasterAddress(address(paymaster));
 
         // Grant Roles
+        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), operator);
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
 

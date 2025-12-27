@@ -119,7 +119,11 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      */
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
+            revert Unauthorized();
+        }
+        // BUS-RULE: Must be Community to be Paymaster
+         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert Unauthorized();
         }
         if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
@@ -131,7 +135,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         config.treasury = _opTreasury;
         config.exchangeRate = uint96(exchangeRate);
         config.isConfigured = true;
-        config.treasury = _opTreasury; // Use operator's treasury
 
         emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
     }
@@ -195,7 +198,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
             revert Unauthorized();
         }
         
@@ -221,9 +224,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), from)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), from)) {
              revert Unauthorized();
         }
+
 
         operators[from].aPNTsBalance += value;
         // Update tracked balance to keep sync with manual transfers
@@ -240,7 +244,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      *      User must transfer tokens first, then call this.
      */
     function notifyDeposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
             revert Unauthorized();
         }
 
@@ -459,9 +463,9 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         // 1. Extract Operator
         address operator = _extractOperator(userOp);
         
-        // 2. Validate Operator Role
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), operator)) {
-            // Rejection code 1: Operator not registered
+        // 2. Validate Operator Role (Must be Community AND SuperPaymaster)
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), operator)) {
+            // Rejection code 1: Operator not registered or missing Paymaster role
             emit ValidationRejected(userOp.sender, operator, 1);
             return ("", _packValidationData(true, 0, 0)); 
         }
