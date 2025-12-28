@@ -18,15 +18,15 @@ contract VerifyV3_1_1 is Script {
         address jason = 0xb5600060e6de5E11D3636731964218E53caadf0E;
         address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
         
-        address gToken = 0x4eEF13E130fA5f2aA17089aEf2754234f49f1D49;
-        address staking = 0x462037Cf25dBCD414EcEe8f93475fE6cdD8b23c2;
-        address mysbt = 0x4f2F35899acE188C1d31b27e19B38D56AA86e8e2;
-        address registry = 0xBD936920F40182f5C80F0Ee2Ffc0de6bc2Ae12c8;
-        address factory = 0x52cC246cc4f4c49e2BAE98b59241b30947bA6013;
-        address apnts = 0x55aB6Ea95fE74c9116AaA634caBC2E774C90d3fa;
-        address bpnts = 0xa12C8B032F6007E963F86Cd05Aa0D451879f65E2;
-        address sp = 0x311E9024b38aFdD657dDf4F338a0492317DF6811;
-        address pmV4 = 0xD16224cAE2df7A6D443f7b3Ad989E16E42650CaC;
+        address gToken = 0xfc5671D606e8dd65EA39FB3f519443B7DAB40570;
+        address staking = 0xB8C4Ed4906baF13Cb5fE49B1A985B76BAccEEC06;
+        address mysbt = 0x925e2ad77CeD7b72C9e58D6BCDB2c994F705c53b;
+        address registry = 0xf265d21c2cE6B2fA5d6eD1A2d7b032F03516BE19;
+        address factory = 0x673928F507D791B57F06BC3f487229D9D6d5d33D;
+        address apnts = 0xbC0E4c1103ffb770F3C619d60962394466433518;
+        address bpnts = 0xd7036a4a98AF3586C3E6416fBFeC3c1e8b6e0575;
+        address sp = 0x8289C18f7809B3B7DCe287fEb0ef7516fD30c89f;
+        address pmV4 = 0xb78d77Eb3EED175F4979967181EC340fAE27b85D;
 
         console.log("=== SuperPaymaster V3.1.1 Full Audit (Multi-Tenant) ===");
 
@@ -63,8 +63,7 @@ contract VerifyV3_1_1 is Script {
         console.log("--- Paymaster V4 AOA Mode (Deep) ---");
         console.log("  V4 Registry wired:      ", PaymasterV4_1(payable(pmV4)).registry() == ISuperPaymasterRegistry(registry));
         console.log("  V4 MySBT wired:         ", PaymasterV4_1(payable(pmV4)).isSBTSupported(mysbt));
-        console.log("  V4 aPNTs wired:         ", PaymasterV4_1(payable(pmV4)).isGasTokenSupported(apnts));
-
+        console.log("  V4 bPNTs wired:         ", PaymasterV4_1(payable(pmV4)).isGasTokenSupported(bpnts));
         // 2. Identity Checks
         console.log("\n[2. Multi-Tenant Identity Checks]");
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
