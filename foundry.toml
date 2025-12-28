@@ -21,7 +21,7 @@ remappings = [
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
     "account-abstraction/=lib/account-abstraction/contracts/",
     "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
-    "solady/=singleton-paymaster/lib/solady/src/",
+    "solady/=contracts/lib/solady/src/",
     "singleton-paymaster/=singleton-paymaster/",
     "src/=contracts/src/"
 ]
@@ -77,7 +77,7 @@ remappings = [
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
     "account-abstraction/=lib/account-abstraction/contracts/",
     "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
-    "solady/=singleton-paymaster/lib/solady/src/",
+    "solady/=contracts/lib/solady/src/",
     "src/=contracts/src/"
 ]
 
