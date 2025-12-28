@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
 import "src/interfaces/v3/IRegistryV3.sol";
+import "src/modules/validators/BLSValidator.sol";
 
 /**
  * @title V3_DynamicLevelThresholds_Test
@@ -31,6 +32,10 @@ contract V3_DynamicLevelThresholds_Test is Test {
 
         // Mock BLS precompile
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        
+        // Set BLS Validator
+        BLSValidator validator = new BLSValidator();
+        registry.setBLSValidator(address(validator));
         
         vm.stopPrank();
     }

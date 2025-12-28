@@ -11,9 +11,9 @@ contract BLSValidatorTest is Test {
         validator = new BLSValidator();
     }
 
-    function test_RevertIfProofEmpty() public {
-        vm.expectRevert("Validator: Proof Empty");
-        validator.verifyProof("", "");
+    function test_ReturnsFalseIfProofEmpty() public {
+        bool isValid = validator.verifyProof("", "");
+        assertFalse(isValid);
     }
 
     function test_ReturnsTrueIfProofPresent() public {

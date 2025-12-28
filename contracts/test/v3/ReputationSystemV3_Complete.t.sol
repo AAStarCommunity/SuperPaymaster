@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
 import "src/core/Registry.sol";
+import "src/modules/validators/BLSValidator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 
 contract MockNFT is ERC721 {
@@ -50,11 +51,16 @@ contract ReputationSystemV3_Complete_Test is Test {
         registry.setRoleOwner(keccak256("COMMUNITY"), community1);
         
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)
+        // Mock hasRole to return true for community1 (avoids complex storage manipulation)
         vm.mockCall(
             address(registry),
             abi.encodeWithSelector(registry.hasRole.selector, registry.ROLE_COMMUNITY(), community1),
             abi.encode(true)
         );
+
+        // Set BLS Validator
+        BLSValidator validator = new BLSValidator();
+        registry.setBLSValidator(address(validator));
         
         vm.stopPrank();
 
