@@ -489,6 +489,7 @@ cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
 - [SuperPaymasterV2 v2.0.1 Deployment](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)
 - [Registry v2.2.0 Deployment](./docs/DEPLOY_REGISTRY_V2.2.0.md) (coming soon)
 - [Full Deployment Guide](./docs/DEPLOYMENT_READY.md)
+- [**Sepolia Redeployment Summary (V3.1.1)**](./docs/SEPOLIA_DEPLOYMENT_SUMMARY.md) (Latest Dec 28)
 
 ---
 
