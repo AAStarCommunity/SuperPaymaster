@@ -15,7 +15,9 @@ import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/paymasters/v4/PaymasterV4.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
+import "src/modules/validators/BLSValidator.sol";
 // SimpleAccountFactory accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
 // address aliceAccount = accountFactory.createAccount(alice, 0);
 // console.log("Alice AA Account:", aliceAccount);
@@ -97,9 +99,15 @@ contract DeployV3FullLocal is Script {
         console.log("BLSAggregator Local (Threshold=3):", address(aggregator));
 
         // 3.2 DVT Validator Setup
+        // 3.2 DVT Validator Setup
         DVTValidatorV3 dvt = new DVTValidatorV3(address(registry));
         dvt.setBLSAggregator(address(aggregator));
         console.log("DVTValidator Local:", address(dvt));
+
+
+        BLSValidator blsValidator = new BLSValidator();
+        registry.setBLSValidator(address(blsValidator));
+        console.log("BLSValidator Strategy:", address(blsValidator));
 
         // 3.3 xPNTs Factory Setup
         xPNTsFactory factory = new xPNTsFactory(address(paymaster), address(registry));
@@ -218,6 +226,11 @@ contract DeployV3FullLocal is Script {
 
         console.log("=== Local Beta Environment Ready ===");
         console.log("REGISTRY=", address(registry));
+        console.log("GTOKEN=", address(gtoken));
+        console.log("STAKING=", address(staking));
+        console.log("MYSBT=", address(mysbt));
+        console.log("REPUTATION=", address(repSystem));
+        console.log("APNTS=", address(apnts));
         console.log("PAYMASTER=", address(paymaster));
         console.log("PAYMASTER_V4=", address(paymasterV4));
     }

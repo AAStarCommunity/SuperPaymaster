@@ -13,6 +13,8 @@ interface IBLSAggregator {
     function threshold() external view returns (uint256);
 }
 
+import "../interfaces/v3/IBLSValidator.sol";
+
 
 contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     using SafeERC20 for IERC20;
@@ -35,18 +37,13 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     bytes32 public constant ROLE_ANODE = keccak256("ANODE");
     bytes32 public constant ROLE_KMS = keccak256("KMS");
     
-    // BLS12-381 G1 Generator (bytes)
-    bytes constant G1_X_BYTES = hex"17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb";
-    bytes constant G1_Y_BYTES = hex"08b3f481e3aaa9a12174adfa9d9e00912180f1482c0bcd3b0ff955a6d051029441c4a4f147cc520556770e0a5c483a27";
-
-    // BLS12-381 Field Modulus p (split for math)
-    uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
-    uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+    // BLS constants moved to implementation contract (Strategy Pattern)
 
     // --- Storage ---
     IGTokenStakingV3 public GTOKEN_STAKING;
     IMySBTV3 public MYSBT;
     address public blsAggregator;
+    IBLSValidator public blsValidator;
 
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
@@ -164,6 +161,10 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function setBLSAggregator(address _aggregator) external onlyOwner {
         blsAggregator = _aggregator;
+    }
+
+    function setBLSValidator(address _validator) external onlyOwner {
+        blsValidator = IBLSValidator(_validator);
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
@@ -385,19 +386,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         }
         require(count >= threshold, "Insufficient consensus threshold");
 
-            require(pkG1.length == 96, "Invalid G1 length"); // Adjusted for uncompressed G1
-            require(sigG2.length == 192, "Invalid G2 length"); // Adjusted for uncompressed G2
-            require(msgG2.length == 192, "Invalid Msg length");
-            
-            // Preparation for 0x11: e(G1, Sig) * e(-Pk, Msg) == 1
-            bytes memory input = abi.encodePacked(
-                G1_X_BYTES, sigG2,
-                _negateG1(pkG1), msgG2
-            );
-            
-            
-            (bool success, bytes memory result) = address(0x11).staticcall(input);
-            require(success && result.length > 0 && abi.decode(result, (uint256)) == 1, "BLS Verification Failed");
+        // Strategy Pattern for BLS Verification
+        if (address(blsValidator) != address(0)) {
+            require(blsValidator.verifyProof(proof, ""), "Registry: BLS Verification Failed");
+        } else {
+            // Failsafe: if no validator set, require proof length 0 to allow skipping (or revert)
+            // For security, we revert if logic is expected but missing.
+            revert("BLS Validator not configured");
+        }
 
         uint256 maxChange = 100; // Protocol safety limit
 
@@ -590,42 +586,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         delete roleMemberIndex[roleId][user];
     }
 
-    function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {
-        // G1 uncompressed is 96 bytes (x: 48, y: 48)
-        bytes memory x = new bytes(48);
-        bytes memory y = new bytes(48);
-        for(uint i=0; i<48; i++) {
-            x[i] = pkG1[i];
-            y[i] = pkG1[i+48];
-        }
-        
-        // y_neg = p - y. Since y is 48 bytes, we split into TWO uint256 (32+16)
-        // This is complex. For a prototype, let's use the property:
-        // G1 uncompressed (x, y). y is 48 bytes.
-        // We'll decode the last 32 bytes and the first 16 bytes.
-        
-        uint256 y_lo;
-        uint256 y_hi;
-        assembly {
-            y_lo := mload(add(y, 48)) // Load bytes 16..47 of data (last 32 bytes)
-            y_hi := mload(add(y, 32)) // Load bytes 0..31 of data
-            y_hi := shr(128, y_hi)    // Shift right by 16 bytes to get the first 16 bytes
-        }
-
-        uint256 new_y_lo;
-        uint256 new_y_hi;
-
-        if (P_LO >= y_lo) {
-            new_y_lo = P_LO - y_lo;
-            new_y_hi = P_HI - y_hi;
-        } else {
-            new_y_lo = (type(uint256).max - y_lo + 1) + P_LO;
-            new_y_hi = P_HI - y_hi - 1;
-        }
-
-        bytes memory new_y = abi.encodePacked(uint128(new_y_hi), new_y_lo);
-        return abi.encodePacked(x, new_y);
-    }
+    // _negateG1 and BLS constants removed in favor of IBLSValidator strategy
 
     function _countSetBits(uint256 n) internal pure returns (uint256 count) {
         while (n != 0) {
