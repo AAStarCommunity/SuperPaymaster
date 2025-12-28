@@ -27,7 +27,7 @@ remappings = [
 ]
 
 # Allow writing deployment info
-fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }]
+fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }, { access = "read-write", path = "./" }, { access = "read-write", path = "./script/v3" }]
 
 # ============================================
 # V3-Only Profile (Fast Build for Deployment)
@@ -81,6 +81,6 @@ remappings = [
     "src/=contracts/src/"
 ]
 
-fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }]
+fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }, { access = "read-write", path = "./" }, { access = "read-write", path = "./script/v3" }]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

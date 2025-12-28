@@ -14,6 +14,8 @@ import "src/modules/monitoring/BLSAggregatorV3.sol";
 import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/paymasters/v4/PaymasterV4.sol";
+import "src/paymasters/v4/PaymasterV4_1i.sol";
+import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
@@ -190,7 +192,7 @@ contract DeployV3FullLocal is Script {
 
         vm.stopBroadcast();
         
-        // Deploy PaymasterV4 (after stopBroadcast to avoid nonce issues)
+        // Deploy PaymasterV4 (Direct)
         vm.startBroadcast(deployerPK);
         PaymasterV4 paymasterV4 = new PaymasterV4(
             entryPointAddr,
@@ -201,6 +203,11 @@ contract DeployV3FullLocal is Script {
             1 ether, // maxGasCostCap
             address(factory) // xpntsFactory
         );
+
+        // Deploy PaymasterFactory & v4.1i implementation (For Community-led deployment)
+        PaymasterFactory pmFactory = new PaymasterFactory();
+        PaymasterV4_1i v41i = new PaymasterV4_1i();
+        pmFactory.addImplementation("v4.1i", address(v41i));
         vm.stopBroadcast();
 
         // ----------------------------------------
@@ -211,12 +218,13 @@ contract DeployV3FullLocal is Script {
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
         vm.serializeAddress(jsonObj, "staking", address(staking));
         vm.serializeAddress(jsonObj, "superPaymaster", address(paymaster));
-        vm.serializeAddress(jsonObj, "paymasterFactory", address(0)); // Placeholder if needed
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory)); 
         vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
         vm.serializeAddress(jsonObj, "sbt", address(mysbt));
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
         vm.serializeAddress(jsonObj, "dvtValidator", address(dvt));
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
+        vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(factory));
         vm.serializeAddress(jsonObj, "paymasterV4", address(paymasterV4)); // New V4
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
