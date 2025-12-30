@@ -16,7 +16,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  * @title DeployV3Full
  * @notice Deploys the complete V3.1.1 System: Registry, SuperPaymaster, GToken, ReputationSystem, etc.
  */
-contract DeployV3Full is Script {
+contract DeployV3FullSepolia is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
@@ -86,5 +86,23 @@ contract DeployV3Full is Script {
         console.log("REPUTATION_SYSTEM_ADDRESS=", address(repSystem));
         console.log("APNTS_ADDRESS=", address(apnts));
         console.log("SUPERPAYMASTER_ADDRESS=", address(paymaster));
+
+        // Generate script/v3/config.json for automatic sync
+        string memory jsonObj = "json";
+        vm.serializeAddress(jsonObj, "registry", address(registry));
+        vm.serializeAddress(jsonObj, "gToken", address(gtoken));
+        vm.serializeAddress(jsonObj, "staking", address(staking));
+        vm.serializeAddress(jsonObj, "superPaymaster", address(paymaster));
+        vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
+        vm.serializeAddress(jsonObj, "sbt", address(mysbt));
+        vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
+        // Add placeholders for optional modules not in basic deploy, or remove from sync script
+        // Note: Full deploy script might need DVT/BLS/Factories if they are part of "Full"
+        // Based on current file content, they are NOT deployed here.
+        // We will output what we validly have.
+        
+        string memory finalJson = vm.serializeAddress(jsonObj, "paymasterV4", address(0)); // Placeholder if needed
+        vm.writeFile("script/v3/config.json", finalJson);
+        console.log("Generated script/v3/config.json");
     }
 }

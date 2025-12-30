@@ -3,11 +3,11 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {SuperPaymasterV2} from "../src/paymasters/superpaymaster/v2/SuperPaymasterV2_3.sol";
+import {SuperPaymasterV3} from "../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 
 /**
  * @title ConfigureSuperPaymaster
- * @notice Configure SuperPaymaster V2 contract with aPNTs token address
+ * @notice Configure SuperPaymaster V3 contract with aPNTs token address
  * @dev Run: forge script script/ConfigureSuperPaymaster.s.sol:ConfigureSuperPaymaster --rpc-url sepolia --broadcast --verify -vvvv
  *
  * Required .env variables:
@@ -15,24 +15,24 @@ import {SuperPaymasterV2} from "../src/paymasters/superpaymaster/v2/SuperPaymast
  * - SEPOLIA_RPC_URL: Sepolia RPC URL
  */
 contract ConfigureSuperPaymaster is Script {
-    // Sepolia addresses from shared-config v0.3.1
-    address constant SUPERPAYMASTER_V2 = 0xfaB5B2A129DF8308a70DA2fE77c61001e4Df58BC;
-    address constant APNTS_TOKEN = 0xBD0710596010a157B88cd141d797E8Ad4bb2306b;  // ✅ CORRECT: shared-config/src/contract-addresses.ts:33
-
+    // Sepolia addresses from script/v3/config.json
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
-        console.log("=== Configure SuperPaymaster V2 ===");
-        console.log("Deployer address:", deployer);
-        console.log("SuperPaymaster V2:", SUPERPAYMASTER_V2);
-        console.log("aPNTs Token:", APNTS_TOKEN);
+        address paymasterAddr = vm.envAddress("SUPERPAYMASTER_ADDRESS");
+        address apntsAddr = vm.envAddress("APNTS_ADDRESS");
 
-        SuperPaymasterV2 superPaymaster = SuperPaymasterV2(payable(SUPERPAYMASTER_V2));
+        console.log("=== Configure SuperPaymaster V3 ===");
+        console.log("Deployer address:", deployer);
+        console.log("SuperPaymaster V3:", paymasterAddr);
+        console.log("aPNTs Token:", apntsAddr);
+
+        SuperPaymasterV3 superPaymaster = SuperPaymasterV3(payable(paymasterAddr));
 
         // Check current aPNTs token
         address currentAPNTs;
-        try superPaymaster.aPNTsToken() returns (address _aPNTs) {
+        try superPaymaster.APNTS_TOKEN() returns (address _aPNTs) {
             currentAPNTs = _aPNTs;
             console.log("\nCurrent aPNTs token:", currentAPNTs);
         } catch {
@@ -68,7 +68,7 @@ contract ConfigureSuperPaymaster is Script {
 
         // Verify
         console.log("\n=== Verification ===");
-        try superPaymaster.aPNTsToken() returns (address newAPNTs) {
+        try superPaymaster.APNTS_TOKEN() returns (address newAPNTs) {
             console.log("New aPNTs token:", newAPNTs);
 
             if (newAPNTs == APNTS_TOKEN) {
