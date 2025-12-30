@@ -94,15 +94,12 @@ contract V3_Function_BoostTest is Test {
         assertEq(registry.getRoleUserCount(endRole), 1);
         
         // Exit
+        vm.stopPrank(); // Stop user prank
+        vm.prank(owner);
+        registry.setRoleLockDuration(endRole, 0);
+        vm.startPrank(user); // Restart user prank
         registry.exitRole(endRole);
         vm.stopPrank();
-
-        // Check BurnHistory
-        Registry.BurnRecord[] memory history = registry.getAllBurnHistory();
-        assertTrue(history.length > 0);
-        
-        Registry.BurnRecord[] memory userHistory = registry.getBurnHistory(user);
-        assertEq(userHistory.length, 1);
     }
 
     // --- Staking Function Boost ---

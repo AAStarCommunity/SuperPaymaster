@@ -276,7 +276,7 @@ contract CoverageSupplementTest is Test {
         // Setup: Admin sets 50% exit fee for ENDUSER
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.adminConfigureRole(ROLE_ENDUSER, 1 ether, 0.1 ether, 5000, 0.1 ether); // 50% fee
+        registry.adminConfigureRole(ROLE_ENDUSER, 1 ether, 0.1 ether, 2000, 0.1 ether); // 20% fee
         vm.stopPrank();
         
         // User joins
@@ -284,7 +284,7 @@ contract CoverageSupplementTest is Test {
         // Need community first for EndUser? Yes.
         // Shortcut: Use KMS role for simpler testing logic if needed, but EndUser is fine if we mock community check.
         // Actually, let's use KMS role.
-        IRegistryV3.RoleConfig memory kmsConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 5000, 1 ether, true, "KMS");
+        IRegistryV3.RoleConfig memory kmsConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, 1 ether, true, "KMS");
         vm.stopPrank();
         vm.startPrank(owner);
         registry.configureRole(registry.ROLE_KMS(), kmsConfig);
@@ -296,12 +296,17 @@ contract CoverageSupplementTest is Test {
         
         // Exit
         uint256 balBefore = gtoken.balanceOf(user);
-        registry.exitRole(registry.ROLE_KMS());
+        bytes32 kmsRole = registry.ROLE_KMS();
+        vm.stopPrank();
+        vm.prank(owner);
+        registry.setRoleLockDuration(kmsRole, 0);
+        vm.startPrank(user);
+        registry.exitRole(kmsRole);
         uint256 balAfter = gtoken.balanceOf(user);
         
-        // 10 ether stake. 50% fee = 5 ether.
-        // Refund should be 5 ether.
-        assertEq(balAfter - balBefore, 5 ether);
+        // 10 ether stake. 20% fee = 2 ether.
+        // Refund should be 8 ether.
+        assertEq(balAfter - balBefore, 8 ether);
         vm.stopPrank();
     }
     

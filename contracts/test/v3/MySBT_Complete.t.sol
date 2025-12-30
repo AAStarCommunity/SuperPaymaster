@@ -28,7 +28,7 @@ contract MockRegistry is IRegistryV3 {
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function createNewRole(bytes32, RoleConfig calldata, address) external override {}
     function exitRole(bytes32) external override {}
-    function getBurnHistory(address) external view override returns (BurnRecord[] memory) { return new BurnRecord[](0); }
+    function setRoleLockDuration(bytes32, uint256) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
         return RoleConfig(0,0,0,0,0,0,0,0,false,"stub"); 
     }

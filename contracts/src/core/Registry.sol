@@ -72,9 +72,6 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     mapping(bytes32 => address) public roleOwners;
     mapping(bytes32 => uint256) public roleLockDurations; // NEW
 
-    BurnRecord[] public burnHistory;
-    mapping(address => uint256[]) public userBurnHistory;
-
     error InvalidParameter(string message);
     error RoleNotConfigured(bytes32 roleId, bool isActive);
     error RoleAlreadyGranted(bytes32 roleId, address user);
@@ -92,15 +89,15 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         // For now, we'll comment out _initRole and do it in the deployment script
         
         // Format: _initRole(roleId, minStake, entryBurn, slashThresh, slashBase, slashInc, slashMax, exitFeePercent, minExitFee, active, desc, owner)
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner);
-        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", regOwner);
-        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner);
+        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner, 30 days);
+        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner, 30 days);
+        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", regOwner, 30 days);
+        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner, 30 days);
 
 
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner);
-        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", regOwner);
-        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner);
+        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner, 30 days);
+        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", regOwner, 30 days);
+        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner, 7 days);
 
         // Initialize Credit Tiers (Default in aPNTs)
         // Level 1: Rep < 13
@@ -139,10 +136,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         uint256 minExitFee,
         bool active, 
         string memory desc, 
-        address owner
+        address owner,
+        uint256 lockDuration
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, minExitFee, active, desc);
         roleOwners[roleId] = owner;
+        roleLockDurations[roleId] = lockDuration;
         // Automatically set exit fee in staking contract if setup correctly
         // NOTE: If this fails during deployment, ensure staking.setRegistry(address(this)) is called first.
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
@@ -256,8 +255,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
             MYSBT.deactivateMembership(msg.sender, msg.sender);
         }
 
-        burnHistory.push(BurnRecord(roleId, msg.sender, stakedAmount, block.timestamp, "Exit"));
-        userBurnHistory[msg.sender].push(burnHistory.length - 1);
+        emit BurnExecuted(msg.sender, roleId, stakedAmount, "Exit");
         
         hasRole[roleId][msg.sender] = false;
         // Remove from roleMembers (O(n) but usually small members or handled by indexing)
@@ -302,6 +300,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function configureRole(bytes32 roleId, RoleConfig calldata config) external {
         if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
+        require(config.exitFeePercent <= 2000, "Fee too high");
         roleConfigs[roleId] = config;
         // Sync exit fee to GTokenStaking when role is reconfigured
         GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
@@ -318,6 +317,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         uint256 exitFeePercent,
         uint256 minExitFee
     ) external onlyOwner {
+        require(exitFeePercent <= 2000, "Fee too high");
         RoleConfig storage config = roleConfigs[roleId];
         config.minStake = minStake;
         config.entryBurn = entryBurn;
@@ -326,6 +326,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         
         GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
         emit RoleConfigured(roleId, config, block.timestamp);
+    }
+
+    function setRoleLockDuration(bytes32 roleId, uint256 duration) external {
+        if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
+        roleLockDurations[roleId] = duration;
+        emit RoleLockDurationUpdated(roleId, duration);
     }
     
     /**
@@ -510,6 +516,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     }
 
     function _validateAndExtractStake(bytes32 roleId, address user, bytes calldata roleData) internal view returns (uint256 stakeAmount) {
+        RoleConfig memory config = roleConfigs[roleId];
         if (roleId == ROLE_COMMUNITY) {
             CommunityRoleData memory data = _decodeCommunityData(roleData);
             if (bytes(data.name).length == 0) revert InvalidParameter("Name required");
@@ -523,7 +530,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         } else {
             if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
         }
-        if (stakeAmount == 0) stakeAmount = roleConfigs[roleId].minStake;
+        if (stakeAmount == 0) stakeAmount = config.minStake;
     }
 
     function _convertRoleDataForSBT(bytes32 roleId, address user, bytes calldata roleData) internal pure returns (bytes memory) {
@@ -549,29 +556,26 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) {
         // Find all roles this user has
-        bytes32[3] memory allRoles = [ROLE_KMS, ROLE_COMMUNITY, ROLE_ENDUSER];
+        bytes32[7] memory allRoles = [
+            ROLE_COMMUNITY, 
+            ROLE_ENDUSER, 
+            ROLE_PAYMASTER_AOA, 
+            ROLE_PAYMASTER_SUPER, 
+            ROLE_DVT, 
+            ROLE_ANODE, 
+            ROLE_KMS
+        ];
         uint256 count = 0;
-        for(uint i=0; i<3; i++){
+        for(uint i=0; i<7; i++){
             if(hasRole[allRoles[i]][user]) count++;
         }
         bytes32[] memory roles = new bytes32[](count);
         uint256 idx = 0;
-        for(uint i=0; i<3; i++){
+        for(uint i=0; i<7; i++){
             if(hasRole[allRoles[i]][user]) roles[idx++] = allRoles[i];
         }
         return roles;
     }
-    
-    function getBurnHistory(address user) external view returns (BurnRecord[] memory) {
-        uint256[] memory indices = userBurnHistory[user];
-        BurnRecord[] memory userHistory = new BurnRecord[](indices.length);
-        for(uint i=0; i<indices.length; i++) {
-            userHistory[i] = burnHistory[indices[i]];
-        }
-        return userHistory;
-    }
-
-    function getAllBurnHistory() external view returns (BurnRecord[] memory) { return burnHistory; }
 
     function calculateExitFee(bytes32 roleId, uint256 amount) external view returns (uint256) {
         (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(msg.sender, roleId);

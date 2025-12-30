@@ -40,21 +40,6 @@ interface IRegistryV3 {
         string description;
     }
 
-    /**
-     * @notice Burn record for tracking token burns
-     * @param roleId Role associated with this burn
-     * @param user User who performed the burn
-     * @param amount Amount burned
-     * @param timestamp When the burn occurred
-     * @param reason Description of burn reason
-     */
-    struct BurnRecord {
-        bytes32 roleId;
-        address user;
-        uint256 amount;
-        uint256 timestamp;
-        string reason;
-    }
 
 
 
@@ -87,6 +72,11 @@ interface IRegistryV3 {
         bytes32 indexed roleId,
         uint256 amount,
         string reason
+    );
+
+    event RoleLockDurationUpdated(
+        bytes32 indexed roleId, 
+        uint256 duration
     );
 
     // ====================================
@@ -154,6 +144,13 @@ interface IRegistryV3 {
      * @param newOwner New owner address
      */
     function setRoleOwner(bytes32 roleId, address newOwner) external;
+
+    /**
+     * @notice Set lock duration for a role
+     * @param roleId Role identifier
+     * @param duration Lock duration in seconds
+     */
+    function setRoleLockDuration(bytes32 roleId, uint256 duration) external;
 
     /**
      * @notice Mint SBT for multiple users in a role (admin function)
@@ -230,11 +227,12 @@ interface IRegistryV3 {
     function getUserRoles(address user) external view returns (bytes32[] memory);
 
     /**
-     * @notice Get burn history for a user
-     * @param user User address
-     * @return Array of burn records
-     */
-    function getBurnHistory(address user) external view returns (BurnRecord[] memory);
+     * @notice Calculate exit fee for a role
+        external
+        view
+        returns (uint256 exitFee);
+
+
 
     /**
      * @notice Calculate exit fee for a role
@@ -246,8 +244,6 @@ interface IRegistryV3 {
         external
         view
         returns (uint256 exitFee);
-
-
 
     /**
      * @notice Get total users with a specific role

@@ -191,6 +191,10 @@ contract RegistryTest is Test {
         uint256 stakedAmount = staking.getLockedStake(user, ROLE_ENDUSER);
         
         // Exit
+        vm.stopPrank();
+        vm.prank(owner);
+        registry.setRoleLockDuration(ROLE_ENDUSER, 0);
+        vm.startPrank(user);
         registry.exitRole(ROLE_ENDUSER);
         
         assertFalse(registry.hasRole(ROLE_ENDUSER, user));

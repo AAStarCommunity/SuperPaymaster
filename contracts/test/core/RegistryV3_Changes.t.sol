@@ -69,6 +69,10 @@ contract RegistryV3_Changes_Test is Test {
         assertEq(registry.communityByNameV3("TestCommunity"), community);
         assertEq(registry.communityByENSV3("test.eth"), community);
         
+        vm.stopPrank();
+        vm.prank(admin);
+        registry.setRoleLockDuration(ROLE_COMMUNITY, 0);
+        vm.startPrank(community);
         registry.exitRole(ROLE_COMMUNITY);
         
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
@@ -138,6 +142,10 @@ contract RegistryV3_Changes_Test is Test {
         
         uint256 countBefore = registry.getRoleUserCount(ROLE_COMMUNITY);
         
+        
+        vm.prank(admin);
+        registry.setRoleLockDuration(ROLE_COMMUNITY, 0);
+
         vm.prank(user2);
         registry.exitRole(ROLE_COMMUNITY);
         
