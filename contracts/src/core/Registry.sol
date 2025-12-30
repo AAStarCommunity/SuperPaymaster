@@ -170,7 +170,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
-        if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
+        
+        // IDEMPOTENT only for ROLE_ENDUSER to support multi-community joining.
+        // For other roles, keep it strict to avoid configuration corruption.
+        bool alreadyHasRole = hasRole[roleId][user];
+        if (alreadyHasRole && roleId != ROLE_ENDUSER) revert RoleAlreadyGranted(roleId, user);
 
         // BUS-RULE: Must be Community to be Paymaster
         if (roleId == ROLE_PAYMASTER_SUPER || roleId == ROLE_PAYMASTER_AOA) {
@@ -180,21 +184,30 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         uint256 stakeAmount = _validateAndExtractStake(roleId, user, roleData);
         if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
 
-        hasRole[roleId][user] = true;
-        roleStakes[roleId][user] = stakeAmount;
-        roleMembers[roleId].push(user);
-        roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
+        if (!alreadyHasRole) {
+            // First time registration: Full flow
+            hasRole[roleId][user] = true;
+            roleStakes[roleId][user] = stakeAmount;
+            roleMembers[roleId].push(user);
+            roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
+            
+            // Lock stake with entryBurn for first-time registration
+            GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
+        }
+        
+        // Always update metadata (supports multiple communities)
         roleMetadata[roleId][user] = roleData;
 
-        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
-        
+        // Always call MySBT.mintForRole (idempotent at MySBT level)
+        // MySBT will mint new SBT on first call, add membership on subsequent calls
         bytes memory sbtData = _convertRoleDataForSBT(roleId, user, roleData);
-        (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, sbtData);
+        (uint256 sbtTokenId, bool isNewMint) = MYSBT.mintForRole(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
 
         _postRegisterRole(roleId, user, roleData);
 
-        emit RoleRegistered(roleId, user, config.entryBurn, block.timestamp);
+        // Emit event with 0 burn for re-registration
+        emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.entryBurn, block.timestamp);
     }
 
     function registerRoleSelf(bytes32 roleId, bytes calldata roleData) external returns (uint256 sbtTokenId) {

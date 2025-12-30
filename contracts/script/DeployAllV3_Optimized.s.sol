@@ -34,11 +34,34 @@ contract MockERC20_Optimized is Script {
         emit Transfer(address(0), to, amount);
     }
 
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "ERC20: transfer amount exceeds balance");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(balanceOf[from] >= amount, "ERC20: transfer amount exceeds balance");
+        require(allowance[from][msg.sender] >= amount, "ERC20: transfer amount exceeds allowance");
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(from, to, amount);
+        return true;
+    }
+
     function mint(address to, uint256 amount) public {
         _mint(to, amount);
     }
 }
-
 
 contract DeployAllV3_Optimized is Script {
 
