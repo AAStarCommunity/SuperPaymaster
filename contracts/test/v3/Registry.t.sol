@@ -134,8 +134,9 @@ contract RegistryTest is Test {
         // Asserts
         assertTrue(registry.hasRole(ROLE_ENDUSER, user));
         assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0.3 ether);
-        // Community burned 3 ether + user burned 0.05 ether = 3.05 ether total
-        assertEq(gtoken.balanceOf(0x000000000000000000000000000000000000dEaD), 3.05 ether);
+        
+        // ✅ Verify TRUE BURN: blackhole should be empty (no longer used)
+        assertEq(gtoken.balanceOf(0x000000000000000000000000000000000000dEaD), 0, "Blackhole should be empty");
         
         vm.stopPrank();
     }

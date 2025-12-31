@@ -4,14 +4,20 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IGTokenStakingV3.sol";
 
 /**
- * @title GTokenStaking v3.0.0
- * @notice Unified Role-Based Staking System
+ * @title GTokenStaking v3.1.0
+ * @notice Unified Role-Based Staking System with True Burn
  * @dev Replaces v2 locker system with role-based locking
  *      Strictly couples staking with Registry roles
+ *      
+ * Version 3.1.0 Changes:
+ * - Entry burn now uses true token destruction (ERC20Burnable.burn)
+ * - totalSupply decreases on burn, creating auto-remint capacity
+ * - Removed blackhole transfer (0xdead) pattern
  */
 contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     using SafeERC20 for IERC20;
@@ -20,9 +26,8 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // Constants
     // ====================================
 
-    string public constant VERSION = "3.0.0";
-    uint256 public constant VERSION_CODE = 30000;
-    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
+    string public constant VERSION = "3.1.0";
+    uint256 public constant VERSION_CODE = 30100;
 
     // ====================================
     // Storage
@@ -82,7 +87,8 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
 
     /**
      * @notice Lock stake for a role (Registry only)
-     * @dev Transfers tokens, burns entry fee, locks remainder
+     * @dev Transfers tokens, burns entry fee (TRUE BURN), locks remainder
+     * @custom:burn Entry burn uses ERC20Burnable.burn() to decrease totalSupply
      */
     function lockStake(
         address user,
@@ -98,9 +104,9 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
         // Transfer GToken from PAYER (stake + burn)
         GTOKEN.safeTransferFrom(payer, address(this), totalAmount);
         
-        // Handle entry burn
+        // Handle entry burn: TRUE BURN (totalSupply decreases)
         if (entryBurn > 0) {
-            GTOKEN.safeTransfer(BURN_ADDRESS, entryBurn);
+            ERC20Burnable(address(GTOKEN)).burn(entryBurn);
             emit TokensBurned(user, roleId, entryBurn, "Entry Burn");
         }
         
