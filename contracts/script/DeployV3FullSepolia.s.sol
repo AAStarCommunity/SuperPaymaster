@@ -10,6 +10,13 @@ import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/monitoring/BLSAggregatorV3.sol";
+import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/tokens/xPNTsFactory.sol";
+import "src/paymasters/v4/PaymasterV4.sol";
+import "src/paymasters/v4/PaymasterV4_1i.sol";
+import "src/paymasters/v4/core/PaymasterFactory.sol";
+import "src/modules/validators/BLSValidator.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
@@ -75,6 +82,71 @@ contract DeployV3FullSepolia is Script {
         registry.setReputationSource(address(repSystem), true);
         apnts.setSuperPaymasterAddress(address(paymaster));
 
+        // 7. DVT & BLS Infrastructure
+        // 7.1 BLS Aggregator (Threshold 3)
+        BLSAggregatorV3 aggregator = new BLSAggregatorV3(address(registry), address(paymaster), address(0));
+        aggregator.setThreshold(3);
+        registry.setBLSAggregator(address(aggregator));
+        console.log("BLSAggregator:", address(aggregator));
+
+        // 7.2 DVT Validator
+        DVTValidatorV3 dvt = new DVTValidatorV3(address(registry));
+        dvt.setBLSAggregator(address(aggregator));
+        console.log("DVTValidator:", address(dvt));
+
+        // 7.3 BLS Validator Strategy
+        BLSValidator blsValidator = new BLSValidator();
+        registry.setBLSValidator(address(blsValidator));
+        console.log("BLSValidator:", address(blsValidator));
+
+        // 7.4 xPNTs Factory
+        xPNTsFactory factory = new xPNTsFactory(address(paymaster), address(registry));
+        console.log("xPNTsFactory:", address(factory));
+
+        // 8. Paymaster V4 Ecosystem
+        PaymasterV4 paymasterV4 = new PaymasterV4(
+            entryPointAddr,
+            deployer,
+            deployer, // Treasury
+            priceFeedAddr,
+            1000, // 10% Service Fee
+            1 ether, // Max Cost Cap
+            address(factory)
+        );
+        console.log("PaymasterV4:", address(paymasterV4));
+
+        PaymasterFactory pmFactory = new PaymasterFactory();
+        PaymasterV4_1i v41i = new PaymasterV4_1i();
+        pmFactory.addImplementation("v4.1i", address(v41i));
+        console.log("PaymasterFactory:", address(pmFactory));
+
+        // 9. Configuration & Wiring
+        bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+        bytes32 ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+        bytes32 ROLE_ANODE = keccak256("ANODE");
+        bytes32 ROLE_KMS = keccak256("KMS");
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        
+        staking.setRoleExitFee(ROLE_PAYMASTER_AOA, 1000, 1 ether);
+        staking.setRoleExitFee(ROLE_PAYMASTER_SUPER, 1000, 2 ether);
+        staking.setRoleExitFee(ROLE_ANODE, 1000, 1 ether);
+        staking.setRoleExitFee(ROLE_KMS, 1000, 5 ether);
+        staking.setRoleExitFee(ROLE_COMMUNITY, 1000, 0.5 ether);
+        staking.setRoleExitFee(ROLE_ENDUSER, 1000, 0.05 ether);
+
+        // 10. Bootstrap Operator (Deployer)
+        gtoken.mint(deployer, 5000 ether);
+        gtoken.approve(address(staking), 5000 ether);
+
+        bytes memory opData = abi.encode(
+            Registry.CommunityRoleData("Sepolia Operator", "sepolia.eth", "https://sepolia.etherscan.io", "Sepolia Hub", "", 30 ether)
+        );
+        registry.registerRole(ROLE_COMMUNITY, deployer, opData);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
+        
+        apnts.mint(address(paymaster), 1000 ether); // Initial credit
+
         vm.stopBroadcast();
         
         console.log("\n=== Deployment Complete ===");
@@ -88,6 +160,7 @@ contract DeployV3FullSepolia is Script {
         console.log("SUPERPAYMASTER_ADDRESS=", address(paymaster));
 
         // Generate script/v3/config.json for automatic sync
+        // Generate script/v3/config.json with extended data
         string memory jsonObj = "json";
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
@@ -96,12 +169,16 @@ contract DeployV3FullSepolia is Script {
         vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
         vm.serializeAddress(jsonObj, "sbt", address(mysbt));
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
-        // Add placeholders for optional modules not in basic deploy, or remove from sync script
-        // Note: Full deploy script might need DVT/BLS/Factories if they are part of "Full"
-        // Based on current file content, they are NOT deployed here.
-        // We will output what we validly have.
         
-        string memory finalJson = vm.serializeAddress(jsonObj, "paymasterV4", address(0)); // Placeholder if needed
+        // New Modules
+        vm.serializeAddress(jsonObj, "dvtValidator", address(dvt));
+        vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
+        vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
+        vm.serializeAddress(jsonObj, "xPNTsFactory", address(factory));
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory));
+        vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
+        
+        string memory finalJson = vm.serializeAddress(jsonObj, "paymasterV4", address(paymasterV4));
         vm.writeFile("script/v3/config.json", finalJson);
         console.log("Generated script/v3/config.json");
     }
