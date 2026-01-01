@@ -485,7 +485,7 @@ contract CoverageSupplementTest is Test {
         paymaster.depositFor(operator, 100 ether);
         
         // Verify
-        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
+        (uint128 bal,,,,,,,,,) = paymaster.operators(operator);
         assertEq(bal, 100 ether);
         vm.stopPrank();
     }

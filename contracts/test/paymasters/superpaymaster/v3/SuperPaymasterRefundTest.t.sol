@@ -82,7 +82,7 @@ contract SuperPaymasterRefundTest is Test {
         assertTrue(context.length > 0, "Context should be returned");
         
         // Check Operator Balance decreased by Max (logic: Pre-charge)
-        (uint128 balanceAfterValidate,,,,,,,,) = paymaster.operators(operator);
+        (uint128 balanceAfterValidate,,,,,,,,,) = paymaster.operators(operator);
         // Initial 100 - Charge?
         // We need to know specific aPNTs conversion.
         // Price: $2000 ETH. $0.02 aPNTs.
@@ -98,7 +98,7 @@ contract SuperPaymasterRefundTest is Test {
         vm.prank(entryPoint);
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, actualCost, 0);
         
-        (uint128 balanceFinal,,,,,,,,) = paymaster.operators(operator);
+        (uint128 balanceFinal,,,,,,,,,) = paymaster.operators(operator);
         console.log("Balance Final:", balanceFinal);
         
         // Expected:

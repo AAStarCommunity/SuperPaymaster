@@ -9,6 +9,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 // Mock Contracts
 // Mock Contracts
@@ -31,9 +32,13 @@ contract MockRegistry is IRegistryV3 {
         return _roleOwners[roleId];
     }
     
-    function setRoleOwner(bytes32 roleId, address owner) external {
+    function setRoleOwner(bytes32 roleId, address owner) external override {
         _roleOwners[roleId] = owner;
     }
+    
+    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
+    function setCreditTier(uint256, uint256) external override {}
+    function setReputationSource(address, bool) external override {}
 
     function grantRole(bytes32 role, address account) external {
         roles[role][account] = true;
@@ -63,16 +68,10 @@ contract MockRegistry is IRegistryV3 {
 
     function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     
-    function getCreditLimit(address user) external view override returns (uint256) { 
-        return creditLimits[user]; 
-    }
-
-    // New V3.1 Admin Functions
-    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
-    function setReputationSource(address, bool) external override {}
-    function setCreditTier(uint256, uint256) external override {}
-    function version() external view override returns (string memory) { return "MockRegistry"; }
-}
+        function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
+        function isReputationSource(address) external pure override returns (bool) { return true; }
+        function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
+        function version() external view override returns (string memory) { return "MockRegistryV3"; }}
 
 contract MockAggregatorV3 is AggregatorV3Interface {
     int256 public price;
@@ -118,7 +117,8 @@ contract SuperPaymasterV3Test is Test {
     MockEntryPoint entryPoint;
     
     address owner = address(1);
-    address operator = address(2);
+    uint256 operatorPk = 0xA11CE;
+    address operator = vm.addr(0xA11CE);
     address user = address(3);
     address treasury = address(4);
 
@@ -185,8 +185,16 @@ contract SuperPaymasterV3Test is Test {
         assertEq(paymaster.totalTrackedBalance(), 100 ether, "Total Tracked Mismatch");
 
         (
-            uint128 v1_bal, uint96 v2_rate, bool v3_conf, 
-            bool v4_pause, address v5_token, uint32 v6_rep, address v7_treas, uint256 v8_spent, uint256 v9_count
+            uint128 v1_bal,
+            uint96 v2_rate,
+            bool v3_conf,
+            bool v4_pause,
+            address v5_token,
+            uint32 v6_rep,
+            uint48 v6_minTx,
+            address v7_treas,
+            uint256 v8_spent,
+            uint256 v9_count
         ) = paymaster.operators(operator);
         
         // v1 is aPNTsBalance (100 ether) in new packed layout.
@@ -236,7 +244,7 @@ contract SuperPaymasterV3Test is Test {
 
         paymaster.withdraw(50 ether);
         
-        (uint128 bal,,,,,,,,) = paymaster.operators(operator); 
+        (uint128 bal,,,,,,,,,) = paymaster.operators(operator); 
         assertEq(bal, 50 ether);
         assertEq(apnts.balanceOf(operator), 950 ether);
         vm.stopPrank();
@@ -245,7 +253,7 @@ contract SuperPaymasterV3Test is Test {
     function testConfigureOperator() public {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
-        (,,,, address token,,,,) = paymaster.operators(operator); 
+        (,,,, address token,,,,,) = paymaster.operators(operator); 
         assertEq(token, address(apnts));
         vm.stopPrank();
     }
@@ -256,12 +264,12 @@ contract SuperPaymasterV3Test is Test {
         
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MINOR, 0, "Test Minor");
-        (,,,,, uint32 repMinor,,,) = paymaster.operators(operator); 
+        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator); 
         assertEq(repMinor, 80);
 
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MAJOR, 0, "Test Major");
-        (,,,,, uint32 repMajor,,,) = paymaster.operators(operator); 
+        (,,,,, uint32 repMajor,,,,) = paymaster.operators(operator); 
         assertEq(repMajor, 30);
         
         vm.stopPrank();
@@ -284,21 +292,7 @@ contract SuperPaymasterV3Test is Test {
         // 2. Mock Validation Call
         vm.startPrank(address(entryPoint));
         
-        PackedUserOperation memory op = PackedUserOperation({
-            sender: user,
-            nonce: 0,
-            initCode: "",
-            callData: "",
-            accountGasLimits: bytes32(0),
-            preVerificationGas: 0,
-            gasFees: bytes32(0),
-            paymasterAndData: abi.encodePacked(
-                address(paymaster),
-                uint256(0), 
-                operator    
-            ),
-            signature: ""
-        });
+        PackedUserOperation memory op = _createOp(user);
         
         // Use 1 ether prefund to guarantee > 0 revenue
         try paymaster.validatePaymasterUserOp(op, bytes32(0), 1 ether) {
@@ -316,7 +310,7 @@ contract SuperPaymasterV3Test is Test {
         // Struct: 6=Balance, 7=TotalSpent. 
         // Tuple: (v1..v9).
         // If v6 is Balance, then v7 is TotalSpent.
-        (,,,,,,, uint256 spent,) = paymaster.operators(operator); 
+        (,,,,,,,, uint256 spent,) = paymaster.operators(operator); 
         
         uint256 revenue = paymaster.protocolRevenue();
         console.log("Revenue detected:", revenue);
@@ -367,22 +361,39 @@ contract SuperPaymasterV3Test is Test {
     }
 
     function _createOp(address sender) internal view returns (PackedUserOperation memory) {
-        return PackedUserOperation({
-            sender: sender,
-            nonce: 0,
-            initCode: "",
-            callData: "",
-            accountGasLimits: bytes32(abi.encodePacked(uint128(100000), uint128(100000))),
-            preVerificationGas: 21000,
-            gasFees: bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei))),
-            paymasterAndData: abi.encodePacked(
-                address(paymaster),
-                uint128(100000), // gasLimit
-                uint128(0),      // postOpGas
-                operator         // PaymasterData: Operator (Packed 20 bytes)
-            ),
-            signature: ""
-        });
+        PackedUserOperation memory op;
+        op.sender = sender;
+        op.nonce = 0;
+        op.initCode = "";
+        op.callData = "";
+        op.accountGasLimits = bytes32(abi.encodePacked(uint128(100000), uint128(100000)));
+        op.preVerificationGas = 21000;
+        op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
+        
+        // paymasterAndData: [PM][Limit][Post][Op][Rate] (104 bytes)
+        bytes memory pmData = abi.encodePacked(
+            address(paymaster),
+            uint128(100000), 
+            uint128(0),      
+            operator,
+            type(uint256).max // MaxRate
+        );
+        
+        bytes32 hash = keccak256(abi.encode(
+            op.sender,
+            op.nonce,
+            keccak256(op.initCode),
+            keccak256(op.callData),
+            op.accountGasLimits,
+            op.preVerificationGas,
+            op.gasFees,
+            keccak256(pmData)
+        ));
+        
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorPk, MessageHashUtils.toEthSignedMessageHash(hash));
+        op.paymasterAndData = abi.encodePacked(pmData, r, s, v);
+        
+        return op;
     }
 
     function test_V31_DebtRecording_OnBurnFail() public {

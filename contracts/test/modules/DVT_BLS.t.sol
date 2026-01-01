@@ -38,6 +38,8 @@ contract MockRegistryV3 is IRegistryV3 {
     function setRoleOwner(bytes32, address) external override {}
     function roleOwners(bytes32) external view override returns (address) { return address(0); }
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
+    function isReputationSource(address) external pure override returns (bool) { return true; }
+    function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
     function version() external view override returns (string memory) { return "MockRegistryV3"; }
 }
 

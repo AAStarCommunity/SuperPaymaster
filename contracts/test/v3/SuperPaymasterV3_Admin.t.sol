@@ -183,7 +183,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
         
-        (,, bool isConfigured, bool isPaused,,,,,) = paymaster.operators(operator1);
+        (,, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
 
@@ -197,7 +197,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
         
-        (,, bool isConfigured, bool isPaused,,,,,) = paymaster.operators(operator1);
+        (,, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
 
@@ -219,7 +219,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(operator1);
         paymaster.configureOperator(xPNTsToken, opTreasury, exchangeRate);
         
-        (, uint96 rate, bool isConfigured, bool isPaused, address token,, address treas, , ) = paymaster.operators(operator1);
+        (, uint96 rate, bool isConfigured, bool isPaused, address token,,, address treas, , ) = paymaster.operators(operator1);
         assertTrue(isConfigured);
         assertEq(token, xPNTsToken);
         assertEq(treas, opTreasury);
@@ -242,7 +242,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(operator1);
         paymaster.deposit(depositAmount);
         
-        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, depositAmount);
     }
 
@@ -264,7 +264,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         uint256 balanceAfter = apnts.balanceOf(operator1);
         assertEq(balanceAfter - balanceBefore, 50 ether);
         
-        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 50 ether);
     }
 
@@ -285,7 +285,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.updateReputation(operator1, 500);
         
-        (,,,,, uint32 reputation,,,) = paymaster.operators(operator1);
+        (,,,,, uint32 reputation,,,,) = paymaster.operators(operator1);
         assertEq(reputation, 500);
     }
 
@@ -311,7 +311,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
             "Test slash"
         );
         
-        (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 aPNTsBalance,,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 990 ether);
         
         assertEq(paymaster.getSlashCount(operator1), 1);

@@ -39,12 +39,14 @@ contract MockRegistry is IRegistryV3 {
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
     function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
-    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 0; }
     function setCreditTier(uint256, uint256) external override {}
     function setRoleOwner(bytes32, address) external override {}
+    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     function roleOwners(bytes32) external view override returns (address) { return address(0); }
-    function version() external view override returns (string memory) { return "MockRegistry"; }
+    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
+    function isReputationSource(address) external pure override returns (bool) { return true; }
+    function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
+    function version() external view override returns (string memory) { return "MockRegistryV3"; }
 }
 
 /**
