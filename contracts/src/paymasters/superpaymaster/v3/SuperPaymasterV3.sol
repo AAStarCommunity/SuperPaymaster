@@ -49,6 +49,13 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     // Slash History
     mapping(address => ISuperPaymasterV3.SlashRecord[]) public slashHistory;
     
+    // V3.2: Security & Rate Limiting
+    mapping(address => mapping(address => bool)) public blockedUsers; // operator -> user -> isBlocked
+    mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // operator -> user -> timestamp
+
+    event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
+    event OperatorMinTxIntervalUpdated(address indexed operator, uint48 newInterval);
+    
     // V3.2: Debt Tracking (Moved to xPNTsToken)
     // mapping(address => uint256) public userDebts; // Removed in V3.2
     
@@ -56,7 +63,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     
     // Pricing Config
     function version() external pure override returns (string memory) {
-        return "SuperPaymaster-3.1.0";
+        return "SuperPaymaster-3.2.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -200,6 +207,45 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         } else {
             emit OperatorUnpaused(operator);
         }
+    }
+
+    /**
+     * @notice Set operator limits (e.g. Rate Limiting)
+     */
+    function setOperatorLimits(uint48 _minTxInterval) external {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        operators[msg.sender].minTxInterval = _minTxInterval;
+        emit OperatorMinTxIntervalUpdated(msg.sender, _minTxInterval);
+    }
+
+    /**
+     * @notice Batch update blocked status for users (Called by Registry via DVT)
+     * @dev Allows DVT to sync credit-exhausted users to Paymaster blacklist
+     */
+    function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external {
+        if (msg.sender != address(REGISTRY)) revert Unauthorized();
+        if (users.length != statuses.length) revert InvalidConfiguration();
+
+        for (uint256 i = 0; i < users.length; i++) {
+            blockedUsers[operator][users[i]] = statuses[i];
+            emit UserBlockedStatusUpdated(operator, users[i], statuses[i]);
+        }
+    }
+
+    /**
+     * @notice Update price via DVT signature (Future Proofing)
+     * @dev Currently restricted to Owner, can be expanded to BLS Aggregator later
+     */
+    function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata /* proof */) external onlyOwner {
+         // In future: verify proof from BLS_AGGREGATOR
+         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
+         
+         cachedPrice = PriceCache({
+            price: price,
+            updatedAt: updatedAt,
+            roundId: 0, // DVT doesn't have Chainlink RoundID
+            decimals: 8 // Assuming DVT normalizes to 8 decimals
+        });
     }
 
     /**
@@ -533,6 +579,25 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
              return ("", _packValidationData(true, 0, 0)); 
         }
 
+        // V3.2 Security: Check Blocklist & Rate Limit
+        if (blockedUsers[operator][userOp.sender]) {
+             return ("", _packValidationData(true, 0, 0));
+        }
+
+        if (config.minTxInterval > 0) {
+            uint48 lastTime = lastUserOpTimestamp[operator][userOp.sender];
+            uint48 currentTime = uint48(block.timestamp);
+            
+            // Optimization: Allow multiple ops in same block (support Bundles)
+            // Only check interval if time has advanced since last op
+            if (currentTime > lastTime) {
+                if (currentTime < lastTime + config.minTxInterval) {
+                     return ("", _packValidationData(true, 0, 0));
+                }
+            }
+            lastUserOpTimestamp[operator][userOp.sender] = currentTime;
+        }
+
         // 2.1 Validate Rate Commitment (Rug Pull Protection)
         // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
         uint256 maxRate = type(uint256).max;
@@ -634,5 +699,5 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
 
 
 
-    
+
 }

@@ -33,12 +33,17 @@ contract ReputationSystemV3 is Ownable, IReputationCalculator {
     // Entropy Factor: community => factor (scaled by 1e18, 1.0 = baseline)
     mapping(address => uint256) public entropyFactors;
 
+    // Future Extensibility: Explicit storage for community sub-reputation
+    // community => user => score
+    mapping(address => mapping(address => uint256)) public communityReputations;
+
     // NFT Boosts: collection address => bonus points
     mapping(address => uint256) public nftCollectionBoost;
     address[] public boostedCollections;
 
     event RuleUpdated(address indexed community, bytes32 indexed ruleId, uint256 base, uint256 bonus);
     event EntropyFactorUpdated(address indexed community, uint256 factor);
+    event CommunityReputationUpdated(address indexed community, address indexed user, uint256 score);
     event ReputationComputed(address indexed user, uint256 score);
     event NFTBoostAdded(address indexed collection, uint256 boost);
 
@@ -58,6 +63,17 @@ contract ReputationSystemV3 is Ownable, IReputationCalculator {
     function setEntropyFactor(address community, uint256 factor) external onlyOwner {
         entropyFactors[community] = factor;
         emit EntropyFactorUpdated(community, factor);
+    }
+
+    /**
+     * @notice Set specific community reputation score (called by DVT/Trusted Source)
+     * @dev Allows off-chain calculation results to be stored on-chain for specific communities.
+     */
+    function setCommunityReputation(address community, address user, uint256 score) external {
+        // Reuse Registry's reputation source whitelist for access control
+        require(msg.sender == owner() || REGISTRY.isReputationSource(msg.sender), "Unauthorized");
+        communityReputations[community][user] = score;
+        emit CommunityReputationUpdated(community, user, score);
     }
 
     /**

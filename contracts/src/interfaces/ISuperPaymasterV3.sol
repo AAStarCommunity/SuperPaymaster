@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
+
 import "src/interfaces/IVersioned.sol";
 
 /**
@@ -19,6 +22,7 @@ interface ISuperPaymasterV3 is IVersioned {
         // Slot 1: WARM
         address xPNTsToken;
         uint32 reputation;      // Max 4 billion
+        uint48 minTxInterval;   // Min interval between user ops
         
         // Slot 2: COLD
         address treasury;
@@ -88,9 +92,12 @@ interface ISuperPaymasterV3 is IVersioned {
         bool isPaused,
         address xPNTsToken,
         uint32 reputation,
+        uint48 minTxInterval,
         address treasury,
         uint256 totalSpent,
         uint256 totalTxSponsored
     );
+
+    function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
 }

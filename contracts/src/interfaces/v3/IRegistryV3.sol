@@ -186,6 +186,21 @@ interface IRegistryV3 is IVersioned {
     ) external;
 
     /**
+     * @notice Update operator blacklist (via DVT consensus)
+     * @dev Forwards the update to SuperPaymaster
+     * @param operator The operator/community address
+     * @param users List of users to update
+     * @param statuses Blocked status (true = blocked)
+     * @param proof DVT signature proof
+     */
+    function updateOperatorBlacklist(
+        address operator,
+        address[] calldata users,
+        bool[] calldata statuses,
+        bytes calldata proof
+    ) external;
+
+    /**
      * @notice Authorize or revoke a reputation source
      */
     function setReputationSource(address source, bool isActive) external;
@@ -205,6 +220,8 @@ interface IRegistryV3 is IVersioned {
     // ====================================
     // View Functions
     // ====================================
+
+    function isReputationSource(address source) external view returns (bool);
 
     /**
      * @notice Check if user has a specific role

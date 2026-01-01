@@ -8,6 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IRegistryV3.sol";
 import "../interfaces/v3/IGTokenStakingV3.sol";
 import "../interfaces/v3/IMySBTV3.sol";
+import "../interfaces/ISuperPaymasterV3.sol";
 
 interface IBLSAggregator {
     function threshold() external view returns (uint256);
@@ -45,6 +46,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     // --- Storage ---
     IGTokenStakingV3 public GTOKEN_STAKING;
     IMySBTV3 public MYSBT;
+    address public SUPER_PAYMASTER;
     address public blsAggregator;
     IBLSValidator public blsValidator;
 
@@ -159,6 +161,10 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
     function setMySBT(address _mysbt) external onlyOwner {
         MYSBT = IMySBTV3(_mysbt);
+    }
+
+    function setSuperPaymaster(address _sp) external onlyOwner {
+        SUPER_PAYMASTER = _sp;
     }
 
     function setBLSAggregator(address _aggregator) external onlyOwner {
@@ -441,6 +447,30 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
             emit GlobalReputationUpdated(user, newScore, epoch);
         }
+    }
+
+    /**
+     * @notice Update operator blacklist (via DVT consensus)
+     * @dev Forwards the update to SuperPaymaster
+     */
+    function updateOperatorBlacklist(
+        address operator,
+        address[] calldata users,
+        bool[] calldata statuses,
+        bytes calldata proof
+    ) external nonReentrant {
+        if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
+        require(users.length == statuses.length, "Length mismatch");
+        require(SUPER_PAYMASTER != address(0), "SuperPaymaster not set");
+
+        // --- BLS Verification ---
+        if (address(blsValidator) != address(0) && proof.length > 0) {
+             bytes memory message = abi.encode(operator, users, statuses);
+             require(blsValidator.verifyProof(proof, message), "Registry: BLS Verification Failed");
+        }
+
+        // Forward to SuperPaymaster
+        ISuperPaymasterV3(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
     }
 
     function setCreditTier(uint256 level, uint256 limit) external onlyOwner {
