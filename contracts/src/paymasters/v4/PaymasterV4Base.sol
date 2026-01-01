@@ -16,6 +16,7 @@ import { ISBT } from "../../interfaces/ISBT.sol";
 import { PostOpMode } from "../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
+import { IVersioned } from "src/interfaces/IVersioned.sol";
 
 /// @notice Interface for GasToken price query (deprecated, use xPNTs)
 interface IGasTokenPrice {
@@ -30,7 +31,7 @@ using SafeERC20 for IERC20;
 /// @dev Abstract contract - use PaymasterV4_1 (direct) or PaymasterV4_1i (factory)
 /// @dev CHANGED: immutable → storage variables for factory pattern support
 /// @custom:security-contact security@aastar.community
-abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
+abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Constructor for abstract base
     /// @dev Initializes Ownable with msg.sender, actual owner set in _initializeV4Base
     constructor() Ownable(msg.sender) {}
@@ -57,7 +58,9 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard {
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
     /// @notice Contract version
-    string public constant VERSION = "PaymasterV4Base-v1.0.0";
+    function version() external virtual pure returns (string memory) {
+        return "PMV4Base-1.0.0";
+    }
 
     /// @notice Basis points denominator
     uint256 private constant BPS_DENOMINATOR = 10000;

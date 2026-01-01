@@ -26,8 +26,11 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
     // Constants
     // ====================================
 
-    string public constant VERSION = "3.1.0";
-    uint256 public constant VERSION_CODE = 30100;
+
+
+    function version() external pure override returns (string memory) {
+        return "Staking-3.1.0";
+    }
 
     // ====================================
     // Storage

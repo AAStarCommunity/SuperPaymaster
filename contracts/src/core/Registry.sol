@@ -25,8 +25,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     struct KMSRoleData { address kmsContract; string name; string apiEndpoint; bytes32[] supportedAlgos; uint256 maxKeysPerUser; uint256 stakeAmount; }
     struct GenericRoleData { string name; bytes extraData; uint256 stakeAmount; }
 
-    uint256 public constant VERSION_CODE = 30000;
-    string public constant VERSION = "3.0.0";
+
+
+    function version() external pure override returns (string memory) {
+        return "Registry-3.0.0";
+    }
 
     // --- Constants ---
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");

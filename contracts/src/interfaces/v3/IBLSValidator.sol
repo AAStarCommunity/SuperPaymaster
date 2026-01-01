@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-interface IBLSValidator {
+import "src/interfaces/IVersioned.sol";
+
+interface IBLSValidator is IVersioned {
     /**
      * @notice Verifies a robust BLS signature using EIP-2537 or equivalent logic.
      * @param proof Encoded proof data (e.g., [pkG1.x, pkG1.y, sigG2..., msg...])

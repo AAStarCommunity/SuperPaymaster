@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "../interfaces/IERC1363.sol";
+import { IVersioned } from "src/interfaces/IVersioned.sol";
 
 
 /**
@@ -28,7 +29,7 @@ import "../interfaces/IERC1363.sol";
  * 3. SuperPaymaster.burn() is called automatically (no approve needed!)
  * 4. User's aPNTs balance increases by 100
  */
-contract xPNTsToken is ERC20, ERC20Permit {
+contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
 
     // ====================================
     // Storage
@@ -59,18 +60,11 @@ contract xPNTsToken is ERC20, ERC20Permit {
     /// @dev xPNTs amount = aPNTs amount * exchangeRate / 1e18
     uint256 public exchangeRate;
 
-    /// @notice Contract version string
-    string public constant VERSION = "2.2.0-credit"; // Updated for Credit V3.2
-    
-    // ====================================
-    // Debt Storage
-    // ====================================
-    
     /// @notice User debt balance in xPNTs
     mapping(address => uint256) public debts;
-
-    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20100;
+    function version() external pure override returns (string memory) {
+        return "XPNTs-2.2.0-credit";
+    }
 
     // ====================================
     // Events

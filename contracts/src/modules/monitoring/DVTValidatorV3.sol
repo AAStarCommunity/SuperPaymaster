@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "../../interfaces/v3/IRegistryV3.sol";
+import "src/interfaces/IVersioned.sol";
 
 interface IBLSAggregatorV3 {
     function verifyAndExecute(
@@ -21,7 +22,7 @@ interface IBLSAggregatorV3 {
  * @notice Distributed Validator Technology for operator monitoring (V3)
  * @dev Manages slash proposals and coordinates with BLSAggregatorV3.
  */
-contract DVTValidatorV3 is Ownable {
+contract DVTValidatorV3 is Ownable, IVersioned {
 
     struct ValidatorInfo {
         address validatorAddress;
@@ -54,6 +55,10 @@ contract DVTValidatorV3 is Ownable {
 
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistryV3(_registry);
+    }
+
+    function version() external pure override returns (string memory) {
+        return "DVTValidator-0.3.0";
     }
 
     function addValidator(address _v) external onlyOwner {

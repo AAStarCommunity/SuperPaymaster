@@ -4,13 +4,15 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
 import "../../interfaces/v3/IRegistryV3.sol";
+import "../../interfaces/v3/IReputationCalculator.sol";
+import "src/interfaces/IVersioned.sol";
 
 /**
  * @title ReputationSystemV3
  * @notice Advanced reputation calculation and management for the Mycelium Ecosystem.
  * @dev Decoupled scoring logic from storage (Registry V3 holds the final scores).
  */
-contract ReputationSystemV3 is Ownable {
+contract ReputationSystemV3 is Ownable, IReputationCalculator {
 
     struct Rule {
         uint256 baseScore;
@@ -43,6 +45,10 @@ contract ReputationSystemV3 is Ownable {
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistryV3(_registry);
         defaultRule = Rule(10, 1, 100, "Default");
+    }
+
+    function version() external pure override returns (string memory) {
+        return "Reputation-0.3.0";
     }
 
     /**
@@ -86,9 +92,9 @@ contract ReputationSystemV3 is Ownable {
      */
     function computeScore(
         address user, 
-        address[] calldata communities, 
-        bytes32[][] calldata ruleIds, 
-        uint256[][] calldata activities
+        address[] memory communities, 
+        bytes32[][] memory ruleIds, 
+        uint256[][] memory activities
     ) public view returns (uint256 totalScore) {
         for (uint i = 0; i < communities.length; i++) {
             address community = communities[i];
@@ -131,9 +137,9 @@ contract ReputationSystemV3 is Ownable {
      */
     function syncToRegistry(
         address user, 
-        address[] calldata communities, 
-        bytes32[][] calldata ruleIds, 
-        uint256[][] calldata activities, 
+        address[] memory communities, 
+        bytes32[][] memory ruleIds, 
+        uint256[][] memory activities, 
         uint256 epoch,
         bytes calldata proof
     ) external {
@@ -145,5 +151,62 @@ contract ReputationSystemV3 is Ownable {
         
         REGISTRY.batchUpdateGlobalReputation(users, scores, epoch, proof);
         emit ReputationComputed(user, score);
+    }
+
+    /**
+     * @notice IReputationCalculator implementation for MySBT v2.1+
+     */
+    function calculateReputation(
+        address user,
+        address community,
+        uint256 /* sbtTokenId */
+    ) external view override returns (uint256 communityScore, uint256 globalScore) {
+        // Find community rule
+        bytes32[] memory rules = communityActiveRules[community];
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = rules;
+        
+        uint256[][] memory activities = new uint256[][](1);
+        activities[0] = new uint256[](rules.length); // Assuming 1 activity for each rule if we don't know
+        
+        address[] memory communities = new address[](1);
+        communities[0] = community;
+        
+        communityScore = computeScore(user, communities, ruleIds, activities);
+        globalScore = communityScore; // Simplification for now
+    }
+
+    function getReputationBreakdown(
+        address user,
+        address community,
+        uint256 /* sbtTokenId */
+    ) external view override returns (
+        uint256 baseScore,
+        uint256 nftBonus,
+        uint256 activityBonus,
+        uint256 multiplier
+    ) {
+        // Return first active rule's base as hint
+        bytes32[] memory rules = communityActiveRules[community];
+        if (rules.length > 0) {
+            Rule memory r = communityRules[community][rules[0]];
+            baseScore = r.baseScore;
+            activityBonus = r.activityBonus;
+        } else {
+            baseScore = defaultRule.baseScore;
+            activityBonus = defaultRule.activityBonus;
+        }
+        
+        multiplier = entropyFactors[community];
+        if (multiplier == 0) multiplier = 1e18;
+        
+        // Calculate total NFT bonus
+        for (uint i = 0; i < boostedCollections.length; i++) {
+            try IERC721(boostedCollections[i]).balanceOf(user) returns (uint256 balance) {
+                if (balance > 0) {
+                    nftBonus += nftCollectionBoost[boostedCollections[i]];
+                }
+            } catch {}
+        }
     }
 }

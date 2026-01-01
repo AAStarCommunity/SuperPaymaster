@@ -45,4 +45,8 @@ contract BLSValidator is IBLSValidator {
         p.y_a = bytes32(uint256(0x08b3f481e3aaa0f1a09e30ed741d8ae4));
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
+
+    function version() external pure override returns (string memory) {
+        return "BLSValidator-0.3.0";
+    }
 }

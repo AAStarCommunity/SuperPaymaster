@@ -44,6 +44,7 @@ contract MockRegistry is IRegistryV3 {
     function setCreditTier(uint256, uint256) external override {}
     function setRoleOwner(bytes32, address) external override {}
     function roleOwners(bytes32) external view override returns (address) { return address(0); }
+    function version() external view override returns (string memory) { return "MockRegistry"; }
 }
 
 /**
@@ -483,12 +484,10 @@ contract MySBT_Simplified_Test is Test {
     // ====================================
 
     function test_Version() public {
-        assertEq(mysbt.version(), 3001000); // v3.1.0
+        assertEq(mysbt.version(), "MySBT-3.1.0");
     }
 
-    function test_VersionString() public {
-        assertEq(mysbt.versionString(), "v3.1.0");
-    }
+
 
     // ====================================
     // Integration Tests

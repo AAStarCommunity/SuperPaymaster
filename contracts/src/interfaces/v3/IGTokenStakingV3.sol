@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "src/interfaces/IVersioned.sol";
+
 /**
  * @title IGTokenStakingV3
  * @notice GTokenStaking v3 interface with role-based locking
  * @dev Updates v2 interface to use roleId instead of locker addresses
  */
-interface IGTokenStakingV3 {
+interface IGTokenStakingV3 is IVersioned {
     // ====================================
     // Data Structures
     // ====================================

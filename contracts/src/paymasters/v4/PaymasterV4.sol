@@ -17,6 +17,7 @@ import { IMySBT } from "../../interfaces/v3/IMySBT.sol";
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
 import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
+import { IVersioned } from "src/interfaces/IVersioned.sol";
 
 using UserOperationLib for PackedUserOperation;
 using SafeERC20 for IERC20;
@@ -27,7 +28,7 @@ using SafeERC20 for IERC20;
 /// @dev Treasury receives PNT immediately in validatePaymasterUserOp
 /// @dev Supports multiple SBTs and GasTokens for flexibility
 /// @custom:security-contact security@aastar.community
-contract PaymasterV4 is Ownable, ReentrancyGuard {
+contract PaymasterV4 is Ownable, ReentrancyGuard, IVersioned {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -48,7 +49,9 @@ contract PaymasterV4 is Ownable, ReentrancyGuard {
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
     /// @notice Contract version
-    string public constant VERSION = "PaymasterV4-Direct-v1.0.0";
+    function version() external pure override returns (string memory) {
+        return "PMV4-Direct-1.0.0";
+    }
 
     /// @notice Basis points denominator
     uint256 private constant BPS_DENOMINATOR = 10000;

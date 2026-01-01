@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "src/interfaces/IVersioned.sol";
 
 /**
  * @title PaymasterFactory
@@ -16,7 +17,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
  * - Operator → Paymaster mapping for easy tracking
  * - Upgradeable implementation without affecting existing Paymasters
  */
-contract PaymasterFactory is Ownable, ReentrancyGuard {
+contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     using Clones for address;
 
     // ====================================
@@ -24,10 +25,11 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
     // ====================================
 
     /// @notice Contract version (semantic versioning)
-    string public constant VERSION = "1.0.0";
 
-    /// @notice Numeric version code (10000 = 1.0.0)
-    uint256 public constant VERSION_CODE = 10000;
+
+    function version() external pure override returns (string memory) {
+        return "PaymasterFactory-1.0.0";
+    }
 
     // ====================================
     // Storage
@@ -59,12 +61,12 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
     event PaymasterDeployed(
         address indexed operator,
         address indexed paymaster,
-        string version,
+        string _version,
         uint256 timestamp
     );
 
     event ImplementationUpgraded(
-        string indexed version,
+        string indexed _version,
         address indexed oldImplementation,
         address indexed newImplementation
     );
@@ -75,7 +77,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
     );
 
     event ImplementationAdded(
-        string indexed version,
+        string indexed _version,
         address indexed implementation
     );
 
@@ -83,10 +85,10 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
     // Errors
     // ====================================
 
-    error ImplementationNotFound(string version);
+    error ImplementationNotFound(string _version);
     error OperatorAlreadyHasPaymaster(address operator);
     error InvalidImplementation(address implementation);
-    error VersionAlreadyExists(string version);
+    error VersionAlreadyExists(string _version);
     error PaymasterNotFound(address paymaster);
 
     // ====================================
@@ -101,12 +103,12 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Deploy a new Paymaster using minimal proxy pattern
-     * @param version Version of Paymaster implementation to use
+     * @param _version Version of Paymaster implementation to use
      * @param initData Initialization data for the Paymaster
      * @return paymaster Address of the newly deployed Paymaster
      */
     function deployPaymaster(
-        string memory version,
+        string memory _version,
         bytes memory initData
     ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
@@ -117,9 +119,9 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
         }
 
         // Get implementation address
-        address implementation = implementations[version];
+        address implementation = implementations[_version];
         if (implementation == address(0)) {
-            revert ImplementationNotFound(version);
+            revert ImplementationNotFound(_version);
         }
 
         // Deploy minimal proxy using OpenZeppelin Clones
@@ -138,18 +140,18 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
         totalDeployed++;
 
-        emit PaymasterDeployed(operator, paymaster, version, block.timestamp);
+        emit PaymasterDeployed(operator, paymaster, _version, block.timestamp);
     }
 
     /**
      * @notice Deploy Paymaster using deterministic address (CREATE2)
-     * @param version Version of Paymaster implementation
+     * @param _version Version of Paymaster implementation
      * @param salt Salt for deterministic deployment
      * @param initData Initialization data
      * @return paymaster Deterministically deployed Paymaster address
      */
     function deployPaymasterDeterministic(
-        string memory version,
+        string memory _version,
         bytes32 salt,
         bytes memory initData
     ) external nonReentrant returns (address paymaster) {
@@ -159,9 +161,9 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
             revert OperatorAlreadyHasPaymaster(operator);
         }
 
-        address implementation = implementations[version];
+        address implementation = implementations[_version];
         if (implementation == address(0)) {
-            revert ImplementationNotFound(version);
+            revert ImplementationNotFound(_version);
         }
 
         // Deploy with deterministic address
@@ -178,23 +180,23 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
         totalDeployed++;
 
-        emit PaymasterDeployed(operator, paymaster, version, block.timestamp);
+        emit PaymasterDeployed(operator, paymaster, _version, block.timestamp);
     }
 
     /**
      * @notice Predict deterministic Paymaster address
-     * @param version Version to use
+     * @param _version Version to use
      * @param salt Salt for CREATE2
      * @return predicted Predicted Paymaster address
      */
-    function predictPaymasterAddress(string memory version, bytes32 salt)
+    function predictPaymasterAddress(string memory _version, bytes32 salt)
         external
         view
         returns (address predicted)
     {
-        address implementation = implementations[version];
+        address implementation = implementations[_version];
         if (implementation == address(0)) {
-            revert ImplementationNotFound(version);
+            revert ImplementationNotFound(_version);
         }
 
         return implementation.predictDeterministicAddress(salt);
@@ -206,10 +208,10 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Add new implementation version
-     * @param version Version string (e.g., "v1.0", "v2.0")
+     * @param _version Version string (e.g., "v1.0", "v2.0")
      * @param implementation Implementation contract address
      */
-    function addImplementation(string memory version, address implementation)
+    function addImplementation(string memory _version, address implementation)
         external
         onlyOwner
     {
@@ -217,27 +219,27 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
             revert InvalidImplementation(implementation);
         }
 
-        if (implementations[version] != address(0)) {
-            revert VersionAlreadyExists(version);
+        if (implementations[_version] != address(0)) {
+            revert VersionAlreadyExists(_version);
         }
 
-        implementations[version] = implementation;
+        implementations[_version] = implementation;
 
         // Set as default if first version
         if (bytes(defaultVersion).length == 0) {
-            defaultVersion = version;
+            defaultVersion = _version;
         }
 
-        emit ImplementationAdded(version, implementation);
+        emit ImplementationAdded(_version, implementation);
     }
 
     /**
      * @notice Upgrade existing implementation version
-     * @param version Version to upgrade
+     * @param _version Version to upgrade
      * @param newImplementation New implementation address
      * @dev Does NOT affect already deployed Paymasters (immutable proxies)
      */
-    function upgradeImplementation(string memory version, address newImplementation)
+    function upgradeImplementation(string memory _version, address newImplementation)
         external
         onlyOwner
     {
@@ -245,29 +247,29 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
             revert InvalidImplementation(newImplementation);
         }
 
-        address oldImplementation = implementations[version];
+        address oldImplementation = implementations[_version];
         if (oldImplementation == address(0)) {
-            revert ImplementationNotFound(version);
+            revert ImplementationNotFound(_version);
         }
 
-        implementations[version] = newImplementation;
+        implementations[_version] = newImplementation;
 
-        emit ImplementationUpgraded(version, oldImplementation, newImplementation);
+        emit ImplementationUpgraded(_version, oldImplementation, newImplementation);
     }
 
     /**
      * @notice Set default version for deployments
-     * @param version Version string
+     * @param _version Version string
      */
-    function setDefaultVersion(string memory version) external onlyOwner {
-        if (implementations[version] == address(0)) {
-            revert ImplementationNotFound(version);
+    function setDefaultVersion(string memory _version) external onlyOwner {
+        if (implementations[_version] == address(0)) {
+            revert ImplementationNotFound(_version);
         }
 
         string memory oldVersion = defaultVersion;
-        defaultVersion = version;
+        defaultVersion = _version;
 
-        emit DefaultVersionChanged(oldVersion, version);
+        emit DefaultVersionChanged(oldVersion, _version);
     }
 
     // ====================================
@@ -305,17 +307,17 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Get implementation address by version
-     * @param version Version string
+     * @param _version Version string
      * @return implementation Implementation contract address
      */
-    function getImplementation(string memory version)
+    function getImplementation(string memory _version)
         external
         view
         returns (address implementation)
     {
-        implementation = implementations[version];
+        implementation = implementations[_version];
         if (implementation == address(0)) {
-            revert ImplementationNotFound(version);
+            revert ImplementationNotFound(_version);
         }
     }
 
@@ -359,15 +361,15 @@ contract PaymasterFactory is Ownable, ReentrancyGuard {
 
     /**
      * @notice Check if implementation exists for version
-     * @param version Version string
+     * @param _version Version string
      * @return exists True if implementation exists
      */
-    function hasImplementation(string memory version)
+    function hasImplementation(string memory _version)
         external
         view
         returns (bool exists)
     {
-        return implementations[version] != address(0);
+        return implementations[_version] != address(0);
     }
 
     /**

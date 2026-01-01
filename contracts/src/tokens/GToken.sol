@@ -5,10 +5,11 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Capped.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { IVersioned } from "src/interfaces/IVersioned.sol";
 
 /**
  * @title GToken v2.1.0 - Governance Token with Burnable Support
- * @notice ERC20 governance token with minting cap, burn capability, and VERSION tracking
+ * @notice ERC20 governance token with minting cap, burn capability, and version() interface
  * @dev Extends ERC20Capped and ERC20Burnable for complete lifecycle management
  *
  * Version: 2.1.0
@@ -20,13 +21,11 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
  * - Auto-Remint Space: burn() creates new minting capacity
  * - Governance: DAO-controlled minting
  */
-contract GToken is ERC20Capped, ERC20Burnable, Ownable {
+contract GToken is ERC20Capped, ERC20Burnable, Ownable, IVersioned {
 
-    /// @notice Contract version string
-    string public constant VERSION = "2.1.0";
-
-    /// @notice Contract version code (major * 10000 + minor * 100 + patch)
-    uint256 public constant VERSION_CODE = 20100;
+    function version() external pure override returns (string memory) {
+        return "GToken-2.1.0";
+    }
 
     /**
      * @notice Initialize GToken with cap

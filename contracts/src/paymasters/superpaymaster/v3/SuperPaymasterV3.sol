@@ -21,6 +21,8 @@ import "../../../interfaces/ISuperPaymasterV3.sol";
  */
 contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     using SafeERC20 for IERC20;
+    
+
 
 
 
@@ -53,6 +55,10 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     // Pricing Config
     
     // Pricing Config
+    function version() external pure override returns (string memory) {
+        return "SuperPaymaster-3.1.0";
+    }
+
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;

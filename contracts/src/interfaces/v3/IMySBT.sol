@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "src/interfaces/IVersioned.sol";
+
 /**
  * @title IMySBT
  * @notice Interface for MySBT v2.1 - White-label Soul Bound Token
  * @dev One SBT per user, multiple community memberships
  */
-interface IMySBT {
+interface IMySBT is IVersioned {
     // ====================================
     // Structs
     // ====================================
@@ -266,4 +268,6 @@ interface IMySBT {
      * @param registry Registry contract address
      */
     function setRegistry(address registry) external;
+
+
 }

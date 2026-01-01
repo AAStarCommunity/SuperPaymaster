@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "src/interfaces/IVersioned.sol";
+
 /**
  * @title IRegistryV3
  * @notice Registry v3 interface with unified registerRole API
  * @dev Replaces v2's multiple registration functions with single unified entry point
  */
-interface IRegistryV3 {
+interface IRegistryV3 is IVersioned {
     // ====================================
     // Data Structures
     // ====================================
@@ -266,4 +268,6 @@ interface IRegistryV3 {
     function ROLE_ANODE() external view returns (bytes32);
     function ROLE_COMMUNITY() external view returns (bytes32);
     function ROLE_ENDUSER() external view returns (bytes32);
+
+
 }

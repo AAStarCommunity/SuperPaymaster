@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistryV3.sol";
+import "src/interfaces/IVersioned.sol";
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
@@ -19,7 +20,7 @@ interface IDVTValidator {
  * @notice BLS signature aggregation and verification for DVT slash consensus (V3)
  * @dev Aggregates signatures and updates global reputation in Registry V3.
  */
-contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
+contract BLSAggregatorV3 is Ownable, ReentrancyGuard, IVersioned {
 
     // ====================================
     // Structs
@@ -53,7 +54,11 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard {
 
     uint256 public threshold = 7;
     uint256 public constant MAX_VALIDATORS = 13;
-    string public constant VERSION = "3.1.2"; // Bump version
+
+    function version() external pure override returns (string memory) {
+        return "BLSAggregator-3.1.2";
+    }
+
 
     // ====================================
     // Events

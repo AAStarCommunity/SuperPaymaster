@@ -129,8 +129,8 @@ contract PaymasterV4_1i is PaymasterV4Base, Initializable {
     /**
      * @notice Get contract version
      */
-    function version() external pure returns (string memory) {
-        return "PaymasterV4.1i-v1.0.0";
+    function version() external pure override returns (string memory) {
+        return "PMV4.1i-Factory-1.0.0";
     }
 
     /**

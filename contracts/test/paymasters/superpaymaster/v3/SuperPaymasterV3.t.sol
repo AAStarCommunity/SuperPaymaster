@@ -70,8 +70,8 @@ contract MockRegistry is IRegistryV3 {
     // New V3.1 Admin Functions
     function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
-
     function setCreditTier(uint256, uint256) external override {}
+    function version() external view override returns (string memory) { return "MockRegistry"; }
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {

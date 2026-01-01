@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+import "src/interfaces/IVersioned.sol";
 
 /**
  * @title ISuperPaymasterV3 - Multi-tenant SuperPaymaster Interface
  * @notice Interface for SuperPaymaster V3 with per-operator configuration
  */
-interface ISuperPaymasterV3 {
+interface ISuperPaymasterV3 is IVersioned {
     
     enum SlashLevel { WARNING, MINOR, MAJOR }
 
@@ -93,4 +92,5 @@ interface ISuperPaymasterV3 {
         uint256 totalSpent,
         uint256 totalTxSponsored
     );
+
 }

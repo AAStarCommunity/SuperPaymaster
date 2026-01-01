@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/modules/monitoring/BLSAggregatorV3.sol";
+import "src/interfaces/IVersioned.sol";
 
 // Mocks
 contract MockRegistryV3 is IRegistryV3 {
@@ -37,6 +38,7 @@ contract MockRegistryV3 is IRegistryV3 {
     function setRoleOwner(bytes32, address) external override {}
     function roleOwners(bytes32) external view override returns (address) { return address(0); }
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
+    function version() external view override returns (string memory) { return "MockRegistryV3"; }
 }
 
 contract MockSuperPaymasterV3 {

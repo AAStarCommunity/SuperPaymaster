@@ -130,8 +130,8 @@ contract PaymasterV4_1 is PaymasterV4Base {
      * @notice Get contract version
      * @return Version string
      */
-    function version() external pure returns (string memory) {
-        return "PaymasterV4.1-Registry-v1.1.0";
+    function version() external pure override returns (string memory) {
+        return "PMV4.1-Registry-1.1.0";
     }
 
     /**

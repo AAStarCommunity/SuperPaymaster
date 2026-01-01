@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "src/interfaces/IVersioned.sol";
+
 /**
  * @title IReputationCalculator
  * @notice External reputation calculator interface for MySBT v2.1
@@ -17,7 +19,7 @@ pragma solidity ^0.8.23;
  * - Time-decay factors
  * - Community-specific multipliers
  */
-interface IReputationCalculator {
+interface IReputationCalculator is IVersioned {
     /**
      * @notice Calculate reputation scores for a user
      * @param user User address
@@ -58,4 +60,6 @@ interface IReputationCalculator {
         uint256 activityBonus,
         uint256 multiplier
     );
+    
+
 }

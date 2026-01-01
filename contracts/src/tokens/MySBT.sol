@@ -11,7 +11,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
 
 import "../interfaces/v3/IReputationCalculator.sol";
 import "../interfaces/v3/IRegistryV3.sol";
-import "../interfaces/IVersioned.sol";
+import "src/interfaces/IVersioned.sol";
 
 interface ISuperPaymasterCallback {
     function registerSBTHolder(address holder, uint256 tokenId) external;
@@ -120,8 +120,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // State Variables
     // ====================================
 
-    string public constant VERSION = "3.0.0";
-    uint256 public constant VERSION_CODE = 30000;
+
+
 
     mapping(address => uint256) public userToSBT;
     mapping(uint256 => SBTData) public sbtData;
@@ -195,12 +195,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // IVersioned Implementation
     // ====================================
 
-    function version() external pure override returns (uint256) {
-        return 3001000; // v3.1.0
-    }
-
-    function versionString() external pure override returns (string memory) {
-        return "v3.1.0";
+    function version() external pure override returns (string memory) {
+        return "MySBT-3.1.0";
     }
 
     // ====================================

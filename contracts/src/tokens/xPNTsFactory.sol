@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "./xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { IVersioned } from "src/interfaces/IVersioned.sol";
 
 /**
  * @title xPNTsFactory
@@ -24,7 +25,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
  * - Gaming: 200 tx/day * 0.0005 ETH * 30 * 1.5 * 1.5 = 6.75 ETH
  * - Social: 50 tx/day * 0.0003 ETH * 30 * 1.0 * 1.5 = 0.675 ETH
  */
-contract xPNTsFactory is Ownable {
+contract xPNTsFactory is Ownable, IVersioned {
 
     // ====================================
     // Structs
@@ -74,11 +75,11 @@ contract xPNTsFactory is Ownable {
     /// @notice Minimum suggested amount: 100 aPNTs
     uint256 public constant MIN_SUGGESTED_AMOUNT = 100 ether;
 
-    /// @notice Contract version string
-    string public constant VERSION = "2.0.0";
 
-    /// @notice Contract version code (major * 10000 + medium * 100 + minor)
-    uint256 public constant VERSION_CODE = 20000;
+
+    function version() external pure override returns (string memory) {
+        return "xPNTsFactory-2.0.0";
+    }
 
     // ====================================
     // Events
