@@ -208,6 +208,24 @@ contract DeployV3FullLocal is Script {
         PaymasterFactory pmFactory = new PaymasterFactory();
         PaymasterV4_1i v41i = new PaymasterV4_1i();
         pmFactory.addImplementation("v4.1i", address(v41i));
+        
+        // --- V4 Proxy Initialization ---
+        bytes memory init = abi.encodeWithSelector(
+            PaymasterV4_1i.initialize.selector,
+            entryPointAddr,
+            deployer,
+            deployer, // treasury
+            priceFeedAddr,
+            100, // 1%
+            1 ether,
+            0, // minTokenBalance (unused)
+            address(factory),
+            address(mysbt),
+            address(0), // No initial gas token
+            address(registry)
+        );
+        address proxy = pmFactory.deployPaymaster("v4.1i", init);
+        factory.deployxPNTsToken("xPNTs", "xPNTs", "Global", "aastar.eth", 1 ether, proxy);
         vm.stopBroadcast();
 
         // ----------------------------------------
@@ -226,7 +244,8 @@ contract DeployV3FullLocal is Script {
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(factory));
-        vm.serializeAddress(jsonObj, "paymasterV4", address(paymasterV4)); // New V4
+        vm.serializeAddress(jsonObj, "paymasterV4", address(proxy)); // Use Proxy for verification
+        vm.serializeAddress(jsonObj, "paymasterV4Impl", address(paymasterV4)); // Save Impl separately
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
 
         vm.writeFile("script/v3/config.json", finalJson);

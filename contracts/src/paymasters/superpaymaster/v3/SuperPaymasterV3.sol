@@ -546,13 +546,6 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
              return ("", _packValidationData(true, 0, 0)); 
         }
         
-        // 3. User Validation (Credit Limit Check)
-        // NOTE: Strictly this involves external calls (Registry/Token). 
-        // To be 100% 4337 Safe, this should be removed or cached. 
-        // For Phase 2, we keep logic but acknowledge the external call risk.
-        // We optimize by NOT doing it if the user is a known "VIP" or allowed list?
-        // Current: Proceed (External Call kept for business logic).
-        
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
 
         // 4. Solvency Check (Pure Storage)

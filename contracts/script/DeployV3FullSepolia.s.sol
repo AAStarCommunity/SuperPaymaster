@@ -120,15 +120,11 @@ contract DeployV3FullSepolia is Script {
         }
         _save("reputationSystem", addr_repSystem);
 
-        // 5. aPNTs
-        if (addr_apnts == address(0)) {
-            xPNTsToken t = new xPNTsToken("aPNTs", "aPNTs", deployer, "Global", "aastar.eth", 1e18);
-            addr_apnts = address(t);
-            console.log("Deployed aPNTs:", addr_apnts);
-        } else {
-            console.log("Found aPNTs:", addr_apnts);
-        }
         _save("aPNTs", addr_apnts);
+
+        // NOTE: Actual token deployment with paymaster auth happens after paymaster is ready.
+        // For aPNTs (global), we can deploy it with address(0) for paymaster if needed, 
+        // but here we might want to wait for PaymasterV4Proxy.
 
         // 6. SuperPaymaster
         if (addr_sp == address(0)) {
@@ -190,6 +186,11 @@ contract DeployV3FullSepolia is Script {
         // Wire SP to xPNTsFactory
         SuperPaymasterV3(payable(addr_sp)).setXPNTsFactory(addr_xpntsFactory);
 
+        // Wire PMV4 to xPNTsFactory (if PMV4 exists)
+        if (addr_pmV4 != address(0)) {
+            xPNTsFactory(addr_xpntsFactory).addPaymaster(addr_pmV4);
+        }
+
         // 9. Paymaster V4 Stack
         if (addr_pmFactory == address(0)) {
             PaymasterFactory pf = new PaymasterFactory();
@@ -216,9 +217,9 @@ contract DeployV3FullSepolia is Script {
                 100, // 1%
                 1 ether,
                 addr_xpntsFactory,
-                addr_sbt, // Initial SBT
-                address(0), // Initial GasToken
-                addr_registry // Immutable Registry
+                addr_sbt,
+                address(0),
+                addr_registry
              );
              addr_pmV4 = address(impl);
              console.log("Deployed PaymasterV4 (Impl):", addr_pmV4);
@@ -230,11 +231,33 @@ contract DeployV3FullSepolia is Script {
         // Note: Using "paymasterV4" key for Impl to match existing config.
         
         if (addr_pmV4Proxy == address(0)) {
-             bytes memory init = abi.encodeWithSelector(PaymasterV4_2.initialize.selector, deployer);
-             addr_pmV4Proxy = PaymasterFactory(addr_pmFactory).deployPaymaster("v4.0", init);
+             bytes memory init = abi.encodeWithSelector(
+                PaymasterV4_1i.initialize.selector,
+                entryPointAddr,
+                deployer,
+                deployer, // treasury
+                priceFeedAddr,
+                100, // 1%
+                1 ether,
+                0, // minTokenBalance (unused)
+                addr_xpntsFactory,
+                addr_sbt,
+                address(0), // No initial gas token
+                addr_registry
+             );
+             addr_pmV4Proxy = PaymasterFactory(addr_pmFactory).deployPaymaster("v4.1i", init);
              console.log("Deployed PaymasterV4 Proxy:", addr_pmV4Proxy);
+             
+             // Now deploy/authorize xPNTs for this community
+             if (addr_apnts == address(0)) {
+                addr_apnts = xPNTsFactory(addr_xpntsFactory).deployxPNTsToken(
+                    "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy
+                );
+                console.log("Deployed aPNTs via Factory:", addr_apnts);
+             }
         }
         _save("paymasterV4Proxy", addr_pmV4Proxy);
+        _save("aPNTs", addr_apnts);
 
         vm.stopBroadcast();
         

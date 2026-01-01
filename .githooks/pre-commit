@@ -3,6 +3,9 @@
 # SuperPaymaster pre-commit hook
 # Runs the fast bug hunting suite before allowing a commit.
 
+# Robust PATH setup for non-interactive shells
+export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$HOME/.foundry/bin"
+
 echo "🔍 Running pre-commit bug hunting suite..."
 
 # Path to the SDK directory
