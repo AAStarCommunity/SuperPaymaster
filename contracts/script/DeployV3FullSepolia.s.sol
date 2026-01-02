@@ -37,6 +37,7 @@ contract DeployV3FullSepolia is Script {
         string memory root = vm.projectRoot();
         configFile = string.concat(root, "/", vm.envOr("CONFIG_FILE", string("config.json")));
         string memory path = configFile;
+        console.log("Loading Config from:", configFile);
         string memory json = "{}";
         
         try vm.readFile(path) returns (string memory j) { 

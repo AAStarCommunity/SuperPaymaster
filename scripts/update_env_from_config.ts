@@ -26,7 +26,7 @@ async function main() {
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    const envPath = path.join(process.cwd(), '.env');
+    const envPath = path.join(process.cwd(), process.env.TARGET_ENV_FILE || '.env');
     
     let envContent = "";
     if (fs.existsSync(envPath)) {

@@ -4,30 +4,48 @@ set -e
 # Usage: ./run_full_regression.sh --env [anvil|sepolia]
 
 ENV="anvil"
+ENV_FILE=".env.anvil"
+CONFIG_FILE="config.anvil.json"
+
 if [ "$1" == "--env" ]; then
     ENV="$2"
+    if [ "$ENV" == "sepolia" ]; then
+        ENV_FILE=".env.sepolia"
+        CONFIG_FILE="config.sepolia.json"
+    fi
 fi
 
 echo "🚀 SuperPaymaster V3 - Full Regression Suite"
 echo "Target Environment: $ENV"
+echo "Config File: $CONFIG_FILE"
+echo "Env File: $ENV_FILE"
 echo "=================================================="
 
 # Colors
-GREEN='\033[0.32m'
+GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Source env
-if [ -f .env ]; then
+# Source env with export
+if [ -f "$ENV_FILE" ]; then
+    echo "Sourcing $ENV_FILE..."
+    set -a
+    source "$ENV_FILE"
+    set +a
+elif [ -f .env ]; then
+    echo "Sourcing .env (fallback)..."
     source .env
 fi
+
+export CONFIG_FILE
+export TARGET_ENV_FILE="$ENV_FILE"
 
 if [ "$ENV" == "sepolia" ]; then
     echo -e "\n${YELLOW}📡 Executing Sepolia Workflow...${NC}"
     
     # Config Separation Logic
-    export CONFIG_FILE="config.sepolia.json"
+    # (CONFIG_FILE already exported globally)
     if [ ! -f "$CONFIG_FILE" ] && [ -f "config.json" ]; then
         echo "Migrating config.json to $CONFIG_FILE to preserve state..."
         cp config.json $CONFIG_FILE
@@ -39,9 +57,11 @@ if [ "$ENV" == "sepolia" ]; then
     forge script contracts/script/DeployV3FullSepolia.s.sol:DeployV3FullSepolia \
       --rpc-url $SEPOLIA_RPC_URL \
       --broadcast \
-      --slow \
       --verify \
-      --etherscan-api-key $ETHERSCAN_API_KEY
+      --etherscan-api-key $ETHERSCAN_API_KEY \
+      --gas-price 50000000000 \
+      --legacy \
+      --slow
       
     if [ $? -ne 0 ]; then echo -e "${RED}Deployment Failed${NC}"; exit 1; fi
 
@@ -73,7 +93,6 @@ if [ "$ENV" == "sepolia" ]; then
 
 elif [ "$ENV" == "anvil" ]; then
     echo -e "\n${YELLOW}🔨 Executing Anvil Regression...${NC}"
-    export CONFIG_FILE="config.anvil.json"
 
     # 1. Build
     echo -e "\n${YELLOW}Step 1: Building contracts...${NC}"
