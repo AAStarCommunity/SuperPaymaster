@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import { PaymasterV4Base } from "./PaymasterV4Base.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title PaymasterV4_1
@@ -13,7 +14,7 @@ import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol"
  * @dev For direct deployment (constructor-based)
  * @custom:security-contact security@aastar.community
  */
-contract PaymasterV4_2 is PaymasterV4Base {
+contract PaymasterV4_2 is PaymasterV4Base, Initializable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -41,54 +42,17 @@ contract PaymasterV4_2 is PaymasterV4Base {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Initialize PaymasterV4_1
-     * @param _entryPoint EntryPoint contract address (v0.7)
-     * @param _owner Initial owner address
-     * @param _treasury Treasury address for fee collection
-     * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
-     * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
-     * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
-     * @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
-     * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
-     * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
+     * @notice Constructor for Implementation Contract
+     * @dev Sets immutable registry and disables initializers
      * @param _registry SuperPaymasterRegistry contract address (immutable)
      */
-    constructor(
-        address _entryPoint,
-        address _owner,
-        address _treasury,
-        address _ethUsdPriceFeed,
-        uint256 _serviceFeeRate,
-        uint256 _maxGasCostCap,
-        address _xpntsFactory,
-        address _initialSBT,
-        address _initialGasToken,
-        address _registry
-    ) {
-        // Call base initialization
-        _initializeV4Base(
-            _entryPoint,
-            _owner,
-            _treasury,
-            _ethUsdPriceFeed,
-            _serviceFeeRate,
-            _maxGasCostCap,
-            _xpntsFactory
-        );
-
-        // Initialize immutable Registry
+    constructor(address _registry) {
+        // 1. Set immutable Registry
         if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
-        // Add initial SBT if provided
-        if (_initialSBT != address(0)) {
-            _addSBT(_initialSBT);
-        }
-
-        // Add initial GasToken if provided
-        if (_initialGasToken != address(0)) {
-            _addGasToken(_initialGasToken);
-        }
+        // 2. Disable initializers to prevent Implementation takeover
+        _disableInitializers();
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -136,15 +100,53 @@ contract PaymasterV4_2 is PaymasterV4Base {
 
     /**
      * @notice External initializer for Factory Clones
-     * @param _owner Owner address
+     * @param _entryPoint EntryPoint contract address (v0.7)
+     * @param _owner Initial owner address
+     * @param _treasury Treasury address for fee collection
+     * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
+     * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
+     * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
+     * @param _minTokenBalance Minimum token balance (for compatibility)
+     * @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
+     * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
+     * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
      * @dev Must be called by Factory via initData during cloning
      */
-    function initialize(address _owner) external {
-        // Ensure not already initialized (owner should be 0x0 initially)
-        if (owner() != address(0)) {
-            revert PaymasterV4__AlreadyExists(); // Abuse error or create new one: PaymasterV4_2__AlreadyInitialized
+    function initialize(
+        address _entryPoint,
+        address _owner,
+        address _treasury,
+        address _ethUsdPriceFeed,
+        uint256 _serviceFeeRate,
+        uint256 _maxGasCostCap,
+        uint256 _minTokenBalance, // for compatibility
+        address _xpntsFactory,
+        address _initialSBT,
+        address _initialGasToken
+        // _registry removed (Immutable)
+    ) external initializer {
+        // Call base initialization
+        _initializeV4Base(
+            _entryPoint,
+            _owner,
+            _treasury,
+            _ethUsdPriceFeed,
+            _serviceFeeRate,
+            _maxGasCostCap,
+            _xpntsFactory
+        );
+
+        // Registry is immutable in V4.2, set in Impl Constructor.
+
+        // Add initial SBT if provided
+        if (_initialSBT != address(0)) {
+            _addSBT(_initialSBT);
         }
-        _transferOwnership(_owner);
+
+        // Add initial GasToken if provided
+        if (_initialGasToken != address(0)) {
+            _addGasToken(_initialGasToken);
+        }
     }
 
     /**

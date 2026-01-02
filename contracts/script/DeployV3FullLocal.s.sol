@@ -14,7 +14,7 @@ import "src/modules/monitoring/BLSAggregatorV3.sol";
 import "src/modules/monitoring/DVTValidatorV3.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/paymasters/v4/PaymasterV4.sol";
-import "src/paymasters/v4/PaymasterV4_1i.sol";
+import "src/paymasters/v4/PaymasterV4_2.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -56,6 +56,10 @@ contract DeployV3FullLocal is Script {
         uint256 INITIAL_FUNDING_PAYMASTER_DEPOSIT = 1 ether; // Reduced from 10 ether
         address deployer = vm.addr(deployerPK);
         address alice = vm.addr(alicePK);
+
+        string memory root = vm.projectRoot();
+        string memory configFileName = vm.envOr("CONFIG_FILE", string("config.json"));
+        string memory path = string.concat(root, "/", configFileName);
 
         // 0. Fund accounts heavily on local
         vm.deal(deployer, 1000 ether);
@@ -205,13 +209,15 @@ contract DeployV3FullLocal is Script {
         );
 
         // Deploy PaymasterFactory & v4.1i implementation (For Community-led deployment)
+        // Deploy PaymasterFactory & v4.2 implementation
         PaymasterFactory pmFactory = new PaymasterFactory();
-        PaymasterV4_1i v41i = new PaymasterV4_1i();
-        pmFactory.addImplementation("v4.1i", address(v41i));
+        
+        PaymasterV4_2 v42 = new PaymasterV4_2(address(registry));
+        pmFactory.addImplementation("v4.2", address(v42));
         
         // --- V4 Proxy Initialization ---
         bytes memory init = abi.encodeWithSelector(
-            PaymasterV4_1i.initialize.selector,
+            PaymasterV4_2.initialize.selector,
             entryPointAddr,
             deployer,
             deployer, // treasury
@@ -221,10 +227,10 @@ contract DeployV3FullLocal is Script {
             0, // minTokenBalance (unused)
             address(factory),
             address(mysbt),
-            address(0), // No initial gas token
-            address(registry)
+            address(0) // No initial gas token
+            // registry removed
         );
-        address proxy = pmFactory.deployPaymaster("v4.1i", init);
+        address proxy = pmFactory.deployPaymaster("v4.2", init);
         factory.deployxPNTsToken("xPNTs", "xPNTs", "Global", "aastar.eth", 1 ether, proxy);
         vm.stopBroadcast();
 
@@ -248,8 +254,8 @@ contract DeployV3FullLocal is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(paymasterV4)); // Save Impl separately
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
 
-        vm.writeFile("script/v3/config.json", finalJson);
-        console.log("Generated script/v3/config.json");
+        vm.writeFile(path, finalJson);
+        console.log("Generated config at:", path);
 
         console.log("=== Local Beta Environment Ready ===");
         console.log("REGISTRY=", address(registry));

@@ -25,6 +25,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  */
 contract DeployV3FullSepolia is Script {
     using stdJson for string;
+    string internal configFile;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -34,7 +35,8 @@ contract DeployV3FullSepolia is Script {
         console.log("Deployer:", deployer);
 
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/config.json");
+        configFile = string.concat(root, "/", vm.envOr("CONFIG_FILE", string("config.json")));
+        string memory path = configFile;
         string memory json = "{}";
         
         try vm.readFile(path) returns (string memory j) { 
@@ -147,7 +149,9 @@ contract DeployV3FullSepolia is Script {
         GTokenStaking(addr_staking).setRegistry(addr_registry);
         MySBT(addr_sbt).setRegistry(addr_registry);
         Registry(addr_registry).setReputationSource(addr_repSystem, true);
-        xPNTsToken(addr_apnts).setSuperPaymasterAddress(addr_sp);
+        if (addr_apnts != address(0)) {
+            xPNTsToken(addr_apnts).setSuperPaymasterAddress(addr_sp);
+        }
         
         // 7. BLS & DVT
         if (addr_blsAgg == address(0)) {
@@ -187,9 +191,7 @@ contract DeployV3FullSepolia is Script {
         SuperPaymasterV3(payable(addr_sp)).setXPNTsFactory(addr_xpntsFactory);
 
         // Wire PMV4 to xPNTsFactory (if PMV4 exists)
-        if (addr_pmV4 != address(0)) {
-            xPNTsFactory(addr_xpntsFactory).addPaymaster(addr_pmV4);
-        }
+
 
         // 9. Paymaster V4 Stack
         if (addr_pmFactory == address(0)) {
@@ -209,30 +211,18 @@ contract DeployV3FullSepolia is Script {
              // Wait, user said "PaymasterV4_2.sol" in previous scripts.
              // I should verify if PaymasterV4.sol is V4.2. 
              // Logic: I'll use PaymasterV4 from import.
-             PaymasterV4_2 impl = new PaymasterV4_2(
-                entryPointAddr,
-                deployer,
-                deployer,
-                priceFeedAddr,
-                100, // 1%
-                1 ether,
-                addr_xpntsFactory,
-                addr_sbt,
-                address(0),
-                addr_registry
-             );
+             PaymasterV4_2 impl = new PaymasterV4_2(addr_registry);
              addr_pmV4 = address(impl);
-             console.log("Deployed PaymasterV4 (Impl):", addr_pmV4);
+             console.log("Deployed PaymasterV4_2 (Impl):", addr_pmV4);
              
-             PaymasterFactory(addr_pmFactory).addImplementation("v4.0", addr_pmV4);
-             PaymasterFactory(addr_pmFactory).setDefaultVersion("v4.0");
+             PaymasterFactory(addr_pmFactory).addImplementation("v4.2", addr_pmV4);
+             PaymasterFactory(addr_pmFactory).setDefaultVersion("v4.2");
         }
         _save("paymasterV4", addr_pmV4); 
-        // Note: Using "paymasterV4" key for Impl to match existing config.
         
         if (addr_pmV4Proxy == address(0)) {
              bytes memory init = abi.encodeWithSelector(
-                PaymasterV4_1i.initialize.selector,
+                PaymasterV4_2.initialize.selector,
                 entryPointAddr,
                 deployer,
                 deployer, // treasury
@@ -242,18 +232,56 @@ contract DeployV3FullSepolia is Script {
                 0, // minTokenBalance (unused)
                 addr_xpntsFactory,
                 addr_sbt,
-                address(0), // No initial gas token
-                addr_registry
+                address(0) // No initial gas token
+                // registry removed
              );
-             addr_pmV4Proxy = PaymasterFactory(addr_pmFactory).deployPaymaster("v4.1i", init);
-             console.log("Deployed PaymasterV4 Proxy:", addr_pmV4Proxy);
+             // Check if Paymaster already exists for this operator (Factory Restriction: One per Operator)
+             // We do this via low-level staticcall to avoid ABI dependency issues if not 100% matched
+             (bool checkSuccess, bytes memory checkRet) = addr_pmFactory.staticcall(
+                abi.encodeWithSelector(PaymasterFactory.getPaymasterByOperator.selector, deployer)
+             );
              
-             // Now deploy/authorize xPNTs for this community
-             if (addr_apnts == address(0)) {
-                addr_apnts = xPNTsFactory(addr_xpntsFactory).deployxPNTsToken(
-                    "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy
-                );
-                console.log("Deployed aPNTs via Factory:", addr_apnts);
+             address existingProxy = address(0);
+             if (checkSuccess && checkRet.length == 32) {
+                 existingProxy = abi.decode(checkRet, (address));
+             }
+
+             if (existingProxy != address(0)) {
+                 addr_pmV4Proxy = existingProxy;
+                 console.log("Reuse Existing PaymasterV4 Proxy:", addr_pmV4Proxy);
+                 
+                 // Reuse means we skip deployment of Proxy, but we should check aPNTs
+                 if (addr_apnts == address(0)) {
+                    // Try low level call for apnts
+                    (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy));
+                    if (s2) {
+                        addr_apnts = abi.decode(r2, (address));
+                        console.log("Deployed aPNTs via Factory:", addr_apnts);
+                    } else {
+                        console.log("Failed to deploy aPNTs (Low Level)");
+                    }
+                 }
+             } else {
+                 bool success;
+                 bytes memory ret;
+                 // Deploy new if none exists
+                 (success, ret) = addr_pmFactory.call(abi.encodeWithSignature("deployPaymaster(string,bytes)", "v4.2", init));
+                 if (success) {
+                     addr_pmV4Proxy = abi.decode(ret, (address));
+                     console.log("Deployed PaymasterV4 Proxy:", addr_pmV4Proxy);
+                     
+                     if (addr_apnts == address(0)) {
+                        (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy));
+                        if (s2) {
+                            addr_apnts = abi.decode(r2, (address));
+                            console.log("Deployed aPNTs via Factory:", addr_apnts);
+                        } else {
+                            console.log("Failed to deploy aPNTs (Low Level)");
+                        }
+                     }
+                 } else {
+                     console.log("Failed to deploy PaymasterV4 Proxy (Low Level Revert)");
+                 }
              }
         }
         _save("paymasterV4Proxy", addr_pmV4Proxy);
@@ -276,7 +304,7 @@ contract DeployV3FullSepolia is Script {
 
     function _save(string memory key, address val) internal {
         string memory finalJson = vm.serializeAddress("config", key, val);
-        vm.writeFile("config.json", finalJson);
+        vm.writeFile(configFile, finalJson);
     }
 }
 

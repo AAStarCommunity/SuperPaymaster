@@ -19,7 +19,8 @@ contract VerifyV3_1_1 is Script {
 
     function run() external view {
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/config.json");
+        string memory configFileName = vm.envOr("CONFIG_FILE", string("config.json"));
+        string memory path = string.concat(root, "/", configFileName);
         string memory json = vm.readFile(path);
 
         address jason = 0xb5600060e6de5E11D3636731964218E53caadf0E; // Keep hardcoded or load from env?
@@ -104,12 +105,12 @@ contract VerifyV3_1_1 is Script {
         // 3. Operational Checks (SuperPaymaster)
         console.log("\n[3. Operational Checks (SuperPaymaster)]");
         {
-            (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(jason);
-            console.log("Jason Op Balance (aPNTs):", bal / 1e18, "aPNTs");
+            (uint128 bal,,,,,,,,,) = SuperPaymasterV3(sp).operators(jason);
+            console.log("Jason Op Balance (aPNTs):", uint256(bal) / 1e18, "aPNTs");
         }
         {
-            (,,,, , uint256 bal,,,) = SuperPaymasterV3(sp).operators(anni);
-            console.log("Anni Op Balance (aPNTs): ", bal);
+            (uint128 bal,,,,,,,,,) = SuperPaymasterV3(sp).operators(anni);
+            console.log("Anni Op Balance (aPNTs): ", uint256(bal));
         }
 
         // 4. Financial Checks
