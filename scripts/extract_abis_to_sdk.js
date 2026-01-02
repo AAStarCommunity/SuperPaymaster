@@ -12,8 +12,13 @@ const CONTRACTS = [
     { src: 'GToken.sol/GToken.json', dest: 'GToken.json' },
     { src: 'GTokenStaking.sol/GTokenStaking.json', dest: 'GTokenStaking.json' },
     { src: 'MySBT.sol/MySBT.json', dest: 'MySBT.json' },
-    { src: 'PaymasterFactory.sol/PaymasterFactory.json', dest: 'PaymasterFactory.json' }, // Path might be nested
-    { src: 'PaymasterV4_2.sol/PaymasterV4_2.json', dest: 'Paymaster.json' }
+    { src: 'PaymasterFactory.sol/PaymasterFactory.json', dest: 'PaymasterFactory.json' },
+    { src: 'PaymasterV4_2.sol/PaymasterV4_2.json', dest: 'Paymaster.json' },
+    { src: 'xPNTsFactory.sol/xPNTsFactory.json', dest: 'xPNTsFactory.json' },
+    { src: 'xPNTsToken.sol/xPNTsToken.json', dest: 'xPNTs.json' },
+    { src: 'ReputationSystemV3.sol/ReputationSystemV3.json', dest: 'ReputationSystem.json' },
+    { src: 'SimpleAccount.sol/SimpleAccount.json', dest: 'SimpleAccount.json' },
+    { src: 'SimpleAccountFactory.sol/SimpleAccountFactory.json', dest: 'SimpleAccountFactory.json' }
 ];
 
 console.log(`Extracting ABIs from ${SOURCE_DIR} to ${DEST_DIR}`);

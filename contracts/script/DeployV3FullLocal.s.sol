@@ -250,6 +250,7 @@ contract DeployV3FullLocal is Script {
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(factory));
+        vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeAddress(jsonObj, "paymasterV4", address(proxy)); // Use Proxy for verification
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(paymasterV4)); // Save Impl separately
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
@@ -266,5 +267,6 @@ contract DeployV3FullLocal is Script {
         console.log("APNTS=", address(apnts));
         console.log("PAYMASTER=", address(paymaster));
         console.log("PAYMASTER_V4=", address(paymasterV4));
+        console.log("SIMPLE_ACCOUNT_FACTORY=", address(accountFactory));
     }
 }
