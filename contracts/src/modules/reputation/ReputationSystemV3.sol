@@ -225,4 +225,13 @@ contract ReputationSystemV3 is Ownable, IReputationCalculator {
             } catch {}
         }
     }
+
+    /**
+     * @notice Get all active rule IDs for a community
+     * @param community The community address
+     * @return ruleIds Array of active rule identifiers
+     */
+    function getActiveRules(address community) external view returns (bytes32[] memory ruleIds) {
+        return communityActiveRules[community];
+    }
 }
