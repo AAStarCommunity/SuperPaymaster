@@ -47,7 +47,16 @@ contract Check08_Wiring is Script {
         // 4. Business Callback Check
         require(MySBT(sbt).SUPER_PAYMASTER() == superPaymaster, "Check08: MySBT -> SP Callback Failed");
         require(xPNTsFactory(xpntsFactory).SUPERPAYMASTER() == superPaymaster, "Check08: Factory -> SP Failed");
+        require(SuperPaymasterV3(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
 
-        console.log("All 6 Core Wiring Paths Verified Successfully!");
+        // 5. BLS Infrastructure Check
+        address blsAggregator = vm.parseJsonAddress(json, ".blsAggregator");
+        address blsValidator = vm.parseJsonAddress(json, ".blsValidator");
+        
+        // Note: Registry uses camelCase getters for these public variables
+        require(Registry(registry).blsAggregator() == blsAggregator, "Check08: Registry -> BLS Aggregator Failed");
+        require(address(Registry(registry).blsValidator()) == blsValidator, "Check08: Registry -> BLS Validator Failed");
+
+        console.log("All Core & BLS Wiring Paths Verified Successfully!");
     }
 }

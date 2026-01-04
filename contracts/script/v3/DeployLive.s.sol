@@ -111,7 +111,10 @@ contract DeployLive is Script {
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
-        superPaymaster.updatePrice();
+        superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        // try superPaymaster.updatePrice() {} catch {
+        //     console.log("Warning: Oracle update failed during deployment");
+        // }
     }
 
     function _orchestrateRoles() internal {
