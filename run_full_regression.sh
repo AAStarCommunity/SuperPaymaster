@@ -79,6 +79,7 @@ fi
 # --- PHASE 1: DEPLOYMENT ---
 if [ "$SHOULD_DEPLOY" = true ]; then
     echo -e "\n${YELLOW}PHASE 1: Deployment & Infrastructure${NC}"
+
     export CONFIG_FILE="$ENV.json"
     
     if [ "$ENV" == "anvil" ]; then
@@ -90,6 +91,7 @@ if [ "$SHOULD_DEPLOY" = true ]; then
     forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
       --rpc-url "$RPC_URL" \
       --broadcast \
+      --slow \
       --tc "$SCRIPT_NAME" \
       -vv
 else
