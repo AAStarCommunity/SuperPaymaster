@@ -46,21 +46,15 @@ contract MockEntryPoint {
 
 /**
  * @title DeployStandardV3
- * @notice Standardized V3/V4 Deployment Script
+ * @notice Standardized V3/V4 Deployment Script (Environment Strict)
  */
 contract DeployStandardV3 is Script {
-    // -----------------------------------------------------------------------
-    // Config
-    // -----------------------------------------------------------------------
     uint256 deployerPK;
     address deployer;
     address entryPointAddr;
     address priceFeedAddr;
     string configPath;
 
-    // -----------------------------------------------------------------------
-    // Instances
-    // -----------------------------------------------------------------------
     GToken gtoken;
     GTokenStaking staking;
     MySBT mysbt;
@@ -76,64 +70,66 @@ contract DeployStandardV3 is Script {
     PaymasterV4_2 pmV4Impl;
 
     function setUp() public {
-        if (block.chainid == 31337) { 
-            deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-            priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306; 
-            entryPointAddr = 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789; 
-        } else {
-            deployerPK = vm.envOr("PRIVATE_KEY", uint256(0));
-            priceFeedAddr = vm.envOr("ETH_USD_FEED", address(0));
-            entryPointAddr = vm.envOr("ENTRY_POINT", address(0));
+        deployerPK = vm.envOr("PRIVATE_KEY", uint256(0));
+        priceFeedAddr = vm.envOr("ETH_USD_FEED", address(0));
+        entryPointAddr = vm.envOr("ENTRY_POINT", address(0));
+
+        // 严格根据 ChainID 设置默认值
+        if (block.chainid == 31337) { // Anvil
+            if (deployerPK == 0) deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+            // Anvil 下这些地址通常没用，会被 run() 里的 Mock 覆盖
+        } else if (block.chainid == 11155111) { // Sepolia
+            if (priceFeedAddr == address(0)) priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+            if (entryPointAddr == address(0)) entryPointAddr = 0x0000000071727De13552189EF0715af1D2095830; // v0.7
         }
         
-        if (deployerPK != 0) {
-            deployer = vm.addr(deployerPK);
-        }
-
+        require(deployerPK != 0, "Deployer Private Key not set");
+        deployer = vm.addr(deployerPK);
+        
         string memory root = vm.projectRoot();
         string memory configFileName = vm.envOr("CONFIG_FILE", string("config.json"));
         configPath = string.concat(root, "/", configFileName);
     }
 
     function run() external {
-        vm.warp(block.timestamp + 1 days); 
-        
+        // 1. 只有在 Anvil 下才执行 Warp 和 Mock 部署
         if (block.chainid == 31337) {
+            vm.warp(1 days); 
             vm.startBroadcast(deployerPK);
-            MockPriceFeed mockFeed = new MockPriceFeed();
-            priceFeedAddr = address(mockFeed);
-            
-            MockEntryPoint mockEP = new MockEntryPoint();
-            entryPointAddr = address(mockEP);
+            priceFeedAddr = address(new MockPriceFeed());
+            entryPointAddr = address(new MockEntryPoint());
             vm.stopBroadcast();
-            
-            console.log("Anvil: Deployed Mocks (PriceFeed and EntryPoint)");
+            console.log("Anvil: Deployed Mocks and Warped Time");
+        } else {
+            // 在正式网，确保地址有效
+            require(priceFeedAddr.code.length > 0, "PriceFeed not found on this chain");
+            require(entryPointAddr.code.length > 0, "EntryPoint not found on this chain");
+            console.log("Live Network: Using existing infrastructure");
         }
 
         vm.startBroadcast(deployerPK);
 
-        console.log("=== Step 1: Deploy Foundation (Asset Layer) ===");
+        console.log("=== Step 1: Deploy Foundation ===");
         _deployFoundation();
 
-        console.log("=== Step 2: Deploy Core (Logic Layer) ===");
+        console.log("=== Step 2: Deploy Core ===");
         _deployCore();
 
-        console.log("=== Step 3: Deploy Modules (Feature Layer) ===");
+        console.log("=== Step 3: Deploy Modules ===");
         _deployModules();
 
-        console.log("=== Step 4: The Grand Wiring (Interconnection) ===");
+        console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 5: Role Orchestration (Bootstrapping) ===");
+        console.log("=== Step 5: Role Orchestration ===");
         _orchestrateRoles();
 
-        console.log("=== Step 6: Final Verification (Assertions) ===");
+        console.log("=== Step 6: Final Verification ===");
         _verifyWiring();
 
         vm.stopBroadcast();
 
         _generateConfig();
-        console.log("Deployment Complete. Config saved to:", configPath);
     }
 
     function _verifyWiring() internal view {
@@ -143,32 +139,21 @@ contract DeployStandardV3 is Script {
         require(address(superPaymaster.REGISTRY()) == address(registry), "Paymaster Registry Immutable Failed");
         require(mysbt.REGISTRY() == address(registry), "MySBT Registry Wiring Failed");
         require(mysbt.SUPER_PAYMASTER() == address(superPaymaster), "MySBT SP Wiring Failed");
-        
         console.log("All Wiring Assertions Passed!");
     }
 
     function _deployFoundation() internal {
         gtoken = new GToken(21_000_000 * 1e18);
         staking = new GTokenStaking(address(gtoken), deployer);
-        
         uint256 nonce = vm.getNonce(deployer);
         address precomputedRegistry = vm.computeCreateAddress(deployer, nonce + 1);
-        
         mysbt = new MySBT(address(gtoken), address(staking), precomputedRegistry, deployer);
         registry = new Registry(address(gtoken), address(staking), address(mysbt));
     }
 
     function _deployCore() internal {
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        
-        superPaymaster = new SuperPaymasterV3(
-            IEntryPoint(entryPointAddr),
-            deployer,
-            registry,
-            address(apnts),
-            priceFeedAddr,
-            deployer
-        );
+        superPaymaster = new SuperPaymasterV3(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer);
     }
 
     function _deployModules() internal {
@@ -199,13 +184,10 @@ contract DeployStandardV3 is Script {
     function _orchestrateRoles() internal {
         gtoken.mint(deployer, 1000 ether);
         gtoken.approve(address(staking), 1000 ether);
-        
-        bytes memory opData = abi.encode(
-            Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether)
-        );
+        bytes memory opData = abi.encode(Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether));
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, opData);
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
-        IEntryPoint(entryPointAddr).depositTo{value: 0.5 ether}(address(superPaymaster));
+        IEntryPoint(entryPointAddr).depositTo{value: 0.1 ether}(address(superPaymaster));
         apnts.mint(deployer, 1000 ether);
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
@@ -214,17 +196,12 @@ contract DeployStandardV3 is Script {
     function _getChainName(uint256 id) internal pure returns (string memory) {
         if (id == 31337) return "anvil";
         if (id == 11155111) return "sepolia";
-        if (id == 1) return "mainnet";
-        if (id == 10) return "optimism";
-        if (id == 8453) return "base";
         return vm.toString(id);
     }
 
     function _generateConfig() internal {
         string memory chainName = _getChainName(block.chainid);
-        string memory dirPath = string.concat(vm.projectRoot(), "/deployments/");
-        string memory finalPath = string.concat(dirPath, chainName, ".json");
-
+        string memory finalPath = string.concat(vm.projectRoot(), "/deployments/", chainName, ".json");
         string memory jsonObj = "json";
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
@@ -240,15 +217,10 @@ contract DeployStandardV3 is Script {
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
-
         vm.writeFile(finalPath, finalJson);
-        
-        console.log("--- Deployment Summary (%s) ---", chainName);
+        console.log("\n--- Deployment Summary ---");
         console.log("REGISTRY_ADDR=%s", address(registry));
         console.log("SUPER_PAYMASTER_ADDR=%s", address(superPaymaster));
-        console.log("APNTS_ADDR=%s", address(apnts));
-        console.log("STAKING_ADDR=%s", address(staking));
-        console.log("PAYMASTER_V4_IMPL=%s", address(pmV4Impl));
         console.log("Config saved to: %s", finalPath);
     }
 }

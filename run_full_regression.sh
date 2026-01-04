@@ -2,23 +2,38 @@
 set -e
 
 # ==============================================================================
-# SuperPaymaster V3/V4 Full Regression Suite (Enhanced Verification)
+# SuperPaymaster V3/V4 Full Regression Suite (Smart Deployment)
 # ------------------------------------------------------------------------------
-# Usage: ./run_full_regression.sh --env [anvil|sepolia|optimism|mainnet|...]
+# Usage: ./run_full_regression.sh --env [anvil|sepolia|...] [--force]
 # ==============================================================================
 
 ENV="anvil"
 ENV_FILE=".env.anvil"
+FORCE_DEPLOY=false
 
-if [ "$1" == "--env" ]; then
-    ENV="$2"
-    ENV_FILE=".env.$ENV"
-fi
+# Simple argument parsing
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            ENV="$2"
+            ENV_FILE=".env.$ENV"
+            shift 2
+            ;; 
+        --force)
+            FORCE_DEPLOY=true
+            shift
+            ;; 
+        *)
+            shift
+            ;; 
+    esac
+done
 
 CONFIG_FILE="deployments/$ENV.json"
 
 echo "🚀 SuperPaymaster V3/V4 - Full Regression Suite"
 echo "Target Environment: $ENV"
+echo "Force Redeploy: $FORCE_DEPLOY"
 echo "=================================================="
 
 # Colors
@@ -33,8 +48,10 @@ if [ -f "$ENV_FILE" ]; then
     set -a; source "$ENV_FILE"; set +a
 fi
 
-# 2. Start/Check Node
+# 2. Start/Check Node & Determine Deployment Necessity
 ANVIL_PID=""
+SHOULD_DEPLOY=true
+
 if [ "$ENV" == "anvil" ]; then
     echo -e "\n${YELLOW}🔨 Restarting Local Anvil Node...${NC}"
     pkill anvil || true
@@ -42,23 +59,45 @@ if [ "$ENV" == "anvil" ]; then
     ANVIL_PID=$!
     sleep 2
     RPC_URL="http://127.0.0.1:8545"
+    # Anvil 总是重新部署，因为节点状态已被 pkill 清空
+    SHOULD_DEPLOY=true
 else
+    # 检查 RPC_URL
     ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
     VAR_NAME="${ENV_UPPER}_RPC_URL"
     RPC_URL=${!VAR_NAME:-$RPC_URL}
-    if [ -z "$RPC_URL" ]; then echo -e "${RED}Error: RPC_URL not set${NC}"; exit 1; fi
+    if [ -z "$RPC_URL" ]; then echo -e "${RED}Error: RPC_URL for $ENV not set${NC}"; exit 1; fi
+
+    # 智能跳过判断
+    if [ -f "$CONFIG_FILE" ] && [ "$FORCE_DEPLOY" = false ]; then
+        echo -e "${GREEN}Notice: $CONFIG_FILE exists. Skipping deployment phase...${NC}"
+        echo -e "${GREEN}Use --force to trigger a clean redeploy.${NC}"
+        SHOULD_DEPLOY=false
+    fi
 fi
 
 # --- PHASE 1: DEPLOYMENT ---
-echo -e "\n${YELLOW}PHASE 1: Deployment & Infrastructure${NC}"
-export CONFIG_FILE="$ENV.json"
-forge script contracts/script/v3/DeployStandardV3.s.sol:DeployStandardV3 \
-  --rpc-url "$RPC_URL" \
-  --broadcast \
-  --tc DeployStandardV3 \
-  -vv
+if [ "$SHOULD_DEPLOY" = true ]; then
+    echo -e "\n${YELLOW}PHASE 1: Deployment & Infrastructure${NC}"
+    export CONFIG_FILE="$ENV.json"
+    
+    if [ "$ENV" == "anvil" ]; then
+        SCRIPT_NAME="DeployAnvil"
+    else
+        SCRIPT_NAME="DeployLive"
+    fi
+
+    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
+      --rpc-url "$RPC_URL" \
+      --broadcast \
+      --tc "$SCRIPT_NAME" \
+      -vv
+else
+    echo -e "\n${GREEN}PHASE 1: Skipping Deployment (Existing deployment found)${NC}"
+fi
 
 # --- PHASE 2: ARTIFACT EXTRACTION ---
+# 无论是否重新部署，都建议提取 ABI 以确保与本地代码同步
 echo -e "\n${YELLOW}PHASE 2: ABI & Metadata Extraction${NC}"
 if [ -f "scripts/extract_v3_abis.sh" ]; then
     ./scripts/extract_v3_abis.sh
@@ -66,10 +105,10 @@ else
     echo -e "${RED}Missing scripts/extract_v3_abis.sh${NC}"; exit 1
 fi
 
-# --- PHASE 3: RIGOROUS VERIFICATION (NEW) ---
+# --- PHASE 3: RIGOROUS VERIFICATION ---
+# 始终运行验证，确保环境（不论新旧）是健康的
 echo -e "\n${YELLOW}PHASE 3: On-Chain Logic & Wiring Audit${NC}"
 
-# 运行逐个组件的 Check 脚本
 CHECK_SCRIPTS=(
     "Check04_Registry"
     "Check01_GToken"
@@ -77,11 +116,14 @@ CHECK_SCRIPTS=(
     "Check03_MySBT"
     "Check07_SuperPaymaster"
     "Check08_Wiring"
+    "VerifyV3_1_1"
 )
+
+# 确保 Check 脚本能找到正确的 config
+export CONFIG_FILE="$ENV.json"
 
 for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
     echo "🔍 Running $SCRIPT..."
-    # 使用刚刚生成的 config 文件进行验证
     forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" \
       --rpc-url "$RPC_URL" \
       -vv || (echo -e "${RED}$SCRIPT Failed!${NC}"; exit 1)
@@ -92,12 +134,12 @@ echo -e "${GREEN}✅ All contract logic checks passed!${NC}"
 # --- PHASE 4: ENVIRONMENT SYNC ---
 echo -e "\n${YELLOW}PHASE 4: SDK & Env Synchronization${NC}"
 if [ -f "scripts/update_env_from_config.ts" ]; then
-    pnpm tsx scripts/update_env_from_config.ts --config "$CONFIG_FILE" --output "$ENV_FILE"
+    # 显式传递参数以防万一
+    pnpm tsx scripts/update_env_from_config.ts --config "$ENV.json" --output "$ENV_FILE"
 fi
 
-# 如果存在测试环境初始化脚本，则运行它（用于准备 SDK 测试数据）
-if [ -f "scripts/setup_test_environment.ts" ]; then
-    echo "🛠 Initializing SDK Test Environment..."
+if [ -f "scripts/setup_test_environment.ts" ] && [ "$SHOULD_DEPLOY" = true ]; then
+    echo "🛠 Initializing SDK Test Environment Data..."
     pnpm tsx scripts/setup_test_environment.ts
 fi
 
@@ -107,4 +149,4 @@ if [ -n "$ANVIL_PID" ]; then
     kill $ANVIL_PID
 fi
 
-echo -e "\n${GREEN}✨ REGRESSION COMPLETE: SYSTEM IS STABLE ✨${NC}"
+echo -e "\n${GREEN}✨ REGRESSION FOR $ENV COMPLETE: SYSTEM IS STABLE ✨${NC}"
