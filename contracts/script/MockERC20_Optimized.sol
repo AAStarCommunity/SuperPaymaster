@@ -7,7 +7,7 @@ import "src/core/Registry.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
 import "src/core/GTokenStaking.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // This is a mock ERC20 token for testing purposes, specifically for aPNTs.

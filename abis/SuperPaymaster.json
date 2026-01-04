@@ -15,7 +15,7 @@
       {
         "name": "_registry",
         "type": "address",
-        "internalType": "contract IRegistryV3"
+        "internalType": "contract IRegistry"
       },
       {
         "name": "_apntsToken",
@@ -173,7 +173,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IRegistryV3"
+        "internalType": "contract IRegistry"
       }
     ],
     "stateMutability": "view"
@@ -342,7 +342,7 @@
       {
         "name": "level",
         "type": "uint8",
-        "internalType": "enum ISuperPaymasterV3.SlashLevel"
+        "internalType": "enum ISuperPaymaster.SlashLevel"
       },
       {
         "name": "proof",
@@ -404,7 +404,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct ISuperPaymasterV3.SlashRecord",
+        "internalType": "struct ISuperPaymaster.SlashRecord",
         "components": [
           {
             "name": "timestamp",
@@ -429,7 +429,7 @@
           {
             "name": "level",
             "type": "uint8",
-            "internalType": "enum ISuperPaymasterV3.SlashLevel"
+            "internalType": "enum ISuperPaymaster.SlashLevel"
           }
         ]
       }
@@ -469,7 +469,7 @@
       {
         "name": "",
         "type": "tuple[]",
-        "internalType": "struct ISuperPaymasterV3.SlashRecord[]",
+        "internalType": "struct ISuperPaymaster.SlashRecord[]",
         "components": [
           {
             "name": "timestamp",
@@ -494,7 +494,7 @@
           {
             "name": "level",
             "type": "uint8",
-            "internalType": "enum ISuperPaymasterV3.SlashLevel"
+            "internalType": "enum ISuperPaymaster.SlashLevel"
           }
         ]
       }
@@ -845,7 +845,7 @@
       {
         "name": "level",
         "type": "uint8",
-        "internalType": "enum ISuperPaymasterV3.SlashLevel"
+        "internalType": "enum ISuperPaymaster.SlashLevel"
       }
     ],
     "stateMutability": "view"
@@ -862,7 +862,7 @@
       {
         "name": "level",
         "type": "uint8",
-        "internalType": "enum ISuperPaymasterV3.SlashLevel"
+        "internalType": "enum ISuperPaymaster.SlashLevel"
       },
       {
         "name": "penaltyAmount",
@@ -1285,7 +1285,7 @@
         "name": "level",
         "type": "uint8",
         "indexed": false,
-        "internalType": "enum ISuperPaymasterV3.SlashLevel"
+        "internalType": "enum ISuperPaymaster.SlashLevel"
       }
     ],
     "anonymous": false

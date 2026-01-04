@@ -13,14 +13,14 @@ import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
 
 // Paymaster Imports
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
-import "src/paymasters/v4/PaymasterV4_2.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 
 // Module Imports
-import "src/modules/reputation/ReputationSystemV3.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
+import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/validators/BLSValidator.sol";
 
 // External Interfaces
@@ -58,14 +58,14 @@ contract DeployAnvil is Script {
     MySBT mysbt;
     Registry registry;
     xPNTsToken apnts;
-    SuperPaymasterV3 superPaymaster;
-    ReputationSystemV3 repSystem;
-    BLSAggregatorV3 aggregator;
-    DVTValidatorV3 dvt;
+    SuperPaymaster superPaymaster;
+    ReputationSystem repSystem;
+    BLSAggregator aggregator;
+    DVTValidator dvt;
     BLSValidator blsValidator;
     xPNTsFactory xpntsFactory;
     PaymasterFactory pmFactory;
-    PaymasterV4_2 pmV4Impl;
+    Paymaster pmV4Impl;
 
     function setUp() public {
         deployer = vm.addr(deployerPK); 
@@ -89,16 +89,16 @@ contract DeployAnvil is Script {
 
         console.log("=== Step 2: Deploy Core ===");
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymasterV3(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer);
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer);
 
         console.log("=== Step 3: Deploy Modules ===");
-        repSystem = new ReputationSystemV3(address(registry));
-        aggregator = new BLSAggregatorV3(address(registry), address(superPaymaster), address(0));
-        dvt = new DVTValidatorV3(address(registry));
+        repSystem = new ReputationSystem(address(registry));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
+        dvt = new DVTValidator(address(registry));
         blsValidator = new BLSValidator();
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
-        pmV4Impl = new PaymasterV4_2(address(registry));
+        pmV4Impl = new Paymaster(address(registry));
 
         console.log("=== Step 4: The Grand Wiring ===");
         staking.setRegistry(address(registry));

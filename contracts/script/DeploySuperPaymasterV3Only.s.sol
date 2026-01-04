@@ -3,12 +3,12 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/tokens/xPNTsToken.sol";
 
 
 
-contract DeploySuperPaymasterV3Only is Script {
+contract DeploySuperPaymasterOnly is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY"); // Using default PRIVATE_KEY (Supplier/Relayer/Jason)
         address deployer = vm.addr(deployerPrivateKey);
@@ -29,16 +29,16 @@ contract DeploySuperPaymasterV3Only is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // 1. Deploy SuperPaymasterV3
-        SuperPaymasterV3 paymaster = new SuperPaymasterV3(
+        // 1. Deploy SuperPaymaster
+        SuperPaymaster paymaster = new SuperPaymaster(
             IEntryPoint(entryPointAddr),
             deployer, // owner
-            IRegistryV3(registryAddr),
+            IRegistry(registryAddr),
             aPNTsAddr,
             priceFeedAddr,
             protocolTreasury
         );
-        console.log("SuperPaymasterV3 Deployed to:", address(paymaster));
+        console.log("SuperPaymaster Deployed to:", address(paymaster));
 
         // 2. Wire up xPNTsToken (if possible)
         // Check if deployer is owner of token

@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
 contract Deploy11_ConfigureOperator is Script {
     function run(address superPaymasterAddr, address apntsTokenAddr) external {
@@ -20,7 +20,7 @@ contract Deploy11_ConfigureOperator is Script {
         // As the deployer (who is now a registered community),
         // we configure our operator settings in the SuperPaymaster.
         // This links our community identity to the token we will use for gas payments.
-        SuperPaymasterV3(superPaymasterAddr).configureOperator(
+        SuperPaymaster(superPaymasterAddr).configureOperator(
             apntsTokenAddr, // The token users will be charged in
             deployer,       // The treasury to receive fees (can be the deployer itself)
             1e18            // The exchange rate (1:1)

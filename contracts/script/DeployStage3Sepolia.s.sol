@@ -3,15 +3,15 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
+import "src/modules/monitoring/DVTValidator.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/paymasters/v4/PaymasterV4.sol";
 import "src/paymasters/v4/PaymasterV4_1i.sol";
@@ -49,11 +49,11 @@ contract DeployStage3Sepolia is Script {
         MySBT mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
         
         // 2. Reputation & Token
-        ReputationSystemV3 repSystem = new ReputationSystemV3(address(registry));
+        ReputationSystem repSystem = new ReputationSystem(address(registry));
         xPNTsToken apnts = new xPNTsToken("aPNTs", "aPNTs", deployer, "SepoliaHub", "sepolia.eth", 1e18);
 
         // 3. SuperPaymaster
-        SuperPaymasterV3 paymaster = new SuperPaymasterV3(
+        SuperPaymaster paymaster = new SuperPaymaster(
             IEntryPoint(entryPointAddr),
             deployer,
             registry,
@@ -63,11 +63,11 @@ contract DeployStage3Sepolia is Script {
         );
 
         // 3.1 BLS & DVT Modules
-        BLSAggregatorV3 aggregator = new BLSAggregatorV3(address(registry), address(paymaster), address(0));
+        BLSAggregator aggregator = new BLSAggregator(address(registry), address(paymaster), address(0));
         aggregator.setThreshold(3);
         registry.setBLSAggregator(address(aggregator));
 
-        DVTValidatorV3 dvt = new DVTValidatorV3(address(registry));
+        DVTValidator dvt = new DVTValidator(address(registry));
         dvt.setBLSAggregator(address(aggregator));
 
         BLSValidator blsValidator = new BLSValidator();

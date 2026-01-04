@@ -67,7 +67,7 @@ contract Deploy10_1_RegisterBreadCommunity is Script {
 
         // Register
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        IRegistryV3(registryAddr).registerRole(
+        IRegistry(registryAddr).registerRole(
             ROLE_COMMUNITY,
             anni, 
             abi.encode(communityData)

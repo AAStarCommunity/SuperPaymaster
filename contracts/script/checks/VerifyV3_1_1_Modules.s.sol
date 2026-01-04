@@ -3,10 +3,10 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import {Registry} from "src/core/Registry.sol";
-import {SuperPaymasterV3} from "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
-import {BLSAggregatorV3} from "src/modules/monitoring/BLSAggregatorV3.sol";
-import {DVTValidatorV3} from "src/modules/monitoring/DVTValidatorV3.sol";
-import {ReputationSystemV3} from "src/modules/reputation/ReputationSystemV3.sol";
+import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
+import {ReputationSystem} from "src/modules/reputation/ReputationSystem.sol";
 
 contract VerifyV3_1_1_Modules is Script {
     function run() external view {
@@ -22,9 +22,9 @@ contract VerifyV3_1_1_Modules is Script {
 
         console.log("\n[1. Module Wiring]");
         if (bls != address(0)) {
-            console.log("BLS Aggregator Registry:", address(BLSAggregatorV3(bls).REGISTRY()) == registry);
-            console.log("BLS Aggregator Paymaster:", BLSAggregatorV3(bls).SUPERPAYMASTER() == sp);
-            console.log("Paymaster BLS Aggregator:", SuperPaymasterV3(sp).BLS_AGGREGATOR() == bls);
+            console.log("BLS Aggregator Registry:", address(BLSAggregator(bls).REGISTRY()) == registry);
+            console.log("BLS Aggregator Paymaster:", BLSAggregator(bls).SUPERPAYMASTER() == sp);
+            console.log("Paymaster BLS Aggregator:", SuperPaymaster(sp).BLS_AGGREGATOR() == bls);
         } else {
             console.log("BLS Aggregator: NOT DEPLOYED");
         }

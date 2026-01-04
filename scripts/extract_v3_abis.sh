@@ -16,17 +16,17 @@ mkdir -p "$OUTPUT_DIR"
 # 定义需要提取的核心合约列表 (对应标准化部署清单)
 CONTRACTS=(
     "Registry"
-    "SuperPaymasterV3"
+    "SuperPaymaster"
     "GToken"
     "GTokenStaking"
     "MySBT"
     "xPNTsToken"
     "xPNTsFactory"
     "PaymasterFactory"
-    "PaymasterV4_2"
-    "ReputationSystemV3"
-    "BLSAggregatorV3"
-    "DVTValidatorV3"
+    "Paymaster"
+    "ReputationSystem"
+    "BLSAggregator"
+    "DVTValidator"
     "BLSValidator"
 )
 

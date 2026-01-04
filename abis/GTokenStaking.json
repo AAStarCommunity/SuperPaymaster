@@ -141,7 +141,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IGTokenStakingV3.StakeInfo",
+        "internalType": "struct IGTokenStaking.StakeInfo",
         "components": [
           {
             "name": "amount",
@@ -182,7 +182,7 @@
       {
         "name": "",
         "type": "tuple[]",
-        "internalType": "struct IGTokenStakingV3.RoleLock[]",
+        "internalType": "struct IGTokenStaking.RoleLock[]",
         "components": [
           {
             "name": "roleId",

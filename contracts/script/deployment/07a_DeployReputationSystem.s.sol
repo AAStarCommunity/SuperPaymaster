@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
 
 contract DeployReputationSystem is Script {
     function run(address registryAddr) external {
@@ -11,14 +11,14 @@ contract DeployReputationSystem is Script {
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        console.log("Deploying ReputationSystemV3 with account:", deployer);
+        console.log("Deploying ReputationSystem with account:", deployer);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ReputationSystemV3 repSystem = new ReputationSystemV3(registryAddr);
+        ReputationSystem repSystem = new ReputationSystem(registryAddr);
 
         vm.stopBroadcast();
 
-        console.log("ReputationSystemV3 deployed to:", address(repSystem));
+        console.log("ReputationSystem deployed to:", address(repSystem));
     }
 }

@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
 contract Deploy11_1_ConfigureBreadOperator is Script {
     function run(address superPaymasterAddr, address bPNTsTokenAddr) external {
@@ -26,7 +26,7 @@ contract Deploy11_1_ConfigureBreadOperator is Script {
         // Token: bPNTs
         // Treasury: Anni
         // Exchange Rate: 1:1
-        SuperPaymasterV3(superPaymasterAddr).configureOperator(
+        SuperPaymaster(superPaymasterAddr).configureOperator(
             bPNTsTokenAddr, 
             anniAddr,       
             1e18            

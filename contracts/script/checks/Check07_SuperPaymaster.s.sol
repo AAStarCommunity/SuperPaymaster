@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
 contract Check07_SuperPaymaster is Script {
     function run() external view {
@@ -13,7 +13,7 @@ contract Check07_SuperPaymaster is Script {
         string memory json = vm.readFile(path);
         address spAddr = vm.parseJsonAddress(json, ".superPaymaster");
 
-        SuperPaymasterV3 sp = SuperPaymasterV3(payable(spAddr));
+        SuperPaymaster sp = SuperPaymaster(payable(spAddr));
         console.log("--- SuperPaymaster V3.1 Check ---");
         console.log("Address:", spAddr);
         console.log("Registry:", address(sp.REGISTRY()));

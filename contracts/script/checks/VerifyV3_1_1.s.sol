@@ -7,8 +7,8 @@ import {GTokenStaking} from "src/core/GTokenStaking.sol";
 import {MySBT} from "src/tokens/MySBT.sol";
 import {xPNTsFactory} from "src/tokens/xPNTsFactory.sol";
 import {xPNTsToken} from "src/tokens/xPNTsToken.sol";
-import {SuperPaymasterV3} from "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
-import {IRegistryV3} from "src/interfaces/v3/IRegistryV3.sol";
+import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import {IRegistry} from "src/interfaces/v3/IRegistry.sol";
 import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import {PaymasterV4_1} from "src/paymasters/v4/PaymasterV4_1.sol";
 import {ISuperPaymasterRegistry} from "src/interfaces/ISuperPaymasterRegistry.sol";
@@ -77,13 +77,13 @@ contract VerifyV3_1_1 is Script {
         // 2. Identity Checks
         console.log("\n[2. Identity Checks]");
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        console.log("Deployer COMMUNITY role: ", IRegistryV3(registry).hasRole(ROLE_COMMUNITY, deployerAddr));
+        console.log("Deployer COMMUNITY role: ", IRegistry(registry).hasRole(ROLE_COMMUNITY, deployerAddr));
         console.log("Deployer MySBT ID:       ", MySBT(mysbt).userToSBT(deployerAddr));
 
         // 3. Operational Checks (SuperPaymaster)
         console.log("\n[3. Operational Checks (SuperPaymaster)]");
         {
-            (uint128 bal,,,,,,,,,) = SuperPaymasterV3(sp).operators(deployerAddr);
+            (uint128 bal,,,,,,,,,) = SuperPaymaster(sp).operators(deployerAddr);
             console.log("Deployer Op Balance (aPNTs):", uint256(bal) / 1e18, "aPNTs");
         }
 

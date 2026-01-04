@@ -54,7 +54,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IRegistryV3"
+        "internalType": "contract IRegistry"
       }
     ],
     "stateMutability": "view"

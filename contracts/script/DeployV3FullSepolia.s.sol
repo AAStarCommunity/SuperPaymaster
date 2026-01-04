@@ -3,17 +3,17 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
+import "src/modules/monitoring/DVTValidator.sol";
 import "src/tokens/xPNTsFactory.sol";
-import "src/paymasters/v4/PaymasterV4_2.sol";
+import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/PaymasterV4_1i.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/validators/BLSValidator.sol";
@@ -115,7 +115,7 @@ contract DeployV3FullSepolia is Script {
 
         // 4. Reputation
         if (addr_repSystem == address(0)) {
-            ReputationSystemV3 rep = new ReputationSystemV3(addr_registry);
+            ReputationSystem rep = new ReputationSystem(addr_registry);
             addr_repSystem = address(rep);
             console.log("Deployed ReputationSystem:", addr_repSystem);
         } else {
@@ -131,7 +131,7 @@ contract DeployV3FullSepolia is Script {
 
         // 6. SuperPaymaster
         if (addr_sp == address(0)) {
-            SuperPaymasterV3 sp = new SuperPaymasterV3(
+            SuperPaymaster sp = new SuperPaymaster(
                 IEntryPoint(entryPointAddr),
                 deployer,
                 Registry(addr_registry),
@@ -156,7 +156,7 @@ contract DeployV3FullSepolia is Script {
         
         // 7. BLS & DVT
         if (addr_blsAgg == address(0)) {
-            BLSAggregatorV3 agg = new BLSAggregatorV3(addr_registry, addr_sp, address(0));
+            BLSAggregator agg = new BLSAggregator(addr_registry, addr_sp, address(0));
             agg.setThreshold(3);
             addr_blsAgg = address(agg);
             console.log("Deployed BLSAggregator:", addr_blsAgg);
@@ -165,7 +165,7 @@ contract DeployV3FullSepolia is Script {
         Registry(addr_registry).setBLSAggregator(addr_blsAgg);
 
         if (addr_dvt == address(0)) {
-            DVTValidatorV3 d = new DVTValidatorV3(addr_registry);
+            DVTValidator d = new DVTValidator(addr_registry);
             d.setBLSAggregator(addr_blsAgg);
             addr_dvt = address(d);
             console.log("Deployed DVTValidator:", addr_dvt);
@@ -189,7 +189,7 @@ contract DeployV3FullSepolia is Script {
         _save("xPNTsFactory", addr_xpntsFactory);
         
         // Wire SP to xPNTsFactory
-        SuperPaymasterV3(payable(addr_sp)).setXPNTsFactory(addr_xpntsFactory);
+        SuperPaymaster(payable(addr_sp)).setXPNTsFactory(addr_xpntsFactory);
 
         // Wire PMV4 to xPNTsFactory (if PMV4 exists)
 
@@ -204,17 +204,17 @@ contract DeployV3FullSepolia is Script {
 
         // We use V4.2 now
         if (addr_pmV4 == address(0)) {
-             // PaymasterV4_2 (using correct import if available, else PaymasterV4 base for now as per imports)
+             // Paymaster (using correct import if available, else PaymasterV4 base for now as per imports)
              // NOTE: Imports dictate V4. Assuming PaymasterV4 is 4.0 or 4.2 in this context?
              // Looking at imports: src/paymasters/v4/PaymasterV4.sol
              // User wanted V4.2. Let's assume standard V4 for now or strictly follow V4_2 pattern if imported.
              // File checks showed PaymasterV4 so we stick to it.
-             // Wait, user said "PaymasterV4_2.sol" in previous scripts.
+             // Wait, user said "Paymaster.sol" in previous scripts.
              // I should verify if PaymasterV4.sol is V4.2. 
              // Logic: I'll use PaymasterV4 from import.
-             PaymasterV4_2 impl = new PaymasterV4_2(addr_registry);
+             Paymaster impl = new Paymaster(addr_registry);
              addr_pmV4 = address(impl);
-             console.log("Deployed PaymasterV4_2 (Impl):", addr_pmV4);
+             console.log("Deployed Paymaster (Impl):", addr_pmV4);
              
              PaymasterFactory(addr_pmFactory).addImplementation("v4.2", addr_pmV4);
              PaymasterFactory(addr_pmFactory).setDefaultVersion("v4.2");
@@ -223,7 +223,7 @@ contract DeployV3FullSepolia is Script {
         
         if (addr_pmV4Proxy == address(0)) {
              bytes memory init = abi.encodeWithSelector(
-                PaymasterV4_2.initialize.selector,
+                Paymaster.initialize.selector,
                 entryPointAddr,
                 deployer,
                 deployer, // treasury

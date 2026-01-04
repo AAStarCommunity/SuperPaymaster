@@ -7,7 +7,7 @@ import "src/core/Registry.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
 import "src/core/GTokenStaking.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // This is a mock ERC20 token for testing purposes, specifically for aPNTs.
@@ -115,12 +115,12 @@ contract DeployAllV3_Optimized is Script {
         return address(aPNTs);
     }
 
-    function deploySuperPaymaster(address registryAddr, address aPNTsAddr) external returns (SuperPaymasterV3) {
+    function deploySuperPaymaster(address registryAddr, address aPNTsAddr) external returns (SuperPaymaster) {
         (, address deployer) = _preBroadcast();
         IEntryPoint entryPoint = IEntryPoint(0x0000000071727De22E5E9d8BAf0edAc6f37da032);
         address ethUsdPriceFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Sepolia ETH/USD
 
-        SuperPaymasterV3 superPaymaster = new SuperPaymasterV3(
+        SuperPaymaster superPaymaster = new SuperPaymaster(
             entryPoint,
             deployer, // owner
             Registry(registryAddr), // registry
@@ -128,7 +128,7 @@ contract DeployAllV3_Optimized is Script {
             ethUsdPriceFeed, // price feed
             deployer  // protocol treasury
         );
-        console.log("SuperPaymasterV3 deployed to:", address(superPaymaster));
+        console.log("SuperPaymaster deployed to:", address(superPaymaster));
         vm.stopBroadcast();
         return superPaymaster;
     }

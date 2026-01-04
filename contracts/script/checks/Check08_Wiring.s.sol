@@ -8,7 +8,7 @@ import "../../src/tokens/xPNTsToken.sol";
 import "../../src/tokens/MySBT.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/core/Registry.sol";
-import "../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
 /**
  * @title Check08_Wiring
@@ -42,12 +42,12 @@ contract Check08_Wiring is Script {
         require(Registry(registry).SUPER_PAYMASTER() == superPaymaster, "Check08: Registry -> SP Failed");
         
         // 3. Immutable Bindings Check
-        require(address(SuperPaymasterV3(superPaymaster).REGISTRY()) == registry, "Check08: SP -> Registry Immutable Failed");
+        require(address(SuperPaymaster(superPaymaster).REGISTRY()) == registry, "Check08: SP -> Registry Immutable Failed");
 
         // 4. Business Callback Check
         require(MySBT(sbt).SUPER_PAYMASTER() == superPaymaster, "Check08: MySBT -> SP Callback Failed");
         require(xPNTsFactory(xpntsFactory).SUPERPAYMASTER() == superPaymaster, "Check08: Factory -> SP Failed");
-        require(SuperPaymasterV3(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
+        require(SuperPaymaster(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
 
         // 5. BLS Infrastructure Check
         address blsAggregator = vm.parseJsonAddress(json, ".blsAggregator");

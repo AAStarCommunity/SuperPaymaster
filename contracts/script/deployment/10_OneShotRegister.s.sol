@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "src/interfaces/v3/IRegistryV3.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 /**
  * @title OneShotRegister
@@ -40,7 +40,7 @@ contract OneShotRegister is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        IRegistryV3(registryAddr).registerRole(
+        IRegistry(registryAddr).registerRole(
             ROLE_COMMUNITY,
             deployer,
             abi.encode(communityData)

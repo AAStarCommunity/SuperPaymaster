@@ -70,7 +70,7 @@ contract V3DeploySimple is Script {
         console.log("   export PAYMASTER_V3_ADDRESS=", paymaster);
         console.log("\n2. Register in Registry:");
         console.log("   cast send", registry, "\\");
-        console.log("     'registerPaymaster(address,string,uint256)'", paymaster, "'SuperPaymasterV3' 150 \\");
+        console.log("     'registerPaymaster(address,string,uint256)'", paymaster, "'SuperPaymaster' 150 \\");
         console.log("     --rpc-url sepolia --private-key $PRIVATE_KEY");
         console.log("\n3. Deposit ETH:");
         console.log("   cast send", paymaster, "\\");

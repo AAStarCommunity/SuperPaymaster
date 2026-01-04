@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {SuperPaymasterV3} from "../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import {SuperPaymaster} from "../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
 /**
  * @title ConfigureSuperPaymaster
@@ -28,7 +28,7 @@ contract ConfigureSuperPaymaster is Script {
         console.log("SuperPaymaster V3:", paymasterAddr);
         console.log("aPNTs Token:", apntsAddr);
 
-        SuperPaymasterV3 superPaymaster = SuperPaymasterV3(payable(paymasterAddr));
+        SuperPaymaster superPaymaster = SuperPaymaster(payable(paymasterAddr));
 
         // Check current aPNTs token
         address currentAPNTs;

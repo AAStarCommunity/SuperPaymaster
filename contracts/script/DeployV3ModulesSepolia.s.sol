@@ -4,8 +4,8 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/core/Registry.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
+import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/validators/BLSValidator.sol";
 
 contract DeployV3ModulesSepolia is Script {
@@ -23,13 +23,13 @@ contract DeployV3ModulesSepolia is Script {
         BLSValidator blsValidator = new BLSValidator();
         console.log("BLSValidator deployed at:", address(blsValidator));
 
-        // 2. Deploy BLSAggregatorV3
-        BLSAggregatorV3 aggregator = new BLSAggregatorV3(registryAddr, paymasterAddr, address(0));
-        console.log("BLSAggregatorV3 deployed at:", address(aggregator));
+        // 2. Deploy BLSAggregator
+        BLSAggregator aggregator = new BLSAggregator(registryAddr, paymasterAddr, address(0));
+        console.log("BLSAggregator deployed at:", address(aggregator));
 
-        // 3. Deploy DVTValidatorV3
-        DVTValidatorV3 dvt = new DVTValidatorV3(registryAddr);
-        console.log("DVTValidatorV3 deployed at:", address(dvt));
+        // 3. Deploy DVTValidator
+        DVTValidator dvt = new DVTValidator(registryAddr);
+        console.log("DVTValidator deployed at:", address(dvt));
 
         // 4. Wiring
         Registry registry = Registry(registryAddr);
