@@ -8,12 +8,12 @@ import "src/tokens/GToken.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/paymasters/v4/PaymasterV4_1i.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
+import "src/modules/monitoring/DVTValidator.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // Minimal Mock Price Feed
@@ -41,7 +41,7 @@ contract SetupV3 is Script {
     GTokenStaking public staking;
     Registry public registry;
     MySBT public sbt;
-    SuperPaymasterV3 public superPaymaster;
+    SuperPaymaster public superPaymaster;
     xPNTsFactory public xpntsFactory;
 
     // Paymaster Factory
@@ -50,9 +50,9 @@ contract SetupV3 is Script {
     SimpleAccountFactory public simpleAccountFactory;
 
     // Reputation & Monitoring
-    ReputationSystemV3 public reputationSystem;
-    DVTValidatorV3 public dvtValidator;
-    BLSAggregatorV3 public blsAggregator;
+    ReputationSystem public reputationSystem;
+    DVTValidator public dvtValidator;
+    BLSAggregator public blsAggregator;
 
     MockV3Aggregator public priceFeed;
 
@@ -135,8 +135,8 @@ contract SetupV3 is Script {
 
         // 5. Deploy V3 SuperPaymaster
         // Constructor: (entryPoint, owner, registry, aPNTs, aggregator, treasury)
-        superPaymaster = new SuperPaymasterV3(
-            IEntryPoint(entryPointAddress), deployer, IRegistryV3(address(registry)), aPNTsAddr, priceFeedAddr, treasury
+        superPaymaster = new SuperPaymaster(
+            IEntryPoint(entryPointAddress), deployer, IRegistry(address(registry)), aPNTsAddr, priceFeedAddr, treasury
         );
 
         // 6. Deploy Token Factory (for xPNTs)
@@ -182,9 +182,9 @@ contract SetupV3 is Script {
         simpleAccountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddress));
 
         // 9. Deploy Reputation & Monitoring Contracts
-        reputationSystem = new ReputationSystemV3(address(registry));
-        dvtValidator = new DVTValidatorV3(address(registry));
-        blsAggregator = new BLSAggregatorV3(address(registry), address(superPaymaster), address(dvtValidator));
+        reputationSystem = new ReputationSystem(address(registry));
+        dvtValidator = new DVTValidator(address(registry));
+        blsAggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvtValidator));
         
         // Wire DVT Validator to BLS Aggregator
         dvtValidator.setBLSAggregator(address(blsAggregator));

@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
-import "../../interfaces/v3/IRegistryV3.sol";
+import "../../interfaces/v3/IRegistry.sol";
 import "src/interfaces/IVersioned.sol";
 
 interface ISuperPaymasterSlash {
@@ -16,11 +16,11 @@ interface IDVTValidator {
 }
 
 /**
- * @title BLSAggregatorV3
+ * @title BLSAggregator
  * @notice BLS signature aggregation and verification for DVT slash consensus (V3)
  * @dev Aggregates signatures and updates global reputation in Registry V3.
  */
-contract BLSAggregatorV3 is Ownable, ReentrancyGuard, IVersioned {
+contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     // ====================================
     // Structs
@@ -43,7 +43,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard, IVersioned {
     // Storage
     // ====================================
 
-    IRegistryV3 public immutable REGISTRY;
+    IRegistry public immutable REGISTRY;
     address public SUPERPAYMASTER;
     address public DVT_VALIDATOR;
 
@@ -56,7 +56,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant MAX_VALIDATORS = 13;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-3.1.2";
+        return "BLSAggregator-3.1.3";
     }
 
 
@@ -102,7 +102,7 @@ contract BLSAggregatorV3 is Ownable, ReentrancyGuard, IVersioned {
         address _dvtValidator
     ) Ownable(msg.sender) {
         if (_registry == address(0)) revert InvalidAddress(address(0));
-        REGISTRY = IRegistryV3(_registry);
+        REGISTRY = IRegistry(_registry);
         SUPERPAYMASTER = _superPaymaster;
         DVT_VALIDATOR = _dvtValidator;
     }

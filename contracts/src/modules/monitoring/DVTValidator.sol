@@ -2,27 +2,16 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
-import "../../interfaces/v3/IRegistryV3.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IBLSAggregator.sol";
 import "src/interfaces/IVersioned.sol";
 
-interface IBLSAggregatorV3 {
-    function verifyAndExecute(
-        uint256 proposalId,
-        address operator,
-        uint8 slashLevel,
-        address[] calldata repUsers,
-        uint256[] calldata newScores,
-        uint256 epoch,
-        bytes calldata proof
-    ) external;
-}
-
 /**
- * @title DVTValidatorV3
+ * @title DVTValidator
  * @notice Distributed Validator Technology for operator monitoring (V3)
- * @dev Manages slash proposals and coordinates with BLSAggregatorV3.
+ * @dev Manages slash proposals and coordinates with BLSAggregator.
  */
-contract DVTValidatorV3 is Ownable, IVersioned {
+contract DVTValidator is Ownable, IVersioned {
 
     struct ValidatorInfo {
         address validatorAddress;
@@ -38,7 +27,7 @@ contract DVTValidatorV3 is Ownable, IVersioned {
         bool executed;
     }
 
-    IRegistryV3 public immutable REGISTRY;
+    IRegistry public immutable REGISTRY;
     address public BLS_AGGREGATOR;
     
     mapping(address => bool) public isValidator;
@@ -54,11 +43,11 @@ contract DVTValidatorV3 is Ownable, IVersioned {
     error ProposalExecutedAlready();
 
     constructor(address _registry) Ownable(msg.sender) {
-        REGISTRY = IRegistryV3(_registry);
+        REGISTRY = IRegistry(_registry);
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.3.0";
+        return "DVTValidator-0.3.1";
     }
 
     function addValidator(address _v) external onlyOwner {
@@ -118,7 +107,7 @@ contract DVTValidatorV3 is Ownable, IVersioned {
         SlashProposal storage p = proposals[id];
         if (p.executed) revert ProposalExecutedAlready();
         
-        IBLSAggregatorV3(BLS_AGGREGATOR).verifyAndExecute(
+        IBLSAggregator(BLS_AGGREGATOR).verifyAndExecute(
             id,
             p.operator,
             p.slashLevel,

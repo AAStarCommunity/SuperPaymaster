@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
 import "src/tokens/MySBT.sol";
 import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
@@ -13,7 +13,7 @@ contract MockNFT is ERC721 {
 }
 
 contract V3_Reputation_SBT_BoostTest is Test {
-    ReputationSystemV3 public repSystem;
+    ReputationSystem public repSystem;
     MySBT public mysbt;
     Registry public registry;
     MockNFT public nft;
@@ -49,7 +49,7 @@ contract V3_Reputation_SBT_BoostTest is Test {
         registry.setRoleOwner(keccak256("COMMUNITY"), community);
         
         // Setup Reputation
-        repSystem = new ReputationSystemV3(address(registry));
+        repSystem = new ReputationSystem(address(registry));
         
         // Setup NFT for boost
         nft = new MockNFT();

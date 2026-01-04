@@ -6,7 +6,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/v3/IGTokenStakingV3.sol";
+import "../interfaces/v3/IGTokenStaking.sol";
 
 /**
  * @title GTokenStaking v3.1.0
@@ -19,7 +19,7 @@ import "../interfaces/v3/IGTokenStakingV3.sol";
  * - totalSupply decreases on burn, creating auto-remint capacity
  * - Removed blackhole transfer (0xdead) pattern
  */
-contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
+contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStaking {
     using SafeERC20 for IERC20;
 
     // ====================================
@@ -29,7 +29,7 @@ contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStakingV3 {
 
 
     function version() external pure override returns (string memory) {
-        return "Staking-3.1.0";
+        return "Staking-3.1.1";
     }
 
     // ====================================

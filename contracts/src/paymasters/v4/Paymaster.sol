@@ -14,7 +14,7 @@ import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initia
  * @dev For direct deployment (constructor-based)
  * @custom:security-contact security@aastar.community
  */
-contract PaymasterV4_2 is PaymasterV4Base, Initializable {
+contract Paymaster is PaymasterV4Base, Initializable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -95,7 +95,7 @@ contract PaymasterV4_2 is PaymasterV4Base, Initializable {
      * @return Version string
      */
     function version() external pure override returns (string memory) {
-        return "PMV4.2-Clone-1.0.0";
+        return "PMV4.2-Clone-1.0.1";
     }
 
     /**

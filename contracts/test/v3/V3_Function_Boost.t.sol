@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "../../src/core/Registry.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/tokens/GToken.sol";
-import "../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "./MockSBT.sol";
 
@@ -13,7 +13,7 @@ contract V3_Function_BoostTest is Test {
     Registry registry;
     GTokenStaking staking;
     GToken gToken;
-    SuperPaymasterV3 paymaster;
+    SuperPaymaster paymaster;
     xPNTsToken aPNTs;
     MockSBT mockSBT;
 
@@ -37,7 +37,7 @@ contract V3_Function_BoostTest is Test {
         vm.stopPrank();
 
         aPNTs = new xPNTsToken("a", "b", owner, "c", "d", 1e18);
-        paymaster = new SuperPaymasterV3(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury);
+        paymaster = new SuperPaymaster(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));
     }
@@ -128,7 +128,7 @@ contract V3_Function_BoostTest is Test {
         vm.stopPrank();
 
         // 3. Check getters
-        IGTokenStakingV3.RoleLock[] memory locks = staking.getUserRoleLocks(user);
+        IGTokenStaking.RoleLock[] memory locks = staking.getUserRoleLocks(user);
         assertEq(locks.length, 1);
 
         (uint256 fee, uint256 net) = staking.previewExitFee(user, commRole);

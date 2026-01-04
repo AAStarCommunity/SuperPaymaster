@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/modules/reputation/ReputationSystemV3.sol";
+import "src/modules/reputation/ReputationSystem.sol";
 import "src/core/Registry.sol";
 import "src/modules/validators/BLSValidator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
@@ -13,11 +13,11 @@ contract MockNFT is ERC721 {
 }
 
 /**
- * @title ReputationSystemV3_Complete_Test
- * @notice 完整的 ReputationSystemV3 测试套件
+ * @title ReputationSystem_Complete_Test
+ * @notice 完整的 ReputationSystem 测试套件
  */
-contract ReputationSystemV3_Complete_Test is Test {
-    ReputationSystemV3 public repSystem;
+contract ReputationSystem_Complete_Test is Test {
+    ReputationSystem public repSystem;
     Registry public registry;
     MockNFT public nft1;
     MockNFT public nft2;
@@ -37,8 +37,8 @@ contract ReputationSystemV3_Complete_Test is Test {
         address mockSBT = address(0x777);
         registry = new Registry(mockGToken, mockStaking, mockSBT);
         
-        // Deploy ReputationSystemV3
-        repSystem = new ReputationSystemV3(address(registry));
+        // Deploy ReputationSystem
+        repSystem = new ReputationSystem(address(registry));
         
         // Deploy NFTs for boost testing
         nft1 = new MockNFT();

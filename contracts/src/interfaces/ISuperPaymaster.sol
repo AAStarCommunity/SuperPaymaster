@@ -4,10 +4,10 @@ pragma solidity ^0.8.23;
 import "src/interfaces/IVersioned.sol";
 
 /**
- * @title ISuperPaymasterV3 - Multi-tenant SuperPaymaster Interface
+ * @title ISuperPaymaster - Multi-tenant SuperPaymaster Interface
  * @notice Interface for SuperPaymaster V3 with per-operator configuration
  */
-interface ISuperPaymasterV3 is IVersioned {
+interface ISuperPaymaster is IVersioned {
     
     enum SlashLevel { WARNING, MINOR, MAJOR }
 

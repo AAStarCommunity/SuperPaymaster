@@ -4,11 +4,11 @@ pragma solidity ^0.8.23;
 import "src/interfaces/IVersioned.sol";
 
 /**
- * @title IRegistryV3
+ * @title IRegistry
  * @notice Registry v3 interface with unified registerRole API
  * @dev Replaces v2's multiple registration functions with single unified entry point
  */
-interface IRegistryV3 is IVersioned {
+interface IRegistry is IVersioned {
     // ====================================
     // Data Structures
     // ====================================

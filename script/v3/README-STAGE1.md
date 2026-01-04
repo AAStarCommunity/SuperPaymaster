@@ -46,7 +46,7 @@ script/v3/
 5. **MySBT** - Soul Bound Token
 6. **Registry** - 核心注册表
 7. **xPNTsToken** (aPNTs) - 积分代币
-8. **SuperPaymasterV3** - V3 Paymaster
+8. **SuperPaymaster** - V3 Paymaster
 9. **xPNTsFactory** - 积分工厂
 10. **PaymasterFactory** - Paymaster 工厂
 11. **PaymasterV4_1i** - V4.1i 实现
@@ -82,7 +82,7 @@ script/v3/
 - Admin 可以直接 transfer xPNTs/aPNTs 给社区成员
 - 创建两个测试用户:
   - 用户 A: 用于 PaymasterV4.1i 测试
-  - 用户 B: 用于 SuperPaymasterV3 测试
+  - 用户 B: 用于 SuperPaymaster 测试
 
 ## ⚠️ 当前状态
 

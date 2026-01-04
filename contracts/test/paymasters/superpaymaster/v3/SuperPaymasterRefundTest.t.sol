@@ -2,14 +2,14 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 contract SuperPaymasterRefundTest is Test {
-    SuperPaymasterV3 paymaster;
+    SuperPaymaster paymaster;
     Registry registry;
     MockERC20 aPNTs;
     MockERC20 xPNTs;
@@ -28,7 +28,7 @@ contract SuperPaymasterRefundTest is Test {
         registry = new Registry(address(0), address(0x1), address(0x2)); // Minimal mock
         MockPriceFeed priceFeed = new MockPriceFeed();
         
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             IEntryPoint(entryPoint),
             owner,
             registry,
@@ -162,7 +162,7 @@ contract MockERC20 {
         return true;
     }
     
-    // ISuperPaymasterV3 expects recordDebt on token if it cast to IxPNTsToken
+    // ISuperPaymaster expects recordDebt on token if it cast to IxPNTsToken
     // Note: in test setup we cast mock to IxPNTsToken
     function recordDebt(address user, uint256 amount) external {}
     function burnFromWithOpHash(address user, uint256 amount, bytes32 opHash) external {} 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../../src/core/Registry.sol";
-import "../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/core/GTokenStaking.sol";
@@ -41,7 +41,7 @@ contract MockEntryPoint is IEntryPoint {
 
 contract BlacklistSyncTest is Test {
     Registry registry;
-    SuperPaymasterV3 paymaster;
+    SuperPaymaster paymaster;
     xPNTsToken apnts;
     GToken gtoken;
     GTokenStaking staking;
@@ -73,7 +73,7 @@ contract BlacklistSyncTest is Test {
         priceFeed = new MockAggregator();
         apnts = new xPNTsToken("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
         
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             entryPoint,
             owner,
             registry,

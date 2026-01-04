@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -35,8 +35,8 @@ contract MockAggregator is AggregatorV3Interface {
 
 contract MockRegistry {
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
-    function getRoleConfig(bytes32) external pure returns (IRegistryV3.RoleConfig memory) {
-        return IRegistryV3.RoleConfig({
+    function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory) {
+        return IRegistry.RoleConfig({
             minStake: 30 ether,
             entryBurn: 3 ether,
             slashThreshold: 10,
@@ -55,11 +55,11 @@ contract MockRegistry {
 }
 
 /**
- * @title SuperPaymasterV3QueryTest
+ * @title SuperPaymasterQueryTest
  * @notice Tests for SuperPaymaster V3.1.1 query interfaces
  */
-contract SuperPaymasterV3QueryTest is Test {
-    SuperPaymasterV3 paymaster;
+contract SuperPaymasterQueryTest is Test {
+    SuperPaymaster paymaster;
     MockGToken gtoken;
     MockEntryPoint entryPoint;
     MockAggregator priceOracle;
@@ -78,10 +78,10 @@ contract SuperPaymasterV3QueryTest is Test {
         priceOracle = new MockAggregator();
         registry = new MockRegistry();
 
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             IEntryPoint(address(entryPoint)),
             owner,
-            IRegistryV3(address(registry)),
+            IRegistry(address(registry)),
             address(gtoken),
             address(priceOracle),
             treasury
@@ -100,7 +100,7 @@ contract SuperPaymasterV3QueryTest is Test {
     // ====================================
 
     function test_GetSlashHistory_Empty() public {
-        ISuperPaymasterV3.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
+        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
         assertEq(history.length, 0, "Should have no history initially");
     }
 
@@ -109,29 +109,29 @@ contract SuperPaymasterV3QueryTest is Test {
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(
             operator,
-            ISuperPaymasterV3.SlashLevel.WARNING,
+            ISuperPaymaster.SlashLevel.WARNING,
             abi.encode("test")
         );
 
-        ISuperPaymasterV3.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
+        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
         assertEq(history.length, 1, "Should have 1 record");
-        assertEq(uint8(history[0].level), uint8(ISuperPaymasterV3.SlashLevel.WARNING));
+        assertEq(uint8(history[0].level), uint8(ISuperPaymaster.SlashLevel.WARNING));
     }
 
     function test_GetSlashHistory_MultipleSlashes() public {
         vm.startPrank(blsAggregator);
         
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.WARNING, abi.encode("1"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MINOR, abi.encode("2"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MAJOR, abi.encode("3"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
         
         vm.stopPrank();
 
-        ISuperPaymasterV3.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
+        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
         assertEq(history.length, 3, "Should have 3 records");
-        assertEq(uint8(history[0].level), uint8(ISuperPaymasterV3.SlashLevel.WARNING));
-        assertEq(uint8(history[1].level), uint8(ISuperPaymasterV3.SlashLevel.MINOR));
-        assertEq(uint8(history[2].level), uint8(ISuperPaymasterV3.SlashLevel.MAJOR));
+        assertEq(uint8(history[0].level), uint8(ISuperPaymaster.SlashLevel.WARNING));
+        assertEq(uint8(history[1].level), uint8(ISuperPaymaster.SlashLevel.MINOR));
+        assertEq(uint8(history[2].level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
     }
 
     // ====================================
@@ -145,10 +145,10 @@ contract SuperPaymasterV3QueryTest is Test {
     function test_GetSlashCount_AfterSlashes() public {
         vm.startPrank(blsAggregator);
         
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.WARNING, abi.encode("1"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
         assertEq(paymaster.getSlashCount(operator), 1);
         
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MINOR, abi.encode("2"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
         assertEq(paymaster.getSlashCount(operator), 2);
         
         vm.stopPrank();
@@ -159,21 +159,21 @@ contract SuperPaymasterV3QueryTest is Test {
     // ====================================
 
     function test_GetLatestSlash_NoHistory() public {
-        vm.expectRevert(SuperPaymasterV3.NoSlashHistory.selector);
+        vm.expectRevert(SuperPaymaster.NoSlashHistory.selector);
         paymaster.getLatestSlash(operator);
     }
 
     function test_GetLatestSlash_ReturnsLatest() public {
         vm.startPrank(blsAggregator);
         
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.WARNING, abi.encode("1"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MINOR, abi.encode("2"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MAJOR, abi.encode("3"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
         
         vm.stopPrank();
 
-        ISuperPaymasterV3.SlashRecord memory latest = paymaster.getLatestSlash(operator);
-        assertEq(uint8(latest.level), uint8(ISuperPaymasterV3.SlashLevel.MAJOR));
+        ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator);
+        assertEq(uint8(latest.level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
         assertEq(latest.reputationLoss, 50);
     }
 
@@ -183,9 +183,9 @@ contract SuperPaymasterV3QueryTest is Test {
 
     function test_WARNING_NoBalanceDeduction() public {
         vm.prank(blsAggregator);
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.WARNING, abi.encode("test"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("test"));
 
-        ISuperPaymasterV3.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
         assertEq(record.amount, 0, "WARNING should not deduct balance");
         assertEq(record.reputationLoss, 10);
     }
@@ -194,19 +194,19 @@ contract SuperPaymasterV3QueryTest is Test {
         // This test would need operator to have aPNTs balance
         // Skipping actual balance test, just verify record structure
         vm.prank(blsAggregator);
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MINOR, abi.encode("test"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("test"));
 
-        ISuperPaymasterV3.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
         assertEq(record.reputationLoss, 20);
-        assertEq(uint8(record.level), uint8(ISuperPaymasterV3.SlashLevel.MINOR));
+        assertEq(uint8(record.level), uint8(ISuperPaymaster.SlashLevel.MINOR));
     }
 
     function test_MAJOR_FullDeduction() public {
         vm.prank(blsAggregator);
-        paymaster.executeSlashWithBLS(operator, ISuperPaymasterV3.SlashLevel.MAJOR, abi.encode("test"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("test"));
 
-        ISuperPaymasterV3.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
         assertEq(record.reputationLoss, 50);
-        assertEq(uint8(record.level), uint8(ISuperPaymasterV3.SlashLevel.MAJOR));
+        assertEq(uint8(record.level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
     }
 }

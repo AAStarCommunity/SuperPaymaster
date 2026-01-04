@@ -3,16 +3,16 @@ pragma solidity ^0.8.23;
 
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
-import "../../interfaces/v3/IRegistryV3.sol";
+import "../../interfaces/v3/IRegistry.sol";
 import "../../interfaces/v3/IReputationCalculator.sol";
 import "src/interfaces/IVersioned.sol";
 
 /**
- * @title ReputationSystemV3
+ * @title ReputationSystem
  * @notice Advanced reputation calculation and management for the Mycelium Ecosystem.
  * @dev Decoupled scoring logic from storage (Registry V3 holds the final scores).
  */
-contract ReputationSystemV3 is Ownable, IReputationCalculator {
+contract ReputationSystem is Ownable, IReputationCalculator {
 
     struct Rule {
         uint256 baseScore;
@@ -21,7 +21,7 @@ contract ReputationSystemV3 is Ownable, IReputationCalculator {
         string description;
     }
 
-    IRegistryV3 public immutable REGISTRY;
+    IRegistry public immutable REGISTRY;
     
     // community => ruleId => Rule
     mapping(address => mapping(bytes32 => Rule)) public communityRules;
@@ -48,12 +48,12 @@ contract ReputationSystemV3 is Ownable, IReputationCalculator {
     event NFTBoostAdded(address indexed collection, uint256 boost);
 
     constructor(address _registry) Ownable(msg.sender) {
-        REGISTRY = IRegistryV3(_registry);
+        REGISTRY = IRegistry(_registry);
         defaultRule = Rule(10, 1, 100, "Default");
     }
 
     function version() external pure override returns (string memory) {
-        return "Reputation-0.3.0";
+        return "Reputation-0.3.1";
     }
 
     /**

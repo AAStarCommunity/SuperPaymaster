@@ -29,7 +29,7 @@ contract MaliciousAPNTs is ERC20 {
             attacking = true;
             // Attempt reentrancy: call withdraw again during the transfer callback (if any)
             // or just try to call it here. 
-            // In SuperPaymasterV3, withdraw calls safeTransfer(msg.sender, amount).
+            // In SuperPaymaster, withdraw calls safeTransfer(msg.sender, amount).
             // safeTransfer will call this transfer function.
             superPaymaster.withdraw(1);
             attacking = false;

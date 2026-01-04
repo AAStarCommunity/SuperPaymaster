@@ -4,9 +4,9 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
-import "src/interfaces/v3/IMySBTV3.sol";
+import "src/interfaces/v3/IMySBT.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
@@ -23,7 +23,7 @@ contract MockGToken is ERC20 {
     function burn(uint256 amount) external { _burn(msg.sender, amount); }
 }
 
-contract MockSBT is IMySBTV3 {
+contract MockSBT is IMySBT {
     function mint(address to, uint256 id, uint256 amount, bytes memory data) external {}
     function burn(address from, uint256 id, uint256 amount) external {}
     function mintForRole(address to, bytes32 role, bytes calldata data) external returns (uint256, bool) { return (1, true); }
@@ -34,6 +34,9 @@ contract MockSBT is IMySBTV3 {
     function getScore(address) external view returns (uint256) { return 0; }
     function getUserSBT(address user) external view returns (uint256 tokenId) { return 0; }
     function recordActivity(address user) external {}
+    function getSBTData(uint256) external pure returns (SBTData memory) {
+        return SBTData(address(0), address(0), 0, 0);
+    }
     function verifyCommunityMembership(address user, address community) external view returns (bool) { return true; }
 
     function balanceOf(address account, uint256 id) external view returns (uint256) { return 0; }
@@ -88,7 +91,7 @@ contract MockXPNTs {
 contract CoverageSupplementTest is Test {
     Registry registry;
     GTokenStaking staking;
-    SuperPaymasterV3 paymaster;
+    SuperPaymaster paymaster;
     
     MockGToken gtoken;
     MockSBT sbt;
@@ -119,17 +122,17 @@ contract CoverageSupplementTest is Test {
         staking.setRegistry(address(registry));
         
         // Config Roles for basic testing
-        IRegistryV3.RoleConfig memory commConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Comm");
+        IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Comm");
         registry.configureRole(ROLE_COMMUNITY, commConfig);
         
-        IRegistryV3.RoleConfig memory userConfig = IRegistryV3.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, 0.1 ether, true, "User");
+        IRegistry.RoleConfig memory userConfig = IRegistry.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, 0.1 ether, true, "User");
         registry.configureRole(ROLE_ENDUSER, userConfig);
 
-        IRegistryV3.RoleConfig memory pmConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Paymaster");
+        IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Paymaster");
         registry.configureRole(ROLE_PAYMASTER_SUPER, pmConfig);
         
         // Paymaster Setup
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             entryPoint,
             owner,
             registry,
@@ -284,7 +287,7 @@ contract CoverageSupplementTest is Test {
         // Need community first for EndUser? Yes.
         // Shortcut: Use KMS role for simpler testing logic if needed, but EndUser is fine if we mock community check.
         // Actually, let's use KMS role.
-        IRegistryV3.RoleConfig memory kmsConfig = IRegistryV3.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, 1 ether, true, "KMS");
+        IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, 1 ether, true, "KMS");
         vm.stopPrank();
         vm.startPrank(owner);
         registry.configureRole(registry.ROLE_KMS(), kmsConfig);
@@ -323,7 +326,7 @@ contract CoverageSupplementTest is Test {
         bytes32 TEST_ROLE = keccak256("TEST");
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.createNewRole(TEST_ROLE, IRegistryV3.RoleConfig(10 ether, 0, 0,0,0,0, 0, 0, true, "Test"), owner);
+        registry.createNewRole(TEST_ROLE, IRegistry.RoleConfig(10 ether, 0, 0,0,0,0, 0, 0, true, "Test"), owner);
         vm.stopPrank();
         
         vm.startPrank(user);
@@ -335,7 +338,7 @@ contract CoverageSupplementTest is Test {
         staking.slash(user, 3 ether, "Reason");
         
         // Verify info
-        IGTokenStakingV3.StakeInfo memory info = staking.getStakeInfo(user, TEST_ROLE);
+        IGTokenStaking.StakeInfo memory info = staking.getStakeInfo(user, TEST_ROLE);
         assertEq(info.slashedAmount, 3 ether);
         assertEq(info.amount, 7 ether); // 10 - 3
         
@@ -359,7 +362,7 @@ contract CoverageSupplementTest is Test {
         vm.stopPrank();
     }
     
-    // --- SuperPaymasterV3 Tests ---
+    // --- SuperPaymaster Tests ---
     
     function test_Paymaster_Validation_Failures() public {
         // Setup userOp
@@ -455,7 +458,7 @@ contract CoverageSupplementTest is Test {
     function test_Paymaster_Deposit_NotRegistered() public {
         vm.startPrank(user); // User is not operator
         gtoken.approve(address(paymaster), 100 ether);
-        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.addStake{value: 1 ether}(1000);
         
         vm.warp(block.timestamp + 2 hours);

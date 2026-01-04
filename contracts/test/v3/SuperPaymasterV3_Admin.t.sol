@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
@@ -41,12 +41,12 @@ contract MockAPNTs is ERC20 {
 }
 
 /**
- * @title SuperPaymasterV3_Admin_Test
+ * @title SuperPaymaster_Admin_Test
  */
-contract SuperPaymasterV3_Admin_Test is Test {
+contract SuperPaymaster_Admin_Test is Test {
     using stdStorage for StdStorage;
     
-    SuperPaymasterV3 public paymaster;
+    SuperPaymaster public paymaster;
     Registry public registry;
     GToken public gtoken;
     MockEntryPoint public entryPoint;
@@ -73,10 +73,10 @@ contract SuperPaymasterV3_Admin_Test is Test {
         address mockSBT = address(0x888);
         registry = new Registry(address(gtoken), mockStaking, mockSBT);
         
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             IEntryPoint(address(entryPoint)),
             owner,
-            IRegistryV3(address(registry)),
+            IRegistry(address(registry)),
             address(apnts),
             address(priceFeed),
             treasury
@@ -228,7 +228,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
 
     function test_ConfigureOperator_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.configureOperator(address(0x555), address(0x444), 1 ether);
     }
 
@@ -248,7 +248,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
 
     function test_Deposit_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.deposit(100 ether);
     }
 
@@ -273,7 +273,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         paymaster.deposit(100 ether);
         
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymasterV3.InsufficientBalance.selector);
+        vm.expectRevert(SuperPaymaster.InsufficientBalance.selector);
         paymaster.withdraw(200 ether);
     }
 
@@ -306,7 +306,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             10 ether,
             "Test slash"
         );
@@ -322,7 +322,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.expectRevert();
         paymaster.slashOperator(
             operator1,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             10 ether,
             "Test"
         );
@@ -339,12 +339,12 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             10 ether,
             "First slash"
         );
         
-        ISuperPaymasterV3.SlashRecord[] memory history = paymaster.getSlashHistory(operator1);
+        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator1);
         assertEq(history.length, 1);
         assertEq(history[0].amount, 10 ether);
     }
@@ -358,7 +358,7 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             10 ether,
             "Test"
         );
@@ -373,12 +373,12 @@ contract SuperPaymasterV3_Admin_Test is Test {
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             10 ether,
             "Latest slash"
         );
         
-        ISuperPaymasterV3.SlashRecord memory latest = paymaster.getLatestSlash(operator1);
+        ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator1);
         assertEq(latest.amount, 10 ether);
         assertEq(latest.reason, "Latest slash");
     }

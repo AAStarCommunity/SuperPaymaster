@@ -6,7 +6,7 @@ import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
@@ -15,7 +15,7 @@ contract DVTSlashTest is Test {
     GTokenStaking staking;
     MySBT sbt;
     GToken gtoken;
-    SuperPaymasterV3 paymaster;
+    SuperPaymaster paymaster;
 
     address owner = address(0x1);
     address dao = address(0x2);
@@ -44,7 +44,7 @@ contract DVTSlashTest is Test {
         sbt.setRegistry(address(registry));
         vm.startPrank(owner);
         
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             IEntryPoint(address(0x123)), // Dummy non-zero address
             owner,
             registry,
@@ -98,7 +98,7 @@ contract DVTSlashTest is Test {
         vm.startPrank(dvtAggregator);
         paymaster.executeSlashWithBLS(
             operator,
-            ISuperPaymasterV3.SlashLevel.MINOR,
+            ISuperPaymaster.SlashLevel.MINOR,
             "Tier 1 Penalty"
         );
         

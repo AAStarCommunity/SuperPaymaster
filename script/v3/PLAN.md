@@ -42,7 +42,7 @@
 5. 部署 MySBT
 6. 部署 Registry
 7. 部署 xPNTsToken (作为 aPNTs mock)
-8. 部署 SuperPaymasterV3
+8. 部署 SuperPaymaster
 9. 部署 xPNTsFactory
 10. 部署 PaymasterFactory + V4.1i 实现
 11. 部署 SimpleAccountFactory

@@ -6,20 +6,20 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "../../../interfaces/v3/IRegistryV3.sol";
+import "../../../interfaces/v3/IRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
-import "../../../interfaces/ISuperPaymasterV3.sol";
+import "../../../interfaces/ISuperPaymaster.sol";
 
 
 
 /**
- * @title SuperPaymasterV3
+ * @title SuperPaymaster
  * @notice V3 SuperPaymaster - Unified Registry based Multi-Operator Paymaster
  * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
  *      Optimized for Gas and Security (CEI, Packing, Batch Updates).
  */
-contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
+contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     using SafeERC20 for IERC20;
     
 
@@ -37,17 +37,17 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     // Storage
     // ====================================
 
-    IRegistryV3 public immutable REGISTRY;
+    IRegistry public immutable REGISTRY;
     address public APNTS_TOKEN;            // aPNTs (AAStar Token) - Mutable to allow updates
     address public xpntsFactory;           // xPNTs Factory for dynamic pricing
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
     address public treasury; // Protocol Treasury for fees
 
     // Operator Data Mapped by Address
-    mapping(address => ISuperPaymasterV3.OperatorConfig) public operators;
+    mapping(address => ISuperPaymaster.OperatorConfig) public operators;
     
     // Slash History
-    mapping(address => ISuperPaymasterV3.SlashRecord[]) public slashHistory;
+    mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
     
     // V3.2: Security & Rate Limiting
     mapping(address => mapping(address => bool)) public blockedUsers; // operator -> user -> isBlocked
@@ -63,7 +63,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     
     // Pricing Config
     function version() external pure override returns (string memory) {
-        return "SuperPaymaster-3.2.0";
+        return "SuperPaymaster-3.2.1";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -115,7 +115,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     constructor(
         IEntryPoint _entryPoint,
         address _owner,
-        IRegistryV3 _registry,
+        IRegistry _registry,
         address _apntsToken,
         address _ethUsdPriceFeed,
         address _protocolTreasury
@@ -384,15 +384,15 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @notice Slash an operator (Admin/Governance only)
      * @dev Reduces reputation and optionally pauses operator
      */
-    function slashOperator(address operator, ISuperPaymasterV3.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
+    function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
         
         uint256 reputationLoss = 0;
-        if (level == ISuperPaymasterV3.SlashLevel.WARNING) {
+        if (level == ISuperPaymaster.SlashLevel.WARNING) {
             reputationLoss = 10;
-        } else if (level == ISuperPaymasterV3.SlashLevel.MINOR) {
+        } else if (level == ISuperPaymaster.SlashLevel.MINOR) {
             reputationLoss = 20;
-        } else if (level == ISuperPaymasterV3.SlashLevel.MAJOR) {
+        } else if (level == ISuperPaymaster.SlashLevel.MAJOR) {
             reputationLoss = 50;
             config.isPaused = true;
             emit OperatorPaused(operator);
@@ -445,25 +445,25 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     /**
      * @notice Execute slash triggered by BLS consensus (DVT Module only)
      */
-    function executeSlashWithBLS(address operator, ISuperPaymasterV3.SlashLevel level, bytes calldata proof) external override {
+    function executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes calldata proof) external override {
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
         
         // Logical penalty (Warning=0, Minor=10%, Major=Full & Pause)
         uint256 penalty = 0;
-        if (level == ISuperPaymasterV3.SlashLevel.MINOR) {
+        if (level == ISuperPaymaster.SlashLevel.MINOR) {
             penalty = operators[operator].aPNTsBalance / 10;
-        } else if (level == ISuperPaymasterV3.SlashLevel.MAJOR) {
+        } else if (level == ISuperPaymaster.SlashLevel.MAJOR) {
             penalty = operators[operator].aPNTsBalance;
         }
 
         _slash(operator, level, penalty, "DVT BLS Slash", proof);
     }
 
-    function _slash(address operator, ISuperPaymasterV3.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
-        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
+    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
         
-        uint256 reputationLoss = level == ISuperPaymasterV3.SlashLevel.WARNING ? 10 : (level == ISuperPaymasterV3.SlashLevel.MINOR ? 20 : 50);
-        if (level == ISuperPaymasterV3.SlashLevel.MAJOR) config.isPaused = true;
+        uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
+        if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
 
         if (config.reputation > reputationLoss) config.reputation -= uint32(reputationLoss);
         else config.reputation = 0;
@@ -473,7 +473,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
             protocolRevenue += penaltyAmount;
         }
 
-        slashHistory[operator].push(ISuperPaymasterV3.SlashRecord({
+        slashHistory[operator].push(ISuperPaymaster.SlashRecord({
             timestamp: block.timestamp,
             amount: penaltyAmount,
             reputationLoss: reputationLoss,
@@ -492,7 +492,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
     // Slash Query Interfaces
     // ====================================
 
-    function getSlashHistory(address operator) external view returns (ISuperPaymasterV3.SlashRecord[] memory) {
+    function getSlashHistory(address operator) external view returns (ISuperPaymaster.SlashRecord[] memory) {
         return slashHistory[operator];
     }
 
@@ -510,7 +510,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
      * @param operator Operator address
      * @return Most recent slash record (reverts if no history)
      */
-    function getLatestSlash(address operator) external view returns (ISuperPaymasterV3.SlashRecord memory) {
+    function getLatestSlash(address operator) external view returns (ISuperPaymaster.SlashRecord memory) {
         if (slashHistory[operator].length == 0) revert NoSlashHistory();
         return slashHistory[operator][slashHistory[operator].length - 1];
     }
@@ -566,7 +566,7 @@ contract SuperPaymasterV3 is BasePaymaster, ReentrancyGuard, ISuperPaymasterV3 {
         // 1. Extract Operator
         address operator = _extractOperator(userOp);
         
-        ISuperPaymasterV3.OperatorConfig storage config = operators[operator];
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
 
         // 2. Validate Operator Role & Config (Pure Storage)
         // Check 1: Must be Configured (implies registered/valid)

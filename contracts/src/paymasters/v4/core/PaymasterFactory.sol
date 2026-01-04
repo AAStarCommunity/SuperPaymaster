@@ -28,7 +28,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "PaymasterFactory-1.0.0";
+        return "PaymasterFactory-1.0.1";
     }
 
     // ====================================

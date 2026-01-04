@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 
 contract MockGToken is ERC20 {
@@ -70,7 +70,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_CreateNewRole_Success() public {
         vm.startPrank(owner);
         
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
             slashThreshold: 5,
@@ -86,7 +86,7 @@ contract RegistryV3NewFeaturesTest is Test {
         registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
         
         // Verify role was created
-        IRegistryV3.RoleConfig memory stored = registry.getRoleConfig(ROLE_NEW_CUSTOM);
+        IRegistry.RoleConfig memory stored = registry.getRoleConfig(ROLE_NEW_CUSTOM);
         assertEq(stored.minStake, 50 ether);
         assertEq(stored.entryBurn, 5 ether);
         assertEq(stored.exitFeePercent, 1000);
@@ -99,7 +99,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_CreateNewRole_OnlyOwner() public {
         vm.startPrank(roleOwner1);
         
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
             slashThreshold: 5,
@@ -121,7 +121,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_CreateNewRole_DuplicateReverts() public {
         vm.startPrank(owner);
         
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
             slashThreshold: 5,
@@ -145,7 +145,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_CreateNewRole_SyncsExitFee() public {
         vm.startPrank(owner);
         
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
             slashThreshold: 5,
@@ -173,7 +173,7 @@ contract RegistryV3NewFeaturesTest is Test {
     // ====================================
 
     function test_ExitFeeConfiguration_InRoleConfig() public {
-        IRegistryV3.RoleConfig memory config = registry.getRoleConfig(ROLE_ENDUSER);
+        IRegistry.RoleConfig memory config = registry.getRoleConfig(ROLE_ENDUSER);
         
         assertEq(config.exitFeePercent, 1000, "EndUser exit fee should be 10%");
         assertEq(config.minExitFee, 0.05 ether, "EndUser min exit fee should be 0.05 ether");
@@ -189,7 +189,7 @@ contract RegistryV3NewFeaturesTest is Test {
         roles[5] = ROLE_ENDUSER;
         
         for (uint i = 0; i < roles.length; i++) {
-            IRegistryV3.RoleConfig memory config = registry.getRoleConfig(roles[i]);
+            IRegistry.RoleConfig memory config = registry.getRoleConfig(roles[i]);
             uint256 expectedFee = roles[i] == ROLE_COMMUNITY ? 500 : 1000;
             assertEq(config.exitFeePercent, expectedFee, "Exit fee mismatch for role");
             assertTrue(config.minExitFee > 0, "All roles should have min exit fee");
@@ -199,7 +199,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_ConfigureRole_UpdatesExitFee() public {
         vm.startPrank(owner);
         
-        IRegistryV3.RoleConfig memory newConfig = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory newConfig = IRegistry.RoleConfig({
             minStake: 20 ether,
             entryBurn: 2 ether,
             slashThreshold: 10,
@@ -229,7 +229,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_RoleOwner_CanConfigureOwnRole() public {
         // First create a role owned by roleOwner1
         vm.startPrank(owner);
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
             slashThreshold: 5,
@@ -249,7 +249,7 @@ contract RegistryV3NewFeaturesTest is Test {
         config.minStake = 60 ether;
         registry.configureRole(ROLE_NEW_CUSTOM, config);
         
-        IRegistryV3.RoleConfig memory updated = registry.getRoleConfig(ROLE_NEW_CUSTOM);
+        IRegistry.RoleConfig memory updated = registry.getRoleConfig(ROLE_NEW_CUSTOM);
         assertEq(updated.minStake, 60 ether);
         vm.stopPrank();
     }
@@ -257,7 +257,7 @@ contract RegistryV3NewFeaturesTest is Test {
     function test_RoleOwner_CannotConfigureOthersRole() public {
         vm.startPrank(roleOwner1);
         
-        IRegistryV3.RoleConfig memory config = IRegistryV3.RoleConfig({
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 20 ether,
             entryBurn: 2 ether,
             slashThreshold: 10,

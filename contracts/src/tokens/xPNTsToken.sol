@@ -63,7 +63,7 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
     /// @notice User debt balance in xPNTs
     mapping(address => uint256) public debts;
     function version() external pure override returns (string memory) {
-        return "XPNTs-2.2.0-credit";
+        return "XPNTs-2.2.1-credit";
     }
 
     // ====================================

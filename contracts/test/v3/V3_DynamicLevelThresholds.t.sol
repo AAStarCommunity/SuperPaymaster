@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
-import "src/interfaces/v3/IRegistryV3.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/modules/validators/BLSValidator.sol";
 
 /**

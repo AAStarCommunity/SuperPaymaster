@@ -6,17 +6,20 @@ import "../../src/core/Registry.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/tokens/MySBT.sol";
 import "../../src/tokens/GToken.sol";
-import "../../src/interfaces/v3/IRegistryV3.sol";
-import "../../src/interfaces/v3/IMySBTV3.sol";
+import "../../src/interfaces/v3/IRegistry.sol";
+import "../../src/interfaces/v3/IMySBT.sol";
 
 // Mock MySBT to avoid complex dependencies but still verify deactivation
-contract MockMySBT is IMySBTV3 {
+contract MockMySBT is IMySBT {
     address public lastDeactivatedUser;
     address public lastDeactivatedCommunity;
 
     function mintForRole(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
     function airdropMint(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
     function getUserSBT(address) external pure returns (uint256) { return 1; }
+    function getSBTData(uint256) external pure returns (SBTData memory) {
+        return SBTData(address(0), address(0), 0, 0);
+    }
     function verifyCommunityMembership(address, address) external pure returns (bool) { return true; }
     function recordActivity(address) external {}
     function deactivateMembership(address user, address community) external {

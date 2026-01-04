@@ -10,7 +10,8 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/Pausable.sol";
 
 import "../interfaces/v3/IReputationCalculator.sol";
-import "../interfaces/v3/IRegistryV3.sol";
+import "../interfaces/v3/IRegistry.sol";
+import "../interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 
 interface ISuperPaymasterCallback {
@@ -20,10 +21,6 @@ interface ISuperPaymasterCallback {
 
 interface IRegistryLegacy {
     function isRegisteredCommunity(address community) external view returns (bool);
-}
-
-interface IGTokenStaking {
-    function unlockAndTransfer(address user, bytes32 roleId) external returns (uint256);
 }
 
 /**
@@ -196,7 +193,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
 
     function version() external pure override returns (string memory) {
-        return "MySBT-3.1.0";
+        return "MySBT-3.1.1";
     }
 
     // ====================================
@@ -622,7 +619,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         // V3: Use hasRole() with ROLE_COMMUNITY constant
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
 
-        try IRegistryV3(REGISTRY).hasRole(ROLE_COMMUNITY, c) returns (bool r) {
+        try IRegistry(REGISTRY).hasRole(ROLE_COMMUNITY, c) returns (bool r) {
             return r;
         } catch {
             // Fallback to v2 for backward compatibility during transition

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
-import "../../../../src/interfaces/v3/IRegistryV3.sol";
+import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "../../../../src/interfaces/v3/IRegistry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -59,8 +59,8 @@ contract MockAggregatorV3Sec {
 
 // --- Test Suite ---
 
-contract SuperPaymasterV3_SecurityTest is Test {
-    SuperPaymasterV3 paymaster;
+contract SuperPaymaster_SecurityTest is Test {
+    SuperPaymaster paymaster;
     MockRegistrySec registry;
     MockEntryPointSec entryPoint;
     MockERC20Sec token;
@@ -85,10 +85,10 @@ contract SuperPaymasterV3_SecurityTest is Test {
         operator = vm.addr(operatorKey);
 
         // 1. Deploy Paymaster
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             IEntryPoint(address(entryPoint)),
             owner,
-            IRegistryV3(address(registry)),
+            IRegistry(address(registry)),
             address(token), // Use token as aPNTs for simplicity
             address(oracle),
             treasury

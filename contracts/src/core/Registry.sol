@@ -5,19 +5,15 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/v3/IRegistryV3.sol";
-import "../interfaces/v3/IGTokenStakingV3.sol";
-import "../interfaces/v3/IMySBTV3.sol";
-import "../interfaces/ISuperPaymasterV3.sol";
-
-interface IBLSAggregator {
-    function threshold() external view returns (uint256);
-}
-
+import "../interfaces/v3/IRegistry.sol";
+import "../interfaces/v3/IGTokenStaking.sol";
+import "../interfaces/v3/IMySBT.sol";
+import "../interfaces/ISuperPaymaster.sol";
+import "../interfaces/v3/IBLSAggregator.sol";
 import "../interfaces/v3/IBLSValidator.sol";
 
 
-contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
+contract Registry is Ownable, ReentrancyGuard, IRegistry {
     using SafeERC20 for IERC20;
 
     struct CommunityRoleData { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
@@ -29,7 +25,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
 
     function version() external pure override returns (string memory) {
-        return "Registry-3.0.0";
+        return "Registry-3.0.1";
     }
 
     // --- Constants ---
@@ -44,8 +40,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     // BLS constants moved to implementation contract (Strategy Pattern)
 
     // --- Storage ---
-    IGTokenStakingV3 public GTOKEN_STAKING;
-    IMySBTV3 public MYSBT;
+    IGTokenStaking public GTOKEN_STAKING;
+    IMySBT public MYSBT;
     address public SUPER_PAYMASTER;
     address public blsAggregator;
     IBLSValidator public blsValidator;
@@ -84,8 +80,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
     error InsufficientStake(uint256 provided, uint256 required);
 
     constructor(address _gtoken, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
-        GTOKEN_STAKING = IGTokenStakingV3(_gtokenStaking);
-        MYSBT = IMySBTV3(_mysbt);
+        GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
+        MYSBT = IMySBT(_mysbt);
         
         address regOwner = msg.sender;
         // NOTE: setRoleExitFee will be called by _initRole, but it will fail if REGISTRY is not set in GTokenStaking
@@ -156,11 +152,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
 
 
     function setStaking(address _staking) external onlyOwner {
-        GTOKEN_STAKING = IGTokenStakingV3(_staking);
+        GTOKEN_STAKING = IGTokenStaking(_staking);
     }
 
     function setMySBT(address _mysbt) external onlyOwner {
-        MYSBT = IMySBTV3(_mysbt);
+        MYSBT = IMySBT(_mysbt);
     }
 
     function setSuperPaymaster(address _sp) external onlyOwner {
@@ -470,7 +466,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistryV3 {
         }
 
         // Forward to SuperPaymaster
-        ISuperPaymasterV3(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
+        ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
     }
 
     function setCreditTier(uint256 level, uint256 limit) external onlyOwner {

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "../../../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
+import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../../../src/tokens/xPNTsToken.sol";
-import "../../../../src/interfaces/v3/IRegistryV3.sol";
+import "../../../../src/interfaces/v3/IRegistry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -13,7 +13,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 // Mock Contracts
 // Mock Contracts
-contract MockRegistry is IRegistryV3 {
+contract MockRegistry is IRegistry {
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_PAYMASTER_AOA() external view override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
     function ROLE_KMS() external view override returns (bytes32) { return keccak256("KMS"); }
@@ -109,8 +109,8 @@ contract MockEntryPoint is IEntryPoint {
     function delegateAndRevert(address, bytes calldata) external override {}
 }
 
-contract SuperPaymasterV3Test is Test {
-    SuperPaymasterV3 paymaster;
+contract SuperPaymasterTest is Test {
+    SuperPaymaster paymaster;
     xPNTsToken apnts;
     MockRegistry registry;
     MockAggregatorV3 priceFeed;
@@ -140,7 +140,7 @@ contract SuperPaymasterV3Test is Test {
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
 
         // Deploy Paymaster
-        paymaster = new SuperPaymasterV3(
+        paymaster = new SuperPaymaster(
             entryPoint,
             owner,
             registry,
@@ -170,7 +170,7 @@ contract SuperPaymasterV3Test is Test {
 
     function testUnregisteredOperatorCannotDeposit() public {
         vm.startPrank(address(0xdead));
-        vm.expectRevert(SuperPaymasterV3.Unauthorized.selector);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.deposit(100 ether);
         vm.stopPrank();
     }
@@ -263,12 +263,12 @@ contract SuperPaymasterV3Test is Test {
         paymaster.updateReputation(operator, 100);
         
         // Slash Minor
-        paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MINOR, 0, "Test Minor");
+        paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
         (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator); 
         assertEq(repMinor, 80);
 
         // Slash Major (Pause)
-        paymaster.slashOperator(operator, ISuperPaymasterV3.SlashLevel.MAJOR, 0, "Test Major");
+        paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");
         (,,,,, uint32 repMajor,,,,) = paymaster.operators(operator); 
         assertEq(repMajor, 30);
         

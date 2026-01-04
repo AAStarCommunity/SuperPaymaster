@@ -6,7 +6,7 @@ import "../../src/core/Registry.sol";
 import "../../src/tokens/MySBT.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/core/GTokenStaking.sol";
-import "../../src/interfaces/v3/IMySBTV3.sol";
+import "../../src/interfaces/v3/IMySBT.sol";
 
 /**
  * @title Registry Multi-Community Test

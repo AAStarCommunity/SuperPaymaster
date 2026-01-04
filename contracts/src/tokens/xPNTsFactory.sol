@@ -78,7 +78,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-2.0.0";
+        return "xPNTsFactory-2.0.1";
     }
 
     // ====================================
@@ -303,7 +303,7 @@ contract xPNTsFactory is Ownable, IVersioned {
     /**
      * @notice Sets the SuperPaymaster address after deployment
      * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
-     * @param _superPaymaster The address of the deployed SuperPaymasterV3 contract.
+     * @param _superPaymaster The address of the deployed SuperPaymaster contract.
      */
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
         require(_superPaymaster != address(0), "Invalid address");

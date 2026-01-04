@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "src/interfaces/IVersioned.sol";
-
 /**
  * @title IMySBT
- * @notice Interface for MySBT v2.1 - White-label Soul Bound Token
- * @dev One SBT per user, multiple community memberships
+ * @notice Interface for MySBT v3.0.0 - Minimal role-based SBT minting
+ * @dev Single responsibility: Mint SBTs for Registry role system
+ *      All financial operations (staking/burning) handled by Registry
  */
-interface IMySBT is IVersioned {
-    // ====================================
-    // Structs
-    // ====================================
-
+interface IMySBT {
     struct SBTData {
         address holder;
-        address firstCommunity;    // Immutable, first issuing community
+        address firstCommunity;
         uint256 mintedAt;
         uint256 totalCommunities;
     }
@@ -23,121 +18,59 @@ interface IMySBT is IVersioned {
     struct CommunityMembership {
         address community;
         uint256 joinedAt;
-        uint256 lastActiveTime;   // DEPRECATED in v2.2: Use The Graph to query ActivityRecorded events
+        uint256 lastActiveTime;
         bool isActive;
-        string metadata;          // IPFS URI for community data
-    }
-
-    struct NFTBinding {
-        address nftContract;
-        uint256 nftTokenId;
-        uint256 bindTime;
-        bool isActive;
-    }
-
-    struct AvatarSetting {
-        address nftContract;
-        uint256 nftTokenId;
-        bool isCustom;  // true=manual, false=auto
+        string metadata;
     }
 
     // ====================================
-    // Events
-    // ====================================
-
-    event SBTMinted(
-        address indexed user,
-        uint256 indexed tokenId,
-        address indexed firstCommunity,
-        uint256 timestamp
-    );
-
-    event SBTBurned(
-        address indexed user,
-        uint256 indexed tokenId,
-        uint256 grossAmount,    // Total unlocked amount (0.3 ether)
-        uint256 netAmount,      // Net returned after exitFee (0.2 ether)
-        uint256 timestamp
-    );
-
-    event MembershipAdded(
-        uint256 indexed tokenId,
-        address indexed community,
-        string metadata,
-        uint256 timestamp
-    );
-
-    event MembershipDeactivated(
-        uint256 indexed tokenId,
-        address indexed community,
-        uint256 timestamp
-    );
-
-    event NFTBound(
-        uint256 indexed tokenId,
-        address indexed community,
-        address nftContract,
-        uint256 nftTokenId,
-        uint256 timestamp
-    );
-
-    event NFTUnbound(
-        uint256 indexed tokenId,
-        address indexed community,
-        address nftContract,
-        uint256 nftTokenId,
-        uint256 timestamp
-    );
-
-    event AvatarSet(
-        uint256 indexed tokenId,
-        address nftContract,
-        uint256 nftTokenId,
-        bool isCustom,
-        uint256 timestamp
-    );
-
-    event ActivityRecorded(
-        uint256 indexed tokenId,
-        address indexed community,
-        uint256 week,
-        uint256 timestamp
-    );
-
-    event ReputationCalculatorUpdated(
-        address indexed oldCalculator,
-        address indexed newCalculator,
-        uint256 timestamp
-    );
-
-    // ✅ v2.3: Enhanced admin events
-    event ContractPaused(address indexed by, uint256 timestamp);
-    event ContractUnpaused(address indexed by, uint256 timestamp);
-    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry, uint256 timestamp);
-    event MinLockAmountUpdated(uint256 oldAmount, uint256 newAmount, uint256 timestamp);
-    event MintFeeUpdated(uint256 oldFee, uint256 newFee, uint256 timestamp);
-    event DAOMultisigUpdated(address indexed oldDAO, address indexed newDAO, uint256 timestamp);
-
-    // ====================================
-    // Errors (v2.3)
-    // ====================================
-
-    error ActivityTooFrequent(uint256 tokenId, address community, uint256 nextAllowedTime);
-
-    // ====================================
-    // Core Functions
+    // Core Minting Functions (v3.0.0)
     // ====================================
 
     /**
-     * @notice Mint SBT or add community membership (idempotent)
-     * @param user User address to mint for
-     * @param metadata IPFS URI for community-specific metadata
-     * @return tokenId SBT token ID (new or existing)
-     * @return isNewMint True if new SBT was created, false if membership added
+     * @notice Mint SBT for role registration (called by Registry only)
+     * @dev Self-service registration: user registers via Registry.registerRole()
+     * @param user User address to receive SBT
+     * @param roleId Role identifier (bytes32)
+     * @param roleData Role-specific metadata (ABI-encoded)
+     * @return tokenId Token ID (new or existing)
+     * @return isNewMint True if new SBT was minted
      */
-    function mintOrAddMembership(address user, string memory metadata)
+    function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
         external
         returns (uint256 tokenId, bool isNewMint);
+
+    /**
+     * @notice Admin airdrop (called by Registry only)
+     * @dev DAO-paid minting: Registry.safeMintForRole() → this function
+     *      Registry handles all financial operations (staking/burning)
+     * @param user User address to receive SBT
+     * @param roleId Role identifier
+     * @param roleData Role-specific metadata
+     * @return tokenId Token ID (new or existing)
+     * @return isNewMint True if new SBT was minted
+     */
+    function airdropMint(address user, bytes32 roleId, bytes calldata roleData)
+        external
+        returns (uint256 tokenId, bool isNewMint);
+
+    // ====================================
+    // View Functions
+    // ====================================
+
+    /**
+     * @notice Get user's SBT token ID
+     * @param user User address
+     * @return tokenId Token ID (0 if no SBT)
+     */
+    function getUserSBT(address user) external view returns (uint256 tokenId);
+
+    /**
+     * @notice Get metadata for a specific SBT
+     * @param tokenId Token ID
+     * @return data SBT data struct
+     */
+    function getSBTData(uint256 tokenId) external view returns (SBTData memory data);
 
     /**
      * @notice Verify user has active membership in community
@@ -151,123 +84,15 @@ interface IMySBT is IVersioned {
         returns (bool isValid);
 
     /**
-     * @notice Get user's SBT token ID
-     * @param user User address
-     * @return tokenId Token ID (0 if no SBT)
-     */
-    function getUserSBT(address user) external view returns (uint256 tokenId);
-
-    /**
-     * @notice Get SBT data
-     * @param tokenId Token ID
-     * @return data SBT data struct
-     */
-    function getSBTData(uint256 tokenId) external view returns (SBTData memory data);
-
-    /**
-     * @notice Get all community memberships for an SBT
-     * @param tokenId Token ID
-     * @return memberships Array of community memberships
-     */
-    function getMemberships(uint256 tokenId)
-        external
-        view
-        returns (CommunityMembership[] memory memberships);
-
-    /**
-     * @notice Get specific community membership
-     * @param tokenId Token ID
-     * @param community Community address
-     * @return membership Community membership data
-     */
-    function getCommunityMembership(uint256 tokenId, address community)
-        external
-        view
-        returns (CommunityMembership memory membership);
-
-    // ====================================
-    // NFT Binding Functions
-    // ====================================
-
-    /**
-     * @notice Bind community NFT to SBT (v2.4.0: User-level binding)
-     * @param community Community address (deprecated in v2.4.0)
-     * @param nftContract NFT contract address
-     * @param nftTokenId NFT token ID
-     */
-
-    /**
-     * @notice Get all NFT bindings for an SBT (v2.4.0+)
-     * @param tokenId Token ID
-     * @return bindings Array of NFT bindings
-     */
-
-    // ====================================
-    // Avatar Functions
-    // ====================================
-
-    /**
-     * @notice Set custom avatar
-     * @param nftContract NFT contract address
-     * @param nftTokenId NFT token ID
-     */
-
-    // ====================================
-    // Reputation Functions
-    // ====================================
-
-    /**
-     * @notice Record user activity (called by PaymasterV4)
+     * @notice Record user activity (called by Paymaster)
      * @param user User address
      */
     function recordActivity(address user) external;
 
     /**
-     * @notice Get community reputation score
+     * @notice Deactivate user membership in community (called by Registry only)
      * @param user User address
      * @param community Community address
-     * @return score Reputation score
      */
-
-    /**
-     * @notice Get global reputation score
-     * @param user User address
-     * @return score Global reputation score
-     */
-
-    // ====================================
-    // Admin Functions
-    // ====================================
-
-    /**
-     * @notice Set reputation calculator contract
-     * @param calculator Calculator contract address (0 = use default)
-     */
-    function setReputationCalculator(address calculator) external;
-
-    /**
-     * @notice Set minimum lock amount
-     * @param amount Amount in wei
-     */
-    function setMinLockAmount(uint256 amount) external;
-
-    /**
-     * @notice Set mint fee
-     * @param fee Fee amount in wei
-     */
-    function setMintFee(uint256 fee) external;
-
-    /**
-     * @notice Set DAO multisig address
-     * @param newDAO New DAO address
-     */
-    function setDAOMultisig(address newDAO) external;
-
-    /**
-     * @notice Set Registry contract address
-     * @param registry Registry contract address
-     */
-    function setRegistry(address registry) external;
-
-
+    function deactivateMembership(address user, address community) external;
 }

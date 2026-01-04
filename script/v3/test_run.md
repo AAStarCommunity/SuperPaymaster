@@ -7,7 +7,7 @@ Compiling 121 files with Solc 0.8.28
 Solc 0.8.28 finished in 2.01s
 Error: Compiler run failed:
 Warning (2519): This declaration shadows an existing declaration.
-   --> contracts/src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol:289:5:
+   --> contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:289:5:
     |
 289 |     function _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter) internal pure returns (uint256) {
     |     ^ (Relevant source part starts here and spans across multiple lines).
@@ -25,7 +25,7 @@ Note: The shadowed declaration is here:
 Error (6160): Wrong argument count for function call: 5 arguments given but expected 6.
   --> script/v3/SetupV3.s.sol:89:26:
    |
-89 |         superPaymaster = new SuperPaymasterV3(entryPointAddress, deployer, address(registry), priceFeedAddr, treasury);
+89 |         superPaymaster = new SuperPaymaster(entryPointAddress, deployer, address(registry), priceFeedAddr, treasury);
    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Error (6160): Wrong argument count for function call: 1 arguments given but expected 2.

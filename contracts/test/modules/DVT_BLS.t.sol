@@ -2,12 +2,12 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/modules/monitoring/DVTValidatorV3.sol";
-import "src/modules/monitoring/BLSAggregatorV3.sol";
+import "src/modules/monitoring/DVTValidator.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/IVersioned.sol";
 
 // Mocks
-contract MockRegistryV3 is IRegistryV3 {
+contract MockRegistryV3 is IRegistry {
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
@@ -43,7 +43,7 @@ contract MockRegistryV3 is IRegistryV3 {
     function version() external view override returns (string memory) { return "MockRegistryV3"; }
 }
 
-contract MockSuperPaymasterV3 {
+contract MockSuperPaymaster {
     enum SlashLevel { WARNING, MINOR, MAJOR }
     // Mock the call signature
     // executeSlashWithBLS(address,SlashLevel,bytes)
@@ -51,10 +51,10 @@ contract MockSuperPaymasterV3 {
 }
 
 contract DVTBLSTest is Test {
-    DVTValidatorV3 dvt;
-    BLSAggregatorV3 bls;
+    DVTValidator dvt;
+    BLSAggregator bls;
     MockRegistryV3 registry;
-    MockSuperPaymasterV3 sp;
+    MockSuperPaymaster sp;
     
     address owner = address(1);
     address op = address(2);
@@ -64,11 +64,11 @@ contract DVTBLSTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         registry = new MockRegistryV3();
-        sp = new MockSuperPaymasterV3();
+        sp = new MockSuperPaymaster();
         
         // Circular dependency handling
-        dvt = new DVTValidatorV3(address(registry));
-        bls = new BLSAggregatorV3(address(registry), address(sp), address(dvt));
+        dvt = new DVTValidator(address(registry));
+        bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         
         dvt.setBLSAggregator(address(bls));
         
@@ -165,7 +165,7 @@ contract DVTBLSTest is Test {
     
     function test_Fail_NotValidator() public {
         vm.prank(address(0x999));
-        vm.expectRevert(DVTValidatorV3.NotValidator.selector);
+        vm.expectRevert(DVTValidator.NotValidator.selector);
         dvt.createProposal(op, 1, "fail");
     }
 }
