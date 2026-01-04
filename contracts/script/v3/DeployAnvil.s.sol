@@ -142,7 +142,7 @@ contract DeployAnvil is Script {
     }
 
     function _generateConfig() internal {
-        string memory finalPath = string.concat(vm.projectRoot(), "/deployments/anvil.json");
+        string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.anvil.json");
         string memory jsonObj = "json";
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));

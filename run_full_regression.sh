@@ -2,13 +2,13 @@
 set -e
 
 # ==============================================================================
-# SuperPaymaster V3/V4 Full Regression Suite (Smart Deployment)
+# SuperPaymaster V3/V4 Full Regression Suite (Clean & Standardized)
 # ------------------------------------------------------------------------------
 # Usage: ./run_full_regression.sh --env [anvil|sepolia|...] [--force]
 # ==============================================================================
 
 ENV="anvil"
-ENV_FILE=".env.anvil"
+ENV_FILE=".env.$ENV"
 FORCE_DEPLOY=false
 
 # Simple argument parsing
@@ -18,20 +18,22 @@ while [[ $# -gt 0 ]]; do
             ENV="$2"
             ENV_FILE=".env.$ENV"
             shift 2
-            ;; 
+            ;;
         --force)
             FORCE_DEPLOY=true
             shift
-            ;; 
+            ;;
         *)
             shift
-            ;; 
+            ;;
     esac
 done
 
-CONFIG_FILE="deployments/$ENV.json"
+# Standardized Config File Name
+CONFIG_NAME="config.$ENV.json"
+CONFIG_FILE="deployments/$CONFIG_NAME"
 
-echo "🚀 SuperPaymaster V3/V4 - Full Regression Suite"
+echo "🚀 SuperPaymaster Full Regression Suite"
 echo "Target Environment: $ENV"
 echo "Force Redeploy: $FORCE_DEPLOY"
 echo "=================================================="
@@ -59,16 +61,15 @@ if [ "$ENV" == "anvil" ]; then
     ANVIL_PID=$!
     sleep 2
     RPC_URL="http://127.0.0.1:8545"
-    # Anvil 总是重新部署，因为节点状态已被 pkill 清空
     SHOULD_DEPLOY=true
 else
-    # 检查 RPC_URL
+    # Check RPC_URL
     ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
     VAR_NAME="${ENV_UPPER}_RPC_URL"
     RPC_URL=${!VAR_NAME:-$RPC_URL}
     if [ -z "$RPC_URL" ]; then echo -e "${RED}Error: RPC_URL for $ENV not set${NC}"; exit 1; fi
 
-    # 智能跳过判断
+    # Skip logic
     if [ -f "$CONFIG_FILE" ] && [ "$FORCE_DEPLOY" = false ]; then
         echo -e "${GREEN}Notice: $CONFIG_FILE exists. Skipping deployment phase...${NC}"
         echo -e "${GREEN}Use --force to trigger a clean redeploy.${NC}"
@@ -79,8 +80,9 @@ fi
 # --- PHASE 1: DEPLOYMENT ---
 if [ "$SHOULD_DEPLOY" = true ]; then
     echo -e "\n${YELLOW}PHASE 1: Deployment & Infrastructure${NC}"
-
-    export CONFIG_FILE="$ENV.json"
+    
+    # Crucial: Export for Forge Scripts
+    export CONFIG_FILE="$CONFIG_NAME"
     
     if [ "$ENV" == "anvil" ]; then
         SCRIPT_NAME="DeployAnvil"
@@ -95,11 +97,10 @@ if [ "$SHOULD_DEPLOY" = true ]; then
       --tc "$SCRIPT_NAME" \
       -vv
 else
-    echo -e "\n${GREEN}PHASE 1: Skipping Deployment (Existing deployment found)${NC}"
+    echo -e "\n${GREEN}PHASE 1: Skipping Deployment${NC}"
 fi
 
 # --- PHASE 2: ARTIFACT EXTRACTION ---
-# 无论是否重新部署，都建议提取 ABI 以确保与本地代码同步
 echo -e "\n${YELLOW}PHASE 2: ABI & Metadata Extraction${NC}"
 if [ -f "scripts/extract_v3_abis.sh" ]; then
     ./scripts/extract_v3_abis.sh
@@ -108,7 +109,6 @@ else
 fi
 
 # --- PHASE 3: RIGOROUS VERIFICATION ---
-# 始终运行验证，确保环境（不论新旧）是健康的
 echo -e "\n${YELLOW}PHASE 3: On-Chain Logic & Wiring Audit${NC}"
 
 CHECK_SCRIPTS=(
@@ -121,8 +121,8 @@ CHECK_SCRIPTS=(
     "VerifyV3_1_1"
 )
 
-# 确保 Check 脚本能找到正确的 config
-export CONFIG_FILE="$ENV.json"
+# Ensure Check scripts find the right config
+export CONFIG_FILE="$CONFIG_NAME"
 
 for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
     echo "🔍 Running $SCRIPT..."
@@ -136,8 +136,8 @@ echo -e "${GREEN}✅ All contract logic checks passed!${NC}"
 # --- PHASE 4: ENVIRONMENT SYNC ---
 echo -e "\n${YELLOW}PHASE 4: SDK & Env Synchronization${NC}"
 if [ -f "scripts/update_env_from_config.ts" ]; then
-    # 显式传递参数以防万一
-    pnpm tsx scripts/update_env_from_config.ts --config "$ENV.json" --output "$ENV_FILE"
+    # Standardize the sync call
+    pnpm tsx scripts/update_env_from_config.ts --config "$CONFIG_NAME" --output "$ENV_FILE"
 fi
 
 if [ -f "scripts/setup_test_environment.ts" ] && [ "$SHOULD_DEPLOY" = true ]; then
@@ -147,8 +147,12 @@ fi
 
 # ------------------------------------------------------------------------------
 # Cleanup
-if [ -n "$ANVIL_PID" ]; then
-    kill $ANVIL_PID
+if [ "$ENV" == "anvil" ]; then
+    echo -e "${YELLOW}Notice: Anvil is running (PID: $ANVIL_PID). Access at http://127.0.0.1:8545${NC}"
+else
+    if [ -n "$ANVIL_PID" ]; then
+        kill $ANVIL_PID
+    fi
 fi
 
 echo -e "\n${GREEN}✨ REGRESSION FOR $ENV COMPLETE: SYSTEM IS STABLE ✨${NC}"

@@ -145,7 +145,7 @@ contract DeployLive is Script {
         if (block.chainid == 11155111) chainName = "sepolia";
         if (block.chainid == 1) chainName = "mainnet";
         
-        string memory finalPath = string.concat(vm.projectRoot(), "/deployments/", chainName, ".json");
+        string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.", chainName, ".json");
         string memory jsonObj = "json";
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
