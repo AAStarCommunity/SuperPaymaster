@@ -1,24 +1,24 @@
 #!/bin/bash
 set -e
 
-# Usage: ./run_full_regression.sh --env [anvil|sepolia]
+# ==============================================================================
+# SuperPaymaster V3/V4 Full Regression Suite (Enhanced Verification)
+# ------------------------------------------------------------------------------
+# Usage: ./run_full_regression.sh --env [anvil|sepolia|optimism|mainnet|...]
+# ==============================================================================
 
 ENV="anvil"
 ENV_FILE=".env.anvil"
-CONFIG_FILE="config.anvil.json"
 
 if [ "$1" == "--env" ]; then
     ENV="$2"
-    if [ "$ENV" == "sepolia" ]; then
-        ENV_FILE=".env.sepolia"
-        CONFIG_FILE="config.sepolia.json"
-    fi
+    ENV_FILE=".env.$ENV"
 fi
 
-echo "🚀 SuperPaymaster V3 - Full Regression Suite"
+CONFIG_FILE="deployments/$ENV.json"
+
+echo "🚀 SuperPaymaster V3/V4 - Full Regression Suite"
 echo "Target Environment: $ENV"
-echo "Config File: $CONFIG_FILE"
-echo "Env File: $ENV_FILE"
 echo "=================================================="
 
 # Colors
@@ -27,131 +27,84 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Source env with export
+# 1. Source Environment
 if [ -f "$ENV_FILE" ]; then
     echo "Sourcing $ENV_FILE..."
-    set -a
-    source "$ENV_FILE"
-    set +a
-elif [ -f .env ]; then
-    echo "Sourcing .env (fallback)..."
-    source .env
+    set -a; source "$ENV_FILE"; set +a
 fi
 
-export CONFIG_FILE
-export TARGET_ENV_FILE="$ENV_FILE"
-
-if [ "$ENV" == "sepolia" ]; then
-    echo -e "\n${YELLOW}📡 Executing Sepolia Workflow...${NC}"
-    
-    # Config Separation Logic
-    # (CONFIG_FILE already exported globally)
-    if [ ! -f "$CONFIG_FILE" ] && [ -f "config.json" ]; then
-        echo "Migrating config.json to $CONFIG_FILE to preserve state..."
-        cp config.json $CONFIG_FILE
-    fi
-
-    # 1. Deploy
-    echo -e "\n${YELLOW}Step 1: Deploying to Sepolia...${NC}"
-    # Ensure config.json is present (Deploy script handles partial checks)
-    forge script contracts/script/DeployV3FullSepolia.s.sol:DeployV3FullSepolia \
-      --rpc-url $SEPOLIA_RPC_URL \
-      --broadcast \
-      --verify \
-      --etherscan-api-key $ETHERSCAN_API_KEY \
-      --gas-price 50000000000 \
-      --legacy \
-      --slow
-      
-    if [ $? -ne 0 ]; then echo -e "${RED}Deployment Failed${NC}"; exit 1; fi
-
-    # 2. Sync Env
-    echo -e "\n${YELLOW}Step 2: Syncing .env...${NC}"
-    if [ -f "scripts/update_env_from_config.ts" ]; then
-        pnpm tsx scripts/update_env_from_config.ts
-    else
-        echo -e "${RED}Missing scripts/update_env_from_config.ts${NC}"
-        # Fallback: echo config
-        cat $CONFIG_FILE
-    fi
-
-    # 3. Setup Test Env
-    echo -e "\n${YELLOW}Step 3: Initializing Test Environment...${NC}"
-    if [ -f "scripts/setup_test_environment.ts" ]; then
-        pnpm tsx scripts/setup_test_environment.ts
-    else
-         echo -e "${RED}Missing scripts/setup_test_environment.ts${NC}"
-    fi
-
-    # 4. Audit
-    echo -e "\n${YELLOW}Step 4: Running Full Spectrum Audit...${NC}"
-    forge script contracts/script/checks/VerifyV3_1_1.s.sol:VerifyV3_1_1 \
-      --rpc-url $SEPOLIA_RPC_URL \
-      -vv
-      
-    echo -e "${GREEN}🎉 Sepolia Workflow Complete!${NC}"
-
-elif [ "$ENV" == "anvil" ]; then
-    echo -e "\n${YELLOW}🔨 Executing Anvil Regression...${NC}"
-
-    # 1. Build
-    echo -e "\n${YELLOW}Step 1: Building contracts...${NC}"
-    forge build
-    if [ $? -ne 0 ]; then echo -e "${RED}Build failed${NC}"; exit 1; fi
-
-    # 2. Start Anvil (Background)
-    echo -e "\n${YELLOW}Step 2: Starting Anvil...${NC}"
+# 2. Start/Check Node
+ANVIL_PID=""
+if [ "$ENV" == "anvil" ]; then
+    echo -e "\n${YELLOW}🔨 Restarting Local Anvil Node...${NC}"
     pkill anvil || true
     anvil --port 8545 --chain-id 31337 > /dev/null 2>&1 &
     ANVIL_PID=$!
-    sleep 3
-
-    # 3. Deploy
-    echo -e "\n${YELLOW}Step 3: Deploying V3 Full to Anvil...${NC}"
-    # Use the same script as Sepolia but with anvil profile/rpc
-    forge script contracts/script/DeployV3FullLocal.s.sol:DeployV3FullLocal \
-      --rpc-url http://127.0.0.1:8545 \
-      --broadcast \
-      --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Deployment failed${NC}"
-        kill $ANVIL_PID
-        exit 1
-    fi
-    
-    # 4. Extract ABIs (Integration Point)
-    echo -e "\n${YELLOW}Step 4: Extracting ABIs for SDK...${NC}"
-    if [ -f "scripts/extract_abis.sh" ]; then
-        ./scripts/extract_abis.sh
-    elif [ -f "extract_abis.sh" ]; then # Support root location
-        ./extract_abis.sh
-    fi
-
-    # 5. Run Verification (Solidity)
-    echo -e "\n${YELLOW}Step 5: Solidity Verification...${NC}"
-    forge script contracts/script/checks/VerifyV3_1_1.s.sol:VerifyV3_1_1 \
-      --rpc-url http://127.0.0.1:8545 \
-      -vv
-
-    # 6. Trigger SDK Regression (Optional but requested to link)
-    echo -e "\n${YELLOW}Step 6: Triggering SDK Regression...${NC}"
-    if [ -d "../aastar-sdk" ]; then
-        cd ../aastar-sdk
-        # We use run_sdk_regression.sh but skip anvil start since we managed it?
-        # run_sdk_regression.sh checks anvil.
-        # But it might restart it.
-        # Let's just run specific integration tests or rely on user to run SDK suite separately?
-        # User said "SDK regression stay I SDK". 
-        # So here we just ensure Contracts side is good.
-        echo "SDK tests should be run via 'cd ../aastar-sdk && ./run_sdk_regression.sh'"
-        cd ../SuperPaymaster
-    fi
-
-    kill $ANVIL_PID
-    echo -e "${GREEN}🎉 Anvil Regression Complete!${NC}"
-
+    sleep 2
+    RPC_URL="http://127.0.0.1:8545"
 else
-    echo "Unknown Environment: $ENV"
-    exit 1
+    ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
+    VAR_NAME="${ENV_UPPER}_RPC_URL"
+    RPC_URL=${!VAR_NAME:-$RPC_URL}
+    if [ -z "$RPC_URL" ]; then echo -e "${RED}Error: RPC_URL not set${NC}"; exit 1; fi
 fi
+
+# --- PHASE 1: DEPLOYMENT ---
+echo -e "\n${YELLOW}PHASE 1: Deployment & Infrastructure${NC}"
+export CONFIG_FILE="$ENV.json"
+forge script contracts/script/v3/DeployStandardV3.s.sol:DeployStandardV3 \
+  --rpc-url "$RPC_URL" \
+  --broadcast \
+  --tc DeployStandardV3 \
+  -vv
+
+# --- PHASE 2: ARTIFACT EXTRACTION ---
+echo -e "\n${YELLOW}PHASE 2: ABI & Metadata Extraction${NC}"
+if [ -f "scripts/extract_v3_abis.sh" ]; then
+    ./scripts/extract_v3_abis.sh
+else
+    echo -e "${RED}Missing scripts/extract_v3_abis.sh${NC}"; exit 1
+fi
+
+# --- PHASE 3: RIGOROUS VERIFICATION (NEW) ---
+echo -e "\n${YELLOW}PHASE 3: On-Chain Logic & Wiring Audit${NC}"
+
+# 运行逐个组件的 Check 脚本
+CHECK_SCRIPTS=(
+    "Check04_Registry"
+    "Check01_GToken"
+    "Check02_GTokenStaking"
+    "Check03_MySBT"
+    "Check07_SuperPaymaster"
+    "Check08_Wiring"
+)
+
+for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
+    echo "🔍 Running $SCRIPT..."
+    # 使用刚刚生成的 config 文件进行验证
+    forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" \
+      --rpc-url "$RPC_URL" \
+      -vv || (echo -e "${RED}$SCRIPT Failed!${NC}"; exit 1)
+done
+
+echo -e "${GREEN}✅ All contract logic checks passed!${NC}"
+
+# --- PHASE 4: ENVIRONMENT SYNC ---
+echo -e "\n${YELLOW}PHASE 4: SDK & Env Synchronization${NC}"
+if [ -f "scripts/update_env_from_config.ts" ]; then
+    pnpm tsx scripts/update_env_from_config.ts --config "$CONFIG_FILE" --output "$ENV_FILE"
+fi
+
+# 如果存在测试环境初始化脚本，则运行它（用于准备 SDK 测试数据）
+if [ -f "scripts/setup_test_environment.ts" ]; then
+    echo "🛠 Initializing SDK Test Environment..."
+    pnpm tsx scripts/setup_test_environment.ts
+fi
+
+# ------------------------------------------------------------------------------
+# Cleanup
+if [ -n "$ANVIL_PID" ]; then
+    kill $ANVIL_PID
+fi
+
+echo -e "\n${GREEN}✨ REGRESSION COMPLETE: SYSTEM IS STABLE ✨${NC}"

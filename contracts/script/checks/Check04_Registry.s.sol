@@ -6,23 +6,25 @@ import "forge-std/console.sol";
 import "../../src/core/Registry.sol";
 
 contract Check04_Registry is Script {
-    function run(address registryAddr) external view {
+    function run() external view {
+        string memory root = vm.projectRoot();
+        string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
+        string memory path = string.concat(root, "/deployments/", configFile);
+        string memory json = vm.readFile(path);
+        address registryAddr = vm.parseJsonAddress(json, ".registry");
+
         Registry registry = Registry(registryAddr);
         console.log("--- Registry V3.1 Check ---");
         console.log("Address:", registryAddr);
-        console.log("Staking (Immutable):", address(registry.GTOKEN_STAKING()));
-        console.log("MySBT (Immutable):", address(registry.MYSBT()));
+        console.log("Version:", registry.version());
+        console.log("Staking:", address(registry.GTOKEN_STAKING()));
+        console.log("MySBT:", address(registry.MYSBT()));
         console.log("Owner:", registry.owner());
         
-        // V3.1 Specific: Credit Tier Config
-        // Access mapping directly since there might not be a level getter
-        console.log("Credit Limit Level 1:", registry.creditTierConfig(1) / 1e18, "Unit");
-        console.log("Credit Limit Level 2:", registry.creditTierConfig(2) / 1e18, "Unit");
-        console.log("Credit Limit Level 3:", registry.creditTierConfig(3) / 1e18, "Unit");
+        console.log("Credit Limit Level 1:", registry.creditTierConfig(1) / 1e18, "aPNTs");
+        console.log("Credit Limit Level 2:", registry.creditTierConfig(2) / 1e18, "aPNTs");
         
-        // V3.1 Specific: Reputation Source check
         console.log("Owner is Reputation Source:", registry.isReputationSource(registry.owner()));
-        
         console.log("--------------------------");
     }
 }

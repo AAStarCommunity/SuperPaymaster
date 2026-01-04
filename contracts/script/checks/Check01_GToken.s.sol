@@ -6,7 +6,13 @@ import "forge-std/console.sol";
 import "../../src/tokens/GToken.sol";
 
 contract Check01_GToken is Script {
-    function run(address gTokenAddr) external view {
+    function run() external view {
+        string memory root = vm.projectRoot();
+        string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
+        string memory path = string.concat(root, "/deployments/", configFile);
+        string memory json = vm.readFile(path);
+        address gTokenAddr = vm.parseJsonAddress(json, ".gToken");
+
         GToken token = GToken(gTokenAddr);
         console.log("--- GToken Check ---");
         console.log("Address:", gTokenAddr);
@@ -15,11 +21,7 @@ contract Check01_GToken is Script {
         console.log("Total Supply:", token.totalSupply() / 1e18, "GToken");
         console.log("Owner:", token.owner());
         
-        try token.VERSION() returns (string memory v) {
-            console.log("Version:", v);
-        } catch {
-            console.log("Version: N/A");
-        }
+        console.log("Version:", token.version());
         console.log("--------------------");
     }
 }

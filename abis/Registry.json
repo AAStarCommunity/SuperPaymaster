@@ -11,22 +11,14 @@
         "name": "_gtokenStaking",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_mysbt",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "GTOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -36,66 +28,131 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IGTokenStaking"
+        "internalType": "contract IGTokenStakingV3"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "MAX_NAME_LENGTH",
+    "name": "MYSBT",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "address",
+        "internalType": "contract IMySBTV3"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "MAX_SUPPORTED_SBTS",
+    "name": "ROLE_ANODE",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "VERSION",
+    "name": "ROLE_COMMUNITY",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "VERSION_CODE",
+    "name": "ROLE_DVT",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "communities",
+    "name": "ROLE_ENDUSER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROLE_KMS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROLE_PAYMASTER_AOA",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ROLE_PAYMASTER_SUPER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SUPER_PAYMASTER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accountToUser",
     "inputs": [
       {
         "name": "",
@@ -105,61 +162,159 @@
     ],
     "outputs": [
       {
-        "name": "name",
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "addLevelThreshold",
+    "inputs": [
+      {
+        "name": "threshold",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "adminConfigureRole",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "minStake",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "entryBurn",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "exitFeePercent",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minExitFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "batchUpdateGlobalReputation",
+    "inputs": [
+      {
+        "name": "users",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "newScores",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "proof",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "blsAggregator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "blsValidator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IBLSValidator"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "calculateExitFee",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "communityByENSV3",
+    "inputs": [
+      {
+        "name": "",
         "type": "string",
         "internalType": "string"
-      },
+      }
+    ],
+    "outputs": [
       {
-        "name": "ensName",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "xPNTsToken",
+        "name": "",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "nodeType",
-        "type": "uint8",
-        "internalType": "enum Registry.NodeType"
-      },
-      {
-        "name": "paymasterAddress",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "registeredAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lastUpdatedAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "isActive",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "allowPermissionlessMint",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "communityByENS",
+    "name": "communityByNameV3",
     "inputs": [
       {
         "name": "",
@@ -178,116 +333,25 @@
   },
   {
     "type": "function",
-    "name": "communityByName",
+    "name": "configureRole",
     "inputs": [
       {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityBySBT",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityList",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityStakes",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "stGTokenLocked",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "failureCount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lastFailureTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalSlashed",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "isActive",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "configureNodeType",
-    "inputs": [
-      {
-        "name": "nodeType",
-        "type": "uint8",
-        "internalType": "enum Registry.NodeType"
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "config",
         "type": "tuple",
-        "internalType": "struct Registry.NodeTypeConfig",
+        "internalType": "struct IRegistryV3.RoleConfig",
         "components": [
           {
             "name": "minStake",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "entryBurn",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -310,6 +374,26 @@
             "name": "slashMax",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "exitFeePercent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minExitFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       }
@@ -319,24 +403,209 @@
   },
   {
     "type": "function",
-    "name": "deactivateCommunity",
-    "inputs": [],
+    "name": "createNewRole",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "config",
+        "type": "tuple",
+        "internalType": "struct IRegistryV3.RoleConfig",
+        "components": [
+          {
+            "name": "minStake",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "entryBurn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashThreshold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashIncrement",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashMax",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "exitFeePercent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minExitFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "roleOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "getCommunities",
+    "name": "creditTierConfig",
     "inputs": [
       {
-        "name": "offset",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
+      }
+    ],
+    "outputs": [
       {
-        "name": "limit",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "exitRole",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getCreditLimit",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRoleConfig",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IRegistryV3.RoleConfig",
+        "components": [
+          {
+            "name": "minStake",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "entryBurn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashThreshold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashIncrement",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashMax",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "exitFeePercent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minExitFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getRoleMembers",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -350,65 +619,14 @@
   },
   {
     "type": "function",
-    "name": "getCommunityByENS",
+    "name": "getRoleUserCount",
     "inputs": [
       {
-        "name": "ensName",
-        "type": "string",
-        "internalType": "string"
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
-    "outputs": [
-      {
-        "name": "communityAddress",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getCommunityByName",
-    "inputs": [
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "communityAddress",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getCommunityBySBT",
-    "inputs": [
-      {
-        "name": "sbtAddress",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "communityAddress",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getCommunityCount",
-    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -420,128 +638,52 @@
   },
   {
     "type": "function",
-    "name": "getCommunityProfile",
+    "name": "getUserRoles",
     "inputs": [
       {
-        "name": "communityAddress",
+        "name": "user",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "profile",
-        "type": "tuple",
-        "internalType": "struct Registry.CommunityProfile",
-        "components": [
-          {
-            "name": "name",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "ensName",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "xPNTsToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "supportedSBTs",
-            "type": "address[]",
-            "internalType": "address[]"
-          },
-          {
-            "name": "nodeType",
-            "type": "uint8",
-            "internalType": "enum Registry.NodeType"
-          },
-          {
-            "name": "paymasterAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "community",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "registeredAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastUpdatedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "isActive",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "allowPermissionlessMint",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
+        "name": "",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getCommunityStatus",
+    "name": "globalReputation",
     "inputs": [
       {
-        "name": "communityAddress",
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "registered",
-        "type": "bool",
-        "internalType": "bool"
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasRole",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
-        "name": "isActive",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isPermissionlessMintAllowed",
-    "inputs": [
-      {
-        "name": "communityAddress",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isRegistered",
-    "inputs": [
-      {
         "name": "",
         "type": "address",
         "internalType": "address"
@@ -558,10 +700,10 @@
   },
   {
     "type": "function",
-    "name": "isRegisteredCommunity",
+    "name": "isReputationSource",
     "inputs": [
       {
-        "name": "communityAddress",
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
@@ -577,17 +719,146 @@
   },
   {
     "type": "function",
-    "name": "nodeTypeConfigs",
+    "name": "lastReputationEpoch",
     "inputs": [
       {
         "name": "",
-        "type": "uint8",
-        "internalType": "enum Registry.NodeType"
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "levelThresholds",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposedRoleNames",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerRole",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "roleData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerRoleSelf",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "roleData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "sbtTokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "roleConfigs",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
       {
         "name": "minStake",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "entryBurn",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -610,14 +881,88 @@
         "name": "slashMax",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "exitFeePercent",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minExitFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "oracle",
-    "inputs": [],
+    "name": "roleLockDurations",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "roleMemberIndex",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "roleMembers",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -629,8 +974,38 @@
   },
   {
     "type": "function",
-    "name": "owner",
-    "inputs": [],
+    "name": "roleMetadata",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "roleOwners",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -642,79 +1017,118 @@
   },
   {
     "type": "function",
-    "name": "reactivateCommunity",
-    "inputs": [],
+    "name": "roleSBTTokenIds",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "roleStakes",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "safeMintForRole",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setBLSAggregator",
+    "inputs": [
+      {
+        "name": "_aggregator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "registerCommunity",
+    "name": "setBLSValidator",
     "inputs": [
       {
-        "name": "profile",
-        "type": "tuple",
-        "internalType": "struct Registry.CommunityProfile",
-        "components": [
-          {
-            "name": "name",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "ensName",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "xPNTsToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "supportedSBTs",
-            "type": "address[]",
-            "internalType": "address[]"
-          },
-          {
-            "name": "nodeType",
-            "type": "uint8",
-            "internalType": "enum Registry.NodeType"
-          },
-          {
-            "name": "paymasterAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "community",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "registeredAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastUpdatedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "isActive",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "allowPermissionlessMint",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
+        "name": "_validator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setCreditTier",
+    "inputs": [
+      {
+        "name": "level",
+        "type": "uint256",
+        "internalType": "uint256"
       },
       {
-        "name": "stGTokenAmount",
+        "name": "limit",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -724,72 +1138,15 @@
   },
   {
     "type": "function",
-    "name": "registerCommunityWithAutoStake",
+    "name": "setLevelThreshold",
     "inputs": [
       {
-        "name": "profile",
-        "type": "tuple",
-        "internalType": "struct Registry.CommunityProfile",
-        "components": [
-          {
-            "name": "name",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "ensName",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "xPNTsToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "supportedSBTs",
-            "type": "address[]",
-            "internalType": "address[]"
-          },
-          {
-            "name": "nodeType",
-            "type": "uint8",
-            "internalType": "enum Registry.NodeType"
-          },
-          {
-            "name": "paymasterAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "community",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "registeredAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastUpdatedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "isActive",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "allowPermissionlessMint",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
       },
       {
-        "name": "stakeAmount",
+        "name": "threshold",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -799,17 +1156,10 @@
   },
   {
     "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "reportFailure",
+    "name": "setMySBT",
     "inputs": [
       {
-        "name": "community",
+        "name": "_mysbt",
         "type": "address",
         "internalType": "address"
       }
@@ -819,36 +1169,15 @@
   },
   {
     "type": "function",
-    "name": "resetFailureCount",
+    "name": "setReputationSource",
     "inputs": [
       {
-        "name": "community",
+        "name": "source",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setOracle",
-    "inputs": [
+      },
       {
-        "name": "_oracle",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setPermissionlessMint",
-    "inputs": [
-      {
-        "name": "enabled",
+        "name": "active",
         "type": "bool",
         "internalType": "bool"
       }
@@ -858,10 +1187,33 @@
   },
   {
     "type": "function",
-    "name": "setSuperPaymasterV2",
+    "name": "setRoleLockDuration",
     "inputs": [
       {
-        "name": "_superPaymasterV2",
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "duration",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRoleOwner",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "newOwner",
         "type": "address",
         "internalType": "address"
       }
@@ -871,23 +1223,23 @@
   },
   {
     "type": "function",
-    "name": "superPaymasterV2",
-    "inputs": [],
-    "outputs": [
+    "name": "setStaking",
+    "inputs": [
       {
-        "name": "",
+        "name": "_staking",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "transferCommunityOwnership",
+    "name": "setSuperPaymaster",
     "inputs": [
       {
-        "name": "newOwner",
+        "name": "_sp",
         "type": "address",
         "internalType": "address"
       }
@@ -910,196 +1262,60 @@
   },
   {
     "type": "function",
-    "name": "updateCommunityProfile",
+    "name": "updateOperatorBlacklist",
     "inputs": [
       {
-        "name": "profile",
-        "type": "tuple",
-        "internalType": "struct Registry.CommunityProfile",
-        "components": [
-          {
-            "name": "name",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "ensName",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "xPNTsToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "supportedSBTs",
-            "type": "address[]",
-            "internalType": "address[]"
-          },
-          {
-            "name": "nodeType",
-            "type": "uint8",
-            "internalType": "enum Registry.NodeType"
-          },
-          {
-            "name": "paymasterAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "community",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "registeredAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastUpdatedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "isActive",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "allowPermissionlessMint",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "users",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "statuses",
+        "type": "bool[]",
+        "internalType": "bool[]"
+      },
+      {
+        "name": "proof",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
-    "type": "event",
-    "name": "CommunityDeactivated",
-    "inputs": [
+    "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommunityOwnershipTransferred",
-    "inputs": [
-      {
-        "name": "oldOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommunityReactivated",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommunityRegistered",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "name",
+        "name": "",
         "type": "string",
-        "indexed": false,
         "internalType": "string"
-      },
-      {
-        "name": "nodeType",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "enum Registry.NodeType"
-      },
-      {
-        "name": "staked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
       }
     ],
-    "anonymous": false
+    "stateMutability": "pure"
   },
   {
     "type": "event",
-    "name": "CommunityRegisteredWithAutoStake",
+    "name": "BurnExecuted",
     "inputs": [
       {
-        "name": "community",
+        "name": "user",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "name",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "staked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "autoStaked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommunitySlashed",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
+        "name": "roleId",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "bytes32"
       },
       {
         "name": "amount",
@@ -1108,26 +1324,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "newStake",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommunityUpdated",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "name",
+        "name": "reason",
         "type": "string",
         "indexed": false,
         "internalType": "string"
@@ -1137,29 +1334,16 @@
   },
   {
     "type": "event",
-    "name": "FailureCountReset",
+    "name": "CreditTierUpdated",
     "inputs": [
       {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "FailureReported",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "name": "level",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
-        "name": "failureCount",
+        "name": "creditLimit",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1169,44 +1353,25 @@
   },
   {
     "type": "event",
-    "name": "NodeTypeConfigured",
+    "name": "GlobalReputationUpdated",
     "inputs": [
       {
-        "name": "nodeType",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "enum Registry.NodeType"
-      },
-      {
-        "name": "minStake",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "slashThreshold",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OracleUpdated",
-    "inputs": [
-      {
-        "name": "oldOracle",
+        "name": "user",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "newOracle",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "name": "newScore",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1232,53 +1397,16 @@
   },
   {
     "type": "event",
-    "name": "PaymasterRegisteredWithAutoStake",
+    "name": "ReputationSourceUpdated",
     "inputs": [
       {
-        "name": "paymaster",
+        "name": "source",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "owner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "nodeType",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "enum Registry.NodeType"
-      },
-      {
-        "name": "staked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "autoStaked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PermissionlessMintToggled",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "enabled",
+        "name": "isActive",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
@@ -1288,114 +1416,161 @@
   },
   {
     "type": "event",
-    "name": "SuperPaymasterV2Updated",
+    "name": "RoleConfigured",
     "inputs": [
       {
-        "name": "newSuperPaymasterV2",
-        "type": "address",
+        "name": "roleId",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "bytes32"
+      },
+      {
+        "name": "config",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct IRegistryV3.RoleConfig",
+        "components": [
+          {
+            "name": "minStake",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "entryBurn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashThreshold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashIncrement",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashMax",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "exitFeePercent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minExitFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
   },
   {
-    "type": "error",
-    "name": "AddressEmptyCode",
+    "type": "event",
+    "name": "RoleExited",
     "inputs": [
       {
-        "name": "target",
+        "name": "roleId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
         "type": "address",
+        "indexed": true,
         "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "AddressInsufficientBalance",
-    "inputs": [
+      },
       {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "AutoStakeFailed",
-    "inputs": [
-      {
-        "name": "reason",
-        "type": "string",
-        "internalType": "string"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "CommunityAlreadyRegistered",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "CommunityNotActive",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "CommunityNotRegistered",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ENSAlreadyTaken",
-    "inputs": [
-      {
-        "name": "ensName",
-        "type": "string",
-        "internalType": "string"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "FailedInnerCall",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InsufficientGTokenBalance",
-    "inputs": [
-      {
-        "name": "available",
+        "name": "exitFee",
         "type": "uint256",
+        "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "required",
+        "name": "timestamp",
         "type": "uint256",
+        "indexed": false,
         "internalType": "uint256"
       }
-    ]
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoleLockDurationUpdated",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "duration",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoleRegistered",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "burnAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "error",
@@ -1415,17 +1590,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidAddress",
-    "inputs": [
-      {
-        "name": "addr",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidParameter",
     "inputs": [
       {
@@ -1434,27 +1598,6 @@
         "internalType": "string"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "NameAlreadyTaken",
-    "inputs": [
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "NameEmpty",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotFound",
-    "inputs": []
   },
   {
     "type": "error",
@@ -1485,10 +1628,15 @@
   },
   {
     "type": "error",
-    "name": "SafeERC20FailedOperation",
+    "name": "RoleAlreadyGranted",
     "inputs": [
       {
-        "name": "token",
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
         "type": "address",
         "internalType": "address"
       }
@@ -1496,10 +1644,31 @@
   },
   {
     "type": "error",
-    "name": "UnauthorizedOracle",
+    "name": "RoleNotConfigured",
     "inputs": [
       {
-        "name": "caller",
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RoleNotGranted",
+    "inputs": [
+      {
+        "name": "roleId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
         "type": "address",
         "internalType": "address"
       }

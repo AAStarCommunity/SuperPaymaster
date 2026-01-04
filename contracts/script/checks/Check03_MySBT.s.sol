@@ -6,7 +6,13 @@ import "forge-std/console.sol";
 import "../../src/tokens/MySBT.sol";
 
 contract Check03_MySBT is Script {
-    function run(address sbtAddr) external view {
+    function run() external view {
+        string memory root = vm.projectRoot();
+        string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
+        string memory path = string.concat(root, "/deployments/", configFile);
+        string memory json = vm.readFile(path);
+        address sbtAddr = vm.parseJsonAddress(json, ".sbt");
+
         MySBT sbt = MySBT(sbtAddr);
         console.log("--- MySBT Check ---");
         console.log("Address:", sbtAddr);
@@ -14,8 +20,7 @@ contract Check03_MySBT is Script {
         console.log("GTokenStaking Address (Immutable):", sbt.GTOKEN_STAKING());
         console.log("Registry Address:", sbt.REGISTRY());
         console.log("DAO Multisig:", sbt.daoMultisig());
-        console.log("Next Token ID:", sbt.nextTokenId());
-        console.log("Version:", sbt.versionString());
+        console.log("Version:", sbt.version());
         console.log("--------------------");
     }
 }

@@ -5,20 +5,20 @@
       {
         "name": "_entryPoint",
         "type": "address",
-        "internalType": "address"
+        "internalType": "contract IEntryPoint"
       },
       {
-        "name": "_gtoken",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_gtokenStaking",
+        "name": "_owner",
         "type": "address",
         "internalType": "address"
       },
       {
         "name": "_registry",
+        "type": "address",
+        "internalType": "contract IRegistryV3"
+      },
+      {
+        "name": "_apntsToken",
         "type": "address",
         "internalType": "address"
       },
@@ -28,7 +28,7 @@
         "internalType": "address"
       },
       {
-        "name": "_defaultSBT",
+        "name": "_protocolTreasury",
         "type": "address",
         "internalType": "address"
       }
@@ -37,7 +37,7 @@
   },
   {
     "type": "function",
-    "name": "DEFAULT_SBT",
+    "name": "APNTS_TOKEN",
     "inputs": [],
     "outputs": [
       {
@@ -50,7 +50,7 @@
   },
   {
     "type": "function",
-    "name": "DVT_AGGREGATOR",
+    "name": "BLS_AGGREGATOR",
     "inputs": [],
     "outputs": [
       {
@@ -63,26 +63,26 @@
   },
   {
     "type": "function",
-    "name": "GTOKEN",
+    "name": "BPS_DENOMINATOR",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "GTOKEN_STAKING",
+    "name": "ETH_USD_PRICE_FEED",
     "inputs": [],
     "outputs": [
       {
         "name": "",
         "type": "address",
-        "internalType": "address"
+        "internalType": "contract AggregatorV3Interface"
       }
     ],
     "stateMutability": "view"
@@ -115,7 +115,46 @@
   },
   {
     "type": "function",
+    "name": "PAYMASTER_DATA_OFFSET",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "PRICE_CACHE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PRICE_STALENESS_THRESHOLD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "RATE_OFFSET",
     "inputs": [],
     "outputs": [
       {
@@ -134,52 +173,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "REPUTATION_LEVELS",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "VERSION",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "VERSION_CODE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "internalType": "contract IRegistryV3"
       }
     ],
     "stateMutability": "view"
@@ -191,108 +185,6 @@
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "aPNTsToken",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "accounts",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "xPNTsToken",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "treasury",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "isPaused",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "aPNTsBalance",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalSpent",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalTxSponsored",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "stGTokenLocked",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "exchangeRate",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "reputationScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "reputationLevel",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "stakedAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lastRefillTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lastCheckTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "minBalanceThreshold",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "consecutiveDays",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -314,17 +206,74 @@
   },
   {
     "type": "function",
-    "name": "batchRegisterSBTHolders",
+    "name": "blockedUsers",
     "inputs": [
       {
-        "name": "holders",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "name": "tokenIds",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cachedPrice",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "price",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "updatedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "roundId",
+        "type": "uint80",
+        "internalType": "uint80"
+      },
+      {
+        "name": "decimals",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "configureOperator",
+    "inputs": [
+      {
+        "name": "xPNTsToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_opTreasury",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "exchangeRate",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -332,17 +281,12 @@
   },
   {
     "type": "function",
-    "name": "clearUserDebt",
+    "name": "deposit",
     "inputs": [
       {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -357,8 +301,13 @@
   },
   {
     "type": "function",
-    "name": "depositAPNTs",
+    "name": "depositFor",
     "inputs": [
+      {
+        "name": "targetOperator",
+        "type": "address",
+        "internalType": "address"
+      },
       {
         "name": "amount",
         "type": "uint256",
@@ -383,19 +332,6 @@
   },
   {
     "type": "function",
-    "name": "ethUsdPriceFeed",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract AggregatorV3Interface"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "executeSlashWithBLS",
     "inputs": [
       {
@@ -406,7 +342,7 @@
       {
         "name": "level",
         "type": "uint8",
-        "internalType": "enum SuperPaymasterV2_3_3.SlashLevel"
+        "internalType": "enum ISuperPaymasterV3.SlashLevel"
       },
       {
         "name": "proof",
@@ -419,8 +355,19 @@
   },
   {
     "type": "function",
-    "name": "gasToUSDRate",
-    "inputs": [],
+    "name": "getAvailableCredit",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -445,125 +392,10 @@
   },
   {
     "type": "function",
-    "name": "getHolderByTokenId",
-    "inputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getOperatorAccount",
+    "name": "getLatestSlash",
     "inputs": [
       {
         "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "account",
-        "type": "tuple",
-        "internalType": "struct SuperPaymasterV2_3_3.OperatorAccount",
-        "components": [
-          {
-            "name": "xPNTsToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "treasury",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "isPaused",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "aPNTsBalance",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "totalSpent",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "totalTxSponsored",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "stGTokenLocked",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "exchangeRate",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "reputationScore",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "reputationLevel",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "stakedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastRefillTime",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "lastCheckTime",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "minBalanceThreshold",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "consecutiveDays",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getSBTHolder",
-    "inputs": [
-      {
-        "name": "holder",
         "type": "address",
         "internalType": "address"
       }
@@ -572,38 +404,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct SuperPaymasterV2_3_3.SBTHolder",
-        "components": [
-          {
-            "name": "holder",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "tokenId",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getSlashHistory",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "history",
-        "type": "tuple[]",
-        "internalType": "struct SuperPaymasterV2_3_3.SlashRecord[]",
+        "internalType": "struct ISuperPaymasterV3.SlashRecord",
         "components": [
           {
             "name": "timestamp",
@@ -628,7 +429,7 @@
           {
             "name": "level",
             "type": "uint8",
-            "internalType": "enum SuperPaymasterV2_3_3.SlashLevel"
+            "internalType": "enum ISuperPaymasterV3.SlashLevel"
           }
         ]
       }
@@ -637,31 +438,7 @@
   },
   {
     "type": "function",
-    "name": "getUserDebtByToken",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isEligibleForUpgrade",
+    "name": "getSlashCount",
     "inputs": [
       {
         "name": "operator",
@@ -671,38 +448,6 @@
     ],
     "outputs": [
       {
-        "name": "eligible",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isSBTHolder",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "minAPNTsBalance",
-    "inputs": [],
-    "outputs": [
-      {
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
@@ -712,11 +457,166 @@
   },
   {
     "type": "function",
-    "name": "minOperatorStake",
-    "inputs": [],
+    "name": "getSlashHistory",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ISuperPaymasterV3.SlashRecord[]",
+        "components": [
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "reputationLoss",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "level",
+            "type": "uint8",
+            "internalType": "enum ISuperPaymasterV3.SlashLevel"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lastUserOpTimestamp",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "onTransferReceived",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "from",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "operators",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "aPNTsBalance",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "exchangeRate",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "isConfigured",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isPaused",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "xPNTsToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "reputation",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "minTxInterval",
+        "type": "uint48",
+        "internalType": "uint48"
+      },
+      {
+        "name": "treasury",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "totalSpent",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalTxSponsored",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -735,19 +635,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "payUserDebt",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -779,85 +666,29 @@
   },
   {
     "type": "function",
-    "name": "registerOperator",
-    "inputs": [
+    "name": "protocolFeeBPS",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "stGTokenAmount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "xPNTsToken",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "treasury",
-        "type": "address",
-        "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "registerOperatorWithAutoStake",
-    "inputs": [
+    "name": "protocolRevenue",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "stGTokenAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "aPNTsAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "xPNTsToken",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "treasury",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerSBTHolder",
-    "inputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "removeSBTHolder",
-    "inputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -868,40 +699,16 @@
   },
   {
     "type": "function",
-    "name": "sbtHolders",
+    "name": "setAPNTSPrice",
     "inputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
+        "name": "newPrice",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "serviceFeeRate",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -918,10 +725,10 @@
   },
   {
     "type": "function",
-    "name": "setDVTAggregator",
+    "name": "setBLSAggregator",
     "inputs": [
       {
-        "name": "_dvtAggregator",
+        "name": "_bls",
         "type": "address",
         "internalType": "address"
       }
@@ -931,10 +738,41 @@
   },
   {
     "type": "function",
-    "name": "setMinAPNTsBalance",
+    "name": "setOperatorLimits",
     "inputs": [
       {
-        "name": "newBalance",
+        "name": "_minTxInterval",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setOperatorPaused",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "paused",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setProtocolFee",
+    "inputs": [
+      {
+        "name": "newFeeBPS",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -944,12 +782,12 @@
   },
   {
     "type": "function",
-    "name": "setMinOperatorStake",
+    "name": "setTreasury",
     "inputs": [
       {
-        "name": "newStake",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -957,10 +795,10 @@
   },
   {
     "type": "function",
-    "name": "setSuperPaymasterTreasury",
+    "name": "setXPNTsFactory",
     "inputs": [
       {
-        "name": "newTreasury",
+        "name": "_factory",
         "type": "address",
         "internalType": "address"
       }
@@ -1007,46 +845,42 @@
       {
         "name": "level",
         "type": "uint8",
-        "internalType": "enum SuperPaymasterV2_3_3.SlashLevel"
+        "internalType": "enum ISuperPaymasterV3.SlashLevel"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "superPaymasterTreasury",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "tokenIdToHolder",
+    "name": "slashOperator",
     "inputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
+        "name": "operator",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "enum ISuperPaymasterV3.SlashLevel"
+      },
+      {
+        "name": "penaltyAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
       }
     ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "totalSBTHolders",
+    "name": "totalTrackedBalance",
     "inputs": [],
     "outputs": [
       {
@@ -1072,13 +906,13 @@
   },
   {
     "type": "function",
-    "name": "treasuryAPNTsBalance",
+    "name": "treasury",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -1092,38 +926,22 @@
   },
   {
     "type": "function",
-    "name": "unpauseOperator",
+    "name": "updateBlockedStatus",
     "inputs": [
       {
         "name": "operator",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "updateExchangeRate",
-    "inputs": [
+      },
       {
-        "name": "newRate",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "updateOperatorXPNTsToken",
-    "inputs": [
+        "name": "users",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
       {
-        "name": "newXPNTsToken",
-        "type": "address",
-        "internalType": "address"
+        "name": "statuses",
+        "type": "bool[]",
+        "internalType": "bool[]"
       }
     ],
     "outputs": [],
@@ -1131,19 +949,29 @@
   },
   {
     "type": "function",
-    "name": "updatePriceCache",
+    "name": "updatePrice",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "updateTreasury",
+    "name": "updatePriceDVT",
     "inputs": [
       {
-        "name": "newTreasury",
-        "type": "address",
-        "internalType": "address"
+        "name": "price",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "updatedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -1151,46 +979,21 @@
   },
   {
     "type": "function",
-    "name": "userDebts",
+    "name": "updateReputation",
     "inputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "userDebtsByToken",
-    "inputs": [
-      {
-        "name": "",
+        "name": "operator",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
+        "name": "newScore",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1275,6 +1078,50 @@
   },
   {
     "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawProtocolRevenue",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "withdrawStake",
     "inputs": [
       {
@@ -1306,16 +1153,16 @@
   },
   {
     "type": "function",
-    "name": "withdrawTreasury",
-    "inputs": [
+    "name": "xpntsFactory",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "event",
@@ -1338,26 +1185,7 @@
   },
   {
     "type": "event",
-    "name": "DVTAggregatorUpdated",
-    "inputs": [
-      {
-        "name": "oldAddress",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newAddress",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ExchangeRateUpdated",
+    "name": "OperatorConfigured",
     "inputs": [
       {
         "name": "operator",
@@ -1366,7 +1194,19 @@
         "internalType": "address"
       },
       {
-        "name": "newRate",
+        "name": "xPNTsToken",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "treasury",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "exchangeRate",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1376,16 +1216,16 @@
   },
   {
     "type": "event",
-    "name": "MinAPNTsBalanceUpdated",
+    "name": "OperatorDeposited",
     "inputs": [
       {
-        "name": "oldBalance",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
-        "name": "newBalance",
+        "name": "amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1395,19 +1235,19 @@
   },
   {
     "type": "event",
-    "name": "MinOperatorStakeUpdated",
+    "name": "OperatorMinTxIntervalUpdated",
     "inputs": [
       {
-        "name": "oldStake",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
-        "name": "newStake",
-        "type": "uint256",
+        "name": "newInterval",
+        "type": "uint48",
         "indexed": false,
-        "internalType": "uint256"
+        "internalType": "uint48"
       }
     ],
     "anonymous": false
@@ -1421,50 +1261,6 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OperatorRegistered",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "stakedAmount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OperatorRegisteredWithAutoStake",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "gtStaked",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "aPNTsDeposited",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1489,7 +1285,7 @@
         "name": "level",
         "type": "uint8",
         "indexed": false,
-        "internalType": "enum SuperPaymasterV2_3_3.SlashLevel"
+        "internalType": "enum ISuperPaymasterV3.SlashLevel"
       }
     ],
     "anonymous": false
@@ -1509,7 +1305,7 @@
   },
   {
     "type": "event",
-    "name": "OperatorXPNTsTokenUpdated",
+    "name": "OperatorWithdrawn",
     "inputs": [
       {
         "name": "operator",
@@ -1518,16 +1314,10 @@
         "internalType": "address"
       },
       {
-        "name": "oldToken",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newToken",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1553,25 +1343,6 @@
   },
   {
     "type": "event",
-    "name": "PriceCacheUpdated",
-    "inputs": [
-      {
-        "name": "price",
-        "type": "int256",
-        "indexed": true,
-        "internalType": "int256"
-      },
-      {
-        "name": "roundId",
-        "type": "uint80",
-        "indexed": false,
-        "internalType": "uint80"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "ReputationUpdated",
     "inputs": [
       {
@@ -1585,100 +1356,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      },
-      {
-        "name": "newLevel",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SBTHolderRegistered",
-    "inputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SBTHolderRemoved",
-    "inputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SBTHoldersBatchRegistered",
-    "inputs": [
-      {
-        "name": "count",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SuperPaymasterTreasuryUpdated",
-    "inputs": [
-      {
-        "name": "oldTreasury",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newTreasury",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1716,7 +1393,7 @@
   },
   {
     "type": "event",
-    "name": "TreasuryUpdated",
+    "name": "UserBlockedStatusUpdated",
     "inputs": [
       {
         "name": "operator",
@@ -1725,36 +1402,23 @@
         "internalType": "address"
       },
       {
-        "name": "newTreasury",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TreasuryWithdrawal",
-    "inputs": [
-      {
-        "name": "treasury",
+        "name": "user",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "amount",
-        "type": "uint256",
+        "name": "isBlocked",
+        "type": "bool",
         "indexed": false,
-        "internalType": "uint256"
+        "internalType": "bool"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "UserDebtCleared",
+    "name": "UserReputationAccrued",
     "inputs": [
       {
         "name": "user",
@@ -1763,19 +1427,7 @@
         "internalType": "address"
       },
       {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
+        "name": "aPNTsValue",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1785,7 +1437,7 @@
   },
   {
     "type": "event",
-    "name": "UserDebtRecorded",
+    "name": "ValidationRejected",
     "inputs": [
       {
         "name": "user",
@@ -1793,105 +1445,6 @@
         "indexed": true,
         "internalType": "address"
       },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalDebt",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "XPNTsPaid",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "XPNTsPaymentFailed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "aPNTsDeposited",
-    "inputs": [
       {
         "name": "operator",
         "type": "address",
@@ -1899,10 +1452,10 @@
         "internalType": "address"
       },
       {
-        "name": "amount",
-        "type": "uint256",
+        "name": "reasonCode",
+        "type": "uint8",
         "indexed": false,
-        "internalType": "uint256"
+        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -1931,14 +1484,8 @@
   },
   {
     "type": "error",
-    "name": "AlreadyRegistered",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "name": "DepositNotVerified",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1947,57 +1494,18 @@
   },
   {
     "type": "error",
-    "name": "InsufficientAPNTs",
-    "inputs": [
-      {
-        "name": "required",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "available",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+    "name": "InsufficientBalance",
+    "inputs": []
   },
   {
     "type": "error",
-    "name": "InsufficientStake",
-    "inputs": [
-      {
-        "name": "provided",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "required",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+    "name": "InsufficientRevenue",
+    "inputs": []
   },
   {
     "type": "error",
     "name": "InvalidAddress",
-    "inputs": [
-      {
-        "name": "addr",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "InvalidAmount",
-    "inputs": [
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+    "inputs": []
   },
   {
     "type": "error",
@@ -2006,36 +1514,13 @@
   },
   {
     "type": "error",
-    "name": "NoSBTFound",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "name": "NoSlashHistory",
+    "inputs": []
   },
   {
     "type": "error",
-    "name": "NotRegistered",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "OperatorIsPaused",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "name": "OracleError",
+    "inputs": []
   },
   {
     "type": "error",
@@ -2077,13 +1562,7 @@
   },
   {
     "type": "error",
-    "name": "UnauthorizedCaller",
-    "inputs": [
-      {
-        "name": "caller",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "name": "Unauthorized",
+    "inputs": []
   }
 ]

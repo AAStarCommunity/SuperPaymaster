@@ -7,38 +7,47 @@ import "../../src/tokens/xPNTsFactory.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "../../src/tokens/MySBT.sol";
 import "../../src/core/GTokenStaking.sol";
+import "../../src/core/Registry.sol";
+import "../../src/paymasters/superpaymaster/v3/SuperPaymasterV3.sol";
 
+/**
+ * @title Check08_Wiring
+ * @notice Interconnection audit script
+ * @dev Verifies that all core components have correct bidirectional trust established
+ */
 contract Check08_Wiring is Script {
-    function run(
-        address factoryAddr,
-        address spAddr,
-        address apntsAddr,
-        address mysbtAddr,
-        address stakingAddr,
-        address registryAddr
-    ) external view {
-        console.log("--- Wiring Check ---");
+    function run() external view {
+        // Get config file path from env
+        string memory root = vm.projectRoot();
+        string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
+        string memory path = string.concat(root, "/deployments/", configFile);
         
-        // Factory -> SP
-        address factorySP = xPNTsFactory(factoryAddr).SUPERPAYMASTER();
-        console.log("Factory -> SP OK:", factorySP == spAddr);
-        console.log("Stored Factory SP:", factorySP);
+        string memory json = vm.readFile(path);
         
-        // Token -> SP
-        address tokenSP = xPNTsToken(apntsAddr).SUPERPAYMASTER_ADDRESS();
-        console.log("Token -> SP OK:", tokenSP == spAddr);
-        console.log("Stored Token SP:", tokenSP);
+        address registry = vm.parseJsonAddress(json, ".registry");
+        address superPaymaster = vm.parseJsonAddress(json, ".superPaymaster");
+        address aPNTs = vm.parseJsonAddress(json, ".aPNTs");
+        address sbt = vm.parseJsonAddress(json, ".sbt");
+        address staking = vm.parseJsonAddress(json, ".staking");
+        address xpntsFactory = vm.parseJsonAddress(json, ".xPNTsFactory");
+
+        console.log("Auditing Wiring Matrix for:", configFile);
+
+        // 1. Security Wiring Check
+        require(GTokenStaking(staking).REGISTRY() == registry, "Check08: Staking -> Registry Failed");
+        require(MySBT(sbt).REGISTRY() == registry, "Check08: MySBT -> Registry Failed");
+        require(xPNTsToken(aPNTs).SUPERPAYMASTER_ADDRESS() == superPaymaster, "Check08: aPNTs -> SP Failed");
+
+        // 2. Risk Control Wiring Check
+        require(Registry(registry).SUPER_PAYMASTER() == superPaymaster, "Check08: Registry -> SP Failed");
         
-        // MySBT -> Registry
-        address sbtReg = MySBT(mysbtAddr).REGISTRY();
-        console.log("MySBT -> Registry OK:", sbtReg == registryAddr);
-        console.log("Stored MySBT Registry:", sbtReg);
-        
-        // Staking -> Registry
-        address stakingReg = GTokenStaking(stakingAddr).REGISTRY();
-        console.log("Staking -> Registry OK:", stakingReg == registryAddr);
-        console.log("Stored Staking Registry:", stakingReg);
-        
-        console.log("--------------------");
+        // 3. Immutable Bindings Check
+        require(address(SuperPaymasterV3(superPaymaster).REGISTRY()) == registry, "Check08: SP -> Registry Immutable Failed");
+
+        // 4. Business Callback Check
+        require(MySBT(sbt).SUPER_PAYMASTER() == superPaymaster, "Check08: MySBT -> SP Callback Failed");
+        require(xPNTsFactory(xpntsFactory).SUPERPAYMASTER() == superPaymaster, "Check08: Factory -> SP Failed");
+
+        console.log("All 6 Core Wiring Paths Verified Successfully!");
     }
 }
