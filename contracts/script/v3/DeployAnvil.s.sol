@@ -112,6 +112,7 @@ contract DeployAnvil is Script {
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
+        superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
 
         console.log("=== Step 5: Role Orchestration ===");
