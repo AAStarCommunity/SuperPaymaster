@@ -1111,67 +1111,67 @@
   },
   {
     "type": "error",
-    "name": "PaymasterV4_1__RegistryNotSet",
+    "name": "Paymaster__AlreadyExists",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__AlreadyExists",
+    "name": "Paymaster__EmptyArray",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__EmptyArray",
+    "name": "Paymaster__InsufficientPNT",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__InsufficientPNT",
+    "name": "Paymaster__InvalidPaymasterData",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__InvalidPaymasterData",
+    "name": "Paymaster__InvalidServiceFee",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__InvalidServiceFee",
+    "name": "Paymaster__InvalidTokenBalance",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__InvalidTokenBalance",
+    "name": "Paymaster__MaxLimitReached",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__MaxLimitReached",
+    "name": "Paymaster__NoValidSBT",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__NoValidSBT",
+    "name": "Paymaster__NotFound",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__NotFound",
+    "name": "Paymaster__OnlyEntryPoint",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__OnlyEntryPoint",
+    "name": "Paymaster__Paused",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__Paused",
+    "name": "Paymaster__RegistryNotSet",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PaymasterV4__ZeroAddress",
+    "name": "Paymaster__ZeroAddress",
     "inputs": []
   },
   {

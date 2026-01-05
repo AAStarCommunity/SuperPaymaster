@@ -1244,7 +1244,7 @@
         "internalType": "address"
       },
       {
-        "name": "newInterval",
+        "name": "minTxInterval",
         "type": "uint48",
         "indexed": false,
         "internalType": "uint48"
