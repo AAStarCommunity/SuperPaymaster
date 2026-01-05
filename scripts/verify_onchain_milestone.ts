@@ -25,7 +25,7 @@ async function verify() {
     ]);
 
     const SuperPaymasterABI = parseAbi([
-        'function operators(address) view returns (address xPNTsToken, uint96 exchangeRate, bool isConfigured, bool isPaused, address treasury, uint256 totalSpent, uint256 totalTxSponsored, uint32 reputation, uint48 minTxInterval)'
+        'function operators(address) view returns (uint128 aPNTsBalance, uint96 exchangeRate, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)'
     ]);
 
     const ROLE_COMMUNITY = await client.readContract({ address: config.registry, abi: RegistryABI, functionName: 'ROLE_COMMUNITY' });
@@ -41,11 +41,13 @@ async function verify() {
     const addrByName = await client.readContract({ address: config.registry, abi: RegistryABI, functionName: 'communityByName', args: ['AAStar'] });
     const hasCommRole = await client.readContract({ address: config.registry, abi: RegistryABI, functionName: 'hasRole', args: [ROLE_COMMUNITY, jason] });
     const opConfig = await client.readContract({ address: config.superPaymaster, abi: SuperPaymasterABI, functionName: 'operators', args: [jason] });
+    // opConfig indices: 0:bal, 1:rate, 2:conf, 3:paused, 4:token, 5:rep, 6:minTx, 7:treasury, ...
 
     console.log(`Registered Address: ${addrByName} ${addrByName === jason ? '✅' : '❌'}`);
-    console.log(`Has COMMUNITY Role: ${hasCommRole} ✅`);
-    console.log(`SuperPaymaster Configured: ${opConfig[2]} ✅`);
-    console.log(`Points Token (aPNTs): ${opConfig[0]} ${opConfig[0].toLowerCase() === config.aPNTs.toLowerCase() ? '✅' : '❌'}`);
+    console.log(`Has COMMUNITY Role: ${hasCommRole} ${hasCommRole ? '✅' : '❌'}`);
+    console.log(`SuperPaymaster Configured: ${opConfig[2]} ${opConfig[2] ? '✅' : '❌'}`);
+    console.log(`Points Token (aPNTs): ${opConfig[4]} ${opConfig[4].toLowerCase() === config.aPNTs.toLowerCase() ? '✅' : '❌'}`);
+    console.log(`aPNTs Balance: ${opConfig[0]} (Should be > 0)`);
 
     // 2. 验证 DemoCommunity (Anni)
     const anni = '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9' as Hex;
@@ -55,9 +57,13 @@ async function verify() {
     const demoOpConfig = await client.readContract({ address: config.superPaymaster, abi: SuperPaymasterABI, functionName: 'operators', args: [anni] });
 
     console.log(`Registered Address: ${demoAddrByName} ${demoAddrByName === anni ? '✅' : '❌'}`);
-    console.log(`Has COMMUNITY Role: ${anniHasCommRole} ✅`);
-    console.log(`SuperPaymaster Configured: ${demoOpConfig[2]} ✅`);
-    console.log(`Points Token (dPNTs): ${demoOpConfig[0]} ✅`);
+    console.log(`Has COMMUNITY Role: ${anniHasCommRole} ${anniHasCommRole ? '✅' : '❌'}`);
+    console.log(`SuperPaymaster Configured: ${demoOpConfig[2]} ${demoOpConfig[2] ? '✅' : '❌'}`);
+    console.log(`Points Token (dPNTs): ${demoOpConfig[4]} ${demoOpConfig[4] !== '0x0000000000000000000000000000000000000000' ? '✅' : '❌'}`);
+
+    if (opConfig[4].toLowerCase() !== config.aPNTs.toLowerCase() || demoOpConfig[4] === '0x0000000000000000000000000000000000000000') {
+        throw new Error("❌ Validation Failed: Token Mismatch or Missing Configuration");
+    }
 
     console.log(`\n✨ ALL ON-CHAIN CHECKS PASSED FOR MILESTONE! ✨`);
 }
