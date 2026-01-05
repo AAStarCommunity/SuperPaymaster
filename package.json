@@ -11,6 +11,6 @@
     "ethers": "^6.13.4"
   },
   "devDependencies": {
-    "viem": "^2.38.6"
+    "viem": "^2.43.5"
   }
 }
