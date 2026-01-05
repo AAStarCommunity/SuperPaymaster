@@ -1,0 +1,27 @@
+{
+  "communities": {
+    "AAStar": {
+      "name": "AAStar",
+      "ensName": "aastar.eth",
+      "website": "aastar.io",
+      "description": "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
+      "logoURI": "ipfs://aastar-logo",
+      "stakeAmount": "30000000000000000000",
+      "pointsName": "aPNTs"
+    },
+    "Demo": {
+      "name": "DemoCommunity",
+      "ensName": "demo.eth",
+      "website": "demo.com",
+      "description": "Demo Community for testing purposes.",
+      "logoURI": "ipfs://demo-logo",
+      "stakeAmount": "30000000000000000000",
+      "pointsName": "dPNTs"
+    }
+  },
+  "accounts": {
+    "jason": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+    "anni": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+    "attacker": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+  }
+}

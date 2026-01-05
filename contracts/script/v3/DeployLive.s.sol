@@ -89,10 +89,103 @@ contract DeployLive is Script {
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 5: Role Orchestration ===");
-        _orchestrateRoles();
+                        console.log("=== Step 5: Role Orchestration ===");
 
-        console.log("=== Step 6: Final Verification ===");
+                        gtoken.mint(deployer, 2000 ether);
+
+                        gtoken.approve(address(staking), 2000 ether);
+
+                        
+
+                        // 1. 初始化 AAStar 社区 (Jason)
+
+                        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
+
+                            name: "AAStar",
+
+                            ensName: "aastar.eth",
+
+                            website: "aastar.io",
+
+                            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
+
+                            logoURI: "ipfs://aastar-logo",
+
+                            stakeAmount: 30 ether
+
+                        });
+
+                        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
+
+                        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
+
+                        sp.configureOperator(address(apnts), deployer, 1e18);
+
+                        
+
+                        // Caution: Real ETH being deposited
+
+                        IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(address(superPaymaster));
+
+                        apnts.mint(deployer, 1000 ether);
+
+                        apnts.approve(address(superPaymaster), 1000 ether);
+
+                        superPaymaster.depositFor(deployer, 1000 ether);
+
+                
+
+                        // 2. 初始化 DemoCommunity (Anni)
+
+                        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
+
+                        Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
+
+                            name: "DemoCommunity",
+
+                            ensName: "demo.eth",
+
+                            website: "demo.com",
+
+                            description: "Demo Community for testing purposes.",
+
+                            logoURI: "ipfs://demo-logo",
+
+                            stakeAmount: 30 ether
+
+                        });
+
+                
+
+                        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
+
+                        
+
+                        // 由于没有 Anni 私钥时无法配置 Operator，这里我们仅在有私钥时进行
+
+                        uint256 anniPK = vm.envOr("PRIVATE_KEY_ANNI", uint256(0));
+
+                        if (anniPK != 0) {
+
+                            vm.stopBroadcast();
+
+                            vm.startBroadcast(anniPK);
+
+                            address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+
+                            registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+
+                            superPaymaster.configureOperator(dPNTs, anni, 1e18);
+
+                            vm.stopBroadcast();
+
+                            vm.startBroadcast(deployerPK);
+
+                        }
+
+                
+
+                        console.log("=== Step 6: Final Verification ===");
         _verifyWiring();
 
         vm.stopBroadcast();
@@ -160,6 +253,7 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
+        vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);
         console.log("\n--- Live Deployment Complete ---");

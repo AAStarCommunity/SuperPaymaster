@@ -41,11 +41,16 @@ contract MockEntryPoint {
     function getDepositInfo(address) external pure returns (IStakeManager.DepositInfo memory) {
         return IStakeManager.DepositInfo(0, false, 0, 0, 0);
     }
+    function balanceOf(address) external pure returns (uint256) { return 1 ether; }
+    function withdrawTo(address payable, uint256) external {}
+    function addStake(uint32) external payable {}
+    function unlockStake() external {}
+    function withdrawStake(address payable) external {}
 }
 
 /**
  * @title DeployAnvil
- * @notice Dedicated Local Deployment Script for Anvil Regression
+ * @notice Standardized Local Deployment Script
  */
 contract DeployAnvil is Script {
     uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80; 
@@ -72,8 +77,7 @@ contract DeployAnvil is Script {
     }
 
     function run() external {
-        // Local setup
-        vm.warp(1 days); 
+        vm.warp(86400); 
         vm.startBroadcast(deployerPK);
         
         priceFeedAddr = address(new MockPriceFeed());
@@ -101,6 +105,19 @@ contract DeployAnvil is Script {
         pmV4Impl = new Paymaster(address(registry));
 
         console.log("=== Step 4: The Grand Wiring ===");
+        _executeWiring();
+
+        console.log("=== Step 5: Role Orchestration ===");
+        _orchestrateRoles();
+
+        console.log("=== Step 6: Verification ===");
+        _verifyWiring();
+
+        vm.stopBroadcast();
+        _generateConfig();
+    }
+
+    function _executeWiring() internal {
         staking.setRegistry(address(registry));
         mysbt.setRegistry(address(registry));
         registry.setSuperPaymaster(address(superPaymaster));
@@ -114,23 +131,41 @@ contract DeployAnvil is Script {
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
+    }
 
-        console.log("=== Step 5: Role Orchestration ===");
-        gtoken.mint(deployer, 1000 ether);
-        gtoken.approve(address(staking), 1000 ether);
-        bytes memory opData = abi.encode(Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether));
-        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, opData);
+    function _orchestrateRoles() internal {
+        gtoken.mint(deployer, 2000 ether);
+        gtoken.approve(address(staking), 2000 ether);
+        
+        // 1. 初始化 AAStar 社区 (Jason)
+        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
+            name: "AAStar",
+            ensName: "aastar.eth",
+            website: "aastar.io",
+            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
+            logoURI: "ipfs://aastar-logo",
+            stakeAmount: 30 ether
+        });
+        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
-        IEntryPoint(entryPointAddr).depositTo{value: 0.1 ether}(address(superPaymaster));
+        
+        superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         apnts.mint(deployer, 1000 ether);
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
 
-        console.log("=== Step 6: Verification ===");
-        _verifyWiring();
-
-        vm.stopBroadcast();
-        _generateConfig();
+        // 2. 初始化 DemoCommunity (Anni) - 简化处理：由 Jason 代缴质押，Anni 仅作为持有人
+        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
+        Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
+            name: "DemoCommunity",
+            ensName: "demo.eth",
+            website: "demo.com",
+            description: "Demo Community for testing purposes.",
+            logoURI: "ipfs://demo-logo",
+            stakeAmount: 30 ether
+        });
+        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
+        // 注意：Demo 的 Paymaster 配置留给 SDK 测试脚本或 Anni 自己的独立交易完成
     }
 
     function _verifyWiring() internal view {
@@ -157,6 +192,7 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
+        vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);
         console.log("\n--- Anvil Deployment Complete ---");
