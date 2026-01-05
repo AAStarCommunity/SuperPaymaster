@@ -486,7 +486,7 @@ contract MySBT_Simplified_Test is Test {
     // ====================================
 
     function test_Version() public {
-        assertEq(mysbt.version(), "MySBT-3.1.0");
+        assertEq(mysbt.version(), "MySBT-3.1.2");
     }
 
 
