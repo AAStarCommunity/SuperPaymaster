@@ -20,6 +20,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --env) ENV="$2"; ENV_FILE=".env.$ENV"; shift 2 ;;
         --force) FORCE_DEPLOY=true; shift ;;
+        --resume) RESUME_FLAG="--resume"; FORCE_DEPLOY=true; shift ;;
         *) shift ;;
     esac
 done
@@ -84,7 +85,7 @@ if [ "$SHOULD_DEPLOY" = true ]; then
     SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
     # If this fails, the script exits here (set -e)
-    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" --rpc-url "$RPC_URL" --broadcast --slow --tc "$SCRIPT_NAME" -vv
+    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" --rpc-url "$RPC_URL" --broadcast --slow $RESUME_FLAG --tc "$SCRIPT_NAME" -vv
 else
     echo -e "\n${GREEN}PHASE 1: Skipping Deployment (Already Up-to-date)${NC}"
 fi
