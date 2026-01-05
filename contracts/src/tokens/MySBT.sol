@@ -193,7 +193,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
 
     function version() external pure override returns (string memory) {
-        return "MySBT-3.1.1";
+        return "MySBT-3.1.2";
     }
 
     // ====================================

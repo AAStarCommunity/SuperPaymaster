@@ -204,7 +204,7 @@
   ├─> [Registry] 存储roleMetadata                ~25k
   |
   ├─> [Registry] _postRegisterRole()             ~10k
-  |     └─> 更新communityByNameV3
+  |     └─> 更新communityByName
   |     └─> 更新communityByENSV3
   |
   └─> [Registry] emit events                     ~5k
@@ -466,7 +466,7 @@ unchecked {
 用户 → registry.registerRole()
          ├─> _validateAndExtractStake()      [internal view]
          │     ├─> CommunityRoleData解码
-         │     ├─> 检查name唯一性 (SLOAD communityByNameV3)
+         │     ├─> 检查name唯一性 (SLOAD communityByName)
          │     └─> 返回stakeAmount
          │
          ├─> GTOKEN_STAKING.lockStake()      [external call]
@@ -481,7 +481,7 @@ unchecked {
          ├─> roleMetadata[roleId][user] = roleData  [SSTORE]
          │
          ├─> _postRegisterRole()             [internal]
-         │     ├─> communityByNameV3[name] = user (SSTORE)
+         │     ├─> communityByName[name] = user (SSTORE)
          │     └─> accountToUser[account] = user (SSTORE)
          │
          └─> emit RoleGranted + RoleMetadataUpdated

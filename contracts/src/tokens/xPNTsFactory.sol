@@ -78,7 +78,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-2.0.1";
+        return "xPNTsFactory-2.0.2";
     }
 
     // ====================================

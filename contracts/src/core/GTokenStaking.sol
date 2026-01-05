@@ -19,17 +19,13 @@ import "../interfaces/v3/IGTokenStaking.sol";
  * - totalSupply decreases on burn, creating auto-remint capacity
  * - Removed blackhole transfer (0xdead) pattern
  */
-contract GTokenStaking is Ownable, ReentrancyGuard, IGTokenStaking {
+contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     using SafeERC20 for IERC20;
 
-    // ====================================
-    // Constants
-    // ====================================
-
-
+    // ...
 
     function version() external pure override returns (string memory) {
-        return "Staking-3.1.1";
+        return "Staking-3.1.2";
     }
 
     // ====================================

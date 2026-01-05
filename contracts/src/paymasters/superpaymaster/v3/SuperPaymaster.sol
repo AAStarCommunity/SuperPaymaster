@@ -15,17 +15,12 @@ import "../../../interfaces/ISuperPaymaster.sol";
 
 /**
  * @title SuperPaymaster
- * @notice V3 SuperPaymaster - Unified Registry based Multi-Operator Paymaster
- * @dev Inherits V2.3 capabilities (Billing, Oracle, Treasury) with V3 Registry integration.
- *      Optimized for Gas and Security (CEI, Packing, Batch Updates).
+ * @notice SuperPaymaster - Unified Registry based Multi-Operator Paymaster
+ * @dev Optimized for Gas and Security (CEI, Packing, Batch Updates).
  */
 contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     using SafeERC20 for IERC20;
     
-
-
-
-
     struct PriceCache {
         int256 price;
         uint256 updatedAt;
@@ -43,27 +38,14 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
     address public treasury; // Protocol Treasury for fees
 
-    // Operator Data Mapped by Address
+    // --- Mappings ---
     mapping(address => ISuperPaymaster.OperatorConfig) public operators;
-    
-    // Slash History
+    mapping(address => mapping(address => bool)) public blockedUsers; // operator => user => isBlocked
+    mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // operator => user => timestamp
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
-    
-    // V3.2: Security & Rate Limiting
-    mapping(address => mapping(address => bool)) public blockedUsers; // operator -> user -> isBlocked
-    mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // operator -> user -> timestamp
 
-    event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
-    event OperatorMinTxIntervalUpdated(address indexed operator, uint48 newInterval);
-    
-    // V3.2: Debt Tracking (Moved to xPNTsToken)
-    // mapping(address => uint256) public userDebts; // Removed in V3.2
-    
-    // Pricing Config
-    
-    // Pricing Config
     function version() external pure override returns (string memory) {
-        return "SuperPaymaster-3.2.1";
+        return "SuperPaymaster-3.2.2";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -98,6 +80,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
     event OperatorPaused(address indexed operator);
     event OperatorUnpaused(address indexed operator);
+    event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
+    event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
 
     error Unauthorized();
     error InvalidAddress();

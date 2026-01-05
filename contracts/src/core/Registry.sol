@@ -25,7 +25,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
 
     function version() external pure override returns (string memory) {
-        return "Registry-3.0.1";
+        return "Registry-3.0.2";
     }
 
     // --- Constants ---
@@ -54,8 +54,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     mapping(bytes32 => mapping(address => uint256)) public roleSBTTokenIds;
     mapping(bytes32 => mapping(address => bytes)) public roleMetadata;
 
-    mapping(string => address) public communityByNameV3;
-    mapping(string => address) public communityByENSV3;
+    mapping(string => address) public communityByName;
+    mapping(string => address) public communityByENS;
     mapping(address => address) public accountToUser;
 
     // V3.1 Credit & Reputation Storage
@@ -249,11 +249,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
             bytes memory metadata = roleMetadata[roleId][msg.sender];
             if (metadata.length > 0) {
                 CommunityRoleData memory data = abi.decode(metadata, (CommunityRoleData));
-                if (communityByNameV3[data.name] == msg.sender) {
-                    delete communityByNameV3[data.name];
+                if (communityByName[data.name] == msg.sender) {
+                    delete communityByName[data.name];
                 }
-                if (bytes(data.ensName).length > 0 && communityByENSV3[data.ensName] == msg.sender) {
-                    delete communityByENSV3[data.ensName];
+                if (bytes(data.ensName).length > 0 && communityByENS[data.ensName] == msg.sender) {
+                    delete communityByENS[data.ensName];
                 }
             }
             // V3: Deactivate community's own SBT membership
@@ -549,7 +549,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         if (roleId == ROLE_COMMUNITY) {
             CommunityRoleData memory data = _decodeCommunityData(roleData);
             if (bytes(data.name).length == 0) revert InvalidParameter("Name required");
-            if (communityByNameV3[data.name] != address(0)) revert InvalidParameter("Name taken");
+            if (communityByName[data.name] != address(0)) revert InvalidParameter("Name taken");
             stakeAmount = data.stakeAmount;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = _decodeEndUserData(roleData);
@@ -573,8 +573,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     function _postRegisterRole(bytes32 roleId, address user, bytes calldata roleData) internal {
         if (roleId == ROLE_COMMUNITY) {
             CommunityRoleData memory data = _decodeCommunityData(roleData);
-            communityByNameV3[data.name] = user;
-            if (bytes(data.ensName).length > 0) communityByENSV3[data.ensName] = user;
+            communityByName[data.name] = user;
+            if (bytes(data.ensName).length > 0) communityByENS[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = _decodeEndUserData(roleData);
             accountToUser[data.account] = user;

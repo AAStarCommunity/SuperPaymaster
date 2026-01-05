@@ -24,7 +24,7 @@ import { IVersioned } from "src/interfaces/IVersioned.sol";
 contract GToken is ERC20Capped, ERC20Burnable, Ownable, IVersioned {
 
     function version() external pure override returns (string memory) {
-        return "GToken-2.1.1";
+        return "GToken-2.1.2";
     }
 
     /**

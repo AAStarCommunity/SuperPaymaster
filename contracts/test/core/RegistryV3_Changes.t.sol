@@ -69,8 +69,8 @@ contract RegistryV3_Changes_Test is Test {
         registry.registerRoleSelf(ROLE_COMMUNITY, data);
         
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.communityByNameV3("TestCommunity"), community);
-        assertEq(registry.communityByENSV3("test.eth"), community);
+        assertEq(registry.communityByName("TestCommunity"), community);
+        assertEq(registry.communityByENS("test.eth"), community);
         
         vm.stopPrank();
         vm.prank(admin);
@@ -79,8 +79,8 @@ contract RegistryV3_Changes_Test is Test {
         registry.exitRole(ROLE_COMMUNITY);
         
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.communityByNameV3("TestCommunity"), address(0));
-        assertEq(registry.communityByENSV3("test.eth"), address(0));
+        assertEq(registry.communityByName("TestCommunity"), address(0));
+        assertEq(registry.communityByENS("test.eth"), address(0));
         
         assertEq(mockMySBT.lastDeactivatedUser(), community);
         assertEq(mockMySBT.lastDeactivatedCommunity(), community);

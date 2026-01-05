@@ -89,103 +89,10 @@ contract DeployLive is Script {
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
 
-                        console.log("=== Step 5: Role Orchestration ===");
+        console.log("=== Step 5: Role Orchestration & Community Init ===");
+        _orchestrateRoles();
 
-                        gtoken.mint(deployer, 2000 ether);
-
-                        gtoken.approve(address(staking), 2000 ether);
-
-                        
-
-                        // 1. 初始化 AAStar 社区 (Jason)
-
-                        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
-
-                            name: "AAStar",
-
-                            ensName: "aastar.eth",
-
-                            website: "aastar.io",
-
-                            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
-
-                            logoURI: "ipfs://aastar-logo",
-
-                            stakeAmount: 30 ether
-
-                        });
-
-                        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
-
-                        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
-
-                        sp.configureOperator(address(apnts), deployer, 1e18);
-
-                        
-
-                        // Caution: Real ETH being deposited
-
-                        IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(address(superPaymaster));
-
-                        apnts.mint(deployer, 1000 ether);
-
-                        apnts.approve(address(superPaymaster), 1000 ether);
-
-                        superPaymaster.depositFor(deployer, 1000 ether);
-
-                
-
-                        // 2. 初始化 DemoCommunity (Anni)
-
-                        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
-
-                        Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
-
-                            name: "DemoCommunity",
-
-                            ensName: "demo.eth",
-
-                            website: "demo.com",
-
-                            description: "Demo Community for testing purposes.",
-
-                            logoURI: "ipfs://demo-logo",
-
-                            stakeAmount: 30 ether
-
-                        });
-
-                
-
-                        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
-
-                        
-
-                        // 由于没有 Anni 私钥时无法配置 Operator，这里我们仅在有私钥时进行
-
-                        uint256 anniPK = vm.envOr("PRIVATE_KEY_ANNI", uint256(0));
-
-                        if (anniPK != 0) {
-
-                            vm.stopBroadcast();
-
-                            vm.startBroadcast(anniPK);
-
-                            address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
-
-                            registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
-
-                            superPaymaster.configureOperator(dPNTs, anni, 1e18);
-
-                            vm.stopBroadcast();
-
-                            vm.startBroadcast(deployerPK);
-
-                        }
-
-                
-
-                        console.log("=== Step 6: Final Verification ===");
+        console.log("=== Step 6: Final Verification ===");
         _verifyWiring();
 
         vm.stopBroadcast();
@@ -205,24 +112,58 @@ contract DeployLive is Script {
         mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
-        // try superPaymaster.updatePrice() {} catch {
-        //     console.log("Warning: Oracle update failed during deployment");
-        // }
+        // try superPaymaster.updatePrice() {} catch {}
     }
 
     function _orchestrateRoles() internal {
-        gtoken.mint(deployer, 1000 ether);
-        gtoken.approve(address(staking), 1000 ether);
-        bytes memory opData = abi.encode(Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether));
-        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, opData);
+        gtoken.mint(deployer, 2000 ether);
+        gtoken.approve(address(staking), 2000 ether);
+        
+        // 1. 初始化 AAStar 社区 (Jason)
+        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
+            name: "AAStar",
+            ensName: "aastar.eth",
+            website: "aastar.io",
+            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
+            logoURI: "ipfs://aastar-logo",
+            stakeAmount: 30 ether
+        });
+        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
+        superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         
-        // Caution: Real ETH being deposited
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(address(superPaymaster));
-        
         apnts.mint(deployer, 1000 ether);
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
+
+        // 2. 初始化 DemoCommunity (Anni)
+        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
+        uint256 anniPK = vm.envOr("PRIVATE_KEY_ANNI", uint256(0));
+        
+        if (anniPK != 0) {
+            Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
+                name: "DemoCommunity",
+                ensName: "demo.eth",
+                website: "demo.com",
+                description: "Demo Community for testing purposes.",
+                logoURI: "ipfs://demo-logo",
+                stakeAmount: 30 ether
+            });
+            registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
+            
+            gtoken.transfer(anni, 100 ether);
+            
+            vm.stopBroadcast();
+            vm.startBroadcast(anniPK);
+            gtoken.approve(address(staking), 100 ether);
+            registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+            
+            address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+            superPaymaster.configureOperator(dPNTs, anni, 1e18);
+            vm.stopBroadcast();
+            vm.startBroadcast(deployerPK);
+        }
     }
 
     function _verifyWiring() internal view {

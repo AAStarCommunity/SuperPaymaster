@@ -253,7 +253,7 @@
      )
   2. 验证 hasRole[ROLE_COMMUNITY][admin] = true
   3. 验证 roleStakes[ROLE_COMMUNITY][admin] = 30 ether
-  4. 验证 communityByNameV3["MyDAO"] = admin
+  4. 验证 communityByName["MyDAO"] = admin
   5. 验证 SBT 已铸造
 预期: Community 注册成功
 ```
@@ -266,7 +266,7 @@
 步骤:
   1. exitRole(ROLE_COMMUNITY)
   2. 验证 hasRole[ROLE_COMMUNITY][admin] = false
-  3. 验证 communityByNameV3["MyDAO"] = 0x0
+  3. 验证 communityByName["MyDAO"] = 0x0
   4. 验证 GToken 返还 (扣除 exit fee)
 预期: 退出成功，命名空间释放
 ```

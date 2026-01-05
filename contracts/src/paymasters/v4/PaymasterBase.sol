@@ -26,29 +26,25 @@ interface IGasTokenPrice {
 using UserOperationLib for PackedUserOperation;
 using SafeERC20 for IERC20;
 
-/// @title PaymasterV4Base
-/// @notice Base contract with shared business logic for v4.1 and v4.1i
-/// @dev Abstract contract - use PaymasterV4_1 (direct) or PaymasterV4_1i (factory)
-/// @dev CHANGED: immutable → storage variables for factory pattern support
+/// @title PaymasterBase
+/// @notice Base contract with shared business logic
+/// @dev Abstract contract
 /// @custom:security-contact security@aastar.community
-abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
+abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Constructor for abstract base
-    /// @dev Initializes Ownable with msg.sender, actual owner set in _initializeV4Base
+    /// @dev Initializes Ownable with msg.sender, actual owner set in _initializePaymasterBase
     constructor() Ownable(msg.sender) {}
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice EntryPoint contract address
-    /// @dev CHANGED: immutable → storage for factory pattern
     IEntryPoint public entryPoint;
 
     /// @notice Chainlink ETH/USD price feed
-    /// @dev CHANGED: immutable → storage for factory pattern
     AggregatorV3Interface public ethUsdPriceFeed;
 
     /// @notice xPNTs Factory for aPNTs price
-    /// @dev CHANGED: immutable → storage for factory pattern
     IxPNTsFactory public xpntsFactory;
 
     /// @notice Paymaster data offset in paymasterAndData
@@ -59,7 +55,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Contract version
     function version() external virtual pure returns (string memory) {
-        return "PMV4Base-1.0.0";
+        return "PMBase-1.0.0";
     }
 
     /// @notice Basis points denominator
@@ -109,18 +105,18 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    error PaymasterV4__OnlyEntryPoint();
-    error PaymasterV4__Paused();
-    error PaymasterV4__ZeroAddress();
-    error PaymasterV4__InvalidTokenBalance();
-    error PaymasterV4__NoValidSBT();
-    error PaymasterV4__InsufficientPNT();
-    error PaymasterV4__InvalidPaymasterData();
-    error PaymasterV4__InvalidServiceFee();
-    error PaymasterV4__EmptyArray();
-    error PaymasterV4__AlreadyExists();
-    error PaymasterV4__NotFound();
-    error PaymasterV4__MaxLimitReached();
+    error Paymaster__OnlyEntryPoint();
+    error Paymaster__Paused();
+    error Paymaster__ZeroAddress();
+    error Paymaster__InvalidTokenBalance();
+    error Paymaster__NoValidSBT();
+    error Paymaster__InsufficientPNT();
+    error Paymaster__InvalidPaymasterData();
+    error Paymaster__InvalidServiceFee();
+    error Paymaster__EmptyArray();
+    error Paymaster__AlreadyExists();
+    error Paymaster__NotFound();
+    error Paymaster__MaxLimitReached();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -154,14 +150,14 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
 
     modifier onlyEntryPoint() {
         if (msg.sender != address(entryPoint)) {
-            revert PaymasterV4__OnlyEntryPoint();
+            revert Paymaster__OnlyEntryPoint();
         }
         _;
     }
 
     modifier whenNotPaused() {
         if (paused) {
-            revert PaymasterV4__Paused();
+            revert Paymaster__Paused();
         }
         _;
     }
@@ -171,7 +167,6 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Internal initialization function (called by subclasses)
-    /// @dev CHANGED: constructor → internal function for factory pattern
     /// @param _entryPoint EntryPoint contract address
     /// @param _owner Contract owner address
     /// @param _treasury Treasury address for receiving PNT
@@ -179,7 +174,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @param _serviceFeeRate Service fee rate in basis points
     /// @param _maxGasCostCap Maximum gas cost cap (wei)
     /// @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
-    function _initializeV4Base(
+    function _initializePaymasterBase(
         address _entryPoint,
         address _owner,
         address _treasury,
@@ -189,12 +184,12 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
         address _xpntsFactory
     ) internal {
         // Input validation
-        if (_entryPoint == address(0)) revert PaymasterV4__ZeroAddress();
-        if (_owner == address(0)) revert PaymasterV4__ZeroAddress();
-        if (_treasury == address(0)) revert PaymasterV4__ZeroAddress();
-        if (_ethUsdPriceFeed == address(0)) revert PaymasterV4__ZeroAddress();
-        if (_xpntsFactory == address(0)) revert PaymasterV4__ZeroAddress();
-        if (_serviceFeeRate > MAX_SERVICE_FEE) revert PaymasterV4__InvalidServiceFee();
+        if (_entryPoint == address(0)) revert Paymaster__ZeroAddress();
+        if (_owner == address(0)) revert Paymaster__ZeroAddress();
+        if (_treasury == address(0)) revert Paymaster__ZeroAddress();
+        if (_ethUsdPriceFeed == address(0)) revert Paymaster__ZeroAddress();
+        if (_xpntsFactory == address(0)) revert Paymaster__ZeroAddress();
+        if (_serviceFeeRate > MAX_SERVICE_FEE) revert Paymaster__InvalidServiceFee();
 
         entryPoint = IEntryPoint(_entryPoint);
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
@@ -230,7 +225,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     {
         // Validate paymasterAndData length
         if (userOp.paymasterAndData.length < MIN_PAYMASTER_AND_DATA_LENGTH) {
-            revert PaymasterV4__InvalidPaymasterData();
+            revert Paymaster__InvalidPaymasterData();
         }
 
         address sender = userOp.getSender();
@@ -244,7 +239,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
         // Check 1: User must own at least one supported SBT (skip for undeployed accounts)
         if (codeSize > 0) {
             if (!_hasAnySBT(sender)) {
-                revert PaymasterV4__NoValidSBT();
+                revert Paymaster__NoValidSBT();
             }
         }
 
@@ -260,7 +255,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
         // Find which GasToken user holds with sufficient balance and calculate amount
         (address userGasToken, uint256 tokenAmount) = _getUserGasToken(sender, cappedMaxCost, specifiedGasToken);
         if (userGasToken == address(0)) {
-            revert PaymasterV4__InsufficientPNT();
+            revert Paymaster__InsufficientPNT();
         }
 
         // Transfer tokens to Paymaster (escrow) instead of treasury
@@ -369,10 +364,6 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     }
 
     /// @notice Calculate required xPNTs amount for gas cost
-    /// @dev Unified with SuperPaymaster V2 calculation flow:
-    ///      1. gasCostWei → gasCostUSD (Chainlink ETH/USD)
-    ///      2. gasCostUSD → aPNTsAmount (factory.getAPNTsPrice())
-    ///      3. aPNTsAmount → xPNTsAmount (token.exchangeRate())
     /// @param gasCostWei Gas cost in wei
     /// @param xpntsToken xPNTs token contract address
     /// @return Required xPNTs token amount
@@ -380,10 +371,8 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
 
-        // ✅ FIXED: Use PRICE_STALENESS_THRESHOLD (900s / 15 min for L2)
-        // Reduced from 3600s (1 hour) for better price accuracy on L2
         if (block.timestamp - updatedAt > PRICE_STALENESS_THRESHOLD) {
-            revert PaymasterV4__InvalidTokenBalance(); // Reuse error for simplicity
+            revert Paymaster__InvalidTokenBalance(); // Reuse error for simplicity
         }
 
         uint8 decimals = ethUsdPriceFeed.decimals();
@@ -394,7 +383,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
         // Step 2: Convert gas cost (wei) to USD
         uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
 
-        // Step 3: Add service fee (same as SuperPaymaster V2)
+        // Step 3: Add service fee
         uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
 
         // Step 4: Convert USD to aPNTs amount (using factory's aPNTs price)
@@ -415,7 +404,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Set treasury address
     /// @param _treasury New treasury address
     function setTreasury(address _treasury) external onlyOwner {
-        if (_treasury == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_treasury == address(0)) revert Paymaster__ZeroAddress();
 
         address oldTreasury = treasury;
         treasury = _treasury;
@@ -426,7 +415,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Set service fee rate
     /// @param _serviceFeeRate New service fee rate in basis points
     function setServiceFeeRate(uint256 _serviceFeeRate) external onlyOwner {
-        if (_serviceFeeRate > MAX_SERVICE_FEE) revert PaymasterV4__InvalidServiceFee();
+        if (_serviceFeeRate > MAX_SERVICE_FEE) revert Paymaster__InvalidServiceFee();
 
         uint256 oldRate = serviceFeeRate;
         serviceFeeRate = _serviceFeeRate;
@@ -446,9 +435,9 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Internal helper to add supported SBT contract
     /// @param sbt SBT contract address
     function _addSBT(address sbt) internal {
-        if (sbt == address(0)) revert PaymasterV4__ZeroAddress();
-        if (isSBTSupported[sbt]) revert PaymasterV4__AlreadyExists();
-        if (supportedSBTs.length >= MAX_SBTS) revert PaymasterV4__MaxLimitReached();
+        if (sbt == address(0)) revert Paymaster__ZeroAddress();
+        if (isSBTSupported[sbt]) revert Paymaster__AlreadyExists();
+        if (supportedSBTs.length >= MAX_SBTS) revert Paymaster__MaxLimitReached();
 
         supportedSBTs.push(sbt);
         isSBTSupported[sbt] = true;
@@ -466,7 +455,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Remove supported SBT contract
     /// @param sbt SBT contract address
     function removeSBT(address sbt) external onlyOwner {
-        if (!isSBTSupported[sbt]) revert PaymasterV4__NotFound();
+        if (!isSBTSupported[sbt]) revert Paymaster__NotFound();
 
         // Find and remove from array O(1)
         uint256 idx = sbtIndex[sbt];
@@ -489,9 +478,9 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Internal helper to add supported GasToken contract
     /// @param token GasToken contract address
     function _addGasToken(address token) internal {
-        if (token == address(0)) revert PaymasterV4__ZeroAddress();
-        if (isGasTokenSupported[token]) revert PaymasterV4__AlreadyExists();
-        if (supportedGasTokens.length >= MAX_GAS_TOKENS) revert PaymasterV4__MaxLimitReached();
+        if (token == address(0)) revert Paymaster__ZeroAddress();
+        if (isGasTokenSupported[token]) revert Paymaster__AlreadyExists();
+        if (supportedGasTokens.length >= MAX_GAS_TOKENS) revert Paymaster__MaxLimitReached();
 
         supportedGasTokens.push(token);
         isGasTokenSupported[token] = true;
@@ -509,7 +498,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Remove supported GasToken contract
     /// @param token GasToken contract address
     function removeGasToken(address token) external onlyOwner {
-        if (!isGasTokenSupported[token]) revert PaymasterV4__NotFound();
+        if (!isGasTokenSupported[token]) revert Paymaster__NotFound();
 
         // O(1) removal
         uint256 idx = gasTokenIndex[token];
@@ -546,7 +535,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @param token Token address
     /// @param amount Amount to withdraw
     function withdrawPNT(address to, address token, uint256 amount) external onlyOwner {
-        if (to == address(0)) revert PaymasterV4__ZeroAddress();
+        if (to == address(0)) revert Paymaster__ZeroAddress();
         IERC20(token).safeTransfer(to, amount);
     }
 
@@ -571,7 +560,7 @@ abstract contract PaymasterV4Base is Ownable, ReentrancyGuard, IVersioned {
     /// @param gasToken GasToken contract address
     /// @return Required token amount
     function estimatePNTCost(uint256 gasCostWei, address gasToken) external view returns (uint256) {
-        if (!isGasTokenSupported[gasToken]) revert PaymasterV4__NotFound();
+        if (!isGasTokenSupported[gasToken]) revert Paymaster__NotFound();
         uint256 cappedCost = gasCostWei > maxGasCostCap ? maxGasCostCap : gasCostWei;
         return _calculatePNTAmount(cappedCost, gasToken);
     }

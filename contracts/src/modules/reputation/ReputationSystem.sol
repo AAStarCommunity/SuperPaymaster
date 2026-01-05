@@ -53,7 +53,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     }
 
     function version() external pure override returns (string memory) {
-        return "Reputation-0.3.1";
+        return "Reputation-0.3.2";
     }
 
     /**

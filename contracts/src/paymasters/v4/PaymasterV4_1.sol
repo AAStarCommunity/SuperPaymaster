@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { PaymasterV4Base } from "./PaymasterV4Base.sol";
+import { PaymasterBase } from "./PaymasterBase.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
  * @title PaymasterV4_1
  * @notice PaymasterV4 with Registry management capabilities
- * @dev Extends PaymasterV4Base with deactivateFromRegistry() for lifecycle management
+ * @dev Extends PaymasterBase with deactivateFromRegistry() for lifecycle management
  * @dev Version: v4.1 - Adds Registry deactivation support
  * @dev For direct deployment (constructor-based)
  * @custom:security-contact security@aastar.community
  */
-contract PaymasterV4_1 is PaymasterV4Base {
+contract PaymasterV4_1 is PaymasterBase {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -66,7 +66,7 @@ contract PaymasterV4_1 is PaymasterV4Base {
         address _registry
     ) {
         // Call base initialization
-        _initializeV4Base(
+        _initializePaymasterBase(
             _entryPoint,
             _owner,
             _treasury,
@@ -77,7 +77,7 @@ contract PaymasterV4_1 is PaymasterV4Base {
         );
 
         // Initialize immutable Registry
-        if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
         // Add initial SBT if provided
@@ -115,8 +115,6 @@ contract PaymasterV4_1 is PaymasterV4Base {
         }
 
         // Call Registry.deactivate()
-        // msg.sender will be this Paymaster contract address
-        // Registry will set paymasters[msg.sender].isActive = false
         registry.deactivate();
 
         emit DeactivatedFromRegistry(address(this));

@@ -50,7 +50,7 @@ contract MockEntryPoint {
 
 /**
  * @title DeployAnvil
- * @notice Standardized Local Deployment Script
+ * @notice Standardized Local Deployment Script with Atomic Initialization
  */
 contract DeployAnvil is Script {
     uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80; 
@@ -107,10 +107,10 @@ contract DeployAnvil is Script {
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 5: Role Orchestration ===");
+        console.log("=== Step 5: Atomic Role & Community Orchestration ===");
         _orchestrateRoles();
 
-        console.log("=== Step 6: Verification ===");
+        console.log("=== Step 6: Final Verification ===");
         _verifyWiring();
 
         vm.stopBroadcast();
@@ -148,13 +148,13 @@ contract DeployAnvil is Script {
         });
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
-        
         superPaymaster.configureOperator(address(apnts), deployer, 1e18);
+        
         apnts.mint(deployer, 1000 ether);
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
 
-        // 2. 初始化 DemoCommunity (Anni) - 简化处理：由 Jason 代缴质押，Anni 仅作为持有人
+        // 2. 初始化 DemoCommunity (Anni)
         address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
         Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
             name: "DemoCommunity",
@@ -164,8 +164,18 @@ contract DeployAnvil is Script {
             logoURI: "ipfs://demo-logo",
             stakeAmount: 30 ether
         });
+
+        // Jason 代付 Anni 的质押并注册社区
         registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
-        // 注意：Demo 的 Paymaster 配置留给 SDK 测试脚本或 Anni 自己的独立交易完成
+        
+        // 关键：Anni 在 Anvil 下也需要点钱进行 Paymaster 注册
+        gtoken.mint(anni, 100 ether);
+        // 为了确保 Demo 的 Paymaster 角色注册成功，Jason 代缴质押
+        registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+        
+        // 注意：configureOperator 必须由 Operator 调用。
+        // 在 Anvil 单脚本中，我们可以用 prank 或者接受由 SDK 在后续测试中配置。
+        // 为了里程碑完整性，我在这里仅完成注册，不执行 Anni 的 configureOperator (留给 SDK)。
     }
 
     function _verifyWiring() internal view {

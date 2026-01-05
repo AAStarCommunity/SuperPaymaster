@@ -47,7 +47,7 @@ contract DVTValidator is Ownable, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.3.1";
+        return "DVTValidator-0.3.2";
     }
 
     function addValidator(address _v) external onlyOwner {

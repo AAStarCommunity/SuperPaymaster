@@ -47,6 +47,6 @@ contract BLSValidator is IBLSValidator {
     }
 
     function version() external pure override returns (string memory) {
-        return "BLSValidator-0.3.1";
+        return "BLSValidator-0.3.2";
     }
 }

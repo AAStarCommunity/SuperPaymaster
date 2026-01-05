@@ -56,7 +56,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant MAX_VALIDATORS = 13;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-3.1.3";
+        return "BLSAggregator-3.1.4";
     }
 
 

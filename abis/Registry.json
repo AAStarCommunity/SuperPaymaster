@@ -295,7 +295,7 @@
   },
   {
     "type": "function",
-    "name": "communityByENSV3",
+    "name": "communityByENS",
     "inputs": [
       {
         "name": "",
@@ -314,7 +314,7 @@
   },
   {
     "type": "function",
-    "name": "communityByNameV3",
+    "name": "communityByName",
     "inputs": [
       {
         "name": "",

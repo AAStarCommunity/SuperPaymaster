@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { PaymasterV4Base } from "./PaymasterV4Base.sol";
+import { PaymasterBase } from "./PaymasterBase.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
@@ -9,12 +9,12 @@ import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initia
 /**
  * @title PaymasterV4_1i
  * @notice Initializable version of PaymasterV4_1 for factory deployment
- * @dev Extends PaymasterV4Base with Registry management + Initializable pattern
+ * @dev Extends PaymasterBase with Registry management + Initializable pattern
  * @dev Version: v4.1i - "i" = initializable for EIP-1167 proxy deployment
  * @dev For factory deployment (initialize-based)
  * @custom:security-contact security@aastar.community
  */
-contract PaymasterV4_1i is PaymasterV4Base, Initializable {
+contract PaymasterV4_1i is PaymasterBase, Initializable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -80,7 +80,7 @@ contract PaymasterV4_1i is PaymasterV4Base, Initializable {
         address _registry
     ) external initializer {
         // Call base initialization
-        _initializeV4Base(
+        _initializePaymasterBase(
             _entryPoint,
             _owner,
             _treasury,
@@ -91,7 +91,7 @@ contract PaymasterV4_1i is PaymasterV4Base, Initializable {
         );
 
         // Initialize Registry
-        if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
         // Add initial SBT if provided

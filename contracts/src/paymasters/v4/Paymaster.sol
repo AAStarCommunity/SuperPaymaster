@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { PaymasterV4Base } from "./PaymasterV4Base.sol";
+import { PaymasterBase } from "./PaymasterBase.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 
 /**
- * @title PaymasterV4_1
- * @notice PaymasterV4 with Registry management capabilities
- * @dev Extends PaymasterV4Base with deactivateFromRegistry() for lifecycle management
- * @dev Version: v4.1 - Adds Registry deactivation support
+ * @title Paymaster
+ * @notice Paymaster with Registry management capabilities
+ * @dev Extends PaymasterBase with deactivateFromRegistry() for lifecycle management
+ * @dev Version: Standard - Adds Registry deactivation support
  * @dev For direct deployment (constructor-based)
  * @custom:security-contact security@aastar.community
  */
-contract Paymaster is PaymasterV4Base, Initializable {
+contract Paymaster is PaymasterBase, Initializable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -27,7 +27,7 @@ contract Paymaster is PaymasterV4Base, Initializable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Registry address not set
-    error PaymasterV4_1__RegistryNotSet();
+    error Paymaster__RegistryNotSet();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -48,7 +48,7 @@ contract Paymaster is PaymasterV4Base, Initializable {
      */
     constructor(address _registry) {
         // 1. Set immutable Registry
-        if (_registry == address(0)) revert PaymasterV4__ZeroAddress();
+        if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
         // 2. Disable initializers to prevent Implementation takeover
@@ -75,12 +75,10 @@ contract Paymaster is PaymasterV4Base, Initializable {
      */
     function deactivateFromRegistry() external onlyOwner {
         if (address(registry) == address(0)) {
-            revert PaymasterV4_1__RegistryNotSet();
+            revert Paymaster__RegistryNotSet();
         }
 
         // Call Registry.deactivate()
-        // msg.sender will be this Paymaster contract address
-        // Registry will set paymasters[msg.sender].isActive = false
         registry.deactivate();
 
         emit DeactivatedFromRegistry(address(this));
@@ -95,7 +93,7 @@ contract Paymaster is PaymasterV4Base, Initializable {
      * @return Version string
      */
     function version() external pure override returns (string memory) {
-        return "PMV4.2-Clone-1.0.1";
+        return "Paymaster-Standard-1.0.2";
     }
 
     /**
@@ -123,10 +121,9 @@ contract Paymaster is PaymasterV4Base, Initializable {
         address _xpntsFactory,
         address _initialSBT,
         address _initialGasToken
-        // _registry removed (Immutable)
     ) external initializer {
         // Call base initialization
-        _initializeV4Base(
+        _initializePaymasterBase(
             _entryPoint,
             _owner,
             _treasury,
@@ -135,8 +132,6 @@ contract Paymaster is PaymasterV4Base, Initializable {
             _maxGasCostCap,
             _xpntsFactory
         );
-
-        // Registry is immutable in V4.2, set in Impl Constructor.
 
         // Add initial SBT if provided
         if (_initialSBT != address(0)) {
