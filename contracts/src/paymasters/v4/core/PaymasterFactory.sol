@@ -127,10 +127,19 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // Deploy minimal proxy using OpenZeppelin Clones
         paymaster = implementation.clone();
 
-        // Initialize the Paymaster (if initData provided)
+        // Initialize the Paymaster (MUST succeed and enforce security)
         if (initData.length > 0) {
-            (bool success, ) = paymaster.call(initData);
-            require(success, "Initialization failed");
+            (bool success, bytes memory returnData) = paymaster.call(initData);
+            require(success, string(abi.encodePacked("Init failed: ", returnData)));
+            
+            // ✅ Verify owner is correctly set to msg.sender (Operator)
+            (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
+                abi.encodeWithSignature("owner()")
+            );
+            require(ownerSuccess && abi.decode(ownerData, (address)) == operator, 
+                    "Owner not set correctly");
+        } else {
+            revert("initData required for secure deployment");
         }
 
         // Update mappings
@@ -170,8 +179,17 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         paymaster = implementation.cloneDeterministic(salt);
 
         if (initData.length > 0) {
-            (bool success, ) = paymaster.call(initData);
-            require(success, "Initialization failed");
+            (bool success, bytes memory returnData) = paymaster.call(initData);
+            require(success, string(abi.encodePacked("Init failed: ", returnData)));
+            
+            // ✅ Verify owner is correctly set to msg.sender (Operator)
+            (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
+                abi.encodeWithSignature("owner()")
+            );
+            require(ownerSuccess && abi.decode(ownerData, (address)) == operator, 
+                    "Owner not set correctly");
+        } else {
+            revert("initData required for secure deployment");
         }
 
         paymasterByOperator[operator] = paymaster;

@@ -84,7 +84,8 @@ contract SuperPaymasterQueryTest is Test {
             IRegistry(address(registry)),
             address(gtoken),
             address(priceOracle),
-            treasury
+            treasury,
+            3600
         );
 
         paymaster.setBLSAggregator(blsAggregator);

@@ -140,14 +140,7 @@ contract SuperPaymasterTest is Test {
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
 
         // Deploy Paymaster
-        paymaster = new SuperPaymaster(
-            entryPoint,
-            owner,
-            registry,
-            address(apnts),
-            address(priceFeed),
-            treasury
-        );
+        paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600);
 
         // Setup Token Whitelist (CRITICAL FIX)
         apnts.setSuperPaymasterAddress(address(paymaster));

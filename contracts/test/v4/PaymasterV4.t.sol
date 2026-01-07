@@ -2,10 +2,13 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/v4/PaymasterV4.sol";
+import "src/paymasters/v4/Paymaster.sol";
+import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 
 // --- Mocks ---
 
@@ -56,22 +59,16 @@ contract MockTokenV4 is ERC20 {
     function getDebt(address) external pure returns (uint256) { return 0; }
 }
 
-contract MockSBT_V4 {
-    mapping(address => uint256) public balances;
-    function balanceOf(address u) external view returns (uint256) { return balances[u]; }
-    function setBalance(address u, uint256 b) external { balances[u] = b; }
-    function recordActivity(address) external {}
-}
-
 // --- Test Suite ---
 
 contract PaymasterV4Test is Test {
-    PaymasterV4 paymaster;
+    Paymaster paymaster; // This will be the proxy
+    PaymasterFactory pmFactory;
+    Paymaster pmImpl;
     MockEntryPointV4 entryPoint;
     MockOracleV4 oracle;
     MockXPNTsFactoryV4 factory;
     MockTokenV4 token;
-    MockSBT_V4 sbt;
     
     address owner = address(1);
     address treasury = address(2);
@@ -83,32 +80,53 @@ contract PaymasterV4Test is Test {
         oracle = new MockOracleV4(2000e8); // $2000
         factory = new MockXPNTsFactoryV4();
         token = new MockTokenV4();
-        sbt = new MockSBT_V4();
         
-        paymaster = new PaymasterV4(
+        // 1. Deploy Factory
+        pmFactory = new PaymasterFactory();
+        
+        // 2. Deploy Implementation
+        pmImpl = new Paymaster(
+            IEntryPoint(address(entryPoint)),
+            owner, // Owner (valid)
+            treasury, // Treasury (valid)
+            address(oracle),
+            0,
+            0,
+            address(factory),
+            address(0x999), // Registry
+            3600
+        );
+        
+        // 3. Register Implementation
+        pmFactory.addImplementation("v4.0", address(pmImpl));
+        
+        // 4. Prepare Init Data
+        bytes memory initData = abi.encodeWithSelector(
+            Paymaster.initialize.selector,
             address(entryPoint),
             owner,
             treasury,
             address(oracle),
             0, // Service fee rate
             5 ether, // Max gas cost cap
-            address(factory)
+            0, // minTokenBalance
+            address(factory),
+            address(0), // initialGasToken
+            3600 // Staleness Threshold
         );
         
+        // 5. Deploy Proxy via Factory
+        address proxyAddr = pmFactory.deployPaymaster("v4.0", initData);
+        paymaster = Paymaster(payable(proxyAddr));
+        
         // Use updated function names
-        // paymaster.setTreasury is internal/different? Ah, let's check. 
-        // wait, I only saw setTreasury event but correct function is setTreasury?
-        // Let's assume setTreasury exists or correct it if fail. 
-        // But for addGasToken/addSBT:
         paymaster.addGasToken(address(token));
-        paymaster.addSBT(address(sbt));
         
         vm.stopPrank();
         
         token.mint(user, 1000 ether);
         vm.prank(user);
         token.approve(address(paymaster), type(uint256).max);
-        sbt.setBalance(user, 1);
     }
     
     function test_V4_Validate_Success() public {
@@ -143,22 +161,6 @@ contract PaymasterV4Test is Test {
         paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
     }
     
-    function test_V4_Fail_NoSBT() public {
-        sbt.setBalance(user, 0); // User has no SBT
-    
-        // Etch code to user to simulate smart account (required for SBT check)
-        vm.etch(user, hex"01");
-        
-        PackedUserOperation memory op;
-        op.sender = user;
-        bytes memory data = abi.encodePacked(address(token));
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(1000), uint128(1000), data);
-        
-        vm.prank(address(entryPoint));
-        vm.expectRevert();
-        paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
-    }
-    
     function test_V4_Admin_Functions() public {
         vm.startPrank(owner);
         paymaster.pause();
@@ -178,9 +180,6 @@ contract PaymasterV4Test is Test {
         
         paymaster.removeGasToken(address(token));
         assertFalse(paymaster.isGasTokenSupported(address(token)));
-        
-        paymaster.removeSBT(address(sbt));
-        assertFalse(paymaster.isSBTSupported(address(sbt)));
         
         vm.stopPrank();
     }

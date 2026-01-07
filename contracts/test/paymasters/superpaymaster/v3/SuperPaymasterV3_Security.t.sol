@@ -91,7 +91,8 @@ contract SuperPaymaster_SecurityTest is Test {
             IRegistry(address(registry)),
             address(token), // Use token as aPNTs for simplicity
             address(oracle),
-            treasury
+            treasury,
+            3600
         );
         
         // Update Price Cache
@@ -130,7 +131,7 @@ contract SuperPaymaster_SecurityTest is Test {
         (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
         
         // Tx 1: Time T
-        vm.warp(1000);
+        vm.warp(1700001000);
         vm.prank(address(entryPoint));
         (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
         assertEq(valData, 0, "First tx valid");
@@ -148,12 +149,12 @@ contract SuperPaymaster_SecurityTest is Test {
         (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
         
         // Tx 1: Time 1000
-        vm.warp(1000);
+        vm.warp(1700001000);
         vm.prank(address(entryPoint));
         paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
 
         // Tx 2: Time 1030 (Delta 30 < 60) - Should Fail
-        vm.warp(1030);
+        vm.warp(1700001030);
         vm.prank(address(entryPoint));
         (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
         
@@ -167,12 +168,12 @@ contract SuperPaymaster_SecurityTest is Test {
         (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
         
         // Tx 1: Time 1000
-        vm.warp(1000);
+        vm.warp(1700001000);
         vm.prank(address(entryPoint));
         paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
 
         // Tx 2: Time 1061 (Delta 61 > 60) - Pass
-        vm.warp(1061);
+        vm.warp(1700001061);
         vm.prank(address(entryPoint));
         (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
         assertEq(valData, 0, "Tx after interval should be valid");

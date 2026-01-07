@@ -37,7 +37,7 @@ contract V3_Function_BoostTest is Test {
         vm.stopPrank();
 
         aPNTs = new xPNTsToken("a", "b", owner, "c", "d", 1e18);
-        paymaster = new SuperPaymaster(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury);
+        paymaster = new SuperPaymaster(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury, 3600);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));
     }

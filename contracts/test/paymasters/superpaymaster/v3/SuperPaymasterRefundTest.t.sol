@@ -28,14 +28,7 @@ contract SuperPaymasterRefundTest is Test {
         registry = new Registry(address(0), address(0x1), address(0x2)); // Minimal mock
         MockPriceFeed priceFeed = new MockPriceFeed();
         
-        paymaster = new SuperPaymaster(
-            IEntryPoint(entryPoint),
-            owner,
-            registry,
-            address(aPNTs),
-            address(priceFeed),
-            owner
-        );
+        paymaster = new SuperPaymaster(IEntryPoint(entryPoint), owner, registry, address(aPNTs), address(priceFeed), owner, 3600);
         
         // Setup Protocol Fee 10%
         paymaster.setProtocolFee(1000); 

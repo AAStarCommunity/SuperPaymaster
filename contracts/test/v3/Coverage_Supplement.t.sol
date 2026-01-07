@@ -138,7 +138,8 @@ contract CoverageSupplementTest is Test {
             registry,
             address(gtoken), // APNTS
             address(oracle),
-            treasury
+            treasury,
+            3600
         );
         
         vm.warp(block.timestamp + 2 hours);

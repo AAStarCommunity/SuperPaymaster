@@ -73,14 +73,7 @@ contract SuperPaymaster_Admin_Test is Test {
         address mockSBT = address(0x888);
         registry = new Registry(address(gtoken), mockStaking, mockSBT);
         
-        paymaster = new SuperPaymaster(
-            IEntryPoint(address(entryPoint)),
-            owner,
-            IRegistry(address(registry)),
-            address(apnts),
-            address(priceFeed),
-            treasury
-        );
+        paymaster = new SuperPaymaster(IEntryPoint(address(entryPoint)), owner, registry, address(apnts), address(priceFeed), treasury, 3600);
         
         // Fix: Update Price Cache (Warp to permit update)
         vm.warp(block.timestamp + 2 hours);

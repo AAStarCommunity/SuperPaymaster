@@ -9,7 +9,7 @@ import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import "src/paymasters/v4/PaymasterV4_1i.sol";
+import "../../deprecated/PaymasterV4_1i.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/DVTValidator.sol";

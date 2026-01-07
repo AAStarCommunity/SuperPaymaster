@@ -70,10 +70,9 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Maximum number of supported GasTokens
     uint256 public constant MAX_GAS_TOKENS = 10;
 
-    /// @notice Price staleness threshold (15 minutes for L2)
-    /// @dev L2 chains have faster block times and more frequent Chainlink updates
-    ///      Reduced from 3600s (1 hour) to 900s (15 min) for better price accuracy
-    uint256 public constant PRICE_STALENESS_THRESHOLD = 900;
+    /// @notice Price staleness threshold (seconds)
+    /// @dev Default to 3600s (1 hour) to cover Mainnet/Testnet heartbeats
+    uint256 public priceStalenessThreshold;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -181,7 +180,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        address _xpntsFactory
+        address _xpntsFactory,
+        uint256 _priceStalenessThreshold
     ) internal {
         // Input validation
         if (_entryPoint == address(0)) revert Paymaster__ZeroAddress();
@@ -197,6 +197,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
         maxGasCostCap = _maxGasCostCap;
+        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600; // Default 1 hour
         paused = false;
 
         _transferOwnership(_owner);
@@ -261,8 +262,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // Transfer tokens to Paymaster (escrow) instead of treasury
         IERC20(userGasToken).safeTransferFrom(sender, address(this), tokenAmount);
 
-        // Emit payment event (using cappedMaxCost as estimated)
-        emit GasPaymentProcessed(sender, userGasToken, tokenAmount, cappedMaxCost, maxCost);
+        // GasPaymentProcessed moved to postOp or removed from validation for 4337 compliance
 
         // Context: user, token, maxAmount, cappedMaxCost
         return (abi.encode(sender, userGasToken, tokenAmount, cappedMaxCost), 0);
@@ -271,12 +271,13 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice PostOp handler with refund logic
     /// @dev Calculates actual cost and refunds the difference to the user
     function postOp(
-        PostOpMode /* mode */,
+        PostOpMode mode,
         bytes calldata context,
         uint256 actualGasCost,
-        uint256 /* actualUserOpFeePerGas */
+        uint256 actualUserOpFeePerGas
     )
-        external
+        public
+        virtual
         onlyEntryPoint
         nonReentrant
     {
@@ -371,7 +372,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
 
-        if (block.timestamp - updatedAt > PRICE_STALENESS_THRESHOLD) {
+        if (block.timestamp - updatedAt > priceStalenessThreshold) {
             revert Paymaster__InvalidTokenBalance(); // Reuse error for simplicity
         }
 
@@ -430,6 +431,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         maxGasCostCap = _maxGasCostCap;
 
         emit MaxGasCostCapUpdated(oldCap, _maxGasCostCap);
+    }
+
+    /// @notice Set price staleness threshold
+    /// @param _priceStalenessThreshold New threshold in seconds
+    function setPriceStalenessThreshold(uint256 _priceStalenessThreshold) external onlyOwner {
+        priceStalenessThreshold = _priceStalenessThreshold;
     }
 
     /// @notice Internal helper to add supported SBT contract

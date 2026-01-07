@@ -55,7 +55,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
     PriceCache public cachedPrice; // Make public for easy verification
-    uint256 public constant PRICE_STALENESS_THRESHOLD = 1 hours; // Maximum allowed age for price
+    // uint256 public constant PRICE_STALENESS_THRESHOLD = 1 hours; // REMOVED
 
     // V3.2.1 SECURITY: Enforce max rate in Validation
     uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
@@ -102,12 +102,14 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         IRegistry _registry,
         address _apntsToken,
         address _ethUsdPriceFeed,
-        address _protocolTreasury
+        address _protocolTreasury,
+        uint256 _priceStalenessThreshold
     ) BasePaymaster(_entryPoint, _owner) {
         REGISTRY = _registry;
         APNTS_TOKEN = _apntsToken;
         ETH_USD_PRICE_FEED = AggregatorV3Interface(_ethUsdPriceFeed);
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
+        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600; // Default 1 hour
     }
 
     // ====================================
@@ -193,9 +195,11 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         }
     }
 
-    /**
-     * @notice Set operator limits (e.g. Rate Limiting)
-     */
+    /// @notice Price staleness threshold (seconds)
+    uint256 public priceStalenessThreshold;
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+
     function setOperatorLimits(uint48 _minTxInterval) external {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
         operators[msg.sender].minTxInterval = _minTxInterval;
@@ -448,6 +452,10 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         
         uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
         if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
+        
+        if (config.isPaused) {
+             emit OperatorPaused(operator);
+        }
 
         if (config.reputation > reputationLoss) config.reputation -= uint32(reputationLoss);
         else config.reputation = 0;
@@ -514,7 +522,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         ) = ETH_USD_PRICE_FEED.latestRoundData();
 
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
-        if (updatedAt < block.timestamp - PRICE_STALENESS_THRESHOLD) revert OracleError(); // Too stale
+        if (updatedAt < block.timestamp - priceStalenessThreshold) revert OracleError(); // Too stale
 
         // 2. Update Cache
         cachedPrice = PriceCache({
@@ -591,11 +599,15 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         
         // Cast uint96 to uint256 for comparison
         if (uint256(config.exchangeRate) > maxRate) {
-             emit ValidationRejected(userOp.sender, operator, 4);
              return ("", _packValidationData(true, 0, 0)); 
         }
         
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
+
+        // Security: Check Price Staleness
+        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
+            return ("", _packValidationData(true, 0, 0));
+        }
 
         // 4. Solvency Check (Pure Storage)
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
@@ -610,8 +622,6 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
 
         // 6. Return Context
         uint256 xPNTsAmount = (aPNTsAmount * uint256(config.exchangeRate)) / 1e18;
-        
-        emit TransactionSponsored(operator, userOp.sender, aPNTsAmount, xPNTsAmount);
         
         // Use Empty Context to save gas (PostOp can re-read or we assume optimistic success)
         // Or if we need PostOp refund, we pass data.

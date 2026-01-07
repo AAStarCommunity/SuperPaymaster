@@ -44,13 +44,18 @@ contract DVTSlashTest is Test {
         sbt.setRegistry(address(registry));
         vm.startPrank(owner);
         
+        // Define new variables for the SuperPaymaster constructor
+        address entryPoint = address(0x123); // Dummy non-zero address
+        address oracle = address(0); // No price feed needed, so address(0)
+
         paymaster = new SuperPaymaster(
-            IEntryPoint(address(0x123)), // Dummy non-zero address
+            IEntryPoint(entryPoint),
             owner,
             registry,
-            address(gtoken),
-            address(0), // No price feed needed
-            treasury
+            address(gtoken), // Assuming aPNTs refers to gtoken based on context
+            address(oracle),
+            treasury,
+            3600
         );
 
         paymaster.setBLSAggregator(dvtAggregator);

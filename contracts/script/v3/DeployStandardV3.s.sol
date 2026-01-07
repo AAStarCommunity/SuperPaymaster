@@ -153,7 +153,7 @@ contract DeployStandardV3 is Script {
 
     function _deployCore() internal {
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer);
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
     }
 
     function _deployModules() internal {
@@ -163,7 +163,17 @@ contract DeployStandardV3 is Script {
         blsValidator = new BLSValidator();
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(address(registry));
+        pmV4Impl = new Paymaster(
+            IEntryPoint(entryPointAddr),
+            deployer,
+            deployer, // treasury
+            priceFeedAddr,
+            1000, // serviceFeeRate
+            5000000, // maxGasCostCap
+            address(xpntsFactory),
+            address(registry),
+            3600 // priceStalenessThreshold
+        );
     }
 
     function _executeWiring() internal {

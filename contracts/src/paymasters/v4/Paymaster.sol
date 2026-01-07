@@ -2,6 +2,8 @@
 pragma solidity ^0.8.26;
 
 import { PaymasterBase } from "./PaymasterBase.sol";
+import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
@@ -15,6 +17,7 @@ import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initia
  * @custom:security-contact security@aastar.community
  */
 contract Paymaster is PaymasterBase, Initializable {
+    using SafeERC20 for IERC20;
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -42,17 +45,43 @@ contract Paymaster is PaymasterBase, Initializable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Constructor for Implementation Contract
-     * @dev Sets immutable registry and disables initializers
-     * @param _registry SuperPaymasterRegistry contract address (immutable)
+     * @notice Constructor for Direct Deployment
+     * @param _entryPoint EntryPoint address
+     * @param _owner Owner address
+     * @param _treasury Treasury address
+     * @param _ethUsdPriceFeed Chainlink Oracle
+     * @param _serviceFeeRate Service Fee BPS
+     * @param _maxGasCostCap Gas Cap
+     * @param _xpntsFactory Factory address
+     * @param _registry Registry address
+     * @param _priceStalenessThreshold Staleness threshold
      */
-    constructor(address _registry) {
-        // 1. Set immutable Registry
+    constructor(
+        IEntryPoint _entryPoint,
+        address _owner,
+        address _treasury,
+        address _ethUsdPriceFeed,
+        uint256 _serviceFeeRate,
+        uint256 _maxGasCostCap,
+        address _xpntsFactory,
+        address _registry,
+        uint256 _priceStalenessThreshold
+    ) {
         if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
-        // 2. Disable initializers to prevent Implementation takeover
-        _disableInitializers();
+        initialize(
+            address(_entryPoint), // Cast for Initialize signature
+            _owner,
+            _treasury,
+            _ethUsdPriceFeed,
+            _serviceFeeRate,
+            _maxGasCostCap,
+            0, // minTokenBalance (legacy)
+            _xpntsFactory,
+            address(0), // initialGasToken
+            _priceStalenessThreshold
+        );
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -93,22 +122,21 @@ contract Paymaster is PaymasterBase, Initializable {
      * @return Version string
      */
     function version() external pure override returns (string memory) {
-        return "Paymaster-Standard-1.0.2";
+        return "PMV4-Hybrid-1.0.2";
     }
 
     /**
-     * @notice External initializer for Factory Clones
-     * @param _entryPoint EntryPoint contract address (v0.7)
+     * @notice Initialize Paymaster (for proxy instances or direct constructor)
+     * @param _entryPoint EntryPoint contract address
      * @param _owner Initial owner address
      * @param _treasury Treasury address for fee collection
      * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
-     * @param _serviceFeeRate Service fee in basis points (max 1000 = 10%)
-     * @param _maxGasCostCap Maximum gas cost cap per transaction (wei)
-     * @param _minTokenBalance Minimum token balance (for compatibility)
-     * @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
-     * @param _initialSBT Initial SBT contract address (optional, use address(0) to skip)
-     * @param _initialGasToken Initial GasToken contract address (optional, use address(0) to skip)
-     * @dev Must be called by Factory via initData during cloning
+     * @param _serviceFeeRate Service fee in basis points
+     * @param _maxGasCostCap Maximum gas cost cap
+     * @param _minTokenBalance Legacy param
+     * @param _xpntsFactory xPNTs Factory contract address
+     * @param _initialGasToken Initial GasToken contract address
+     * @param _priceStalenessThreshold Staleness threshold
      */
     function initialize(
         address _entryPoint,
@@ -117,11 +145,11 @@ contract Paymaster is PaymasterBase, Initializable {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        uint256 _minTokenBalance, // for compatibility
+        uint256 _minTokenBalance, 
         address _xpntsFactory,
-        address _initialSBT,
-        address _initialGasToken
-    ) external initializer {
+        address _initialGasToken,
+        uint256 _priceStalenessThreshold
+    ) public initializer {
         // Call base initialization
         _initializePaymasterBase(
             _entryPoint,
@@ -130,17 +158,16 @@ contract Paymaster is PaymasterBase, Initializable {
             _ethUsdPriceFeed,
             _serviceFeeRate,
             _maxGasCostCap,
-            _xpntsFactory
+            _xpntsFactory,
+            _priceStalenessThreshold
         );
 
-        // Add initial SBT if provided
-        if (_initialSBT != address(0)) {
-            _addSBT(_initialSBT);
-        }
-
-        // Add initial GasToken if provided
         if (_initialGasToken != address(0)) {
             _addGasToken(_initialGasToken);
+        }
+
+        if (_owner != address(0) && _owner != msg.sender) {
+            _transferOwnership(_owner);
         }
     }
 

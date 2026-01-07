@@ -93,7 +93,7 @@ contract DeployAnvil is Script {
 
         console.log("=== Step 2: Deploy Core ===");
         apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer);
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
 
         console.log("=== Step 3: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
@@ -102,7 +102,17 @@ contract DeployAnvil is Script {
         blsValidator = new BLSValidator();
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(address(registry));
+        pmV4Impl = new Paymaster(
+            IEntryPoint(entryPointAddr),
+            deployer,
+            deployer, // treasury
+            priceFeedAddr,
+            1000, // serviceFeeRate
+            5000000, // maxGasCostCap
+            address(xpntsFactory),
+            address(registry),
+            3600 // priceStalenessThreshold
+        );
 
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();

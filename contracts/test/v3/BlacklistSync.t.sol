@@ -73,14 +73,7 @@ contract BlacklistSyncTest is Test {
         priceFeed = new MockAggregator();
         apnts = new xPNTsToken("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
         
-        paymaster = new SuperPaymaster(
-            entryPoint,
-            owner,
-            registry,
-            address(apnts),
-            address(priceFeed),
-            treasury
-        );
+        paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600);
 
         // 3. Connect Registry & Paymaster
         registry.setSuperPaymaster(address(paymaster));

@@ -65,10 +65,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Maximum number of supported GasTokens
     uint256 public constant MAX_GAS_TOKENS = 10;
 
-    /// @notice Price staleness threshold (15 minutes for L2)
-    /// @dev L2 chains have faster block times and more frequent Chainlink updates
-    ///      Reduced from 3600s (1 hour) to 900s (15 min) for better price accuracy
-    uint256 public constant PRICE_STALENESS_THRESHOLD = 900;
+    /// @notice Price staleness threshold (inherited from Base, initialized in constructor)
+    // uint256 public constant PRICE_STALENESS_THRESHOLD = 900; // REMOVED
     
     /// @notice Minimum valid ETH price (USD) to prevent oracle manipulation (e.g., $100)
     int256 public constant MIN_PRICE = 100 * 1e8;
@@ -197,7 +195,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard, IVersioned {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        address _xpntsFactory
+        address _xpntsFactory,
+        uint256 _priceStalenessThreshold
     ) Ownable(_owner) {
         // Input validation
         if (_entryPoint == address(0)) revert PaymasterV4__ZeroAddress();
@@ -212,11 +211,11 @@ contract PaymasterV4 is Ownable, ReentrancyGuard, IVersioned {
         xpntsFactory = IxPNTsFactory(_xpntsFactory);
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
-        serviceFeeRate = _serviceFeeRate;
         
         if (_maxGasCostCap == 0) revert PaymasterV4__InvalidCap();
         maxGasCostCap = _maxGasCostCap;
-        
+        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
+
         paused = false;
     }
 
@@ -429,9 +428,8 @@ contract PaymasterV4 is Ownable, ReentrancyGuard, IVersioned {
         if (ethUsdPrice < MIN_PRICE || ethUsdPrice > MAX_PRICE) revert PaymasterV4__OraclePriceInvalid();
         if (answeredInRound < roundId) revert PaymasterV4__InvalidTokenBalance(); // Staleness check
 
-        // ✅ FIXED: Use PRICE_STALENESS_THRESHOLD (900s / 15 min for L2)
-        // Reduced from 3600s (1 hour) for better price accuracy on L2
-        if (block.timestamp - updatedAt > PRICE_STALENESS_THRESHOLD) {
+        // ✅ FIXED: Use priceStalenessThreshold (configurable)
+        if (block.timestamp - updatedAt > priceStalenessThreshold) {
             revert PaymasterV4__InvalidTokenBalance(); // Reuse error for simplicity
         }
 
