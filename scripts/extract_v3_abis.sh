@@ -46,4 +46,33 @@ for CONTRACT in "${CONTRACTS[@]}"; do
     fi
 done
 
-echo "✨ ABI extraction complete. Files saved in $OUTPUT_DIR/"
+echo "📄 Generating ABI manifest (abi.config.json)..."
+CONFIG_FILE="$OUTPUT_DIR/abi.config.json"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# 计算整体哈希 (排除生成的 config 本身)
+TOTAL_HASH=$(find "$OUTPUT_DIR" -name "*.json" ! -name "abi.config.json" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
+
+# 初始化 JSON
+echo "{" > "$CONFIG_FILE"
+echo "  \"description\": \"SuperPaymaster Contract ABIs Manifest\", " >> "$CONFIG_FILE"
+echo "  \"source\": \"SuperPaymaster/contracts/src\", " >> "$CONFIG_FILE"
+echo "  \"buildTime\": \"$TIMESTAMP\", " >> "$CONFIG_FILE"
+echo "  \"totalHash\": \"$TOTAL_HASH\", " >> "$CONFIG_FILE"
+echo "  \"files\": [" >> "$CONFIG_FILE"
+
+# 遍历文件添加列表
+FILES=($(ls "$OUTPUT_DIR"/*.json | grep -v "abi.config.json"))
+LEN=${#FILES[@]}
+for (( i=0; i<${LEN}; i++ )); do
+    F=${FILES[$i]}
+    FNAME=$(basename "$F")
+    FHASH=$(shasum -a 256 "$F" | awk '{print $1}')
+    COMMA=","
+    if [ $i -eq $((LEN-1)) ]; then COMMA=""; fi
+    echo "    { \"name\": \"$FNAME\", \"hash\": \"$FHASH\" }$COMMA" >> "$CONFIG_FILE"
+done
+
+echo "  ]" >> "$CONFIG_FILE"
+echo "}" >> "$CONFIG_FILE"
+
+echo "✨ ABI extraction and manifest generation complete. Files saved in $OUTPUT_DIR/"

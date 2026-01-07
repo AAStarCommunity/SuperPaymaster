@@ -39,6 +39,11 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║       SUPERPAYMASTER -> SDK INTEGRATION FLOW                 ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 
+# 0. Clean Build Artifacts (Avoid Stale Artifacts)
+echo -ne "🧹 Cleaning stale artifacts... "
+forge clean > /dev/null 2>&1
+echo -e "${GREEN}Done${NC}"
+
 # 1. Calculate Source Hash
 echo -ne "🔍 Calculating contract source hash... "
 # Use find + shasum to get a stable hash of the entire src directory

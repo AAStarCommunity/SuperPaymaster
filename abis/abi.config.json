@@ -1,0 +1,21 @@
+{
+  "description": "SuperPaymaster Contract ABIs Manifest", 
+  "source": "SuperPaymaster/contracts/src", 
+  "buildTime": "2026-01-07T15:08:43Z", 
+  "totalHash": "63a6b879a496bc86247699de81915fe84e6142d615f6d002e6c306446849ec9a", 
+  "files": [
+    { "name": "BLSAggregator.json", "hash": "d550c88930127c59210ae1d61cd11c2d440ff5901d1c452a5b9bee277264eecc" },
+    { "name": "BLSValidator.json", "hash": "b5f48702915523a87deb0ea65b22786ec35561b330e91cf8cf1c9388ba0d22b5" },
+    { "name": "DVTValidator.json", "hash": "4ad9bc7ef877bde10d87063192638ba918d7152ace5d4850395642cf574d7450" },
+    { "name": "GToken.json", "hash": "005c7203c82ee5b2775ba33e0e577112686dc88f70f1262d4ec4ce5ee6972ff4" },
+    { "name": "GTokenStaking.json", "hash": "78e573b51108d37969c07429e109a83439992c3fb63afe525be2a141752b8cf6" },
+    { "name": "MySBT.json", "hash": "5d487882425406cb907da7ae87b2d85acb284bc802e195ddaa8786d23e56f8ca" },
+    { "name": "Paymaster.json", "hash": "d562257b296acce5fe2db1e8498ddd97e97250ed1bcb514611d0cca3417ae0ca" },
+    { "name": "PaymasterFactory.json", "hash": "3215d1dcd0c585e4c59d60ee3e7e24cdaaaf7a3fb7a37dd07728c12370fc0972" },
+    { "name": "Registry.json", "hash": "13a2146a1bc2b52e37ebdc53aa00c8681b28fe52b669d683d95207e61b290eab" },
+    { "name": "ReputationSystem.json", "hash": "551581bf4eae79318a43475038a4e22736eb036a77852e046c9e9e282a1bae7e" },
+    { "name": "SuperPaymaster.json", "hash": "cf75c884d1a5d1924943a559a5112083d54529a74d238f256ca28f428a040276" },
+    { "name": "xPNTsFactory.json", "hash": "12ecc2a54bd0ff1757584e7a13632064579273df52cc3953b62ad59a2a375843" },
+    { "name": "xPNTsToken.json", "hash": "380814c9281fa4e2a6133b92b3b47f68f89a2e22e98e81c0993db23e6f50e3b7" }
+  ]
+}
