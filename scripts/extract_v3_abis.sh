@@ -28,6 +28,9 @@ CONTRACTS=(
     "BLSAggregator"
     "DVTValidator"
     "BLSValidator"
+    "EntryPoint"
+    "SimpleAccount"
+    "SimpleAccountFactory"
 )
 
 echo "🔍 Starting ABI extraction for V3/V4..."
@@ -38,9 +41,9 @@ for CONTRACT in "${CONTRACTS[@]}"; do
     FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
     
     if [ -f "$FILE" ]; then
-        echo "✅ Extracting ABI for $CONTRACT..."
-        # 使用 jq 提取 abi 字段并格式化
-        jq '.abi' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
+        echo "✅ Extracting ABI & Bytecode for $CONTRACT..."
+        # 提取 abi 和 bytecode.object 并合并为 JSON
+        jq '{abi: .abi, bytecode: .bytecode.object}' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
     else
         echo "❌ Warning: Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
     fi
