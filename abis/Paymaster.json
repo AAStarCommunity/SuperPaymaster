@@ -3,9 +3,49 @@
     "type": "constructor",
     "inputs": [
       {
+        "name": "_entryPoint",
+        "type": "address",
+        "internalType": "contract IEntryPoint"
+      },
+      {
+        "name": "_owner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_ethUsdPriceFeed",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_serviceFeeRate",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_maxGasCostCap",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_xpntsFactory",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "_registry",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_priceStalenessThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -43,19 +83,6 @@
   {
     "type": "function",
     "name": "MAX_SERVICE_FEE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PRICE_STALENESS_THRESHOLD",
     "inputs": [],
     "outputs": [
       {
@@ -301,14 +328,14 @@
         "internalType": "address"
       },
       {
-        "name": "_initialSBT",
+        "name": "_initialGasToken",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "_initialGasToken",
-        "type": "address",
-        "internalType": "address"
+        "name": "_priceStalenessThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -429,7 +456,7 @@
     "name": "postOp",
     "inputs": [
       {
-        "name": "",
+        "name": "mode",
         "type": "uint8",
         "internalType": "enum PostOpMode"
       },
@@ -444,13 +471,26 @@
         "internalType": "uint256"
       },
       {
-        "name": "",
+        "name": "actualUserOpFeePerGas",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "priceStalenessThreshold",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -536,6 +576,19 @@
     "inputs": [
       {
         "name": "_maxGasCostCap",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPriceStalenessThreshold",
+    "inputs": [
+      {
+        "name": "_priceStalenessThreshold",
         "type": "uint256",
         "internalType": "uint256"
       }
