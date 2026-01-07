@@ -10,7 +10,7 @@ import {xPNTsToken} from "src/tokens/xPNTsToken.sol";
 import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import {IRegistry} from "src/interfaces/v3/IRegistry.sol";
 import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
-import {PaymasterV4_1} from "src/paymasters/v4/PaymasterV4_1.sol";
+import {Paymaster} from "src/paymasters/v4/Paymaster.sol";
 import {ISuperPaymasterRegistry} from "src/interfaces/ISuperPaymasterRegistry.sol";
 import {IVersioned} from "src/interfaces/IVersioned.sol";
 
@@ -71,7 +71,7 @@ contract VerifyV3_1_1 is Script {
         // Paymaster V4 Checks
         if (pmV4 != address(0)) {
             console.log("--- Paymaster V4 (Deep) ---");
-            console.log("  V4 Registry wired:      ", address(PaymasterV4_1(payable(pmV4)).registry()) == registry);
+            console.log("  V4 Registry wired:      ", address(Paymaster(payable(pmV4)).registry()) == registry);
         }
 
         // 2. Identity Checks
@@ -85,6 +85,7 @@ contract VerifyV3_1_1 is Script {
         {
             (uint128 bal,,,,,,,,,) = SuperPaymaster(sp).operators(deployerAddr);
             console.log("Deployer Op Balance (aPNTs):", uint256(bal) / 1e18, "aPNTs");
+            console.log("SP Price Staleness Threshold:", SuperPaymaster(sp).priceStalenessThreshold());
         }
 
         console.log("\n[4. Version Verification]");
