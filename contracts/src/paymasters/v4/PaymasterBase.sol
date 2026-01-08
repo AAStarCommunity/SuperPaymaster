@@ -371,12 +371,16 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken) internal view returns (uint256) {
         // Step 1: Get ETH/USD price from Chainlink with staleness check
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        
+        uint8 decimals = ethUsdPriceFeed.decimals();
+        int256 minPrice = int256(100 * (10 ** decimals)); // $100
 
+        if (ethUsdPrice <= minPrice) revert("Oracle: price <= 100 USD");
         if (block.timestamp - updatedAt > priceStalenessThreshold) {
             revert Paymaster__InvalidTokenBalance(); // Reuse error for simplicity
         }
 
-        uint8 decimals = ethUsdPriceFeed.decimals();
+        // Convert to 18 decimals: price * 1e18 / 10^decimals
 
         // Convert to 18 decimals: price * 1e18 / 10^decimals
         uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** decimals);

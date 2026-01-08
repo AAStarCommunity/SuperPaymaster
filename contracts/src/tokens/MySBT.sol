@@ -254,6 +254,13 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             // Check if membership exists
             uint256 idx = membershipIndex[tokenId][community];
             if (idx < _m[tokenId].length && _m[tokenId][idx].community == community) {
+                // HIGH-FIX: Reactivate if inactive (Re-join)
+                if (!_m[tokenId][idx].isActive) {
+                    _m[tokenId][idx].isActive = true;
+                    // No event for reactivation in V3 spec, but we could emit MembershipAdded again or a new event.
+                    // For now, emit MembershipAdded to signal effective join.
+                    emit MembershipAdded(tokenId, community, "", block.timestamp);
+                }
                 return (tokenId, false);
             }
 

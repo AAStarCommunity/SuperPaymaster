@@ -155,6 +155,11 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         // Global accounting uses the original lock amount
         stakes[user].amount -= originalAmount;
         
+        // FIX: Clear slashedAmount residue if no active stake remains (cleaner state)
+        if (stakes[user].amount == 0) {
+            stakes[user].slashedAmount = 0;
+        }
+
         totalStaked -= originalAmount;
 
         // Transfers

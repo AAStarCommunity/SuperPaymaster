@@ -407,7 +407,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         // proof: abi.encode(bytes aggregatedPkG1, bytes aggregatedSigG2, bytes msgG2, uint256 signerMask)
         (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
         
-        // Check threshold from aggregator or default to 4
+        // Check threshold from aggregator or default to 3
         uint256 count = _countSetBits(signerMask);
         uint256 threshold = 3; // Minimum allowed as per requirement
         if (blsAggregator != address(0)) {
@@ -421,10 +421,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
         // Strategy Pattern for BLS Verification
         if (address(blsValidator) != address(0)) {
-            require(blsValidator.verifyProof(proof, ""), "Registry: BLS Verification Failed");
+            // CRITICAL FIX: Bind message to specific context (epoch + users + newScores)
+            // Reconstruct the message that was ostensibly signed
+            bytes memory message = abi.encodePacked(
+                keccak256(abi.encode(epoch, users, newScores))
+            );
+            
+            require(blsValidator.verifyProof(proof, message), "Registry: BLS Verification Failed");
         } else {
-            // Failsafe: if no validator set, require proof length 0 to allow skipping (or revert)
-            // For security, we revert if logic is expected but missing.
             revert("BLS Validator not configured");
         }
 

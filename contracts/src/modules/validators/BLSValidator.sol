@@ -18,6 +18,7 @@ contract BLSValidator is IBLSValidator {
     function verifyProof(bytes calldata proof, bytes calldata message) external view override returns (bool isValid) {
         if (proof.length == 0) return false;
 
+        // --- Production Real Verification ---
         // 1. Decode Proof (Aggregate Signature G2 and Public Key G1)
         // Proof format: [G1_PK(128 bytes)][G2_SIG(256 bytes)]
         if (proof.length < 384) return false;
@@ -40,11 +41,7 @@ contract BLSValidator is IBLSValidator {
         g1s[1] = _negateG1(pk);
         g2s[1] = msgG2;
 
-        try BLS.pairing(g1s, g2s) returns (bool result) {
-            return result;
-        } catch {
-            return false;
-        }
+        return BLS.pairing(g1s, g2s);
     }
 
     /// @dev Negates a G1 point (P - Y)

@@ -689,7 +689,13 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
              // Should rarely happen (Actual > Max), just cap at Max
-             IxPNTsToken(token).recordDebt(user, estimatedXPNTs);
+             // FIX: Ensure consistent debt recording even if we charge the Max
+             uint256 exchangeRate = operators[operator].exchangeRate;
+             // Here finalCharge = initialAPNTs (since we capped it implicitly by not refunding)
+             // But let's be explicit:
+             uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
+             
+             IxPNTsToken(token).recordDebt(user, finalXPNTsDebt);
         }
     }
     

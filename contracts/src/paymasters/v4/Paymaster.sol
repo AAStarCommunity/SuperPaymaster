@@ -13,7 +13,9 @@ import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initia
  * @notice Paymaster with Registry management capabilities
  * @dev Extends PaymasterBase with deactivateFromRegistry() for lifecycle management
  * @dev Version: Standard - Adds Registry deactivation support
- * @dev For direct deployment (constructor-based)
+ * @dev Version: Standard - Adds Registry deactivation support
+ * @dev For Proxy deployment only (EIP-1167) via PaymasterFactory
+ * @dev NOTE: Direct deployment is NOT supported as initializers are disabled in constructor.
  * @custom:security-contact security@aastar.community
  */
 contract Paymaster is PaymasterBase, Initializable {
