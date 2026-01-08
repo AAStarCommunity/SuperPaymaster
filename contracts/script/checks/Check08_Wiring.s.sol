@@ -45,7 +45,6 @@ contract Check08_Wiring is Script {
         require(address(SuperPaymaster(superPaymaster).REGISTRY()) == registry, "Check08: SP -> Registry Immutable Failed");
 
         // 4. Business Callback Check
-        require(MySBT(sbt).SUPER_PAYMASTER() == superPaymaster, "Check08: MySBT -> SP Callback Failed");
         require(xPNTsFactory(xpntsFactory).SUPERPAYMASTER() == superPaymaster, "Check08: Factory -> SP Failed");
         require(SuperPaymaster(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
 

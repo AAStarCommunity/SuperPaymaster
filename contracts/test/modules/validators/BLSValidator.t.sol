@@ -16,8 +16,8 @@ contract BLSValidatorTest is Test {
         assertFalse(isValid);
     }
 
-    function test_ReturnsTrueIfProofPresent() public {
+    function test_ReturnsFalseIfProofInvalid() public {
         bool isValid = validator.verifyProof("0x12", "");
-        assertTrue(isValid);
+        assertFalse(isValid);
     }
 }

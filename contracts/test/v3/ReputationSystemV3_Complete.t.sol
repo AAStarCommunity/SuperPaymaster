@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/core/Registry.sol";
-import "src/modules/validators/BLSValidator.sol";
+import "src/mocks/MockBLSValidator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 
 contract MockNFT is ERC721 {
@@ -59,7 +59,7 @@ contract ReputationSystem_Complete_Test is Test {
         );
 
         // Set BLS Validator
-        BLSValidator validator = new BLSValidator();
+        MockBLSValidator validator = new MockBLSValidator();
         registry.setBLSValidator(address(validator));
         
         vm.stopPrank();

@@ -11,7 +11,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
-import "src/modules/validators/BLSValidator.sol";
+import "src/mocks/MockBLSValidator.sol";
 
 // --- Mocks ---
 
@@ -133,7 +133,7 @@ contract CoverageSupplementTest is Test {
         paymaster.updatePrice();
 
         // Set BLS Validator
-        BLSValidator validator = new BLSValidator();
+        MockBLSValidator validator = new MockBLSValidator();
         registry.setBLSValidator(address(validator));
 
         vm.stopPrank();
