@@ -137,7 +137,6 @@ contract DeployAnvil is Script {
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         apnts.setSuperPaymasterAddress(address(superPaymaster));
-        mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
@@ -165,7 +164,8 @@ contract DeployAnvil is Script {
         superPaymaster.depositFor(deployer, 1000 ether);
 
         // 2. 初始化 DemoCommunity (Anni)
-        address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
+        uint256 anniPK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+        address anni = vm.addr(anniPK);
         Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
             name: "DemoCommunity",
             ensName: "demo.eth",
@@ -180,12 +180,23 @@ contract DeployAnvil is Script {
         
         // 关键：Anni 在 Anvil 下也需要点钱进行 Paymaster 注册
         gtoken.mint(anni, 100 ether);
-        // 为了确保 Demo 的 Paymaster 角色注册成功，Jason 代缴质押
         registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         
-        // 注意：configureOperator 必须由 Operator 调用。
-        // 在 Anvil 单脚本中，我们可以用 prank 或者接受由 SDK 在后续测试中配置。
-        // 为了里程碑完整性，我在这里仅完成注册，不执行 Anni 的 configureOperator (留给 SDK)。
+        // 补全 DemoCommunity 的 Operator 配置
+        vm.stopBroadcast();
+        uint256 anniPK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+        vm.startBroadcast(anniPK);
+        address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+        superPaymaster.configureOperator(dPNTs, anni, 1e18);
+        
+        // 为 DemoCommunity 注入 500 ether 资金
+        xPNTsToken(dPNTs).mint(anni, 500 ether);
+        xPNTsToken(dPNTs).approve(address(superPaymaster), 500 ether);
+        superPaymaster.deposit(500 ether);
+        vm.stopBroadcast();
+
+        // 切换回 Deployer 继续后续操作
+        vm.startBroadcast(deployerPK);
     }
 
     function _verifyWiring() internal view {

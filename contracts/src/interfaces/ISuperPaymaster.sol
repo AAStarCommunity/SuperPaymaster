@@ -100,4 +100,6 @@ interface ISuperPaymaster is IVersioned {
 
     function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
+    function updateSBTStatus(address user, bool status) external;
+
 }

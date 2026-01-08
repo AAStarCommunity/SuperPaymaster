@@ -15,9 +15,36 @@ contract BLSValidator is IBLSValidator {
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7; 
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab; 
 
-    function verifyProof(bytes calldata proof, bytes calldata /* message */) external pure override returns (bool isValid) {
+    function verifyProof(bytes calldata proof, bytes calldata message) external view override returns (bool isValid) {
         if (proof.length == 0) return false;
-        return true;
+
+        // 1. Decode Proof (Aggregate Signature G2 and Public Key G1)
+        // Proof format: [G1_PK(128 bytes)][G2_SIG(256 bytes)]
+        if (proof.length < 384) return false;
+
+        BLS.G1Point memory pk = abi.decode(proof[0:128], (BLS.G1Point));
+        BLS.G2Point memory sig = abi.decode(proof[128:384], (BLS.G2Point));
+
+        // 2. Hash message to G2
+        BLS.G2Point memory msgG2 = BLS.hashToG2(message);
+
+        // 3. Pairing Check: e(G1_GEN, SIG) == e(PK, msgG2)
+        // Equivalent to: e(G1_GEN, SIG) * e(-PK, msgG2) == 1
+        
+        BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
+        BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
+
+        g1s[0] = _getG1Gen();
+        g2s[0] = sig;
+
+        g1s[1] = _negateG1(pk);
+        g2s[1] = msgG2;
+
+        try BLS.pairing(g1s, g2s) returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
     }
 
     /// @dev Negates a G1 point (P - Y)

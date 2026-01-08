@@ -24,28 +24,15 @@ contract MockGToken is ERC20 {
 }
 
 contract MockSBT is IMySBT {
-    function mint(address to, uint256 id, uint256 amount, bytes memory data) external {}
-    function burn(address from, uint256 id, uint256 amount) external {}
     function mintForRole(address to, bytes32 role, bytes calldata data) external returns (uint256, bool) { return (1, true); }
     function airdropMint(address to, bytes32 role, bytes calldata data) external returns (uint256, bool) { return (2, true); }
-    function deactivateMembership(address user, address community) external {}
-    function setRegistry(address) external {}
-    function updateScore(address, uint256) external {}
-    function getScore(address) external view returns (uint256) { return 0; }
     function getUserSBT(address user) external view returns (uint256 tokenId) { return 0; }
-    function recordActivity(address user) external {}
     function getSBTData(uint256) external pure returns (SBTData memory) {
         return SBTData(address(0), address(0), 0, 0);
     }
     function verifyCommunityMembership(address user, address community) external view returns (bool) { return true; }
-
-    function balanceOf(address account, uint256 id) external view returns (uint256) { return 0; }
-    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids) external view returns (uint256[] memory) { return new uint256[](accounts.length); }
-    function setApprovalForAll(address operator, bool approved) external {}
-    function isApprovedForAll(address account, address operator) external view returns (bool) { return false; }
-    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external {}
-    function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external {}
-    function supportsInterface(bytes4 interfaceId) external view returns (bool) { return true; }
+    function deactivateMembership(address user, address community) external {}
+    function burnSBT(address user) external {}
 }
 
 contract MockEntryPoint is IEntryPoint {
@@ -387,7 +374,14 @@ contract CoverageSupplementTest is Test {
         registry.registerRole(ROLE_COMMUNITY, operator, opData);
         // Also register as SuperPaymaster
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(50 ether)));
+        vm.stopPrank();
+        
+        // Sync SBT Status for Operator
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(operator, true);
+
         // Config Operator
+        vm.startPrank(operator);
         paymaster.configureOperator(address(xpnts), treasury, 1e18);
         vm.stopPrank();
         
@@ -397,7 +391,12 @@ contract CoverageSupplementTest is Test {
         (ctx, valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
         assertEq(valData & 1, 1, "Should fail sig (user unverified)");
         
-        // Register User
+        vm.stopPrank();
+        // Sync SBT status for User
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
+
+        // Register User in Registry
         vm.startPrank(user);
         gtoken.approve(address(staking), 100 ether);
         bytes memory uData = abi.encode(Registry.EndUserRoleData(address(123), operator, "", "", 1 ether));

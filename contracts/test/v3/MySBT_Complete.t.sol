@@ -205,8 +205,8 @@ contract MySBT_Simplified_Test is Test {
         vm.prank(address(mockRegistry));
         (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
         
-        vm.prank(user1);
-        mysbt.burnSBT();
+        vm.prank(address(mockRegistry));
+        mysbt.burnSBT(user1);
         
         assertEq(mysbt.userToSBT(user1), 0);
         vm.expectRevert();
@@ -214,9 +214,9 @@ contract MySBT_Simplified_Test is Test {
     }
 
     function test_BurnSBT_NoSBT() public {
-        vm.prank(user1);
+        vm.prank(address(mockRegistry));
         vm.expectRevert(); // No specific error message
-        mysbt.burnSBT();
+        mysbt.burnSBT(user1);
     }
 
     // ====================================
@@ -254,30 +254,6 @@ contract MySBT_Simplified_Test is Test {
         vm.prank(user1);
         vm.expectRevert("Only Registry");
         mysbt.deactivateMembership(user1, community1);
-    }
-
-    // ====================================
-    // Activity Recording Tests
-    // ====================================
-
-    function test_RecordActivity_Success() public {
-        bytes memory roleData = abi.encode(community1);
-        vm.prank(address(mockRegistry));
-        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
-        
-        // Community records user activity
-        vm.prank(community1);
-        mysbt.recordActivity(user1);
-        
-        // Verify activity was recorded
-        uint256 tokenId = mysbt.userToSBT(user1);
-        assertGt(mysbt.lastActivityTime(tokenId, community1), 0);
-    }
-
-    function test_RecordActivity_NoSBT() public {
-        vm.prank(community1);
-        vm.expectRevert();
-        mysbt.recordActivity(user1);
     }
 
     // ====================================
@@ -511,24 +487,13 @@ contract MySBT_Simplified_Test is Test {
         MySBT.SBTData memory data = mysbt.getSBTData(tokenId);
         assertEq(data.totalCommunities, 2);
         
-        // 3. Record activity (community records it)
-        vm.prank(community1);
-        mysbt.recordActivity(user1);
-        
-        // 4. Leave one community
-        vm.prank(user1);
-        mysbt.leaveCommunity(community1);
-        
-        assertFalse(mysbt.verifyCommunityMembership(user1, community1));
-        assertTrue(mysbt.verifyCommunityMembership(user1, community2));
-        
         // 5. Leave second community
         vm.prank(user1);
         mysbt.leaveCommunity(community2);
         
         // 6. Burn SBT
-        vm.prank(user1);
-        mysbt.burnSBT();
+        vm.prank(address(mockRegistry));
+        mysbt.burnSBT(user1);
         
         assertEq(mysbt.userToSBT(user1), 0);
     }

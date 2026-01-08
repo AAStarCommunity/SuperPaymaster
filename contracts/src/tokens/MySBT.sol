@@ -14,11 +14,6 @@ import "../interfaces/v3/IRegistry.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 
-interface ISuperPaymasterCallback {
-    function registerSBTHolder(address holder, uint256 tokenId) external;
-    function removeSBTHolder(address holder) external;
-}
-
 interface IRegistryLegacy {
     function isRegisteredCommunity(address community) external view returns (bool);
 }
@@ -136,13 +131,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     address public reputationCalculator;
     string private _baseTokenURI;
 
-    // ====================================
-    // V2.4.5: SuperPaymaster Integration
-    // ====================================
-
-    /// @notice SuperPaymaster address for SBT registry callbacks (V2.4.5)
-    address public SUPER_PAYMASTER;
-
     uint256 public nextTokenId = 1;
     uint256 public minLockAmount = 0.3 ether;
     uint256 public mintFee = 0.1 ether;
@@ -153,13 +141,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     uint256 constant MIN_INT = 5 minutes;
 
     error E();
-
-    // ====================================
-    // V2.4.5: Events
-    // ====================================
-
-    /// @notice SuperPaymaster address updated (V2.4.5)
-    event SuperPaymasterUpdated(address indexed oldPaymaster, address indexed newPaymaster, uint256 timestamp);
 
     modifier onlyDAO() {
         require(msg.sender == daoMultisig, "Only DAO");
@@ -194,42 +175,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     function version() external pure override returns (string memory) {
         return "MySBT-3.1.2";
-    }
-
-    // ====================================
-    // V2.4.5: SuperPaymaster Callback Helper
-    // ====================================
-
-    /**
-     * @notice Register SBT holder to SuperPaymaster (V2.4.5)
-     * @dev Uses try/catch for graceful degradation if SuperPaymaster not set
-     * @param holder SBT owner address
-     * @param tokenId MySBT token ID
-     */
-    function _registerSBTHolder(address holder, uint256 tokenId) internal {
-        if (SUPER_PAYMASTER != address(0)) {
-            try ISuperPaymasterCallback(SUPER_PAYMASTER).registerSBTHolder(holder, tokenId) {
-                // Success - SBT registered to SuperPaymaster
-            } catch {
-                // Graceful degradation - continue without SuperPaymaster registration
-                // This allows MySBT to function even if SuperPaymaster is misconfigured
-            }
-        }
-    }
-
-    /**
-     * @notice Remove SBT holder from SuperPaymaster (V2.4.5)
-     * @dev Uses try/catch for graceful degradation if SuperPaymaster not set
-     * @param holder SBT owner address
-     */
-    function _removeSBTHolder(address holder) internal {
-        if (SUPER_PAYMASTER != address(0)) {
-            try ISuperPaymasterCallback(SUPER_PAYMASTER).removeSBTHolder(holder) {
-                // Success - SBT removed from SuperPaymaster
-            } catch {
-                // Graceful degradation - continue without SuperPaymaster removal
-            }
-        }
     }
 
     // ====================================
@@ -298,9 +243,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
             // Mint SBT to user
             _mint(user, tokenId);
-
-            // Register SBT holder to SuperPaymaster
-            _registerSBTHolder(user, tokenId);
 
             emit SBTMinted(user, tokenId, community, block.timestamp);
         } else {
@@ -375,9 +317,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             // Mint SBT to user
             _mint(u, tid);
 
-            // Register SBT holder to SuperPaymaster
-            _registerSBTHolder(u, tid);
-
             emit SBTMinted(u, tid, community, block.timestamp);
         } else {
             // Add role to existing SBT
@@ -411,13 +350,9 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         }
     }
 
-    function burnSBT() external whenNotPaused nonReentrant {
-        address u = msg.sender;
+    function burnSBT(address u) external whenNotPaused nonReentrant onlyRegistry {
         uint256 tid = userToSBT[u];
         require(tid != 0 && ownerOf(tid) == u);
-
-        // ⚡ V2.4.5: Remove SBT holder from SuperPaymaster BEFORE burning
-        _removeSBTHolder(u);
 
         CommunityMembership[] storage mems = _m[tid];
         for (uint256 i = 0; i < mems.length; i++) {
@@ -537,21 +472,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     // Reputation calculation functions removed for contract size optimization (v2.4.5-optimized)
     // Use external reputationCalculator contract for reputation queries
-
-    // ====================================
-    // V2.4.5: SuperPaymaster Configuration
-    // ====================================
-
-    /**
-     * @notice Set SuperPaymaster address (V2.4.5)
-     * @dev Only DAO can call this function
-     * @param _paymaster SuperPaymaster address (address(0) to disable callbacks)
-     */
-    function setSuperPaymaster(address _paymaster) external onlyDAO {
-        address oldPaymaster = SUPER_PAYMASTER;
-        SUPER_PAYMASTER = _paymaster;
-        emit SuperPaymasterUpdated(oldPaymaster, _paymaster, block.timestamp);
-    }
 
     // ====================================
     // Admin Functions

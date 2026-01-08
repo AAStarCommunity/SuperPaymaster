@@ -266,6 +266,15 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         // Remove from roleMembers (O(n) but usually small members or handled by indexing)
         _removeFromRoleMembers(roleId, msg.sender);
 
+        // Sync SBT removal to SuperPaymaster if no identity roles left
+        if (this.getUserRoles(msg.sender).length == 0) {
+            if (SUPER_PAYMASTER != address(0)) {
+                ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
+            }
+            // ⚡ FINAL CLOSURE: Burn the physical SBT badge as well
+            MYSBT.burnSBT(msg.sender);
+        }
+
         uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
         
         emit RoleExited(roleId, msg.sender, stakedAmount - netAmount, block.timestamp);
@@ -571,6 +580,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     }
 
     function _postRegisterRole(bytes32 roleId, address user, bytes calldata roleData) internal {
+        // Sync SBT status to SuperPaymaster (System Qualification)
+        if (SUPER_PAYMASTER != address(0)) {
+            ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(user, true);
+        }
+
         if (roleId == ROLE_COMMUNITY) {
             CommunityRoleData memory data = _decodeCommunityData(roleData);
             communityByName[data.name] = user;

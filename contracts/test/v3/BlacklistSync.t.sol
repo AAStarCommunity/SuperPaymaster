@@ -104,6 +104,10 @@ contract BlacklistSyncTest is Test {
         apnts.approve(address(paymaster), 1000 ether);
         vm.prank(operator);
         paymaster.depositFor(operator, 1000 ether);
+
+        // --- 5. Sync SBT Status for Malicious User ---
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(maliciousUser, true);
     }
 
     function test_BlacklistFlow() public {

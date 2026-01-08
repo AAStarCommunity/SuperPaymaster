@@ -104,11 +104,19 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // 4. Configure Operator (Deposit & Setup)
         token.transfer(operator, 100 ether);
+        
+        vm.prank(owner);
+        paymaster.setAPNTsToken(address(token));
+
         vm.startPrank(operator);
         token.approve(address(paymaster), 100 ether);
         paymaster.deposit(100 ether);
         paymaster.configureOperator(address(token), treasury, 1e18); // 1.0 margin
         vm.stopPrank();
+        
+        // Sync SBT Status for user (Must be called by Registry)
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
 
         // 5. Setup User Credit (Decentralized Mode)
         registry.setCreditLimit(user, 1000 ether);

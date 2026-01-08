@@ -58,6 +58,10 @@ contract SuperPaymasterRefundTest is Test {
         vm.warp(block.timestamp + 2 hours);
         paymaster.updatePrice();
         vm.stopPrank();
+        
+        // Sync SBT Status for user (Separate prank)
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
     }
 
     function testRefundLogic() public {

@@ -41,6 +41,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     // --- Mappings ---
     mapping(address => ISuperPaymaster.OperatorConfig) public operators;
     mapping(address => mapping(address => bool)) public blockedUsers; // operator => user => isBlocked
+    mapping(address => bool) public sbtHolders; // Global SBT holders list (verified via Registry)
     mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // operator => user => timestamp
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
@@ -218,6 +219,14 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             blockedUsers[operator][users[i]] = statuses[i];
             emit UserBlockedStatusUpdated(operator, users[i], statuses[i]);
         }
+    }
+
+    /**
+     * @notice Update SBT holder status (Called by Registry)
+     */
+    function updateSBTStatus(address user, bool status) external {
+        if (msg.sender != address(REGISTRY)) revert Unauthorized();
+        sbtHolders[user] = status;
     }
 
     /**
@@ -569,6 +578,11 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Check 2: Must not be Paused
         if (config.isPaused) {
              return ("", _packValidationData(true, 0, 0)); 
+        }
+
+        // V3.3 Security: Check SBT Qualification (Local Cache)
+        if (!sbtHolders[userOp.sender]) {
+             return ("", _packValidationData(true, 0, 0));
         }
 
         // V3.2 Security: Check Blocklist & Rate Limit

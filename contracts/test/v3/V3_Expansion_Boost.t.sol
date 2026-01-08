@@ -69,8 +69,8 @@ contract V3_Reputation_SBT_BoostTest is Test {
         vm.stopPrank();
 
         // Burn SBT
-        vm.prank(user);
-        mysbt.burnSBT();
+        vm.prank(address(registry));
+        mysbt.burnSBT(user);
         assertEq(mysbt.userToSBT(user), 0);
 
         // Admin setters

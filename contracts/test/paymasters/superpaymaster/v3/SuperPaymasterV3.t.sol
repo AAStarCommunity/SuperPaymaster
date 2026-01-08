@@ -157,8 +157,13 @@ contract SuperPaymasterTest is Test {
         // Fund Operator
         apnts.mint(operator, 1000 ether);
         apnts.mint(user, 1000 ether); // User holds xPNTs (technically same logic for aPNTs here)
-        
         vm.stopPrank();
+        
+        // Sync SBT Status (Required for V3.3)
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(operator, true);
     }
 
     function testUnregisteredOperatorCannotDeposit() public {

@@ -84,15 +84,15 @@ interface IMySBT {
         returns (bool isValid);
 
     /**
-     * @notice Record user activity (called by Paymaster)
-     * @param user User address
-     */
-    function recordActivity(address user) external;
-
-    /**
      * @notice Deactivate user membership in community (called by Registry only)
      * @param user User address
      * @param community Community address
      */
     function deactivateMembership(address user, address community) external;
+
+    /**
+     * @notice Burn user's SBT (called by Registry only on final role exit)
+     * @param user User address
+     */
+    function burnSBT(address user) external;
 }

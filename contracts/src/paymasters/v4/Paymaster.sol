@@ -70,18 +70,8 @@ contract Paymaster is PaymasterBase, Initializable {
         if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
-        initialize(
-            address(_entryPoint), // Cast for Initialize signature
-            _owner,
-            _treasury,
-            _ethUsdPriceFeed,
-            _serviceFeeRate,
-            _maxGasCostCap,
-            0, // minTokenBalance (legacy)
-            _xpntsFactory,
-            address(0), // initialGasToken
-            _priceStalenessThreshold
-        );
+        // Lock the implementation contract
+        _disableInitializers();
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

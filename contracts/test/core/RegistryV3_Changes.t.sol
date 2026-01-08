@@ -21,11 +21,11 @@ contract MockMySBT is IMySBT {
         return SBTData(address(0), address(0), 0, 0);
     }
     function verifyCommunityMembership(address, address) external pure returns (bool) { return true; }
-    function recordActivity(address) external {}
     function deactivateMembership(address user, address community) external {
         lastDeactivatedUser = user;
         lastDeactivatedCommunity = community;
     }
+    function burnSBT(address) external {}
 }
 
 contract RegistryV3_Changes_Test is Test {
