@@ -421,11 +421,18 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
         // Strategy Pattern for BLS Verification
         if (address(blsValidator) != address(0)) {
-            // CRITICAL FIX: Bind message to specific context (epoch + users + newScores)
-            // Reconstruct the message that was ostensibly signed
-            bytes memory message = abi.encodePacked(
-                keccak256(abi.encode(epoch, users, newScores))
-            );
+            // ✅ UNIFIED MESSAGE SCHEMA: Match BLSAggregator format exactly
+            // This ensures "签名绑定" is consistent across the entire system
+            bytes32 messageHash = keccak256(abi.encode(
+                0,              // proposalId: Registry has no proposal, use 0
+                address(0),     // operator: Registry has no operator, use 0
+                uint8(0),       // slashLevel: Registry has no slash, use 0
+                users,          // repUsers: matches BLSAggregator's repUsers
+                newScores,      // newScores: same as BLSAggregator
+                epoch,          // epoch: same as BLSAggregator
+                block.chainid   // chainid: prevent cross-chain replay
+            ));
+            bytes memory message = abi.encodePacked(messageHash);
             
             require(blsValidator.verifyProof(proof, message), "Registry: BLS Verification Failed");
         } else {
