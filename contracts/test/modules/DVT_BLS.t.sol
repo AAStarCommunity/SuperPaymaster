@@ -98,24 +98,29 @@ contract DVTBLSTest is Test {
         }
         
         
-        // ✅ Simplified: Skip BLS verification in unit tests
-        // For now, just test that the flow works without actual BLS pairing
-        // Real BLS verification requires valid cryptographic data which is complex to mock
+        // ✅ KEY INSIGHT: keccak256(msgG2Bytes) must equal expectedMessageHash
+        // expectedMessageHash = keccak256(abi.encode(proposalId, operator, slashLevel, ...))
+        // So: msgG2Bytes = abi.encode(proposalId, operator, slashLevel, ...)
         
-        // Create minimal valid proof structure
-        bytes memory mockG1 = new bytes(128);
-        bytes memory mockG2Sig = new bytes(256);
-        bytes memory mockG2Msg = new bytes(256);  // G2Point is 256 bytes
-        
-        bytes memory mockProof = abi.encode(
-            mockG1,
-            mockG2Sig,
-            mockG2Msg,
-            uint256(0x7F) // 7 signers
+        bytes memory msgG2Bytes = abi.encode(
+            id,                     // proposalId = 1
+            op,                     // operator
+            uint8(1),              // slashLevel
+            new address[](0),       // repUsers
+            new uint256[](0),       // newScores  
+            uint256(0),            // epoch
+            block.chainid           // chainid
         );
         
-        // Skip this test for now - requires full BLS setup
-        vm.skip(true);
+        // Mock BLS pairing to always return true
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        
+        bytes memory mockProof = abi.encode(
+            new bytes(128),  // pkG1 (mock, any value)
+            new bytes(256),  // sigG2 (mock, any value)
+            msgG2Bytes,      // ✅ This will pass hash check!
+            uint256(0x7F)    // signerMask: 7 signers
+        );
         
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         
@@ -138,23 +143,10 @@ contract DVTBLSTest is Test {
     }
     
     function test_BLS_ManualVerify() public {
-        // Skip - requires full BLS cryptographic setup
-        vm.skip(true);
-        // Test BLS contract directly
-        address[] memory vals = new address[](7);
-        bytes[] memory sigs = new bytes[](7);
-        for(uint i=0; i<7; i++) {
-            vals[i] = address(uint160(i+101));
-            sigs[i] = "sig";
-        }
-        
-        // Mock BLS precompile to return 1 (valid)
-        vm.mockCall(address(0x10), "", abi.encode(uint256(1)));
-        
-        // ✅ Construct correct message - use actual encoded data
-        bytes memory actualMsg = abi.encode(
+        // ✅ Same strategy: msgG2Bytes = abi.encode of message params
+        bytes memory msgG2Bytes = abi.encode(
             99,                     // proposalId
-            op,                     // operator  
+            op,                     // operator
             uint8(1),              // slashLevel
             new address[](0),       // repUsers
             new uint256[](0),       // newScores
@@ -162,22 +154,20 @@ contract DVTBLSTest is Test {
             block.chainid           // chainid
         );
         
+        // Mock BLS pairing
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        
         bytes memory mockProof = abi.encode(
-            new bytes(96),
-            new bytes(192),
-            actualMsg, // ✅ msgG2 = actual message bytes
-            uint256(0x7F)
+            new bytes(128),  // pkG1
+            new bytes(256),  // sigG2
+            msgG2Bytes,      // ✅ Will pass hash check
+            uint256(0x7F)    // signerMask
         );
-
-        // Only DVT or owner can call verifyAndExecute
+        
         vm.prank(address(dvt));
         bls.verifyAndExecute(
-            99, // manual id
-            op,
-            1, // level
-            new address[](0),
-            new uint256[](0),
-            123,
+            99, op, 1,
+            new address[](0), new uint256[](0), 123,
             mockProof
         );
         
