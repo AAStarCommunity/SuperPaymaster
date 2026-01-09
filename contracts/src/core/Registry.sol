@@ -436,10 +436,11 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
         uint256 maxChange = 100; // Protocol safety limit
 
-        for (uint256 i = 0; i < users.length; i++) {
+        for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
 
             if (epoch <= lastReputationEpoch[user]) {
+                unchecked { ++i; }
                 continue;
             }
 
@@ -457,6 +458,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
             lastReputationEpoch[user] = epoch;
 
             emit GlobalReputationUpdated(user, newScore, epoch);
+            
+            unchecked { ++i; }
         }
     }
 

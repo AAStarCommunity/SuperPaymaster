@@ -105,7 +105,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     error Unauthorized();
     error InvalidAddress();
     error InvalidConfiguration();
-    error InsufficientBalance();
+    error InsufficientBalance(uint256 available, uint256 required);
     error DepositNotVerified();
     error OracleError();
     error NoSlashHistory();
@@ -382,7 +382,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
      */
     function withdraw(uint256 amount) external nonReentrant {
         if (operators[msg.sender].aPNTsBalance < amount) {
-            revert InsufficientBalance();
+            revert InsufficientBalance(operators[msg.sender].aPNTsBalance, amount);
         }
         operators[msg.sender].aPNTsBalance -= uint128(amount);
         // Fix: Reduce tracked balance to prevent underflow in notifyDeposit
