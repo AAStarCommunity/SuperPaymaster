@@ -18,30 +18,40 @@ contract BLSValidator is IBLSValidator {
     function verifyProof(bytes calldata proof, bytes calldata message) external view override returns (bool isValid) {
         if (proof.length == 0) return false;
 
-        // --- Production Real Verification ---
-        // 1. Decode Proof (Aggregate Signature G2 and Public Key G1)
-        // Proof format: [G1_PK(128 bytes)][G2_SIG(256 bytes)]
-        if (proof.length < 384) return false;
-
-        BLS.G1Point memory pk = abi.decode(proof[0:128], (BLS.G1Point));
-        BLS.G2Point memory sig = abi.decode(proof[128:384], (BLS.G2Point));
-
-        // 2. Hash message to G2
-        BLS.G2Point memory msgG2 = BLS.hashToG2(message);
-
-        // 3. Pairing Check: e(G1_GEN, SIG) == e(PK, msgG2)
-        // Equivalent to: e(G1_GEN, SIG) * e(-PK, msgG2) == 1
+        // ✅ UNIFIED SCHEMA: Support ABI-encoded proof format
+        // Proof format: abi.encode(bytes pkG1, bytes sigG2, bytes msgG2, uint256 signerMask)
+        // This matches Registry and BLSAggregator format for consistency
         
+        (bytes memory pkG1Bytes, bytes memory sigG2Bytes, bytes memory msgG2Bytes, uint256 signerMask) 
+            = abi.decode(proof, (bytes, bytes, bytes, uint256));
+        
+        // Decode G1/G2 points from bytes
+        BLS.G1Point memory pk = abi.decode(pkG1Bytes, (BLS.G1Point));
+        BLS.G2Point memory sig = abi.decode(sigG2Bytes, (BLS.G2Point));
+        BLS.G2Point memory providedMsgG2 = abi.decode(msgG2Bytes, (BLS.G2Point));
+
+        // ✅ MESSAGE BINDING: Verify msgG2 matches expected message
+        BLS.G2Point memory expectedMsgG2 = BLS.hashToG2(message);
+        if (!_g2Equal(expectedMsgG2, providedMsgG2)) return false;
+
+        // Pairing Check: e(G1_GEN, SIG) == e(PK, msgG2)
         BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
         BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
 
         g1s[0] = _getG1Gen();
         g2s[0] = sig;
-
         g1s[1] = _negateG1(pk);
-        g2s[1] = msgG2;
+        g2s[1] = providedMsgG2;
 
         return BLS.pairing(g1s, g2s);
+    }
+
+    /// @dev Compare two G2 points for equality
+    function _g2Equal(BLS.G2Point memory a, BLS.G2Point memory b) internal pure returns (bool) {
+        return a.x_c0_a == b.x_c0_a && a.x_c0_b == b.x_c0_b &&
+               a.x_c1_a == b.x_c1_a && a.x_c1_b == b.x_c1_b &&
+               a.y_c0_a == b.y_c0_a && a.y_c0_b == b.y_c0_b &&
+               a.y_c1_a == b.y_c1_a && a.y_c1_b == b.y_c1_b;
     }
 
     /// @dev Negates a G1 point (P - Y)

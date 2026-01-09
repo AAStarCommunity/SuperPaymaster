@@ -189,7 +189,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             _negateG1(pkG1), msgG2
         );
         
-        (bool success, bytes memory result) = address(0x11).staticcall(input);
+        // ✅ CRITICAL FIX: Use 0x10 (PAIRING), not 0x11 (MAP_FP_TO_G1)
+        (bool success, bytes memory result) = address(0x10).staticcall(input);
         if (!success || abi.decode(result, (uint256)) != 1) {
             revert SignatureVerificationFailed();
         }
