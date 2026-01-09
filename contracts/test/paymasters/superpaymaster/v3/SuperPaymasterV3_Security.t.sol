@@ -197,7 +197,8 @@ contract SuperPaymaster_SecurityTest is Test {
         vm.prank(address(registry));
         paymaster.updateBlockedStatus(operator, users, statuses);
 
-        assertTrue(paymaster.blockedUsers(operator, user));
+        (, bool isBlocked) = paymaster.userOpState(operator, user);
+        assertTrue(isBlocked);
     }
 
     function testBlocklist_DenyUser() public {

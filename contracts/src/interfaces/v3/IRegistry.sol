@@ -32,14 +32,20 @@ interface IRegistry is IVersioned {
     struct RoleConfig {
         uint256 minStake;
         uint256 entryBurn;
-        uint256 slashThreshold;
-        uint256 slashBase;
-        uint256 slashIncrement;
-        uint256 slashMax;
-        uint256 exitFeePercent;
-        uint256 minExitFee;
+        
+        // PACKED SLOT 1
+        uint32 slashThreshold;
+        uint32 slashBase;
+        uint32 slashInc;
+        uint32 slashMax;
+        uint16 exitFeePercent;
         bool isActive;
+        // 13 bytes left
+        
+        uint256 minExitFee;
         string description;
+        address owner;
+        uint256 roleLockDuration;
     }
 
 
@@ -47,7 +53,8 @@ interface IRegistry is IVersioned {
 
     // ====================================
     // Events
-    // ====================================
+    event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
+    event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
 
     event RoleRegistered(
         bytes32 indexed roleId,

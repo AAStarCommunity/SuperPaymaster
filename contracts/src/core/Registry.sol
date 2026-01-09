@@ -57,6 +57,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     mapping(string => address) public communityByName;
     mapping(string => address) public communityByENS;
     mapping(address => address) public accountToUser;
+    // V3.5 Optimization: User Role Count (External Call Removal)
+    mapping(address => uint256) public userRoleCount;
 
     // V3.1 Credit & Reputation Storage
     mapping(address => uint256) public globalReputation;
@@ -129,20 +131,20 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         bytes32 roleId, 
         uint256 min, 
         uint256 burn, 
-        uint256 thresh, 
-        uint256 base, 
-        uint256 inc, 
-        uint256 max,
-        uint256 exitFeePercent,
+        uint32 thresh, // Changed to uint32
+        uint32 base,   // Changed to uint32
+        uint32 inc,    // Changed to uint32
+        uint32 max,    // Changed to uint32
+        uint16 exitFeePercent, // Changed to uint16
         uint256 minExitFee,
         bool active, 
         string memory desc, 
         address owner,
         uint256 lockDuration
     ) internal {
-        roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, minExitFee, active, desc);
-        roleOwners[roleId] = owner;
-        roleLockDurations[roleId] = lockDuration;
+        roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, active, minExitFee, desc, owner, lockDuration);
+        // roleOwners[roleId] = owner; // Moved into RoleConfig
+        // roleLockDurations[roleId] = lockDuration; // Moved into RoleConfig
         // Automatically set exit fee in staking contract if setup correctly
         // NOTE: If this fails during deployment, ensure staking.setRegistry(address(this)) is called first.
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
@@ -195,6 +197,9 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
             roleMembers[roleId].push(user);
             roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
             
+            // Increment role count
+            userRoleCount[user]++;
+
             // Lock stake with entryBurn for first-time registration
             GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
         }
@@ -223,11 +228,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
         
         // --- TIMELOCK CHECK ---
-        uint256 lockDuration = roleLockDurations[roleId];
+        uint256 lockDuration = roleConfigs[roleId].roleLockDuration; // Use from RoleConfig
         if (lockDuration > 0) {
             uint256 lockedAt;
             // Get lockedAt from Staking
-            (,,,lockedAt,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
+            // Unpack 3rd item (lockedAt)
+            (,,lockedAt,,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
             if (block.timestamp < lockedAt + lockDuration) revert("Lock duration not met");
         }
 
@@ -260,9 +266,16 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         hasRole[roleId][msg.sender] = false;
         // Remove from roleMembers (O(n) but usually small members or handled by indexing)
         _removeFromRoleMembers(roleId, msg.sender);
+        
+        // Decrement role count (Check for underflow though logically impossible if logic is sound)
+        if (userRoleCount[msg.sender] > 0) {
+            userRoleCount[msg.sender]--;
+        }
 
         // Sync SBT removal to SuperPaymaster if no identity roles left
-        if (this.getUserRoles(msg.sender).length == 0) {
+        // OPTIMIZATION: Removed external call to this.getUserRoles()
+        // We use the new userRoleCount mapping
+        if (userRoleCount[msg.sender] == 0) {
             if (SUPER_PAYMASTER != address(0)) {
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
@@ -298,6 +311,10 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, msg.sender);
         
+        // Increment role count
+        userRoleCount[user]++;
+        
+        emit RoleGranted(roleId, user, msg.sender);
         bytes memory sbtData = _convertRoleDataForSBT(roleId, user, data);
         (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
@@ -330,7 +347,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         RoleConfig storage config = roleConfigs[roleId];
         config.minStake = minStake;
         config.entryBurn = entryBurn;
-        config.exitFeePercent = exitFeePercent;
+        if (exitFeePercent > type(uint16).max) revert("Value exceeds uint16");
+        config.exitFeePercent = uint16(exitFeePercent);
         config.minExitFee = minExitFee;
         
         GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
@@ -339,7 +357,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
     function setRoleLockDuration(bytes32 roleId, uint256 duration) external {
         if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
-        roleLockDurations[roleId] = duration;
+        roleConfigs[roleId].roleLockDuration = duration;
         emit RoleLockDurationUpdated(roleId, duration);
     }
     

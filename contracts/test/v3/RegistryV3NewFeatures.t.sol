@@ -75,12 +75,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
             minExitFee: 2 ether,
             isActive: true,
-            description: "Custom Role"
+            description: "Custom Role",
+            owner: address(0), // Set by param
+            roleLockDuration: 0
         });
         
         registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
@@ -104,12 +106,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
             minExitFee: 2 ether,
             isActive: true,
-            description: "Custom Role"
+            description: "Custom Role",
+            owner: address(0),
+            roleLockDuration: 0
         });
         
         vm.expectRevert();
@@ -126,12 +130,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
             minExitFee: 2 ether,
             isActive: true,
-            description: "Custom Role"
+            description: "Custom Role",
+            owner: address(0),
+            roleLockDuration: 0
         });
         
         registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
@@ -150,12 +156,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1500, // 15%
             minExitFee: 3 ether,
             isActive: true,
-            description: "Custom Role"
+            description: "Custom Role",
+            owner: address(0),
+            roleLockDuration: 0
         });
         
         registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
@@ -204,12 +212,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 2 ether,
             slashThreshold: 10,
             slashBase: 2,
-            slashIncrement: 1,
+            slashInc: 1,
             slashMax: 10,
             exitFeePercent: 2000, // 20%
             minExitFee: 1.5 ether,
             isActive: true,
-            description: "Updated Community"
+            description: "Updated Community",
+            owner: address(0),
+            roleLockDuration: 0
         });
         
         registry.configureRole(ROLE_COMMUNITY, newConfig);
@@ -234,12 +244,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
             minExitFee: 2 ether,
             isActive: true,
-            description: "Custom Role"
+            description: "Custom Role",
+            owner: address(0),
+            roleLockDuration: 0
         });
         registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
         vm.stopPrank();
@@ -262,12 +274,14 @@ contract RegistryV3NewFeaturesTest is Test {
             entryBurn: 2 ether,
             slashThreshold: 10,
             slashBase: 2,
-            slashIncrement: 1,
+            slashInc: 1,
             slashMax: 10,
             exitFeePercent: 1000,
             minExitFee: 1 ether,
             isActive: true,
-            description: "Hacked"
+            description: "Hacked",
+            owner: address(0),
+            roleLockDuration: 0
         });
         
         vm.expectRevert("Unauthorized");

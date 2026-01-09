@@ -102,12 +102,14 @@ contract RegistryTest is Test {
             entryBurn: 0.05 ether,
             slashThreshold: 5,
             slashBase: 10,
-            slashIncrement: 5,
+            slashInc: 5,
             slashMax: 50,
             exitFeePercent: 1000,
             minExitFee: 0.05 ether,
             isActive: true,
-            description: "End User"
+            description: "End User",
+            owner: address(0),
+            roleLockDuration: 0
         });
         registry.configureRole(ROLE_ENDUSER, endUserConfig);
         
@@ -149,12 +151,14 @@ contract RegistryTest is Test {
             entryBurn: 3 ether,
             slashThreshold: 10,
             slashBase: 2,
-            slashIncrement: 1,
+            slashInc: 1,
             slashMax: 10,
             exitFeePercent: 500,
             minExitFee: 1 ether,
             isActive: true,
-            description: "Community"
+            description: "Community",
+            owner: address(0),
+            roleLockDuration: 0
         });
         registry.configureRole(ROLE_COMMUNITY, communityConfig);
         vm.stopPrank();

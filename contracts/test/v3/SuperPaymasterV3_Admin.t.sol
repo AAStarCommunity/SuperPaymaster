@@ -266,7 +266,7 @@ contract SuperPaymaster_Admin_Test is Test {
         paymaster.deposit(100 ether);
         
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InsufficientBalance.selector);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientBalance.selector, 100 ether, 200 ether));
         paymaster.withdraw(200 ether);
     }
 

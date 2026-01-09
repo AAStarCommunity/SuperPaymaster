@@ -110,13 +110,13 @@ contract CoverageSupplementTest is Test {
         staking.setRegistry(address(registry));
         
         // Config Roles for basic testing
-        IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Comm");
+        IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Comm", address(0), 0);
         registry.configureRole(ROLE_COMMUNITY, commConfig);
         
-        IRegistry.RoleConfig memory userConfig = IRegistry.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, 0.1 ether, true, "User");
+        IRegistry.RoleConfig memory userConfig = IRegistry.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, true, 0.1 ether, "User", address(0), 0);
         registry.configureRole(ROLE_ENDUSER, userConfig);
 
-        IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, 1 ether, true, "Paymaster");
+        IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Paymaster", address(0), 0);
         registry.configureRole(ROLE_PAYMASTER_SUPER, pmConfig);
         
         // Paymaster Setup
@@ -276,7 +276,7 @@ contract CoverageSupplementTest is Test {
         // Need community first for EndUser? Yes.
         // Shortcut: Use KMS role for simpler testing logic if needed, but EndUser is fine if we mock community check.
         // Actually, let's use KMS role.
-        IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, 1 ether, true, "KMS");
+        IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, true, 1 ether, "KMS", address(0), 0);
         vm.stopPrank();
         vm.startPrank(owner);
         registry.configureRole(registry.ROLE_KMS(), kmsConfig);
@@ -315,7 +315,7 @@ contract CoverageSupplementTest is Test {
         bytes32 TEST_ROLE = keccak256("TEST");
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.createNewRole(TEST_ROLE, IRegistry.RoleConfig(10 ether, 0, 0,0,0,0, 0, 0, true, "Test"), owner);
+        registry.createNewRole(TEST_ROLE, IRegistry.RoleConfig(10 ether, 0, 0,0,0,0, 0, true, 0, "Test", address(0), 0), owner);
         vm.stopPrank();
         
         vm.startPrank(user);

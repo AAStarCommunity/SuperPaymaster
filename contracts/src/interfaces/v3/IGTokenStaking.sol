@@ -36,11 +36,14 @@ interface IGTokenStaking is IVersioned {
      * @param metadata Additional role-specific data
      */
     struct RoleLock {
-        bytes32 roleId;
-        uint256 amount;
-        uint256 entryBurn;
-        uint256 lockedAt;
-        bytes metadata;
+        // Slot 1: Packed
+        uint128 amount;
+        uint128 entryBurn;
+        // Slot 2: Packed
+        uint48 lockedAt;
+        // 25 bytes left
+        bytes32 roleId; // Redundant if used as mapping key? But useful for views. Kept.
+        bytes metadata; // Dynamic (Slot 3)
     }
 
     // ====================================
@@ -197,16 +200,16 @@ interface IGTokenStaking is IVersioned {
      * @notice Get role lock details
      * @param user User address
      * @param roleId Role identifier
-     * @return roleId_ The role ID
      * @return amount Locked stGToken amount
      * @return entryBurn Amount burned on entry
      * @return lockedAt Lock timestamp
+     * @return roleId_ The role ID
      * @return metadata Additional role-specific data
      */
     function roleLocks(address user, bytes32 roleId)
         external
         view
-        returns (bytes32 roleId_, uint256 amount, uint256 entryBurn, uint256 lockedAt, bytes memory metadata);
+        returns (uint128 amount, uint128 entryBurn, uint48 lockedAt, bytes32 roleId_, bytes memory metadata);
 
     // ====================================
     // View Functions - Balances

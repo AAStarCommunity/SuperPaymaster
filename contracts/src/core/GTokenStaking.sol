@@ -115,12 +115,16 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             stakes[user].stakedAt = block.timestamp;
         }
 
+        // Safe Casts for Packed Storage
+        if (stakeAmount > type(uint128).max) revert("Amount exceeds uint128");
+        if (entryBurn > type(uint128).max) revert("Amount exceeds uint128");
+        
         // Create lock
         RoleLock memory newLock = RoleLock({
+            amount: uint128(stakeAmount),
+            entryBurn: uint128(entryBurn),
+            lockedAt: uint48(block.timestamp),
             roleId: roleId,
-            amount: stakeAmount, // Shares = Amount (1:1)
-            entryBurn: entryBurn,
-            lockedAt: block.timestamp,
             metadata: ""
         });
         
@@ -209,7 +213,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             for (uint256 i = 0; i < roles.length && remainingToSlash > 0; i++) {
                 RoleLock storage lock = roleLocks[user][roles[i]];
                 uint256 deduct = remainingToSlash > lock.amount ? lock.amount : remainingToSlash;
-                lock.amount -= deduct;
+                lock.amount -= uint128(deduct);
                 remainingToSlash -= deduct;
             }
 
@@ -355,7 +359,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         require(lock.amount >= penaltyAmount, "Insufficient stake");
         
         // Deduct from role lock  
-        lock.amount -= penaltyAmount;
+        lock.amount -= uint128(penaltyAmount);
         
         // H-01 FIX: Deduct from stake and track cumulative slashed
         StakeInfo storage stake = stakes[operator];

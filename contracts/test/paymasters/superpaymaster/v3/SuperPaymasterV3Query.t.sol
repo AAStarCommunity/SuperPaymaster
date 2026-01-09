@@ -37,16 +37,18 @@ contract MockRegistry {
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
     function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory) {
         return IRegistry.RoleConfig({
-            minStake: 30 ether,
-            entryBurn: 3 ether,
-            slashThreshold: 10,
-            slashBase: 2,
-            slashIncrement: 1,
-            slashMax: 10,
-            exitFeePercent: 500,
-            minExitFee: 1 ether,
-            isActive: true,
-            description: "Test"
+            minStake: 0,
+            entryBurn: 0,
+            slashThreshold: 0,
+            slashBase: 0,
+            slashInc: 0,
+            slashMax: 0,
+            exitFeePercent: 0,
+            isActive: false,
+            minExitFee: 0,
+            description: "stub",
+            owner: address(0),
+            roleLockDuration: 0
         });
     }
     function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }

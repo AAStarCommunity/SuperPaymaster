@@ -40,9 +40,24 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
 
     // --- Mappings ---
     mapping(address => ISuperPaymaster.OperatorConfig) public operators;
-    mapping(address => mapping(address => bool)) public blockedUsers; // operator => user => isBlocked
+    // V3.5 Optimization: Packed User State (Slot Optimized)
+    struct UserOperatorState {
+        uint48 lastTimestamp; // 6 bytes
+        bool isBlocked;       // 1 byte
+        // 25 bytes remaining in slot
+    }
+
+    // --- Mappings ---
+
+    // CONSOLIDATED MAPPING: operator => user => state (Saves 1 SLOAD in hot path)
+    mapping(address => mapping(address => UserOperatorState)) public userOpState; 
+    
+    // Legacy mappings kept for ABI compatibility or migration? 
+    // Actually, we should deprecate blockedUsers and lastUserOpTimestamp
+    // mapping(address => mapping(address => bool)) public blockedUsers; // DEPRECATED
+    // mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // DEPRECATED
+    
     mapping(address => bool) public sbtHolders; // Global SBT holders list (verified via Registry)
-    mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // operator => user => timestamp
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure override returns (string memory) {
@@ -234,7 +249,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         if (users.length != statuses.length) revert InvalidConfiguration();
 
         for (uint256 i = 0; i < users.length; i++) {
-            blockedUsers[operator][users[i]] = statuses[i];
+            userOpState[operator][users[i]].isBlocked = statuses[i];
             emit UserBlockedStatusUpdated(operator, users[i], statuses[i]);
         }
     }
@@ -652,22 +667,27 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         }
 
         // V3.2 Security: Check Blocklist & Rate Limit
-        if (blockedUsers[operator][userOp.sender]) {
+        // CONSOLIDATED SLOAD: Get user state (Block status + Timestamp)
+        UserOperatorState memory userState = userOpState[operator][userOp.sender];
+        
+        if (userState.isBlocked) {
              return ("", _packValidationData(true, 0, 0));
         }
 
+        // V3.4: Rate Limiting (Using same SLOAD data)
+        // config is already declared above
         if (config.minTxInterval > 0) {
-            uint48 lastTime = lastUserOpTimestamp[operator][userOp.sender];
-            uint48 currentTime = uint48(block.timestamp);
-            
-            // Optimization: Allow multiple ops in same block (support Bundles)
-            // Only check interval if time has advanced since last op
-            if (currentTime > lastTime) {
-                if (currentTime < lastTime + config.minTxInterval) {
-                     return ("", _packValidationData(true, 0, 0));
-                }
+            uint48 lastTime = userState.lastTimestamp;
+            // Allow if first tx (0) or interval passed
+            // Note: validAfter/validUntil handled by bundler, we enforce interval here
+            if (lastTime != 0 && block.timestamp != lastTime && uint48(block.timestamp) < lastTime + config.minTxInterval) {
+                 return ("", _packValidationData(true, 0, 0));
             }
-            lastUserOpTimestamp[operator][userOp.sender] = currentTime;
+            
+            // OPTIMIZATION: Update state in PLACE (Saves gas by reusing the loaded slot context? No, requires storage write)
+            // But we already loaded userState. We need to write back.
+            // Be careful: userState is 'memory'. We need storage pointer to write.
+            userOpState[operator][userOp.sender].lastTimestamp = uint48(block.timestamp);
         }
 
         // 2.1 Validate Rate Commitment (Rug Pull Protection)

@@ -112,7 +112,7 @@ contract BlacklistSyncTest is Test {
 
     function test_BlacklistFlow() public {
         // 1. Verify User NOT blocked initially
-        bool blocked = paymaster.blockedUsers(operator, maliciousUser);
+        (, bool blocked) = paymaster.userOpState(operator, maliciousUser);
         assertFalse(blocked, "Should not be blocked initially");
 
         // 2. DVT triggers blacklist via Registry
@@ -125,7 +125,8 @@ contract BlacklistSyncTest is Test {
         registry.updateOperatorBlacklist(operator, users, statuses, ""); // Empty proof for now (Mock BLS validator)
 
         // 3. Verify Blocked in Paymaster
-        blocked = paymaster.blockedUsers(operator, maliciousUser);
+        // 3. Verify Blocked in Paymaster
+        (, blocked) = paymaster.userOpState(operator, maliciousUser);
         assertTrue(blocked, "Should be blocked after sync");
 
         // 4. Try to validate UserOp (Should Fail)
@@ -157,14 +158,18 @@ contract BlacklistSyncTest is Test {
         vm.prank(dvtNode);
         registry.updateOperatorBlacklist(operator, users, statuses, "");
         
-        assertTrue(paymaster.blockedUsers(operator, maliciousUser));
+        
+        (, bool blocked1) = paymaster.userOpState(operator, maliciousUser);
+        assertTrue(blocked1);
 
         // Unblock
         statuses[0] = false;
         vm.prank(dvtNode);
         registry.updateOperatorBlacklist(operator, users, statuses, "");
         
-        assertFalse(paymaster.blockedUsers(operator, maliciousUser));
+        
+        (, bool blocked2) = paymaster.userOpState(operator, maliciousUser);
+        assertFalse(blocked2);
         
         // Validation should pass now
         PackedUserOperation memory op = _createOp(maliciousUser);
