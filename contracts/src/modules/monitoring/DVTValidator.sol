@@ -22,9 +22,10 @@ contract DVTValidator is Ownable, IVersioned {
         address operator;
         uint8 slashLevel;
         string reason;
-        address[] validators;
-        bytes[] signatures;
         bool executed;
+        // ✅ Removed validators[] and signatures[]
+        // Individual signatures collected off-chain via DVT P2P protocol
+        // Only aggregated BLS proof submitted on-chain
     }
 
     IRegistry public immutable REGISTRY;
@@ -64,35 +65,19 @@ contract DVTValidator is Ownable, IVersioned {
         emit ProposalCreated(id, operator, level);
     }
 
-    function signProposal(uint256 id, bytes calldata signature) external {
-        if (!isValidator[msg.sender]) revert NotValidator();
-        SlashProposal storage p = proposals[id];
-        if (p.executed) revert ProposalExecutedAlready();
-
-        for (uint i = 0; i < p.validators.length; i++) {
-            if (p.validators[i] == msg.sender) revert AlreadySigned();
-        }
-
-        p.validators.push(msg.sender);
-        p.signatures.push(signature);
-        emit ProposalSigned(id, msg.sender);
-
-        if (p.validators.length >= 7) {
-            _forward(id);
-        }
-    }
-
+    /**
+     * @notice Mark proposal as executed (called by BLSAggregator after successful execution)
+     * @dev This is called after BLS proof verification succeeds
+     */
     function markProposalExecuted(uint256 id) external {
         require(msg.sender == BLS_AGGREGATOR, "Only BLS Aggregator");
         proposals[id].executed = true;
         emit ProposalExecuted(id);
     }
 
-    function _forward(uint256 id) internal {
-        // NOTE: In the new BLS-hardened V3, we expect an aggregated proof.
-        // The individual signatures collection is preserved for compatibility,
-        // but real execution should use executeWithProof for the final aggregated result.
-    }
+    // ✅ Removed signProposal and _forward functions
+    // DVT validators collect signatures off-chain via P2P protocol
+    // Last validator aggregates BLS signatures and calls executeWithProof
 
     /**
      * @notice Direct execution with an aggregated proof
