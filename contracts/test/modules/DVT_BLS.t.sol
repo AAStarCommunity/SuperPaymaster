@@ -135,8 +135,8 @@ contract DVTBLSTest is Test {
             uint256(0x7F) // mask for 7 signers
         );
         
-        // Mock BLS precompile (0x11) to return true (1) for any input
-        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        // Mock BLS precompile (0x10) to return true (1) for any input
+        vm.mockCall(address(0x10), "", abi.encode(uint256(1)));
         
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         
@@ -167,8 +167,8 @@ contract DVTBLSTest is Test {
             sigs[i] = "sig";
         }
         
-        // Mock BLS precompile (0x11) for any input
-        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
+        // Mock BLS precompile to return 1 (valid)
+        vm.mockCall(address(0x10), "", abi.encode(uint256(1)));
         
         // ✅ Construct correct message - use actual encoded data
         bytes memory actualMsg = abi.encode(
