@@ -396,6 +396,27 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         }
     }
 
+    /**
+     * @notice Deactivate all community memberships for a user
+     * @dev H-02 FIX: Called by Registry when user exits ENDUSER role
+     * @dev Ensures complete cleanup of all community memberships
+     * @param user User address
+     */
+    function deactivateAllMemberships(address user) external onlyRegistry {
+        uint256 tokenId = userToSBT[user];
+        if (tokenId == 0) return;  // No SBT exists
+        
+        CommunityMembership[] storage memberships = _m[tokenId];
+        
+        // Iterate through all community memberships and deactivate active ones
+        for (uint i = 0; i < memberships.length; i++) {
+            if (memberships[i].isActive) {
+                memberships[i].isActive = false;
+                emit MembershipDeactivated(tokenId, memberships[i].community, block.timestamp);
+            }
+        }
+    }
+
     function verifyCommunityMembership(address u, address comm)
         external
         view

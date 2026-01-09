@@ -32,6 +32,7 @@ contract MockSBT is IMySBT {
     }
     function verifyCommunityMembership(address user, address community) external view returns (bool) { return true; }
     function deactivateMembership(address user, address community) external {}
+    function deactivateAllMemberships(address) external {}
     function burnSBT(address user) external {}
 }
 

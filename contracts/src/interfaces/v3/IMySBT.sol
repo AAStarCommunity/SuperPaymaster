@@ -91,6 +91,13 @@ interface IMySBT {
     function deactivateMembership(address user, address community) external;
 
     /**
+     * @notice Deactivate all community memberships for a user (called by Registry only)
+     * @dev H-02 FIX: Used when user exits ENDUSER role to clean up all memberships
+     * @param user User address
+     */
+    function deactivateAllMemberships(address user) external;
+
+    /**
      * @notice Burn user's SBT (called by Registry only on final role exit)
      * @param user User address
      */

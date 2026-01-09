@@ -21,10 +21,11 @@ contract MockMySBT is IMySBT {
         return SBTData(address(0), address(0), 0, 0);
     }
     function verifyCommunityMembership(address, address) external pure returns (bool) { return true; }
-    function deactivateMembership(address user, address community) external {
+    function deactivateMembership(address user, address community) external override {
         lastDeactivatedUser = user;
         lastDeactivatedCommunity = community;
     }
+    function deactivateAllMemberships(address /* user */) external override {}
     function burnSBT(address) external {}
 }
 

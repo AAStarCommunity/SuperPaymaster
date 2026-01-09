@@ -11,7 +11,8 @@ contract MockSBT is IMySBT {
         return (1, true);
     }
     function deactivateMembership(address user, address community) external override {}
-    function burnSBT(address user) external override {}
+    function burnSBT(address) external override {}
+    function deactivateAllMemberships(address) external override {}
     
     function getUserSBT(address user) external view override returns (uint256 tokenId) { return 0; }
     function getSBTData(uint256 tokenId) external view override returns (SBTData memory data) {
