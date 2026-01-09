@@ -50,13 +50,18 @@ contract MockXPNTsFactoryV4 {
 }
 
 contract MockTokenV4 is ERC20 {
-    constructor() ERC20("Mock", "M") { _mint(msg.sender, 10000 ether); }
+    address public FACTORY; // ✅ For token origin verification
+    constructor() ERC20("Mock", "M") { 
+        _mint(msg.sender, 10000 ether); 
+        FACTORY = msg.sender; // Mock: factory is deployer
+    }
     function mint(address to, uint256 amount) external { _mint(to, amount); }
     function burn(uint256 amount) external { _burn(msg.sender, amount); }
     function burnFrom(address account, uint256 amount) external { _spendAllowance(account, msg.sender, amount); _burn(account, amount); }
     function decimals() public view override returns (uint8) { return 18; }
     function exchangeRate() external pure returns (uint256) { return 1e18; }
     function getDebt(address) external pure returns (uint256) { return 0; }
+    function setFactory(address _factory) external { FACTORY = _factory; } // ✅ For testing
 }
 
 // --- Test Suite ---
@@ -80,6 +85,7 @@ contract PaymasterV4Test is Test {
         oracle = new MockOracleV4(2000e8); // $2000
         factory = new MockXPNTsFactoryV4();
         token = new MockTokenV4();
+        token.setFactory(address(factory)); // ✅ Set correct factory
         
         // 1. Deploy Factory
         pmFactory = new PaymasterFactory();
@@ -132,6 +138,7 @@ contract PaymasterV4Test is Test {
     function test_V4_Validate_Success() public {
         PackedUserOperation memory op;
         op.sender = user;
+        op.initCode = hex"deadbeef"; // ✅ Add initCode for undeployed account
         
         bytes memory data = abi.encodePacked(address(token));
         op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(1000), uint128(1000), data);
@@ -187,6 +194,7 @@ contract PaymasterV4Test is Test {
     function test_V4_Refund_Success() public {
         PackedUserOperation memory op;
         op.sender = user;
+        op.initCode = hex"deadbeef"; // ✅ Add initCode for undeployed account
         
         // Setup: Pre-charged 1000 tokens
         uint256 preCharge = 1000;

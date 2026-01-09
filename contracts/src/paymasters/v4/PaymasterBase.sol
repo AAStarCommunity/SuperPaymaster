@@ -116,6 +116,10 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__AlreadyExists();
     error Paymaster__NotFound();
     error Paymaster__MaxLimitReached();
+    error Paymaster__AccountNotDeployed();
+    error Paymaster__InvalidTokenOrigin();
+    error Paymaster__InvalidOraclePrice();
+    error Paymaster__StaleOraclePrice();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -142,6 +146,19 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 actualGasCost,
         uint256 pntCharged
     );
+    event SBTContractUpdated(address indexed oldContract, address indexed newContract);
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                         CONSTANTS                          */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @notice Minimum acceptable ETH/USD price from oracle ($100)
+    /// @dev Protects against oracle manipulation or extreme market anomalies
+    int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
+    
+    /// @notice Maximum acceptable ETH/USD price from oracle ($100,000)
+    /// @dev Protects against oracle manipulation or extreme market anomalies
+    int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        MODIFIERS                           */
@@ -237,10 +254,17 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             codeSize := extcodesize(sender)
         }
 
-        // Check 1: User must own at least one supported SBT (skip for undeployed accounts)
+        // Check 1: User must own at least one supported SBT
+        // Exception: Allow undeployed accounts if they have initCode (first-time deployment scenario)
         if (codeSize > 0) {
+            // Already deployed -> require SBT
             if (!_hasAnySBT(sender)) {
                 revert Paymaster__NoValidSBT();
+            }
+        } else {
+            // Not deployed -> require initCode (will be deployed in this UserOp)
+            if (userOp.initCode.length == 0) {
+                revert Paymaster__AccountNotDeployed();
             }
         }
 
@@ -341,6 +365,9 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     {
         // If user specified a token and it's supported, try it first
         if (specifiedToken != address(0) && isGasTokenSupported[specifiedToken]) {
+            // ✅ Security: Verify token is from xPNTsFactory (ensures expected properties)
+            _verifyTokenFromFactory(specifiedToken);
+            
             uint256 requiredAmount = _calculatePNTAmount(gasCostWei, specifiedToken);
             uint256 balance = IERC20(specifiedToken).balanceOf(user);
             uint256 allowance = IERC20(specifiedToken).allowance(user, address(this));
@@ -353,6 +380,10 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 length = supportedGasTokens.length;
         for (uint256 i = 0; i < length; i++) {
             address _token = supportedGasTokens[i];
+            
+            // ✅ Security: Verify token is from xPNTsFactory
+            _verifyTokenFromFactory(_token);
+            
             uint256 requiredAmount = _calculatePNTAmount(gasCostWei, _token);
             uint256 balance = IERC20(_token).balanceOf(user);
             uint256 allowance = IERC20(_token).allowance(user, address(this));
@@ -369,16 +400,24 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @param xpntsToken xPNTs token contract address
     /// @return Required xPNTs token amount
     function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken) internal view returns (uint256) {
-        // Step 1: Get ETH/USD price from Chainlink with staleness check
+        // Step 1: Get ETH/USD price from oracle
         (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
         
-        uint8 decimals = ethUsdPriceFeed.decimals();
-        int256 minPrice = int256(100 * (10 ** decimals)); // $100
-
-        if (ethUsdPrice <= minPrice) revert("Oracle: price <= 100 USD");
-        if (block.timestamp - updatedAt > priceStalenessThreshold) {
-            revert Paymaster__InvalidTokenBalance(); // Reuse error for simplicity
+        // ✅ CRITICAL: Oracle price validation (防止恶意/异常喂价攻击)
+        // 1. Prevent negative or zero price (would cause uint256 overflow)
+        if (ethUsdPrice <= 0) revert Paymaster__InvalidOraclePrice();
+        
+        // 2. Check price bounds ($100 - $100,000) to prevent extreme manipulation
+        if (ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) {
+            revert Paymaster__InvalidOraclePrice();
         }
+        
+        // 3. Check price staleness
+        if (block.timestamp - updatedAt > priceStalenessThreshold) {
+            revert Paymaster__StaleOraclePrice();
+        }
+
+        uint8 decimals = ethUsdPriceFeed.decimals();
 
         // Convert to 18 decimals: price * 1e18 / 10^decimals
 
@@ -400,6 +439,22 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 xPNTsAmount = (aPNTsAmount * rate) / 1e18;
 
         return xPNTsAmount;
+    }
+
+    
+    /// @notice Verify token is from xPNTsFactory
+    /// @dev Ensures only tokens with expected properties (no fee-on-transfer, no blacklist) are accepted
+    /// @param token Token address to verify
+    function _verifyTokenFromFactory(address token) internal view {
+        // Check if factory has this token registered for any community
+        // This proves the token was created by xPNTsFactory and has expected properties
+        try IxPNTsToken(token).FACTORY() returns (address factory) {
+            if (factory != address(xpntsFactory)) {
+                revert Paymaster__InvalidTokenOrigin();
+            }
+        } catch {
+            revert Paymaster__InvalidTokenOrigin();
+        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

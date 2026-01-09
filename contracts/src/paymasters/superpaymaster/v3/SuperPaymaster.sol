@@ -83,6 +83,22 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     event OperatorUnpaused(address indexed operator);
     event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
     event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
+    
+    /**
+     * @notice Emitted when slash is executed with BLS proof
+     * @param operator Operator address
+     * @param level Slash level
+     * @param penalty Penalty amount
+     * @param proofHash Hash of BLS proof (for audit, DVT keeps full proof for 30 days)
+     * @param timestamp Execution timestamp
+     */
+    event SlashExecutedWithProof(
+        address indexed operator,
+        ISuperPaymaster.SlashLevel level,
+        uint256 penalty,
+        bytes32 proofHash,
+        uint256 timestamp
+    );
 
     error Unauthorized();
     error InvalidAddress();
@@ -453,7 +469,13 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             penalty = operators[operator].aPNTsBalance;
         }
 
+        // ✅ Store proof hash for audit traceability (永久存储在event中)
+        bytes32 proofHash = keccak256(proof);
+        
         _slash(operator, level, penalty, "DVT BLS Slash", proof);
+        
+        // ✅ Emit event with proof hash (链上永久可查,DVT保留完整proof 30天供验证)
+        emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
     function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
@@ -648,6 +670,9 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint {
+        // Defense: If postOp previously failed, validation already charged - avoid double charging
+        if (mode == PostOpMode.postOpReverted) return;
+        
         if (context.length == 0) return;
         
         (

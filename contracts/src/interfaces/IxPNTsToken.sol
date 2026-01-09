@@ -35,4 +35,11 @@ interface IxPNTsToken {
      * @param userOpHash UserOperation hash for replay protection
      */
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
+    
+    /**
+     * @notice Get factory address that created this token
+     * @dev Used by PaymasterV4 to verify token origin
+     * @return factory Factory contract address
+     */
+    function FACTORY() external view returns (address factory);
 }

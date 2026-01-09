@@ -133,8 +133,20 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert ProposalAlreadyExecuted(proposalId);
         }
         
-        // 1. Verify BLS Signatures (pairing check)
-        _checkSignatures(proposalId, proof);
+        // ✅ 1. Construct expected message binding to specific action
+        // This ensures the BLS signature actually authorizes THIS specific proposal/slash
+        bytes32 expectedMessageHash = keccak256(abi.encode(
+            proposalId,
+            operator,
+            slashLevel,
+            repUsers,
+            newScores,
+            epoch,
+            block.chainid  // Prevent cross-chain replay
+        ));
+        
+        // ✅ 2. Verify BLS Signatures and message binding
+        _checkSignatures(proposalId, proof, expectedMessageHash);
 
         // 2. Update Global Reputation in Registry
         if (repUsers.length > 0) {
@@ -144,7 +156,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 3. Execute Slash if operator is provided
         if (operator != address(0)) {
-            _executeSlash(proposalId, operator, slashLevel);
+            _executeSlash(proposalId, operator, slashLevel, proof);
         }
 
         if (proposalId != 0) {
@@ -159,8 +171,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Internal Functions
     // ====================================
 
-    function _checkSignatures(uint256 proposalId, bytes calldata proof) internal view {
+    function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash) internal view {
         (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
+        
+        // ✅ Verify proof signs the expected message (防止签名重放/滥用)
+        bytes32 proofMessageHash = keccak256(msgG2);
+        if (proofMessageHash != expectedMessageHash) {
+            revert SignatureVerificationFailed();
+        }
         
         uint256 count = _countSetBits(signerMask);
         if (count < threshold) revert InvalidSignatureCount(count, threshold);
@@ -216,9 +234,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
     }
 
-    function _executeSlash(uint256 proposalId, address operator, uint8 level) internal {
+    function _executeSlash(uint256 proposalId, address operator, uint8 level, bytes calldata proof) internal {
         ISuperPaymasterSlash.SlashLevel sLevel = ISuperPaymasterSlash.SlashLevel(level);
-        ISuperPaymasterSlash(SUPERPAYMASTER).executeSlashWithBLS(operator, sLevel, "");
+        // ✅ Pass full proof for audit traceability (hash will be stored in SuperPaymaster)
+        ISuperPaymasterSlash(SUPERPAYMASTER).executeSlashWithBLS(operator, sLevel, proof);
         emit SlashExecuted(proposalId, operator, level);
     }
 
