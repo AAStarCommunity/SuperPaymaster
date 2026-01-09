@@ -6,6 +6,8 @@ import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/IVersioned.sol";
 
+import "src/utils/BLS.sol";
+
 // Mocks
 contract MockRegistryV3 is IRegistry {
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
@@ -108,16 +110,29 @@ contract DVTBLSTest is Test {
             block.chainid           // chainid
         );
         
-        // Mock BLS pairing to always return true
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        // Mock BLS pairing moved down to avoid interference
+        // vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
+        bytes32 msgHash = keccak256(msgG2Bytes);
+        console.log("TEST msgHash:"); console.logBytes32(msgHash);
+        
+        BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(msgHash));
+        console.log("TEST Point X_C0_A:"); console.logBytes32(point.x_c0_a);
+        
+        // Re-encode msgG2Bytes with the point we just calculated/logged
+        // This ensures the point passed to verify logic matches what we logged
+        bytes memory msgG2Bytes_Corrected = abi.encode(point);
+
         bytes memory mockProof = abi.encode(
             new bytes(128),  // pkG1 (mock, any value)
             new bytes(256),  // sigG2 (mock, any value)
-            msgG2Bytes,      // ✅ This will pass hash check!
+            msgG2Bytes_Corrected, // Use the one we verified
             uint256(0x7F)    // signerMask: 7 signers
         );
         
+        // Mock BLS pairing now
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         
         // Check proposal was executed
@@ -127,7 +142,7 @@ contract DVTBLSTest is Test {
     
     function test_BLS_ManualVerify() public {
         // ✅ Same strategy: msgG2Bytes = abi.encode of message params
-        bytes memory msgG2Bytes = abi.encode(
+        bytes memory messageData = abi.encode(
             99,                     // proposalId
             op,                     // operator
             uint8(1),              // slashLevel
@@ -137,7 +152,11 @@ contract DVTBLSTest is Test {
             block.chainid           // chainid
         );
         
-        // Mock BLS pairing
+        bytes32 msgHash = keccak256(messageData);
+        BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(msgHash));
+        bytes memory msgG2Bytes = abi.encode(point);
+        
+        // Mock BLS pairing AFTER point calculation
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         bytes memory mockProof = abi.encode(
@@ -148,6 +167,7 @@ contract DVTBLSTest is Test {
         );
         
         vm.prank(address(dvt));
+
         bls.verifyAndExecute(
             99, op, 1,
             new address[](0), new uint256[](0), 123,

@@ -5,6 +5,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistry.sol";
 import "src/interfaces/IVersioned.sol";
+import "forge-std/console.sol";
 import { BLS } from "../../utils/BLS.sol";
 
 interface ISuperPaymasterSlash {
@@ -172,15 +173,35 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Internal Functions
     // ====================================
 
+
+    /// @dev Compare two G2 points for equality
+    function _g2Equal(BLS.G2Point memory a, BLS.G2Point memory b) internal pure returns (bool) {
+        return a.x_c0_a == b.x_c0_a && a.x_c0_b == b.x_c0_b &&
+               a.x_c1_a == b.x_c1_a && a.x_c1_b == b.x_c1_b &&
+               a.y_c0_a == b.y_c0_a && a.y_c0_b == b.y_c0_b &&
+               a.y_c1_a == b.y_c1_a && a.y_c1_b == b.y_c1_b;
+    }
+
     function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash) internal view {
         (bytes memory pkG1Bytes, bytes memory sigG2Bytes, bytes memory msgG2Bytes, uint256 signerMask) 
             = abi.decode(proof, (bytes, bytes, bytes, uint256));
         
-        // ✅ Verify proof signs the expected message (防止签名重放/滥用)
-        bytes32 proofMessageHash = keccak256(msgG2Bytes);
-        if (proofMessageHash != expectedMessageHash) {
-            revert SignatureVerificationFailed();
-        }
+        // ✅ Verify proof signs the expected message 
+        // Note: Hash comparison is handled by BLS pairing (e(G1, Sig) == e(PK, msgG2))
+        // where msgG2 MUST match the expectedMessageHash for binding to valid.
+        // We rely on honest behavior of this function to construct valid G1/G2 points.
+        // But crucially, we must ensure msgG2 IS the hash of expectedMessageHash.
+        
+        // However, BLSValidator logic is: verifyProof(proof, message)
+        // BLSValidator checks: hashToG2(message) == providedMsgG2
+        
+        // Here in Aggregator, we decode msgG2 directly.
+        // To be safe, we should re-derive msgG2 from expectedMessageHash and compare.
+        
+        BLS.G2Point memory derivedMsgG2 = BLS.hashToG2(abi.encodePacked(expectedMessageHash));
+        BLS.G2Point memory providedMsgG2 = abi.decode(msgG2Bytes, (BLS.G2Point));
+        
+        if (!_g2Equal(derivedMsgG2, providedMsgG2)) revert SignatureVerificationFailed();
         
         uint256 count = _countSetBits(signerMask);
         if (count < threshold) revert InvalidSignatureCount(count, threshold);
@@ -207,17 +228,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // @dev Negates a G1 point (for pairing check)
     function _negateG1Point(BLS.G1Point memory p) internal pure returns (BLS.G1Point memory) {
         // P - Y in BLS12-381 field
-        uint256 P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
-        uint256 P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+        uint256 p_hi_local = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
+        uint256 p_lo_local = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
         
         uint256 ya = uint256(p.y_a);
         uint256 yb = uint256(p.y_b);
         if (ya == 0 && yb == 0) return p;
         
         unchecked {
-            uint256 res_b = P_LO - yb;
-            uint256 borrow = (yb > P_LO) ? 1 : 0;
-            uint256 res_a = P_HI - ya - borrow;
+            uint256 res_b = p_lo_local - yb;
+            uint256 borrow = (yb > p_lo_local) ? 1 : 0;
+            uint256 res_a = p_hi_local - ya - borrow;
             p.y_a = bytes32(res_a);
             p.y_b = bytes32(res_b);
         }
