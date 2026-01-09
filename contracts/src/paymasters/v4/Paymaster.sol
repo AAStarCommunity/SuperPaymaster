@@ -47,32 +47,17 @@ contract Paymaster is PaymasterBase, Initializable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Constructor for Direct Deployment
-     * @param _entryPoint EntryPoint address
-     * @param _owner Owner address
-     * @param _treasury Treasury address
-     * @param _ethUsdPriceFeed Chainlink Oracle
-     * @param _serviceFeeRate Service Fee BPS
-     * @param _maxGasCostCap Gas Cap
-     * @param _xpntsFactory Factory address
-     * @param _registry Registry address
-     * @param _priceStalenessThreshold Staleness threshold
+     * @notice Implementation contract constructor
+     * @dev ⚠️ This is the implementation contract for EIP-1167 minimal proxies
+     * @dev ❌ DO NOT deploy this contract directly - use PaymasterFactory instead!
+     * @dev All configuration parameters must be set via initialize() after proxy deployment
+     * @param _registry SuperPaymaster Registry address (immutable, set at deployment)
      */
-    constructor(
-        IEntryPoint _entryPoint,
-        address _owner,
-        address _treasury,
-        address _ethUsdPriceFeed,
-        uint256 _serviceFeeRate,
-        uint256 _maxGasCostCap,
-        address _xpntsFactory,
-        address _registry,
-        uint256 _priceStalenessThreshold
-    ) {
+    constructor(address _registry) {
         if (_registry == address(0)) revert Paymaster__ZeroAddress();
         registry = ISuperPaymasterRegistry(_registry);
 
-        // Lock the implementation contract
+        // Lock the implementation contract to prevent direct initialization
         _disableInitializers();
     }
 

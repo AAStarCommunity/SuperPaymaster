@@ -163,17 +163,7 @@ contract DeployStandardV3 is Script {
         blsValidator = new BLSValidator();
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(
-            IEntryPoint(entryPointAddr),
-            deployer,
-            deployer, // treasury
-            priceFeedAddr,
-            1000, // serviceFeeRate
-            5000000, // maxGasCostCap
-            address(xpntsFactory),
-            address(registry),
-            3600 // priceStalenessThreshold
-        );
+        pmV4Impl = new Paymaster(addr_registry);
     }
 
     function _executeWiring() internal {

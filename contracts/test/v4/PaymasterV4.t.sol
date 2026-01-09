@@ -90,18 +90,8 @@ contract PaymasterV4Test is Test {
         // 1. Deploy Factory
         pmFactory = new PaymasterFactory();
         
-        // 2. Deploy Implementation
-        pmImpl = new Paymaster(
-            IEntryPoint(address(entryPoint)),
-            owner, // Owner (valid)
-            treasury, // Treasury (valid)
-            address(oracle),
-            0,
-            0,
-            address(factory),
-            address(0x999), // Registry
-            3600
-        );
+        // 2. Deploy Implementation (registry is immutable)
+        pmImpl = new Paymaster(address(0x999)); // Mock registry address
         
         // 3. Register Implementation
         pmFactory.addImplementation("v4.0", address(pmImpl));
@@ -110,8 +100,8 @@ contract PaymasterV4Test is Test {
         bytes memory initData = abi.encodeWithSelector(
             Paymaster.initialize.selector,
             address(entryPoint),
-            owner,
-            treasury,
+            owner, // Owner (valid)
+            treasury, // Treasury (valid)
             address(oracle),
             0, // Service fee rate
             5 ether, // Max gas cost cap

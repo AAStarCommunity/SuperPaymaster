@@ -102,17 +102,7 @@ contract DeployAnvil is Script {
         blsValidator = new MockBLSValidator();
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(
-            IEntryPoint(entryPointAddr),
-            deployer,
-            deployer, // treasury
-            priceFeedAddr,
-            1000, // serviceFeeRate
-            5000000, // maxGasCostCap
-            address(xpntsFactory),
-            address(registry),
-            3600 // priceStalenessThreshold
-        );
+        pmV4Impl = new Paymaster(address(registry));
 
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
