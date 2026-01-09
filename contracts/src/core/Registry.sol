@@ -232,20 +232,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         }
 
         uint256 stakedAmount = roleStakes[roleId][msg.sender];
-        
-        hasRole[roleId][msg.sender] = false;
-        roleStakes[roleId][msg.sender] = 0;
 
         // --- SBT LINKAGE ---
         if (roleId == ROLE_ENDUSER) {
-            bytes memory metadata = roleMetadata[roleId][msg.sender];
-            if (metadata.length > 0) {
-                EndUserRoleData memory data = abi.decode(metadata, (EndUserRoleData));
-                MYSBT.deactivateMembership(msg.sender, data.community);
-            }
+            // H-02 FIX: Deactivate ALL community memberships when exiting ENDUSER role  
+            // This prevents users from retaining community benefits after withdrawing stake
+            MYSBT.deactivateAllMemberships(msg.sender);
         } else if (roleId == ROLE_COMMUNITY) {
-            // RELEASE NAMESPACE: If a community exits, we release the name so it can be reclaimed
-            // but the historical transactions remain tied to the 'user' address in events.
+            // Logic to cleanup community-specific state
             bytes memory metadata = roleMetadata[roleId][msg.sender];
             if (metadata.length > 0) {
                 CommunityRoleData memory data = abi.decode(metadata, (CommunityRoleData));
@@ -261,6 +255,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         }
 
         emit BurnExecuted(msg.sender, roleId, stakedAmount, "Exit");
+        
         
         hasRole[roleId][msg.sender] = false;
         // Remove from roleMembers (O(n) but usually small members or handled by indexing)

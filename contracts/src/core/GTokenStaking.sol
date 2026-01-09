@@ -186,21 +186,24 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         uint256 amount,
         string calldata reason
     ) external nonReentrant returns (uint256 slashedAmount) {
-        if (!authorizedSlashers[msg.sender] && msg.sender != REGISTRY) {
-            revert("Unauthorized slasher");
+        if (msg.sender != REGISTRY && !authorizedSlashers[msg.sender]) {
+            revert("Only Registry or authorized");
         }
 
         StakeInfo storage info = stakes[user];
-        uint256 available = info.amount > info.slashedAmount ? info.amount - info.slashedAmount : 0;
         
+        // H-01 FIX: Calculate available balance correctly
+        // Since info.amount is now NET of slashes, the available amount IS the info.amount
+        uint256 available = info.amount;
         slashedAmount = amount > available ? available : amount;
-        
+
         if (slashedAmount > 0) {
-            info.slashedAmount += slashedAmount;
+            // H-01 FIX: Synchronize both fields to prevent underflow
+            info.slashedAmount += slashedAmount;  // Track cumulative slashed
+            info.amount -= slashedAmount;         // Reduce actual balance
             totalStaked -= slashedAmount;
-            
-            // For immediate transfer, we must also reduce the specific role locks
-            // to keep totalStaked accounting consistent during unlockAndTransfer
+
+            // Proportionally reduce role locks
             bytes32[] storage roles = userActiveRoles[user];
             uint256 remainingToSlash = slashedAmount;
             for (uint256 i = 0; i < roles.length && remainingToSlash > 0; i++) {
@@ -265,10 +268,10 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         return roleLocks[user][roleId].amount > 0;
     }
 
-    function balanceOf(address user) external view returns (uint256) {
-        StakeInfo memory info = stakes[user];
-        if (info.slashedAmount >= info.amount) return 0;
-        return info.amount - info.slashedAmount;
+    function balanceOf(address user) public view override returns (uint256) {
+        // H-01 FIX: amount is now always net of slashes
+        // No need to subtract slashedAmount again
+        return stakes[user].amount;
     }
 
     function availableBalance(address /* user */) external pure returns (uint256) {
@@ -351,19 +354,19 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         RoleLock storage lock = roleLocks[operator][roleId];
         require(lock.amount >= penaltyAmount, "Insufficient stake");
         
-        // Deduct from role lock
+        // Deduct from role lock  
         lock.amount -= penaltyAmount;
         
-        // Deduct from total stake
+        // H-01 FIX: Deduct from stake and track cumulative slashed
         StakeInfo storage stake = stakes[operator];
         require(stake.amount >= penaltyAmount, "Insufficient stake");
-        stake.amount -= penaltyAmount;
+        stake.slashedAmount += penaltyAmount;  // Track cumulative slashed
+        stake.amount -= penaltyAmount;         // Reduce actual balance
         totalStaked -= penaltyAmount;
         
-        // Transfer slashed amount to treasury
+        // Transfer to treasury
         GTOKEN.safeTransfer(treasury, penaltyAmount);
-        
-        emit StakeSlashed(operator, roleId, penaltyAmount, reason, block.timestamp);
+        emit UserSlashed(operator, penaltyAmount, reason, block.timestamp);
     }
 
     /**
