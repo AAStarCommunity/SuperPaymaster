@@ -5,6 +5,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistry.sol";
 import "src/interfaces/IVersioned.sol";
+import { BLS } from "../../utils/BLS.sol";
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
@@ -172,10 +173,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
 
     function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash) internal view {
-        (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
+        (bytes memory pkG1Bytes, bytes memory sigG2Bytes, bytes memory msgG2Bytes, uint256 signerMask) 
+            = abi.decode(proof, (bytes, bytes, bytes, uint256));
         
         // ✅ Verify proof signs the expected message (防止签名重放/滥用)
-        bytes32 proofMessageHash = keccak256(msgG2);
+        bytes32 proofMessageHash = keccak256(msgG2Bytes);
         if (proofMessageHash != expectedMessageHash) {
             revert SignatureVerificationFailed();
         }
@@ -183,18 +185,51 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         uint256 count = _countSetBits(signerMask);
         if (count < threshold) revert InvalidSignatureCount(count, threshold);
 
-        // Pairing Check: e(G1, Sig) * e(-Pk, Msg) == 1
-        bytes memory input = abi.encodePacked(
-            G1_X_BYTES, sigG2,
-            _negateG1(pkG1), msgG2
-        );
+        // ✅ Use BLS.pairing() instead of direct precompile call
+        BLS.G1Point memory pk = abi.decode(pkG1Bytes, (BLS.G1Point));
+        BLS.G2Point memory sig = abi.decode(sigG2Bytes, (BLS.G2Point));
+        BLS.G2Point memory msgG2 = abi.decode(msgG2Bytes, (BLS.G2Point));
         
-        // ✅ CRITICAL FIX: Use 0x10 (PAIRING), not 0x11 (MAP_FP_TO_G1)
-        (bool success, bytes memory result) = address(0x10).staticcall(input);
-        if (!success || abi.decode(result, (uint256)) != 1) {
+        // Pairing Check: e(G1_GEN, Sig) == e(PK, msgG2)
+        BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
+        BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
+        
+        g1s[0] = _getG1Generator();
+        g2s[0] = sig;
+        g1s[1] = _negateG1Point(pk);
+        g2s[1] = msgG2;
+        
+        if (!BLS.pairing(g1s, g2s)) {
             revert SignatureVerificationFailed();
         }
-        // Emit success via internal logic if needed, but staticcall just returns
+    }
+
+    // @dev Negates a G1 point (for pairing check)
+    function _negateG1Point(BLS.G1Point memory p) internal pure returns (BLS.G1Point memory) {
+        // P - Y in BLS12-381 field
+        uint256 P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
+        uint256 P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+        
+        uint256 ya = uint256(p.y_a);
+        uint256 yb = uint256(p.y_b);
+        if (ya == 0 && yb == 0) return p;
+        
+        unchecked {
+            uint256 res_b = P_LO - yb;
+            uint256 borrow = (yb > P_LO) ? 1 : 0;
+            uint256 res_a = P_HI - ya - borrow;
+            p.y_a = bytes32(res_a);
+            p.y_b = bytes32(res_b);
+        }
+        return p;
+    }
+    
+    /// @dev Returns BLS12-381 G1 generator point
+    function _getG1Generator() internal pure returns (BLS.G1Point memory p) {
+        p.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
+        p.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
+        p.y_a = bytes32(uint256(0x08b3f481e3aaa0f1a09e30ed741d8ae4));
+        p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
 
     function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {
