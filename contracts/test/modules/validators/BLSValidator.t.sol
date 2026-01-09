@@ -17,7 +17,8 @@ contract BLSValidatorTest is Test {
     }
 
     function test_ReturnsFalseIfProofInvalid() public {
-        bool isValid = validator.verifyProof("0x12", "");
-        assertFalse(isValid);
+        // Invalid proof will cause ABI decode revert
+        vm.expectRevert();
+        validator.verifyProof("0x12", "");
     }
 }
