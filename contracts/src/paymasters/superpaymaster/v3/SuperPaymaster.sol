@@ -80,6 +80,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
     uint256 public constant BPS_DENOMINATOR = 10000;
+    uint256 public constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
@@ -622,14 +623,32 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             revert OracleError();
         }
     }
-    function _calculateAPNTsAmount(uint256 ethAmountWei) internal view returns (uint256) {
-        // Use Cached Price (Pure Storage Read)
-        PriceCache memory cache = cachedPrice;
+    function _calculateAPNTsAmount(uint256 ethAmountWei, bool useRealtime) internal view returns (uint256) {
+        int256 ethUsdPrice;
+        uint256 priceDecimals;
+
+        // Mode 1: PostOp (Realtime Attempt)
+        if (useRealtime) {
+            try ETH_USD_PRICE_FEED.latestRoundData() returns (uint80, int256 p, uint256, uint256, uint80) {
+                // Only use if positive and valid
+                if (p > 0) {
+                    ethUsdPrice = p;
+                    priceDecimals = ETH_USD_PRICE_FEED.decimals();
+                }
+            } catch {
+                // If Oracle fails, fall back to cache below
+            }
+        }
+
+        // Mode 2: Validation or Fallback (Cache)
+        if (ethUsdPrice <= 0) {
+            PriceCache memory cache = cachedPrice;
+            ethUsdPrice = cache.price;
+            priceDecimals = cache.decimals;
+        }
         
-        // Safety:
-        if (cache.price <= 0) revert OracleError();
-        // aPNTs Price = $0.02 (approx) - Fixed for now or fetchable? 
-        // Hardcoded aPNTs price at $0.02 for this V3 implementation as per line 60.
+        // Safety check for both modes
+        if (ethUsdPrice <= 0) revert OracleError();
         
         // Value in USD = ethAmountWei * price / 10^decimals
         // aPNTs Amount = Value in USD / aPNTsPriceUSD
@@ -637,7 +656,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Calculation:
         // (ethAmount * price * 10^18) / (10^decimals * aPNTsPriceUSD)
         
-        return (ethAmountWei * uint256(cache.price) * 1e18) / (10**cache.decimals * aPNTsPriceUSD);
+        return (ethAmountWei * uint256(ethUsdPrice) * 1e18) / (10**priceDecimals * aPNTsPriceUSD);
     }
 
     function validatePaymasterUserOp(
@@ -701,13 +720,12 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         if (uint256(config.exchangeRate) > maxRate) {
              return ("", _packValidationData(true, 0, 0)); 
         }
-        
-        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
+        // Use CACHED price for validation (fast, compliant)
+        // V3.5 FIX: Add Safety Buffer (1.1x) to prevent PostOp insolvency due to price volatility
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        aPNTsAmount = (aPNTsAmount * (BPS_DENOMINATOR + VALIDATION_BUFFER_BPS)) / BPS_DENOMINATOR;
 
-        // Security: Check Price Staleness
-        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
-            return ("", _packValidationData(true, 0, 0));
-        }
+
 
         // 4. Solvency Check (Pure Storage)
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
@@ -749,8 +767,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         ) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
 
         // 1. Calculate Actual Cost in aPNTs
-        // actualGasCost is in Wei. We convert to aPNTs using the same oracle logic (or cached)
-        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
+        // actualGasCost is in Wei. We use REALTIME price for accurate settlement.
+        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, true);
 
         // 2. Apply Protocol Fee Markup (e.g. 10%)
         // We want the final deduction to be Actual + 10%.

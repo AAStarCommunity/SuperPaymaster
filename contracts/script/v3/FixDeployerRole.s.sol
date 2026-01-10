@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "forge-std/StdJson.sol";
 
 // Interfaces
 import "src/core/Registry.sol";
@@ -11,31 +12,41 @@ import "src/tokens/GToken.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 contract FixDeployerRole is Script {
-    // Sepolia Addresses
-    address constant ADDR_REGISTRY = 0x2D7d16EAaa85Fa88D05B296E9951f730BDaA0A7D;
-    address constant ADDR_GTOKEN = 0xccB0cA1Ec9F8e51bEdBD4038BB9980B071bD81cB;
-    address constant ADDR_STAKING = 0xF50D6ade7C150A8Ac7cF5cDD47C43Fa8d44747eD;
-    address constant ADDR_PM_V4_PROXY = 0xe4551c950b35DcF80e61CEa730743CEec127db88; // Wait, this is PM FACTORY? Check config.
-    // Config: "paymasterFactory": "0xe45...", "paymasterV4Impl": "0x4E3..."
-    // Where is the Proxy? 
-    // DeployLive.s.sol logic: "addr_pmV4Proxy = existingProxy;" or "deployPaymaster(...)".
-    // I need to FIND the proxy. 
-    // Option 1: It was saved in config? No, config only has factory and impl. 
-    // Option 2: Check Factory for operator's proxy? 
-    // User said: "register paymaster v4 for jason...". 
-    // Actually, let's look up the proxy dynamically in the script.
+    using stdJson for string;
 
-    address constant ADDR_PM_FACTORY = 0xe4551c950b35DcF80e61CEa730743CEec127db88;
+    // State variables for addresses (loaded from config)
+    address internal ADDR_REGISTRY;
+    address internal ADDR_GTOKEN;
+    address internal ADDR_STAKING;
+    address internal ADDR_PM_FACTORY;
+    address internal ADDR_XPNTS_FACTORY;
+    address internal ADDR_APNTS;
+    address internal ADDR_ENTRYPOINT;
 
     bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
     bytes32 constant ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
 
-    address constant ADDR_APNTS = 0x7A56b5B9f4aC457B5d080468Dd002222D1Df4c50;
+    function setUp() public {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/deployments/config.sepolia.json");
+        string memory json = vm.readFile(path);
+
+        ADDR_REGISTRY = json.readAddress(".registry");
+        ADDR_GTOKEN = json.readAddress(".gToken");
+        ADDR_STAKING = json.readAddress(".staking");
+        ADDR_PM_FACTORY = json.readAddress(".paymasterFactory");
+        ADDR_XPNTS_FACTORY = json.readAddress(".xPNTsFactory");
+        ADDR_APNTS = json.readAddress(".aPNTs");
+        ADDR_ENTRYPOINT = json.readAddress(".entryPoint");
+
+        console.log("Loaded config from deployments/config.sepolia.json");
+        console.log("Registry:", ADDR_REGISTRY);
+        console.log("PaymasterFactory:", ADDR_PM_FACTORY);
+    }
 
     function run() external {
         uint256 deployerPK = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPK);
-        address xpntsFactory = 0x0F815454ea941224dE582554D1DeF4B67ffBE38c;
         
         vm.startBroadcast(deployerPK);
 
@@ -80,14 +91,14 @@ contract FixDeployerRole is Script {
                  // Correct Signature: initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)
                  bytes memory init = abi.encodeWithSignature(
                     "initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)",
-                    0x0000000071727De22E5E9d8BAf0edAc6f37da032, // EntryPoint
+                    ADDR_ENTRYPOINT, // EntryPoint from config
                     deployer, // Owner
                     deployer, // Treasury
-                    0x694AA1769357215DE4FAC081bf1f309aDC325306, // PriceFeed
+                    0x694AA1769357215DE4FAC081bf1f309aDC325306, // PriceFeed (Hardcoded as requested/kept)
                     100, // Markup (Service Fee)
                     1 ether, // MaxGasCostCap
                     0,       // MinTokenBalance
-                    xpntsFactory,
+                    ADDR_XPNTS_FACTORY,
                     ADDR_APNTS, // Initial Gas Token (aPNTs)
                     3600        // Price Staleness
                  );

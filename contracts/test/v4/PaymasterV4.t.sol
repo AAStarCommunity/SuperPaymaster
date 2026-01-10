@@ -217,4 +217,80 @@ contract PaymasterV4Test is Test {
         assertEq(token.balanceOf(treasury), treasuryBalBefore + (expectedPreCharge - expectedRefund), "Treasury payment mismatch");
         assertEq(token.balanceOf(address(paymaster)), 0, "Escrow not cleared");
     }
+
+    function test_V4_Pricing_HybridModel_WithBuffer() public {
+        // 1. Setup: Update Cache first
+        // Oracle is $2000 (set in setUp)
+        // We simulate a scenario where Cache is $2000, Realtime is $2000.
+        // Validation should charge: Cost($2000) * 1.1 (Buffer)
+        // PostOp should charge: Cost($2000)
+        // Refund: Cost($2000) * 0.1
+        
+        // Mock logic in PaymasterV4 relies on `cachedPrice`. 
+        // We need to trigger updatePrice() to populate it.
+        vm.prank(owner); // updatePrice might be open or owner only? Abstract says external without modifier.
+        paymaster.updatePrice();
+        
+        PackedUserOperation memory op;
+        op.sender = user;
+        op.initCode = hex"deadbeef"; 
+        
+        // Gas Cost Setup
+        uint256 gasCost = 1000; // Wei
+        
+        // Paymaster Data
+        address gasToken = address(token);
+        bytes memory data = abi.encodePacked(gasToken);
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(gasCost), uint128(100), data);
+        
+        uint256 balBefore = token.balanceOf(user);
+        
+        // --- Step 1: Validation (Cache + Buffer) ---
+        vm.prank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), gasCost);
+        
+        // Calculate Expected Pre-Charge
+        // ETH Price = $2000
+        // CostUSD = 1000 Wei * $2000 = 2,000,000 units (scaled)
+        
+        // Logic:
+        // ethUsdPrice = 2000e8
+        // decimals = 8
+        // ethPriceUSD = 2000e8 * 1e18 / 1e8 = 2000e18
+        // gasCostUSD = (1000 * 2000e18) / 1e18 = 2,000,000
+        
+        // Buffer = 10% (1000 BPS)
+        // ServiceFee = 0 (set in setUp)
+        // TotalRate = 10000 + 0 + 1000 = 11000
+        // totalCostUSD = 2,000,000 * 11000 / 10000 = 2,200,000
+        
+        // aPNTsPrice = $0.02 (0.02e18)
+        // aPNTsAmount = (2,200,000 * 1e18) / 0.02e18 = 110,000,000
+        
+        // xPNTs (1:1 rate) => 110,000,000
+        uint256 expectedPreCharge = 110000000;
+        
+        assertEq(token.balanceOf(user), balBefore - expectedPreCharge, "Validation: Should charge Cost + Buffer");
+        
+        // --- Step 2: PostOp (Realtime - No Buffer) ---
+        // PostOp re-calculates using Realtime price.
+        // If Price hasn't changed ($2000), actual cost should be exactly 1.0x (no buffer).
+        
+        // totalRate for PostOp = 10000 + 0 (No Buffer!) = 10000
+        // totalCostUSD = 2,000,000 * 10000 / 100000 = 2,000,000
+        // FinalCost = (2,000,000 * 1e18)/0.02e18 = 100,000,000
+        
+        uint256 actualCostWei = gasCost;
+        uint256 expectedFinalCost = 100000000;
+        
+        vm.prank(address(entryPoint));
+        paymaster.postOp(PostOpMode.opSucceeded, context, actualCostWei, 0);
+        
+        // --- Step 3: Verify Refund ---
+        // User should get back: 110,000,000 - 100,000,000 = 10,000,000 (The Buffer!)
+        uint256 expectedBalance = balBefore - expectedFinalCost;
+        assertEq(token.balanceOf(user), expectedBalance, "PostOp: Should refund buffer amount");
+        assertEq(token.balanceOf(treasury), expectedFinalCost, "Treasury should receive exact cost");
+        assertEq(token.balanceOf(address(paymaster)), 0, "Escrow should be empty");
+    }
 }

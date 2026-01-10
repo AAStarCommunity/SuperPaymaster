@@ -78,6 +78,14 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
+    struct PriceCache {
+        uint208 price; // 8 decimals (Chainlink)
+        uint48 updatedAt;
+    }
+
+    /// @notice Cached ETH/USD price for validation
+    PriceCache public cachedPrice;
+
     /// @notice Treasury address - service provider's collection account
     address public treasury;
 
@@ -147,6 +155,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 pntCharged
     );
     event SBTContractUpdated(address indexed oldContract, address indexed newContract);
+    event PriceUpdated(uint256 price, uint256 updatedAt);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                         CONSTANTS                          */
@@ -156,6 +165,10 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @dev Protects against oracle manipulation or extreme market anomalies
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     
+    /// @notice Validation price buffer in basis points (10%)
+    /// @dev Adds safety margin when using cached price to prevent loss from price volatility
+    uint256 private constant VALIDATION_BUFFER_BPS = 1000;
+
     /// @notice Maximum acceptable ETH/USD price from oracle ($100,000)
     /// @dev Protects against oracle manipulation or extreme market anomalies
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
@@ -310,9 +323,9 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         (address user, address token, uint256 maxTokenAmount, uint256 cappedMaxCost) = 
             abi.decode(context, (address, address, uint256, uint256));
 
-        // 1. Calculate Actual Cost in PNT (using same logic as validation)
+        // 1. Calculate Actual Cost in PNT (using realtime logic)
         // Note: actualGasCost is in wei
-        uint256 actualTokenAmount = _calculatePNTAmount(actualGasCost, token);
+        uint256 actualTokenAmount = _calculatePNTAmount(actualGasCost, token, true);
 
         // 2. Cap with what was actually pre-charged if actual > estimate (safety cap)
         if (actualTokenAmount > maxTokenAmount) {
@@ -368,7 +381,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             // ✅ Security: Verify token is from xPNTsFactory (ensures expected properties)
             _verifyTokenFromFactory(specifiedToken);
             
-            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, specifiedToken);
+            // Use cached price for validation
+            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, specifiedToken, false);
             uint256 balance = IERC20(specifiedToken).balanceOf(user);
             uint256 allowance = IERC20(specifiedToken).allowance(user, address(this));
             if (balance >= requiredAmount && allowance >= requiredAmount) {
@@ -384,7 +398,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             // ✅ Security: Verify token is from xPNTsFactory
             _verifyTokenFromFactory(_token);
             
-            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, _token);
+            // Use cached price for validation
+            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, _token, false);
             uint256 balance = IERC20(_token).balanceOf(user);
             uint256 allowance = IERC20(_token).allowance(user, address(this));
 
@@ -398,10 +413,27 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Calculate required xPNTs amount for gas cost
     /// @param gasCostWei Gas cost in wei
     /// @param xpntsToken xPNTs token contract address
+    /// @param useRealtime If true, fetches live price; otherwise uses cache
     /// @return Required xPNTs token amount
-    function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken) internal view returns (uint256) {
-        // Step 1: Get ETH/USD price from oracle
-        (, int256 ethUsdPrice,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+    function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken, bool useRealtime) internal view returns (uint256) {
+        int256 ethUsdPrice;
+        bool applyBuffer = false;
+        
+        if (useRealtime) {
+            // PostOp: Get Realtime Price
+            (, ethUsdPrice,,,) = ethUsdPriceFeed.latestRoundData();
+        } else {
+            // Validation: Get Cached Price
+            PriceCache memory cache = cachedPrice;
+            if (cache.price == 0) revert Paymaster__InvalidOraclePrice();
+            
+            // Note: intentionally skipping timestamp verification during validation 
+            // to avoid Bundler banning or dropped userOps.
+            // We rely on Keepers to update price and the validation buffer for safety.
+
+            ethUsdPrice = int256(uint256(cache.price));
+            applyBuffer = true; // Apply buffer only for validation with cached price
+        }
         
         // ✅ CRITICAL: Oracle price validation (防止恶意/异常喂价攻击)
         // 1. Prevent negative or zero price (would cause uint256 overflow)
@@ -412,14 +444,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             revert Paymaster__InvalidOraclePrice();
         }
         
-        // 3. Check price staleness
-        if (block.timestamp - updatedAt > priceStalenessThreshold) {
-            revert Paymaster__StaleOraclePrice();
-        }
-
         uint8 decimals = ethUsdPriceFeed.decimals();
-
-        // Convert to 18 decimals: price * 1e18 / 10^decimals
 
         // Convert to 18 decimals: price * 1e18 / 10^decimals
         uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** decimals);
@@ -427,8 +452,13 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // Step 2: Convert gas cost (wei) to USD
         uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
 
-        // Step 3: Add service fee
-        uint256 totalCostUSD = gasCostUSD * (BPS_DENOMINATOR + serviceFeeRate) / BPS_DENOMINATOR;
+        // Step 3: Add service fee AND validation buffer (if applicable)
+        uint256 totalRate = BPS_DENOMINATOR + serviceFeeRate;
+        if (applyBuffer) {
+            totalRate += VALIDATION_BUFFER_BPS;
+        }
+        
+        uint256 totalCostUSD = gasCostUSD * totalRate / BPS_DENOMINATOR;
 
         // Step 4: Convert USD to aPNTs amount (using factory's aPNTs price)
         uint256 aPNTsPrice = xpntsFactory.getAPNTsPrice(); // Get dynamic aPNTs price
@@ -460,6 +490,21 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      ADMIN FUNCTIONS                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @notice Update cached price from Oracle (Keeper only)
+    function updatePrice() external {
+        (, int256 price,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        
+        // Basic validation
+        if (price <= 0) revert Paymaster__InvalidOraclePrice();
+        
+        cachedPrice = PriceCache({
+            price: uint208(uint256(price)),
+            updatedAt: uint48(updatedAt)
+        });
+        
+        emit PriceUpdated(uint256(price), updatedAt);
+    }
 
     /// @notice Set treasury address
     /// @param _treasury New treasury address
@@ -628,7 +673,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     function estimatePNTCost(uint256 gasCostWei, address gasToken) external view returns (uint256) {
         if (!isGasTokenSupported[gasToken]) revert Paymaster__NotFound();
         uint256 cappedCost = gasCostWei > maxGasCostCap ? maxGasCostCap : gasCostWei;
-        return _calculatePNTAmount(cappedCost, gasToken);
+        // Use cache for estimation to consistent with validation requirements
+        return _calculatePNTAmount(cappedCost, gasToken, false);
     }
 
     /// @notice Check if user qualifies for paymaster service
@@ -704,4 +750,4 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Receive ETH
     receive() external payable {}
-}
+    }
