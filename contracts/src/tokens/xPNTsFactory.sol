@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "./xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import { IVersioned } from "src/interfaces/IVersioned.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 /**
  * @title xPNTsFactory
@@ -165,6 +166,9 @@ contract xPNTsFactory is Ownable, IVersioned {
         uint256 exchangeRate,
         address paymasterAOA
     ) external returns (address token) {
+        if (!IRegistry(REGISTRY).hasRole(keccak256("COMMUNITY"), msg.sender)) {
+            revert("Caller must be Community");
+        }
         if (communityToToken[msg.sender] != address(0)) {
             revert AlreadyDeployed(msg.sender);
         }

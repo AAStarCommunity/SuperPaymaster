@@ -74,8 +74,8 @@ contract DeployLive is Script {
         registry = new Registry(address(gtoken), address(staking), address(mysbt));
 
         console.log("=== Step 2: Deploy Core ===");
-        apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
+        // apnts moved to Orchestration phase
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(0), priceFeedAddr, deployer, 3600);
 
         console.log("=== Step 3: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
@@ -108,7 +108,7 @@ contract DeployLive is Script {
         registry.setBLSValidator(address(blsValidator));
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
-        apnts.setSuperPaymasterAddress(address(superPaymaster));
+        // apnts.setSuperPaymasterAddress moved to after deployment in Orchestration
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         // try superPaymaster.updatePrice() {} catch {}
@@ -123,18 +123,45 @@ contract DeployLive is Script {
             name: "AAStar",
             ensName: "aastar.eth",
             website: "aastar.io",
-            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
-            logoURI: "ipfs://aastar-logo",
+            description: "AAStar - Empower Community! Twitter: https://X.com/AAStarCommunity",
+            logoURI: "ipfs://QmNmv3TGpzaDaX92rX9fzRch2FHeFQqBW5k51z1p7kHBVM",
             stakeAmount: 30 ether
         });
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
+        
+        // 1.1 Use Factory to deploy aPNTs (Official AAStar Token)
+        address apntsAddr = xpntsFactory.deployxPNTsToken(
+            "AAStar PNTs", 
+            "aPNTs", 
+            "AAStar", 
+            "aastar.eth", 
+            1e18, 
+            address(0) // No specific PaymasterAOA initially
+        );
+        apnts = xPNTsToken(apntsAddr);
+        console.log("aPNTs deployed at:", address(apnts));
+        
+        // Fix: Set APNTs Token in SuperPaymaster (Delayed wiring due to circular dependency)
+        superPaymaster.setAPNTsToken(address(apnts));
+
+        // 1.2 Register Paymaster Role
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         
+        // 1.3 Deposit & Mint Supply
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(address(superPaymaster));
-        apnts.mint(deployer, 1000 ether);
+        
+        // Mint 1M aPNTs to Supplier (Deployer acts as supplier initially)
+        address supplier = deployer; 
+        apnts.mint(supplier, 1_000_000 ether);
+        
+        // Deposit some for SuperPaymaster operation (1000)
+        vm.stopBroadcast(); // Stop main broadcast
+        vm.startBroadcast(supplier); // Ensure context if supplier differs
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
+        vm.stopBroadcast();
+        vm.startBroadcast(deployerPK);
 
         // 2. 初始化 DemoCommunity (Anni)
         address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;

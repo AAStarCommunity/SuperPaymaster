@@ -23,8 +23,17 @@ contract xPNTsFactoryTest is Test {
         new xPNTsFactory(mockSP, address(0));
     }
     
+    bytes32 constant ROLE_COMMUNITY = keccak256("COMMUNITY");
+
     function test_Deployment_Success() public {
         vm.prank(user);
+        // Mock hasRole to return true for user
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            abi.encode(true)
+        );
+        
         address token = factory.deployxPNTsToken(
             "Test", "TEST", "TestComm", "test.eth", 1e18, address(0)
         );
@@ -38,11 +47,30 @@ contract xPNTsFactoryTest is Test {
         address user2 = address(5);
         address mockPaymaster = address(6);
         vm.prank(user2);
+        // Mock hasRole to return true for user2
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user2), 
+            abi.encode(true)
+        );
         address token2 = factory.deployxPNTsToken(
             "Test2", "TEST2", "TestComm2", "test2.eth", 1e18, mockPaymaster
         );
         assertTrue(token2 != address(0));
         assertEq(factory.getDeployedCount(), 2);
+    }
+
+    function test_Deployment_RevertIf_NotCommunity() public {
+        vm.prank(user);
+        // Mock hasRole to return false
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            abi.encode(false)
+        );
+        
+        vm.expectRevert("Caller must be Community");
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
     }
     
     function test_Deployment_SwitchModes() public {
@@ -51,6 +79,12 @@ contract xPNTsFactoryTest is Test {
         xPNTsFactory f2 = new xPNTsFactory(address(0), mockRegistry);
         
         vm.prank(user);
+        // Mock hasRole check on the registry passed to this factory instance
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            abi.encode(true)
+        );
         address t1 = f2.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
         assertTrue(t1 != address(0));
         
@@ -60,12 +94,25 @@ contract xPNTsFactoryTest is Test {
         assertEq(f2.SUPERPAYMASTER(), mockSP);
         
         vm.prank(address(5));
+        // Mock hasRole check for address(5)
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, address(5)), 
+            abi.encode(true)
+        );
         address t2 = f2.deployxPNTsToken("T2", "T2", "C2", "C2", 1e18, address(0));
         assertTrue(t2 != address(0));
     }
     
     function test_Deployment_AlreadyDeployed() public {
         vm.startPrank(user);
+        // Mock role success
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            abi.encode(true)
+        );
+
         factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
         
         vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.AlreadyDeployed.selector, user));
@@ -180,6 +227,13 @@ contract xPNTsFactoryTest is Test {
     
     function test_View_Functions() public {
         vm.prank(user);
+        // Mock role for view test
+        vm.mockCall(
+            mockRegistry, 
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            abi.encode(true)
+        );
+        
         address t1 = factory.deployxPNTsToken("A", "A", "A", "A", 1e18, address(0));
         
         address[] memory all = factory.getAllTokens();
