@@ -144,23 +144,52 @@ contract DeployLive is Script {
         // Fix: Set APNTs Token in SuperPaymaster (Delayed wiring due to circular dependency)
         superPaymaster.setAPNTsToken(address(apnts));
 
-        // 1.2 Register Paymaster Role
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
-        superPaymaster.configureOperator(address(apnts), deployer, 1e18);
+        // 1.2 Register Paymaster Role (AOA V4)
+        // Check if Paymaster V4 Proxy exists for deployer
+        address sender = deployer;
+        address pmProxy = pmFactory.getPaymasterByOperator(sender);
         
-        // 1.3 Deposit & Mint Supply
-        IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(address(superPaymaster));
+        if (pmProxy == address(0)) {
+             bytes memory init = abi.encodeWithSignature(
+                "initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)",
+                entryPointAddr,
+                sender,
+                sender, // treasury
+                priceFeedAddr,
+                100, // serviceFeeRate
+                1 ether, // maxGasCostCap
+                0, // minTokenBalance
+                address(xpntsFactory),
+                address(apnts), // initialGasToken
+                3600 // priceStalenessThreshold
+             );
+             pmProxy = pmFactory.deployPaymaster("v4.2", init);
+             console.log("Deployed Paymaster V4 Proxy at:", pmProxy);
+        } else {
+             console.log("Existing Paymaster V4 Proxy found at:", pmProxy);
+        }
+
+        Registry.PaymasterRoleData memory pmData = Registry.PaymasterRoleData({
+            paymasterContract: pmProxy,
+            name: "AAStar V4 Paymaster",
+            apiEndpoint: "https://rpc.aastar.io/paymaster/v4",
+            stakeAmount: 30 ether
+        });
+
+        // 3.3 Approve Staking (Stake 30 + Burn 3 = 33)
+        gtoken.approve(address(staking), 33 ether);
+        registry.registerRole(keccak256("PAYMASTER_AOA"), sender, abi.encode(pmData));
         
-        // Mint 1M aPNTs to Supplier (Deployer acts as supplier initially)
+        // 1.3 Fund Paymaster Proxy on EntryPoint
+        IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);
+        
+        // Mint 1M aPNTs to Supplier (Deployer)
         address supplier = deployer; 
         apnts.mint(supplier, 1_000_000 ether);
         
-        // Deposit some for SuperPaymaster operation (1000)
-        vm.stopBroadcast(); // Stop main broadcast
-        vm.startBroadcast(supplier); // Ensure context if supplier differs
-        apnts.approve(address(superPaymaster), 1000 ether);
-        superPaymaster.depositFor(deployer, 1000 ether);
         vm.stopBroadcast();
+        // vm.startBroadcast(supplier); // Not needed if supplier == deployer
+        // No deposit to SuperPaymaster needed for AOA
         vm.startBroadcast(deployerPK);
 
         // 2. 初始化 DemoCommunity (Anni)
@@ -187,8 +216,43 @@ contract DeployLive is Script {
             
             address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
             superPaymaster.configureOperator(dPNTs, anni, 1e18);
+
+            // 2.1 Setup Paymaster V4 for Anni
+            address pmProxyAnni = pmFactory.getPaymasterByOperator(anni);
+            if (pmProxyAnni == address(0)) {
+                 bytes memory initAnni = abi.encodeWithSignature(
+                    "initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)",
+                    entryPointAddr,
+                    anni, // owner
+                    anni, // treasury
+                    priceFeedAddr,
+                    100, // serviceFee
+                    1 ether, // gasCap
+                    0, 
+                    address(xpntsFactory),
+                    dPNTs, // initialGasToken
+                    3600
+                 );
+                 pmProxyAnni = pmFactory.deployPaymaster("v4.2", initAnni);
+                 console.log("Deployed Anni Paymaster V4 Proxy at:", pmProxyAnni);
+            }
+
+            Registry.PaymasterRoleData memory pmDataAnni = Registry.PaymasterRoleData({
+                paymasterContract: pmProxyAnni,
+                name: "Demo V4 Paymaster",
+                apiEndpoint: "https://rpc.demo.io/paymaster/v4",
+                stakeAmount: 30 ether
+            });
+            registry.registerRole(keccak256("PAYMASTER_AOA"), anni, abi.encode(pmDataAnni));
+
             vm.stopBroadcast();
+            
+            // Fund Anni's Paymaster
             vm.startBroadcast(deployerPK);
+            IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxyAnni);
+            // vm.stopBroadcast() handled by loop or next line logic
+            // But wait, the original code had vm.stopBroadcast() then vm.startBroadcast(deployerPK) at line 220.
+            // I should allow that flow to continue.
         }
     }
 
