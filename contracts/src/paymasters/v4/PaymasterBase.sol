@@ -347,11 +347,6 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             applyBuffer = true; 
         }
         
-        // Staleness Check
-        if (block.timestamp > updatedAt + priceStalenessThreshold) {
-             revert Paymaster__InvalidOraclePrice();
-        }
-        
         if (ethUsdPrice <= 0) revert Paymaster__InvalidOraclePrice();
         if (ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
         
