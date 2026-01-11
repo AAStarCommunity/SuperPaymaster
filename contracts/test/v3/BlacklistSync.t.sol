@@ -98,12 +98,12 @@ contract BlacklistSyncTest is Test {
         // Fund Operator
         vm.stopPrank();
         vm.prank(owner);
-        apnts.mint(operator, 1000 ether);
+        apnts.mint(operator, 2000 ether);
         
         vm.prank(operator);
-        apnts.approve(address(paymaster), 1000 ether);
+        apnts.approve(address(paymaster), 2000 ether);
         vm.prank(operator);
-        paymaster.depositFor(operator, 1000 ether);
+        paymaster.depositFor(operator, 2000 ether);
 
         // --- 5. Sync SBT Status for Malicious User ---
         vm.prank(address(registry));
@@ -203,7 +203,8 @@ contract BlacklistSyncTest is Test {
                 address(paymaster),
                 uint128(100000),
                 uint128(0),
-                operator // Paymaster Data: Operator
+                operator, // Paymaster Data: Operator
+                type(uint256).max // MaxRate (Fix for V3.2.1)
             ),
             signature: ""
         });
