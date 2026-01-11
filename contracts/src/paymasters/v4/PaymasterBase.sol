@@ -9,6 +9,7 @@ import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
@@ -36,7 +37,11 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     IEntryPoint public entryPoint;
 
     /// @notice Chainlink ETH/USD price feed
+    /// @notice Chainlink ETH/USD price feed
     AggregatorV3Interface public ethUsdPriceFeed;
+    
+    /// @notice Cached oracle decimals to avoid external call in validate
+    uint8 public oracleDecimals;
 
     /// @notice Paymaster data offset in paymasterAndData
     uint256 private constant PAYMASTER_DATA_OFFSET = 52;
@@ -181,6 +186,14 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
         entryPoint = IEntryPoint(_entryPoint);
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        
+        // Cache decimals
+        try ethUsdPriceFeed.decimals() returns (uint8 d) {
+             oracleDecimals = d;
+        } catch {
+             oracleDecimals = 8; // Default
+        }
+
         // xpntsFactory removed
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
@@ -251,7 +264,7 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         PostOpMode mode,
         bytes calldata context,
         uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
+        uint256 /* actualUserOpFeePerGas */
     )
         public
         virtual
@@ -269,7 +282,14 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // Actually, standardization implies charging for what was used.
 
         // 1. Calculate Actual Cost (Realtime Price)
-        uint256 actualTokenCost = _calculateTokenCost(actualGasCost, token, true);
+        // Wraps in try/catch to prevent revert (DoS protection)
+        uint256 actualTokenCost;
+        try this.getRealtimeTokenCost(actualGasCost, token) returns (uint256 cost) {
+            actualTokenCost = cost;
+        } catch {
+            // Fallback: Charge full pre-charged amount (User pays max for oracle failure)
+            actualTokenCost = preChargedAmount;
+        }
 
         // 2. Cap at pre-charged
         if (actualTokenCost > preChargedAmount) {
@@ -311,107 +331,111 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
         // 2. Get ETH Price (USD)
         int256 ethUsdPrice;
+        uint256 updatedAt;
         bool applyBuffer = false;
         
         if (useRealtime) {
             // PostOp: Get Realtime Price
-            (, ethUsdPrice,,,) = ethUsdPriceFeed.latestRoundData();
+            (, ethUsdPrice,, updatedAt,) = ethUsdPriceFeed.latestRoundData();
         } else {
             // Validation: Get Cached Price
             PriceCache memory cache = cachedPrice;
             if (cache.price == 0) revert Paymaster__InvalidOraclePrice();
             
             ethUsdPrice = int256(uint256(cache.price));
+            updatedAt = uint256(cache.updatedAt);
             applyBuffer = true; 
+        }
+        
+        // Staleness Check
+        if (block.timestamp > updatedAt + priceStalenessThreshold) {
+             revert Paymaster__InvalidOraclePrice();
         }
         
         if (ethUsdPrice <= 0) revert Paymaster__InvalidOraclePrice();
         if (ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
         
-        uint8 ethDecimals = ethUsdPriceFeed.decimals(); // usually 8
-        uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** ethDecimals); // normalize to 1e18
-
+        // Use cached decimals
+        uint8 ethDecimals = oracleDecimals; 
+        
         // 3. Calc Gas Cost in USD (18 decimals)
-        // Wei * ETH_Price / 1e18
-        uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
-
+        // ethPriceUSD = ethUsdPrice * 1e18 / 10^ethDecimals
+        // gasCostUSD = gasCostWei * ethPriceUSD / 1e18
+        // Combined: gasCostUSD = gasCostWei * ethUsdPrice / 10^ethDecimals
+        
         // 4. Apply Fee & Buffer
         uint256 totalRate = BPS_DENOMINATOR + serviceFeeRate;
         if (applyBuffer) {
             totalRate += VALIDATION_BUFFER_BPS;
         }
-        uint256 totalCostUSD = gasCostUSD * totalRate / BPS_DENOMINATOR;
-
+        
+        // totalCostUSD = gasCostWei * ethUsdPrice * totalRate / (BPS_DENOMINATOR * 10^ethDecimals)
+        
         // 5. Convert USD to Token
-        // TokenPrice is 8 decimals (Standard Chainlink format)
-        // CostUSD (18 decimals) / TokenPrice (8 decimals) = TokenAmount (10 decimals??)
-        // Wait, we want Result in Token Decimals.
-        // Assuming TokenPrice is "USD per 1 Token" (e.g. $1.00 per USDC).
+        // TokenPrice is 8 decimals (USD per Token Unit?) NO.
+        // Chainlink standard: Token Price is USD value of 1 Unit of Token.
+        // e.g. WBTC ($100k) = 100000 * 1e8.
+        // USDC ($1) = 1 * 1e8.
+        // 
         // TokenAmount = CostUSD / TokenPriceUSD
+        // But units must match.
+        // CostUSD is 18 decimals? No, let's track decimals.
+        // gasCostWei (0) * ethUsdPrice (8) * totalRate (0) = 8 decimals.
+        // Denominator: BPS (0) * 10^ethDec (8) = 8 decimals.
+        // Result: 0 decimals (Wei USD).
         
-        // Adjust for decimals:
-        // CostUSD * (10^TokenDecimals) / (TokenPriceUSD * 10^10 ?)
-        // Let's standardise: TokenPrice is USD (8 decimals) per 1e18 Token Units? No.
-        // Usually TokenPrice is USD per 1 WHOLE Token. 
-        // e.g. 1 USDC = $1.00 = 1e8 USD.
-        // 1 WBTC = $100000 = 100000e8 USD.
+        // Let's use Math.mulDiv to preserve precision.
+        // numerator = gasCostWei * ethUsdPrice * totalRate * (10^tokenDecimals)
+        // denominator = BPS_DENOMINATOR * (10^ethDecimals) * (tokenPriceUSD) * (??? 10^(18-8) adjustment?)
         
-        // Formula: (CostUSD * 10^TokenDecimals) / (TokenPrice * 10^(18-8?))
-        // Let's simplify:
-        // CostUSD is 1e18 based.
-        // TokenPrice is 1e8 based.
-        // Result should be in Token Units.
-        // TokenAmount = (CostUSD * 1e8) / TokenPrice / 1e18 * 10^Decimals?
-        // Let's assume standard behavior:
-        // (CostUSD * 10^8) / TokenPrice -> Gives Token Amount in 1e18 (if 1e18 USD base)
+        // Let's re-derive carefully.
+        // Value(Wei) = gasCostWei * EthPrice ($/Wei)
+        // EthPrice ($/Wei) = (ethUsdPrice / 10^ethDecimals) / 1e18 ? No.
+        // EthPrice ($/Eth) = ethUsdPrice / 10^ethDecimals. (e.g. 3000 * 1e8 / 1e8 = 3000).
+        // EthPrice ($/Wei) = EthPrice($/Eth) / 1e18.
+        // Cost($) = gasCostWei * (ethUsdPrice / 10^ethDec) / 1e18.
         
-        // Correction: 
-        // gasCostUSD is (Wei * ETH_Price / 1e18). ETH_Price is 1e18 normalized. So gasCostUSD is 1e18.
-        // TokenPrice is 1e8.
-        // We want Token Units.
-        // Amount = (gasCostUSD / 1e18) * (1e18 / (TokenPrice/1e8)) ? No.
-        // Amount = (gasCostUSD / 1e18) * (ETH_Price / Token_Price) ?
+        // TokenAmount = Cost($) / TokenPrice($/TokenUnit)
+        // TokenPrice($/TokenUnit) = tokenPriceUSD / 1e8 ???
+        // Wait, Chainlink Convention for Token/USD is 8 decimals. 
+        // 1 BTC = $100000. Price = 100000e8.
+        // 1 Token = $X. Price = X * 1e8.
+        // So TokenAmount = Cost($) / (tokenPriceUSD / 1e8).
+        // 
+        // Putting it together:
+        // TokenAmount = [ gasCostWei * ethUsdPrice / (1e18 * 10^ethDec) ] / [ tokenPriceUSD / 1e8 ] * totalRate/BPS
+        // TokenAmount = [ gasCostWei * ethUsdPrice * 1e8 * totalRate ] / [ 1e18 * 10^ethDec * tokenPriceUSD * BPS ]
         
-        // Simple Ratio:
-        // EthAmount * EthPrice = TokenAmount * TokenPrice
-        // TokenAmount = EthAmount * (EthPrice / TokenPrice)
+        // But we want output in Token Units (which has tokenDecimals).
+        // The above formula gives "Number of Tokens". 
+        // If we want "Raw Token Amount" (integer), we need to multiply by 10^tokenDecimals?
+        // No, "1 Token" usually means 1e18 or 1e6 units.
+        // The TokenPrice is "Price per 1e(tokenDecimals) Units".
+        // So `TokenAmount` above is "Number of Whole Tokens".
+        // To get Raw Amount: * 10^tokenDecimals.
         
-        // Implementation:
-        // ethAmount * ethPrice (8 dec) / tokenPrice (8 dec)
-        // = ethAmount * Ratio
-        // But ethAmount is 18 decimals (Wei).
-        // If Token is 6 decimals (USDC)?
-        // We need to fetch Token Decimals. Unsafe to call external check here?
-        // BETTER: Admin sets price normalized? 
-        // OR we read decimals ONCE during setTokenPrice and cache it?
-        // Or pay cost of `IERC20(token).decimals()`. It is view, static call, cheap-ish.
-        // But we want to avoid external calls.
-        // Solution: Cache decimals in `tokenPrices`?
-        // Let's trust Admin sets price CORRECTLY.
-        // Actually, we can read decimals in `setTokenPrice` and allow admin to verify.
+        // RawAmount = [ gasCostWei * ethUsdPrice * 1e8 * totalRate * 10^tokenDecimals ] / [ 1e18 * 10^ethDec * tokenPriceUSD * BPS ]
         
-        // Let's use `IERC20(token).decimals()` here for correctness or assume standard.
-        // For safety/Gas, usage of `decimals()` view is acceptable in logic if cost is matched.
-        // But wait, `validate` prohibits external calls to non-associated storage.
-        // `IERC20(token).decimals()` IS an external call.
-        // FATAL FLAW if we call this in Validate.
-        // WE MUST CACHE DECIMALS or Store Price tailored to 1e18?
+        // Simplify:
+        // 1e18 * 10^ethDec = 10^(18+ethDec).  (usually 18+8=26)
+        // Numerator has 1e8.
+        // Cancel 1e8: Denominator becomes 10^(10+ethDec).
         
-        // FIX: `tokenPrices` mapping stores `price` AND `decimals`?
-        // Or simpler: `tokenPrices` stores "Rate in WEI per TokenUnit"? No.
+        // RawAmount = (gasCostWei * ethUsdPrice * totalRate * 10^tokenDecimals) / (tokenPriceUSD * BPS * 10^(10 + ethDec))
         
-        // Let's assume standard Chainlink 8 decimals for Price.
-        // And we MUST CACHE DECIMALS in `setTokenPrice`.
-        // I will add `mapping(address => uint8) public tokenDecimals;`
+        uint8 tDecimals = tokenDecimals[token];
         
-        uint8 tDecimals = tokenDecimals[token]; 
-        // TokenAmount = (gasCostWei * EthPrice * 10^tDecimals) / (TokenPrice * 10^18)
-        // EthPrice is 8 decimals raw (ethUsdPrice).
-        // TokenPrice is 8 decimals raw.
-        // Cancels out.
-        // TokenAmount = (gasCostWei * ethUsdPrice * 10^tDecimals) / (tokenPrice * 10^18)
+        uint256 numerator = gasCostWei * uint256(ethUsdPrice) * totalRate * (10 ** tDecimals);
+        uint256 denominatorLimit = 10 ** (10 + ethDecimals);
+        uint256 denominator = tokenPriceUSD * BPS_DENOMINATOR * denominatorLimit;
         
-        return (gasCostWei * uint256(ethUsdPrice) * (10 ** tDecimals)) / (tokenPriceUSD * 1e18);
+        return Math.mulDiv(numerator, 1, denominator);
+    }
+
+    /// @notice External wrapper for try/catch in postOp
+    function getRealtimeTokenCost(uint256 gasCost, address token) external view returns (uint256) {
+        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData(); // Only self-call
+        return _calculateTokenCost(gasCost, token, true);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

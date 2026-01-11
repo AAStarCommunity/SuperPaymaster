@@ -267,7 +267,7 @@ contract PaymasterV4Test is Test {
         vm.prank(address(entryPoint));
         (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), maxCostEth);
         
-        (,address token, uint256 charged,) = abi.decode(context, (address, address, uint256, uint256));
+        (,address token, uint256 charged) = abi.decode(context, (address, address, uint256));
         assertEq(token, address(usdc));
         
         // Allow slight rounding diff
