@@ -491,3 +491,95 @@ SuperPaymaster 生态系统存在多个潜在的攻击向量，主要集中在�
 4. 部署多层安全监控
 
 这些改进将显著提升系统的安全性和抗攻击能力。
+
+# 🛠️ 推荐修复实施指南 (Recommended Fixes Implementation Guide)
+
+以下是针对上述漏洞的具体代码实施建议，可直接应用于当前代码库，旨在增强系统的抗攻击能力。
+
+### 1. 修复 Registry 角色无限注册 (Fix Infinite Role Registration)
+
+在 `contracts/src/core/Registry.sol` 中实施冷却期，防止恶意刷取声誉：
+
+```solidity
+// Storage
+mapping(address => uint256) public lastRoleRegistrationTime;
+uint256 public constant ROLE_COOLDOWN = 1 days; // 建议设置为 24 小时或更长
+
+// 在 registerRole 函数开头添加：
+if (roleId == ROLE_ENDUSER) {
+    // 检查冷却期
+    if (block.timestamp < lastRoleRegistrationTime[user] + ROLE_COOLDOWN) {
+        revert("Registry: Role registration cooldown active");
+    }
+    lastRoleRegistrationTime[user] = block.timestamp;
+}
+```
+
+### 2. 增强 SuperPaymaster PostOp 安全性 (Fix PostOp State Safety)
+
+在 `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol` 的 `postOp` 中，使用 `try/catch` 包裹外部调用，确保状态一致性：
+
+```solidity
+// ... 前序计算和内部状态更新逻辑 ...
+
+// 使用 try/catch 包裹外部调用 (IxPNTsToken.recordDebt)
+try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {
+    emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
+} catch {
+    // 捕获外部调用失败
+    // 策略：为了资金安全，如果债务无法记录，我们应该回滚之前的退款操作并 Revert 整个交易
+    // 这样 Bundler 会重试或标记为失败，避免 Paymaster 损失资金但未记录用户债务
+    
+    // 也可以选择"吞没"错误（不推荐，除非是为了用户体验），如下：
+    // emit DebtRecordFailed(user, finalXPNTsDebt);
+    
+    // 推荐的做法是抛出带有明确信息的错误，由链下设施处理
+    revert("SuperPaymaster: Debt recording failed");
+}
+```
+
+**关键补充**: 必须在 `postOpReverted` 模式中处理 `validatePaymasterUserOp` 造成的资金锁定问题，确保在交易完全失败时不会无故扣除最大 gas 费（或者明确这是惩罚机制）。
+
+### 3. DVT 提案执行白名单 (DVT Whitelist)
+
+在 `contracts/src/modules/monitoring/BLSAggregator.sol` 中添加目标白名单，防止任意合约调用攻击：
+
+```solidity
+mapping(address => bool) public targetWhitelist;
+event WhitelistUpdated(address indexed target, bool status);
+
+function setWhitelist(address target, bool status) external onlyOwner {
+    targetWhitelist[target] = status;
+    emit WhitelistUpdated(target, status);
+}
+
+// 在 executeProposal 函数开头添加：
+if (!targetWhitelist[target]) revert InvalidTarget(target);
+```
+
+### 4. 增强预言机健壮性 (Oracle Robustness)
+
+在 `SuperPaymaster.sol` 中引入备用价格源或断路器机制，防止单一预言机操纵：
+
+```solidity
+function _getSafePrice() internal view returns (int256) {
+    (uint80 roundId, int256 price, , uint256 updatedAt, ) = ETH_USD_PRICE_FEED.latestRoundData();
+    
+    // 1. 基础有效性检查
+    require(price > MIN_ETH_USD_PRICE && price < MAX_ETH_USD_PRICE, "Oracle: Price OOB");
+    require(block.timestamp - updatedAt < 3600, "Oracle: Stale price");
+    
+    // 2. 断路器机制 (Circuit Breaker)
+    // 如果价格与缓存价格偏差超过 20%，且缓存更新时间在 6 小时内（表示缓存较新），触发熔断
+    if (cachedPrice.updatedAt > 0 && block.timestamp - cachedPrice.updatedAt < 6 hours) {
+        int256 cached = cachedPrice.price;
+        uint256 delta = price > cached ? uint256(price - cached) : uint256(cached - price);
+        // 如果波动超过 20%
+        if (delta * 100 / uint256(cached) > 20) {
+            revert("Oracle: Price deviation > 20%, circuit breaker triggered");
+        }
+    }
+    
+    return price;
+}
+```
