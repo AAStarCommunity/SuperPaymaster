@@ -48,7 +48,13 @@ contract xPNTsTokenFullTest is Test {
         vm.prank(admin);
         token.addAutoApprovedSpender(other);
         
-        assertEq(token.allowance(user, other), type(uint256).max);
+        // Default limit is 0, so allowance should be 0
+        assertEq(token.allowance(user, other), 0);
+
+        // Set limit
+        vm.prank(user);
+        token.setPaymasterLimit(other, 1000 ether);
+        assertEq(token.allowance(user, other), 1000 ether);
     }
 
     function test_SuperPaymaster_Firewall_Reverts() public {
@@ -70,15 +76,20 @@ contract xPNTsTokenFullTest is Test {
         token.mint(user, 100 ether);
         
         bytes32 opHash = keccak256("op1");
+        
+        // Set spending limit
+        vm.prank(user);
+        token.setPaymasterLimit(paymaster, 50 ether);
+
         vm.prank(paymaster);
         token.burnFromWithOpHash(user, 10 ether, opHash);
         
         assertEq(token.balanceOf(user), 90 ether);
         assertTrue(token.usedOpHashes(opHash));
         
-        // Replay attempt
+        // Replay attempt with same hash
         vm.prank(paymaster);
-        vm.expectRevert(); // OperationAlreadyProcessed
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.OperationAlreadyProcessed.selector, opHash));
         token.burnFromWithOpHash(user, 10 ether, opHash);
     }
 
@@ -134,6 +145,10 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_AutoRepay_MintOnly() public {
+        // 0. Set Limit
+        vm.prank(user);
+        token.setPaymasterLimit(paymaster, 100 ether);
+
         // 1. Record Debt
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -149,6 +164,10 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_NoAutoRepay_OnTransfer() public {
+        // 0. Set Limit
+        vm.prank(user);
+        token.setPaymasterLimit(paymaster, 100 ether);
+
         // 1. Setup Debt
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -166,6 +185,9 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_ManualRepayDebt() public {
+        vm.prank(user);
+        token.setPaymasterLimit(paymaster, 100 ether);
+
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
         

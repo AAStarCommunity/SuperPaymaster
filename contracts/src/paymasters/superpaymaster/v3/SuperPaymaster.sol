@@ -812,6 +812,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             uint256 refund = initialAPNTs - finalCharge;
             
             if (refund > type(uint128).max) refund = type(uint128).max; // Cap refund at uint128 max (unlikely)
+            if (refund > protocolRevenue) refund = protocolRevenue; // Safety check
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
             // totalTrackedBalance remains unchanged (funds just moved pockets)

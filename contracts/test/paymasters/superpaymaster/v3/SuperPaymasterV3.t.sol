@@ -332,6 +332,10 @@ contract SuperPaymasterTest is Test {
     // ====================================
 
     function _setupV3Env() internal {
+        vm.startPrank(user);
+        apnts.setPaymasterLimit(address(paymaster), 1000 ether);
+        vm.stopPrank();
+
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         apnts.approve(address(paymaster), 200 ether);
@@ -404,6 +408,9 @@ contract SuperPaymasterTest is Test {
         vm.prank(address(entryPoint));
         (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
         
+        vm.prank(user);
+        apnts.setPaymasterLimit(address(paymaster), 1000 ether);
+
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
         

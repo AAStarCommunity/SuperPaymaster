@@ -178,7 +178,9 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
         returns (uint256)
     {
         if (autoApprovedSpenders[spender]) {
-            return type(uint256).max;
+            uint256 limit = spendingLimits[owner][spender];
+            uint256 spent = cumulativeSpent[owner][spender];
+            return limit > spent ? limit - spent : 0;
         }
         return super.allowance(owner, spender);
     }
@@ -229,11 +231,16 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
             revert OperationAlreadyProcessed(userOpHash);
         }
 
-        // 3. Record Hash: Mark this operation as processed immediately.
+        // 3. Mark Hash as used
         usedOpHashes[userOpHash] = true;
 
-        // 4. Execute Burn: Burn the tokens from the user's account.
-        // This calls the internal _burn, which does not trigger the _spendAllowance firewall.
+        // 4. Enforce Spending Limit (Mandatory V3.6)
+        uint256 limit = spendingLimits[from][msg.sender];
+        uint256 newTotalSpent = cumulativeSpent[from][msg.sender] + amount;
+        if (newTotalSpent > limit) revert("Spending limit exceeded");
+        cumulativeSpent[from][msg.sender] = newTotalSpent;
+
+        // 5. Execute Burn
         _burn(from, amount);
     }
 
@@ -253,11 +260,9 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
 
         // V3.6 SECURITY: Enforce Spending Limits
         uint256 limit = spendingLimits[user][msg.sender];
-        if (limit > 0) {
-            uint256 newTotalSpent = cumulativeSpent[user][msg.sender] + amountXPNTs;
-            if (newTotalSpent > limit) revert("Spending limit exceeded");
-            cumulativeSpent[user][msg.sender] = newTotalSpent;
-        }
+        uint256 newTotalSpent = cumulativeSpent[user][msg.sender] + amountXPNTs;
+        if (newTotalSpent > limit) revert("Spending limit exceeded");
+        cumulativeSpent[user][msg.sender] = newTotalSpent;
 
         debts[user] += amountXPNTs;
         emit DebtRecorded(user, amountXPNTs);

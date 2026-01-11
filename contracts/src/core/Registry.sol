@@ -192,6 +192,9 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
+        if (user == address(0)) revert InvalidParameter("User required");
+        if (roleData.length > 2048) revert InvalidParameter("Data too large");
+        
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
         
