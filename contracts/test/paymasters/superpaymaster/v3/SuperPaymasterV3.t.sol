@@ -334,8 +334,8 @@ contract SuperPaymasterTest is Test {
     function _setupV3Env() internal {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
-        apnts.approve(address(paymaster), 100 ether);
-        paymaster.depositFor(operator, 100 ether);
+        apnts.approve(address(paymaster), 200 ether);
+        paymaster.depositFor(operator, 200 ether);
         vm.stopPrank();
     }
 
