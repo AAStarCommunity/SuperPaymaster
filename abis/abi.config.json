@@ -1,10 +1,10 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest", 
   "source": "SuperPaymaster/contracts/src", 
-  "buildTime": "2026-01-11T04:46:48Z", 
-  "totalHash": "8b8e837d92fb39eda1a8086bc017c3c4412a602f60315216ccd28f90750acaf8", 
+  "buildTime": "2026-01-11T07:09:42Z", 
+  "totalHash": "a0de4061cce7fad1778ee37201eef15eaafe0a2c4bdd835abe8f9c9daa48fe07", 
   "files": [
-    { "name": "BLSAggregator.json", "hash": "0daf6ff373df2be05a5f982a6903a37ac782aa7400e3d41d1791967592d500b8" },
+    { "name": "BLSAggregator.json", "hash": "7fd7f3cedaa37c45c14c1b94572174cb3b2fab3433f456e9b168e2410df865e9" },
     { "name": "BLSValidator.json", "hash": "25f5c419a97c5d0e7e1f21b0ba7d621a1ef8879a73e6c0a15e4b18872f5ecb83" },
     { "name": "DVTValidator.json", "hash": "af2c9cdb0bd93e04e6542578e5a48815559df8777015b072972f707ea18ac143" },
     { "name": "EntryPoint.json", "hash": "e29d82073d4b6ec611bcf37687e9da53a3f9b02a894f2c43d9fb26b802f97955" },
@@ -13,12 +13,12 @@
     { "name": "MySBT.json", "hash": "af5ac5323597f5e03a1c65311b384a6e40738ecafef13694284267015794416a" },
     { "name": "Paymaster.json", "hash": "b1c66a99c71f78a7d540fd0a7931ee185886e36d0224ede46f889051fbfa240d" },
     { "name": "PaymasterFactory.json", "hash": "b385b3bbb7336e7082d2b5a33f1264c8528bf49b5013b14091a87f16abad51d7" },
-    { "name": "Registry.json", "hash": "34cc6c31ca1228d04e4d1f0eb15b6ad07d565632b131c7d12c9be3a4ff9d76bd" },
+    { "name": "Registry.json", "hash": "b920b6324128a425b013d6190b3d39de2fc2d2e70c28beca3d3f1da9e9a123b1" },
     { "name": "ReputationSystem.json", "hash": "e6bd0cb111f09d28757d85adf3a8304d2c37f09b8dc48984a5a2dfcafba3af1b" },
     { "name": "SimpleAccount.json", "hash": "bf24f5d26acfcb46ff5febb5d125d33fe3d286e3cf0f4f00460f6437ff057d68" },
     { "name": "SimpleAccountFactory.json", "hash": "d39945defd3fc7bf6c51549823607c618028f0bb08521b72382b487ee5d138b5" },
-    { "name": "SuperPaymaster.json", "hash": "aff59b1fb5e55aef01f35ef9719961173d3897e3257270f31520a39f810bee1a" },
-    { "name": "xPNTsFactory.json", "hash": "a91fd9e79a9be3a90a0932e2458fb1115192281f7596cb8267f80dc629a6a0f9" },
-    { "name": "xPNTsToken.json", "hash": "2e1bce8b234f701bcd8bd3d3e283d107beac4312a354c73d7692d0bfa647f72e" }
+    { "name": "SuperPaymaster.json", "hash": "f79e5cfe64fad6260a4393a4dd931e4a4fd8fb8762b2358bf46976cbb9b12afb" },
+    { "name": "xPNTsFactory.json", "hash": "e820ed4037e76df1ab675b2d1d67071127d181e755fef4c42213a94db437aba2" },
+    { "name": "xPNTsToken.json", "hash": "1c92787a00a007fd1eb8ee640e5f970c4d47888c4db560fe0390c87894a3cbcd" }
   ]
 }
