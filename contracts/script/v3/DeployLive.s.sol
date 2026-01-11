@@ -151,16 +151,13 @@ contract DeployLive is Script {
         
         if (pmProxy == address(0)) {
              bytes memory init = abi.encodeWithSignature(
-                "initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)",
+                "initialize(address,address,address,address,uint256,uint256,uint256)",
                 entryPointAddr,
                 sender,
                 sender, // treasury
                 priceFeedAddr,
                 100, // serviceFeeRate
                 1 ether, // maxGasCostCap
-                0, // minTokenBalance
-                address(xpntsFactory),
-                address(apnts), // initialGasToken
                 3600 // priceStalenessThreshold
              );
              pmProxy = pmFactory.deployPaymaster("v4.2", init);
@@ -221,17 +218,14 @@ contract DeployLive is Script {
             address pmProxyAnni = pmFactory.getPaymasterByOperator(anni);
             if (pmProxyAnni == address(0)) {
                  bytes memory initAnni = abi.encodeWithSignature(
-                    "initialize(address,address,address,address,uint256,uint256,uint256,address,address,uint256)",
+                    "initialize(address,address,address,address,uint256,uint256,uint256)",
                     entryPointAddr,
                     anni, // owner
                     anni, // treasury
                     priceFeedAddr,
                     100, // serviceFee
                     1 ether, // gasCap
-                    0, 
-                    address(xpntsFactory),
-                    dPNTs, // initialGasToken
-                    3600
+                    3600 // priceStalenessThreshold
                  );
                  pmProxyAnni = pmFactory.deployPaymaster("v4.2", initAnni);
                  console.log("Deployed Anni Paymaster V4 Proxy at:", pmProxyAnni);
