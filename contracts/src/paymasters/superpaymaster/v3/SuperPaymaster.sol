@@ -346,6 +346,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         // Check overflow for uint128
         if (amount > type(uint128).max) revert("Amount exceeds uint128");
+        // casting to 'uint128' is safe because of the check above
+        // forge-lint: disable-next-line(unsafe-typecast)
         operators[msg.sender].aPNTsBalance += uint128(amount);
         
         // Fix: Update tracked balance to prevent double counting in notifyDeposit
@@ -372,6 +374,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
 
 
         if (value > type(uint128).max) revert("Amount exceeds uint128");
+        // casting to 'uint128' is safe because of the check above
+        // forge-lint: disable-next-line(unsafe-typecast)
         operators[from].aPNTsBalance += uint128(value);
         // Update tracked balance to keep sync with manual transfers
         totalTrackedBalance += value;
@@ -400,6 +404,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         
         if (amount > type(uint128).max) revert("Amount exceeds uint128");
+        // casting to 'uint128' is safe because of the check above
+        // forge-lint: disable-next-line(unsafe-typecast)
         operators[targetOperator].aPNTsBalance += uint128(amount);
         totalTrackedBalance += amount;
         
