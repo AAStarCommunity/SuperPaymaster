@@ -98,8 +98,12 @@ contract Paymaster is PaymasterBase, Initializable {
      * @notice Get contract version
      * @return Version string
      */
+    /**
+     * @notice Get contract version
+     * @return Version string
+     */
     function version() external pure override returns (string memory) {
-        return "PMV4-Hybrid-1.0.2";
+        return "PMV4-Deposit-4.3.0";
     }
 
     /**
@@ -110,9 +114,6 @@ contract Paymaster is PaymasterBase, Initializable {
      * @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
      * @param _serviceFeeRate Service fee in basis points
      * @param _maxGasCostCap Maximum gas cost cap
-     * @param _minTokenBalance Legacy param
-     * @param _xpntsFactory xPNTs Factory contract address
-     * @param _initialGasToken Initial GasToken contract address
      * @param _priceStalenessThreshold Staleness threshold
      */
     function initialize(
@@ -122,9 +123,6 @@ contract Paymaster is PaymasterBase, Initializable {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        uint256 _minTokenBalance, 
-        address _xpntsFactory,
-        address _initialGasToken,
         uint256 _priceStalenessThreshold
     ) public initializer {
         // Call base initialization
@@ -135,13 +133,8 @@ contract Paymaster is PaymasterBase, Initializable {
             _ethUsdPriceFeed,
             _serviceFeeRate,
             _maxGasCostCap,
-            _xpntsFactory,
             _priceStalenessThreshold
         );
-
-        if (_initialGasToken != address(0)) {
-            _addGasToken(_initialGasToken);
-        }
 
         if (_owner != address(0) && _owner != msg.sender) {
             _transferOwnership(_owner);

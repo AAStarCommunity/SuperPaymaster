@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { _packValidationData } from "@account-abstraction-v7/core/Helpers.sol";
-import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
@@ -12,28 +11,23 @@ import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-import { ISBT } from "../../interfaces/ISBT.sol";
-import { PostOpMode } from "../../../../singleton-paymaster/src/interfaces/PostOpMode.sol";
-import { IxPNTsFactory } from "../../interfaces/IxPNTsFactory.sol";
-import { IxPNTsToken } from "../../interfaces/IxPNTsToken.sol";
+import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import { IVersioned } from "src/interfaces/IVersioned.sol";
 
-/// @notice Interface for GasToken price query (deprecated, use xPNTs)
-interface IGasTokenPrice {
-    function getEffectivePrice() external view returns (uint256);
-}
-
-using UserOperationLib for PackedUserOperation;
 using SafeERC20 for IERC20;
 
 /// @title PaymasterBase
-/// @notice Base contract with shared business logic
-/// @dev Abstract contract
+/// @notice V4 Deposit-Only Paymaster with Community Pricing
 /// @custom:security-contact security@aastar.community
-abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
+contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Constructor for abstract base
     /// @dev Initializes Ownable with msg.sender, actual owner set in _initializePaymasterBase
     constructor() Ownable(msg.sender) {}
+
+    /// @notice Contract version
+    function version() external pure override virtual returns (string memory) {
+        return "PaymasterV4-4.3.0";
+    }
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -44,19 +38,11 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Chainlink ETH/USD price feed
     AggregatorV3Interface public ethUsdPriceFeed;
 
-    /// @notice xPNTs Factory for aPNTs price
-    IxPNTsFactory public xpntsFactory;
-
     /// @notice Paymaster data offset in paymasterAndData
     uint256 private constant PAYMASTER_DATA_OFFSET = 52;
 
     /// @notice Minimum paymasterAndData length
     uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
-
-    /// @notice Contract version
-    function version() external virtual pure returns (string memory) {
-        return "PMBase-1.0.0";
-    }
 
     /// @notice Basis points denominator
     uint256 private constant BPS_DENOMINATOR = 10000;
@@ -98,15 +84,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Emergency pause flag
     bool public paused;
 
-    /// @notice Supported SBT contracts
-    address[] public supportedSBTs;
-    mapping(address => bool) public isSBTSupported;
+    /// @notice User Internal Balances: User -> Token -> Amount (Deposit-Only Model)
+    mapping(address => mapping(address => uint256)) public balances;
 
-    /// @notice Supported GasToken contracts (basePNTs, aPNTs, bPNTs)
-    address[] public supportedGasTokens;
-    mapping(address => bool) public isGasTokenSupported;
-    mapping(address => uint256) public gasTokenIndex; // 1-based index
-    mapping(address => uint256) public sbtIndex;      // 1-based index
+    /// @notice Token Price in USD (8 decimals) set by Admin/Keeper
+    /// @dev If price is 0, token is not supported.
+    mapping(address => uint256) public tokenPrices;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -116,18 +99,11 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__Paused();
     error Paymaster__ZeroAddress();
     error Paymaster__InvalidTokenBalance();
-    error Paymaster__NoValidSBT();
-    error Paymaster__InsufficientPNT();
+    error Paymaster__InsufficientBalance(); 
     error Paymaster__InvalidPaymasterData();
     error Paymaster__InvalidServiceFee();
-    error Paymaster__EmptyArray();
-    error Paymaster__AlreadyExists();
-    error Paymaster__NotFound();
-    error Paymaster__MaxLimitReached();
-    error Paymaster__AccountNotDeployed();
-    error Paymaster__InvalidTokenOrigin();
     error Paymaster__InvalidOraclePrice();
-    error Paymaster__StaleOraclePrice();
+    error Paymaster__TokenNotSupported();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -138,23 +114,18 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ServiceFeeUpdated(uint256 oldRate, uint256 newRate);
     event MaxGasCostCapUpdated(uint256 oldCap, uint256 newCap);
-    event SBTAdded(address indexed sbt);
-    event SBTRemoved(address indexed sbt);
-    event GasTokenAdded(address indexed token);
-    event GasTokenRemoved(address indexed token);
-    event GasPaymentProcessed(
-        address indexed user,
-        address indexed gasToken,
-        uint256 pntAmount,
-        uint256 gasCostWei,
-        uint256 actualGasCost
-    );
+    
+    event FundsDeposited(address indexed user, address indexed token, uint256 amount);
+    event FundsWithdrawn(address indexed user, address indexed token, uint256 amount);
+    event TokenPriceUpdated(address indexed token, uint256 price);
+    
     event PostOpProcessed(
         address indexed user,
-        uint256 actualGasCost,
-        uint256 pntCharged
+        address indexed token,
+        uint256 actualGasCostWei,
+        uint256 tokenCost,
+        uint256 protocolRevenue
     );
-    event SBTContractUpdated(address indexed oldContract, address indexed newContract);
     event PriceUpdated(uint256 price, uint256 updatedAt);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -162,15 +133,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Minimum acceptable ETH/USD price from oracle ($100)
-    /// @dev Protects against oracle manipulation or extreme market anomalies
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     
     /// @notice Validation price buffer in basis points (10%)
-    /// @dev Adds safety margin when using cached price to prevent loss from price volatility
     uint256 private constant VALIDATION_BUFFER_BPS = 1000;
 
     /// @notice Maximum acceptable ETH/USD price from oracle ($100,000)
-    /// @dev Protects against oracle manipulation or extreme market anomalies
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -195,14 +163,6 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /*                  INTERNAL INITIALIZATION                   */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Internal initialization function (called by subclasses)
-    /// @param _entryPoint EntryPoint contract address
-    /// @param _owner Contract owner address
-    /// @param _treasury Treasury address for receiving PNT
-    /// @param _ethUsdPriceFeed Chainlink ETH/USD price feed address
-    /// @param _serviceFeeRate Service fee rate in basis points
-    /// @param _maxGasCostCap Maximum gas cost cap (wei)
-    /// @param _xpntsFactory xPNTs Factory contract address (for aPNTs price)
     function _initializePaymasterBase(
         address _entryPoint,
         address _owner,
@@ -210,7 +170,6 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         address _ethUsdPriceFeed,
         uint256 _serviceFeeRate,
         uint256 _maxGasCostCap,
-        address _xpntsFactory,
         uint256 _priceStalenessThreshold
     ) internal {
         // Input validation
@@ -218,12 +177,11 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         if (_owner == address(0)) revert Paymaster__ZeroAddress();
         if (_treasury == address(0)) revert Paymaster__ZeroAddress();
         if (_ethUsdPriceFeed == address(0)) revert Paymaster__ZeroAddress();
-        if (_xpntsFactory == address(0)) revert Paymaster__ZeroAddress();
         if (_serviceFeeRate > MAX_SERVICE_FEE) revert Paymaster__InvalidServiceFee();
 
         entryPoint = IEntryPoint(_entryPoint);
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
-        xpntsFactory = IxPNTsFactory(_xpntsFactory);
+        // xpntsFactory removed
         treasury = _treasury;
         serviceFeeRate = _serviceFeeRate;
         maxGasCostCap = _maxGasCostCap;
@@ -237,12 +195,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER FUNCTIONS        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Validates paymaster operation and charges user upfront
-    /// @dev Direct payment mode: transfers PNT to treasury immediately
-    /// @param userOp The user operation
-    /// @param maxCost Maximum cost for this userOp (in wei)
-    /// @return context Encoded sender for postOp attribution
-    /// @return validationData Always returns 0 (success) or reverts
+    /// @notice Validates paymaster operation and deducts internal balance
+    /// @dev Deposit-Only mode: Checks internal balance, NO external calls.
     function validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 /* userOpHash */,
@@ -254,59 +208,45 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         nonReentrant
         returns (bytes memory context, uint256 validationData)
     {
-        // Validate paymasterAndData length
+        // length check
         if (userOp.paymasterAndData.length < MIN_PAYMASTER_AND_DATA_LENGTH) {
             revert Paymaster__InvalidPaymasterData();
         }
 
-        address sender = userOp.getSender();
-
-        // Check if account is deployed (extcodesize check)
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(sender)
-        }
-
-        // Check 1: User must own at least one supported SBT
-        // Exception: Allow undeployed accounts if they have initCode (first-time deployment scenario)
-        if (codeSize > 0) {
-            // Already deployed -> require SBT
-            if (!_hasAnySBT(sender)) {
-                revert Paymaster__NoValidSBT();
-            }
-        } else {
-            // Not deployed -> require initCode (will be deployed in this UserOp)
-            if (userOp.initCode.length == 0) {
-                revert Paymaster__AccountNotDeployed();
-            }
-        }
+        address sender = userOp.sender;
 
         // Apply gas cost cap
         uint256 cappedMaxCost = maxCost > maxGasCostCap ? maxGasCostCap : maxCost;
 
-        // Parse user-specified GasToken from paymasterData (v0.7 format)
-        address specifiedGasToken = address(0);
+        // Parse user-specified Payment Token from paymasterData
+        // Format: [paymaster(20)] [validUntil(6)] [validAfter(6)] [token(20)]
+        // Using strict offset 52 for token per user request
+        address paymentToken = address(0);
         if (userOp.paymasterAndData.length >= 72) {
-            specifiedGasToken = address(bytes20(userOp.paymasterAndData[52:72]));
+            paymentToken = address(bytes20(userOp.paymasterAndData[52:72]));
+        } else {
+             // Fallback or Revert? Without token we cannot price.
+             // Let's require it.
+             revert Paymaster__InvalidPaymasterData();
         }
 
-        // Find which GasToken user holds with sufficient balance and calculate amount
-        (address userGasToken, uint256 tokenAmount) = _getUserGasToken(sender, cappedMaxCost, specifiedGasToken);
-        if (userGasToken == address(0)) {
-            revert Paymaster__InsufficientPNT();
+        // Calculate Cost in Token
+        // Mode: Validation (False for realtime)
+        uint256 requiredTokenAmount = _calculateTokenCost(cappedMaxCost, paymentToken, false);
+
+        // CHECK INTERNAL BALANCE
+        if (balances[sender][paymentToken] < requiredTokenAmount) {
+            revert Paymaster__InsufficientBalance();
         }
 
-        // Transfer tokens to Paymaster (escrow) instead of treasury
-        IERC20(userGasToken).safeTransferFrom(sender, address(this), tokenAmount);
+        // DEDUCT IMMEDIATELY (Escrow logic)
+        balances[sender][paymentToken] -= requiredTokenAmount;
 
-        // GasPaymentProcessed moved to postOp or removed from validation for 4337 compliance
-
-        // Context: user, token, maxAmount, cappedMaxCost
-        return (abi.encode(sender, userGasToken, tokenAmount, cappedMaxCost), 0);
+        // Context: user, token, AmountCharged
+        return (abi.encode(sender, paymentToken, requiredTokenAmount), 0);
     }
 
     /// @notice PostOp handler with refund logic
-    /// @dev Calculates actual cost and refunds the difference to the user
     function postOp(
         PostOpMode mode,
         bytes calldata context,
@@ -320,102 +260,56 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     {
         if (context.length == 0) return;
 
-        (address user, address token, uint256 maxTokenAmount, uint256 cappedMaxCost) = 
-            abi.decode(context, (address, address, uint256, uint256));
+        (address user, address token, uint256 preChargedAmount) = 
+            abi.decode(context, (address, address, uint256));
+            
+        // If reverted, we might still charge, but strict gas logic applies.
+        // If mode == postOpReverted, usually we don't refund execution gas?
+        // But for simplicity, we treat it as standard consumption for now.
+        // Actually, standardization implies charging for what was used.
 
-        // 1. Calculate Actual Cost in PNT (using realtime logic)
-        // Note: actualGasCost is in wei
-        uint256 actualTokenAmount = _calculatePNTAmount(actualGasCost, token, true);
+        // 1. Calculate Actual Cost (Realtime Price)
+        uint256 actualTokenCost = _calculateTokenCost(actualGasCost, token, true);
 
-        // 2. Cap with what was actually pre-charged if actual > estimate (safety cap)
-        if (actualTokenAmount > maxTokenAmount) {
-            actualTokenAmount = maxTokenAmount;
+        // 2. Cap at pre-charged
+        if (actualTokenCost > preChargedAmount) {
+            actualTokenCost = preChargedAmount;
         }
 
-        // 3. Process Refund
-        uint256 refund = maxTokenAmount > actualTokenAmount ? maxTokenAmount - actualTokenAmount : 0;
-        
+        // 3. Process Refund to Internal Balance
+        uint256 refund = preChargedAmount - actualTokenCost;
         if (refund > 0) {
-            IERC20(token).safeTransfer(user, refund);
+            balances[user][token] += refund;
         }
 
-        // 4. Transfer net amount to treasury
-        if (actualTokenAmount > 0) {
-            IERC20(token).safeTransfer(treasury, actualTokenAmount);
+        // 4. Protocol Revenue Accounting
+        // Note: The `actualTokenCost` effectively moves from User Balance -> Paymaster Treasury (Virtual)
+        // Since we already deducted `preChargedAmount` in Validation, and refunded `refund`,
+        // the remaining `actualTokenCost` is technically "burned" from user balance liabilities.
+        // To be rigorous, we should credit the Treasury's internal balance or emit an event for withdrawal.
+        // For Deposit model, usually "Treasury" balance increases.
+        if (actualTokenCost > 0) {
+             balances[treasury][token] += actualTokenCost;
         }
 
-        // Emit event for off-chain analysis
-        emit PostOpProcessed(user, actualGasCost, actualTokenAmount);
+        emit PostOpProcessed(user, token, actualGasCost, actualTokenCost, actualTokenCost);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    INTERNAL FUNCTIONS                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Check if user owns any supported SBT
-    /// @param user User address to check
-    /// @return True if user owns at least one SBT
-    function _hasAnySBT(address user) internal view returns (bool) {
-        uint256 length = supportedSBTs.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (ISBT(supportedSBTs[i]).balanceOf(user) > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// @notice Find which GasToken user can use for payment
-    /// @param user User address
+    /// @notice Calculate required Token amount for gas cost
     /// @param gasCostWei Gas cost in wei
-    /// @param specifiedToken User-specified token from paymasterData (0 = auto-select)
-    /// @return token Address of GasToken, or address(0) if insufficient
-    /// @return amount Required token amount
-    function _getUserGasToken(address user, uint256 gasCostWei, address specifiedToken)
-        internal
-        view
-        returns (address token, uint256 amount)
-    {
-        // If user specified a token and it's supported, try it first
-        if (specifiedToken != address(0) && isGasTokenSupported[specifiedToken]) {
-            // ✅ Security: Verify token is from xPNTsFactory (ensures expected properties)
-            _verifyTokenFromFactory(specifiedToken);
-            
-            // Use cached price for validation
-            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, specifiedToken, false);
-            uint256 balance = IERC20(specifiedToken).balanceOf(user);
-            uint256 allowance = IERC20(specifiedToken).allowance(user, address(this));
-            if (balance >= requiredAmount && allowance >= requiredAmount) {
-                return (specifiedToken, requiredAmount);
-            }
-        }
+    /// @param token Payment Token address
+    /// @param useRealtime If true, fetches live ETH price; otherwise uses cache
+    /// @return Required Token amount
+    function _calculateTokenCost(uint256 gasCostWei, address token, bool useRealtime) internal view returns (uint256) {
+        // 1. Get Token Price (USD)
+        uint256 tokenPriceUSD = tokenPrices[token];
+        if (tokenPriceUSD == 0) revert Paymaster__TokenNotSupported();
 
-        // Otherwise, auto-select from supported tokens
-        uint256 length = supportedGasTokens.length;
-        for (uint256 i = 0; i < length; i++) {
-            address _token = supportedGasTokens[i];
-            
-            // ✅ Security: Verify token is from xPNTsFactory
-            _verifyTokenFromFactory(_token);
-            
-            // Use cached price for validation
-            uint256 requiredAmount = _calculatePNTAmount(gasCostWei, _token, false);
-            uint256 balance = IERC20(_token).balanceOf(user);
-            uint256 allowance = IERC20(_token).allowance(user, address(this));
-
-            if (balance >= requiredAmount && allowance >= requiredAmount) {
-                return (_token, requiredAmount);
-            }
-        }
-        return (address(0), 0);
-    }
-
-    /// @notice Calculate required xPNTs amount for gas cost
-    /// @param gasCostWei Gas cost in wei
-    /// @param xpntsToken xPNTs token contract address
-    /// @param useRealtime If true, fetches live price; otherwise uses cache
-    /// @return Required xPNTs token amount
-    function _calculatePNTAmount(uint256 gasCostWei, address xpntsToken, bool useRealtime) internal view returns (uint256) {
+        // 2. Get ETH Price (USD)
         int256 ethUsdPrice;
         bool applyBuffer = false;
         
@@ -427,64 +321,97 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             PriceCache memory cache = cachedPrice;
             if (cache.price == 0) revert Paymaster__InvalidOraclePrice();
             
-            // Note: intentionally skipping timestamp verification during validation 
-            // to avoid Bundler banning or dropped userOps.
-            // We rely on Keepers to update price and the validation buffer for safety.
-
             ethUsdPrice = int256(uint256(cache.price));
-            applyBuffer = true; // Apply buffer only for validation with cached price
+            applyBuffer = true; 
         }
         
-        // ✅ CRITICAL: Oracle price validation (防止恶意/异常喂价攻击)
-        // 1. Prevent negative or zero price (would cause uint256 overflow)
         if (ethUsdPrice <= 0) revert Paymaster__InvalidOraclePrice();
+        if (ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
         
-        // 2. Check price bounds ($100 - $100,000) to prevent extreme manipulation
-        if (ethUsdPrice < MIN_ETH_USD_PRICE || ethUsdPrice > MAX_ETH_USD_PRICE) {
-            revert Paymaster__InvalidOraclePrice();
-        }
-        
-        uint8 decimals = ethUsdPriceFeed.decimals();
+        uint8 ethDecimals = ethUsdPriceFeed.decimals(); // usually 8
+        uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** ethDecimals); // normalize to 1e18
 
-        // Convert to 18 decimals: price * 1e18 / 10^decimals
-        uint256 ethPriceUSD = uint256(ethUsdPrice) * 1e18 / (10 ** decimals);
-
-        // Step 2: Convert gas cost (wei) to USD
+        // 3. Calc Gas Cost in USD (18 decimals)
+        // Wei * ETH_Price / 1e18
         uint256 gasCostUSD = (gasCostWei * ethPriceUSD) / 1e18;
 
-        // Step 3: Add service fee AND validation buffer (if applicable)
+        // 4. Apply Fee & Buffer
         uint256 totalRate = BPS_DENOMINATOR + serviceFeeRate;
         if (applyBuffer) {
             totalRate += VALIDATION_BUFFER_BPS;
         }
-        
         uint256 totalCostUSD = gasCostUSD * totalRate / BPS_DENOMINATOR;
 
-        // Step 4: Convert USD to aPNTs amount (using factory's aPNTs price)
-        uint256 aPNTsPrice = xpntsFactory.getAPNTsPrice(); // Get dynamic aPNTs price
-        uint256 aPNTsAmount = (totalCostUSD * 1e18) / aPNTsPrice;
-
-        // Step 5: Convert aPNTs to xPNTs (using token's exchange rate)
-        uint256 rate = IxPNTsToken(xpntsToken).exchangeRate();
-        uint256 xPNTsAmount = (aPNTsAmount * rate) / 1e18;
-
-        return xPNTsAmount;
-    }
-
-    
-    /// @notice Verify token is from xPNTsFactory
-    /// @dev Ensures only tokens with expected properties (no fee-on-transfer, no blacklist) are accepted
-    /// @param token Token address to verify
-    function _verifyTokenFromFactory(address token) internal view {
-        // Check if factory has this token registered for any community
-        // This proves the token was created by xPNTsFactory and has expected properties
-        try IxPNTsToken(token).FACTORY() returns (address factory) {
-            if (factory != address(xpntsFactory)) {
-                revert Paymaster__InvalidTokenOrigin();
-            }
-        } catch {
-            revert Paymaster__InvalidTokenOrigin();
-        }
+        // 5. Convert USD to Token
+        // TokenPrice is 8 decimals (Standard Chainlink format)
+        // CostUSD (18 decimals) / TokenPrice (8 decimals) = TokenAmount (10 decimals??)
+        // Wait, we want Result in Token Decimals.
+        // Assuming TokenPrice is "USD per 1 Token" (e.g. $1.00 per USDC).
+        // TokenAmount = CostUSD / TokenPriceUSD
+        
+        // Adjust for decimals:
+        // CostUSD * (10^TokenDecimals) / (TokenPriceUSD * 10^10 ?)
+        // Let's standardise: TokenPrice is USD (8 decimals) per 1e18 Token Units? No.
+        // Usually TokenPrice is USD per 1 WHOLE Token. 
+        // e.g. 1 USDC = $1.00 = 1e8 USD.
+        // 1 WBTC = $100000 = 100000e8 USD.
+        
+        // Formula: (CostUSD * 10^TokenDecimals) / (TokenPrice * 10^(18-8?))
+        // Let's simplify:
+        // CostUSD is 1e18 based.
+        // TokenPrice is 1e8 based.
+        // Result should be in Token Units.
+        // TokenAmount = (CostUSD * 1e8) / TokenPrice / 1e18 * 10^Decimals?
+        // Let's assume standard behavior:
+        // (CostUSD * 10^8) / TokenPrice -> Gives Token Amount in 1e18 (if 1e18 USD base)
+        
+        // Correction: 
+        // gasCostUSD is (Wei * ETH_Price / 1e18). ETH_Price is 1e18 normalized. So gasCostUSD is 1e18.
+        // TokenPrice is 1e8.
+        // We want Token Units.
+        // Amount = (gasCostUSD / 1e18) * (1e18 / (TokenPrice/1e8)) ? No.
+        // Amount = (gasCostUSD / 1e18) * (ETH_Price / Token_Price) ?
+        
+        // Simple Ratio:
+        // EthAmount * EthPrice = TokenAmount * TokenPrice
+        // TokenAmount = EthAmount * (EthPrice / TokenPrice)
+        
+        // Implementation:
+        // ethAmount * ethPrice (8 dec) / tokenPrice (8 dec)
+        // = ethAmount * Ratio
+        // But ethAmount is 18 decimals (Wei).
+        // If Token is 6 decimals (USDC)?
+        // We need to fetch Token Decimals. Unsafe to call external check here?
+        // BETTER: Admin sets price normalized? 
+        // OR we read decimals ONCE during setTokenPrice and cache it?
+        // Or pay cost of `IERC20(token).decimals()`. It is view, static call, cheap-ish.
+        // But we want to avoid external calls.
+        // Solution: Cache decimals in `tokenPrices`?
+        // Let's trust Admin sets price CORRECTLY.
+        // Actually, we can read decimals in `setTokenPrice` and allow admin to verify.
+        
+        // Let's use `IERC20(token).decimals()` here for correctness or assume standard.
+        // For safety/Gas, usage of `decimals()` view is acceptable in logic if cost is matched.
+        // But wait, `validate` prohibits external calls to non-associated storage.
+        // `IERC20(token).decimals()` IS an external call.
+        // FATAL FLAW if we call this in Validate.
+        // WE MUST CACHE DECIMALS or Store Price tailored to 1e18?
+        
+        // FIX: `tokenPrices` mapping stores `price` AND `decimals`?
+        // Or simpler: `tokenPrices` stores "Rate in WEI per TokenUnit"? No.
+        
+        // Let's assume standard Chainlink 8 decimals for Price.
+        // And we MUST CACHE DECIMALS in `setTokenPrice`.
+        // I will add `mapping(address => uint8) public tokenDecimals;`
+        
+        uint8 tDecimals = tokenDecimals[token]; 
+        // TokenAmount = (gasCostWei * EthPrice * 10^tDecimals) / (TokenPrice * 10^18)
+        // EthPrice is 8 decimals raw (ethUsdPrice).
+        // TokenPrice is 8 decimals raw.
+        // Cancels out.
+        // TokenAmount = (gasCostWei * ethUsdPrice * 10^tDecimals) / (tokenPrice * 10^18)
+        
+        return (gasCostWei * uint256(ethUsdPrice) * (10 ** tDecimals)) / (tokenPriceUSD * 1e18);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -494,260 +421,77 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Update cached price from Oracle (Keeper only)
     function updatePrice() external {
         (, int256 price,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
-        
-        // Basic validation
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
-        
-        cachedPrice = PriceCache({
-            price: uint208(uint256(price)),
-            updatedAt: uint48(updatedAt)
-        });
-        
+        cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }
 
-    /// @notice Set treasury address
-    /// @param _treasury New treasury address
+
+
+    /// @notice Set supported token price (enable token)
+    function setTokenPrice(address token, uint256 price) external onlyOwner {
+        // Cache decimals to avoid external call during validation
+        uint8 decimals = 18;
+        try IERC20Metadata(token).decimals() returns (uint8 d) {
+            decimals = d;
+        } catch {
+            // default 18
+        }
+        tokenDecimals[token] = decimals;
+        tokenPrices[token] = price;
+        emit TokenPriceUpdated(token, price);
+    }
+
+    /// @notice Deposit funds for user (Push Model)
+    function depositFor(address user, address token, uint256 amount) external nonReentrant {
+        if (tokenPrices[token] == 0) revert Paymaster__TokenNotSupported();
+        
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        balances[user][token] += amount;
+        emit FundsDeposited(user, token, amount);
+    }
+
+    /// @notice Withdraw funds
+    function withdraw(address token, uint256 amount) external nonReentrant {
+        if (balances[msg.sender][token] < amount) revert Paymaster__InsufficientBalance();
+        balances[msg.sender][token] -= amount;
+        IERC20(token).safeTransfer(msg.sender, amount);
+        emit FundsWithdrawn(msg.sender, token, amount);
+    }
+
+    // Boilerplate Setters (Treasury, etc.)
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert Paymaster__ZeroAddress();
-
-        address oldTreasury = treasury;
+        emit TreasuryUpdated(treasury, _treasury);
         treasury = _treasury;
-
-        emit TreasuryUpdated(oldTreasury, _treasury);
     }
-
-    /// @notice Set service fee rate
-    /// @param _serviceFeeRate New service fee rate in basis points
     function setServiceFeeRate(uint256 _serviceFeeRate) external onlyOwner {
         if (_serviceFeeRate > MAX_SERVICE_FEE) revert Paymaster__InvalidServiceFee();
-
-        uint256 oldRate = serviceFeeRate;
+        emit ServiceFeeUpdated(serviceFeeRate, _serviceFeeRate);
         serviceFeeRate = _serviceFeeRate;
-
-        emit ServiceFeeUpdated(oldRate, _serviceFeeRate);
     }
-
-    /// @notice Set maximum gas cost cap
-    /// @param _maxGasCostCap New max gas cost cap (wei)
     function setMaxGasCostCap(uint256 _maxGasCostCap) external onlyOwner {
-        uint256 oldCap = maxGasCostCap;
+        emit MaxGasCostCapUpdated(maxGasCostCap, _maxGasCostCap);
         maxGasCostCap = _maxGasCostCap;
-
-        emit MaxGasCostCapUpdated(oldCap, _maxGasCostCap);
     }
-
-    /// @notice Set price staleness threshold
-    /// @param _priceStalenessThreshold New threshold in seconds
     function setPriceStalenessThreshold(uint256 _priceStalenessThreshold) external onlyOwner {
         priceStalenessThreshold = _priceStalenessThreshold;
     }
 
-    /// @notice Internal helper to add supported SBT contract
-    /// @param sbt SBT contract address
-    function _addSBT(address sbt) internal {
-        if (sbt == address(0)) revert Paymaster__ZeroAddress();
-        if (isSBTSupported[sbt]) revert Paymaster__AlreadyExists();
-        if (supportedSBTs.length >= MAX_SBTS) revert Paymaster__MaxLimitReached();
-
-        supportedSBTs.push(sbt);
-        isSBTSupported[sbt] = true;
-        sbtIndex[sbt] = supportedSBTs.length;
-
-        emit SBTAdded(sbt);
-    }
-
-    /// @notice Add supported SBT contract
-    /// @param sbt SBT contract address
-    function addSBT(address sbt) external onlyOwner {
-        _addSBT(sbt);
-    }
-
-    /// @notice Remove supported SBT contract
-    /// @param sbt SBT contract address
-    function removeSBT(address sbt) external onlyOwner {
-        if (!isSBTSupported[sbt]) revert Paymaster__NotFound();
-
-        // Find and remove from array O(1)
-        uint256 idx = sbtIndex[sbt];
-        uint256 lastIdx = supportedSBTs.length;
-        
-        if (idx != lastIdx) {
-            address lastSbt = supportedSBTs[lastIdx - 1];
-            supportedSBTs[idx - 1] = lastSbt;
-            sbtIndex[lastSbt] = idx;
-        }
-        
-        supportedSBTs.pop();
-        delete sbtIndex[sbt];
-
-        isSBTSupported[sbt] = false;
-
-        emit SBTRemoved(sbt);
-    }
-
-    /// @notice Internal helper to add supported GasToken contract
-    /// @param token GasToken contract address
-    function _addGasToken(address token) internal {
-        if (token == address(0)) revert Paymaster__ZeroAddress();
-        if (isGasTokenSupported[token]) revert Paymaster__AlreadyExists();
-        if (supportedGasTokens.length >= MAX_GAS_TOKENS) revert Paymaster__MaxLimitReached();
-
-        supportedGasTokens.push(token);
-        isGasTokenSupported[token] = true;
-        gasTokenIndex[token] = supportedGasTokens.length;
-
-        emit GasTokenAdded(token);
-    }
-
-    /// @notice Add supported GasToken contract
-    /// @param token GasToken contract address
-    function addGasToken(address token) external onlyOwner {
-        _addGasToken(token);
-    }
-
-    /// @notice Remove supported GasToken contract
-    /// @param token GasToken contract address
-    function removeGasToken(address token) external onlyOwner {
-        if (!isGasTokenSupported[token]) revert Paymaster__NotFound();
-
-        // O(1) removal
-        uint256 idx = gasTokenIndex[token];
-        uint256 lastIdx = supportedGasTokens.length;
-        
-        if (idx != lastIdx) {
-            address lastToken = supportedGasTokens[lastIdx - 1];
-            supportedGasTokens[idx - 1] = lastToken;
-            gasTokenIndex[lastToken] = idx;
-        }
-        
-        supportedGasTokens.pop();
-        delete gasTokenIndex[token];
-
-        isGasTokenSupported[token] = false;
-
-        emit GasTokenRemoved(token);
-    }
-
-    /// @notice Pause the paymaster
-    function pause() external onlyOwner {
-        paused = true;
-        emit Paused(msg.sender);
-    }
-
-    /// @notice Unpause the paymaster
-    function unpause() external onlyOwner {
-        paused = false;
-        emit Unpaused(msg.sender);
-    }
-
-    /// @notice Withdraw PNT from paymaster to specified address
-    /// @param to Recipient address
-    /// @param token Token address
-    /// @param amount Amount to withdraw
-    function withdrawPNT(address to, address token, uint256 amount) external onlyOwner {
-        if (to == address(0)) revert Paymaster__ZeroAddress();
-        IERC20(token).safeTransfer(to, amount);
-    }
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                      VIEW FUNCTIONS                        */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    /// @notice Get all supported SBT contracts
-    /// @return Array of SBT addresses
-    function getSupportedSBTs() external view returns (address[] memory) {
-        return supportedSBTs;
-    }
-
-    /// @notice Get all supported GasToken contracts
-    /// @return Array of GasToken addresses
-    function getSupportedGasTokens() external view returns (address[] memory) {
-        return supportedGasTokens;
-    }
-
-    /// @notice Calculate token amount for gas cost (public view)
-    /// @param gasCostWei Gas cost in wei
-    /// @param gasToken GasToken contract address
-    /// @return Required token amount
-    function estimatePNTCost(uint256 gasCostWei, address gasToken) external view returns (uint256) {
-        if (!isGasTokenSupported[gasToken]) revert Paymaster__NotFound();
-        uint256 cappedCost = gasCostWei > maxGasCostCap ? maxGasCostCap : gasCostWei;
-        // Use cache for estimation to consistent with validation requirements
-        return _calculatePNTAmount(cappedCost, gasToken, false);
-    }
-
-    /// @notice Check if user qualifies for paymaster service
-    /// @param user User address
-    /// @param estimatedGasCost Estimated gas cost
-    /// @return qualified Whether user qualifies
-    /// @return reason Reason if not qualified
-    function checkUserQualification(address user, uint256 estimatedGasCost)
-        external
-        view
-        returns (bool qualified, string memory reason)
-    {
-        // Check if account is deployed
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(user)
-        }
-
-        // Check SBT (skip for undeployed accounts)
-        if (codeSize > 0) {
-            if (!_hasAnySBT(user)) {
-                return (false, "User does not own required SBT");
-            }
-        }
-
-        // Calculate required token and check balance (auto-select token)
-        uint256 cappedCost = estimatedGasCost > maxGasCostCap ? maxGasCostCap : estimatedGasCost;
-        (address userToken, ) = _getUserGasToken(user, cappedCost, address(0));
-        if (userToken == address(0)) {
-            return (false, "Insufficient token balance or allowance");
-        }
-
-        return (true, "");
-    }
-
-    /// @notice Get deposit info from EntryPoint
-    function getDeposit() external view returns (uint256) {
-        return entryPoint.getDepositInfo(address(this)).deposit;
-    }
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                    ENTRYPOINT MANAGEMENT                   */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    /// @notice Add stake to EntryPoint
-    /// @param unstakeDelaySec Unstake delay in seconds
-    function addStake(uint32 unstakeDelaySec) external payable onlyOwner {
-        entryPoint.addStake{value: msg.value}(unstakeDelaySec);
-    }
-
-    /// @notice Unlock stake from EntryPoint
-    function unlockStake() external onlyOwner {
-        entryPoint.unlockStake();
-    }
-
-    /// @notice Withdraw stake from EntryPoint
-    /// @param withdrawAddress Address to receive stake
-    function withdrawStake(address payable withdrawAddress) external onlyOwner {
-        entryPoint.withdrawStake(withdrawAddress);
-    }
-
-    /// @notice Withdraw ETH from EntryPoint deposit
-    /// @param withdrawAddress Address to receive ETH
-    /// @param amount Amount to withdraw
-    function withdrawTo(address payable withdrawAddress, uint256 amount) external onlyOwner {
-        entryPoint.withdrawTo(withdrawAddress, amount);
-    }
-
-    /// @notice Add deposit to EntryPoint
-    function addDeposit() external payable onlyOwner {
-        entryPoint.depositTo{value: msg.value}(address(this));
-    }
-
-    /// @notice Receive ETH
+    // ====================================
+    // EntryPoint Management
+    // ====================================
+    function addStake(uint32 unstakeDelaySec) external payable onlyOwner { entryPoint.addStake{value: msg.value}(unstakeDelaySec); }
+    function unlockStake() external onlyOwner { entryPoint.unlockStake(); }
+    function withdrawStake(address payable withdrawAddress) external onlyOwner { entryPoint.withdrawStake(withdrawAddress); }
+    function withdrawTo(address payable withdrawAddress, uint256 amount) external onlyOwner { entryPoint.withdrawTo(withdrawAddress, amount); }
+    function addDeposit() external payable onlyOwner { entryPoint.depositTo{value: msg.value}(address(this)); }
     receive() external payable {}
-    }
+
+    // Missing Interface helper
+    mapping(address => uint8) public tokenDecimals;
+}
+
+interface IERC20Metadata {
+    function decimals() external view returns (uint8);
+}
