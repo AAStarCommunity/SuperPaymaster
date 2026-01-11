@@ -202,6 +202,8 @@ contract DeployLive is Script {
                 logoURI: "ipfs://demo-logo",
                 stakeAmount: 30 ether
             });
+            // Fix: Re-approve staking as previous approve was consumed
+            gtoken.approve(address(staking), 33 ether);
             registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
             
             gtoken.transfer(anni, 100 ether);
