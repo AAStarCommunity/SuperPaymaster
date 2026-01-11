@@ -277,6 +277,10 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
         
+        // V3.6 FIX: Prevent Replay & Staleness
+        if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
+        if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
+        
         // 2. Verify BLS proof via IBLSAggregator interface
         if (proof.length > 0 && BLS_AGGREGATOR != address(0)) {
             // BLS signature verification happens in BLSAggregator before calling this
@@ -728,9 +732,10 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
              return ("", _packValidationData(true, 0, 0)); 
         }
         // Use CACHED price for validation (fast, compliant)
-        // V3.5 FIX: Add Safety Buffer (1.1x) to prevent PostOp insolvency due to price volatility
+        // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
-        aPNTsAmount = (aPNTsAmount * (BPS_DENOMINATOR + VALIDATION_BUFFER_BPS)) / BPS_DENOMINATOR;
+        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
+        aPNTsAmount = (aPNTsAmount * totalRate) / BPS_DENOMINATOR;
 
 
 
