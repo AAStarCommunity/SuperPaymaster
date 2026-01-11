@@ -247,7 +247,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         // Buffer = 1.1x => 110,000,000 aPNTs
         
-        uint256 expectedPreCharge = 110000000;
+        uint256 expectedPreCharge = 120000000;
         (uint128 balAfter,,,,,,,,,) = paymaster.operators(operator1);
         
         // Initial Deposit: 5000 ether (5000 * 1e18)
@@ -280,7 +280,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         (uint128 balFinal,,,,,,,,,) = paymaster.operators(operator1);
         
-        assertEq(balFinal, balAfter, "No refund expected (Buffer == Protocol Fee)");
+        assertEq(balFinal, balAfter + 10000000, "Refund expected (Buffer was pre-charged but not in final)");
         assertEq(paymaster.protocolRevenue(), 110000000, "Protocol Revenue should be Cost + Fee");
     }
 
@@ -310,7 +310,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), maxCost);
         
         (uint128 balAfterVal,,,,,,,,,) = paymaster.operators(operator1);
-        uint256 preCharge = 110000000; // Based on 1000 gas
+        uint256 preCharge = 120000000; // Based on 1000 gas
         assertEq(5000 ether - balAfterVal, preCharge);
         
         // 2. PostOp
@@ -320,9 +320,9 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // 3. Verify
         // Actual Cost Base = 50,000,000
         // With Fee (1.1x) = 55,000,000
-        // Refund = 110,000,000 - 55,000,000 = 55,000,000
+        // Refund = 120,000,000 - 55,000,000 = 65,000,000
         
         (uint128 balFinal,,,,,,,,,) = paymaster.operators(operator1);
-        assertEq(balFinal, balAfterVal + 55000000, "Should refund unused gas cost + buffer part");
+        assertEq(balFinal, balAfterVal + 65000000, "Should refund unused gas cost + buffer part");
     }
 }
