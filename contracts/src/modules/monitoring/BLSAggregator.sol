@@ -54,11 +54,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     mapping(uint256 => bool) public executedProposals;
     mapping(uint256 => uint256) public proposalNonces;
 
-    uint256 public threshold = 7;
+    uint256 public minThreshold = 3;    // Global minimum (safety floor)
+    uint256 public defaultThreshold = 7; // Default for legacy calls
     uint256 public constant MAX_VALIDATORS = 13;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-3.1.4";
+        return "BLSAggregator-3.2.1";
     }
 
 
@@ -72,6 +73,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
     event BLSVerificationStatus(uint256 indexed proposalId, bool success);
+    event ProposalExecuted(uint256 indexed proposalId, address indexed target, bytes32 callDataHash);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -93,6 +95,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidAddress(address addr);
     error InvalidBLSKey();
     error InvalidParameter(string message);
+    error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
+    error InvalidTarget(address target);
 
     // ====================================
     // Constructor
@@ -148,7 +152,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         ));
         
         // ✅ 2. Verify BLS Signatures and message binding
-        _checkSignatures(proposalId, proof, expectedMessageHash);
+        _checkSignatures(proposalId, proof, expectedMessageHash, defaultThreshold);
 
         // 2. Update Global Reputation in Registry
         if (repUsers.length > 0) {
@@ -169,6 +173,58 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
     }
 
+    /**
+     * @notice Execute any proposal via BLS consensus (Generic DVT)
+     * @dev Allows executing arbitrary calls to authorized target contracts after BLS signature verification.
+     *      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).
+     * @param proposalId Unique proposal ID
+     * @param target Target contract to call
+     * @param callData Encoded function call (abi.encodeCall)
+     * @param requiredThreshold Required number of signatures (must be >= minThreshold)
+     * @param proof BLS aggregated signature proof
+     */
+    function executeProposal(
+        uint256 proposalId,
+        address target,
+        bytes calldata callData,
+        uint256 requiredThreshold,
+        bytes calldata proof
+    ) external nonReentrant {
+        // 1. Access Control
+        if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+        if (target == address(0)) revert InvalidTarget(target);
+        if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
+        if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
+        if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
+        
+        // 2. Construct Generic Message Hash (includes requiredThreshold)
+        // This binds the signature to this specific proposal, target, callData, AND threshold
+        bytes32 expectedMessageHash = keccak256(abi.encode(
+            proposalId,
+            target,
+            keccak256(callData),  // Hash callData to save gas
+            requiredThreshold,     // Include threshold in signed message
+            block.chainid         // Prevent cross-chain replay
+        ));
+        
+        // 3. Verify BLS Signatures with custom threshold
+        _checkSignatures(proposalId, proof, expectedMessageHash, requiredThreshold);
+        
+        // 4. Execute Call
+        (bool success, bytes memory returnData) = target.call(callData);
+        if (!success) revert ProposalExecutionFailed(proposalId, returnData);
+        
+        // 5. Mark as Executed
+        executedProposals[proposalId] = true;
+        if (DVT_VALIDATOR != address(0)) {
+            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
+        }
+        
+        emit ProposalExecuted(proposalId, target, keccak256(callData));
+    }
+
     // ====================================
     // Internal Functions
     // ====================================
@@ -182,7 +238,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                a.y_c1_a == b.y_c1_a && a.y_c1_b == b.y_c1_b;
     }
 
-    function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash) internal view {
+    function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash, uint256 requiredThreshold) internal view {
         (bytes memory pkG1Bytes, bytes memory sigG2Bytes, bytes memory msgG2Bytes, uint256 signerMask) 
             = abi.decode(proof, (bytes, bytes, bytes, uint256));
         
@@ -204,7 +260,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (!_g2Equal(derivedMsgG2, providedMsgG2)) revert SignatureVerificationFailed();
         
         uint256 count = _countSetBits(signerMask);
-        if (count < threshold) revert InvalidSignatureCount(count, threshold);
+        if (count < requiredThreshold) revert InvalidSignatureCount(count, requiredThreshold);
 
         // ✅ Use BLS.pairing() instead of direct precompile call
         BLS.G1Point memory pk = abi.decode(pkG1Bytes, (BLS.G1Point));
@@ -306,12 +362,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function setDVTValidator(address _dv) external onlyOwner { DVT_VALIDATOR = _dv; }
 
     /**
-     * @notice Set min consensus threshold (e.g. 3)
+     * @notice Set minimum consensus threshold (global floor)
      */
-    function setThreshold(uint256 _newThreshold) external onlyOwner {
-        if (_newThreshold < 3) revert InvalidParameter("Threshold too low");
+    function setMinThreshold(uint256 _newThreshold) external onlyOwner {
+        if (_newThreshold < 2) revert InvalidParameter("Min threshold too low");
         if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
-        emit ThresholdUpdated(threshold, _newThreshold);
-        threshold = _newThreshold;
+        emit ThresholdUpdated(minThreshold, _newThreshold);
+        minThreshold = _newThreshold;
+    }
+
+    /**
+     * @notice Set default threshold for legacy calls (verifyAndExecute)
+     */
+    function setDefaultThreshold(uint256 _newThreshold) external onlyOwner {
+        if (_newThreshold < minThreshold) revert InvalidParameter("Below minThreshold");
+        if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
+        emit ThresholdUpdated(defaultThreshold, _newThreshold);
+        defaultThreshold = _newThreshold;
     }
 }
