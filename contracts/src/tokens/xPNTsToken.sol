@@ -70,8 +70,22 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
     /// @notice User cumulative spent per spender
     /// @dev user => spender => currentCumulativeSpent
     mapping(address => mapping(address => uint256)) public cumulativeSpent;
+
+    /// @dev Default spending limit in aPNTs (~$100 @ $0.02/aPNTs)
+    /// @notice Converted to xPNTs using exchangeRate at mint time
+    /// @notice Frontend should display remaining limit and offer "Increase Limit" button
+    uint256 public constant DEFAULT_SPENDING_LIMIT_APNTS = 5000 ether;
+
     function version() external pure override returns (string memory) {
-        return "XPNTs-2.2.2-credit";
+        return "XPNTs-2.3.2-default-limit-apnts";
+    }
+
+    /// @notice Calculate the xPNTs equivalent of the default limit based on current exchangeRate
+    function getDefaultSpendingLimitXPNTs() public view returns (uint256) {
+        // xPNTs = aPNTs * exchangeRate / 1e18
+        // If exchangeRate is 0, default to 1:1
+        uint256 rate = exchangeRate == 0 ? 1e18 : exchangeRate;
+        return DEFAULT_SPENDING_LIMIT_APNTS * rate / 1e18;
     }
 
     // ====================================
@@ -369,6 +383,14 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
         if (to == address(0)) {
             revert InvalidAddress(to);
         }
+
+        // V3.6.2: Auto-initialize spending limit for SUPERPAYMASTER if not set
+        if (SUPERPAYMASTER_ADDRESS != address(0) && spendingLimits[to][SUPERPAYMASTER_ADDRESS] == 0) {
+            uint256 defaultLimit = getDefaultSpendingLimitXPNTs();
+            spendingLimits[to][SUPERPAYMASTER_ADDRESS] = defaultLimit;
+            emit SpendingLimitUpdated(to, SUPERPAYMASTER_ADDRESS, defaultLimit);
+        }
+
         _mint(to, amount);
     }
 

@@ -124,6 +124,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     );
     
     event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
+    event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
 
     error Unauthorized();
     error InvalidAddress();
@@ -438,8 +439,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         totalTrackedBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(to, amount);
         
-        // Note: No event needed for internal transfers? Or reuse Withdrawn?
-        // Let's rely on ERC20 Transfer event.
+        emit ProtocolRevenueWithdrawn(to, amount);
     }
 
     function getAvailableCredit(address user, address token) public view returns (uint256) {
