@@ -5,6 +5,7 @@ import "./BasePaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
@@ -80,6 +81,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
     uint256 public constant BPS_DENOMINATOR = 10000;
+    /// @dev NOTE: Frontends/SDKs must ensure Operator balance is at least 1.1x of maxGasCost
+    /// to satisfy this buffer during Validation phase.
     uint256 public constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
@@ -656,7 +659,11 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Calculation:
         // (ethAmount * price * 10^18) / (10^decimals * aPNTsPriceUSD)
         
-        return (ethAmountWei * uint256(ethUsdPrice) * 1e18) / (10**priceDecimals * aPNTsPriceUSD);
+        return Math.mulDiv(
+            ethAmountWei * uint256(ethUsdPrice),
+            1e18,
+            (10**priceDecimals) * aPNTsPriceUSD
+        );
     }
 
     function validatePaymasterUserOp(
