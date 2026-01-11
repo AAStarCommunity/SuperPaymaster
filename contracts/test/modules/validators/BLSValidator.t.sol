@@ -16,9 +16,15 @@ contract BLSValidatorTest is Test {
         assertFalse(isValid);
     }
 
-    function test_ReturnsFalseIfProofInvalid() public {
-        // Invalid proof will cause ABI decode revert
+    function test_RevertsIfProofInvalid() public {
+        // Invalid but properly structured proof should return false
+        bytes memory badProof = abi.encode(
+            hex"1234", // bad PK
+            hex"1234", // bad sig
+            hex"1234", // bad msg
+            uint256(1) // mask
+        );
         vm.expectRevert();
-        validator.verifyProof("0x12", "");
+        validator.verifyProof(badProof, "hello");
     }
 }

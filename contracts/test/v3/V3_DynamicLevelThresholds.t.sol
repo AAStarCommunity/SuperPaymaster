@@ -115,7 +115,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         users[0] = user1;
         uint256[] memory scores = new uint256[](1);
         scores[0] = 10;
-        registry.batchUpdateGlobalReputation(users, scores, 100, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 100, _dummyProof());
         
         uint256 creditLimit = registry.getCreditLimit(user1);
         assertEq(creditLimit, 0); // Level 1 has 0 credit
@@ -128,7 +128,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         users[0] = user1;
         uint256[] memory scores = new uint256[](1);
         scores[0] = 20;
-        registry.batchUpdateGlobalReputation(users, scores, 101, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 101, _dummyProof());
         
         uint256 creditLimit = registry.getCreditLimit(user1);
         assertEq(creditLimit, 100 ether); // Level 2 has 100 ether credit
@@ -145,7 +145,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         // Update in steps of 100 to reach 1000
         for (uint256 i = 0; i < 10; i++) {
             scores[0] = (i + 1) * 100;
-            registry.batchUpdateGlobalReputation(users, scores, 102 + i, _dummyProof());
+            registry.batchUpdateGlobalReputation(i + 102, users, scores, 102 + i, _dummyProof());
         }
         
         uint256 creditLimit = registry.getCreditLimit(user1);
@@ -159,7 +159,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         users[0] = user1;
         uint256[] memory scores = new uint256[](1);
         scores[0] = 15;
-        registry.batchUpdateGlobalReputation(users, scores, 103, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 103, _dummyProof());
         assertEq(registry.getCreditLimit(user1), 100 ether); // Level 2
         
         // Change Level 2 threshold from 13 to 20
@@ -186,7 +186,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         
         for (uint256 i = 0; i < 20; i++) {
             scores[0] = (i + 1) * 100;
-            registry.batchUpdateGlobalReputation(users, scores, 104 + i, _dummyProof());
+            registry.batchUpdateGlobalReputation(i + 104, users, scores, 104 + i, _dummyProof());
         }
         
         assertEq(registry.getCreditLimit(user1), 5000 ether); // Level 7
@@ -204,7 +204,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         uint256[] memory scores = new uint256[](2);
         scores[0] = 13;   // Exactly Level 2 threshold
         scores[1] = 12;   // Just below Level 2
-        registry.batchUpdateGlobalReputation(users, scores, 105, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 105, _dummyProof());
         
         assertEq(registry.getCreditLimit(user1), 100 ether); // Level 2
         assertEq(registry.getCreditLimit(user2), 0); // Level 1
@@ -225,7 +225,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         
         // 1. Set initial reputation
         scores[0] = 50;
-        registry.batchUpdateGlobalReputation(users, scores, 200, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 200, _dummyProof());
         assertEq(registry.getCreditLimit(user1), 300 ether); // Level 3
         
         // 2. Adjust threshold to make Level 3 harder to reach
@@ -234,7 +234,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         
         // 3. User improves reputation
         scores[0] = 70;
-        registry.batchUpdateGlobalReputation(users, scores, 201, _dummyProof());
+        registry.batchUpdateGlobalReputation(2, users, scores, 201, _dummyProof());
         assertEq(registry.getCreditLimit(user1), 300 ether); // Back to Level 3
         
         // 4. Add new high-tier level
@@ -244,7 +244,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         // 5. User reaches top tier (need multiple updates to reach 2000)
         for (uint256 i = 0; i < 20; i++) {
             scores[0] = 70 + (i + 1) * 100;
-            registry.batchUpdateGlobalReputation(users, scores, 202 + i, _dummyProof());
+            registry.batchUpdateGlobalReputation(i + 202, users, scores, 202 + i, _dummyProof());
         }
         assertEq(registry.getCreditLimit(user1), 10000 ether); // Level 7
         

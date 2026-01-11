@@ -81,6 +81,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
     uint256 public constant BPS_DENOMINATOR = 10000;
+    uint256 public constant MAX_PROTOCOL_FEE = 2000; // 20% Hardcap (Security)
     /// @dev NOTE: Frontends/SDKs must ensure Operator balance is at least 1.1x of maxGasCost
     /// to satisfy this buffer during Validation phase.
     uint256 public constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
@@ -98,6 +99,9 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
      * @notice Emitted when aPNTs token is updated
      */
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
+    event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
+    event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
     event OperatorPaused(address indexed operator);
     event OperatorUnpaused(address indexed operator);
     event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
@@ -197,15 +201,19 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
      */
     function setAPNTSPrice(uint256 newPrice) external onlyOwner {
         if (newPrice == 0) revert InvalidConfiguration();
+        uint256 oldPrice = aPNTsPriceUSD;
         aPNTsPriceUSD = newPrice;
+        emit APNTsPriceUpdated(oldPrice, newPrice);
     }
 
     /**
      * @notice Set the protocol fee basis points (Owner Only)
      */
     function setProtocolFee(uint256 newFeeBPS) external onlyOwner {
-        if (newFeeBPS > BPS_DENOMINATOR) revert InvalidConfiguration();
+        if (newFeeBPS > MAX_PROTOCOL_FEE) revert InvalidConfiguration();
+        uint256 oldFee = protocolFeeBPS;
         protocolFeeBPS = newFeeBPS;
+        emit ProtocolFeeUpdated(oldFee, newFeeBPS);
     }
 
     /**
@@ -552,6 +560,13 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         else config.reputation = 0;
 
         if (penaltyAmount > 0) {
+            // V3.6 SECURITY: Enforce 30% Slash Hardcap
+            uint256 maxSlash = (uint256(config.aPNTsBalance) * 3000) / BPS_DENOMINATOR;
+            if (penaltyAmount > maxSlash) {
+                penaltyAmount = maxSlash;
+                reason = string(abi.encodePacked(reason, " (Capped at 30%)"));
+            }
+            
             config.aPNTsBalance -= uint128(penaltyAmount);
             protocolRevenue += penaltyAmount;
         }
@@ -568,7 +583,9 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {
+        address oldAggregator = BLS_AGGREGATOR;
         BLS_AGGREGATOR = _bls;
+        emit BLSAggregatorUpdated(oldAggregator, _bls);
     }
 
     // ====================================
@@ -735,7 +752,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
-        aPNTsAmount = (aPNTsAmount * totalRate) / BPS_DENOMINATOR;
+        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR);
 
 
 

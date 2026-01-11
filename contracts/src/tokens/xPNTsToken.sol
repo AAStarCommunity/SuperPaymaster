@@ -62,6 +62,14 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
 
     /// @notice User debt balance in xPNTs
     mapping(address => uint256) public debts;
+
+    /// @notice User spending limits for specific spenders (e.g., Paymaster)
+    /// @dev user => spender => maxCumulativeDebt
+    mapping(address => mapping(address => uint256)) public spendingLimits;
+
+    /// @notice User cumulative spent per spender
+    /// @dev user => spender => currentCumulativeSpent
+    mapping(address => mapping(address => uint256)) public cumulativeSpent;
     function version() external pure override returns (string memory) {
         return "XPNTs-2.2.2-credit";
     }
@@ -77,6 +85,7 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
     event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
     event DebtRecorded(address indexed user, uint256 amount);
     event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
+    event SpendingLimitUpdated(address indexed user, address indexed spender, uint256 newLimit);
 
 
     // ====================================
@@ -241,8 +250,25 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
         }
+
+        // V3.6 SECURITY: Enforce Spending Limits
+        uint256 limit = spendingLimits[user][msg.sender];
+        if (limit > 0) {
+            uint256 newTotalSpent = cumulativeSpent[user][msg.sender] + amountXPNTs;
+            if (newTotalSpent > limit) revert("Spending limit exceeded");
+            cumulativeSpent[user][msg.sender] = newTotalSpent;
+        }
+
         debts[user] += amountXPNTs;
         emit DebtRecorded(user, amountXPNTs);
+    }
+
+    /**
+     * @notice Set spending limit for a specific spender (e.g., Paymaster)
+     */
+    function setPaymasterLimit(address spender, uint256 limit) external {
+        spendingLimits[msg.sender][spender] = limit;
+        emit SpendingLimitUpdated(msg.sender, spender, limit);
     }
     
     /**

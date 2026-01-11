@@ -13,7 +13,7 @@ contract MockRegistryV3 is IRegistry {
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     function hasRole(bytes32, address) external pure override returns (bool) { return true; }
     function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
     function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }

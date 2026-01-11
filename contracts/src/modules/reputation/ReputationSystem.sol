@@ -39,6 +39,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
 
     // NFT Boosts: collection address => bonus points
     mapping(address => uint256) public nftCollectionBoost;
+    mapping(address => mapping(address => uint256)) public nftHoldStart; // user => collection => timestamp
     address[] public boostedCollections;
 
     event RuleUpdated(address indexed community, bytes32 indexed ruleId, uint256 base, uint256 bonus);
@@ -140,11 +141,16 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         // Global NFT Boosts
         for (uint i = 0; i < boostedCollections.length; i++) {
             address collection = boostedCollections[i];
-            try IERC721(collection).balanceOf(user) returns (uint256 balance) {
-                if (balance > 0) {
-                    totalScore += nftCollectionBoost[collection];
-                }
-            } catch {}
+            uint256 holdStart = nftHoldStart[user][collection];
+            
+            // Only apply boost if held for at least 7 days
+            if (holdStart > 0 && block.timestamp >= holdStart + 7 days) {
+                try IERC721(collection).balanceOf(user) returns (uint256 balance) {
+                    if (balance > 0) {
+                        totalScore += nftCollectionBoost[collection];
+                    }
+                } catch {}
+            }
         }
     }
 
@@ -165,7 +171,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         uint256[] memory scores = new uint256[](1);
         scores[0] = score;
         
-        REGISTRY.batchUpdateGlobalReputation(users, scores, epoch, proof);
+        REGISTRY.batchUpdateGlobalReputation(0, users, scores, epoch, proof);
         emit ReputationComputed(user, score);
     }
 
@@ -233,5 +239,20 @@ contract ReputationSystem is Ownable, IReputationCalculator {
      */
     function getActiveRules(address community) external view returns (bytes32[] memory ruleIds) {
         return communityActiveRules[community];
+    }
+
+    /**
+     * @notice Manually update NFT hold start time for reputation boost
+     * @dev Users must call this after acquiring a boosted NFT. Boost starts 7 days later.
+     */
+    function updateNFTHoldStart(address collection) external {
+        try IERC721(collection).balanceOf(msg.sender) returns (uint256 balance) {
+            require(balance > 0, "Does not hold NFT");
+            if (nftHoldStart[msg.sender][collection] == 0) {
+                nftHoldStart[msg.sender][collection] = block.timestamp;
+            }
+        } catch {
+            revert("Invalid collection");
+        }
     }
 }

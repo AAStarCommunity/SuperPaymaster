@@ -57,6 +57,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     mapping(string => address) public communityByName;
     mapping(string => address) public communityByENS;
     mapping(address => address) public accountToUser;
+    mapping(uint256 => bool) public executedProposals; // V3.6: Proposal Nonce tracking
+    mapping(address => bytes32[]) public userRoles; // V3.6: O(1) User role tracking
     // V3.5 Optimization: User Role Count (External Call Removal)
     mapping(address => uint256) public userRoleCount;
 
@@ -81,7 +83,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     error RoleNotGranted(bytes32 roleId, address user);
     error InsufficientStake(uint256 provided, uint256 required);
 
-    constructor(address _gtoken, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
+    constructor(address /* _gtoken */, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
         MYSBT = IMySBT(_mysbt);
         
@@ -127,6 +129,12 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
     }
 
+    event StakingContractUpdated(address indexed oldStaking, address indexed newStaking);
+    event MySBTContractUpdated(address indexed oldMySBT, address indexed newMySBT);
+    event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
+    event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
+    event BLSValidatorUpdated(address indexed oldVal, address indexed newVal);
+
     function _initRole(
         bytes32 roleId, 
         uint256 min, 
@@ -154,23 +162,33 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
 
     function setStaking(address _staking) external onlyOwner {
+        address old = address(GTOKEN_STAKING);
         GTOKEN_STAKING = IGTokenStaking(_staking);
+        emit StakingContractUpdated(old, _staking);
     }
 
     function setMySBT(address _mysbt) external onlyOwner {
+        address old = address(MYSBT);
         MYSBT = IMySBT(_mysbt);
+        emit MySBTContractUpdated(old, _mysbt);
     }
 
     function setSuperPaymaster(address _sp) external onlyOwner {
+        address old = SUPER_PAYMASTER;
         SUPER_PAYMASTER = _sp;
+        emit SuperPaymasterUpdated(old, _sp);
     }
 
     function setBLSAggregator(address _aggregator) external onlyOwner {
+        address old = blsAggregator;
         blsAggregator = _aggregator;
+        emit BLSAggregatorUpdated(old, _aggregator);
     }
 
     function setBLSValidator(address _validator) external onlyOwner {
+        address old = address(blsValidator);
         blsValidator = IBLSValidator(_validator);
+        emit BLSValidatorUpdated(old, _validator);
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
@@ -199,9 +217,15 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
             
             // Increment role count
             userRoleCount[user]++;
+            userRoles[user].push(roleId);
 
             // Lock stake with entryBurn for first-time registration
             GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
+        } else {
+            // Re-registration or Top-up: Use topUpStake to PRESERVE lockedAt timestamp
+            // This fixes the Role Lock Bypass vulnerability (H-01/C-01)
+            GTOKEN_STAKING.topUpStake(user, roleId, stakeAmount - roleStakes[roleId][user], user);
+            roleStakes[roleId][user] = stakeAmount;
         }
         
         // Always update metadata (supports multiple communities)
@@ -271,6 +295,9 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         if (userRoleCount[msg.sender] > 0) {
             userRoleCount[msg.sender]--;
         }
+        
+        // V3.6 FIX: Update userRoles array for O(1) enumeration
+        _removeFromUserRoles(msg.sender, roleId);
 
         // Sync SBT removal to SuperPaymaster if no identity roles left
         // OPTIMIZATION: Removed external call to this.getUserRoles()
@@ -406,6 +433,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
      *      Safety: Limits the maximum score change per update to prevent malicious spikes.
      */
     function batchUpdateGlobalReputation(
+        uint256 proposalId, // V3.6 FIX: Added proposalId for replay protection
         address[] calldata users,
         uint256[] calldata newScores,
         uint256 epoch,
@@ -436,8 +464,14 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
         if (address(blsValidator) != address(0)) {
             // ✅ UNIFIED MESSAGE SCHEMA: Match BLSAggregator format exactly
             // This ensures "签名绑定" is consistent across the entire system
+            // V3.6 FIX: Prevent replay by tracking proposalId
+            if (proposalId != 0) {
+                if (executedProposals[proposalId]) revert("Proposal already executed");
+                executedProposals[proposalId] = true;
+            }
+
             bytes32 messageHash = keccak256(abi.encode(
-                0,              // proposalId: Registry has no proposal, use 0
+                proposalId,     // actual proposalId
                 address(0),     // operator: Registry has no operator, use 0
                 uint8(0),       // slashLevel: Registry has no slash, use 0
                 users,          // repUsers: matches BLSAggregator's repUsers
@@ -625,26 +659,7 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     // View Functions
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) {
-        // Find all roles this user has
-        bytes32[7] memory allRoles = [
-            ROLE_COMMUNITY, 
-            ROLE_ENDUSER, 
-            ROLE_PAYMASTER_AOA, 
-            ROLE_PAYMASTER_SUPER, 
-            ROLE_DVT, 
-            ROLE_ANODE, 
-            ROLE_KMS
-        ];
-        uint256 count = 0;
-        for(uint i=0; i<7; i++){
-            if(hasRole[allRoles[i]][user]) count++;
-        }
-        bytes32[] memory roles = new bytes32[](count);
-        uint256 idx = 0;
-        for(uint i=0; i<7; i++){
-            if(hasRole[allRoles[i]][user]) roles[idx++] = allRoles[i];
-        }
-        return roles;
+        return userRoles[user];
     }
 
     function calculateExitFee(bytes32 roleId, uint256 amount) external view returns (uint256) {
@@ -671,6 +686,18 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
         members.pop();
         delete roleMemberIndex[roleId][user];
+    }
+
+    function _removeFromUserRoles(address user, bytes32 roleId) internal {
+        bytes32[] storage roles = userRoles[user];
+        uint256 length = roles.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (roles[i] == roleId) {
+                roles[i] = roles[length - 1];
+                roles.pop();
+                break;
+            }
+        }
     }
 
     // _negateG1 and BLS constants removed in favor of IBLSValidator strategy

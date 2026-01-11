@@ -16,7 +16,8 @@ contract BLSValidator is IBLSValidator {
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab; 
 
     function verifyProof(bytes calldata proof, bytes calldata message) external view override returns (bool isValid) {
-        if (proof.length == 0) return false;
+        if (proof.length < 192) return false; // Min length for PK + Sig + MsgG2 + Mask
+        if (message.length == 0) return false;
 
         // ✅ UNIFIED SCHEMA: Support ABI-encoded proof format
         // Proof format: abi.encode(bytes pkG1, bytes sigG2, bytes msgG2, uint256 signerMask)

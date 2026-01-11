@@ -164,34 +164,34 @@ contract CoverageSupplementTest is Test {
 
         // 1. Initial Set
         scores[0] = 50;
-        registry.batchUpdateGlobalReputation(users, scores, 1, _dummyProof());
+        registry.batchUpdateGlobalReputation(1, users, scores, 1, _dummyProof());
         assertEq(registry.globalReputation(user), 50);
         
         // 2. Increase > maxChange (100) -> Cap at +100
         scores[0] = 500; // Target 500
-        registry.batchUpdateGlobalReputation(users, scores, 2, _dummyProof());
+        registry.batchUpdateGlobalReputation(2, users, scores, 2, _dummyProof());
         assertEq(registry.globalReputation(user), 150); // 50 + 100 maxChange
         
         // 3. Decrease > maxChange (100) -> Cap at -100
         scores[0] = 10; // Target 10
-        registry.batchUpdateGlobalReputation(users, scores, 3, _dummyProof());
+        registry.batchUpdateGlobalReputation(3, users, scores, 3, _dummyProof());
         assertEq(registry.globalReputation(user), 50); // 150 - 100 maxChange
         
         // 4. Stale Epoch (Should ignore)
         scores[0] = 999;
-        registry.batchUpdateGlobalReputation(users, scores, 2, _dummyProof()); // Epoch 2 <= Last 3
+        registry.batchUpdateGlobalReputation(10, users, scores, 2, _dummyProof()); // Epoch 2 <= Last 3
         assertEq(registry.globalReputation(user), 50); // Unchanged
         
         // 5. Length Mismatch check
         uint256[] memory badScores = new uint256[](2);
         vm.expectRevert("Length mismatch");
-        registry.batchUpdateGlobalReputation(users, badScores, 4, _dummyProof());
+        registry.batchUpdateGlobalReputation(4, users, badScores, 4, _dummyProof());
         
         // 6. Unauthorized
         vm.stopPrank();
         vm.startPrank(user);
         vm.expectRevert("Unauthorized Reputation Source");
-        registry.batchUpdateGlobalReputation(users, scores, 5, _dummyProof());
+        registry.batchUpdateGlobalReputation(5, users, scores, 5, _dummyProof());
         vm.stopPrank();
     }
     

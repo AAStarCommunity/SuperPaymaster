@@ -313,6 +313,8 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mint NFT to user
         nft1.mint(user1, 1);
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
         
         address[] memory communities = new address[](1);
         communities[0] = community1;
@@ -325,9 +327,10 @@ contract ReputationSystem_Complete_Test is Test {
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
         
+        vm.warp(block.timestamp + 8 days);
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
         
-        // Base score: 15, NFT boost: 50, Total: 65
+        // Base score: 15 (base 10 + 5 bonus), NFT boost: 50, Total: 65
         assertEq(score, 65);
     }
 
@@ -340,6 +343,10 @@ contract ReputationSystem_Complete_Test is Test {
         // Mint both NFTs to user
         nft1.mint(user1, 1);
         nft2.mint(user1, 1);
+        vm.startPrank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        repSystem.updateNFTHoldStart(address(nft2));
+        vm.stopPrank();
         
         address[] memory communities = new address[](1);
         communities[0] = community1;
@@ -352,9 +359,10 @@ contract ReputationSystem_Complete_Test is Test {
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
         
+        vm.warp(block.timestamp + 8 days);
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
         
-        // Base: 15, NFT1: 50, NFT2: 100, Total: 165
+        // Base: 15 (base 10 + 5 bonus), NFT1: 50, NFT2: 100, Total: 165
         assertEq(score, 165);
     }
 
@@ -459,6 +467,8 @@ contract ReputationSystem_Complete_Test is Test {
         
         // 3. User earns NFT
         nft1.mint(user1, 1);
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
         
         // 4. Compute and sync reputation
         address[] memory communities = new address[](1);
@@ -477,6 +487,7 @@ contract ReputationSystem_Complete_Test is Test {
         bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
 
         vm.prank(address(repSystem));
+        vm.warp(block.timestamp + 8 days);
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 3, proof);
         
         // Base: 15 + 20*2 = 55, with 1.2x = 66, NFT: 30, Total: 96

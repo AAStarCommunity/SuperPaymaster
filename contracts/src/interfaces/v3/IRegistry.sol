@@ -186,6 +186,7 @@ interface IRegistry is IVersioned {
      * @param proof DVT signature proof
      */
     function batchUpdateGlobalReputation(
+        uint256 proposalId,
         address[] calldata users,
         uint256[] calldata newScores,
         uint256 epoch,

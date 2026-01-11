@@ -139,6 +139,28 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     }
 
     /**
+     * @notice Top up stake for an existing role (Registry only)
+     * @dev Does NOT reset lockedAt time. Only increases amount.
+     */
+    function topUpStake(
+        address user,
+        bytes32 roleId,
+        uint256 stakeAmount,
+        address payer
+    ) external nonReentrant onlyRegistry {
+        RoleLock storage lock = roleLocks[user][roleId];
+        if (lock.amount == 0) revert("Role not locked");
+
+        GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
+        
+        lock.amount += uint128(stakeAmount);
+        stakes[user].amount += stakeAmount;
+        totalStaked += stakeAmount;
+
+        emit StakeLocked(user, roleId, stakeAmount, 0, lock.lockedAt); // Reuse existing lockedAt
+    }
+
+    /**
      * @notice Unlock and transfer to user (Registry only)
      */
     function unlockAndTransfer(
@@ -207,14 +229,18 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             info.amount -= slashedAmount;         // Reduce actual balance
             totalStaked -= slashedAmount;
 
-            // Proportionally reduce role locks
+            // Proportionally reduce role locks (Weighted Distribution)
             bytes32[] storage roles = userActiveRoles[user];
-            uint256 remainingToSlash = slashedAmount;
-            for (uint256 i = 0; i < roles.length && remainingToSlash > 0; i++) {
-                RoleLock storage lock = roleLocks[user][roles[i]];
-                uint256 deduct = remainingToSlash > lock.amount ? lock.amount : remainingToSlash;
-                lock.amount -= uint128(deduct);
-                remainingToSlash -= deduct;
+            uint256 totalAmountAcrossLocks = info.amount + slashedAmount; // Amount BEFORE this slash
+            
+            if (totalAmountAcrossLocks > 0) {
+                for (uint256 i = 0; i < roles.length; i++) {
+                    RoleLock storage lock = roleLocks[user][roles[i]];
+                    // deduction = (lock.amount * slashedAmount) / totalAmountAcrossLocks
+                    uint256 deduct = (uint256(lock.amount) * slashedAmount) / totalAmountAcrossLocks;
+                    if (deduct > lock.amount) deduct = lock.amount;
+                    lock.amount -= uint128(deduct);
+                }
             }
 
             GTOKEN.safeTransfer(treasury, slashedAmount);

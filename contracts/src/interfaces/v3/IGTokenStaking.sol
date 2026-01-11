@@ -104,6 +104,20 @@ interface IGTokenStaking is IVersioned {
     ) external returns (uint256 lockId);
 
     /**
+     * @notice Top up stake for an existing role (Registry only)
+     * @param user User address
+     * @param roleId Role identifier
+     * @param stakeAmount Amount to add
+     * @param payer Address providing the tokens
+     */
+    function topUpStake(
+        address user,
+        bytes32 roleId,
+        uint256 stakeAmount,
+        address payer
+    ) external;
+
+    /**
      * @notice Unlock stake for a role and transfer to user (Registry only)
      * @dev SECURITY: Automatically transfers unlocked tokens to prevent re-lock attacks
      *      MUST be called only by authorized Registry contract

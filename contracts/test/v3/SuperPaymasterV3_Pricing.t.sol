@@ -92,7 +92,7 @@ contract MockRegistry is IRegistry {
     function setRoleLockDuration(bytes32, uint256) external {}
     function setRoleOwner(bytes32, address) external {}
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
-    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
     
     // Stubs for other IRegistry methods

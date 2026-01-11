@@ -41,7 +41,7 @@ contract MockRegistry is IRegistry {
     function setReputationSource(address, bool) external override {}
     function setCreditTier(uint256, uint256) external override {}
     function setRoleOwner(bytes32, address) external override {}
-    function batchUpdateGlobalReputation(address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     function roleOwners(bytes32) external view override returns (address) { return address(0); }
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
     function isReputationSource(address) external pure override returns (bool) { return true; }

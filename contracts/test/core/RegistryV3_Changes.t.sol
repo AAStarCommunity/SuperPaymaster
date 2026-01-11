@@ -26,6 +26,7 @@ contract MockMySBT is IMySBT {
         lastDeactivatedCommunity = community;
     }
     function deactivateAllMemberships(address /* user */) external override {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function burnSBT(address) external {}
 }
 
@@ -112,7 +113,7 @@ contract RegistryV3_Changes_Test is Test {
 
         vm.prank(ReputationSource);
         vm.expectRevert("BLS Verification Failed");
-        registry.batchUpdateGlobalReputation(users, scores, 1, badProof);
+        registry.batchUpdateGlobalReputation(1, users, scores, 1, badProof);
         
         // Restore Anvil chainId
         vm.chainId(31337);

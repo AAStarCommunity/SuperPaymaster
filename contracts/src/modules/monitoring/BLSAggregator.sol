@@ -152,7 +152,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 2. Update Global Reputation in Registry
         if (repUsers.length > 0) {
-            REGISTRY.batchUpdateGlobalReputation(repUsers, newScores, epoch, proof);
+            REGISTRY.batchUpdateGlobalReputation(proposalId, repUsers, newScores, epoch, proof);
             emit ReputationEpochTriggered(epoch, repUsers.length);
         }
 
