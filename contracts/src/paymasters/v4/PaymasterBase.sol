@@ -276,7 +276,7 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         (address user, address token, uint256 preChargedAmount) = 
             abi.decode(context, (address, address, uint256));
             
-x        // 1. Gas Optimization: Hybrid Cache Strategy
+        // 1. Gas Optimization: Hybrid Cache Strategy
         bool useRealtime = false;
         // Check staleness (if > threshold, force update)
         if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
