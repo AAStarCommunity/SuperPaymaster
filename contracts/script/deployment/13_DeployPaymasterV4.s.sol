@@ -52,6 +52,30 @@ contract Deploy13_PaymasterV4 is Script {
         address pm = PaymasterFactory(factoryAddr).deployPaymaster("v4.1", initData);
         console.log("Paymaster V4 Instance deployed to:", pm);
 
+        // --- Post-Deployment Initialization (Auto-Fix) ---
+        // 1. Add Stake (0.1 ETH, 1 day)
+        (bool s,) = pm.call{value: 0.1 ether}(abi.encodeWithSignature("addStake(uint32)", 86400));
+        require(s, "Stake failed");
+        console.log("Staked 0.1 ETH");
+
+        // 2. Add Deposit (0.1 ETH)
+        (bool d,) = pm.call{value: 0.1 ether}(abi.encodeWithSignature("addDeposit()"));
+        require(d, "Deposit failed");
+        console.log("Deposited 0.1 ETH");
+
+        // 3. Update Price (Initialize Oracle Cache)
+        (bool u,) = pm.call(abi.encodeWithSignature("updatePrice()"));
+        if(u) console.log("Price Cache Initialized");
+        else console.log("Price Init Skipped (or failed)");
+
+        // 4. Set Token Price (Default $1.00 for initial token)
+        if (initialGasToken != address(0)) {
+            // Price: 100000000 (1e8 = $1.00)
+            (bool t,) = pm.call(abi.encodeWithSignature("setTokenPrice(address,uint256)", initialGasToken, 100000000));
+            require(t, "SetTokenPrice failed");
+            console.log("Set Token Price to $1.00 for", initialGasToken);
+        }
+
         vm.stopBroadcast();
     }
 }

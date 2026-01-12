@@ -162,8 +162,27 @@ contract DeployLive is Script {
              );
              pmProxy = pmFactory.deployPaymaster("v4.2", init);
              console.log("Deployed Paymaster V4 Proxy at:", pmProxy);
+             
+             // --- Auto-Initialize AOA Paymaster ---
+             // 1. Stake 0.1 ETH in EntryPoint (Required for Storage Access)
+             Paymaster(payable(pmProxy)).addStake{value: 0.1 ether}(86400); 
+             // 2. Initialize Oracle Cache
+             try Paymaster(payable(pmProxy)).updatePrice() { console.log("AOA PM Price Initialized"); } catch { console.log("AOA PM Price Init Failed"); }
+             // 3. Set aPNTs Price ($1.00) if aPNTs is ready (not yet deployed? No, wait)
+             // aPNTs is deployed at line 133/141. So we can use it.
+             // But we are inside the 'if (pmProxy == address(0))' block. 
+             // Move initialization OUTSIDE or ensure it runs.
+             // Actually, 'addStake' is one-time, but 'setTokenPrice' is good to ensure.
         } else {
              console.log("Existing Paymaster V4 Proxy found at:", pmProxy);
+        }
+
+        // --- Ensure Configuration (Idempotent) ---
+        // Ensure aPNTs Support ($1.00)
+        if (address(apnts) != address(0)) {
+             try Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 100000000) { 
+                 console.log("AOA PM set aPNTs price to $1.00"); 
+             } catch {}
         }
 
         Registry.PaymasterRoleData memory pmData = Registry.PaymasterRoleData({
@@ -231,6 +250,19 @@ contract DeployLive is Script {
                  );
                  pmProxyAnni = pmFactory.deployPaymaster("v4.2", initAnni);
                  console.log("Deployed Anni Paymaster V4 Proxy at:", pmProxyAnni);
+                 
+                 // --- Auto-Initialize Anni Paymaster ---
+                 // 1. Stake
+                 Paymaster(payable(pmProxyAnni)).addStake{value: 0.1 ether}(86400);
+                 // 2. Oracle
+                 try Paymaster(payable(pmProxyAnni)).updatePrice() { console.log("Anni PM Price Initialized"); } catch {}
+            }
+            
+            // --- Ensure dPNTs Support ---
+            if (dPNTs != address(0)) {
+                try Paymaster(payable(pmProxyAnni)).setTokenPrice(dPNTs, 100000000) {
+                    console.log("Anni PM set dPNTs price to $1.00");
+                } catch {}
             }
 
             Registry.PaymasterRoleData memory pmDataAnni = Registry.PaymasterRoleData({
