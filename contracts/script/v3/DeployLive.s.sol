@@ -111,7 +111,26 @@ contract DeployLive is Script {
         // apnts.setSuperPaymasterAddress moved to after deployment in Orchestration
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
-        // try superPaymaster.updatePrice() {} catch {}
+        
+        // CRITICAL: Initialize Cache Price (Prevents "price not set" failures)
+        console.log("Initializing SuperPaymaster...");
+        try superPaymaster.updatePrice() {
+            console.log("  Cache Price Initialized");
+        } catch {
+            console.log("  WARNING: updatePrice failed, Oracle might be unavailable");
+        }
+        
+        // Deposit 0.2 ETH to EntryPoint (Enable sponsorship)
+        if (address(this).balance >= 0.2 ether) {
+            superPaymaster.depositTo{value: 0.2 ether}(entryPointAddr);
+            console.log("  Deposited 0.2 ETH to EntryPoint");
+        }
+        
+        // Stake 0.2 ETH (Enable validation) - Reasonable amount
+        if (address(this).balance >= 0.2 ether) {
+            superPaymaster.addStake{value: 0.2 ether}(1 days);
+            console.log("  Staked 0.2 ETH");
+        }
     }
 
     function _orchestrateRoles() internal {

@@ -146,6 +146,40 @@ contract DeployV3FullSepolia is Script {
         }
         _save("superPaymaster", addr_sp);
 
+        // ========== CRITICAL INITIALIZATION (Prevents "cache price not set" debugging nightmare) ==========
+        console.log("\\n--- SuperPaymaster Post-Deployment Initialization ---");
+        
+        // 1. Update Cache Price (CRITICAL - Prevents TX exec failures)
+        console.log("1. Initializing Cache Price...");
+        try {
+            SuperPaymaster(payable(addr_sp)).updatePrice();
+            console.log("   \\u2705 Cache Price Initialized");
+        } catch {
+            console.log("   \\u26a0\\ufe0f  updatePrice() failed - Oracle might be unavailable or already initialized");
+        }
+        
+        // 2. Deposit to EntryPoint (Enable sponsorship capability)
+        uint256 depositAmount = 0.2 ether;
+        if (address(this).balance >= depositAmount) {
+            console.log("2. Depositing to EntryPoint...");
+            SuperPaymaster(payable(addr_sp)).depositTo{value: depositAmount}(entryPointAddr);
+            console.log("   \\u2705 Deposited", depositAmount / 1e18, "ETH to EntryPoint");
+        } else {
+            console.log("   \\u26a0\\ufe0f  Insufficient ETH for EntryPoint deposit");
+        }
+        
+        // 3. Stake (Enable reputation/validation)
+        uint256 stakeAmount = 50 ether;
+        if (address(this).balance >= stakeAmount) {
+            console.log("3. Adding Stake...");
+            SuperPaymaster(payable(addr_sp)).addStake{value: stakeAmount}(1 days);
+            console.log("   \\u2705 Staked", stakeAmount / 1e18, "ETH");
+        } else {
+            console.log("   \\u26a0\\ufe0f  Insufficient ETH for staking");
+        }
+        console.log("--- Initialization Complete ---\\n");
+        // ========== END INITIALIZATION ==========
+
         // --- Basic Wiring ---
         GTokenStaking(addr_staking).setRegistry(addr_registry);
         MySBT(addr_sbt).setRegistry(addr_registry);
