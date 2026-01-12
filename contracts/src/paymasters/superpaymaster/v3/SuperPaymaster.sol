@@ -124,6 +124,10 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     );
     
     event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
+    /**
+     * @notice Emitted when Oracle update fails, forcing a realtime fallback (Warning Sign)
+     */
+    event OracleFallbackTriggered(uint256 timestamp);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
 
     error Unauthorized();
@@ -814,6 +818,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             } catch {
                 // Fail: Update failed. Force realtime read to ensure accuracy (Fallback to expensive STATICCALL)
                 useRealtime = true;
+                emit OracleFallbackTriggered(block.timestamp);
             }
         }
 
