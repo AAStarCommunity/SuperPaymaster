@@ -802,8 +802,25 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         ) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
 
         // 1. Calculate Actual Cost in aPNTs
-        // actualGasCost is in Wei. We use REALTIME price for accurate settlement.
-        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, true);
+        // Optimization: "Cache-First, Passive Fallback" Strategy
+        // Default to reading cache (Gas efficient)
+        bool useRealtime = false;
+        
+        // If Cache is stale (e.g. > 1 hour), attempt to refresh it
+        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
+            // Passive Update: Paymaster pays for this Oracle call
+            try this.updatePrice() {
+                // Success: Cache is updated. Keep useRealtime = false to read from fresh cache (Cheaper SLOAD)
+            } catch {
+                // Fail: Update failed. Force realtime read to ensure accuracy (Fallback to expensive STATICCALL)
+                useRealtime = true;
+            }
+        }
+
+        // actualGasCost is in Wei.
+        // If useRealtime=false: Reads storage (Cheap)
+        // If useRealtime=true: Calls Oracle (Expensive, but necessary occasionally)
+        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, useRealtime);
 
         // 2. Apply Protocol Fee Markup (e.g. 10%)
         // We want the final deduction to be Actual + 10%.
