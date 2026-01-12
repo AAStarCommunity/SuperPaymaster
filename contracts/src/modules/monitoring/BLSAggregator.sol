@@ -5,7 +5,6 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistry.sol";
 import "src/interfaces/IVersioned.sol";
-import "forge-std/console.sol";
 import { BLS } from "../../utils/BLS.sol";
 
 interface ISuperPaymasterSlash {

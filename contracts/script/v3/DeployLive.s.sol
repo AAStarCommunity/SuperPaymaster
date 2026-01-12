@@ -122,7 +122,7 @@ contract DeployLive is Script {
         
         // Deposit 0.2 ETH to EntryPoint (Enable sponsorship)
         if (address(this).balance >= 0.2 ether) {
-            superPaymaster.depositTo{value: 0.2 ether}(entryPointAddr);
+            superPaymaster.deposit{value: 0.2 ether}();
             console.log("  Deposited 0.2 ETH to EntryPoint");
         }
         
