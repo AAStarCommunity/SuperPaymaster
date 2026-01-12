@@ -543,6 +543,7 @@ Coming soon after security audit.
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
 - **[Repository Refactoring](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - Recent improvements
 - **[Deployment Guide](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - Step-by-step deployment
+- **[Gas Optimization Plan](./docs/GAS_OPTIMIZATION_PLAN.md)** - Hybrid Cache + Keeper Strategy Analysis
 
 ### User Guides
 

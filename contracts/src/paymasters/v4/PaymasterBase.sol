@@ -276,38 +276,39 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         (address user, address token, uint256 preChargedAmount) = 
             abi.decode(context, (address, address, uint256));
             
-        // If reverted, we might still charge, but strict gas logic applies.
-        // If mode == postOpReverted, usually we don't refund execution gas?
-        // But for simplicity, we treat it as standard consumption for now.
-        // Actually, standardization implies charging for what was used.
-
-        // 1. Calculate Actual Cost (Realtime Price)
-        // Wraps in try/catch to prevent revert (DoS protection)
-        uint256 actualTokenCost;
-        try this.getRealtimeTokenCost(actualGasCost, token) returns (uint256 cost) {
-            actualTokenCost = cost;
-        } catch {
-            // Fallback: Charge full pre-charged amount (User pays max for oracle failure)
-            actualTokenCost = preChargedAmount;
+x        // 1. Gas Optimization: Hybrid Cache Strategy
+        bool useRealtime = false;
+        // Check staleness (if > threshold, force update)
+        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
+             try this.updatePrice() {} catch {}
+             // If manual update failed or price still old, force realtime read to be safe
+             // or assume Keeper failed and we stick to old price if updatePrice reverts?
+             // Safest: useRealtime = true if we suspect cache is bad.
+             useRealtime = true;
         }
 
-        // 2. Cap at pre-charged
+        // 2. Calculate Actual Cost
+        // 2. Calculate Actual Cost
+        uint256 actualTokenCost;
+        // Optimization: Use 'calculateCost' wrapper to pass 'useRealtime' flag.
+        try this.calculateCost(actualGasCost, token, useRealtime) returns (uint256 cost) {
+             actualTokenCost = cost;
+        } catch {
+             actualTokenCost = preChargedAmount;
+        }
+
+        // 3. Cap at pre-charged
         if (actualTokenCost > preChargedAmount) {
             actualTokenCost = preChargedAmount;
         }
 
-        // 3. Process Refund to Internal Balance
+        // 4. Process Refund to Internal Balance
         uint256 refund = preChargedAmount - actualTokenCost;
         if (refund > 0) {
             balances[user][token] += refund;
         }
 
-        // 4. Protocol Revenue Accounting
-        // Note: The `actualTokenCost` effectively moves from User Balance -> Paymaster Treasury (Virtual)
-        // Since we already deducted `preChargedAmount` in Validation, and refunded `refund`,
-        // the remaining `actualTokenCost` is technically "burned" from user balance liabilities.
-        // To be rigorous, we should credit the Treasury's internal balance or emit an event for withdrawal.
-        // For Deposit model, usually "Treasury" balance increases.
+        // 5. Protocol Revenue Accounting
         if (actualTokenCost > 0) {
              balances[treasury][token] += actualTokenCost;
         }
@@ -427,10 +428,16 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         return Math.mulDiv(numerator, 1, denominator);
     }
 
-    /// @notice External wrapper for try/catch in postOp
+    /// @notice External wrapper for try/catch in postOp (Legacy)
     function getRealtimeTokenCost(uint256 gasCost, address token) external view returns (uint256) {
-        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData(); // Only self-call
+        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData(); 
         return _calculateTokenCost(gasCost, token, true);
+    }
+
+    /// @notice External wrapper that respects the Realtime Flag (New Optimization)
+    function calculateCost(uint256 gasCost, address token, bool useRealtime) external view returns (uint256) {
+        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData();
+        return _calculateTokenCost(gasCost, token, useRealtime);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -444,7 +451,14 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }
-
+    /// @notice Direct Cache Update (Operator/Keeper Pushed Price)
+    /// @param price ETH/USD price (8 decimals)
+    /// @param timestamp Timestamp of the price
+    function setCachedPrice(uint256 price, uint48 timestamp) external onlyOwner {
+        if (price == 0) revert Paymaster__InvalidOraclePrice();
+        cachedPrice = PriceCache({ price: uint208(price), updatedAt: timestamp });
+        emit PriceUpdated(price, timestamp);
+    }
 
 
     /// @notice Set supported token price (enable token)
