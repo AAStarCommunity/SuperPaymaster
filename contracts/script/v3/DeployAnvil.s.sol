@@ -25,6 +25,7 @@ import "src/mocks/MockBLSValidator.sol";
 
 // External Interfaces
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
 contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
@@ -71,6 +72,7 @@ contract DeployAnvil is Script {
     xPNTsFactory xpntsFactory;
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
+    SimpleAccountFactory accountFactory;
 
     function setUp() public {
         deployer = vm.addr(deployerPK); 
@@ -103,6 +105,7 @@ contract DeployAnvil is Script {
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
+        accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
 
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
@@ -215,6 +218,7 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
+        vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);
