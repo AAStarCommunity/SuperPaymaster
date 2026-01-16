@@ -47,7 +47,7 @@ echo -e "${GREEN}Done${NC}"
 # 1. Calculate Source Hash
 echo -ne "🔍 Calculating contract source hash... "
 # Use find + shasum to get a stable hash of the entire src directory
-CURRENT_HASH=$(find contracts/src -name "*.sol" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
+CURRENT_HASH=$(find contracts/src contracts/script -name "*.sol" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
 echo -e "${GREEN}$CURRENT_HASH${NC}"
 
 if [ -f "$ENV_FILE" ]; then

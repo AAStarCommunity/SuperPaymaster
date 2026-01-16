@@ -26,7 +26,7 @@ contract FactoryHelper {
      * @param token xPNTs token address
      * @param spender Address to approve (e.g., SuperPaymaster)
      */
-    function addAutoApprovedSpenderViaFactory(address token, address spender) external {
+    function addAutoApprovedSpenderViaFactory(address token, address spender) external view {
         // Verify caller is factory owner
         require(msg.sender == IxPNTsFactory(FACTORY).owner(), "Only factory owner");
 
