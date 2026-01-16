@@ -1,0 +1,811 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
+
+import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import "../interfaces/Interfaces.sol";
+import "../interfaces/IMySBT.sol";
+import "../core/GTokenStaking_v3_0_0.sol";
+
+/**
+ * @title Registry v3.0.0
+ * @notice Mycelium Protocol Registry - Single entry point for all role registrations
+ * @dev Complete redesign from v2.2.1:
+ *      - Removed NodeType enum, CommunityProfile struct (replaced with RoleConfig)
+ *      - Single registerRole() entry point for all role types
+ *      - Dynamic role configuration (can add new roles via DAO)
+ *      - Complete burn/exit audit trail
+ *      - Authorization-based MySBT minting
+ *      - Gas optimized: ~70% savings vs v2
+ */
+contract Registry_v3_0_0 is Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // ====================================
+    // Constants
+    // ====================================
+
+    string public constant VERSION = "3.0.0";
+    uint256 public constant VERSION_CODE = 30000;
+
+    // Pre-computed role IDs (keccak256 hashes)
+    bytes32 public constant ROLE_ENDUSER = bytes32(0xd7ae00e400c87f8f99e4e3bb1e3fda01e12fb7f77e4e2ff68e7fb8c8e6e62f35);
+    bytes32 public constant ROLE_COMMUNITY = bytes32(0x6fce02cf8f0e0b5d6a0c8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f);
+    bytes32 public constant ROLE_PAYMASTER = bytes32(0x7fce02cf8f0e0b5d6a0c8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f);
+    bytes32 public constant ROLE_SUPER = bytes32(0x8fce02cf8f0e0b5d6a0c8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f);
+
+    // Burn address
+    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
+
+    // ====================================
+    // Structs
+    // ====================================
+
+    struct RoleConfig {
+        bytes32 roleId;           // Unique role identifier
+        string roleName;          // Display name
+        uint256 minStake;         // Amount to stake
+        uint256 entryBurn;        // Amount to burn on entry
+        uint256 exitFeePercent;   // Exit fee as percentage (e.g., 17)
+        uint256 minExitFee;       // Minimum exit fee in wei
+        bool requiresSBT;         // Should mint SBT?
+        address sbtContract;      // MySBT contract address
+        uint256 createdAt;
+        uint256 updatedAt;
+        bool enabled;
+    }
+
+    struct UserRoleData {
+        bytes32 roleId;
+        uint256 registeredAt;
+        uint256 lastUpdatedAt;
+        uint256 sbtTokenId;
+        bool active;
+    }
+
+    struct BurnRecord {
+        uint256 amount;
+        bytes32 roleId;
+        string reason;            // "entry", "exit", etc.
+        uint256 timestamp;
+    }
+
+    struct RoleRegistration {
+        bytes32 roleId;
+        uint256 stakeAmount;
+        uint256 burnAmount;
+        uint256 sbtTokenId;
+        uint256 registeredAt;
+        uint256 exitedAt;
+    }
+
+    struct RoleStats {
+        uint256 totalRegistrations;
+        uint256 activeCount;
+        uint256 totalBurned;
+        uint256 totalExitFees;
+    }
+
+    // ====================================
+    // Storage
+    // ====================================
+
+    IERC20 public immutable GTOKEN;
+    IGTokenStaking public immutable GTOKEN_STAKING;
+
+    // Role configuration
+    mapping(bytes32 roleId => RoleConfig) public roleConfigs;
+    bytes32[] public roleIds;
+
+    // User roles and data
+    mapping(address user => bytes32[]) public userRoles;
+    mapping(address user => mapping(bytes32 => UserRoleData)) public userRoleData;
+
+    // Audit trails
+    mapping(address user => BurnRecord[]) public burnHistory;
+    mapping(address user => uint256) public totalBurned;
+    mapping(address user => RoleRegistration[]) public roleHistory;
+
+    // Role statistics
+    mapping(bytes32 roleId => RoleStats) public roleStats;
+
+    // Authorization
+    mapping(address => bool) public authorizedMinters;
+
+    // DAO multisig
+    address public daoMultisig;
+
+    // Role admins (community admin can airdrop SBTs)
+    mapping(bytes32 roleId => address admin) public roleAdmins;
+
+    // ====================================
+    // Events
+    // ====================================
+
+    event RoleRegistered(
+        address indexed user,
+        bytes32 indexed roleId,
+        uint256 sbtTokenId,
+        uint256 stakeAmount,
+        uint256 burnAmount,
+        uint256 timestamp
+    );
+
+    event RoleExited(
+        address indexed user,
+        bytes32 indexed roleId,
+        uint256 lockedAmount,
+        uint256 exitFee,
+        uint256 refund,
+        uint256 timestamp
+    );
+
+    event BurnRecorded(
+        address indexed user,
+        bytes32 indexed roleId,
+        uint256 amount,
+        string reason,
+        uint256 timestamp
+    );
+
+    event RoleAdded(
+        bytes32 indexed roleId,
+        string roleName,
+        uint256 minStake,
+        uint256 entryBurn,
+        uint256 timestamp
+    );
+
+    event RoleConfigUpdated(
+        bytes32 indexed roleId,
+        uint256 newMinStake,
+        uint256 newEntryBurn,
+        uint256 timestamp
+    );
+
+    event RoleEnabled(bytes32 indexed roleId, bool enabled, uint256 timestamp);
+
+    event AuthorizationChanged(
+        address indexed account,
+        bool authorized,
+        uint256 timestamp
+    );
+
+    event RoleAdminSet(
+        bytes32 indexed roleId,
+        address indexed admin,
+        uint256 timestamp
+    );
+
+    event SafeMintExecuted(
+        address indexed user,
+        bytes32 indexed roleId,
+        uint256 sbtTokenId,
+        address indexed admin,
+        uint256 timestamp
+    );
+
+    // ====================================
+    // Errors
+    // ====================================
+
+    error RoleNotFound(bytes32 roleId);
+    error RoleNotEnabled(bytes32 roleId);
+    error UserAlreadyHasRole(address user, bytes32 roleId);
+    error InvalidRoleConfig();
+    error InsufficientStake(uint256 provided, uint256 required);
+    error UnauthorizedMinter(address caller);
+    error NoActiveRole(address user);
+    error InvalidBurnAmount();
+    error InvalidAddress(address addr);
+    error InvalidExitFee(uint256 fee, uint256 amount);
+
+    // ====================================
+    // Constructor
+    // ====================================
+
+    constructor(
+        address _gtoken,
+        address _gtokenStaking,
+        address _daoMultisig
+    ) Ownable(msg.sender) {
+        if (_gtoken == address(0)) revert InvalidAddress(_gtoken);
+        if (_gtokenStaking == address(0)) revert InvalidAddress(_gtokenStaking);
+        if (_daoMultisig == address(0)) revert InvalidAddress(_daoMultisig);
+
+        GTOKEN = IERC20(_gtoken);
+        GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
+        daoMultisig = _daoMultisig;
+
+        // Initialize default roles
+        _initializeDefaultRoles();
+    }
+
+    // ====================================
+    // Core Registration Functions
+    // ====================================
+
+    /**
+     * @notice Register user for a role (atomic operation)
+     * @param roleId Role identifier
+     * @param user User to register
+     * @param roleData Role-specific metadata (encoded)
+     * @return sbtTokenId SBT token ID if role requires SBT, else 0
+     * @dev CEI Pattern: Checks → Effects → Interactions
+     */
+    function registerRole(
+        bytes32 roleId,
+        address user,
+        bytes calldata roleData
+    ) external nonReentrant returns (uint256 sbtTokenId) {
+        // === CHECKS ===
+        RoleConfig memory config = roleConfigs[roleId];
+        if (config.minStake == 0) revert RoleNotFound(roleId);
+        if (!config.enabled) revert RoleNotEnabled(roleId);
+        if (user == address(0)) revert InvalidAddress(user);
+        if (_userHasRole(user, roleId) && !_canHaveMultiple(roleId)) {
+            revert UserAlreadyHasRole(user, roleId);
+        }
+
+        // === EFFECTS ===
+        // 1. Record user role
+        UserRoleData storage rd = userRoleData[user][roleId];
+        rd.roleId = roleId;
+        rd.registeredAt = block.timestamp;
+        rd.lastUpdatedAt = block.timestamp;
+        rd.active = true;
+
+        if (!_userHasRole(user, roleId)) {
+            userRoles[user].push(roleId);
+        }
+
+        // 2. Record in registration history
+        roleHistory[user].push(
+            RoleRegistration({
+                roleId: roleId,
+                stakeAmount: config.minStake,
+                burnAmount: config.entryBurn,
+                sbtTokenId: 0,
+                registeredAt: block.timestamp,
+                exitedAt: 0
+            })
+        );
+
+        // === INTERACTIONS ===
+        // 3. Transfer tokens from user
+        uint256 totalTransfer = config.minStake;
+        GTOKEN.safeTransferFrom(user, address(this), totalTransfer);
+
+        // 4. Execute entry burn
+        if (config.entryBurn > 0) {
+            GTOKEN.transfer(BURN_ADDRESS, config.entryBurn);
+            _recordBurn(user, roleId, config.entryBurn, "entry");
+            roleStats[roleId].totalBurned += config.entryBurn;
+        }
+
+        // 5. Lock remaining amount in GTokenStaking
+        uint256 lockAmount = config.minStake - config.entryBurn;
+        if (lockAmount > 0) {
+            GTOKEN.approve(address(GTOKEN_STAKING), lockAmount);
+            GTOKEN_STAKING.lockStake(
+                user,
+                roleId,
+                config.minStake,
+                config.entryBurn
+            );
+        }
+
+        // 6. Mint SBT if required
+        if (config.requiresSBT && config.sbtContract != address(0)) {
+            sbtTokenId = IMySBT(config.sbtContract).mintForRole(
+                user,
+                roleId,
+                roleData
+            );
+            userRoleData[user][roleId].sbtTokenId = sbtTokenId;
+        }
+
+        // 7. Update statistics
+        roleStats[roleId].totalRegistrations++;
+        roleStats[roleId].activeCount++;
+
+        emit RoleRegistered(user, roleId, sbtTokenId, config.minStake, config.entryBurn, block.timestamp);
+
+        return sbtTokenId;
+    }
+
+    /**
+     * @notice Convenience wrapper for self-registration
+     */
+    function registerRoleSelf(
+        bytes32 roleId,
+        bytes calldata roleData
+    ) external nonReentrant returns (uint256 sbtTokenId) {
+        return registerRole(roleId, msg.sender, roleData);
+    }
+
+    /**
+     * @notice Airdrop SBT to user (Community admin only)
+     * @param roleId Role to assign
+     * @param user User to receive SBT
+     * @param roleData Role-specific metadata
+     * @dev No staking required, only community admin can call
+     *      Community admin pays for gas and transfer
+     * @return sbtTokenId SBT token ID
+     */
+    function safeMintForRole(
+        bytes32 roleId,
+        address user,
+        bytes calldata roleData
+    ) external nonReentrant returns (uint256 sbtTokenId) {
+        // === CHECKS ===
+        RoleConfig memory config = roleConfigs[roleId];
+        if (config.minStake == 0) revert RoleNotFound(roleId);
+        if (!config.enabled) revert RoleNotEnabled(roleId);
+        if (user == address(0)) revert InvalidAddress(user);
+
+        // Verify caller is community admin (or DAO)
+        require(
+            _isRoleAdmin(msg.sender, roleId) || msg.sender == daoMultisig,
+            "Only community admin or DAO"
+        );
+
+        // === EFFECTS ===
+        // Record user role (no staking)
+        UserRoleData storage rd = userRoleData[user][roleId];
+        rd.roleId = roleId;
+        rd.registeredAt = block.timestamp;
+        rd.lastUpdatedAt = block.timestamp;
+        rd.active = true;
+
+        if (!_userHasRole(user, roleId)) {
+            userRoles[user].push(roleId);
+        }
+
+        // === INTERACTIONS ===
+        // Mint SBT directly (no transfer, no burn, no lock)
+        if (config.requiresSBT && config.sbtContract != address(0)) {
+            sbtTokenId = IMySBT(config.sbtContract).mintForRole(
+                user,
+                roleId,
+                roleData
+            );
+            rd.sbtTokenId = sbtTokenId;
+        }
+
+        // Update statistics
+        roleStats[roleId].totalRegistrations++;
+        roleStats[roleId].activeCount++;
+
+        emit RoleRegistered(user, roleId, sbtTokenId, 0, 0, block.timestamp);
+        emit SafeMintExecuted(user, roleId, sbtTokenId, msg.sender, block.timestamp);
+
+        return sbtTokenId;
+    }
+
+    /**
+     * @notice Exit a role and unlock stake
+     * @param roleId Role to exit
+     * @return refund Amount refunded to user
+     */
+    function exitRole(bytes32 roleId) external nonReentrant returns (uint256 refund) {
+        return _exitRoleInternal(msg.sender, roleId);
+    }
+
+    /**
+     * @notice Exit a role for another user (for batch processing)
+     * @param user User to exit
+     * @param roleId Role to exit
+     * @return refund Amount refunded to user
+     */
+    function exitRoleFor(
+        address user,
+        bytes32 roleId
+    ) external nonReentrant returns (uint256 refund) {
+        require(msg.sender == user || msg.sender == owner(), "Not authorized");
+        return _exitRoleInternal(user, roleId);
+    }
+
+    /**
+     * @notice Internal exit logic
+     */
+    function _exitRoleInternal(
+        address user,
+        bytes32 roleId
+    ) internal returns (uint256 refund) {
+        // === CHECKS ===
+        UserRoleData storage rd = userRoleData[user][roleId];
+        if (!rd.active) revert NoActiveRole(user);
+
+        RoleConfig memory config = roleConfigs[roleId];
+        if (config.minStake == 0) revert RoleNotFound(roleId);
+
+        // Get locked amount from GTokenStaking
+        uint256 lockedAmount = GTOKEN_STAKING.getLockedBalance(user);
+        require(lockedAmount > 0, "No locked stake");
+
+        // Calculate exit fee
+        uint256 exitFee = _calculateExitFee(lockedAmount, config);
+        if (exitFee >= lockedAmount) revert InvalidExitFee(exitFee, lockedAmount);
+
+        // === EFFECTS ===
+        // Mark role as inactive
+        rd.active = false;
+        rd.lastUpdatedAt = block.timestamp;
+
+        // Record exit fee as burn
+        _recordBurn(user, roleId, exitFee, "exit");
+        roleStats[roleId].totalBurned += exitFee;
+        roleStats[roleId].totalExitFees += exitFee;
+        roleStats[roleId].activeCount--;
+
+        // Record exit in history
+        uint256 histIdx = roleHistory[user].length;
+        if (histIdx > 0) {
+            roleHistory[user][histIdx - 1].exitedAt = block.timestamp;
+        }
+
+        // === INTERACTIONS ===
+        // Unlock from GTokenStaking (passes exit fee)
+        refund = GTOKEN_STAKING.unlockStake(user, roleId, lockedAmount, exitFee);
+
+        // Burn SBT if required
+        if (config.requiresSBT && config.sbtContract != address(0)) {
+            uint256 sbtTokenId = rd.sbtTokenId;
+            if (sbtTokenId > 0) {
+                IMySBT(config.sbtContract).burnForRole(user, roleId);
+            }
+        }
+
+        emit RoleExited(user, roleId, lockedAmount, exitFee, refund, block.timestamp);
+
+        return refund;
+    }
+
+    // ====================================
+    // DAO Functions
+    // ====================================
+
+    /**
+     * @notice DAO: Add a new role
+     * @param config Role configuration
+     */
+    function addRole(RoleConfig calldata config) external onlyDAO {
+        if (config.minStake == 0) revert InvalidRoleConfig();
+        if (config.entryBurn >= config.minStake) revert InvalidBurnAmount();
+        if (roleConfigs[config.roleId].minStake > 0) revert InvalidRoleConfig(); // Already exists
+
+        RoleConfig memory newConfig = config;
+        newConfig.createdAt = block.timestamp;
+        newConfig.updatedAt = block.timestamp;
+        newConfig.enabled = true;
+
+        roleConfigs[config.roleId] = newConfig;
+        roleIds.push(config.roleId);
+
+        emit RoleAdded(config.roleId, config.roleName, config.minStake, config.entryBurn, block.timestamp);
+    }
+
+    /**
+     * @notice DAO: Update role configuration
+     * @param roleId Role to update
+     * @param newConfig New configuration
+     */
+    function updateRoleConfig(
+        bytes32 roleId,
+        RoleConfig calldata newConfig
+    ) external onlyDAO {
+        if (roleConfigs[roleId].minStake == 0) revert RoleNotFound(roleId);
+        if (newConfig.minStake == 0) revert InvalidRoleConfig();
+        if (newConfig.entryBurn >= newConfig.minStake) revert InvalidBurnAmount();
+
+        RoleConfig storage config = roleConfigs[roleId];
+        config.minStake = newConfig.minStake;
+        config.entryBurn = newConfig.entryBurn;
+        config.exitFeePercent = newConfig.exitFeePercent;
+        config.minExitFee = newConfig.minExitFee;
+        config.updatedAt = block.timestamp;
+
+        emit RoleConfigUpdated(roleId, newConfig.minStake, newConfig.entryBurn, block.timestamp);
+    }
+
+    /**
+     * @notice DAO: Enable or disable a role
+     * @param roleId Role to toggle
+     * @param enabled Enable or disable
+     */
+    function enableRole(bytes32 roleId, bool enabled) external onlyDAO {
+        if (roleConfigs[roleId].minStake == 0) revert RoleNotFound(roleId);
+        roleConfigs[roleId].enabled = enabled;
+        emit RoleEnabled(roleId, enabled, block.timestamp);
+    }
+
+    /**
+     * @notice Owner: Authorize minter (MySBT)
+     * @param account Account to authorize
+     * @param authorized Authorization status
+     */
+    function setAuthorization(address account, bool authorized) external onlyOwner {
+        authorizedMinters[account] = authorized;
+        emit AuthorizationChanged(account, authorized, block.timestamp);
+    }
+
+    /**
+     * @notice Owner: Set DAO multisig
+     */
+    function setDAOMultisig(address newDAO) external onlyOwner {
+        if (newDAO == address(0)) revert InvalidAddress(newDAO);
+        daoMultisig = newDAO;
+    }
+
+    // ====================================
+    // View Functions
+    // ====================================
+
+    /**
+     * @notice Get user's roles
+     */
+    function getUserRoles(address user) external view returns (bytes32[] memory) {
+        return userRoles[user];
+    }
+
+    /**
+     * @notice Check if user has role
+     */
+    function hasRole(address user, bytes32 roleId) external view returns (bool) {
+        return userRoleData[user][roleId].active;
+    }
+
+    /**
+     * @notice Get role configuration
+     */
+    function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) {
+        return roleConfigs[roleId];
+    }
+
+    /**
+     * @notice Get all role IDs
+     */
+    function getAllRoles() external view returns (bytes32[] memory) {
+        return roleIds;
+    }
+
+    /**
+     * @notice Get total burned by user
+     */
+    function getTotalBurned(address user) external view returns (uint256) {
+        return totalBurned[user];
+    }
+
+    /**
+     * @notice Get burn history (paginated)
+     */
+    function getBurnHistory(
+        address user,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (BurnRecord[] memory) {
+        BurnRecord[] memory history = burnHistory[user];
+        uint256 length = history.length;
+
+        if (offset >= length) return new BurnRecord[](0);
+
+        uint256 end = offset + limit > length ? length : offset + limit;
+        BurnRecord[] memory result = new BurnRecord[](end - offset);
+
+        for (uint256 i = 0; i < end - offset; i++) {
+            result[i] = history[offset + i];
+        }
+        return result;
+    }
+
+    /**
+     * @notice Get role history (paginated)
+     */
+    function getRoleHistory(
+        address user,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (RoleRegistration[] memory) {
+        RoleRegistration[] memory history = roleHistory[user];
+        uint256 length = history.length;
+
+        if (offset >= length) return new RoleRegistration[](0);
+
+        uint256 end = offset + limit > length ? length : offset + limit;
+        RoleRegistration[] memory result = new RoleRegistration[](end - offset);
+
+        for (uint256 i = 0; i < end - offset; i++) {
+            result[i] = history[offset + i];
+        }
+        return result;
+    }
+
+    /**
+     * @notice Get role statistics
+     */
+    function getRoleStats(bytes32 roleId) external view returns (RoleStats memory) {
+        return roleStats[roleId];
+    }
+
+    // ====================================
+    // Helper Functions
+    // ====================================
+
+    /**
+     * @notice Calculate exit fee for a role
+     */
+    function calculateExitFee(
+        uint256 lockedAmount,
+        bytes32 roleId
+    ) external view returns (uint256) {
+        RoleConfig memory config = roleConfigs[roleId];
+        return _calculateExitFee(lockedAmount, config);
+    }
+
+    /**
+     * @notice Internal: Calculate exit fee
+     */
+    function _calculateExitFee(
+        uint256 lockedAmount,
+        RoleConfig memory config
+    ) internal pure returns (uint256) {
+        if (lockedAmount == 0) return 0;
+
+        uint256 percentageFee = (lockedAmount * config.exitFeePercent) / 100;
+        if (percentageFee < config.minExitFee) {
+            return config.minExitFee;
+        }
+        return percentageFee;
+    }
+
+    /**
+     * @notice Internal: Record burn
+     */
+    function _recordBurn(
+        address user,
+        bytes32 roleId,
+        uint256 amount,
+        string memory reason
+    ) internal {
+        burnHistory[user].push(
+            BurnRecord({
+                amount: amount,
+                roleId: roleId,
+                reason: reason,
+                timestamp: block.timestamp
+            })
+        );
+        totalBurned[user] += amount;
+        emit BurnRecorded(user, roleId, amount, reason, block.timestamp);
+    }
+
+    /**
+     * @notice Internal: Check if user has role
+     */
+    function _userHasRole(address user, bytes32 roleId) internal view returns (bool) {
+        return userRoleData[user][roleId].active;
+    }
+
+    /**
+     * @notice Internal: Check if role allows multiple registrations
+     */
+    function _canHaveMultiple(bytes32 roleId) internal view returns (bool) {
+        // Currently all roles are single, can be extended in future
+        return false;
+    }
+
+    /**
+     * @notice Internal: Get role description
+     */
+    function _getRoleDescription(bytes32 roleId) internal view returns (string memory) {
+        RoleConfig memory config = roleConfigs[roleId];
+        return string(abi.encodePacked(config.roleName, " membership"));
+    }
+
+    /**
+     * @notice Internal: Initialize default roles
+     */
+    function _initializeDefaultRoles() internal {
+        // ENDUSER role
+        roleConfigs[ROLE_ENDUSER] = RoleConfig({
+            roleId: ROLE_ENDUSER,
+            roleName: "End User",
+            minStake: 0.3 ether,
+            entryBurn: 0.1 ether,
+            exitFeePercent: 17,
+            minExitFee: 0.05 ether,
+            requiresSBT: true,
+            sbtContract: address(0),  // Will be set via setAuthorization
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            enabled: true
+        });
+        roleIds.push(ROLE_ENDUSER);
+
+        // COMMUNITY role
+        roleConfigs[ROLE_COMMUNITY] = RoleConfig({
+            roleId: ROLE_COMMUNITY,
+            roleName: "Community",
+            minStake: 30 ether,
+            entryBurn: 3 ether,
+            exitFeePercent: 10,
+            minExitFee: 0.3 ether,
+            requiresSBT: true,
+            sbtContract: address(0),
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            enabled: true
+        });
+        roleIds.push(ROLE_COMMUNITY);
+
+        // PAYMASTER role
+        roleConfigs[ROLE_PAYMASTER] = RoleConfig({
+            roleId: ROLE_PAYMASTER,
+            roleName: "Paymaster",
+            minStake: 30 ether,
+            entryBurn: 3 ether,
+            exitFeePercent: 10,
+            minExitFee: 0.3 ether,
+            requiresSBT: true,
+            sbtContract: address(0),
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            enabled: true
+        });
+        roleIds.push(ROLE_PAYMASTER);
+
+        // SUPER role
+        roleConfigs[ROLE_SUPER] = RoleConfig({
+            roleId: ROLE_SUPER,
+            roleName: "SuperPaymaster",
+            minStake: 50 ether,
+            entryBurn: 5 ether,
+            exitFeePercent: 10,
+            minExitFee: 0.5 ether,
+            requiresSBT: true,
+            sbtContract: address(0),
+            createdAt: block.timestamp,
+            updatedAt: block.timestamp,
+            enabled: true
+        });
+        roleIds.push(ROLE_SUPER);
+    }
+
+    /**
+     * @notice Internal: Check if address is role admin
+     * @param account Account to check
+     * @param roleId Role to check
+     * @return True if account is admin for this role
+     */
+    function _isRoleAdmin(
+        address account,
+        bytes32 roleId
+    ) internal view returns (bool) {
+        return roleAdmins[roleId] == account;
+    }
+
+    /**
+     * @notice Owner: Set role admin (for community airdrop)
+     * @param roleId Role to assign admin
+     * @param admin New admin address
+     */
+    function setRoleAdmin(bytes32 roleId, address admin) external onlyOwner {
+        if (roleConfigs[roleId].minStake == 0) revert RoleNotFound(roleId);
+        if (admin == address(0)) revert InvalidAddress(admin);
+
+        roleAdmins[roleId] = admin;
+        emit AuthorizationChanged(admin, true, block.timestamp);
+    }
+
+    // ====================================
+    // Modifiers
+    // ====================================
+
+    modifier onlyDAO() {
+        require(msg.sender == daoMultisig || msg.sender == owner(), "Only DAO");
+        _;
+    }
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 /**
  * @title IVersioned
@@ -8,16 +8,8 @@ pragma solidity ^0.8.23;
  */
 interface IVersioned {
     /**
-     * @notice Get contract version number
-     * @dev Version format: MAJOR * 1000000 + MINOR * 1000 + PATCH
-     *      Example: v1.2.3 => 1002003
-     * @return version The semantic version as a uint256
-     */
-    function version() external pure returns (uint256);
-
-    /**
      * @notice Get human-readable version string
-     * @return versionString The version in "vX.Y.Z" format
+     * @return versionString The version string (e.g., "v3.1.0")
      */
-    function versionString() external pure returns (string memory);
+    function version() external view returns (string memory);
 }

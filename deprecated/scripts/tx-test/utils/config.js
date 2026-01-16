@@ -1,3 +1,9 @@
+// [MIGRATED TO V3]: This file has been updated to use Mycelium Protocol v3 API
+// Migration Date: 2025-11-28
+// Changes: registerCommunity() -> registerRole(ROLE_COMMUNITY, ...)
+//          exitCommunity() -> exitRole(ROLE_COMMUNITY)
+//          See FRONTEND_MIGRATION_EXAMPLES_V3.md for details
+
 /**
  * 配置文件 - 基于 @aastar/shared-config v0.2.10
  * 集中管理合约地址、测试账户、网络配置
@@ -52,6 +58,12 @@ const CONTRACTS = {
 function loadABI(path) {
   try {
     return require(path).abi;
+
+// Role IDs for v3
+const ROLE_ENDUSER = '0x454e445553455200000000000000000000000000000000000000000000000000';
+const ROLE_COMMUNITY = '0x434f4d4d554e4954590000000000000000000000000000000000000000000000';
+const ROLE_PAYMASTER = '0x5041594d41535445520000000000000000000000000000000000000000000000';
+const ROLE_SUPER = '0x5355504552000000000000000000000000000000000000000000000000000000';
   } catch (error) {
     console.warn(`⚠️  无法加载 ABI: ${path}，将使用通用接口`);
     return null;
@@ -60,10 +72,10 @@ function loadABI(path) {
 
 const ABIS = {
   GTOKEN: loadABI("../../../out/GToken.sol/GToken.json"),
-  GTOKEN_STAKING: loadABI("../../../out/GTokenStaking.sol/GTokenStaking.json"),
+  GTOKEN_STAKING: loadABI("../../../abis/IGTokenStakingV3.json"),
   SUPER_PAYMASTER_V2: loadABI("../../../out/SuperPaymasterV2.sol/SuperPaymasterV2.json"),
-  REGISTRY: loadABI("../../../out/Registry.sol/Registry.json"),
-  MYSBT: loadABI("../../../out/MySBT_v2.4.0.sol/MySBT_v2_4_0.json"),
+  REGISTRY: loadABI("../../../abis/Registry_v3.json"),
+  MYSBT: loadABI("../../../abis/MySBT_v3.json"),
   XPNTS_FACTORY: loadABI("../../../out/xPNTsFactory.sol/xPNTsFactory.json"),
   XPNTS: loadABI("../../../out/xPNTsToken.sol/xPNTsToken.json"),
   PAYMASTER_V4_1: loadABI("../../../out/PaymasterV4_1.sol/PaymasterV4_1.json"),

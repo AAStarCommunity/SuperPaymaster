@@ -1,0 +1,65 @@
+name: Local SDK Regression Test (Contract Driven)
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout SuperPaymaster (Primary)
+        uses: actions/checkout@v4
+        with:
+          path: SuperPaymaster
+
+      - name: Checkout Aastar-SDK (Consumer)
+        uses: actions/checkout@v4
+        with:
+          repository: AAStarCommunity/aastar-sdk
+          path: aastar-sdk
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: aastar-sdk/pnpm-lock.yaml
+
+      - name: Install Node Dependencies (SDK)
+        run: |
+          cd aastar-sdk
+          pnpm install
+
+      - name: Start Anvil
+        run: |
+          anvil --block-time 1 &
+          sleep 5
+
+      - name: Deploy SuperPaymaster Stack (Contract Repo)
+        run: |
+          cd SuperPaymaster/contracts
+          forge script script/DeployV3FullLocal.s.sol:DeployV3FullLocal --rpc-url http://localhost:8545 --broadcast --slow
+
+      - name: Run Modular SDK Regression Tests
+        run: |
+          cd aastar-sdk
+          # We use the compiled contracts from the 'Deploy' step above
+          pnpm exec ts-node scripts/06_local_test_v3_admin.ts
+          pnpm exec ts-node scripts/06_local_test_v3_reputation.ts
+          pnpm exec ts-node scripts/06_local_test_v3_funding.ts
+          pnpm exec ts-node scripts/06_local_test_v3_execution.ts

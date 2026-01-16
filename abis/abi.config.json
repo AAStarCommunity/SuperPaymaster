@@ -1,0 +1,24 @@
+{
+  "description": "SuperPaymaster Contract ABIs Manifest", 
+  "source": "SuperPaymaster/contracts/src", 
+  "buildTime": "2026-01-16T12:51:31Z", 
+  "totalHash": "8993c137dd9f6614312d53e92fc28917f2d996ded49cd80e10fa7c6768c54b58", 
+  "files": [
+    { "name": "BLSAggregator.json", "hash": "02c5eb77d2e88ae3a4a91997958662ba45b40cbbc28b32ac92c36f0d3e45bc50" },
+    { "name": "BLSValidator.json", "hash": "25f5c419a97c5d0e7e1f21b0ba7d621a1ef8879a73e6c0a15e4b18872f5ecb83" },
+    { "name": "DVTValidator.json", "hash": "af2c9cdb0bd93e04e6542578e5a48815559df8777015b072972f707ea18ac143" },
+    { "name": "EntryPoint.json", "hash": "e29d82073d4b6ec611bcf37687e9da53a3f9b02a894f2c43d9fb26b802f97955" },
+    { "name": "GToken.json", "hash": "fa7887dc222409f1d5499afee1b704c8c61d1bf591a21b75cf7b05da16ccaaa4" },
+    { "name": "GTokenStaking.json", "hash": "ab6d3b33ccd7369737914c52a5c2ac01fa478ae0d7cd429861ec2907a57cfc22" },
+    { "name": "MySBT.json", "hash": "af5ac5323597f5e03a1c65311b384a6e40738ecafef13694284267015794416a" },
+    { "name": "Paymaster.json", "hash": "6fd2bb6d3c5317b81fac4e6e054575999632e35ef76dc5ff00a4999ca2e82c96" },
+    { "name": "PaymasterFactory.json", "hash": "b385b3bbb7336e7082d2b5a33f1264c8528bf49b5013b14091a87f16abad51d7" },
+    { "name": "Registry.json", "hash": "b920b6324128a425b013d6190b3d39de2fc2d2e70c28beca3d3f1da9e9a123b1" },
+    { "name": "ReputationSystem.json", "hash": "e6bd0cb111f09d28757d85adf3a8304d2c37f09b8dc48984a5a2dfcafba3af1b" },
+    { "name": "SimpleAccount.json", "hash": "bf24f5d26acfcb46ff5febb5d125d33fe3d286e3cf0f4f00460f6437ff057d68" },
+    { "name": "SimpleAccountFactory.json", "hash": "d39945defd3fc7bf6c51549823607c618028f0bb08521b72382b487ee5d138b5" },
+    { "name": "SuperPaymaster.json", "hash": "ae349ccaabd729b10e68c99d06699d1febdbf05d143cfd4d20fa53115079c503" },
+    { "name": "xPNTsFactory.json", "hash": "e820ed4037e76df1ab675b2d1d67071127d181e755fef4c42213a94db437aba2" },
+    { "name": "xPNTsToken.json", "hash": "1c92787a00a007fd1eb8ee640e5f970c4d47888c4db560fe0390c87894a3cbcd" }
+  ]
+}

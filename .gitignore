@@ -152,3 +152,5 @@ crytic-export/
 echidna*.txt
 mythril*.txt
 slither*.txt
+slither_results.json
+scripts/local_env.json

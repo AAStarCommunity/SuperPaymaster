@@ -13,6 +13,7 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 - **For Communities**: Deploy custom paymasters with your own community tokens (xPNTs)
 - **For Users**: Seamless gas sponsorship using community points instead of ETH
 - **For Developers**: Easy integration with shared configuration and battle-tested contracts
+- **CLI Guide**: [Command Line Interface Guide](./docs/CLI_GUIDE.md)
 
 ### Key Features
 
@@ -29,11 +30,20 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 - GToken staking system with slashing mechanism
 - Chainlink oracle integration for price feeds (v2.0.1: enhanced security)
 - Multi-layer validation and reputation tracking
-
-✅ **Production Ready**:
-- 206/206 tests passing
-- Deployed on Sepolia testnet
+- **V3.1.1 Testing & Security**:
+  - 🧪 [V3.1.1 Testing Framework (Beginner Ready)](./docs/V3_Testing_Framework.md) - How to run V3 tests
+  - 📜 [Stage 1 Audit Summary](./docs/Stage1_Audit_Summary.md) - Coverage & security audit report
+  - 🛡️ [Security Architecture V3.1.1](./docs/Security_Architecture_V3_1.md) - DVT Slashing & Reputation System
+  - 🚀 [Security & Performance Action Plan](./docs/SECURITY_AND_PERFORMANCE.md) - Best practices workflow
+- **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md) on Sepolia testnet
 - Mainnet deployment ready (pending audit)
+
+🧪- [Stage 2 测试覆盖率分析报告](file:///Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/docs/StageScenariosCoverage.md)
+- [业务场景与 SDK 模块映射表](file:///jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/docs/Scenario_SDK_Mapping.md)
+ (100% Regression Pass)
+✅ **Production Ready**:
+- 213/213 tests passing
+- Deployed on Sepolia testnet
 
 ---
 
@@ -479,6 +489,7 @@ cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
 - [SuperPaymasterV2 v2.0.1 Deployment](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)
 - [Registry v2.2.0 Deployment](./docs/DEPLOY_REGISTRY_V2.2.0.md) (coming soon)
 - [Full Deployment Guide](./docs/DEPLOYMENT_READY.md)
+- [**Sepolia Redeployment Summary (V3.1.1)**](./docs/SEPOLIA_DEPLOYMENT_SUMMARY.md) (Latest Dec 28)
 
 ---
 
@@ -520,10 +531,19 @@ Coming soon after security audit.
 ### Technical Documentation
 
 - **[Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)** - Complete dependency graph, data structures, and constructor params
-- **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration (NEW)
+- **[Registry Role Mechanism](./contracts/docs/Registry_Role_Mechanism.md)** - Role configuration, management, and exit fee system
+- [Two-Tier Slashing Mechanism](docs/Two_Tier_Slashing_Mechanism.md)
+- [Admin Configuration Rights](docs/Admin_Configuration_Rights.md)
+- [Phase 7: Credit System Redesign (用户信用债务系统)](docs/Phase7_Credit_System_Redesign.md)
+- **[Phase 6 Verification Report](./contracts/docs/Phase6_Verification_Report.md)** - V3.1.1 test results and deployment readiness
+- **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration
+- **[DVT+BLS Architecture](./docs/DVT_BLS_Architecture.md)** - 去中心化验证者技术架构与BLS签名聚合
+- **[Oracle Failover Mechanism](./docs/Oracle_Failover_Mechanism.md)** - Chainlink降级与DVT自动切换机制
+- **[Price Cache Technical Reference](./docs/Price_Cache_Technical_Reference.md)** - Price Cache机制技术实现详解
 - **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
 - **[Repository Refactoring](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - Recent improvements
 - **[Deployment Guide](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - Step-by-step deployment
+- **[Gas Optimization Plan](./docs/GAS_OPTIMIZATION_PLAN.md)** - Hybrid Cache + Keeper Strategy Analysis
 
 ### User Guides
 
@@ -537,6 +557,11 @@ Coming soon after security audit.
 - **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
 - **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
 - **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
+
+### Testing & Evaluation
+- **[Anvil Testing Guide](./docs/Anvil_Testing_Guide.md)** - Complete guide for local Anvil testing (NEW)
+- **[Local Test Guide](./docs/Local_Test_Guide.md)** - Getting started with local Anvil testing
+- **[Coverage & Scenario Matrix](./docs/Coverage_and_Scenario_Matrix.md)** - Function coverage audit and multi-role testing
 
 ### Security
 
@@ -673,6 +698,8 @@ SuperPaymaster 是一个用于 ERC-4337 账户抽象的**去中心化燃料费�
 - 206/206 测试通过
 - 已部署在 Sepolia 测试网
 - 主网部署就绪（等待审计）
+- **安全与性能**: [🛡️ 安全与性能最佳实践](./docs/SECURITY_AND_PERFORMANCE.md)
+- **V3 重构计划**: [基于信用的架构与 DVT 安全](./docs/V3_REFACTOR_DESIGN.md)
 
 ---
 
@@ -1148,6 +1175,42 @@ console.log(SEPOLIA_ADDRESSES.REGISTRY);
 console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 ```
 
+```mermaid
+graph TD
+    subgraph "Governance (Step 1-2)"
+        GToken["GToken (ERC20)"]
+        Staking["GTokenStaking (Locker)"]
+    end
+
+    subgraph "Identity (Step 3-4)"
+        Registry["Registry V3.1 (Brain)"]
+        MySBT["MySBT (Identity)"]
+    end
+
+    subgraph "Payment System (Step 5-7)"
+        SP["SuperPaymaster V3.1 (Muscle)"]
+        Factory["xPNTsFactory"]
+        APNTS["aPNTs (Mock Token)"]
+    end
+
+    %% Dependencies during Initialization/Wiring (Step 8)
+    Staking -- "setRegistry" --> Registry
+    MySBT -- "setRegistry" --> Registry
+    Registry -- "Immutable" --> Staking
+    Registry -- "Immutable" --> MySBT
+    
+    Factory -- "setSuperPaymaster" --> SP
+    APNTS -- "setSuperPaymaster" --> SP
+    SP -- "Immutable" --> Registry
+    SP -- "Query Credit/Rep" --> Registry
+
+    %% Runtime Flow
+    UserOp["UserOperation"] -- "Validate" --> SP
+    SP -- "1. Check Credit/Burn" --> APNTS
+    SP -- "2. Record Debt (if fail)" --> Registry
+    DVT["DVT Validators"] -- "Batch Update Rep" --> Registry
+```
+
 ### 主网
 
 安全审计后即将推出。
@@ -1176,6 +1239,10 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 - **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
 - **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
 - **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
+
+### 测试与评估
+- **[本地测试新手指南](./docs/Local_Test_Guide.md)** - 本地 Anvil 环境下的快速上手路径 (新)
+- **[覆盖率与场景矩阵](./docs/Coverage_and_Scenario_Matrix.md)** - 函数级覆盖率审计与多角色场景测试 (新)
 
 ### 安全
 
@@ -1279,3 +1346,9 @@ console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
 ---
 
 **Built with ❤️ by [AAStarCommunity](https://github.com/AAStarCommunity)**
+
+---
+
+## 📈 最新进展 (New Progress)
+
+- [ ] **V3 角色-实体交互完整测试矩阵**: [V3_Test_Matrix.md](./docs/V3_Test_Matrix.md) - 已完成 100% 业务场景穷举与覆盖率规划。

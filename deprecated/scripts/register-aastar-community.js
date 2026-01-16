@@ -1,3 +1,9 @@
+// [MIGRATED TO V3]: This file has been updated to use Mycelium Protocol v3 API
+// Migration Date: 2025-11-28
+// Changes: registerCommunity() -> registerRole(ROLE_COMMUNITY, ...)
+//          exitCommunity() -> exitRole(ROLE_COMMUNITY)
+//          See FRONTEND_MIGRATION_EXAMPLES_V3.md for details
+
 #!/usr/bin/env node
 /**
  * Register AAStar Community to Registry v2.1.3
@@ -5,6 +11,12 @@
 
 require("dotenv").config();
 const { ethers } = require("ethers");
+
+// Role IDs for v3
+const ROLE_ENDUSER = '0x454e445553455200000000000000000000000000000000000000000000000000';
+const ROLE_COMMUNITY = '0x434f4d4d554e4954590000000000000000000000000000000000000000000000';
+const ROLE_PAYMASTER = '0x5041594d41535445520000000000000000000000000000000000000000000000';
+const ROLE_SUPER = '0x5355504552000000000000000000000000000000000000000000000000000000';
 
 // v0.2.10 Contract Addresses
 const REGISTRY = "0xb6286F53d8ff25eF99e6a43b2907B8e6BD0f019A";
@@ -87,7 +99,7 @@ async function main() {
 
   console.log("🚀 Registering community...");
   try {
-    const tx = await registry.registerCommunity(profile, stGTokenAmount, {
+    const tx = await registry.registerRole(ROLE_COMMUNITY, msg.sender, profile, stGTokenAmount, {
       gasLimit: 500000n,
     });
 

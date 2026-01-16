@@ -14,3 +14,9 @@
 	path = contracts/lib/chainlink-brownie-contracts
 	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
 	ignore = dirty
+[submodule "lib/account-abstraction"]
+	path = lib/account-abstraction
+	url = https://github.com/eth-infinitism/account-abstraction
+[submodule "contracts/lib/solady"]
+	path = contracts/lib/solady
+	url = https://github.com/Vectorized/solady.git
