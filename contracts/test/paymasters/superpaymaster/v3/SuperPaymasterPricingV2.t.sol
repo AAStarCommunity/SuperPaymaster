@@ -150,6 +150,20 @@ contract SuperPaymasterPricingV2Test is Test {
         vm.stopPrank();
     }
 
+    function _createOp() internal view returns (PackedUserOperation memory) {
+        return PackedUserOperation({
+            sender: user,
+            nonce: 0,
+            initCode: bytes(""),
+            callData: bytes(""),
+            accountGasLimits: bytes32(0),
+            preVerificationGas: 0,
+            gasFees: bytes32(0),
+            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100000), uint128(100000), operator),
+            signature: bytes("")
+        });
+    }
+
     function _getContext() internal view returns (bytes memory) {
         // Mock context returned by validation
         return abi.encode(address(apnts), uint256(0), user, uint256(1 ether), bytes32(0), operator);
@@ -203,34 +217,19 @@ contract SuperPaymasterPricingV2Test is Test {
         assertEq(p, NEW_PRICE);
     }
 
-    // 3. Stale Cache + Failed Update (Fallback) Scenario
-    function test_UpdateFails_FallsBackToRealtime() public {
+     // 3. Stale Cache + Failed Update (Strict Revert) Scenario
+    function test_UpdateFails_FallsBackToRealtime_REVERT() public {
         paymaster.updatePrice();
-        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
         
         // Advance time by 2 hours
         vm.warp(block.timestamp + 2 hours);
         
-        // Oracle FAIL on update
-        // We simulate this by making the Oracle revert.
-        // But if Oracle reverts, the `try updatePrice` catches it.
-        // Then `useRealtime = true`.
-        // Then `_calculateAPNTsAmount` calls `latestRoundData`.
-        // If Oracle is reverting, `_calculateAPNTsAmount` ALSO fails to read.
-        // It then falls back to CACHE.
-        
-        // So the observed behavior is:
-        // 1. Cache NOT updated (failed).
-        // 2. Tx succeeds (fallback).
-        
         priceFeed.setRevert(true);
         
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, _getContext(), 0.01 ether, 1 gwei);
+        vm.expectRevert(SuperPaymaster.OracleError.selector);
         
-        // Assert: Cache NOT updated
-        (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
-        assertEq(newUpdatedAt, initialUpdatedAt, "Cache update failed, timestamp should stay same");
+        vm.prank(address(entryPoint));
+        paymaster.validatePaymasterUserOp(_createOp(), bytes32(0), 0);
     }
 
     // 4. DVT Intervention Scenario

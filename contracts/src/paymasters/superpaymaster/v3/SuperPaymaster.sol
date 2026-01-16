@@ -677,6 +677,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Mode 2: Validation or Fallback (Cache)
         if (ethUsdPrice <= 0) {
             PriceCache memory cache = cachedPrice;
+            if (block.timestamp - cache.updatedAt > priceStalenessThreshold) revert OracleError();
             ethUsdPrice = cache.price;
             priceDecimals = cache.decimals;
         }
