@@ -1,7 +1,7 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest", 
   "source": "SuperPaymaster/contracts/src", 
-  "buildTime": "2026-01-16T15:10:40Z", 
+  "buildTime": "2026-01-16T15:45:47Z", 
   "totalHash": "8993c137dd9f6614312d53e92fc28917f2d996ded49cd80e10fa7c6768c54b58", 
   "files": [
     { "name": "BLSAggregator.json", "hash": "02c5eb77d2e88ae3a4a91997958662ba45b40cbbc28b32ac92c36f0d3e45bc50" },
