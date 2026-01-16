@@ -6,7 +6,7 @@
     "test:gasless": "node script/gasless-tests/run-all-tests.sh"
   },
   "dependencies": {
-    "@aastar/shared-config": "^0.3.4",
+    "@aastar/shared-config": "^0.3.8",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.4"
   },
