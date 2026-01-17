@@ -24,29 +24,15 @@ import "src/modules/monitoring/DVTValidator.sol";
 import "src/mocks/MockBLSValidator.sol";
 
 // External Interfaces
+import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
+import {SimpleAccountFactory} from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import { SimpleAccountFactory } from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
 contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, 2000 * 1e8, 0, block.timestamp, 1);
     }
     function decimals() external pure returns (uint8) { return 8; }
-}
-
-contract MockEntryPoint {
-    function depositTo(address) external payable {}
-    function getUserOpHash(PackedUserOperation calldata) external pure returns (bytes32) {
-        return keccak256("mock_hash");
-    }
-    function getDepositInfo(address) external pure returns (IStakeManager.DepositInfo memory) {
-        return IStakeManager.DepositInfo(0, false, 0, 0, 0);
-    }
-    function balanceOf(address) external pure returns (uint256) { return 1 ether; }
-    function withdrawTo(address payable, uint256) external {}
-    function addStake(uint32) external payable {}
-    function unlockStake() external {}
-    function withdrawStake(address payable) external {}
 }
 
 /**
@@ -83,7 +69,7 @@ contract DeployAnvil is Script {
         vm.startBroadcast(deployerPK);
         
         priceFeedAddr = address(new MockPriceFeed());
-        entryPointAddr = address(new MockEntryPoint());
+        entryPointAddr = address(new EntryPoint());
 
         console.log("=== Step 1: Deploy Foundation ===");
         gtoken = new GToken(21_000_000 * 1e18);
@@ -185,8 +171,6 @@ contract DeployAnvil is Script {
         xPNTsToken(dPNTs).mint(anni, 500 ether);
         xPNTsToken(dPNTs).approve(address(superPaymaster), 500 ether);
         
-        // FIXME: ERC20InsufficientAllowance error on Anvil despite valid approve/auto-approve.
-        // Skipping deposit for now as SDK tests handles funding or this is optional optimization.
         // superPaymaster.deposit(500 ether);
         vm.stopBroadcast();
 
@@ -220,6 +204,7 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
+        vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);
         console.log("\n--- Anvil Deployment Complete ---");
