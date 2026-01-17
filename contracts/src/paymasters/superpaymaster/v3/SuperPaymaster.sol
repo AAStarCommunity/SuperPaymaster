@@ -677,7 +677,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Mode 2: Validation or Fallback (Cache)
         if (ethUsdPrice <= 0) {
             PriceCache memory cache = cachedPrice;
-            if (block.timestamp - cache.updatedAt > priceStalenessThreshold) revert OracleError();
+            // V3.6 FIX: Remove TIMESTAMP check here to avoid Banned Opcode AA33.
+            // Staleness is enforced via validUntil signal in validatePaymasterUserOp
             ethUsdPrice = cache.price;
             priceDecimals = cache.decimals;
         }
@@ -713,6 +714,11 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         if (!config.isConfigured) {
              return ("", _packValidationData(true, 0, 0)); 
         }
+
+        // Initialize Validation Times
+        // V3.6 FIX: Return validUntil to enforce Staleness Check and validAfter for Rate Limit
+        uint48 validUntil = uint48(cachedPrice.updatedAt + priceStalenessThreshold);
+        uint48 validAfter = 0;
         
         // Check 2: Must not be Paused
         if (config.isPaused) {
@@ -736,16 +742,10 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // config is already declared above
         if (config.minTxInterval > 0) {
             uint48 lastTime = userState.lastTimestamp;
-            // Allow if first tx (0) or interval passed
-            // Note: validAfter/validUntil handled by bundler, we enforce interval here
-            if (lastTime != 0 && block.timestamp != lastTime && uint48(block.timestamp) < lastTime + config.minTxInterval) {
-                 return ("", _packValidationData(true, 0, 0));
+            // V3.6 FIX: Use validAfter to enforce rate limit instead of reverting on block.timestamp
+            if (lastTime != 0) {
+                 validAfter = lastTime + config.minTxInterval;
             }
-            
-            // OPTIMIZATION: Update state in PLACE (Saves gas by reusing the loaded slot context? No, requires storage write)
-            // But we already loaded userState. We need to write back.
-            // Be careful: userState is 'memory'. We need storage pointer to write.
-            userOpState[operator][userOp.sender].lastTimestamp = uint48(block.timestamp);
         }
 
         // 2.1 Validate Rate Commitment (Rug Pull Protection)
@@ -783,7 +783,15 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         
         // Use Empty Context to save gas (PostOp can re-read or we assume optimistic success)
         // Or if we need PostOp refund, we pass data.
-        return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), 0);
+        // V3.6 FIX: Return validUntil to enforce Staleness Check without opcode
+        // Use Empty Context to save gas (PostOp can re-read or we assume optimistic success)
+        // Or if we need PostOp refund, we pass data.
+        
+        // Ensure validUntil is in the future relative to typical current time? 
+        // No, EntryPoint checks this against block.timestamp.
+        // If cachedPrice is very old, validUntil will be in the past, and EntryPoint will REJECT.
+        
+        return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
     }
 
     function postOp(
@@ -792,11 +800,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint {
-        // Defense: If postOp previously failed, validation already charged - avoid double charging
-        if (mode == PostOpMode.postOpReverted) return;
-        
         if (context.length == 0) return;
-        
+
         (
             address token, 
             uint256 estimatedXPNTs, 
@@ -806,22 +811,23 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             address operator
         ) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
 
+        // V3.6 FIX: Update Rate Limit Timestamp ALWAYS (Defense against Griefing)
+        // Even if op reverted, usage counts towards limit to prevent spam.
+        if (operators[operator].minTxInterval > 0) {
+            userOpState[operator][user].lastTimestamp = uint48(block.timestamp);
+        }
+
+        // Defense: If postOp previously failed, validation already charged - avoid double charging
+        if (mode == PostOpMode.postOpReverted) return;
+
         // 1. Calculate Actual Cost in aPNTs
         // Optimization: "Cache-First, Passive Fallback" Strategy
         // Default to reading cache (Gas efficient)
         bool useRealtime = false;
         
-        // If Cache is stale (e.g. > 1 hour), attempt to refresh it
-        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
-            // Passive Update: Paymaster pays for this Oracle call
-            try this.updatePrice() {
-                // Success: Cache is updated. Keep useRealtime = false to read from fresh cache (Cheaper SLOAD)
-            } catch {
-                // Fail: Update failed. Force realtime read to ensure accuracy (Fallback to expensive STATICCALL)
-                useRealtime = true;
-                emit OracleFallbackTriggered(block.timestamp);
-            }
-        }
+        // Dead Code Removed: Passive Price Update fallback (Unreachable due to validation checks)
+        
+        // 1. Calculate Actual Cost in aPNTs
 
         // actualGasCost is in Wei.
         // If useRealtime=false: Reads storage (Cheap)
@@ -863,6 +869,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
              
              IxPNTsToken(token).recordDebt(user, finalXPNTsDebt);
         }
+
     }
     
 

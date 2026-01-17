@@ -195,8 +195,10 @@ contract SuperPaymasterPricingV2Test is Test {
     }
 
     // 2. Stale Cache + Successful Update Scenario
-    function test_StaleCache_CallsOracleOnce() public {
+    // 2. Stale Cache Scenario (Passive Update Removed)
+    function test_StaleCache_DoesNotUpdatePrice() public {
         paymaster.updatePrice();
+        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
         
         // Advance time by 2 hours (Stale)
         vm.warp(block.timestamp + 2 hours);
@@ -208,28 +210,83 @@ contract SuperPaymasterPricingV2Test is Test {
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, _getContext(), 0.01 ether, 1 gwei);
         
-        // Assert: Cache timestamp SHOULD update
+        // Assert: Cache timestamp SHOULD NOT Update (Passive update removed)
         (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
-        assertEq(newUpdatedAt, block.timestamp, "Cache should update when stale");
+        assertEq(newUpdatedAt, initialUpdatedAt, "Cache should NOT update in postOp");
         
-        // Verify Cache is updated
+        // Verify Cache is still old price
         (int256 p, , , ) = paymaster.cachedPrice();
-        assertEq(p, NEW_PRICE);
+        assertEq(p, int256(INITIAL_PRICE));
     }
 
-     // 3. Stale Cache + Failed Update (Strict Revert) Scenario
-    function test_UpdateFails_FallsBackToRealtime_REVERT() public {
+    // 3. Stale Cache + Failed Update (Expired ValidUntil) Scenario
+    function test_StaleCache_ReturnsExpiredValidUntil() public {
         paymaster.updatePrice();
+        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
         
-        // Advance time by 2 hours
+        // Advance time by 2 hours (7200s). Threshold is 1 hour (3600s).
         vm.warp(block.timestamp + 2 hours);
         
         priceFeed.setRevert(true);
         
-        vm.expectRevert(SuperPaymaster.OracleError.selector);
-        
         vm.prank(address(entryPoint));
-        paymaster.validatePaymasterUserOp(_createOp(), bytes32(0), 0);
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(_createOp(), bytes32(0), 0);
+        
+        // Validation Data format: [aggregator(20 logic/0 main)][validAfter(6)][validUntil(6)] (packed uint256)
+        // Wait, Paymaster returns _packValidationData(sigFail, validUntil, validAfter)
+        // Format: (sigFailed ? 1 : 0) << 160 | (validUntil << 112) | (validAfter << 64) ??
+        // Standard ERC-4337: validationData is uint256.
+        // If sigFailed is boolean (1 bit), then 6-byte validUntil, 6-byte validAfter.
+        // Actually BasePaymaster uses: (authorizer 0..159), (validUntil 160..207), (validAfter 208..255).
+        // Let's check BasePaymaster or helpers. 
+        // _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter)
+        // returns: (uint256(sigFailed ? 1 : 0) * 0 + validAfter) << ...?
+        // No, standard is:
+        // [authorizer(160 bits)] [validUntil(48 bits)] [validAfter(48 bits)]
+        // NOTE: validUntil=0 means "forever".
+        
+        uint48 validUntil = uint48(validationData >> 48); // Wait, standard order?
+        // Let's look at BasePaymaster or just infer from standard.
+        // ERC-4337 v0.7: validationData: authorizer(20 bytes) + validUntil(6 bytes) + validAfter(6 bytes)
+        // No, standard is: params are packed.
+        // But the return value for Paymaster is `context` and `validationData`.
+        // `validationData` bit layout:
+        // bits 0-159: aggregator/sig (0 = success)
+        // bits 160-207: validAfter (48 bits) -- WAIT
+        // bits 208-255: validUntil (48 bits) -- WAIT
+        
+        // Actually, check _packValidationData in BasePaymaster usually follows:
+        // (sigFailed, validUntil, validAfter)
+        // Usually returns: (uint256(validAfter) << 160) | (uint256(validUntil) << 160 + 48)? No.
+        
+        // Let's decode assuming `_packValidationData(false, validUntil, validAfter)`:
+        // Usually: validAfter is HIGH ORDER? validUntil is MIDDLE?
+        // Let's assume standard logic:
+        // validUntil is bytes 20..26?
+        
+        // Simplest Verification:
+        // Just assert validationData != 0.
+        // And check behavior.
+        
+        // But better constraint:
+        // validUntil should be roughly initialUpdatedAt + 3600.
+        // block.timestamp is initialUpdatedAt + 7200.
+        // So validUntil < block.timestamp.
+        
+        // If I can't easily decode, I'll rely on the property that it's NOT 0 (forever) and represents a past time.
+        
+        // ValidationData decoding from BasePaymaster:
+        // return (uint256(validAfter) << 208) | (uint256(validUntil) << 160) | (sigFail);
+        // Correct? Let's assume standard from standard repo.
+        // 0-159: 0 (success)
+        // 160-207: validUntil
+        // 208-255: validAfter
+        
+        // So validUntil = uint48(validationData >> 160);
+        uint48 extractedValidUntil = uint48(validationData >> 160);
+        
+        assertEq(extractedValidUntil, initialUpdatedAt + 3600, "ValidUntil should be updatedAt + threshold");
+        assertTrue(extractedValidUntil < block.timestamp, "ValidUntil should be in the past (expired)");
     }
 
     // 4. DVT Intervention Scenario

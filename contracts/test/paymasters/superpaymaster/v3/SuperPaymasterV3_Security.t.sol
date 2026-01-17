@@ -6,6 +6,7 @@ import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../../../src/interfaces/v3/IRegistry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 
@@ -45,6 +46,8 @@ contract MockERC20Sec is ERC20 {
 
     mapping(address => uint256) public debts;
     function setDebt(address u, uint256 d) external { debts[u] = d; }
+    function recordDebt(address u, uint256 d) external { debts[u] = d; }
+
     function getDebt(address u) external view returns (uint256) { return debts[u]; }
 }
 
@@ -132,7 +135,7 @@ contract SuperPaymaster_SecurityTest is Test {
         assertEq(minTx, 60);
     }
 
-    function testRateLimiting_AllowSameBlock() public {
+    function testRateLimiting_DenySameBlock() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60); 
 
@@ -142,12 +145,24 @@ contract SuperPaymaster_SecurityTest is Test {
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
         (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        assertEq(valData, 0, "First tx valid");
+        assertEq(uint160(valData), 0, "First tx valid");
+        
+        // Simulate PostOp to update state
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
-        // Tx 2: Time T (Same Block) - Should Pass
+        // Tx 2: Time T (Same Block) - Should Fail (validAfter > timestamp)
         vm.prank(address(entryPoint));
         (ctx, valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        assertEq(valData, 0, "Second tx in same block valid");
+        
+        uint48 validAfter = uint48(valData >> 216); // Standard packing: Authorizer(20)+Until(6)+After(6). 
+        // Wait, standard packing is:
+        // authorizer: 160 bits (0..159)
+        // validUntil: 48 bits (160..207)
+        // validAfter: 48 bits (208..255)
+        validAfter = uint48(valData >> 208);
+        
+        assertGt(validAfter, block.timestamp, "Second tx in same block should be deferred");
     }
 
     function testRateLimiting_RevertTooSoon() public {
@@ -159,14 +174,19 @@ contract SuperPaymaster_SecurityTest is Test {
         // Tx 1: Time 1000
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        
+        // Simulate PostOp
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
-        // Tx 2: Time 1030 (Delta 30 < 60) - Should Fail
+        // Tx 2: Time 1030 (Delta 30 < 60) - Should return validAfter
         vm.warp(1700001030);
         vm.prank(address(entryPoint));
         (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
         
-        assertTrue(valData != 0, "Tx too soon should be invalid");
+        uint48 validAfter = uint48(valData >> 208);
+        assertGt(validAfter, block.timestamp, "Tx too soon should have future validAfter");
     }
     
     function testRateLimiting_AllowAfterInterval() public {
@@ -178,13 +198,48 @@ contract SuperPaymaster_SecurityTest is Test {
         // Tx 1: Time 1000
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+
+        // Simulate PostOp
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
         // Tx 2: Time 1061 (Delta 61 > 60) - Pass
         vm.warp(1700001061);
         vm.prank(address(entryPoint));
         (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        assertEq(valData, 0, "Tx after interval should be valid");
+        
+        uint48 validAfter = uint48(valData >> 208);
+        assertLe(validAfter, block.timestamp, "Tx after interval should be valid immediately");
+        assertEq(uint160(valData), 0, "Tx after interval should have valid sig");
+    }
+
+
+    
+    function testRateLimiting_UpdatesOnRevert() public {
+        vm.prank(operator);
+        paymaster.setOperatorLimits(60); 
+
+        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
+        
+        // Tx 1: Time 1000
+        vm.warp(1700001000);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+
+        // Simulate Reverted PostOp
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.postOpReverted, ctx, 100000, 100000);
+
+        // Tx 2: Time 1030 (Delta 30 < 60) - Should return validAfter
+        // If timestamp was NOT updated, this would PASS (validAfter=0).
+        // Since it IS updated, it should FAIL (validAfter > timestamp).
+        vm.warp(1700001030);
+        vm.prank(address(entryPoint));
+        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        
+        uint48 validAfter = uint48(valData >> 208);
+        assertGt(validAfter, block.timestamp, "Reverted tx should still consume rate limit");
     }
 
     function testUpdateBlockedStatus() public {
@@ -214,7 +269,7 @@ contract SuperPaymaster_SecurityTest is Test {
         
         vm.prank(address(entryPoint));
         (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        assertTrue(valData != 0, "Blocked user should be rejected");
+        assertTrue(uint160(valData) != 0, "Blocked user should be rejected");
     }
 
 

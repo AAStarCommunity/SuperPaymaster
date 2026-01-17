@@ -158,28 +158,22 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 1000, 1000);
     }
     
-    function test_StaleCache_TriggersRevert() public {
+    function test_StaleCache_SucceedsInPostOp() public {
         // 1. Warp to make Cache Stale (1 hour + 1 sec)
         vm.warp(block.timestamp + 3601);
         
         // 2. Make Oracle Fail (Simulate Denial of Service)
         priceFeed.setFail(true);
         
-        // 3. Expect Revert (Structure: Strict Staleness Check)
-        vm.expectRevert(SuperPaymaster.OracleError.selector);
-        
-        // 4. Call Validate (Validation triggers the check)
-        // Note: postOp uses realtime fallback logic internal to _calculate? 
-        // No, _calculateAPNTsAmount is shared. If Validation calls it, it reverts.
-        // But here we call postOp directly? 
-        // PostOp mode calls _calculateAPNTsAmount(..., true).
-        // If 'true' (Realtime), it tries Oracle. If Oracle fails, it falls back to Cache.
-        // The Cache is STALE.
-        // So it should Revert.
+        // 3. Expect Success (PostOp uses stale cache if implicit validation allowed it)
+        // In reality, this tx would fail validation at EntryPoint due to validUntil.
+        // But if it reaches postOp (e.g. miner bypass or time edge case), it should process.
         
         bytes memory context = abi.encode(address(xpnts), uint256(100000), address(0), uint256(100000), bytes32(0), address(this));
         
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 1000, 1000);
+        
+        // Assert no revert (Success)
     }
 }

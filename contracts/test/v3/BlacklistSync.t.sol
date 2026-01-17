@@ -175,7 +175,7 @@ contract BlacklistSyncTest is Test {
         PackedUserOperation memory op = _createOp(maliciousUser);
         vm.prank(address(entryPoint));
         (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 0.01 ether);
-        assertEq(validationData, 0, "Should pass validation");
+        assertEq(uint160(validationData), 0, "Should pass validation");
     }
 
     function test_Revert_UnauthorizedSource() public {

@@ -237,7 +237,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         vm.prank(address(entryPoint));
         (bytes memory context, uint256 valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), maxCost);
         
-        assertEq(valData, 0, "Validation should pass");
+        assertEq(uint160(valData), 0, "Validation should pass");
         
         // Check Operator Balance Deduction
         // Calculation:

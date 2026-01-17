@@ -75,7 +75,7 @@ contract SuperPaymasterRefundTest is Test {
         vm.prank(entryPoint);
         (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, opHash, maxCost);
         
-        assertEq(validationData, 0, "Validation should pass");
+        assertEq(uint160(validationData), 0, "Validation should pass");
         assertTrue(context.length > 0, "Context should be returned");
         
         // Check Operator Balance decreased by Max (logic: Pre-charge)

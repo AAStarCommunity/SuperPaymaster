@@ -423,7 +423,7 @@ contract CoverageSupplementTest is Test {
         // Now success
         vm.prank(address(entryPoint));
         (ctx, valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
-        assertEq(valData, 0, "Should succeed");
+        assertEq(uint160(valData), 0, "Should succeed");
         
         // 4. Paused Operator
         vm.prank(owner);
