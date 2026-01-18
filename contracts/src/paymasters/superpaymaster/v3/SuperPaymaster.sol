@@ -828,7 +828,6 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         // Dead Code Removed: Passive Price Update fallback (Unreachable due to validation checks)
         
         // 1. Calculate Actual Cost in aPNTs
-
         // actualGasCost is in Wei.
         // If useRealtime=false: Reads storage (Cheap)
         // If useRealtime=true: Calls Oracle (Expensive, but necessary occasionally)
