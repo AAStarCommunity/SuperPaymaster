@@ -36,12 +36,15 @@ CONTRACTS=(
 echo "🔍 Starting ABI extraction for V3/V4..."
 
 for CONTRACT in "${CONTRACTS[@]}"; do
-    # 查找对应的 JSON 文件
     # Foundry 的路径通常是 out/ContractName.sol/ContractName.json
-    FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
+    # 如果存在多个匹配（例如 wrapper），优先选择非 core 目录下的，或者更完整的
+    FILE=$(find out -name "${CONTRACT}.json" -not -path "*/core/*" | head -n 1)
+    if [ -z "$FILE" ]; then
+        FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
+    fi
     
     if [ -f "$FILE" ]; then
-        echo "✅ Extracting ABI & Bytecode for $CONTRACT..."
+        echo "✅ Extracting ABI & Bytecode for $CONTRACT from $FILE..."
         # 提取 abi 和 bytecode.object 并合并为 JSON
         jq '{abi: .abi, bytecode: .bytecode.object}' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
     else
