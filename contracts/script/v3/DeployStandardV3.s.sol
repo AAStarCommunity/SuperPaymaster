@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 
 // Core Imports
 import "src/core/Registry.sol";
@@ -49,6 +50,7 @@ contract MockEntryPoint {
  * @notice Standardized V3/V4 Deployment Script (Environment Strict)
  */
 contract DeployStandardV3 is Script {
+    using Clones for address;
     uint256 deployerPK;
     address deployer;
     address entryPointAddr;
@@ -152,7 +154,8 @@ contract DeployStandardV3 is Script {
     }
 
     function _deployCore() internal {
-                apnts = new xPNTsToken();
+        address xPNTsImpl = address(new xPNTsToken());
+        apnts = xPNTsToken(xPNTsImpl.clone());
         apnts.initialize("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
         superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
     }

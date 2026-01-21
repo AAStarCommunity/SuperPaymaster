@@ -3,9 +3,11 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "src/tokens/xPNTsToken.sol";
 
 contract Deploy06b_BPNTs_Direct is Script {
+    using Clones for address;
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
@@ -13,8 +15,9 @@ contract Deploy06b_BPNTs_Direct is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Direct deployment bypassing Factory (using initialize pattern)
-        xPNTsToken bpnts = new xPNTsToken();
+        // Direct deployment bypassing Factory (using clone pattern for safety)
+        address xPNTsImpl = address(new xPNTsToken());
+        xPNTsToken bpnts = xPNTsToken(xPNTsImpl.clone());
         bpnts.initialize(
             "AAStar PNT B",
             "bPNTs",

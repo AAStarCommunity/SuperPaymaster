@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
@@ -25,6 +26,7 @@ import "src/modules/validators/BLSValidator.sol";
  * @notice Complete System Deployment for Sepolia Stage 3 Experiment.
  */
 contract DeployStage3Sepolia is Script {
+    using Clones for address;
     function run() external {
         uint256 deployerPK = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPK);
@@ -50,7 +52,8 @@ contract DeployStage3Sepolia is Script {
         
         // 2. Reputation & Token
         ReputationSystem repSystem = new ReputationSystem(address(registry));
-                xPNTsToken apnts = new xPNTsToken();
+        address xPNTsImpl = address(new xPNTsToken());
+        apnts = xPNTsToken(xPNTsImpl.clone());
         apnts.initialize("aPNTs", "aPNTs", deployer, "SepoliaHub", "sepolia.eth", 1e18);
 
         // 3. SuperPaymaster

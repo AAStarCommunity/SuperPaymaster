@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
@@ -49,6 +50,7 @@ contract MockEntryPoint is IStakeManager {
  * @notice Dedicated Local Deployment for Anvil with automatic funding and role orchestration.
  */
 contract DeployV3FullLocal is Script {
+    using Clones for address;
     function run() external {
         uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80; // Anvil #0
         uint256 alicePK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d; // Anvil #1
@@ -86,7 +88,8 @@ contract DeployV3FullLocal is Script {
         
         // 2. Reputation & Token
         ReputationSystem repSystem = new ReputationSystem(address(registry));
-                xPNTsToken apnts = new xPNTsToken();
+        address xPNTsImpl = address(new xPNTsToken());
+        apnts = xPNTsToken(xPNTsImpl.clone());
         apnts.initialize("aPNTs", "aPNTs", deployer, "LocalHub", "local.eth", 1e18);
 
         // 3. SuperPaymaster
