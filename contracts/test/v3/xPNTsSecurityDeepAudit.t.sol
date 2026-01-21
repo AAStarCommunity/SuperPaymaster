@@ -62,9 +62,6 @@ contract xPNTsSecurityDeepAuditTest is Test {
     function test_Security_DebtRepayment_Limits() public {
         vm.prank(admin);
         token.mint(user, 100 ether);
-        
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 50 ether);
 
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -80,6 +77,17 @@ contract xPNTsSecurityDeepAuditTest is Test {
         vm.prank(user);
         vm.expectRevert("ERC20: burn amount exceeds balance");
         token.repayDebt(10 ether);
+    }
+
+    // 2.5 Single Transaction Limit
+    function test_Security_SingleTxLimit() public {
+        vm.prank(admin);
+        token.mint(user, 10000 ether);
+
+        // Attempt to burn more than limit
+        vm.prank(paymaster);
+        vm.expectRevert("Single transaction limit exceeded");
+        token.burnFromWithOpHash(user, 6000 ether, keccak256("test"));
     }
 
     // 3. Factory Renunciation (Decentralization)

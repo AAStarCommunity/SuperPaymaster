@@ -23,7 +23,6 @@ contract CreditSystemTest is Test {
 
     function testDebtRecording() public {
         vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
 
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -46,7 +45,6 @@ contract CreditSystemTest is Test {
     function testAutoRepayment() public {
         // 0. Set Limit
         vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
 
         // 1. Record Debt
         vm.prank(paymaster);
@@ -65,7 +63,6 @@ contract CreditSystemTest is Test {
 
     function testPartialRepayment() public {
         vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
 
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -83,7 +80,6 @@ contract CreditSystemTest is Test {
         token.mint(sender, 20 ether);
 
         vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
 
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -108,7 +104,6 @@ contract CreditSystemTest is Test {
         token.approve(spender, 20 ether);
 
         vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
 
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);

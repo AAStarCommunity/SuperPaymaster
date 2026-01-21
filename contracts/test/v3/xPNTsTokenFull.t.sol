@@ -50,16 +50,12 @@ contract xPNTsTokenFullTest is Test {
 
     // 2. Pre-Authorization & Firewall
     function test_AllowanceOverride_AutoApproved() public {
+        address other = address(uint160(0x444));
         vm.prank(admin);
         token.addAutoApprovedSpender(other);
         
-        // Default limit is 0, so allowance should be 0
-        assertEq(token.allowance(user, other), 0);
-
-        // Set limit
-        vm.prank(user);
-        token.setPaymasterLimit(other, 1000 ether);
-        assertEq(token.allowance(user, other), 1000 ether);
+        // Auto-approved spenders have unlimited allowance
+        assertEq(token.allowance(user, other), type(uint256).max);
     }
 
     function test_SuperPaymaster_Firewall_Reverts() public {
@@ -83,9 +79,6 @@ contract xPNTsTokenFullTest is Test {
         bytes32 opHash = keccak256("op1");
         
         // Set spending limit
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 50 ether);
-
         vm.prank(paymaster);
         token.burnFromWithOpHash(user, 10 ether, opHash);
         
@@ -150,10 +143,6 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_AutoRepay_MintOnly() public {
-        // 0. Set Limit
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
-
         // 1. Record Debt
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -169,10 +158,6 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_NoAutoRepay_OnTransfer() public {
-        // 0. Set Limit
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
-
         // 1. Setup Debt
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
@@ -190,9 +175,6 @@ contract xPNTsTokenFullTest is Test {
     }
 
     function test_ManualRepayDebt() public {
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
-
         vm.prank(paymaster);
         token.recordDebt(user, 10 ether);
         
@@ -212,28 +194,23 @@ contract xPNTsTokenFullTest is Test {
         assertEq(token.getDebt(user), 5 ether);
     }
 
-    function test_Security_TransferFrom_SpendingLimit() public {
+    function test_Security_TransferFrom_SingleTxLimit() public {
         // 1. Setup user balance
         vm.prank(admin);
-        token.mint(user, 1000 ether);
+        token.mint(user, 10000 ether);
 
-        // 2. Set spending limit for paymaster
-        vm.prank(user);
-        token.setPaymasterLimit(paymaster, 100 ether);
-
-        // 3. First transfer (50) - should pass
+        // 2. Normal transfer should pass
         vm.prank(paymaster);
-        token.transferFrom(user, paymaster, 50 ether);
-        assertEq(token.cumulativeSpent(user, paymaster), 50 ether);
+        token.transferFrom(user, paymaster, 4000 ether);
+        assertEq(token.balanceOf(paymaster), 4000 ether);
 
-        // 4. Second transfer (60) - should REVERT (Total 110 > 100)
+        // 3. Transfer exceeding single-tx limit should REVERT
         vm.prank(paymaster);
-        vm.expectRevert("Spending limit exceeded");
-        token.transferFrom(user, paymaster, 60 ether);
+        vm.expectRevert("Single transaction limit exceeded");
+        token.transferFrom(user, paymaster, 6000 ether); // > 5000 limit
 
-        // 5. Verify the state hasn't changed
-        assertEq(token.cumulativeSpent(user, paymaster), 50 ether);
-        assertEq(token.balanceOf(user), 950 ether);
+        // 4. Verify the state hasn't changed
+        assertEq(token.balanceOf(user), 6000 ether);
     }
 
     function test_Security_KeyRotation_Revokes_Privileges() public {
@@ -247,10 +224,6 @@ contract xPNTsTokenFullTest is Test {
         
         vm.prank(admin);
         token.mint(user, 1000 ether);
-        
-        vm.prank(user);
-        token.setPaymasterLimit(oldPaymaster, 1000 ether);
-
         // 2. Rotation Event
         vm.prank(admin);
         token.setSuperPaymasterAddress(newPaymaster);

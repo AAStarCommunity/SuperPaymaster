@@ -68,24 +68,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice User debt balance in xPNTs
     mapping(address => uint256) public debts;
 
-    /// @notice User spending limits for specific spenders (e.g., Paymaster)
-    /// @dev user => spender => maxCumulativeDebt
-    mapping(address => mapping(address => uint256)) public spendingLimits;
-
-    /// @notice User cumulative spent per spender
-    /// @dev user => spender => currentCumulativeSpent
-    mapping(address => mapping(address => uint256)) public cumulativeSpent;
-
     /// @dev Internal reentrancy status for clone-safe nonReentrant guard
     uint256 private _reentrancyStatus;
 
-    /// @dev Default spending limit in aPNTs (~$100 @ $0.02/aPNTs)
-    /// @notice Converted to xPNTs using exchangeRate at mint time
-    /// @notice Frontend should display remaining limit and offer "Increase Limit" button
-    uint256 public constant DEFAULT_SPENDING_LIMIT_APNTS = 5000 ether;
+    /// @notice Maximum allowed single transaction amount (anti-bug safeguard)
+    /// @dev Prevents catastrophic losses from code bugs while maintaining flexibility
+    uint256 public constant MAX_SINGLE_TX_LIMIT = 5_000 ether; // $100 @ $0.02/aPNTs
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-2.4.0-clone-optimized";
+        return "XPNTs-3.0.0-unlimited"; // Removed spending limits, added single-tx cap
     }
 
     /**
@@ -102,13 +93,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         return _tokenSymbol;
     }
 
-    /// @notice Calculate the xPNTs equivalent of the default limit based on current exchangeRate
-    function getDefaultSpendingLimitXPNTs() public view returns (uint256) {
-        // xPNTs = aPNTs * exchangeRate / 1e18
-        // If exchangeRate is 0, default to 1:1
-        uint256 rate = exchangeRate == 0 ? 1e18 : exchangeRate;
-        return DEFAULT_SPENDING_LIMIT_APNTS * rate / 1e18;
-    }
 
     // ====================================
     // Events
@@ -121,7 +105,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
     event DebtRecorded(address indexed user, uint256 amount);
     event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
-    event SpendingLimitUpdated(address indexed user, address indexed spender, uint256 newLimit);
 
 
     // ====================================
@@ -238,8 +221,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     /**
      * @notice Override allowance() to implement pre-authorization
-     * @dev For UI and compatibility, we still show max allowance for auto-approved spenders.
-     *      However, the actual transfer is firewalled by the _spendAllowance override.
+     * @dev Auto-approved spenders have unlimited allowance, protected by firewall and single-tx limit
      */
     function allowance(address owner, address spender)
         public
@@ -248,9 +230,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         returns (uint256)
     {
         if (autoApprovedSpenders[spender]) {
-            uint256 limit = spendingLimits[owner][spender];
-            uint256 spent = cumulativeSpent[owner][spender];
-            return limit > spent ? limit - spent : 0;
+            return type(uint256).max; // Unlimited allowance, protected by firewall
         }
         return super.allowance(owner, spender);
     }
@@ -261,25 +241,21 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * its infinite allowance with standard `transferFrom`.
      */
     /**
-     * @notice Secure TransferFrom for SuperPaymaster
-     * @dev Restricts SuperPaymaster to ONLY transfer tokens to itself (Deposit).
-     *      Prevents the Paymaster from draining user funds to arbitrary addresses.
+     * @notice Secure TransferFrom with firewall and single-tx limit
+     * @dev Auto-approved spenders can only transfer to themselves or current SuperPaymaster
      */
     function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
-        // FIREWALL: Enforce rules for all auto-approved spenders
+        // FIREWALL: Enforce destination rules for all auto-approved spenders
         if (autoApprovedSpenders[msg.sender]) {
             // Auto-approved members can ONLY move funds to themselves or the current SuperPaymaster
             if (to != msg.sender && to != SUPERPAYMASTER_ADDRESS) {
                  revert("Security: Unauthorized recipient for auto-approved spender");
             }
 
-            // Spending limit check
-            uint256 limit = spendingLimits[from][msg.sender];
-            uint256 newTotalSpent = cumulativeSpent[from][msg.sender] + value;
-            if (newTotalSpent > limit) {
-                revert("Spending limit exceeded");
+            // Single transaction limit (anti-bug safeguard)
+            if (value > MAX_SINGLE_TX_LIMIT) {
+                revert("Single transaction limit exceeded");
             }
-            cumulativeSpent[from][msg.sender] = newTotalSpent;
         }
 
         return super.transferFrom(from, to, value);
@@ -318,11 +294,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // 3. Mark Hash as used
         usedOpHashes[userOpHash] = true;
 
-        // 4. Enforce Spending Limit (Mandatory V3.6)
-        uint256 limit = spendingLimits[from][msg.sender];
-        uint256 newTotalSpent = cumulativeSpent[from][msg.sender] + amount;
-        if (newTotalSpent > limit) revert("Spending limit exceeded");
-        cumulativeSpent[from][msg.sender] = newTotalSpent;
+        // 4. Single transaction limit (anti-bug safeguard)
+        if (amount > MAX_SINGLE_TX_LIMIT) {
+            revert("Single transaction limit exceeded");
+        }
 
         // 5. Execute Burn
         _burn(from, amount);
@@ -343,23 +318,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(msg.sender);
         }
 
-        // V3.6 SECURITY: Enforce Spending Limits
-        uint256 limit = spendingLimits[user][msg.sender];
-        uint256 newTotalSpent = cumulativeSpent[user][msg.sender] + amountXPNTs;
-        if (newTotalSpent > limit) revert("Spending limit exceeded");
-        cumulativeSpent[user][msg.sender] = newTotalSpent;
+        // Single transaction limit (anti-bug safeguard)
+        if (amountXPNTs > MAX_SINGLE_TX_LIMIT) {
+            revert("Single transaction limit exceeded");
+        }
 
         debts[user] += amountXPNTs;
         emit DebtRecorded(user, amountXPNTs);
     }
 
-    /**
-     * @notice Set spending limit for a specific spender (e.g., Paymaster)
-     */
-    function setPaymasterLimit(address spender, uint256 limit) external {
-        spendingLimits[msg.sender][spender] = limit;
-        emit SpendingLimitUpdated(msg.sender, spender, limit);
-    }
     
     /**
      * @notice Manually repay debt using user's xPNTs balance
@@ -451,6 +418,19 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         FACTORY = address(0);
     }
 
+    /**
+     * @notice Emergency function to revoke SuperPaymaster privileges
+     * @dev Allows quick response to compromised or malicious Paymaster
+     */
+    function emergencyRevokePaymaster() external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        address currentSP = SUPERPAYMASTER_ADDRESS;
+        if (currentSP != address(0) && autoApprovedSpenders[currentSP]) {
+            autoApprovedSpenders[currentSP] = false;
+            emit AutoApprovedSpenderRemoved(currentSP);
+        }
+    }
+
     function addAutoApprovedSpender(address spender) external {
         if (msg.sender != communityOwner && msg.sender != FACTORY) {
             revert Unauthorized(msg.sender);
@@ -482,13 +462,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
         if (to == address(0)) {
             revert InvalidAddress(to);
-        }
-
-        // V3.6.2: Auto-initialize spending limit for SUPERPAYMASTER if not set
-        if (SUPERPAYMASTER_ADDRESS != address(0) && spendingLimits[to][SUPERPAYMASTER_ADDRESS] == 0) {
-            uint256 defaultLimit = getDefaultSpendingLimitXPNTs();
-            spendingLimits[to][SUPERPAYMASTER_ADDRESS] = defaultLimit;
-            emit SpendingLimitUpdated(to, SUPERPAYMASTER_ADDRESS, defaultLimit);
         }
 
         _mint(to, amount);
