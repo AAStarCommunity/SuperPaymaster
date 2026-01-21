@@ -258,6 +258,17 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
                  revert("SuperPaymaster Security: Can only pull funds to self");
             }
         }
+
+        // Security Patch: Enforce spending limits for auto-approved spenders using transferFrom
+        if (autoApprovedSpenders[msg.sender]) {
+            uint256 limit = spendingLimits[from][msg.sender];
+            uint256 newTotalSpent = cumulativeSpent[from][msg.sender] + value;
+            if (newTotalSpent > limit) {
+                revert("Spending limit exceeded");
+            }
+            cumulativeSpent[from][msg.sender] = newTotalSpent;
+        }
+
         return super.transferFrom(from, to, value);
     }
 
@@ -267,7 +278,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * its infinite allowance with standard `transferFrom`.
      */
     function _spendAllowance(address owner, address spender, uint256 amount) internal virtual override {
-        // Validation moved to transferFrom to support DepositFor
+        // Validation handled in transferFrom/burnFrom for auto-approved spenders
+        if (autoApprovedSpenders[spender]) {
+            return;
+        }
         super._spendAllowance(owner, spender, amount);
     }
 

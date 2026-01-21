@@ -211,4 +211,28 @@ contract xPNTsTokenFullTest is Test {
         assertEq(token.balanceOf(user), 15 ether);
         assertEq(token.getDebt(user), 5 ether);
     }
+
+    function test_Security_TransferFrom_SpendingLimit() public {
+        // 1. Setup user balance
+        vm.prank(admin);
+        token.mint(user, 1000 ether);
+
+        // 2. Set spending limit for paymaster
+        vm.prank(user);
+        token.setPaymasterLimit(paymaster, 100 ether);
+
+        // 3. First transfer (50) - should pass
+        vm.prank(paymaster);
+        token.transferFrom(user, paymaster, 50 ether);
+        assertEq(token.cumulativeSpent(user, paymaster), 50 ether);
+
+        // 4. Second transfer (60) - should REVERT (Total 110 > 100)
+        vm.prank(paymaster);
+        vm.expectRevert("Spending limit exceeded");
+        token.transferFrom(user, paymaster, 60 ether);
+
+        // 5. Verify the state hasn't changed
+        assertEq(token.cumulativeSpent(user, paymaster), 50 ether);
+        assertEq(token.balanceOf(user), 950 ether);
+    }
 }
