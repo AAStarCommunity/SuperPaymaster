@@ -152,7 +152,8 @@ contract DeployStandardV3 is Script {
     }
 
     function _deployCore() internal {
-        apnts = new xPNTsToken("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
+                apnts = new xPNTsToken();
+        apnts.initialize("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
         superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
     }
 

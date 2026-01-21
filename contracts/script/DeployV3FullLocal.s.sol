@@ -86,7 +86,8 @@ contract DeployV3FullLocal is Script {
         
         // 2. Reputation & Token
         ReputationSystem repSystem = new ReputationSystem(address(registry));
-        xPNTsToken apnts = new xPNTsToken("aPNTs", "aPNTs", deployer, "LocalHub", "local.eth", 1e18);
+                xPNTsToken apnts = new xPNTsToken();
+        apnts.initialize("aPNTs", "aPNTs", deployer, "LocalHub", "local.eth", 1e18);
 
         // 3. SuperPaymaster
         SuperPaymaster paymaster = new SuperPaymaster(

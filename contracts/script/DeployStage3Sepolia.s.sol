@@ -50,7 +50,8 @@ contract DeployStage3Sepolia is Script {
         
         // 2. Reputation & Token
         ReputationSystem repSystem = new ReputationSystem(address(registry));
-        xPNTsToken apnts = new xPNTsToken("aPNTs", "aPNTs", deployer, "SepoliaHub", "sepolia.eth", 1e18);
+                xPNTsToken apnts = new xPNTsToken();
+        apnts.initialize("aPNTs", "aPNTs", deployer, "SepoliaHub", "sepolia.eth", 1e18);
 
         // 3. SuperPaymaster
         SuperPaymaster paymaster = new SuperPaymaster(

@@ -13,8 +13,9 @@ contract Deploy06b_BPNTs_Direct is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Direct deployment bypassing Factory
-        xPNTsToken bpnts = new xPNTsToken(
+        // Direct deployment bypassing Factory (using initialize pattern)
+        xPNTsToken bpnts = new xPNTsToken();
+        bpnts.initialize(
             "AAStar PNT B",
             "bPNTs",
             deployer, // Owner
