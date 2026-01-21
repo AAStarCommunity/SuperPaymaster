@@ -83,6 +83,20 @@ contract DVTBLSTest is Test {
             bls.registerBLSPublicKey(v, pubKey);
         }
         
+        // Mock BLS precompiles using raw bytecode injection (vm.etch)
+        // This avoids nested contract compilation errors and reliably mocks return data size.
+        
+        // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
+        // Code: PUSH1 0x80 PUSH1 0x00 RETURN -> 60806000f3
+        vm.etch(address(0x10), hex"60806000f3");
+        
+        // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
+        // Code: PUSH2 0x0100 PUSH1 0x00 RETURN -> 6101006000f3
+        vm.etch(address(0x11), hex"6101006000f3");
+        
+        // 0x0d (G2ADD): Returns 256 bytes (0x100)
+        vm.etch(address(0x0d), hex"6101006000f3");
+
         vm.stopPrank();
     }
     

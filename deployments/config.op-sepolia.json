@@ -1,1 +1,19 @@
-{"aPNTs":"0xc59D1D0814aD0e3F97c06eDb23a89e73fA3A125A","blsAggregator":"0xfec3C0d0B5c3F948043E2C158e49aEAcC730ED9c","blsValidator":"0xf0a989E0A048D3811F8eE813Ee541efb5B4A3F64","dvtValidator":"0xd269aD01a22B83468874122264698AF40f6FaD07","entryPoint":"0x0000000071727De22E5E9d8BAf0edAc6f37da032","gToken":"0xfAdcf586B4B1db06bDa0308978b05bb5e3a67834","paymasterFactory":"0x08a6a5687747881e71D005982207fc0d87E2bAfB","paymasterV4Impl":"0x32cE2EE71EE227F48A3f5e759d47fB0a812ee4B1","registry":"0xf6bdCC82016cE058C5122d71BdBF5e887beAA62d","reputationSystem":"0x259be15adEE58CB5ACfe314f6C9731b6c001C248","sbt":"0xfc9eeA5230946bdB8b030e9337e24A06AC64655f","srcHash":"","staking":"0x70AD7fa506E10563b9d310295c9c069C5FbA0c31","superPaymaster":"0x972089329b782342e312BFE857f5daEF288D60A6","xPNTsFactory":"0x018aFaC8942b6470fDb515cfdd8696D55aE696B1"}
+{
+  "aPNTs": "0xec466d6ea945c10b9f0c3cc852c211085700a04b",
+  "blsAggregator": "0xd7cbbef07b06508eadbdae2dabc4ec95ae0ca52d",
+  "blsValidator": "0x84de8cecc85eef310167d46c9758e3d1288e2aad",
+  "dvtValidator": "0x3dfc3378d40a244b5fa2f545b917d19de218a49b",
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "gToken": "0x851571543ad6d749cc765fabc99cd8f1b193e920",
+  "paymasterFactory": "0x439300f74c57539ac79b725dd325b4bcf93eda01",
+  "paymasterV4Impl": "0x29b60d1ea9fef550b019425f1baee429e4515256",
+  "priceFeed": "0x61Ec26aA57019C486B10502285c5A3D4A4750AD7",
+  "registry": "0x183bd22e16bc4e4f487619e96dacd8a08b2aa815",
+  "reputationSystem": "0xa5b38a88ad47a081a54f712b9c64f4dd4b06843e",
+  "sbt": "0x65eb6490da70f68ab2165a98155948ecb8188a46",
+  "simpleAccountFactory": "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
+  "srcHash": "c182c7b3ef62422a037a2d980afe176a17815da5742b8f9b197550378f2b5d66",
+  "staking": "0xa1a0e154d96c2c0413cdcefa4e32d68d3f0af377",
+  "superPaymaster": "0xa1d77367893a18c222fe136e17d1ad070479fb58",
+  "xPNTsFactory": "0xba4c617a5b4bb3e2f3a06a7dcbf28463a9020256"
+}

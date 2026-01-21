@@ -67,8 +67,12 @@ if [ "$ENV" == "anvil" ]; then
     SHOULD_DEPLOY=true
 else
     # Live Network Logic
+    # 1. Transform to UPPERCASE: op-sepolia -> OP-SEPOLIA
     ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
-    VAR_NAME="${ENV_UPPER}_RPC_URL"
+    # 2. Transform HYPHENS to UNDERSCORES: OP-SEPOLIA -> OP_SEPOLIA
+    ENV_CLEAN=${ENV_UPPER//-/_}
+    
+    VAR_NAME="${ENV_CLEAN}_RPC_URL"
     RPC_URL=${!VAR_NAME:-$RPC_URL}
 
     if [ -f "$CONFIG_FILE" ]; then

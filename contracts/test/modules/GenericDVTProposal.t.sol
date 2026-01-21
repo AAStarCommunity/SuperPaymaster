@@ -84,8 +84,23 @@ contract GenericDVTProposalTest is Test {
         dvtValidator = new MockDVTValidator();
         
         bls = new BLSAggregator(address(registry), address(0), address(dvtValidator));
+
+        // Mock BLS precompiles for Cancun (0.8.33 compatibility)
+        // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
+        // Code: PUSH1 0x80 PUSH1 0x00 RETURN -> 60806000f3
+        vm.etch(address(0x10), hex"60806000f3");
+        
+        // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
+        // Code: PUSH2 0x0100 PUSH1 0x00 RETURN -> 6101006000f3
+        vm.etch(address(0x11), hex"6101006000f3");
+        
+        // 0x0d (G2ADD): Returns 256 bytes (0x100)
+        vm.etch(address(0x0d), hex"6101006000f3");
+
         vm.stopPrank();
     }
+    
+
     
     function _createMockProof(uint256 proposalId, address _target, bytes memory callData, uint256 reqThreshold) internal view returns (bytes memory) {
         // Construct the expected message hash (must match executeProposal logic)
