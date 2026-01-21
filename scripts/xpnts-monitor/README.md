@@ -25,8 +25,8 @@ npm install viem nodemailer dotenv
 ### 2. 配置环境变量
 
 ```bash
-cp .env.monitor.example .env.monitor
-# 编辑 .env.monitor，填入你的配置
+cp .env.example .env
+# 编辑 .env，填入你的配置
 ```
 
 **Gmail配置示例**：
@@ -37,14 +37,14 @@ cp .env.monitor.example .env.monitor
 ### 3. 运行监控
 
 ```bash
-node monitor-xpnts.js
+node monitor.js
 ```
 
 **推荐**: 使用 PM2 保持后台运行
 
 ```bash
 npm install -g pm2
-pm2 start monitor-xpnts.js --name xpnts-monitor
+pm2 start monitor.js --name xpnts-monitor
 pm2 save
 pm2 startup  # 开机自启
 ```
