@@ -182,6 +182,16 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
             revert InvalidConfiguration();
         }
 
+        // V3.6 SECURITY: Enforce Binding with Factory
+        if (xpntsFactory != address(0)) {
+            // Verify that this token actually belongs to the community
+            try IxPNTsFactory(xpntsFactory).getTokenAddress(msg.sender) returns (address validToken) {
+                if (validToken != xPNTsToken) revert("Security: Invalid xPNTsToken for this Community");
+            } catch {
+                revert("Security: Factory verification failed");
+            }
+        }
+
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
         config.treasury = _opTreasury;
@@ -368,7 +378,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
      * @notice Handle ERC1363 transferAndCall (Push Mode)
      * @dev Safe deposit mechanism for tokens blocking transferFrom
      */
-    function onTransferReceived(address, address from, uint256 value, bytes calldata) external returns (bytes4) {
+    function onTransferReceived(address, address from, uint256 value, bytes calldata) external nonReentrant returns (bytes4) {
         if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
@@ -695,7 +705,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         return Math.mulDiv(
             ethAmountWei * uint256(ethUsdPrice),
             1e18,
-            (10**priceDecimals) * aPNTsPriceUSD
+            (10**priceDecimals) * aPNTsPriceUSD,
+            Math.Rounding.Ceil
         );
     }
 
@@ -799,7 +810,7 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         bytes calldata context,
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
-    ) external override onlyEntryPoint {
+    ) external override onlyEntryPoint nonReentrant {
         if (context.length == 0) return;
 
         (

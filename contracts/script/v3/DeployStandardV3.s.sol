@@ -193,7 +193,6 @@ contract DeployStandardV3 is Script {
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         IEntryPoint(entryPointAddr).depositTo{value: 0.1 ether}(address(superPaymaster));
         apnts.mint(deployer, 1000 ether);
-        apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
     }
 

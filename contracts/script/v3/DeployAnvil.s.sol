@@ -142,8 +142,7 @@ contract DeployAnvil is Script {
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         
-        apnts.mint(deployer, 1000 ether);
-        apnts.approve(address(superPaymaster), 1000 ether);
+        apnts.mint(deployer, 1000 ether);        // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
         superPaymaster.depositFor(deployer, 1000 ether);
 
         // 2. 初始化 DemoCommunity (Anni)
@@ -172,10 +171,8 @@ contract DeployAnvil is Script {
         superPaymaster.configureOperator(dPNTs, anni, 1e18);
         
         // 为 DemoCommunity 注入 500 ether 资金
-        xPNTsToken(dPNTs).mint(anni, 500 ether);
-        xPNTsToken(dPNTs).approve(address(superPaymaster), 500 ether);
-        
-        // superPaymaster.deposit(500 ether);
+        xPNTsToken(dPNTs).mint(anni, 500 ether);        // Initial Refill for dPNTs
+        // superPaymaster.deposit(500 ether); // This line was commented out in the original, and the instruction implies removing an approve call, not adding a deposit call.
         vm.stopBroadcast();
 
         // 切换回 Deployer 继续后续操作
