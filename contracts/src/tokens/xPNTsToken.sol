@@ -76,6 +76,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev user => spender => currentCumulativeSpent
     mapping(address => mapping(address => uint256)) public cumulativeSpent;
 
+    /// @dev Internal reentrancy status for clone-safe nonReentrant guard
+    uint256 private _reentrancyStatus;
+
     /// @dev Default spending limit in aPNTs (~$100 @ $0.02/aPNTs)
     /// @notice Converted to xPNTs using exchangeRate at mint time
     /// @notice Frontend should display remaining limit and offer "Increase Limit" button
@@ -147,6 +150,24 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     // ====================================
 
     /**
+     * @dev Implementation contract constructor
+     */
+    constructor() ERC20("", "") ERC20Permit("") {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Clone-safe reentrancy guard modifier.
+     * Since proxies (clones) have 0-initialized storage, we treat 0 and 1 as "not entered".
+     */
+    modifier nonReentrant() {
+        require(_reentrancyStatus != 2, "ReentrancyGuard: reentrant call");
+        _reentrancyStatus = 2;
+        _;
+        _reentrancyStatus = 1;
+    }
+
+    /**
      * @notice Transfer tokens to a contract and call onTransferReceived
      */
     function transferAndCall(address to, uint256 amount) external returns (bool) {
@@ -156,7 +177,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /**
      * @notice Transfer tokens to a contract and call onTransferReceived with data
      */
-    function transferAndCall(address to, uint256 amount, bytes memory data) public returns (bool) {
+    function transferAndCall(address to, uint256 amount, bytes memory data) public nonReentrant returns (bool) {
         transfer(to, amount);
         require(_checkOnTransferReceived(msg.sender, to, amount, data), "ERC1363: transfer to non-receiver");
         return true;
@@ -172,13 +193,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         } catch {
             return false;
         }
-    }
-
-    /**
-     * @dev Implementation contract constructor
-     */
-    constructor() ERC20("", "") ERC20Permit("") {
-        _disableInitializers();
     }
 
     /**
@@ -324,6 +338,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Record user debt (only SuperPaymaster)
      */
     function recordDebt(address user, uint256 amountXPNTs) external {
+        if (SUPERPAYMASTER_ADDRESS == address(0)) revert("System: SuperPaymaster not configured");
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
         }
@@ -350,12 +365,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Manually repay debt using user's xPNTs balance
      */
     function repayDebt(uint256 amount) external {
-        uint256 debt = debts[msg.sender];
-        if (debt == 0) return;
-        uint256 repayAmount = amount > debt ? debt : amount;
-        _burn(msg.sender, repayAmount);
-        debts[msg.sender] -= repayAmount;
-        emit DebtRepaid(msg.sender, repayAmount, debts[msg.sender]);
+        uint256 currentDebt = debts[msg.sender];
+        if (amount == 0) return;
+        if (currentDebt == 0) revert("No debt to repay");
+        if (amount > currentDebt) revert("Repay amount exceeds debt");
+        if (balanceOf(msg.sender) < amount) revert("ERC20: burn amount exceeds balance");
+
+        debts[msg.sender] = currentDebt - amount;
+        _burn(msg.sender, amount);
+        emit DebtRepaid(msg.sender, amount, debts[msg.sender]);
     }
     
     function getDebt(address user) external view returns (uint256) {
@@ -422,6 +440,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
 
         emit SuperPaymasterAddressUpdated(_spAddress);
+    }
+
+    /**
+     * @notice Allow community owner to cut off Factory's management power
+     * @dev Once renounced, FACTORY can no longer call restricted functions (mint, updateExchangeRate, etc.)
+     */
+    function renounceFactory() external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        FACTORY = address(0);
     }
 
     function addAutoApprovedSpender(address spender) external {
@@ -491,16 +518,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     // ... (rest of the original functions: updateExchangeRate, transferCommunityOwnership, getMetadata, etc.) ...
     
-    function updateExchangeRate(uint256 newRate) external {
-        if (msg.sender != communityOwner) {
+    function updateExchangeRate(uint256 _newRate) external {
+        if (msg.sender != FACTORY && msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
         }
-        require(newRate > 0, "Rate must be positive");
+        if (_newRate == 0) revert("Exchange rate cannot be zero");
 
-        uint256 oldRate = exchangeRate;
-        exchangeRate = newRate;
-
-        emit ExchangeRateUpdated(oldRate, newRate);
+        emit ExchangeRateUpdated(exchangeRate, _newRate);
+        exchangeRate = _newRate;
     }
 
     function transferCommunityOwnership(address newOwner) external {

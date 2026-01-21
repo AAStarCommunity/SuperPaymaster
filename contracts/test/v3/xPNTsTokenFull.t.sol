@@ -235,4 +235,34 @@ contract xPNTsTokenFullTest is Test {
         assertEq(token.cumulativeSpent(user, paymaster), 50 ether);
         assertEq(token.balanceOf(user), 950 ether);
     }
+
+    function test_Security_KeyRotation_Revokes_Privileges() public {
+        address oldPaymaster = address(uint160(0x888));
+        address newPaymaster = address(uint160(0x999));
+        address attacker = address(uint160(0xBAD));
+
+        // 1. Setup Old Paymaster
+        vm.prank(admin);
+        token.setSuperPaymasterAddress(oldPaymaster);
+        
+        vm.prank(admin);
+        token.mint(user, 1000 ether);
+        
+        vm.prank(user);
+        token.setPaymasterLimit(oldPaymaster, 1000 ether);
+
+        // 2. Rotation Event
+        vm.prank(admin);
+        token.setSuperPaymasterAddress(newPaymaster);
+        
+        // 3. Assertions
+        assertEq(token.SUPERPAYMASTER_ADDRESS(), newPaymaster);
+        assertFalse(token.autoApprovedSpenders(oldPaymaster), "Old Paymaster must be removed");
+        assertTrue(token.autoApprovedSpenders(newPaymaster), "New Paymaster must be added");
+        
+        // 4. Old Paymaster tries to transfer -> Should Fail
+        vm.prank(oldPaymaster);
+        vm.expectRevert(); 
+        token.transferFrom(user, attacker, 500 ether);
+    }
 }
