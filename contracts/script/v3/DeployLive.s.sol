@@ -344,6 +344,7 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
         vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
+        vm.serializeAddress(jsonObj, "xPNTsImpl", xpntsFactory.implementation());
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);

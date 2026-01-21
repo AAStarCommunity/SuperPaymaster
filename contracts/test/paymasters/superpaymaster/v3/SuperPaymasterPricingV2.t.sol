@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../../../src/tokens/xPNTsToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "../../../../src/interfaces/v3/IRegistry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -101,6 +102,7 @@ contract MockEntryPointV2 is IEntryPoint {
 }
 
 contract SuperPaymasterPricingV2Test is Test {
+    using Clones for address;
     SuperPaymaster paymaster;
     xPNTsToken apnts;
     MockRegistryV2 registry;
@@ -122,7 +124,9 @@ contract SuperPaymasterPricingV2Test is Test {
         registry = new MockRegistryV2();
         priceFeed = new MockAggregatorV3Spy(int256(INITIAL_PRICE), 8);
         
-        apnts = new xPNTsToken("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
+        address implementation = address(new xPNTsToken());
+        apnts = xPNTsToken(implementation.clone());
+        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
         paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600); // 1 hour staleness
         apnts.setSuperPaymasterAddress(address(paymaster));
 

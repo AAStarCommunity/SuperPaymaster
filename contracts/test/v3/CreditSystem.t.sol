@@ -3,8 +3,10 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/tokens/xPNTsToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 
 contract CreditSystemTest is Test {
+    using Clones for address;
     xPNTsToken public token;
     address public paymaster = address(0x999);
     address public admin = address(0x123);
@@ -12,7 +14,9 @@ contract CreditSystemTest is Test {
 
     function setUp() public {
         vm.startPrank(admin);
-        token = new xPNTsToken("xPNTs", "XP", admin, "Test", "test.eth", 1e18);
+        address implementation = address(new xPNTsToken());
+        token = xPNTsToken(implementation.clone());
+        token.initialize("xPNTs", "XP", admin, "Test", "test.eth", 1e18);
         token.setSuperPaymasterAddress(paymaster);
         vm.stopPrank();
     }

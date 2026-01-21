@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "../interfaces/IERC1363.sol";
@@ -29,14 +30,14 @@ import { IVersioned } from "src/interfaces/IVersioned.sol";
  * 3. SuperPaymaster.burn() is called automatically (no approve needed!)
  * 4. User's aPNTs balance increases by 100
  */
-contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
+contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     // ====================================
     // Storage
     // ====================================
 
     /// @notice Factory contract that deployed this token
-    address public immutable FACTORY;
+    address public FACTORY;
 
     /// @notice Community owner/admin address
     address public communityOwner;
@@ -60,6 +61,10 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
     /// @dev xPNTs amount = aPNTs amount * exchangeRate / 1e18
     uint256 public exchangeRate;
 
+    // --- Added for Clone Compatibility ---
+    string private _tokenName;
+    string private _tokenSymbol;
+
     /// @notice User debt balance in xPNTs
     mapping(address => uint256) public debts;
 
@@ -77,7 +82,21 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
     uint256 public constant DEFAULT_SPENDING_LIMIT_APNTS = 5000 ether;
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-2.3.2-default-limit-apnts";
+        return "XPNTs-2.4.0-clone-optimized";
+    }
+
+    /**
+     * @dev Overridden to return storage variable
+     */
+    function name() public view virtual override returns (string memory) {
+        return _tokenName;
+    }
+
+    /**
+     * @dev Overridden to return storage variable
+     */
+    function symbol() public view virtual override returns (string memory) {
+        return _tokenSymbol;
     }
 
     /// @notice Calculate the xPNTs equivalent of the default limit based on current exchangeRate
@@ -155,14 +174,30 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
         }
     }
 
-    constructor(
-        string memory name,
-        string memory symbol,
+    /**
+     * @dev Implementation contract constructor
+     */
+    constructor() ERC20("", "") ERC20Permit("") {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initialize token (replaces constructor for clone pattern)
+     * @param name_ Token name
+     * @param symbol_ Token symbol
+     * @param _communityOwner Initial owner of the community
+     * @param _communityName Display name
+     * @param _communityENS ENS name
+     * @param _exchangeRate aPNTs exchange rate
+     */
+    function initialize(
+        string memory name_,
+        string memory symbol_,
         address _communityOwner,
         string memory _communityName,
         string memory _communityENS,
         uint256 _exchangeRate
-    ) ERC20(name, symbol) ERC20Permit(name) {
+    ) external initializer {
         if (_communityOwner == address(0)) {
             revert InvalidAddress(_communityOwner);
         }
@@ -171,9 +206,17 @@ contract xPNTsToken is ERC20, ERC20Permit, IVersioned {
         communityOwner = _communityOwner;
         communityName = _communityName;
         communityENS = _communityENS;
+        
+        // Clone-specific metadata
+        _tokenName = name_;
+        _tokenSymbol = symbol_;
 
         // Set exchange rate (default 1:1 if not specified)
         exchangeRate = _exchangeRate > 0 ? _exchangeRate : 1 ether;
+
+        // Auto-approve the factory and owner
+        autoApprovedSpenders[msg.sender] = true;
+        autoApprovedSpenders[_communityOwner] = true;
     }
 
     // ====================================

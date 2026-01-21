@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/tokens/xPNTsToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "src/interfaces/IERC1363.sol";
 
 contract MockReceiver is IERC1363Receiver {
@@ -16,6 +17,7 @@ contract MockReceiver is IERC1363Receiver {
 }
 
 contract xPNTsTokenFullTest is Test {
+    using Clones for address;
     xPNTsToken token;
     address admin = address(0x111);
     address user = address(0x222);
@@ -23,8 +25,11 @@ contract xPNTsTokenFullTest is Test {
     address other = address(0x444);
 
     function setUp() public {
-        vm.prank(admin);
-        token = new xPNTsToken("Points", "XP", admin, "Comm", "ens.eth", 1e18);
+        vm.startPrank(admin);
+        address implementation = address(new xPNTsToken());
+        token = xPNTsToken(implementation.clone());
+        token.initialize("Points", "XP", admin, "Comm", "ens.eth", 1e18);
+        vm.stopPrank();
         
         vm.prank(admin);
         token.setSuperPaymasterAddress(paymaster);

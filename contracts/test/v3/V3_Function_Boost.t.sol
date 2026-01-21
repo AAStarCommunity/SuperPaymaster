@@ -7,9 +7,11 @@ import "../../src/core/GTokenStaking.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "./MockSBT.sol";
 
 contract V3_Function_BoostTest is Test {
+    using Clones for address;
     Registry registry;
     GTokenStaking staking;
     GToken gToken;
@@ -36,7 +38,9 @@ contract V3_Function_BoostTest is Test {
         staking.setRoleExitFee(registry.ROLE_ENDUSER(), 1000, 0.05 ether);
         vm.stopPrank();
 
-        aPNTs = new xPNTsToken("a", "b", owner, "c", "d", 1e18);
+        address implementation = address(new xPNTsToken());
+        aPNTs = xPNTsToken(implementation.clone());
+        aPNTs.initialize("a", "b", owner, "c", "d", 1e18);
         paymaster = new SuperPaymaster(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury, 3600);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));

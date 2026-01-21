@@ -3,6 +3,7 @@
 pragma solidity 0.8.33;
 import "./xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import { IVersioned } from "src/interfaces/IVersioned.sol";
 import "src/interfaces/v3/IRegistry.sol";
 
@@ -27,6 +28,8 @@ import "src/interfaces/v3/IRegistry.sol";
  * - Social: 50 tx/day * 0.0003 ETH * 30 * 1.0 * 1.5 = 0.675 ETH
  */
 contract xPNTsFactory is Ownable, IVersioned {
+    using Clones for address;
+
 
     // ====================================
     // Structs
@@ -49,6 +52,9 @@ contract xPNTsFactory is Ownable, IVersioned {
 
     /// @notice Registry contract address
     address public immutable REGISTRY;
+
+    /// @notice The address of the xPNTsToken implementation contract used for cloning.
+    address public immutable implementation;
 
     /// @notice Mapping: community address => xPNTs token address
     mapping(address => address) public communityToToken;
@@ -79,7 +85,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-2.0.2";
+        return "xPNTsFactory-2.1.0-clone-optimized";
     }
 
     // ====================================
@@ -130,6 +136,9 @@ contract xPNTsFactory is Ownable, IVersioned {
             revert InvalidAddress(address(0));
         }
 
+        // 🚀 Deploy xPNTsToken implementation ONCE (EIP-1167 clone pattern)
+        implementation = address(new xPNTsToken());
+
         SUPERPAYMASTER = _superPaymaster; // Can be address(0) initially
         REGISTRY = _registry;
 
@@ -173,8 +182,11 @@ contract xPNTsFactory is Ownable, IVersioned {
             revert AlreadyDeployed(msg.sender);
         }
 
-        // Deploy new xPNTs token with exchangeRate
-        xPNTsToken newToken = new xPNTsToken(
+        // Deploy new xPNTs token proxy using clone pattern
+        address newTokenAddress = implementation.clone();
+        xPNTsToken newToken = xPNTsToken(newTokenAddress);
+
+        newToken.initialize(
             name,
             symbol,
             msg.sender,
@@ -183,7 +195,7 @@ contract xPNTsFactory is Ownable, IVersioned {
             exchangeRate
         );
 
-        token = address(newToken);
+        token = newTokenAddress;
 
         // Auto-configure pre-authorization
         // AOA+ mode: Always approve SuperPaymaster, if the address has been set.

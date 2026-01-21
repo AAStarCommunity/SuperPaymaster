@@ -7,6 +7,7 @@ import "../../src/core/Registry.sol";
 import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "../../src/tokens/GToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/tokens/MySBT.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -40,6 +41,7 @@ contract MockEntryPoint is IEntryPoint {
 }
 
 contract BlacklistSyncTest is Test {
+    using Clones for address;
     Registry registry;
     SuperPaymaster paymaster;
     xPNTsToken apnts;
@@ -71,7 +73,9 @@ contract BlacklistSyncTest is Test {
         // 2. Deploy Paymaster Dependencies
         entryPoint = new MockEntryPoint();
         priceFeed = new MockAggregator();
-        apnts = new xPNTsToken("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
+        address implementation = address(new xPNTsToken());
+        apnts = xPNTsToken(implementation.clone());
+        apnts.initialize("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
         
         paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600);
 
