@@ -327,6 +327,7 @@ contract DeployLive is Script {
     function _generateConfig() internal {
         string memory chainName = vm.toString(block.chainid);
         if (block.chainid == 11155111) chainName = "sepolia";
+        if (block.chainid == 11155420) chainName = "op-sepolia";  // OP-Sepolia
         if (block.chainid == 1) chainName = "mainnet";
         
         string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.", chainName, ".json");
