@@ -211,8 +211,8 @@ contract SuperPaymasterTest is Test {
     
     function testDepositFailsIfExceedLimit() public {
         vm.startPrank(operator);
-        // Default limit is 5000 ether (Set during mint in setUp)
-        vm.expectRevert("Spending limit exceeded");
+        // Default limit is 5000 ether
+        vm.expectRevert("Single transaction limit exceeded");
         paymaster.deposit(6000 ether); 
         vm.stopPrank();
     }
@@ -289,7 +289,10 @@ contract SuperPaymasterTest is Test {
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         
         apnts.approve(address(paymaster), 200000 ether);
-        paymaster.depositFor(operator, 200000 ether);
+        // Split deposit to respect 5000 ether limit (40 * 5000 = 200,000)
+        for(uint i=0; i<40; i++) {
+            paymaster.depositFor(operator, 5000 ether);
+        }
         vm.stopPrank();
 
         // 2. Mock Validation Call
@@ -409,13 +412,10 @@ contract SuperPaymasterTest is Test {
         PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_hash");
         
-        vm.prank(address(entryPoint));
+        vm.startPrank(address(entryPoint));
         (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
-        
-        vm.prank(user);
-
-        vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
+        vm.stopPrank();
         
         uint256 debt = apnts.getDebt(user);
         assertGt(debt, 0, "Debt should be recorded");
