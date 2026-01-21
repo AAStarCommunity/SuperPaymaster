@@ -209,10 +209,11 @@ contract SuperPaymasterTest is Test {
         vm.stopPrank();
     }
     
-    function testLegacyDepositFailsIfNoAllow() public {
+    function testDepositFailsIfExceedLimit() public {
         vm.startPrank(operator);
-        vm.expectRevert(); // No allowance
-        paymaster.deposit(100 ether);
+        // Default limit is 5000 ether (Set during mint in setUp)
+        vm.expectRevert("Spending limit exceeded");
+        paymaster.deposit(6000 ether); 
         vm.stopPrank();
     }
 
@@ -233,7 +234,7 @@ contract SuperPaymasterTest is Test {
         // Simulate Paymaster trying to steal funds to a 3rd party (user)
         // We prank the Paymaster address itself
         vm.startPrank(address(paymaster));
-        vm.expectRevert("SuperPaymaster Security: Can only pull funds to self");
+        vm.expectRevert("Security: Unauthorized recipient for auto-approved spender");
         apnts.transferFrom(operator, user, 100 ether);
         vm.stopPrank();
     }
@@ -287,6 +288,7 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         
+        apnts.setPaymasterLimit(address(paymaster), 200000 ether);
         apnts.approve(address(paymaster), 200000 ether);
         paymaster.depositFor(operator, 200000 ether);
         vm.stopPrank();
