@@ -118,13 +118,13 @@ echo -e "\n${GREEN}✅ All on-chain logic checks passed!${NC}"
 
 # --- PHASE 4: AUTOMATED SYNC TO SDK ---
 # ONLY reached if all above passed.
-echo -e "\n${YELLOW}PHASE 4: SDK Synchronization Bridge${NC}"
-if [ -f "./sync_to_sdk.sh" ]; then
-    ./sync_to_sdk.sh
-else
-    echo -e "${RED}Error: sync_to_sdk.sh not found in root.${NC}"
-    exit 1
-fi
+# echo -e "\n${YELLOW}PHASE 4: SDK Synchronization Bridge${NC}"
+# if [ -f "./sync_to_sdk.sh" ]; then
+#     ./sync_to_sdk.sh
+# else
+#     echo -e "${RED}Error: sync_to_sdk.sh not found in root.${NC}"
+#     exit 1
+# fi
 
 # Cleanup
 if [ "$ENV" == "anvil" ]; then
