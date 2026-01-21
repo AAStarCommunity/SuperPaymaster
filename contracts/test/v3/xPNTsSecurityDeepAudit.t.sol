@@ -79,15 +79,43 @@ contract xPNTsSecurityDeepAuditTest is Test {
         token.repayDebt(10 ether);
     }
 
-    // 2.5 Single Transaction Limit
-    function test_Security_SingleTxLimit() public {
+    // 2.5 Single Transaction Limit Boundary Tests
+    function test_Security_SingleTxLimit_Boundary() public {
         vm.prank(admin);
-        token.mint(user, 10000 ether);
+        token.mint(user, 20000 ether);
 
-        // Attempt to burn more than limit
+        // A. Exactly 5,000 ether - Should PASS
+        vm.prank(paymaster);
+        token.transferFrom(user, paymaster, 5000 ether);
+        assertEq(token.balanceOf(paymaster), 5000 ether);
+
+        // B. 4,999.99... ether - Should PASS
+        vm.prank(paymaster);
+        token.transferFrom(user, paymaster, 5000 ether - 1);
+        
+        // C. 5,000.01... ether - Should REVERT
         vm.prank(paymaster);
         vm.expectRevert("Single transaction limit exceeded");
-        token.burnFromWithOpHash(user, 6000 ether, keccak256("test"));
+        token.transferFrom(user, paymaster, 5000 ether + 1);
+    }
+
+    // 2.6 Concurrency/Cumulative Verification
+    function test_Security_Concurrency_NotCumulative() public {
+        vm.prank(admin);
+        token.mint(user, 20000 ether);
+
+        // Perform multiple 4,000 ether transfers (Total 12,000 > 5,000)
+        // This verifies it is NOT a cumulative daily/total limit
+        vm.startPrank(paymaster);
+        
+        token.transferFrom(user, paymaster, 4000 ether);
+        token.transferFrom(user, paymaster, 4000 ether);
+        token.transferFrom(user, paymaster, 4000 ether);
+        
+        vm.stopPrank();
+        
+        assertEq(token.balanceOf(paymaster), 12000 ether);
+        assertEq(token.balanceOf(user), 8000 ether);
     }
 
     // 3. Factory Renunciation (Decentralization)
@@ -126,5 +154,23 @@ contract xPNTsSecurityDeepAuditTest is Test {
         vm.prank(admin); // even admin can't record debt if SP isn't set
         vm.expectRevert("System: SuperPaymaster not configured");
         token2.recordDebt(user, 1 ether);
+    }
+
+    // 6. Emergency Revoke Verification
+    function test_Security_EmergencyRevoke() public {
+        // Admin calls emergency revoke
+        vm.prank(admin);
+        token.emergencyRevokePaymaster();
+        
+        // Verify paymaster is revoked
+        assertFalse(token.autoApprovedSpenders(paymaster));
+        
+        // Verify paymaster can no longer transfer
+        vm.prank(admin);
+        token.mint(user, 1000 ether);
+        
+        vm.prank(paymaster);
+        vm.expectRevert(); 
+        token.transferFrom(user, paymaster, 100 ether);
     }
 }
