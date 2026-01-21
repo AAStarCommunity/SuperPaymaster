@@ -69,9 +69,9 @@ contract xPNTsTokenFullTest is Test {
         vm.prank(user);
         token.approve(paymaster, 100 ether);
         
-        // SuperPaymaster cannot use transferFrom
+        // SuperPaymaster cannot use transferFrom to arbitrary addresses
         vm.prank(paymaster);
-        vm.expectRevert("SuperPaymaster Security: Can only pull funds to self");
+        vm.expectRevert("Security: Unauthorized recipient for auto-approved spender");
         token.transferFrom(user, other, 10 ether);
     }
 

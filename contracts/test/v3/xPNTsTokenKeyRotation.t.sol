@@ -55,12 +55,13 @@ contract xPNTsTokenKeyRotationCheck is Test {
         
         // Old Paymaster (now potentially compromised or malicious) tries to steal funds to an attacker
         vm.prank(oldPaymaster);
+        // This should now REVERT because oldPaymaster was auto-revoked in setSuperPaymasterAddress
+        vm.expectRevert(); 
         token.transferFrom(user, attacker, 500 ether);
         
-        // If this succeeds, it means the Old Paymaster can send user funds ANYWHERE, 
-        // whereas previously it could ONLY send to itself.
-        assertEq(token.balanceOf(attacker), 500 ether);
+        // Verify the transfer FAILED
+        assertEq(token.balanceOf(attacker), 0);
         
-        console.log("VULNERABILITY CONFIRMED: Old Paymaster retained transfer privileges and lost 'Self-Only' constraint.");
+        console.log("SECURITY VERIFIED: Old Paymaster successfully lost transfer privileges.");
     }
 }

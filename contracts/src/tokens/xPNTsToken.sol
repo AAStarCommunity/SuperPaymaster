@@ -214,9 +214,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // Set exchange rate (default 1:1 if not specified)
         exchangeRate = _exchangeRate > 0 ? _exchangeRate : 1 ether;
 
-        // Auto-approve the factory and owner
+        // Auto-approve the factory
         autoApprovedSpenders[msg.sender] = true;
-        autoApprovedSpenders[_communityOwner] = true;
     }
 
     // ====================================
@@ -253,14 +252,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      *      Prevents the Paymaster from draining user funds to arbitrary addresses.
      */
     function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
-        if (msg.sender == SUPERPAYMASTER_ADDRESS) {
-            if (to != SUPERPAYMASTER_ADDRESS) {
-                 revert("SuperPaymaster Security: Can only pull funds to self");
-            }
-        }
-
-        // Security Patch: Enforce spending limits for auto-approved spenders using transferFrom
+        // FIREWALL: Enforce rules for all auto-approved spenders
         if (autoApprovedSpenders[msg.sender]) {
+            // Auto-approved members can ONLY move funds to themselves or the current SuperPaymaster
+            if (to != msg.sender && to != SUPERPAYMASTER_ADDRESS) {
+                 revert("Security: Unauthorized recipient for auto-approved spender");
+            }
+
+            // Spending limit check
             uint256 limit = spendingLimits[from][msg.sender];
             uint256 newTotalSpent = cumulativeSpent[from][msg.sender] + value;
             if (newTotalSpent > limit) {
@@ -404,7 +403,24 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (_spAddress == address(0)) {
             revert InvalidAddress(_spAddress);
         }
+
+        // Security: Revoke privileges from the old SuperPaymaster to prevent "Privilege Retention"
+        address oldSP = SUPERPAYMASTER_ADDRESS;
+        if (oldSP != address(0) && oldSP != _spAddress) {
+            if (autoApprovedSpenders[oldSP]) {
+                autoApprovedSpenders[oldSP] = false;
+                emit AutoApprovedSpenderRemoved(oldSP);
+            }
+        }
+
         SUPERPAYMASTER_ADDRESS = _spAddress;
+        
+        // Ensure new SuperPaymaster is auto-approved
+        if (_spAddress != address(0)) {
+            autoApprovedSpenders[_spAddress] = true;
+            emit AutoApprovedSpenderAdded(_spAddress);
+        }
+
         emit SuperPaymasterAddressUpdated(_spAddress);
     }
 
