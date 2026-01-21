@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
-
+// AAStar.io contribution with love from 2023
+pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IBLSAggregator.sol";

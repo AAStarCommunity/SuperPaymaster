@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
+pragma solidity 0.8.33;
 /// @notice BLS wrapper.
 /// @author Solady (https://github.com/vectorized/solady/blob/main/src/utils/BLS.sol)
 /// @author Ithaca (https://github.com/ithacaxyz/odyssey-examples/blob/main/chapter1/contracts/src/libraries/BLS.sol)

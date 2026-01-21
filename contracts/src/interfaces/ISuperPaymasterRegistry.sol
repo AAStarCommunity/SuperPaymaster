@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
-
+pragma solidity 0.8.33;
 /**
  * @title ISuperPaymasterRegistry - SuperPaymaster Registry Interface
  * @notice Interface for checking if a Paymaster is registered in SuperPaymaster

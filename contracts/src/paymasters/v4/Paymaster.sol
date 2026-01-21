@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
-
+// AAStar.io contribution with love from 2023
+pragma solidity 0.8.33;
 import { PaymasterBase } from "./PaymasterBase.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";

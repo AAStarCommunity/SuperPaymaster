@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
-
+pragma solidity 0.8.33;
 /// @title IPaymasterRouter
 /// @notice Interface for paymaster routing functionality
 /// @dev Common interface for all SuperPaymaster versions

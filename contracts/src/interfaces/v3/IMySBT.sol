@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
-
+pragma solidity 0.8.33;
 /**
  * @title IMySBT
  * @notice Interface for MySBT v3.0.0 - Minimal role-based SBT minting

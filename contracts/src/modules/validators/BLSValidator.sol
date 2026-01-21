@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
-
+// AAStar.io contribution with love from 2023
+pragma solidity 0.8.33;
 import "../../interfaces/v3/IBLSValidator.sol";
 import { BLS } from "../../utils/BLS.sol";
 
