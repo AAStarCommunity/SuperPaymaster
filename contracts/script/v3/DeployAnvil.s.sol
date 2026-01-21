@@ -81,55 +81,17 @@ contract DeployAnvil is Script {
         mysbt = new MySBT(address(gtoken), address(staking), precomputedRegistry, deployer);
         registry = new Registry(address(gtoken), address(staking), address(mysbt));
 
-        console.log("=== Step 2: Deploy Core ===");
-        address xPNTsImpl = address(new xPNTsToken());
-        apnts = xPNTsToken(xPNTsImpl.clone());
-        apnts.initialize("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
-
-        console.log("=== Step 3: Deploy Modules ===");
-        repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
-        dvt = new DVTValidator(address(registry));
-        blsValidator = new MockBLSValidator();
-        xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
-        pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(address(registry));
-        accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
-
-        console.log("=== Step 4: The Grand Wiring ===");
-        _executeWiring();
-
-        console.log("=== Step 5: Atomic Role & Community Orchestration ===");
-        _orchestrateRoles();
-
-        console.log("=== Step 6: Final Verification ===");
-        _verifyWiring();
-
-        vm.stopBroadcast();
-        _generateConfig();
-    }
-
-    function _executeWiring() internal {
+        console.log("=== Step 2: Deploy Foundation Modules ===");
+        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet
+        
+        // CRITICAL: Must wire registry BEFORE registering roles!
         staking.setRegistry(address(registry));
         mysbt.setRegistry(address(registry));
-        registry.setSuperPaymaster(address(superPaymaster));
-        registry.setReputationSource(address(repSystem), true);
-        registry.setBLSAggregator(address(aggregator));
-        registry.setBLSValidator(address(blsValidator));
-        aggregator.setDVTValidator(address(dvt));
-        dvt.setBLSAggregator(address(aggregator));
-        apnts.setSuperPaymasterAddress(address(superPaymaster));
-        pmFactory.addImplementation("v4.2", address(pmV4Impl));
-        superPaymaster.setXPNTsFactory(address(xpntsFactory));
-        superPaymaster.updatePrice();
-    }
-
-    function _orchestrateRoles() internal {
+        
+        console.log("=== Step 3: Pre-register Deployer as COMMUNITY ===");
+        // CRITICAL: Must register COMMUNITY role BEFORE deploying xPNTs via factory
         gtoken.mint(deployer, 2000 ether);
         gtoken.approve(address(staking), 2000 ether);
-        
-        // 1. 初始化 AAStar 社区 (Jason)
         Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
             name: "AAStar",
             ensName: "aastar.eth",
@@ -139,6 +101,38 @@ contract DeployAnvil is Script {
             stakeAmount: 30 ether
         });
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
+        
+        console.log("=== Step 4: Deploy aPNTs via Factory ===");
+        // Use factory to deploy aPNTs (ensures factory binding consistency)
+        xpntsFactory.deployxPNTsToken(
+            "AAStar PNTs",
+            "aPNTs", 
+            "GlobalHub",
+            "local.eth",
+            1e18,
+            address(0) // No AOA paymaster
+        );
+        apnts = xPNTsToken(xpntsFactory.getTokenAddress(deployer));
+        
+        // CRITICAL: Mint initial supply to Deployer so he can fund others (Anni) and himself
+        apnts.mint(deployer, 2000 ether);
+
+        console.log("=== Step 5: Deploy Core ===");
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
+
+        console.log("=== Step 6: Deploy Other Modules ===");
+        repSystem = new ReputationSystem(address(registry));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
+        dvt = new DVTValidator(address(registry));
+        blsValidator = new MockBLSValidator();
+        pmFactory = new PaymasterFactory();
+        pmV4Impl = new Paymaster(address(registry));
+        accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+
+        console.log("=== Step 7: The Grand Wiring ===");
+        _executeWiring();
+
+        console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         
@@ -165,18 +159,54 @@ contract DeployAnvil is Script {
         registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         
         // 补全 DemoCommunity 的 Operator 配置
+        // 为 DemoCommunity 注入资金
+        // 1. Anni 需要 aPNTs 来质押到 SuperPaymaster (Protocol Requirement)
         vm.stopBroadcast();
+        vm.startBroadcast(deployerPK);
+        apnts.transfer(anni, 1000 ether); // Deployer funds Anni with aPNTs
+        vm.stopBroadcast();
+        
         vm.startBroadcast(anniPK);
         address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
         superPaymaster.configureOperator(dPNTs, anni, 1e18);
         
-        // 为 DemoCommunity 注入 500 ether 资金
-        xPNTsToken(dPNTs).mint(anni, 500 ether);        // Initial Refill for dPNTs
-        // superPaymaster.deposit(500 ether); // This line was commented out in the original, and the instruction implies removing an approve call, not adding a deposit call.
+        // 2. Anni 存入 aPNTs -> SuperPaymaster
+        apnts.approve(address(superPaymaster), 1000 ether);
+        superPaymaster.deposit(1000 ether);
+
+        // 3. Anni 为她的用户准备 dPNTs (可选，如果她想给自己发一点)
+        xPNTsToken(dPNTs).mint(anni, 500 ether);
         vm.stopBroadcast();
 
         // 切换回 Deployer 继续后续操作
         vm.startBroadcast(deployerPK);
+        
+        console.log("=== Step 9: Final Verification ===");
+        _verifyWiring();
+
+        vm.stopBroadcast();
+        _generateConfig();
+    }
+
+    function _executeWiring() internal {
+        staking.setRegistry(address(registry));
+        mysbt.setRegistry(address(registry));
+        registry.setSuperPaymaster(address(superPaymaster));
+        registry.setReputationSource(address(repSystem), true);
+        registry.setBLSAggregator(address(aggregator));
+        registry.setBLSValidator(address(blsValidator));
+        aggregator.setDVTValidator(address(dvt));
+        dvt.setBLSAggregator(address(aggregator));
+        
+        // CRITICAL: Update factory's SuperPaymaster address
+        xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
+        
+        // Configure auto-approval for aPNTs (already deployed via factory)
+        apnts.setSuperPaymasterAddress(address(superPaymaster));
+        
+        pmFactory.addImplementation("v4.2", address(pmV4Impl));
+        superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        superPaymaster.updatePrice();
     }
 
     function _verifyWiring() internal view {
