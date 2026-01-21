@@ -65,6 +65,7 @@ PM_FACTORY=$(jq -r '.paymasterFactory' "$CONFIG_FILE")
 PM_V4_IMPL=$(jq -r '.paymasterV4Impl' "$CONFIG_FILE")
 REP_SYSTEM=$(jq -r '.reputationSystem' "$CONFIG_FILE")
 BLS_AGGREGATOR=$(jq -r '.blsAggregator' "$CONFIG_FILE")
+BLS_VALIDATOR=$(jq -r '.blsValidator' "$CONFIG_FILE")
 DVT_VALIDATOR=$(jq -r '.dvtValidator' "$CONFIG_FILE")
 ENTRY_POINT=$(jq -r '.entryPoint' "$CONFIG_FILE")
 
@@ -138,6 +139,9 @@ verify "$BLS_AGGREGATOR" "BLSAggregator" "contracts/src/modules/monitoring/BLSAg
 
 # DVTValidator(address registry)
 verify "$DVT_VALIDATOR" "DVTValidator" "contracts/src/modules/monitoring/DVTValidator.sol:DVTValidator" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
+
+# BLSValidator()
+verify "$BLS_VALIDATOR" "BLSValidator" "contracts/src/modules/validators/BLSValidator.sol:BLSValidator" ""
 
 # xPNTsFactory(address sp, address registry)
 verify "$XPNTS_FACTORY" "xPNTsFactory" "contracts/src/tokens/xPNTsFactory.sol:xPNTsFactory" "$(cast abi-encode "constructor(address,address)" "$SUPER_PAYMASTER" "$REGISTRY")"
