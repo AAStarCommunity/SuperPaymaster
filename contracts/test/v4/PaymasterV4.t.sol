@@ -90,6 +90,10 @@ contract TestPaymasterV4 is PaymasterBase, Initializable {
             _priceStalenessThreshold
         );
     }
+
+    function _getPaymasterDataOffset() internal pure override returns (uint256) {
+        return 52;
+    }
 }
 
 contract PaymasterV4Test is Test {
@@ -192,7 +196,14 @@ contract PaymasterV4Test is Test {
         vm.prank(address(entryPoint));
         (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 0.01 ether);
         
-        assertEq(validationData, 0); // Success
+        // Verify validUntil is set (Not 0 anymore)
+        uint48 validUntil = uint48(validationData >> 160);
+        uint48 validAfter = uint48(validationData >> (160 + 48));
+        address authorizer = address(uint160(validationData));
+        
+        assertTrue(validUntil > block.timestamp, "ValidUntil should be in future");
+        assertEq(validAfter, 0, "ValidAfter should be 0");
+        assertEq(authorizer, address(0), "Authorizer should be 0");
         
         // Verify balance deducted (Calculated cost)
         uint256 balanceAfter = paymaster.balances(user, address(token));

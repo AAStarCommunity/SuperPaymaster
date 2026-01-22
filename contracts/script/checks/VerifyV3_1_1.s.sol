@@ -23,8 +23,14 @@ contract VerifyV3_1_1 is Script {
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
 
-        address deployerAddr = vm.addr(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80);
-        try vm.envAddress("DEPLOYER_ADDRESS") returns (address d) { deployerAddr = d; } catch {}
+        // Derive deployer address from PK or ENV. Fail if neither is present to ensure accuracy.
+        address deployerAddr;
+        uint256 pk = vm.envOr("PRIVATE_KEY", uint256(0));
+        if (pk != 0) {
+            deployerAddr = vm.addr(pk);
+        } else {
+            deployerAddr = vm.envAddress("DEPLOYER_ADDRESS"); // Throws error if missing
+        }
         
         address testUser = address(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9); 
 

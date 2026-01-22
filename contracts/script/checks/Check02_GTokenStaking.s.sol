@@ -11,7 +11,7 @@ contract Check02_GTokenStaking is Script {
         string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
-        address stakingAddr = vm.parseJsonAddress(json, ".staking");
+        address stakingAddr = stdJson.readAddress(json, ".staking");
 
         GTokenStaking staking = GTokenStaking(stakingAddr);
         console.log("--- GTokenStaking Check ---");

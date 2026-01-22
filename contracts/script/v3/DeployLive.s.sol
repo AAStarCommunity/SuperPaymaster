@@ -22,11 +22,12 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
+import "src/modules/validators/BLSValidator.sol";
 
 // External Interfaces
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {AggregatorV3Interface} from "src/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title DeployLive
@@ -58,6 +59,8 @@ contract DeployLive is Script {
     function setUp() public {
         deployerPK = vm.envUint("PRIVATE_KEY");
         deployer = vm.addr(deployerPK);
+        
+        // System / External Infrastructure (Remains in ENV)
         entryPointAddr = vm.envAddress("ENTRY_POINT");
         priceFeedAddr = vm.envAddress("ETH_USD_FEED");
         simpleAccountFactory = vm.envAddress("SIMPLE_ACCOUNT_FACTORY");
@@ -82,7 +85,8 @@ contract DeployLive is Script {
         repSystem = new ReputationSystem(address(registry));
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
         dvt = new DVTValidator(address(registry));
-        blsValidator = vm.envAddress("BLS_VALIDATOR_ADDRESS"); 
+        
+        blsValidator = address(new BLSValidator());
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
 
@@ -107,6 +111,7 @@ contract DeployLive is Script {
         dvt.setBLSAggregator(address(aggregator));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
         
         // Oracle Init
         try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
@@ -123,7 +128,7 @@ contract DeployLive is Script {
     }
 
     function _orchestrateRolesJason() internal {
-        gtoken.mint(deployer, 2000 ether);
+        gtoken.mint(deployer, 2000 ether); // Increased to 2000 to cover sub-sequent roles and Anni funding
         gtoken.approve(address(staking), 2000 ether);
         
         // Step 28: Register AAStar
@@ -140,7 +145,13 @@ contract DeployLive is Script {
         // Step 29: aPNTs
         address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
         apnts = xPNTsToken(apntsAddr);
+        console.log("  aPNTs Deployed at:", apntsAddr);
+        
+        // Factory handles auto-wiring of SuperPaymaster firewall if set beforehand
+        require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "Deploy: aPNTs Factory auto-wiring failed!");
+        
         superPaymaster.setAPNTsToken(apntsAddr);
+        console.log("  aPNTs Firewall auto-wired via Factory to SP:", address(superPaymaster));
 
         // Step 31-36: AOA Paymaster
         bytes memory init = abi.encodeWithSignature(
@@ -148,7 +159,7 @@ contract DeployLive is Script {
             entryPointAddr, deployer, deployer, priceFeedAddr, 100, 1 ether, 86400
         );
         address pmProxy = pmFactory.deployPaymaster("v4.2", init);
-        Paymaster(payable(pmProxy)).addStake{value: 0.1 ether}(86400);
+        Paymaster(payable(pmProxy)).addStake{value: 0.05 ether}(86400); // Reduced to 0.05 ETH as requested
         Paymaster(payable(pmProxy)).updatePrice();
         // Step 34: $0.02
         Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 

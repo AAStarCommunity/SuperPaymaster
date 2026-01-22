@@ -57,6 +57,10 @@ contract TestPaymasterOpt is PaymasterBase, Initializable {
     ) external initializer {
         _initializePaymasterBase(_ep, _owner, _treasury, _oracle, _fee, _cap, _thresh);
     }
+
+    function _getPaymasterDataOffset() internal pure override returns (uint256) {
+        return 52;
+    }
 }
 
 contract RefMockERC20 is ERC20 {

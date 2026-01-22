@@ -11,7 +11,7 @@ contract Check01_GToken is Script {
         string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
-        address gTokenAddr = vm.parseJsonAddress(json, ".gToken");
+        address gTokenAddr = stdJson.readAddress(json, ".gToken");
 
         GToken token = GToken(gTokenAddr);
         console.log("--- GToken Check ---");

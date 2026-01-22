@@ -19,7 +19,7 @@ using SafeERC20 for IERC20;
 /// @title PaymasterBase
 /// @notice V4 Deposit-Only Paymaster with Community Pricing
 /// @custom:security-contact security@aastar.community
-contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
+abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Constructor for abstract base
     /// @dev Initializes Ownable with msg.sender, actual owner set in _initializePaymasterBase
     constructor() Ownable(msg.sender) {}
@@ -41,12 +41,6 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     
     /// @notice Cached oracle decimals to avoid external call in validate
     uint8 public oracleDecimals;
-
-    /// @notice Paymaster data offset in paymasterAndData
-    uint256 private constant PAYMASTER_DATA_OFFSET = 52;
-
-    /// @notice Minimum paymasterAndData length
-    uint256 private constant MIN_PAYMASTER_AND_DATA_LENGTH = 52;
 
     /// @notice Basis points denominator
     uint256 private constant BPS_DENOMINATOR = 10000;
@@ -108,6 +102,7 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__InvalidServiceFee();
     error Paymaster__InvalidOraclePrice();
     error Paymaster__TokenNotSupported();
+    error Paymaster__PriceNotInitialized();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -203,6 +198,9 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         _transferOwnership(_owner);
     }
 
+    /// @notice Get the Paymaster data offset (version specific)
+    function _getPaymasterDataOffset() internal virtual view returns (uint256);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER FUNCTIONS        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -220,8 +218,9 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         nonReentrant
         returns (bytes memory context, uint256 validationData)
     {
+        uint256 offset = _getPaymasterDataOffset();
         // length check
-        if (userOp.paymasterAndData.length < MIN_PAYMASTER_AND_DATA_LENGTH) {
+        if (userOp.paymasterAndData.length < offset) {
             revert Paymaster__InvalidPaymasterData();
         }
 
@@ -234,8 +233,8 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // Format: [paymaster(20)] [validUntil(6)] [validAfter(6)] [token(20)]
         // Using strict offset 52 for token per user request
         address paymentToken = address(0);
-        if (userOp.paymasterAndData.length >= 72) {
-            paymentToken = address(bytes20(userOp.paymasterAndData[52:72]));
+        if (userOp.paymasterAndData.length >= offset + 20) {
+            paymentToken = address(bytes20(userOp.paymasterAndData[offset:offset+20]));
         } else {
              // Fallback or Revert? Without token we cannot price.
              // Let's require it.
@@ -254,8 +253,16 @@ contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // DEDUCT IMMEDIATELY (Escrow logic)
         balances[sender][paymentToken] -= requiredTokenAmount;
 
+        // V4 Security: Check price cache is initialized
+        if (cachedPrice.updatedAt == 0) {
+            revert Paymaster__PriceNotInitialized();
+        }
+
+        // V4 Fix: Return validUntil based on price staleness to prevent arbitrage
+        uint48 validUntil = uint48(cachedPrice.updatedAt + priceStalenessThreshold);
+
         // Context: user, token, AmountCharged
-        return (abi.encode(sender, paymentToken, requiredTokenAmount), 0);
+        return (abi.encode(sender, paymentToken, requiredTokenAmount), _packValidationData(false, validUntil, 0));
     }
 
     /// @notice PostOp handler with refund logic

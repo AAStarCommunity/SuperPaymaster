@@ -11,7 +11,7 @@ contract Check07_SuperPaymaster is Script {
         string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
-        address spAddr = vm.parseJsonAddress(json, ".superPaymaster");
+        address spAddr = stdJson.readAddress(json, ".superPaymaster");
 
         SuperPaymaster sp = SuperPaymaster(payable(spAddr));
         console.log("--- SuperPaymaster V3.1 Check ---");

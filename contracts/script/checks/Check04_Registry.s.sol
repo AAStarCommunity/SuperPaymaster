@@ -11,7 +11,7 @@ contract Check04_Registry is Script {
         string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
-        address registryAddr = vm.parseJsonAddress(json, ".registry");
+        address registryAddr = stdJson.readAddress(json, ".registry");
 
         Registry registry = Registry(registryAddr);
         console.log("--- Registry V3.1 Check ---");

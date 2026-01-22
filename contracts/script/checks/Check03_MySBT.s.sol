@@ -11,7 +11,7 @@ contract Check03_MySBT is Script {
         string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
-        address sbtAddr = vm.parseJsonAddress(json, ".sbt");
+        address sbtAddr = stdJson.readAddress(json, ".sbt");
 
         MySBT sbt = MySBT(sbtAddr);
         console.log("--- MySBT Check ---");
