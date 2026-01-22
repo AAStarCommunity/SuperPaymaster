@@ -3,6 +3,8 @@
 # Phase 2: Test Account and Demo Preparation
 # ==============================================================================
 
+set -e # Fail fast
+
 ENV=${1:-"anvil"}
 ENV_FILE=".env.$ENV"
 
@@ -20,6 +22,11 @@ else
     RPC_URL=${!VAR_NAME:-$RPC_URL}
 fi
 
+if [ -z "$RPC_URL" ]; then
+    echo -e "\033[0;31m❌ Error: RPC_URL for environment '$ENV' is not defined.\033[0m"
+    exit 1
+fi
+
 export CONFIG_FILE="config.$ENV.json"
 export ENV="$ENV"
 
@@ -32,4 +39,4 @@ echo -e "\n🛡️ Verifying Test Accounts..."
 forge script "contracts/script/checks/Check09_TestAccounts.s.sol:Check09_TestAccounts" \
     --rpc-url "$RPC_URL" --timeout 300 -vv
 
-echo -e "\n✅ Test Environment is Prepared & Verified!"
+echo -e "\n\033[0;32m✅ Test Environment is Prepared & Verified!\033[0m"

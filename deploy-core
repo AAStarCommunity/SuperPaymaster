@@ -3,6 +3,8 @@
 # Phase 1: Core Infrastructure Deployment
 # ==============================================================================
 
+set -e # Fail fast on any command failure
+
 ENV=${1:-"anvil"}
 ENV_FILE=".env.$ENV"
 
@@ -20,6 +22,12 @@ else
     RPC_URL=${!VAR_NAME:-$RPC_URL}
 fi
 
+if [ -z "$RPC_URL" ]; then
+    echo -e "\033[0;31m❌ Error: RPC_URL for environment '$ENV' is not defined.\033[0m"
+    echo "Check if .env.$ENV exists and contains ${ENV_CLEAN}_RPC_URL"
+    exit 1
+fi
+
 # Smart Hash Check
 CURRENT_HASH=$(find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
 CONFIG_FILE_PATH="deployments/config.$ENV.json"
@@ -27,12 +35,16 @@ CONFIG_FILE_PATH="deployments/config.$ENV.json"
 FORCE_DEPLOY=false
 if [[ "$*" == *"--force"* ]]; then FORCE_DEPLOY=true; fi
 
+SHOULD_RUN_DEPLOY=false
 if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = false ]; then
     STORED_HASH=$(jq -r '.srcHash // ""' "$CONFIG_FILE_PATH")
     if [ "$CURRENT_HASH" == "$STORED_HASH" ]; then
         echo "✅ Code unchanged ($CURRENT_HASH). Skipping Core Deployment."
-        exit 0
+    else
+        SHOULD_RUN_DEPLOY=true
     fi
+else
+    SHOULD_RUN_DEPLOY=true
 fi
 
 export CONFIG_FILE="config.$ENV.json"
@@ -40,11 +52,20 @@ export SRC_HASH="$CURRENT_HASH"
 export ENV="$ENV"
 SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
-echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
+if [ "$SHOULD_RUN_DEPLOY" = true ]; then
+    echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
+    if [ "$ENV" == "anvil" ]; then
+        forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
+            --rpc-url "$RPC_URL" --broadcast --slow \
+            --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vv
+    else
+        forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
+            --rpc-url "$RPC_URL" --broadcast --slow --timeout 300 -vv
+    fi
+fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---
 echo -e "\n🛡️ Starting Core Logic Audit..."
-export CONFIG_FILE="config.$ENV.json"
 CHECK_SCRIPTS=("Check04_Registry" "Check01_GToken" "Check02_GTokenStaking" "Check03_MySBT" "Check07_SuperPaymaster" "Check08_Wiring" "VerifyV3_1_1")
 
 for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
@@ -52,4 +73,4 @@ for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
     forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
 done
 
-echo -e "\n✅ Core Infrastructure is Deployed & Verified!"
+echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Verified!\033[0m"

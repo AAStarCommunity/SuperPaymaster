@@ -18,14 +18,14 @@ import {PaymasterFactory} from "src/paymasters/v4/core/PaymasterFactory.sol";
 contract Check09_TestAccounts is Script {
     function run() external view {
         string memory root = vm.projectRoot();
-        string memory configFile = vm.envOr("CONFIG_FILE", string("anvil.json"));
+        string memory configFile = vm.envOr("CONFIG_FILE", string("config.anvil.json"));
         string memory path = string.concat(root, "/deployments/", configFile);
         string memory json = vm.readFile(path);
         
-        address registry = vm.parseJsonAddress(json, ".registry");
-        address superPaymaster = vm.parseJsonAddress(json, ".superPaymaster");
-        address gToken = vm.parseJsonAddress(json, ".gToken");
-        address pmFactory = vm.parseJsonAddress(json, ".paymasterFactory");
+        address registry = stdJson.readAddress(json, ".registry");
+        address superPaymaster = stdJson.readAddress(json, ".superPaymaster");
+        address gToken = stdJson.readAddress(json, ".gToken");
+        address pmFactory = stdJson.readAddress(json, ".paymasterFactory");
         
         address anni = 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9;
         
@@ -33,7 +33,7 @@ contract Check09_TestAccounts is Script {
 
         // 1. Role Verification
         bool isAnniCommunity = Registry(registry).hasRole(keccak256("COMMUNITY"), anni);
-        bool isAnniOperator = Registry(registry).hasRole(keccak256("SUPER_PAYMASTER"), anni);
+        bool isAnniOperator = Registry(registry).hasRole(keccak256("PAYMASTER_SUPER"), anni);
         bool isAnniPMAOA = Registry(registry).hasRole(keccak256("PAYMASTER_AOA"), anni);
         
         console.log("  Anni Community Role: ", isAnniCommunity);
@@ -45,12 +45,24 @@ contract Check09_TestAccounts is Script {
         require(isAnniPMAOA, "Check09: Anni missing PM_AOA role");
 
         // 2. Token & Config Verification
-        (uint128 bal, address token,, address treasury,, uint256 rate,,,,) = SuperPaymaster(payable(superPaymaster)).operators(anni);
-        console.log("  Anni SP Token:       ", token);
-        console.log("  Anni SP Rate:        ", rate);
+        (
+            uint128 aPNTsBalance,
+            uint96 exchangeRate,
+            bool isConfigured,
+            bool isPaused,
+            address xPNTsToken,
+            uint32 reputation,
+            uint48 minTxInterval,
+            address treasury,
+            uint256 totalSpent,
+            uint256 totalTxSponsored
+        ) = SuperPaymaster(payable(superPaymaster)).operators(anni);
+        
+        console.log("  Anni SP Token:       ", xPNTsToken);
+        console.log("  Anni SP Rate:        ", exchangeRate);
         console.log("  Anni SP Treasury:    ", treasury);
         
-        require(token != address(0), "Check09: Anni SP Token not configured");
+        require(xPNTsToken != address(0), "Check09: Anni SP Token not configured");
         require(treasury == anni, "Check09: Anni SP Treasury mismatch");
 
         // 3. V4 Paymaster Verification
