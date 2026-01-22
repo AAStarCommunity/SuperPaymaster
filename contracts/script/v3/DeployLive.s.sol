@@ -178,6 +178,11 @@ contract DeployLive is Script {
         
         // Step 38: Mint 20,000 aPNTs
         apnts.mint(deployer, 20_000 ether);
+        
+        // NEW: Deposit into SuperPaymaster as active Operating Balance
+        apnts.approve(address(superPaymaster), 500 ether);
+        superPaymaster.deposit(500 ether);
+        console.log("  500 aPNTs Deposited into SuperPaymaster for Deployer");
     }
 
     function _generateConfig() internal {

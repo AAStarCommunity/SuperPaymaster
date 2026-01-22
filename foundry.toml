@@ -49,29 +49,20 @@ via_ir = true
 evm_version = "cancun"
 
 # Exclude all non-V3 contracts
-exclude = [
-    # Legacy paymasters (v1, v2, v4 base versions)
-    "contracts/src/paymasters/v1/**/*",
-    "contracts/src/paymasters/v2/**/*",
-    "contracts/src/paymasters/superpaymaster/v1/**/*",
-    "contracts/src/paymasters/superpaymaster/v2/**/*",
-    "contracts/src/paymasters/PaymasterFactory.sol",
-    
-    # Legacy base contracts (keep only what V3 needs)
-    "contracts/src/base/Registry_v1.sol",
-    "contracts/src/history/**/*",
-    "script/**/*",
-    
-    # Test contracts (selective inclusion)
-    "contracts/src/test/**/*",
-    
-    # Mock contracts
-    "contracts/src/mocks/**/*",
-    
-    # Singleton paymaster tests
-    "singleton-paymaster/test/**/*",
-    "singleton-paymaster/**/*.t.sol"
-]
+# skip = [
+#     "contracts/src/paymasters/v1/**/*",
+#     "contracts/src/paymasters/v2/**/*",
+#     "contracts/src/paymasters/superpaymaster/v1/**/*",
+#     "contracts/src/paymasters/superpaymaster/v2/**/*",
+#     "contracts/src/paymasters/PaymasterFactory.sol",
+#     "contracts/src/base/Registry_v1.sol",
+#     "contracts/src/history/**/*",
+#     "script/**/*",
+#     "contracts/src/test/**/*",
+#     "contracts/src/mocks/**/*",
+#     "singleton-paymaster/test/**/*",
+#     "singleton-paymaster/**/*.t.sol"
+# ]
 
 remappings = [
     "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",

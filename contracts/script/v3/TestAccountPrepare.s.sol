@@ -83,7 +83,7 @@ contract TestAccountPrepare is Script {
             console.log("Funding Anni with more GT tokens...");
             gtoken.transfer(anni, 200 ether);
         }
-        payable(anni).transfer(1 ether); 
+        payable(anni).transfer(0.05 ether); 
         vm.stopBroadcast();
 
         // --- Phase 2.2: Anni's Self-Setup ---
