@@ -1,0 +1,55 @@
+#!/bin/bash
+# ==============================================================================
+# Phase 1: Core Infrastructure Deployment
+# ==============================================================================
+
+ENV=${1:-"anvil"}
+ENV_FILE=".env.$ENV"
+
+if [ -f "$ENV_FILE" ]; then
+    set -a; source "$ENV_FILE"; set +a
+fi
+
+# Determine RPC
+if [ "$ENV" == "anvil" ]; then
+    RPC_URL="http://127.0.0.1:8545"
+else
+    ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
+    ENV_CLEAN=${ENV_UPPER//-/_}
+    VAR_NAME="${ENV_CLEAN}_RPC_URL"
+    RPC_URL=${!VAR_NAME:-$RPC_URL}
+fi
+
+# Smart Hash Check
+CURRENT_HASH=$(find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
+CONFIG_FILE_PATH="deployments/config.$ENV.json"
+
+FORCE_DEPLOY=false
+if [[ "$*" == *"--force"* ]]; then FORCE_DEPLOY=true; fi
+
+if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = false ]; then
+    STORED_HASH=$(jq -r '.srcHash // ""' "$CONFIG_FILE_PATH")
+    if [ "$CURRENT_HASH" == "$STORED_HASH" ]; then
+        echo "✅ Code unchanged ($CURRENT_HASH). Skipping Core Deployment."
+        exit 0
+    fi
+fi
+
+export CONFIG_FILE="config.$ENV.json"
+export SRC_HASH="$CURRENT_HASH"
+export ENV="$ENV"
+SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
+
+echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
+
+# --- PHASE 2: Core Logic Audit (Self-Verification) ---
+echo -e "\n🛡️ Starting Core Logic Audit..."
+export CONFIG_FILE="config.$ENV.json"
+CHECK_SCRIPTS=("Check04_Registry" "Check01_GToken" "Check02_GTokenStaking" "Check03_MySBT" "Check07_SuperPaymaster" "Check08_Wiring" "VerifyV3_1_1")
+
+for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
+    echo -e "  Audit: $SCRIPT"
+    forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
+done
+
+echo -e "\n✅ Core Infrastructure is Deployed & Verified!"

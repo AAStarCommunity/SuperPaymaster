@@ -1,0 +1,35 @@
+#!/bin/bash
+# ==============================================================================
+# Phase 2: Test Account and Demo Preparation
+# ==============================================================================
+
+ENV=${1:-"anvil"}
+ENV_FILE=".env.$ENV"
+
+if [ -f "$ENV_FILE" ]; then
+    set -a; source "$ENV_FILE"; set +a
+fi
+
+# Determine RPC
+if [ "$ENV" == "anvil" ]; then
+    RPC_URL="http://127.0.0.1:8545"
+else
+    ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
+    ENV_CLEAN=${ENV_UPPER//-/_}
+    VAR_NAME="${ENV_CLEAN}_RPC_URL"
+    RPC_URL=${!VAR_NAME:-$RPC_URL}
+fi
+
+export CONFIG_FILE="config.$ENV.json"
+export ENV="$ENV"
+
+echo "🧪 Starting Phase 2: Test Account Preparation ($ENV)"
+
+forge script "contracts/script/v3/TestAccountPrepare.s.sol:TestAccountPrepare" \
+    --rpc-url "$RPC_URL" --broadcast --slow --timeout 300 -vv
+
+echo -e "\n🛡️ Verifying Test Accounts..."
+forge script "contracts/script/checks/Check09_TestAccounts.s.sol:Check09_TestAccounts" \
+    --rpc-url "$RPC_URL" --timeout 300 -vv
+
+echo -e "\n✅ Test Environment is Prepared & Verified!"

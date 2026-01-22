@@ -38,6 +38,25 @@ else
     exit 1
 fi
 
+# 动态获取 RPC URL
+# 将 ENV 转换为大写并替换 - 为 _ (例如 op-sepolia -> OP_SEPOLIA)
+ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+RPC_VAR_NAME="${ENV_UPPER}_RPC_URL"
+RPC_URL="${!RPC_VAR_NAME}"
+
+# 如果特定网络的 RPC 变量不存在，尝试回退到通用的 RPC_URL
+if [ -z "$RPC_URL" ]; then
+    RPC_URL="$RPC_URL"
+fi
+
+# 如果仍然没有找到 RPC URL，报错
+if [ -z "$RPC_URL" ]; then
+    echo -e "${RED}Error: Could not find RPC URL. Checked ${RPC_VAR_NAME} and RPC_URL.${NC}"
+    exit 1
+fi
+
+echo -e "Using RPC URL: ${RPC_URL}"
+
 # 确保必要的变量存在
 if [ -z "$ETHERSCAN_API_KEY" ]; then
     echo -e "${RED}Error: ETHERSCAN_API_KEY not set in ${ENV_FILE}${NC}"
@@ -68,6 +87,8 @@ BLS_AGGREGATOR=$(jq -r '.blsAggregator' "$CONFIG_FILE")
 BLS_VALIDATOR=$(jq -r '.blsValidator' "$CONFIG_FILE")
 DVT_VALIDATOR=$(jq -r '.dvtValidator' "$CONFIG_FILE")
 ENTRY_POINT=$(jq -r '.entryPoint' "$CONFIG_FILE")
+PRICE_FEED=$(jq -r '.priceFeed' "$CONFIG_FILE")
+
 
 # 获取 Deployer 地址 (用于构造参数)
 DEPLOYER=$(cast wallet address --private-key "$PRIVATE_KEY")
@@ -83,7 +104,7 @@ verify() {
     echo -e "\n${YELLOW}>>> Verifying ${name} at ${addr}...${NC}"
     
     # 简单的代码存在性检查
-    code=$(cast code "$addr" --rpc-url "$SEPOLIA_RPC_URL")
+    code=$(cast code "$addr" --rpc-url "$RPC_URL")
     if [ "$code" == "0x" ]; then
         echo -e "${RED}Skip: No code at ${addr}${NC}"
         return
@@ -98,16 +119,16 @@ verify() {
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
             --constructor-args "$args" \
-            --compiler-version "0.8.28" \
-            --optimizer-runs 1 \
+            --compiler-version "0.8.33" \
+            --optimizer-runs 10000 \
             --via-ir
     else
         forge verify-contract "$addr" "$contract_path" \
             --chain "$ENV" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
-            --compiler-version "0.8.28" \
-            --optimizer-runs 1 \
+            --compiler-version "0.8.33" \
+            --optimizer-runs 10000 \
             --via-ir
     fi
 }
@@ -129,7 +150,7 @@ verify "$REGISTRY" "Registry" "contracts/src/core/Registry.sol:Registry" "$(cast
 # SuperPaymaster(IEntryPoint entryPoint, address initialOwner, address registry, address supervisor, address priceFeed, address treasury, uint256 buffer)
 # Buffer according to DeployLive.s.sol is 4200
 verify "$SUPER_PAYMASTER" "SuperPaymaster" "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster" \
-    "$(cast abi-encode "constructor(address,address,address,address,address,address,uint256)" "$ENTRY_POINT" "$DEPLOYER" "$REGISTRY" "0x0000000000000000000000000000000000000000" "$ETH_USD_FEED" "$DEPLOYER" "4200")"
+    "$(cast abi-encode "constructor(address,address,address,address,address,address,uint256)" "$ENTRY_POINT" "$DEPLOYER" "$REGISTRY" "0x0000000000000000000000000000000000000000" "$PRICE_FEED" "$DEPLOYER" "4200")"
 
 # ReputationSystem(address registry)
 verify "$REP_SYSTEM" "ReputationSystem" "contracts/src/modules/reputation/ReputationSystem.sol:ReputationSystem" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
