@@ -118,7 +118,7 @@ contract DeployAnvil is Script {
         apnts.mint(deployer, 2000 ether);
 
         console.log("=== Step 5: Deploy Core ===");
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 4200);
 
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = new ReputationSystem(address(registry));
@@ -235,6 +235,7 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
+        vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);

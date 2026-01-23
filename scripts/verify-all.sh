@@ -178,17 +178,21 @@ verify "$BLS_VALIDATOR" "BLSValidator" "contracts/src/modules/validators/BLSVali
 # xPNTsFactory(address sp, address registry)
 verify "$XPNTS_FACTORY" "xPNTsFactory" "contracts/src/tokens/xPNTsFactory.sol:xPNTsFactory" "$(cast abi-encode "constructor(address,address)" "$SUPER_PAYMASTER" "$REGISTRY")"
 
+# 🚀 验证 xPNTsToken 实现合约 (Clone Pattern)
+echo -e "${YELLOW}Detecting xPNTsToken implementation...${NC}"
+XPNTS_IMPL=$(cast call "$XPNTS_FACTORY" "implementation()(address)" --rpc-url "$RPC_URL")
+if [ -n "$XPNTS_IMPL" ] && [ "$XPNTS_IMPL" != "0x0000000000000000000000000000000000000000" ]; then
+    verify "$XPNTS_IMPL" "xPNTsTokenImpl" "contracts/src/tokens/xPNTsToken.sol:xPNTsToken" ""
+else
+    echo -e "${RED}Failed to detect xPNTsToken implementation address from factory.${NC}"
+fi
+
 # PaymasterFactory()
 verify "$PM_FACTORY" "PaymasterFactory" "contracts/src/paymasters/v4/core/PaymasterFactory.sol:PaymasterFactory" ""
 
 # Paymaster(address registry)
 verify "$PM_V4_IMPL" "PaymasterV4Impl" "contracts/src/paymasters/v4/Paymaster.sol:Paymaster" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
 
-# aPNTs (xPNTsToken)
-# deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0))
-# Constructed via: xPNTsToken(name, symbol, communityOwner, communityName, communityENS, exchangeRate)
-verify "$APNTS" "aPNTs" "contracts/src/tokens/xPNTsToken.sol:xPNTsToken" \
-    "$(cast abi-encode "constructor(string,string,address,string,string,uint256)" "AAStar PNTs" "aPNTs" "$DEPLOYER" "AAStar" "aastar.eth" "1000000000000000000")"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}Verification Process Complete!${NC}"

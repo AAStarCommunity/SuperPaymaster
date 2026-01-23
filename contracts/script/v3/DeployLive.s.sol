@@ -79,7 +79,7 @@ contract DeployLive is Script {
 
         console.log("=== Step 2: Deploy Core ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry));
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(0), priceFeedAddr, deployer, 86400);
+        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(0), priceFeedAddr, deployer, 4200);
 
         console.log("=== Step 3: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
@@ -215,6 +215,7 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
+        vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
         vm.writeFile(finalPath, finalJson);

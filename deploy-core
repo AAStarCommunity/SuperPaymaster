@@ -52,6 +52,7 @@ fi
 
 export CONFIG_FILE="config.$ENV.json"
 export SRC_HASH="$CURRENT_HASH"
+export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
 SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
