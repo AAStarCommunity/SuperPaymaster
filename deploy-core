@@ -40,10 +40,13 @@ if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = fa
     STORED_HASH=$(jq -r '.srcHash // ""' "$CONFIG_FILE_PATH")
     if [ "$CURRENT_HASH" == "$STORED_HASH" ]; then
         echo "✅ Code unchanged ($CURRENT_HASH). Skipping Core Deployment."
+        SHOULD_RUN_DEPLOY=false
     else
+        echo "🔄 Code changed. Old: $STORED_HASH -> New: $CURRENT_HASH"
         SHOULD_RUN_DEPLOY=true
     fi
 else
+    # Anvil, no config file, or --force flag
     SHOULD_RUN_DEPLOY=true
 fi
 
