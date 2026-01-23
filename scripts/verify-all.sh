@@ -11,11 +11,22 @@ NC='\033[0m'
 
 # Default values
 ENV="sepolia"
+CHAIN_NAME="$ENV"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --env) ENV="$2"; shift ;;
+        --env) 
+            ENV="$2"
+            if [ "$ENV" == "op-sepolia" ]; then
+                CHAIN_NAME="optimism-sepolia"
+            elif [ "$ENV" == "op-mainnet" ]; then
+                CHAIN_NAME="optimism" 
+            else
+                CHAIN_NAME="$ENV"
+            fi
+            shift 
+            ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -115,7 +126,7 @@ verify() {
     if [ -n "$args" ]; then
         echo -e "Args: ${args}"
         forge verify-contract "$addr" "$contract_path" \
-            --chain "$ENV" \
+            --chain "$CHAIN_NAME" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
             --constructor-args "$args" \
@@ -124,7 +135,7 @@ verify() {
             --via-ir
     else
         forge verify-contract "$addr" "$contract_path" \
-            --chain "$ENV" \
+            --chain "$CHAIN_NAME" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
             --compiler-version "0.8.33" \
