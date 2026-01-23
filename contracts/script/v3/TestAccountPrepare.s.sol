@@ -43,9 +43,17 @@ contract TestAccountPrepare is Script {
         xpntsFactory = xPNTsFactory(stdJson.readAddress(json, ".xPNTsFactory"));
         superPaymaster = SuperPaymaster(payable(stdJson.readAddress(json, ".superPaymaster")));
         pmFactory = PaymasterFactory(stdJson.readAddress(json, ".paymasterFactory"));
-        entryPointAddr = stdJson.readAddress(json, ".entryPoint");
-        priceFeedAddr = stdJson.readAddress(json, ".priceFeed");
         stakingAddr = stdJson.readAddress(json, ".staking");
+
+        if (keccak256(bytes(network)) == keccak256(bytes("anvil"))) {
+            // On Anvil, everything is deployed locally, so we read from Config
+            entryPointAddr = stdJson.readAddress(json, ".entryPoint");
+            priceFeedAddr = stdJson.readAddress(json, ".priceFeed");
+        } else {
+            // On Testnet/Mainnet, Third-Party addresses MUST come from ENV
+            entryPointAddr = vm.envAddress("ENTRYPOINT_ADDRESS");
+            priceFeedAddr = vm.envAddress("PRICE_FEED_ADDRESS");
+        }
     }
 
     function run() external {
@@ -83,7 +91,9 @@ contract TestAccountPrepare is Script {
             console.log("Funding Anni with more GT tokens...");
             gtoken.transfer(anni, 200 ether);
         }
-        payable(anni).transfer(0.2 ether); 
+        if (address(anni).balance < 0.3 ether) {
+             payable(anni).transfer(0.3 ether); 
+        }
         vm.stopBroadcast();
 
         // --- Phase 2.2: Anni's Self-Setup ---
@@ -92,6 +102,7 @@ contract TestAccountPrepare is Script {
         
         if (!registry.hasRole(registry.ROLE_PAYMASTER_SUPER(), anni)) {
             console.log("Registering Anni as SuperPaymaster Operator...");
+            gtoken.approve(stakingAddr, 200 ether);
             registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         }
 
