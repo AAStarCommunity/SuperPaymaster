@@ -135,9 +135,9 @@ contract DeployLive is Script {
         Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
             name: "AAStar",
             ensName: "aastar.eth",
-            website: "aastar.io",
-            description: "AAStar Community - Empower Community!",
-            logoURI: "ipfs://aastar-logo",
+            website: "https://aastar.io",
+            description: "AAStar - Empower Community!",
+            logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
             stakeAmount: 30 ether
         });
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
@@ -178,22 +178,6 @@ contract DeployLive is Script {
         
         // Step 38: Mint 20,000 aPNTs
         apnts.mint(deployer, 20_000 ether);
-
-        // EXTRA STEP: Register as SuperPaymaster Operator (Required for deposit)
-        // Note: Stake 50 ETH (Standard)
-        Registry.GenericRoleData memory spRoleData = Registry.GenericRoleData({
-            name: "Jason SuperPM",
-            extraData: "",
-            stakeAmount: 50 ether
-        });
-        gtoken.approve(address(staking), 55 ether); // 33 for AOA + 55 for Super (Total ~88 safe buffer)
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, abi.encode(spRoleData));
-        
-
-        // NEW: Deposit into SuperPaymaster as active Operating Balance
-        apnts.approve(address(superPaymaster), 500 ether);
-        superPaymaster.deposit(500 ether);
-        console.log("  500 aPNTs Deposited into SuperPaymaster for Deployer");
     }
 
     function _generateConfig() internal {

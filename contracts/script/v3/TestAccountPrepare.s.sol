@@ -69,16 +69,16 @@ contract TestAccountPrepare is Script {
         vm.startBroadcast(deployerPK);
         
         bytes32 roleCommunity = registry.ROLE_COMMUNITY();
-        string memory communityName = "AnniDemoCommunity"; 
+        string memory communityName = "Mycelium Community"; 
         
         if (!registry.hasRole(roleCommunity, anni)) {
             console.log("Registering Community for Anni:", communityName);
             Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
                 name: communityName,
-                ensName: string.concat(communityName, ".eth"),
-                website: "anni.demo",
-                description: "Anni's Secret Demo Community",
-                logoURI: "ipfs://anni-logo",
+                ensName: "mushroom.box",
+                website: "https://mushroom.box",
+                description: "Mycelium, Explorer Your World!",
+                logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
                 stakeAmount: 30 ether
             });
             gtoken.mint(deployer, 40 ether); 
