@@ -15,8 +15,11 @@ const GTOKEN = '0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc';
 const XPNTS1_TOKEN = '0xfb56CB85C9a214328789D3C92a496d6AA185e3d3';
 const OPERATOR = '0x411BD567E46C0781248dbB6a9211891C032885e5';
 
-// Use operator's private key
-const privateKey = '0x2717524c39f8b8ab74c902dc712e590fee36993774119c1e06d31daa4b0fbc81';
+// Use operator's private key from environment
+const privateKey = process.env.PRIVATE_KEY_SUPPLIER || process.env.TEST_PRIVATE_KEY;
+if (!privateKey) {
+  throw new Error('PRIVATE_KEY_SUPPLIER or TEST_PRIVATE_KEY not found in environment');
+}
 const account = privateKeyToAccount(privateKey);
 
 async function main() {

@@ -16,9 +16,10 @@ const fs = require('fs');
 const path = require('path');
 
 // --- Configuration ---
-const RPC_URL = 'http://localhost:8545';
-const DEPLOYER_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-const ALICE_PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'; // Account 1
+const RPC_URL = process.env.RPC_URL || 'http://localhost:8545';
+// Default Anvil keys for local verification
+const DEPLOYER_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+const ALICE_PRIVATE_KEY = process.env.ALICE_PRIVATE_KEY || '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
 
 // Addresses from deployment
 const ADDRESSES = {

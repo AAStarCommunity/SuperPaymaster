@@ -6,7 +6,17 @@
 # Robust PATH setup for non-interactive shells
 export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$HOME/.foundry/bin"
 
-echo "🔍 Running pre-commit bug hunting suite..."
+echo "🔍 Running pre-commit security & test checks..."
+
+# 1. Run Security Scan (using SDK script)
+SDK_DIR="../aastar-sdk"
+if [ -d "$SDK_DIR" ]; then
+    (cd "$SDK_DIR" && npx tsx scripts/security-scan.ts)
+    if [ $? -ne 0 ]; then
+        echo "❌ Security check failed in SDK. Please fix leakage before committing."
+        exit 1
+    fi
+fi
 
 # Path to the SDK directory
 SDK_DIR="../aastar-sdk"
