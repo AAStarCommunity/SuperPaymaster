@@ -18,22 +18,17 @@ if [ -d "$SDK_DIR" ]; then
     fi
 fi
 
-# Path to the SDK directory
-SDK_DIR="../aastar-sdk"
-
+# 2. Run Fast Bug Hunting Suite
 if [ -d "$SDK_DIR" ]; then
-    cd "$SDK_DIR"
-    # Run the fast test suite (Safe for pre-commit)
-    pnpm run test:fast
-    
+    echo "🔍 Running fast bug hunting suite..."
+    (cd "$SDK_DIR" && pnpm run test:fast)
     RESULT=$?
     
     if [ $RESULT -ne 0 ]; then
-        echo "❌ Pre-commit check failed! Please fix the bugs before committing."
+        echo "❌ Pre-commit bug hunt failed! Please fix the bugs before committing."
         exit 1
     fi
-    
-    echo "✅ Pre-commit check passed."
+    echo "✅ Pre-commit checks passed."
 else
     echo "⚠️  aastar-sdk directory not found. Skipping fast bug hunt."
 fi
