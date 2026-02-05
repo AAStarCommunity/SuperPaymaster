@@ -9,8 +9,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # Only alert on production dependencies vulnerabilities
-    open-pull-requests-limit: 5
+    # Bundling all updates into a single weekly PR to reduce noise
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 1
     ignore:
       # Ignore development dependencies vulnerabilities
       - dependency-name: "eslint"
@@ -30,7 +34,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 1
 
 # Note: To further configure security alerts:
 # 1. Go to: https://github.com/AAStarCommunity/SuperPaymaster/settings/security_analysis
