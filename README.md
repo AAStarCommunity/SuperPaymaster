@@ -36,6 +36,7 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
   - 🛡️ [Security Architecture V3.1.1](./docs/Security_Architecture_V3_1.md) - DVT Slashing & Reputation System
   - 🚀 [Security & Performance Action Plan](./docs/SECURITY_AND_PERFORMANCE.md) - Best practices workflow
 - **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md) on Sepolia testnet
+- **Deployment Strategy V3**: [Deterministic Deployment & Upgradability](./docs/DEPLOYMENT_STRATEGY_V3.md) (Planned)
 - Mainnet deployment ready (pending audit)
 
 🧪- [Stage 2 测试覆盖率分析报告](file:///Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/docs/StageScenariosCoverage.md)
