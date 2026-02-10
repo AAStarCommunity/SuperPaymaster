@@ -56,16 +56,35 @@ export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
 SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
+# Prepare Forge flags
+FORGE_FLAGS="--rpc-url $RPC_URL --broadcast --slow -vv"
+if [ "$ENV" != "anvil" ]; then
+    FORGE_FLAGS="$FORGE_FLAGS --timeout 300"
+fi
+
+# Determine Signer
+if [ -n "$DEPLOYER_ACCOUNT" ]; then
+    echo "🔐 Using Foundry Keystore Account: $DEPLOYER_ACCOUNT"
+    # When using --account, we don't need --sender if the account is the sender
+    FORGE_FLAGS="$FORGE_FLAGS --account $DEPLOYER_ACCOUNT"
+elif [ -n "$PRIVATE_KEY" ]; then
+     echo "⚠️  Using Plaintext Private Key (Not Recommended)"
+     FORGE_FLAGS="$FORGE_FLAGS --private-key $PRIVATE_KEY"
+else
+     # For Anvil, we can use the default test account if needed, or fail for live nets
+     if [ "$ENV" != "anvil" ]; then
+        echo "❌ Error: No DEPLOYER_ACCOUNT or PRIVATE_KEY defined in .env.$ENV"
+        exit 1
+     else
+        # Anvil default (0xf39... id 0)
+        echo "🔧 Using Anvil Default Account"
+        FORGE_FLAGS="$FORGE_FLAGS --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" 
+     fi
+fi
+
 if [ "$SHOULD_RUN_DEPLOY" = true ]; then
     echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
-    if [ "$ENV" == "anvil" ]; then
-        forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
-            --rpc-url "$RPC_URL" --broadcast --slow \
-            --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vv
-    else
-        forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
-            --rpc-url "$RPC_URL" --broadcast --slow --timeout 300 -vv
-    fi
+    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" $FORGE_FLAGS
 fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---

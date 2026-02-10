@@ -89,7 +89,6 @@ SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Ac
 │   └─ PaymasterV4 Liquidity Pool Init                        │
 │                                                              │
 └────────────────────────────────────────────────────────────┘
-```
 
 ### Core Contracts (7 Main Components)
 
@@ -483,6 +482,39 @@ forge script script/DeploySuperPaymasterV2_0_1.s.sol:DeploySuperPaymasterV2_0_1 
 
 # Check deployment info
 cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
+```
+
+#### Secure Deployment (Mainnet/Testnet)
+We use **Foundry Keystore** to manage private keys securely (simulating hardware wallets).
+
+**1. Secure Import (Offline Procedure)**:
+*   **Disconnect from Internet** (Turn off Wi-Fi/Ethernet).
+*   **Import Private Key**:
+    ```bash
+    # Interactive import (paste your private key securely)
+    cast wallet import optimism-deployer --interactive
+    ```
+*   **Clear Clipboard** (MacOS):
+    ```bash
+    pbcopy < /dev/null
+    ```
+*   **Reconnect to Internet**.
+
+**2. Configure Environment**:
+Edit your `.env.<network>` (e.g., `.env.optimism`) to include:
+```bash
+DEPLOYER_ACCOUNT=optimizer-deployer
+RPC_URL=...
+ENTRY_POINT=...
+ETH_USD_FEED=...
+SIMPLE_ACCOUNT_FACTORY=...
+ETHERSCAN_API_KEY=...
+```
+
+3. **Deploy**:
+```bash
+# The script automatically detects the DEPLOYER_ACCOUNT and uses secure signing
+./deploy-core optimism
 ```
 
 **Deployment Guides**:

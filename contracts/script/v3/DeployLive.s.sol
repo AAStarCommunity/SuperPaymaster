@@ -36,7 +36,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 contract DeployLive is Script {
     using Clones for address;
 
-    uint256 deployerPK;
+
     address deployer;
     address entryPointAddr;
     address priceFeedAddr;
@@ -57,8 +57,9 @@ contract DeployLive is Script {
     Paymaster pmV4Impl;
 
     function setUp() public {
-        deployerPK = vm.envUint("PRIVATE_KEY");
-        deployer = vm.addr(deployerPK);
+        // Deployer is determined by the --account or --private-key flag
+        // In Foundry, msg.sender in setUp() matches the sender in run() if set via CLI
+        deployer = msg.sender;
         
         // System / External Infrastructure (Remains in ENV)
         entryPointAddr = vm.envAddress("ENTRY_POINT");
@@ -67,7 +68,10 @@ contract DeployLive is Script {
     }
 
     function run() external {
-        vm.startBroadcast(deployerPK);
+        // Use the configured account from CLI (--account or --private-key)
+        vm.startBroadcast();
+        
+        console.log("Deployer:", deployer);
 
         console.log("=== Step 1: Deploy Foundation ===");
         gtoken = new GToken(21_000_000 * 1e18);
