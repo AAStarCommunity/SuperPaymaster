@@ -57,14 +57,19 @@ contract DeployLive is Script {
     Paymaster pmV4Impl;
 
     function setUp() public {
-        // Deployer is determined by the --account or --private-key flag
-        // In Foundry, msg.sender in setUp() matches the sender in run() if set via CLI
-        deployer = msg.sender;
-        
         // System / External Infrastructure (Remains in ENV)
         entryPointAddr = vm.envAddress("ENTRY_POINT");
         priceFeedAddr = vm.envAddress("ETH_USD_FEED");
         simpleAccountFactory = vm.envAddress("SIMPLE_ACCOUNT_FACTORY");
+        
+        // Resolve Deployer Address
+        // 1. Try DEPLOYER_ADDRESS (if set by wrapper script)
+        // 2. Fallback to msg.sender (only for Anvil/Private Key mode)
+        if (vm.envOr("DEPLOYER_ADDRESS", address(0)) != address(0)) {
+            deployer = vm.envAddress("DEPLOYER_ADDRESS");
+        } else {
+            deployer = msg.sender;
+        }
     }
 
     function run() external {

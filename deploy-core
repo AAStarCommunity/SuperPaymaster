@@ -65,6 +65,17 @@ fi
 # Determine Signer
 if [ -n "$DEPLOYER_ACCOUNT" ]; then
     echo "🔐 Using Foundry Keystore Account: $DEPLOYER_ACCOUNT"
+    
+    # Check if DEPLOYER_ADDRESS is already configured to skip password prompt
+    if [ -n "$DEPLOYER_ADDRESS" ]; then
+        echo "   ✅ Using configured address: $DEPLOYER_ADDRESS"
+    else
+        echo "   🔍 Resolving address from keystore (Password Required)..."
+        DEPLOYER_ADDR=$(cast wallet address --account $DEPLOYER_ACCOUNT)
+        echo "   📍 Resolved Address: $DEPLOYER_ADDR"
+        export DEPLOYER_ADDRESS=$DEPLOYER_ADDR
+    fi
+    
     # When using --account, we don't need --sender if the account is the sender
     FORGE_FLAGS="$FORGE_FLAGS --account $DEPLOYER_ACCOUNT"
 elif [ -n "$PRIVATE_KEY" ]; then
