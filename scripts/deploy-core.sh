@@ -31,6 +31,14 @@ if [ "$ENV" == "anvil" ]; then
         --rpc-url "$RPC_URL" --broadcast --slow \
         --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vv
 else
-    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" \
-        --rpc-url "$RPC_URL" --broadcast --slow --timeout 300 -vv
+    ARGS="--rpc-url $RPC_URL --broadcast --slow --timeout 300 -vv"
+    
+    if [ -n "$DEPLOYER_ACCOUNT" ]; then
+        ARGS="$ARGS --account $DEPLOYER_ACCOUNT"
+    fi
+     if [ -n "$DEPLOYER_ADDRESS" ]; then
+        ARGS="$ARGS --sender $DEPLOYER_ADDRESS"
+    fi
+
+    forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" $ARGS
 fi

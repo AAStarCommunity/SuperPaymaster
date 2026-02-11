@@ -168,7 +168,7 @@ contract DeployLive is Script {
             entryPointAddr, deployer, deployer, priceFeedAddr, 100, 1 ether, 86400
         );
         address pmProxy = pmFactory.deployPaymaster("v4.2", init);
-        Paymaster(payable(pmProxy)).addStake{value: 0.05 ether}(86400); // Reduced to 0.05 ETH as requested
+        Paymaster(payable(pmProxy)).addStake{value: 0.1 ether}(86400); // Increased to 0.1 ETH as requested
         Paymaster(payable(pmProxy)).updatePrice();
         // Step 34: $0.02
         Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 
