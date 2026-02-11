@@ -100,9 +100,10 @@ fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---
 echo -e "\n🛡️ Starting Core Logic Audit..."
-CHECK_SCRIPTS=("Check04_Registry" "Check01_GToken" "Check02_GTokenStaking" "Check03_MySBT" "Check07_SuperPaymaster" "Check08_Wiring" "VerifyV3_1_1")
+# Use space-separated string for compatibility
+CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring VerifyV3_1_1"
 
-for SCRIPT in "${CHECK_SCRIPTS[@]}"; do
+for SCRIPT in $CHECK_SCRIPTS; do
     echo -e "  Audit: $SCRIPT"
     forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
 done

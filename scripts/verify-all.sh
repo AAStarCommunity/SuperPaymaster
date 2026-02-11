@@ -77,7 +77,12 @@ fi
 # 2. 加载部署配置
 CONFIG_FILE="deployments/config.${ENV}.json"
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo -e "${RED}Error: ${CONFIG_FILE} not found${NC}"
+    # Try alternate path
+    CONFIG_FILE="contracts/deployments/config.${ENV}.json"
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}Error: config.${ENV}.json not found in assignments/ or contracts/deployments/${NC}"
     exit 1
 fi
 
@@ -102,7 +107,23 @@ PRICE_FEED=$(jq -r '.priceFeed' "$CONFIG_FILE")
 
 
 # 获取 Deployer 地址 (用于构造参数)
-DEPLOYER=$(cast wallet address --private-key "$PRIVATE_KEY")
+if [ -n "$DEPLOYER_ADDRESS" ]; then
+    DEPLOYER="$DEPLOYER_ADDRESS"
+elif [ -n "$DEPLOYER_ACCOUNT" ]; then
+    # 如果只有 Account Name，尝试解析（可能需要密码，但 verify 不需要签名，只需地址）
+    # 但 verify 脚本无法交互输入密码，所以最好是在 env 里配好 DEPLOYER_ADDRESS
+    echo -e "${YELLOW}Warning: DEPLOYER_ADDRESS not set. Trying to resolve from Keystore (might fail if requires password)...${NC}"
+    DEPLOYER=$(cast wallet address --account "$DEPLOYER_ACCOUNT" 2>/dev/null || echo "")
+else
+    DEPLOYER=$(cast wallet address --private-key "$PRIVATE_KEY" 2>/dev/null || echo "")
+fi
+
+if [ -z "$DEPLOYER" ]; then
+     echo -e "${RED}Error: Could not determine DEPLOYER address for constructor args verification.${NC}"
+     echo "Please set DEPLOYER_ADDRESS in .env.${ENV}"
+     exit 1
+fi
+
 echo -e "Deployer detected: ${DEPLOYER}"
 
 # 3. 执行验证函数
@@ -193,6 +214,12 @@ verify "$PM_FACTORY" "PaymasterFactory" "contracts/src/paymasters/v4/core/Paymas
 # Paymaster(address registry)
 verify "$PM_V4_IMPL" "PaymasterV4Impl" "contracts/src/paymasters/v4/Paymaster.sol:Paymaster" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
 
+
+
+# 5. Generate Verification Report
+echo -e "\n${YELLOW}Generating verification report...${NC}"
+# Use npx tsx to execute the typescript script
+npx tsx scripts/generate-verification-report.ts "$ENV"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}Verification Process Complete!${NC}"

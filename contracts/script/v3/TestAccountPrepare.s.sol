@@ -31,13 +31,11 @@ contract TestAccountPrepare is Script {
     address deployer;
 
     function setUp() public {
-        deployerPK = vm.envUint("PRIVATE_KEY");
-        deployer = vm.addr(deployerPK);
-
         string memory network = vm.envString("ENV");
         string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory json = vm.readFile(configPath);
-
+        
+        // Load contracts from config
         registry = Registry(stdJson.readAddress(json, ".registry"));
         gtoken = GToken(stdJson.readAddress(json, ".gToken"));
         xpntsFactory = xPNTsFactory(stdJson.readAddress(json, ".xPNTsFactory"));
@@ -46,13 +44,11 @@ contract TestAccountPrepare is Script {
         stakingAddr = stdJson.readAddress(json, ".staking");
 
         if (keccak256(bytes(network)) == keccak256(bytes("anvil"))) {
-            // On Anvil, everything is deployed locally, so we read from Config
             entryPointAddr = stdJson.readAddress(json, ".entryPoint");
             priceFeedAddr = stdJson.readAddress(json, ".priceFeed");
         } else {
-            // On Testnet/Mainnet, Third-Party addresses MUST come from ENV
-            entryPointAddr = vm.envAddress("ENTRYPOINT_ADDRESS");
-            priceFeedAddr = vm.envAddress("PRICE_FEED_ADDRESS");
+            entryPointAddr = vm.envAddress("ENTRY_POINT");
+            priceFeedAddr = vm.envAddress("ETH_USD_FEED");
         }
     }
 
@@ -65,8 +61,11 @@ contract TestAccountPrepare is Script {
             return;
         }
 
-        // --- Phase 2.1: Jason Prepares Anni ---
-        vm.startBroadcast(deployerPK);
+        // --- Phase 2.1: Jason (Deployer/Owner) Prepares Anni ---
+        // Use the configured account from CLI (--account or --private-key)
+        vm.startBroadcast();
+        deployer = msg.sender; // Update deployer to the actual broadcaster
+        console.log("Deployer (Admin):", deployer);
         
         bytes32 roleCommunity = registry.ROLE_COMMUNITY();
         string memory communityName = "Mycelium Community"; 
@@ -91,8 +90,10 @@ contract TestAccountPrepare is Script {
             console.log("Funding Anni with more GT tokens...");
             gtoken.transfer(anni, 200 ether);
         }
-        if (address(anni).balance < 0.3 ether) {
-             payable(anni).transfer(0.3 ether); 
+        if (address(anni).balance < 1.0 ether) {
+             console.log("Funding Anni with 1.0 ETH (was ", address(anni).balance, ")...");
+             payable(anni).transfer(1.0 ether); 
+             console.log("New Anni Balance:", address(anni).balance);
         }
         vm.stopBroadcast();
 
@@ -140,8 +141,13 @@ contract TestAccountPrepare is Script {
         vm.stopBroadcast();
 
         // --- Phase 2.3: Final Funding ---
-        vm.startBroadcast(deployerPK);
+        vm.startBroadcast();
+        address funder = msg.sender;
+        console.log("Phase 2.3 Funder:", funder);
+        console.log("Funder Balance:", funder.balance);
+        
         if (IEntryPoint(entryPointAddr).balanceOf(pmProxyAnni) < 0.05 ether) {
+            console.log("Depositing 0.05 ETH to Paymaster...");
             IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxyAnni);
         }
         vm.stopBroadcast();
