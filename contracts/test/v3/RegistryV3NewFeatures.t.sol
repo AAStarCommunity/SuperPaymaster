@@ -35,6 +35,10 @@ contract RegistryV3NewFeaturesTest is Test {
 
     bytes32 constant ROLE_COMMUNITY = keccak256("COMMUNITY");
     bytes32 constant ROLE_ENDUSER = keccak256("ENDUSER");
+    bytes32 constant ROLE_JURY = keccak256("JURY");
+    bytes32 constant ROLE_PUBLISHER = keccak256("PUBLISHER");
+    bytes32 constant ROLE_TASKER = keccak256("TASKER");
+    bytes32 constant ROLE_SUPPLIER = keccak256("SUPPLIER");
     bytes32 constant ROLE_NEW_CUSTOM = keccak256("CUSTOM_ROLE");
 
     function setUp() public {
@@ -173,6 +177,49 @@ contract RegistryV3NewFeaturesTest is Test {
         assertEq(feePercent, 1500);
         assertEq(minFee, 3 ether);
         
+        vm.stopPrank();
+    }
+
+    function test_CreateMyTaskRoles_Success() public {
+        vm.startPrank(owner);
+
+        IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
+            minStake: 0.3 ether,
+            entryBurn: 0.05 ether,
+            slashThreshold: 0,
+            slashBase: 0,
+            slashInc: 0,
+            slashMax: 0,
+            exitFeePercent: 1000,
+            minExitFee: 0.05 ether,
+            isActive: true,
+            description: "MyTask Role",
+            owner: address(0),
+            roleLockDuration: 7 days
+        });
+
+        registry.createNewRole(ROLE_JURY, config, roleOwner1);
+        registry.createNewRole(ROLE_PUBLISHER, config, roleOwner1);
+        registry.createNewRole(ROLE_TASKER, config, roleOwner1);
+        registry.createNewRole(ROLE_SUPPLIER, config, roleOwner1);
+
+        assertEq(registry.roleOwners(ROLE_JURY), roleOwner1);
+        assertEq(registry.roleOwners(ROLE_PUBLISHER), roleOwner1);
+        assertEq(registry.roleOwners(ROLE_TASKER), roleOwner1);
+        assertEq(registry.roleOwners(ROLE_SUPPLIER), roleOwner1);
+
+        IRegistry.RoleConfig memory juryConfig = registry.getRoleConfig(ROLE_JURY);
+        assertEq(juryConfig.minStake, 0.3 ether);
+        assertEq(juryConfig.entryBurn, 0.05 ether);
+        assertEq(juryConfig.exitFeePercent, 1000);
+        assertEq(juryConfig.minExitFee, 0.05 ether);
+        assertTrue(juryConfig.isActive);
+        assertEq(juryConfig.roleLockDuration, 7 days);
+
+        (uint256 feePercent, uint256 minFee) = staking.roleExitConfigs(ROLE_JURY);
+        assertEq(feePercent, 1000);
+        assertEq(minFee, 0.05 ether);
+
         vm.stopPrank();
     }
 
