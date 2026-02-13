@@ -145,7 +145,7 @@ contract L4SetupOpMainnet is Script {
                     name: "AAStar",
                     ensName: "aastar.eth",
                     website: "https://aastar.io",
-                    description: "AAStar - Empower Community!",
+                    description: "AAStar - Empower Community, Unleash Humanity\xF0\x9F\x8D\x84",
                     logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
                     stakeAmount: 30 ether
                 });
@@ -153,9 +153,9 @@ contract L4SetupOpMainnet is Script {
                 // Anni / Mycelium
                 data = Registry.CommunityRoleData({
                     name: "Mycelium",
-                    ensName: "mycelium.eth",
+                    ensName: "mushroom.box",
                     website: "https://mushroom.box",
-                    description: "Connect to the Mycelium Network",
+                    description: "Your Mycelium Network",
                     logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
                     stakeAmount: 30 ether
                 });
@@ -179,7 +179,7 @@ contract L4SetupOpMainnet is Script {
             } else {
                 // Anni
                 myToken = factory.deployxPNTsToken(
-                    "PNTs Token", "PNTs", "Mycelium", "mycelium.eth", 1e18, address(0)
+                    "PNTs Token", "PNTs", "Mycelium", "mushroom.box", 1e18, address(0)
                 );
                 console.log(unicode"   ✅ Deployed PNTs:", myToken);
             }
