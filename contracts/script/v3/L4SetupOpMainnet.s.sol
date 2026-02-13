@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 
 // Interfaces & Core
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/GToken.sol";
 import "src/tokens/xPNTsToken.sol";
@@ -255,8 +256,44 @@ contract L4SetupOpMainnet is Script {
         }
 
         // 5. PaymasterV4 (Deployer Only)
-        // If Jason, ensure he has a PaymasterV4
         if (user == DEPLOYER) {
+             // 5.1 Ensure ROLE_ENDUSER is Configured & Active
+             bytes32 ROLE_ENDUSER = registry.ROLE_ENDUSER();
+             (address roleOwner) = registry.roleOwners(ROLE_ENDUSER);
+             
+             IRegistry.RoleConfig memory euConfig = IRegistry.RoleConfig({
+                minStake: 1 wei,
+                entryBurn: 0,
+                slashThreshold: 0,
+                slashBase: 0,
+                slashInc: 0,
+                slashMax: 0,
+                exitFeePercent: 0,
+                isActive: true,
+                minExitFee: 0,
+                description: "EndUser Role",
+                owner: user,
+                roleLockDuration: 0
+             });
+
+             if (roleOwner == address(0)) {
+                 console.log(unicode"📝 Creating ROLE_ENDUSER...");
+                 registry.createNewRole(ROLE_ENDUSER, euConfig, user);
+             } else {
+                 (,,,,,,,bool isActive,,,,) = registry.roleConfigs(ROLE_ENDUSER);
+                 if (!isActive) {
+                     if (roleOwner == user) {
+                        console.log(unicode"📝 Activating ROLE_ENDUSER...");
+                        registry.configureRole(ROLE_ENDUSER, euConfig);
+                     } else {
+                        console.log(unicode"⚠️ ROLE_ENDUSER inactive and Deployer is not owner!");
+                     }
+                 } else {
+                     console.log(unicode"✅ ROLE_ENDUSER is Active");
+                 }
+             }
+
+             // 5. PaymasterV4 (Deployer Only)
              PaymasterFactory pmFactory = PaymasterFactory(config.paymasterFactory);
              address pm = pmFactory.getPaymasterByOperator(user);
              if (pm == address(0)) {
