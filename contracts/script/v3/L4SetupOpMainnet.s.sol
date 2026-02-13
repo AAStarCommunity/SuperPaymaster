@@ -19,6 +19,10 @@ interface ISimpleAccountFactory {
     function getAddress(address owner, uint256 salt) external view returns (address);
 }
 
+interface ISimpleAccount {
+    function execute(address dest, uint256 value, bytes calldata func) external;
+}
+
 /**
  * @title L4SetupOpMainnet
  * @notice Simplified Setup for Optimism Mainnet (L4 Data Collection)
@@ -277,6 +281,102 @@ contract L4SetupOpMainnet is Script {
             console.log(unicode"⛽ Funding AA with 0.002 ETH...");
             (bool success, ) = myAA.call{value: 0.002 ether}("");
             require(success, "Fund failed");
+        }
+
+        // 7. Register AA as ENDUSER (Both users)
+        bytes32 ROLE_ENDUSER = registry.ROLE_ENDUSER();
+        if (!registry.hasRole(ROLE_ENDUSER, myAA)) {
+            console.log(unicode"📝 Registering AA as ENDUSER...");
+            
+            // Fund AA with GToken for staking (0.3 min)
+            if (gToken.balanceOf(myAA) < 1 ether) {
+                gToken.transfer(myAA, 1 ether);
+                console.log(unicode"   💸 Sent 1 GToken to AA for stake");
+            }
+            
+            // The community for each user:
+            // Jason's AA -> joins AAStar community (DEPLOYER)
+            // Anni's AA -> joins Mycelium community (ANNI)
+            address myCommunity = user; // Each registers under own community (they are community owners)
+            
+            Registry.EndUserRoleData memory euData = Registry.EndUserRoleData({
+                account: myAA,
+                community: myCommunity,
+                avatarURI: "",
+                ensName: "",
+                stakeAmount: 0.3 ether
+            });
+            
+            // AA must approve staking contract to spend its GToken
+            // We call through SimpleAccount.execute since msg.sender is the AA's owner
+            ISimpleAccount(myAA).execute(
+                address(gToken),
+                0,
+                abi.encodeCall(gToken.approve, (config.staking, 1 ether))
+            );
+            registry.registerRole(ROLE_ENDUSER, myAA, abi.encode(euData));
+            console.log(unicode"   ✅ AA registered as ENDUSER:", myAA);
+        } else {
+            console.log(unicode"✅ AA is already ENDUSER:", myAA);
+        }
+
+        // 8. Activate xPNTs in PaymasterV4 (Deployer Only)
+        // Jason's PM needs to recognize Anni's community token for gasless payments
+        if (user == DEPLOYER) {
+            PaymasterFactory pmFactory = PaymasterFactory(config.paymasterFactory);
+            address pm = pmFactory.getPaymasterByOperator(user);
+            if (pm != address(0)) {
+                Paymaster paymaster = Paymaster(payable(pm));
+                
+                // Get Anni's xPNTs token from factory
+                xPNTsFactory xFactory = xPNTsFactory(config.xPNTsFactory);
+                address anniToken = xFactory.getTokenAddress(ANNI);
+                
+                if (anniToken != address(0)) {
+                    // Check if already activated
+                    uint256 existingPrice = paymaster.tokenPrices(anniToken);
+                    if (existingPrice == 0) {
+                        // Set price: $1 = 100000000 (8 decimals like Chainlink)
+                        paymaster.setTokenPrice(anniToken, 100000000);
+                        console.log(unicode"   ✅ Activated Anni xPNTs in PM V4:", anniToken);
+                    } else {
+                        console.log(unicode"✅ Anni xPNTs already activated in PM V4 (price:", existingPrice, unicode")");
+                    }
+                } else {
+                    console.log(unicode"   ⚠️ Anni has no token in xPNTsFactory yet");
+                }
+                
+                // 9. Update cached price in PM (only if stale)
+                {
+                    (uint208 pmPrice, uint48 pmTs) = paymaster.cachedPrice();
+                    uint256 pmThreshold = paymaster.priceStalenessThreshold();
+                    if (pmTs == 0 || block.timestamp - uint256(pmTs) > pmThreshold) {
+                        try paymaster.updatePrice() {
+                            console.log(unicode"   ✅ PM V4 price refreshed");
+                        } catch {
+                            console.log(unicode"   ⚠️ PM updatePrice failed (Chainlink feed may be stale)");
+                        }
+                    } else {
+                        console.log(unicode"✅ PM V4 price is fresh");
+                    }
+                }
+            }
+            
+            // 10. Update SP cached price (only if stale)
+            {
+                SuperPaymaster sp = SuperPaymaster(payable(config.superPaymaster));
+                (int256 spPrice, uint256 spTs, , ) = sp.cachedPrice();
+                uint256 spThreshold = sp.priceStalenessThreshold();
+                if (spTs == 0 || block.timestamp - spTs > spThreshold) {
+                    try sp.updatePrice() {
+                        console.log(unicode"   ✅ SP price refreshed");
+                    } catch {
+                        console.log(unicode"   ⚠️ SP updatePrice failed (Chainlink feed may be stale)");
+                    }
+                } else {
+                    console.log(unicode"✅ SP price is fresh");
+                }
+            }
         }
 
         vm.stopBroadcast();

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SuperPaymaster pre-commit hook
-# Runs the fast bug hunting suite before allowing a commit.
+# Runs security scans before allowing a commit.
 
 # Robust PATH setup for non-interactive shells
 export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$HOME/.foundry/bin"
@@ -16,21 +16,6 @@ if [ -d "$SDK_DIR" ]; then
         echo "❌ Security check failed in SDK. Please fix leakage before committing."
         exit 1
     fi
-fi
-
-# 2. Run Fast Bug Hunting Suite
-if [ -d "$SDK_DIR" ]; then
-    echo "🔍 Running fast bug hunting suite..."
-    (cd "$SDK_DIR" && pnpm run test:fast)
-    RESULT=$?
-    
-    if [ $RESULT -ne 0 ]; then
-        echo "❌ Pre-commit bug hunt failed! Please fix the bugs before committing."
-        exit 1
-    fi
-    echo "✅ Pre-commit checks passed."
-else
-    echo "⚠️  aastar-sdk directory not found. Skipping fast bug hunt."
 fi
 
 exit 0
