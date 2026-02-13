@@ -109,19 +109,33 @@ contract L4SetupOpMainnet is Script {
             }
             
             // aPNTs (Global Token for SuperPM Stake)
+            
+            // aPNTs (Global Token for SuperPM Stake)
             xPNTsToken globalAPNTs = xPNTsToken(config.aPNTs);
-            if (globalAPNTs.balanceOf(ANNI) < 5000 ether) {
+            
+            // 1. Ensure Deployer has enough (30k as requested)
+            if (globalAPNTs.balanceOf(user) < 30000 ether) {
+                console.log(unicode"💸 Minting 30k aPNTs to Deployer...");
+                try globalAPNTs.mint(user, 30000 ether) {
+                    console.log(unicode"   ✅ Minted 30k to Deployer");
+                } catch {
+                     console.log(unicode"   ⚠️ Mint failed (Not owner?)");
+                }
+            }
+
+            // 2. Fund Anni (Need 20k: 5k for Deposit + 10k for AA + Buffer)
+            if (globalAPNTs.balanceOf(ANNI) < 20000 ether) {
                  console.log(unicode"💸 Funding Anni with aPNTs...");
-                 // Try mint if Jason is owner/minter, otherwise transfer
-                 try globalAPNTs.mint(ANNI, 10000 ether) {
-                     console.log(unicode"   ✅ Minted 10k aPNTs to Anni");
+                 // Try mint if Jason is owner/minter
+                 try globalAPNTs.mint(ANNI, 20000 ether) {
+                     console.log(unicode"   ✅ Minted 20k aPNTs to Anni");
                  } catch {
                      // Fallback: Transfer from Jason if he has balance
-                     if (globalAPNTs.balanceOf(user) > 10000 ether) {
-                         globalAPNTs.transfer(ANNI, 10000 ether);
-                         console.log(unicode"   ✅ Transferred 10k aPNTs to Anni");
+                     if (globalAPNTs.balanceOf(user) >= 20000 ether) {
+                         globalAPNTs.transfer(ANNI, 20000 ether);
+                         console.log(unicode"   ✅ Transferred 20k aPNTs to Anni");
                      } else {
-                         console.log(unicode"   ⚠️  Could not fund Anni with aPNTs (Check Jason's balance/role)");
+                         console.log(unicode"   ⚠️  Could not fund Anni (Check Jason's balance/role)");
                      }
                  }
             }
