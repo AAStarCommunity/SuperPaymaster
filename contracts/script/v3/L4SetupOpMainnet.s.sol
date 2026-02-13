@@ -283,6 +283,37 @@ contract L4SetupOpMainnet is Script {
             require(success, "Fund failed");
         }
 
+        // 6.1 Fund AA with aPNTs (10000 each)
+        xPNTsToken globalAPNTs = xPNTsToken(config.aPNTs);
+        if (globalAPNTs.balanceOf(myAA) < 10000 ether) {
+            uint256 needed = 10000 ether - globalAPNTs.balanceOf(myAA);
+            if (globalAPNTs.balanceOf(user) >= needed) {
+                globalAPNTs.transfer(myAA, needed);
+                console.log(unicode"   💸 Funded AA with aPNTs:", needed / 1 ether);
+            } else {
+                console.log(unicode"   ⚠️ Insufficient aPNTs to fund AA");
+            }
+        } else {
+            console.log(unicode"✅ AA already has aPNTs");
+        }
+
+        // 6.2 Fund AA with community xPNTs (10000 each)
+        xPNTsFactory xFactory = xPNTsFactory(config.xPNTsFactory);
+        address myCommunityToken = xFactory.getTokenAddress(user);
+        if (myCommunityToken != address(0)) {
+            if (xPNTsToken(myCommunityToken).balanceOf(myAA) < 10000 ether) {
+                uint256 needed = 10000 ether - xPNTsToken(myCommunityToken).balanceOf(myAA);
+                if (xPNTsToken(myCommunityToken).balanceOf(user) >= needed) {
+                    xPNTsToken(myCommunityToken).transfer(myAA, needed);
+                    console.log(unicode"   💸 Funded AA with xPNTs:", needed / 1 ether);
+                } else {
+                    console.log(unicode"   ⚠️ Insufficient xPNTs to fund AA");
+                }
+            } else {
+                console.log(unicode"✅ AA already has xPNTs");
+            }
+        }
+
         // 7. Register AA as ENDUSER (Both users)
         bytes32 ROLE_ENDUSER = registry.ROLE_ENDUSER();
         if (!registry.hasRole(ROLE_ENDUSER, myAA)) {
@@ -329,8 +360,7 @@ contract L4SetupOpMainnet is Script {
                 Paymaster paymaster = Paymaster(payable(pm));
                 
                 // Get Anni's xPNTs token from factory
-                xPNTsFactory xFactory = xPNTsFactory(config.xPNTsFactory);
-                address anniToken = xFactory.getTokenAddress(ANNI);
+                address anniToken = xPNTsFactory(config.xPNTsFactory).getTokenAddress(ANNI);
                 
                 if (anniToken != address(0)) {
                     // Check if already activated
