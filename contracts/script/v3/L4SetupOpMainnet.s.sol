@@ -169,7 +169,7 @@ contract L4SetupOpMainnet is Script {
                         "initialize(address,address,address,address,uint256,uint256,uint256)",
                         0x0000000071727De22E5E9d8BAf0edAc6f37da032, // EntryPoint
                         DEPLOYER, DEPLOYER, config.priceFeed, 
-                        100, 1 ether, 86400
+                        100, 1 ether, 4200
                     );
                     pm = pmFactory.deployPaymaster("v4.2", init);
                     console.log(unicode"   ✅ PaymasterV4 Deployed:", pm);
@@ -177,6 +177,22 @@ contract L4SetupOpMainnet is Script {
                     Paymaster(payable(pm)).setTokenPrice(config.aPNTs, 100000000); // $1
                 } else {
                     console.log(unicode"✅ PaymasterV4 exists:", pm);
+                }
+
+                if (sender == DEPLOYER) {
+                    try Paymaster(payable(pm)).priceStalenessThreshold() returns (uint256 currentThreshold) {
+                        if (currentThreshold != 4200) {
+                            try Paymaster(payable(pm)).setPriceStalenessThreshold(4200) {
+                                console.log(unicode"   ✅ PaymasterV4 priceStalenessThreshold set to 4200");
+                            } catch {
+                                console.log(unicode"   ⚠️ Failed to set PaymasterV4 priceStalenessThreshold");
+                            }
+                        } else {
+                            console.log(unicode"   ✅ PaymasterV4 priceStalenessThreshold already 4200");
+                        }
+                    } catch {
+                        console.log(unicode"   ⚠️ Failed to read PaymasterV4 priceStalenessThreshold");
+                    }
                 }
 
                 // Activate Anni's token in PMV4 (Critical for T2.1/T5)

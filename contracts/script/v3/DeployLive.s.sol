@@ -165,7 +165,7 @@ contract DeployLive is Script {
         // Step 31-36: AOA Paymaster
         bytes memory init = abi.encodeWithSignature(
             "initialize(address,address,address,address,uint256,uint256,uint256)",
-            entryPointAddr, deployer, deployer, priceFeedAddr, 100, 1 ether, 86400
+            entryPointAddr, deployer, deployer, priceFeedAddr, 100, 1 ether, 4200
         );
         address pmProxy = pmFactory.deployPaymaster("v4.2", init);
         Paymaster(payable(pmProxy)).addStake{value: 0.1 ether}(86400); // Increased to 0.1 ETH as requested
