@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@aastar/shared-config':
-        specifier: ^0.3.4
-        version: 0.3.4
+        specifier: ^0.3.8
+        version: 0.3.8
       dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
+        specifier: ^17.3.1
+        version: 17.3.1
       ethers:
-        specifier: ^6.13.4
-        version: 6.15.0
+        specifier: ^6.16.0
+        version: 6.16.0
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -27,8 +27,9 @@ importers:
 
 packages:
 
-  '@aastar/shared-config@0.3.4':
-    resolution: {integrity: sha512-EMjb4q6zdlW8csq9ZbJfNf4U+OLupGGd+mj1fiZ8Ha3yAkFpgA0momP5mTMmj9gDstvvT2msoirqTvdPFjj05g==}
+  '@aastar/shared-config@0.3.8':
+    resolution: {integrity: sha512-CmjvbX2zC6uHbZLme4/Lqnk2avi90yrSfgZF/2/7dvixJKEDfwpx1oQiweQyRiF5tQxuwaz0P2W1BbhxdszzOg==}
+    deprecated: Merged into @aastar/sdk.
 
   '@adraffy/ens-normalize@1.10.1':
     resolution: {integrity: sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw==}
@@ -237,8 +238,8 @@ packages:
   aes-js@4.0.0-beta.5:
     resolution: {integrity: sha512-G965FqalsNyrPqgEGON7nIx1e/OVENSgiEIzyC63haUMuvNnwIgIjMs52hlTCKhkBny7A2ORNlfY9Zu+jmGk1Q==}
 
-  dotenv@16.6.1:
-    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+  dotenv@17.3.1:
+    resolution: {integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==}
     engines: {node: '>=12'}
 
   esbuild@0.27.2:
@@ -246,8 +247,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  ethers@6.15.0:
-    resolution: {integrity: sha512-Kf/3ZW54L4UT0pZtsY/rf+EkBU7Qi5nnhonjUb8yTXcxH3cdcWrV2cRyk0Xk/4jK6OoHhxxZHriyhje20If2hQ==}
+  ethers@6.16.0:
+    resolution: {integrity: sha512-U1wulmetNymijEhpSEQ7Ct/P/Jw9/e7R1j5XIbPRydgV2DjLVMsULDlNksq3RQnFgKoLlZf88ijYtWEXcPa07A==}
     engines: {node: '>=14.0.0'}
 
   eventemitter3@5.0.1:
@@ -322,7 +323,7 @@ packages:
 
 snapshots:
 
-  '@aastar/shared-config@0.3.4': {}
+  '@aastar/shared-config@0.3.8': {}
 
   '@adraffy/ens-normalize@1.10.1': {}
 
@@ -441,7 +442,7 @@ snapshots:
 
   aes-js@4.0.0-beta.5: {}
 
-  dotenv@16.6.1: {}
+  dotenv@17.3.1: {}
 
   esbuild@0.27.2:
     optionalDependencies:
@@ -472,7 +473,7 @@ snapshots:
       '@esbuild/win32-ia32': 0.27.2
       '@esbuild/win32-x64': 0.27.2
 
-  ethers@6.15.0:
+  ethers@6.16.0:
     dependencies:
       '@adraffy/ens-normalize': 1.10.1
       '@noble/curves': 1.2.0
