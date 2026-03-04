@@ -1,5 +1,5 @@
 {
-  "description": "Stablecoin addresses per chain for PaymasterV4 token configuration",
+  "description": "Stablecoin addresses per chain for PaymasterV4 token configuration. Addresses are DIFFERENT on every chain — no universal address exists.",
   "priceUsd8Decimals": {
     "USDC": 100000000,
     "USDT": 100000000
@@ -10,11 +10,13 @@
       "tokens": {
         "USDC": {
           "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native"
         },
         "USDT": {
           "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native"
         }
       }
     },
@@ -23,11 +25,20 @@
       "tokens": {
         "USDC": {
           "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native",
+          "note": "Circle native USDC via CCTP"
+        },
+        "USDC.e": {
+          "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+          "decimals": 6,
+          "type": "bridged",
+          "note": "Legacy bridged USDC.e — prefer native USDC"
         },
         "USDT": {
           "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e68",
-          "decimals": 6
+          "decimals": 6,
+          "type": "bridged"
         }
       }
     },
@@ -36,11 +47,20 @@
       "tokens": {
         "USDC": {
           "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native",
+          "note": "Circle native USDC via CCTP"
+        },
+        "USDC.e": {
+          "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+          "decimals": 6,
+          "type": "bridged",
+          "note": "Legacy bridged USDC.e — prefer native USDC"
         },
         "USDT": {
           "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native"
         }
       }
     },
@@ -49,7 +69,34 @@
       "tokens": {
         "USDC": {
           "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          "decimals": 6
+          "decimals": 6,
+          "type": "native"
+        },
+        "USDT": {
+          "address": "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+          "decimals": 6,
+          "type": "bridged"
+        }
+      }
+    },
+    "polygon": {
+      "chainId": 137,
+      "tokens": {
+        "USDC": {
+          "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+          "decimals": 6,
+          "type": "native"
+        },
+        "USDC.e": {
+          "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+          "decimals": 6,
+          "type": "bridged",
+          "note": "Legacy bridged USDC.e — prefer native USDC"
+        },
+        "USDT": {
+          "address": "0xc2132D05D31c914a87C6611C10748AeB04B58e8F",
+          "decimals": 6,
+          "type": "native"
         }
       }
     },
@@ -57,14 +104,17 @@
       "chainId": 11155111,
       "tokens": {
         "USDC": {
-          "address": "0x0000000000000000000000000000000000000000",
+          "address": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
           "decimals": 6,
-          "note": "Deploy MockUSDC or use faucet; no canonical USDC on Sepolia"
+          "type": "native",
+          "faucet": "https://faucet.circle.com/",
+          "note": "Circle official testnet USDC — get tokens from faucet.circle.com"
         },
         "USDT": {
-          "address": "0x0000000000000000000000000000000000000000",
+          "address": "",
           "decimals": 6,
-          "note": "Deploy MockUSDT or use faucet; no canonical USDT on Sepolia"
+          "type": "mock",
+          "note": "No official USDT on Sepolia. Deploy MockUSDT via TestStablecoinSepolia script."
         }
       }
     },
@@ -72,9 +122,11 @@
       "chainId": 11155420,
       "tokens": {
         "USDC": {
-          "address": "0x0000000000000000000000000000000000000000",
+          "address": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
           "decimals": 6,
-          "note": "Deploy MockUSDC or use faucet; no canonical USDC on OP Sepolia"
+          "type": "native",
+          "faucet": "https://faucet.circle.com/",
+          "note": "Circle official testnet USDC"
         }
       }
     }

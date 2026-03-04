@@ -49,9 +49,8 @@ contract ConfigureStablecoins is Script {
         address[] memory tokens = paymaster.getSupportedTokens();
         console.log("\n--- Supported Tokens (%d) ---", tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
-            console.log("  [%d] %s  price=%d  dec=%d",
-                i,
-                tokens[i],
+            console.log("  [%d] %s", i, tokens[i]);
+            console.log("       price=%d  dec=%d",
                 paymaster.tokenPrices(tokens[i]),
                 paymaster.tokenDecimals(tokens[i])
             );
