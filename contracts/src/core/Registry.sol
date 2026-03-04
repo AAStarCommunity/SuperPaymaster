@@ -5,6 +5,8 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/v3/IRegistry.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 import "../interfaces/v3/IMySBT.sol";
@@ -13,7 +15,7 @@ import "../interfaces/v3/IBLSAggregator.sol";
 import "../interfaces/v3/IBLSValidator.sol";
 
 
-contract Registry is Ownable, ReentrancyGuard, IRegistry {
+contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
     using SafeERC20 for IERC20;
 
     struct CommunityRoleData { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
@@ -24,8 +26,8 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
 
 
 
-    function version() external pure override returns (string memory) {
-        return "Registry-3.0.2";
+    function version() external pure virtual override returns (string memory) {
+        return "Registry-4.0.0";
     }
 
     // --- Constants ---
@@ -83,50 +85,48 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
     error RoleNotGranted(bytes32 roleId, address user);
     error InsufficientStake(uint256 provided, uint256 required);
 
-    constructor(address /* _gtoken */, address _gtokenStaking, address _mysbt) Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() Ownable(msg.sender) {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initialize the UUPS proxy state (replaces constructor logic)
+     * @param _owner Contract owner
+     * @param _gtokenStaking GTokenStaking contract address
+     * @param _mysbt MySBT contract address
+     */
+    function initialize(address _owner, address _gtokenStaking, address _mysbt) external initializer {
+        _transferOwnership(_owner);
+
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
         MYSBT = IMySBT(_mysbt);
-        
-        address regOwner = msg.sender;
-        // NOTE: setRoleExitFee will be called by _initRole, but it will fail if REGISTRY is not set in GTokenStaking
-        // The deployment script MUST call staking.setRegistry(address(registry)) BEFORE this constructor completes
-        // OR we need to defer _initRole calls until after setRegistry
-        // For now, we'll comment out _initRole and do it in the deployment script
-        
-        // Format: _initRole(roleId, minStake, entryBurn, slashThresh, slashBase, slashInc, slashMax, exitFeePercent, minExitFee, active, desc, owner)
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", regOwner, 30 days);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", regOwner, 30 days);
-        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", regOwner, 30 days);
-        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", regOwner, 30 days);
 
-
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", regOwner, 30 days);
-        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", regOwner, 30 days);
-        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", regOwner, 7 days);
+        // Initialize 7 roles
+        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", _owner, 30 days);
+        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", _owner, 30 days);
+        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", _owner, 30 days);
+        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", _owner, 30 days);
+        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", _owner, 30 days);
+        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", _owner, 30 days);
+        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", _owner, 7 days);
 
         // Initialize Credit Tiers (Default in aPNTs)
-        // Level 1: Rep < 13
-        creditTierConfig[1] = 0; 
-        // Level 2: Rep 13-33 (Fib 7)
-        creditTierConfig[2] = 100 ether; 
-        // Level 3: Rep 34-88 (Fib 9)
+        creditTierConfig[1] = 0;
+        creditTierConfig[2] = 100 ether;
         creditTierConfig[3] = 300 ether;
-        // Level 4: Rep 89-232 (Fib 11) 
         creditTierConfig[4] = 600 ether;
-        // Level 5: Rep 233-609 (Fib 13)
         creditTierConfig[5] = 1000 ether;
-        // Level 6: Rep 610+ (Fib 15)
         creditTierConfig[6] = 2000 ether;
 
         // Initialize Level Thresholds (Fibonacci sequence)
-        // levelThresholds[i] = min reputation for level i+2 (level 1 is default)
-        levelThresholds.push(13);   // Level 2: rep >= 13
-        levelThresholds.push(34);   // Level 3: rep >= 34
-        levelThresholds.push(89);   // Level 4: rep >= 89
-        levelThresholds.push(233);  // Level 5: rep >= 233
-        levelThresholds.push(610);  // Level 6: rep >= 610
+        levelThresholds.push(13);
+        levelThresholds.push(34);
+        levelThresholds.push(89);
+        levelThresholds.push(233);
+        levelThresholds.push(610);
 
-        isReputationSource[regOwner] = true; // Owner is trusted for now (Bootstrapping)
+        isReputationSource[_owner] = true;
     }
 
     event StakingContractUpdated(address indexed oldStaking, address indexed newStaking);
@@ -711,5 +711,16 @@ contract Registry is Ownable, ReentrancyGuard, IRegistry {
             count++;
         }
     }
+
+    // ====================================
+    // UUPS Authorization
+    // ====================================
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    // ====================================
+    // Storage Gap (UUPS upgrade safety)
+    // ====================================
+
+    uint256[50] private __gap;
 }
-// This is a test comment to verify hash change

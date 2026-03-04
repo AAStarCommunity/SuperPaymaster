@@ -9,6 +9,7 @@ import "../../../../src/interfaces/v3/IRegistry.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
+import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 contract MockRegistry is IRegistry {
     using Clones for address;
@@ -115,12 +116,12 @@ contract SuperPaymasterHardenVerification is Test {
         // Since we are testing SuperPaymaster initialization, we deploy a minimal factory
         factory = new xPNTsFactory(address(0), address(registry));
         
-        paymaster = new SuperPaymaster(
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(ep),
-            owner,
-            registry,
-            address(apnts),
+            IRegistry(address(registry)),
             priceFeedAddr,
+            owner,
+            address(apnts),
             treasury,
             3600
         );

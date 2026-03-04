@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Core Imports
 import "src/core/Registry.sol";
@@ -76,10 +77,22 @@ contract DeployAnvil is Script {
         console.log("=== Step 1: Deploy Foundation ===");
         gtoken = new GToken(21_000_000 * 1e18);
         staking = new GTokenStaking(address(gtoken), deployer);
+
+        // Deploy Registry as UUPS proxy
+        Registry regImpl = new Registry();
+        // Pre-compute Registry proxy address for MySBT constructor
         uint256 nonce = vm.getNonce(deployer);
-        address precomputedRegistry = vm.computeCreateAddress(deployer, nonce + 1);
-        mysbt = new MySBT(address(gtoken), address(staking), precomputedRegistry, deployer);
-        registry = new Registry(address(gtoken), address(staking), address(mysbt));
+        address precomputedRegistryProxy = vm.computeCreateAddress(deployer, nonce + 1); // MySBT is next
+        // Actually MySBT needs registry address, and registry proxy is deployed after MySBT
+        // So we need to compute the proxy address (which is nonce+2: MySBT=nonce, regProxy=nonce+1... no)
+        // Let's reorder: deploy proxy first with a temp MySBT, then deploy MySBT, then update
+        // OR: pre-compute proxy address
+        // nonce is current. Next deploys: MySBT (nonce), ERC1967Proxy (nonce+1)
+        address precomputedProxy = vm.computeCreateAddress(deployer, nonce + 1);
+        mysbt = new MySBT(address(gtoken), address(staking), precomputedProxy, deployer);
+        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(staking), address(mysbt)));
+        ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
+        registry = Registry(address(regProxy));
 
         console.log("=== Step 2: Deploy Foundation Modules ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet
@@ -117,8 +130,11 @@ contract DeployAnvil is Script {
         // CRITICAL: Mint initial supply to Deployer so he can fund others (Anni) and himself
         apnts.mint(deployer, 2000 ether);
 
-        console.log("=== Step 5: Deploy Core ===");
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 4200);
+        console.log("=== Step 5: Deploy Core (UUPS Proxy) ===");
+        SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
+        ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
+        superPaymaster = SuperPaymaster(payable(address(spProxy)));
 
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = new ReputationSystem(address(registry));

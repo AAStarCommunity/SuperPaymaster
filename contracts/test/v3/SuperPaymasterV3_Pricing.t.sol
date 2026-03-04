@@ -9,6 +9,7 @@ import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // --- Mocks ---
 
@@ -161,14 +162,14 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // Mock Registry
         registry = new MockRegistry();
         
-        // Deploy SuperPaymaster
-        paymaster = new SuperPaymaster(
-            IEntryPoint(address(entryPoint)), 
-            owner, 
-            IRegistry(address(registry)), 
-            address(apnts), 
-            address(priceFeed), 
-            treasury, 
+        // Deploy SuperPaymaster via UUPS proxy
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
+            IEntryPoint(address(entryPoint)),
+            IRegistry(address(registry)),
+            address(priceFeed),
+            owner,
+            address(apnts),
+            treasury,
             3600
         );
         

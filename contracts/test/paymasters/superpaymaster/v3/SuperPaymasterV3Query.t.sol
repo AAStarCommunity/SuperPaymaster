@@ -7,6 +7,8 @@ import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 contract MockGToken is ERC20 {
     constructor() ERC20("GToken", "GT") {
@@ -80,12 +82,12 @@ contract SuperPaymasterQueryTest is Test {
         priceOracle = new MockAggregator();
         registry = new MockRegistry();
 
-        paymaster = new SuperPaymaster(
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(address(entryPoint)),
-            owner,
             IRegistry(address(registry)),
-            address(gtoken),
             address(priceOracle),
+            owner,
+            address(gtoken),
             treasury,
             3600
         );

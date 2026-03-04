@@ -7,6 +7,7 @@ import "../../src/tokens/MySBT.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/interfaces/v3/IMySBT.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /**
  * @title Registry Multi-Community Test
@@ -41,7 +42,7 @@ contract RegistryMultiCommunityTest is Test {
         mysbt = new MySBT(address(gtoken), address(staking), address(0), deployer);
         
         // Deploy Registry
-        registry = new Registry(address(gtoken), address(staking), address(mysbt));
+        registry = UUPSDeployHelper.deployRegistryProxy(deployer, address(staking), address(mysbt));
         
         // Wire up contracts
         staking.setRegistry(address(registry));

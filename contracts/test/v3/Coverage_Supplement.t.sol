@@ -12,6 +12,7 @@ import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import "src/mocks/MockBLSValidator.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // --- Mocks ---
 
@@ -106,7 +107,7 @@ contract CoverageSupplementTest is Test {
         xpnts = new MockXPNTs();
         
         staking = new GTokenStaking(address(gtoken), treasury);
-        registry = new Registry(address(gtoken), address(staking), address(sbt));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
         staking.setRegistry(address(registry));
         
         // Config Roles for basic testing
@@ -119,13 +120,13 @@ contract CoverageSupplementTest is Test {
         IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Paymaster", address(0), 0);
         registry.configureRole(ROLE_PAYMASTER_SUPER, pmConfig);
         
-        // Paymaster Setup
-        paymaster = new SuperPaymaster(
+        // Paymaster Setup via UUPS proxy
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint,
-            owner,
-            registry,
-            address(gtoken), // APNTS
+            IRegistry(address(registry)),
             address(oracle),
+            owner,
+            address(gtoken), // APNTS
             treasury,
             3600
         );

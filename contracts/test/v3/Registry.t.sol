@@ -7,6 +7,7 @@ import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract MockGToken is ERC20 {
     constructor() ERC20("GToken", "GT") {
@@ -49,8 +50,8 @@ contract RegistryTest is Test {
         // 3. Deploy Registry先 (with temporary MySBT placeholder)
         // We'll create a temporary MySBT address then update Registry later
         address tempMySBT = address(0x1); // Temporary non-zero placeholder
-        registry = new Registry(
-            address(gtoken),
+        registry = UUPSDeployHelper.deployRegistryProxy(
+            owner,
             address(staking),
             tempMySBT
         );
@@ -65,8 +66,8 @@ contract RegistryTest is Test {
         vm.startPrank(owner);
         
         // Re-deploy Registry with correct MySBT
-        registry = new Registry(
-            address(gtoken),
+        registry = UUPSDeployHelper.deployRegistryProxy(
+            owner,
             address(staking),
             address(sbt)
         );

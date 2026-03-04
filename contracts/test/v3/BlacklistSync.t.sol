@@ -12,6 +12,7 @@ import "../../src/core/GTokenStaking.sol";
 import "../../src/tokens/MySBT.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract MockAggregator is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -65,7 +66,7 @@ contract BlacklistSyncTest is Test {
         gtoken = new GToken(1_000_000_000 ether);
         staking = new GTokenStaking(address(gtoken), owner);
         mysbt = new MySBT(address(gtoken), address(staking), address(0), owner);
-        registry = new Registry(address(gtoken), address(staking), address(mysbt));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(mysbt));
         
         staking.setRegistry(address(registry));
         mysbt.setRegistry(address(registry));
@@ -77,7 +78,7 @@ contract BlacklistSyncTest is Test {
         apnts = xPNTsToken(implementation.clone());
         apnts.initialize("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
         
-        paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600);
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), address(priceFeed), owner, address(apnts), treasury, 3600);
 
         // 3. Connect Registry & Paymaster
         registry.setSuperPaymaster(address(paymaster));

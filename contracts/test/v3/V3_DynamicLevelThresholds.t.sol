@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "src/core/Registry.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/mocks/MockBLSValidator.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /**
  * @title V3_DynamicLevelThresholds_Test
@@ -25,7 +26,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         address mockStaking = address(0x999);
         address mockSBT = address(0x777);
         
-        registry = new Registry(mockGToken, mockStaking, mockSBT);
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, mockSBT);
         
         // Authorize admin as reputation source
         registry.setReputationSource(admin, true);

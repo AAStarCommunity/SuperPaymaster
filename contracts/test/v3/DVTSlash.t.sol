@@ -9,6 +9,7 @@ import "src/tokens/GToken.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract DVTSlashTest is Test {
     Registry registry;
@@ -35,7 +36,7 @@ contract DVTSlashTest is Test {
         sbt = new MySBT(address(gtoken), address(staking), address(0), dao);
         
         // 2. Deploy Registry with real MySBT
-        registry = new Registry(address(gtoken), address(staking), address(sbt));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
         
         // 3. Finalize linkage
         staking.setRegistry(address(registry));
@@ -48,12 +49,12 @@ contract DVTSlashTest is Test {
         address entryPoint = address(0x123); // Dummy non-zero address
         address oracle = address(0); // No price feed needed, so address(0)
 
-        paymaster = new SuperPaymaster(
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(entryPoint),
-            owner,
-            registry,
-            address(gtoken), // Assuming aPNTs refers to gtoken based on context
+            IRegistry(address(registry)),
             address(oracle),
+            owner,
+            address(gtoken), // Assuming aPNTs refers to gtoken based on context
             treasury,
             3600
         );

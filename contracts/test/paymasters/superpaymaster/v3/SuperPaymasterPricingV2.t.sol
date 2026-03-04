@@ -11,6 +11,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 // Reusing Mocks from SuperPaymasterV3.t.sol logic but localized for clarity
 contract MockRegistryV2 is IRegistry {
@@ -127,7 +128,15 @@ contract SuperPaymasterPricingV2Test is Test {
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
         apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
-        paymaster = new SuperPaymaster(entryPoint, owner, registry, address(apnts), address(priceFeed), treasury, 3600); // 1 hour staleness
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
+            IEntryPoint(address(entryPoint)),
+            IRegistry(address(registry)),
+            address(priceFeed),
+            owner,
+            address(apnts),
+            treasury,
+            3600
+        ); // 1 hour staleness
         apnts.setSuperPaymasterAddress(address(paymaster));
 
         // Grant Roles

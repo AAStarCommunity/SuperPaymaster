@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
-import "./BasePaymaster.sol";
+import "./BasePaymasterUpgradeable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,7 +19,7 @@ import "../../../interfaces/ISuperPaymaster.sol";
  * @notice SuperPaymaster - Unified Registry based Multi-Operator Paymaster
  * @dev Optimized for Gas and Security (CEI, Packing, Batch Updates).
  */
-contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
+contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaymaster {
     using SafeERC20 for IERC20;
     
     struct PriceCache {
@@ -61,8 +61,8 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     mapping(address => bool) public sbtHolders; // Global SBT holders list (verified via Registry)
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
-    function version() external pure override returns (string memory) {
-        return "SuperPaymaster-3.2.2";
+    function version() external pure virtual override returns (string memory) {
+        return "SuperPaymaster-4.0.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -140,23 +140,39 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
     error InsufficientRevenue();
 
     // ====================================
-    // Constructor
+    // Constructor & Initializer (UUPS)
     // ====================================
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
         IEntryPoint _entryPoint,
-        address _owner,
         IRegistry _registry,
+        address _ethUsdPriceFeed
+    ) BasePaymasterUpgradeable(_entryPoint) {
+        REGISTRY = _registry;
+        ETH_USD_PRICE_FEED = AggregatorV3Interface(_ethUsdPriceFeed);
+    }
+
+    /**
+     * @notice Initialize the UUPS proxy state
+     * @param _owner Contract owner
+     * @param _apntsToken aPNTs token address
+     * @param _protocolTreasury Treasury address for protocol fees
+     * @param _priceStalenessThreshold Oracle staleness threshold in seconds
+     */
+    function initialize(
+        address _owner,
         address _apntsToken,
-        address _ethUsdPriceFeed,
         address _protocolTreasury,
         uint256 _priceStalenessThreshold
-    ) BasePaymaster(_entryPoint, _owner) {
-        REGISTRY = _registry;
+    ) external initializer {
+        __BasePaymaster_init(_owner);
         APNTS_TOKEN = _apntsToken;
-        ETH_USD_PRICE_FEED = AggregatorV3Interface(_ethUsdPriceFeed);
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
-        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600; // Default 1 hour
+        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
+        // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
+        aPNTsPriceUSD = 0.02 ether;
+        protocolFeeBPS = 1000;
     }
 
     // ====================================
@@ -894,7 +910,9 @@ contract SuperPaymaster is BasePaymaster, ReentrancyGuard, ISuperPaymaster {
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
+    // ====================================
+    // Storage Gap (UUPS upgrade safety)
+    // ====================================
 
-
-
+    uint256[50] private __gap;
 }
