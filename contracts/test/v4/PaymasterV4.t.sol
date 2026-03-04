@@ -50,6 +50,13 @@ contract MockUSDC is MockERC20 {
     }
 }
 
+contract MockUSDT is MockERC20 {
+    constructor() MockERC20("USDT", "USDT") {}
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+}
+
 contract MockOracle {
     int256 public price;
     uint8 public decimalsVal = 8;
@@ -101,6 +108,7 @@ contract PaymasterV4Test is Test {
     MockEntryPointV4 entryPoint;
     MockERC20 token;
     MockUSDC usdc;
+    MockUSDT usdt;
     MockOracle ethOracle;
     
     address owner = address(1);
@@ -117,6 +125,7 @@ contract PaymasterV4Test is Test {
         entryPoint = new MockEntryPointV4();
         token = new MockERC20("Test Token", "TEST");
         usdc = new MockUSDC();
+        usdt = new MockUSDT();
         ethOracle = new MockOracle(3000 * 1e8); // ETH = $3000
 
         paymaster = new TestPaymasterV4();
@@ -138,6 +147,7 @@ contract PaymasterV4Test is Test {
         // Fund User
         token.mint(user, INITIAL_BALANCE);
         usdc.mint(user, 1000 * 1e6); // $1000 USDC
+        usdt.mint(user, 1000 * 1e6); // $1000 USDT
     }
     
     // Helper to create UserOp with minimal payload
@@ -284,5 +294,169 @@ contract PaymasterV4Test is Test {
         // Allow slight rounding diff
         uint256 expected = 34500000;
         assertApproxEqAbs(charged, expected, 1000); // within small tolerance
+    }
+
+    // =============================================
+    // USDT Stablecoin Tests
+    // =============================================
+
+    function test_SupportUSDT_DepositAndValidate() public {
+        // USDT also has 6 decimals, same as USDC
+        vm.prank(owner);
+        paymaster.setTokenPrice(address(usdt), 1e8); // $1.00
+        assertEq(paymaster.tokenDecimals(address(usdt)), 6, "USDT decimals should be 6");
+
+        uint256 depositAmount = 5000 * 1e6; // $5000 USDT
+        usdt.mint(user, depositAmount);
+        vm.startPrank(user);
+        usdt.approve(address(paymaster), depositAmount);
+        paymaster.depositFor(user, address(usdt), depositAmount);
+        vm.stopPrank();
+
+        assertEq(paymaster.balances(user, address(usdt)), depositAmount);
+
+        // Validate a UserOp paying with USDT
+        PackedUserOperation memory op = _createUserOp(user, address(usdt));
+        uint256 maxCostEth = 0.01 ether; // ~$30
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), maxCostEth);
+
+        (, address decodedToken, uint256 charged) = abi.decode(context, (address, address, uint256));
+        assertEq(decodedToken, address(usdt));
+        // Same expected as USDC ($1 token, 6 decimals)
+        assertApproxEqAbs(charged, 34500000, 1000);
+    }
+
+    function test_USDT_FullFlow_ValidateAndPostOp() public {
+        // Full lifecycle: deposit → validate → postOp with refund
+        vm.prank(owner);
+        paymaster.setTokenPrice(address(usdt), 1e8);
+
+        uint256 depositAmount = 10000 * 1e6; // $10,000 USDT
+        usdt.mint(user, depositAmount);
+        vm.startPrank(user);
+        usdt.approve(address(paymaster), depositAmount);
+        paymaster.depositFor(user, address(usdt), depositAmount);
+        vm.stopPrank();
+
+        // Validate with high maxCost
+        PackedUserOperation memory op = _createUserOp(user, address(usdt));
+        vm.prank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, bytes32(0), 0.1 ether);
+
+        uint256 balAfterValidate = paymaster.balances(user, address(usdt));
+
+        // PostOp with low actual gas cost → should refund
+        vm.prank(address(entryPoint));
+        paymaster.postOp(PostOpMode.opSucceeded, context, 0.001 ether, 0);
+
+        uint256 balAfterPostOp = paymaster.balances(user, address(usdt));
+        assertTrue(balAfterPostOp > balAfterValidate, "Should receive refund");
+    }
+
+    // =============================================
+    // Token Management Tests (add/remove/list)
+    // =============================================
+
+    function test_GetSupportedTokens_Empty() public view {
+        address[] memory tokens = paymaster.getSupportedTokens();
+        assertEq(tokens.length, 0);
+    }
+
+    function test_SetTokenPrice_AddsToList() public {
+        vm.startPrank(owner);
+        paymaster.setTokenPrice(address(usdc), 1e8);
+        paymaster.setTokenPrice(address(usdt), 1e8);
+        paymaster.setTokenPrice(address(token), 2e8); // $2.00 custom token
+        vm.stopPrank();
+
+        address[] memory tokens = paymaster.getSupportedTokens();
+        assertEq(tokens.length, 3);
+        assertTrue(paymaster.isTokenSupported(address(usdc)));
+        assertTrue(paymaster.isTokenSupported(address(usdt)));
+        assertTrue(paymaster.isTokenSupported(address(token)));
+    }
+
+    function test_SetTokenPrice_UpdateDoesNotDuplicate() public {
+        vm.startPrank(owner);
+        paymaster.setTokenPrice(address(usdc), 1e8);
+        paymaster.setTokenPrice(address(usdc), 1.01e8); // Update price
+        vm.stopPrank();
+
+        address[] memory tokens = paymaster.getSupportedTokens();
+        assertEq(tokens.length, 1, "Should not duplicate on price update");
+        assertEq(paymaster.tokenPrices(address(usdc)), 1.01e8);
+    }
+
+    function test_RemoveToken() public {
+        vm.startPrank(owner);
+        paymaster.setTokenPrice(address(usdc), 1e8);
+        paymaster.setTokenPrice(address(usdt), 1e8);
+        paymaster.setTokenPrice(address(token), 2e8);
+
+        // Remove USDC (first element)
+        paymaster.removeToken(address(usdc));
+        vm.stopPrank();
+
+        address[] memory tokens = paymaster.getSupportedTokens();
+        assertEq(tokens.length, 2);
+        assertFalse(paymaster.isTokenSupported(address(usdc)));
+        assertTrue(paymaster.isTokenSupported(address(usdt)));
+        assertTrue(paymaster.isTokenSupported(address(token)));
+
+        // Verify price and decimals cleared
+        assertEq(paymaster.tokenPrices(address(usdc)), 0);
+        assertEq(paymaster.tokenDecimals(address(usdc)), 0);
+    }
+
+    function test_RemoveToken_RevertIfNotInList() public {
+        vm.prank(owner);
+        vm.expectRevert(PaymasterBase.Paymaster__TokenNotInList.selector);
+        paymaster.removeToken(address(usdc));
+    }
+
+    function test_RemoveToken_DepositReverts() public {
+        vm.startPrank(owner);
+        paymaster.setTokenPrice(address(usdc), 1e8);
+        paymaster.removeToken(address(usdc));
+        vm.stopPrank();
+
+        // Deposit should fail after token removed
+        vm.startPrank(user);
+        usdc.approve(address(paymaster), 100e6);
+        vm.expectRevert(PaymasterBase.Paymaster__TokenNotSupported.selector);
+        paymaster.depositFor(user, address(usdc), 100e6);
+        vm.stopPrank();
+    }
+
+    function test_GetSupportedTokensInfo() public {
+        vm.startPrank(owner);
+        paymaster.setTokenPrice(address(usdc), 1e8);   // $1, 6 dec
+        paymaster.setTokenPrice(address(token), 2e8);   // $2, 18 dec
+        vm.stopPrank();
+
+        (address[] memory tokens, uint256[] memory prices, uint8[] memory decs) =
+            paymaster.getSupportedTokensInfo();
+
+        assertEq(tokens.length, 2);
+        assertEq(prices[0], 1e8);
+        assertEq(decs[0], 6);
+        assertEq(prices[1], 2e8);
+        assertEq(decs[1], 18);
+    }
+
+    function test_MaxTokensReached() public {
+        vm.startPrank(owner);
+        // Add MAX_GAS_TOKENS (10) tokens
+        for (uint256 i = 1; i <= 10; i++) {
+            MockERC20 t = new MockERC20("T", "T");
+            paymaster.setTokenPrice(address(t), 1e8);
+        }
+        // 11th should revert
+        MockERC20 extra = new MockERC20("Extra", "EX");
+        vm.expectRevert(PaymasterBase.Paymaster__MaxTokensReached.selector);
+        paymaster.setTokenPrice(address(extra), 1e8);
+        vm.stopPrank();
     }
 }
