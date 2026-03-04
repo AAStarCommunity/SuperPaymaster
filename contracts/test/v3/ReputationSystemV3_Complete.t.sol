@@ -6,6 +6,7 @@ import "src/modules/reputation/ReputationSystem.sol";
 import "src/core/Registry.sol";
 import "src/mocks/MockBLSValidator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
@@ -35,7 +36,7 @@ contract ReputationSystem_Complete_Test is Test {
         address mockGToken = address(0x888);
         address mockStaking = address(0x999);
         address mockSBT = address(0x777);
-        registry = new Registry(mockGToken, mockStaking, mockSBT);
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, mockSBT);
         
         // Deploy ReputationSystem
         repSystem = new ReputationSystem(address(registry));

@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 // Core Imports
 import "src/core/Registry.sol";
@@ -78,17 +79,26 @@ contract DeployLive is Script {
         
         console.log("Deployer:", deployer);
 
-        console.log("=== Step 1: Deploy Foundation ===");
+        console.log("=== Step 1: Deploy Foundation (UUPS Proxy) ===");
         gtoken = new GToken(21_000_000 * 1e18);
         staking = new GTokenStaking(address(gtoken), deployer);
-        uint256 nonce = vm.getNonce(deployer);
-        address precomputedRegistry = vm.computeCreateAddress(deployer, nonce + 1);
-        mysbt = new MySBT(address(gtoken), address(staking), precomputedRegistry, deployer);
-        registry = new Registry(address(gtoken), address(staking), address(mysbt));
 
-        console.log("=== Step 2: Deploy Core ===");
+        // Deploy Registry as UUPS proxy
+        Registry regImpl = new Registry();
+        uint256 nonce = vm.getNonce(deployer);
+        // Next deploys: MySBT (nonce), ERC1967Proxy (nonce+1)
+        address precomputedProxy = vm.computeCreateAddress(deployer, nonce + 1);
+        mysbt = new MySBT(address(gtoken), address(staking), precomputedProxy, deployer);
+        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(staking), address(mysbt)));
+        ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
+        registry = Registry(address(regProxy));
+
+        console.log("=== Step 2: Deploy Core (UUPS Proxy) ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry));
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(0), priceFeedAddr, deployer, 4200);
+        SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(0), deployer, 4200));
+        ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
+        superPaymaster = SuperPaymaster(payable(address(spProxy)));
 
         console.log("=== Step 3: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));

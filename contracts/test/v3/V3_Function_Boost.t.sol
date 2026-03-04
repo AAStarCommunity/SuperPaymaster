@@ -9,6 +9,8 @@ import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "./MockSBT.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 contract V3_Function_BoostTest is Test {
     using Clones for address;
@@ -28,7 +30,7 @@ contract V3_Function_BoostTest is Test {
         gToken = new GToken(1000 ether);
         staking = new GTokenStaking(address(gToken), treasury);
         mockSBT = new MockSBT();
-        registry = new Registry(address(gToken), address(staking), address(mockSBT));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(mockSBT));
         
         staking.setRegistry(address(registry));
         
@@ -41,7 +43,7 @@ contract V3_Function_BoostTest is Test {
         address implementation = address(new xPNTsToken());
         aPNTs = xPNTsToken(implementation.clone());
         aPNTs.initialize("a", "b", owner, "c", "d", 1e18);
-        paymaster = new SuperPaymaster(IEntryPoint(address(0x123)), owner, registry, address(aPNTs), address(0x123), treasury, 3600);
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(address(0x123)), IRegistry(address(registry)), address(0x123), owner, address(aPNTs), treasury, 3600);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));
     }

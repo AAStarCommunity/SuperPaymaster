@@ -8,6 +8,7 @@ import "../../src/tokens/MySBT.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/interfaces/v3/IRegistry.sol";
 import "../../src/interfaces/v3/IMySBT.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // Mock MySBT to avoid complex dependencies but still verify deactivation
 contract MockMySBT is IMySBT {
@@ -52,7 +53,7 @@ contract RegistryV3_Changes_Test is Test {
         staking = new GTokenStaking(address(gtoken), admin);
         mockMySBT = new MockMySBT();
         
-        registry = new Registry(address(gtoken), address(staking), address(mockMySBT));
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, address(staking), address(mockMySBT));
         
         staking.setRegistry(address(registry));
         vm.stopPrank();

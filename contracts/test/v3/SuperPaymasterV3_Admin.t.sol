@@ -7,6 +7,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /**
  * @title Mock EntryPoint
@@ -71,9 +72,9 @@ contract SuperPaymaster_Admin_Test is Test {
         
         address mockStaking = address(0x999);
         address mockSBT = address(0x888);
-        registry = new Registry(address(gtoken), mockStaking, mockSBT);
-        
-        paymaster = new SuperPaymaster(IEntryPoint(address(entryPoint)), owner, registry, address(apnts), address(priceFeed), treasury, 3600);
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, mockStaking, mockSBT);
+
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(priceFeed), owner, address(apnts), treasury, 3600);
         
         // Fix: Update Price Cache (Warp to permit update)
         vm.warp(block.timestamp + 2 hours);

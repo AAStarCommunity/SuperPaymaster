@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
+import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
@@ -25,10 +26,10 @@ contract SuperPaymasterRefundTest is Test {
         xPNTs = new MockERC20("xPNTs", "XPNT", 18);
         
         // Mock Registry/PriceFeed
-        registry = new Registry(address(0), address(0x1), address(0x2)); // Minimal mock
         MockPriceFeed priceFeed = new MockPriceFeed();
-        
-        paymaster = new SuperPaymaster(IEntryPoint(entryPoint), owner, registry, address(aPNTs), address(priceFeed), owner, 3600);
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0x1), address(0x2));
+
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(entryPoint), IRegistry(address(registry)), address(priceFeed), owner, address(aPNTs), owner, 3600);
         
         // Setup Protocol Fee 10%
         paymaster.setProtocolFee(1000); 

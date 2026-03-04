@@ -7,6 +7,7 @@ import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // --- Minimal Mocks ---
 
@@ -117,12 +118,12 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
         MockERC20 apnts = new MockERC20();
         xpnts = new MockXPNTsToken(); // Valid token for postOp interactions
         
-        paymaster = new SuperPaymaster(
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint,
-            address(this),
-            registry,
-            address(apnts),
+            IRegistry(address(registry)),
             address(priceFeed),
+            address(this),
+            address(apnts),
             address(this),
             1 hours // Staleness Threshold
         );

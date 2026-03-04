@@ -8,6 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 
 // --- Mocks ---
@@ -87,13 +88,13 @@ contract SuperPaymaster_SecurityTest is Test {
 
         operator = vm.addr(operatorKey);
 
-        // 1. Deploy Paymaster
-        paymaster = new SuperPaymaster(
+        // 1. Deploy Paymaster (UUPS Proxy)
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(address(entryPoint)),
-            owner,
             IRegistry(address(registry)),
-            address(token), // Use token as aPNTs for simplicity
             address(oracle),
+            owner,
+            address(token), // Use token as aPNTs for simplicity
             treasury,
             3600
         );

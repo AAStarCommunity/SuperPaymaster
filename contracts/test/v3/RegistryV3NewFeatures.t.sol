@@ -7,6 +7,7 @@ import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract MockGToken is ERC20 {
     constructor() ERC20("GToken", "GT") {
@@ -47,12 +48,12 @@ contract RegistryV3NewFeaturesTest is Test {
         gtoken = new MockGToken();
         staking = new GTokenStaking(address(gtoken), treasury);
         
-        registry = new Registry(address(gtoken), address(staking), address(0x1));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(0x1));
         staking.setRegistry(address(registry));
-        
+
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
-        
-        Registry newRegistry = new Registry(address(gtoken), address(staking), address(sbt));
+
+        Registry newRegistry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
         registry = newRegistry;
         staking.setRegistry(address(registry));
         

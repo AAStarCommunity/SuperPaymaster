@@ -6,6 +6,7 @@ import "src/modules/reputation/ReputationSystem.sol";
 import "src/tokens/MySBT.sol";
 import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
@@ -30,7 +31,7 @@ contract V3_Reputation_SBT_BoostTest is Test {
         
         // Circular dependency handling:
         // 1. Deploy Registry with a dummy SBT address
-        registry = new Registry(mockGToken, mockStaking, address(0x777));
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(0x777));
         
         // 2. Deploy MySBT with the real registry
         mysbt = new MySBT(mockGToken, mockStaking, address(registry), admin);
@@ -42,7 +43,7 @@ contract V3_Reputation_SBT_BoostTest is Test {
         
         // Let's do:
         mysbt = new MySBT(mockGToken, mockStaking, address(0), admin);
-        registry = new Registry(mockGToken, mockStaking, address(mysbt));
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(mysbt));
         mysbt.setRegistry(address(registry));
         
         // 4. Set Role Owner for Authorization
