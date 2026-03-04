@@ -524,6 +524,38 @@ ETHERSCAN_API_KEY=...
 - [Full Deployment Guide](./docs/DEPLOYMENT_READY.md)
 - [**Sepolia Redeployment Summary (V3.1.1)**](./docs/SEPOLIA_DEPLOYMENT_SUMMARY.md) (Latest Dec 28)
 
+#### PaymasterV4 Stablecoin Configuration
+
+PaymasterV4 (AOA Mode) supports **any ERC20 token** as gas payment, including stablecoins (USDC, USDT). Token addresses differ per chain — see [`deployments/stablecoins.json`](./deployments/stablecoins.json) for canonical addresses.
+
+| Chain | USDC | USDT |
+|-------|------|------|
+| Ethereum (1) | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
+| Optimism (10) | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e68` |
+| Arbitrum (42161) | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
+| Base (8453) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | N/A |
+| Sepolia / OP-Sepolia | Deploy MockUSDC | Deploy MockUSDT |
+
+> **Note**: USDC/USDT addresses are **different on every chain**. There is no universal address.
+
+**Configure stablecoins after deploying PaymasterV4:**
+
+```bash
+# 1. Batch-configure USDC + USDT on a deployed PaymasterV4
+PAYMASTER_V4=0x... \
+USDC_ADDR=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
+USDT_ADDR=0x94b008aA00579c1307B0EF2c499aD98a8ce58e68 \
+forge script contracts/script/v4/ConfigureStablecoins.s.sol:ConfigureStablecoins \
+  --rpc-url $OPTIMISM_RPC_URL --broadcast --account deployer
+
+# 2. Query all supported tokens on-chain
+cast call $PAYMASTER_V4 "getSupportedTokensInfo()" --rpc-url $RPC_URL
+
+# 3. Add / remove tokens individually
+cast send $PAYMASTER_V4 "setTokenPrice(address,uint256)" $NEW_TOKEN 1e8 --account deployer
+cast send $PAYMASTER_V4 "removeToken(address)" $OLD_TOKEN --account deployer
+```
+
 ---
 
 ## 📊 Contract Addresses
@@ -1178,6 +1210,38 @@ cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
 - [SuperPaymasterV2 v2.0.1 部署](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)
 - [Registry v2.2.0 部署](./docs/DEPLOY_REGISTRY_V2.2.0.md)（即将推出）
 - [完整部署指南](./docs/DEPLOYMENT_READY.md)
+
+#### PaymasterV4 稳定币配置
+
+PaymasterV4（AOA 模式）支持**任意 ERC20 代币**作为 gas 支付方式，包括稳定币（USDC、USDT）。各链代币地址不同，详见 [`deployments/stablecoins.json`](./deployments/stablecoins.json)。
+
+| 链 | USDC | USDT |
+|----|------|------|
+| Ethereum (1) | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
+| Optimism (10) | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e68` |
+| Arbitrum (42161) | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
+| Base (8453) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | N/A |
+| Sepolia / OP-Sepolia | 需部署 MockUSDC | 需部署 MockUSDT |
+
+> **注意**：USDC/USDT 地址在**每条链上都不同**，无法使用通用地址。
+
+**部署 PaymasterV4 后配置稳定币：**
+
+```bash
+# 1. 批量配置 USDC + USDT
+PAYMASTER_V4=0x... \
+USDC_ADDR=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
+USDT_ADDR=0x94b008aA00579c1307B0EF2c499aD98a8ce58e68 \
+forge script contracts/script/v4/ConfigureStablecoins.s.sol:ConfigureStablecoins \
+  --rpc-url $OPTIMISM_RPC_URL --broadcast --account deployer
+
+# 2. 链上查询所有已支持代币
+cast call $PAYMASTER_V4 "getSupportedTokensInfo()" --rpc-url $RPC_URL
+
+# 3. 单独添加/移除代币
+cast send $PAYMASTER_V4 "setTokenPrice(address,uint256)" $NEW_TOKEN 1e8 --account deployer
+cast send $PAYMASTER_V4 "removeToken(address)" $OLD_TOKEN --account deployer
+```
 
 ---
 

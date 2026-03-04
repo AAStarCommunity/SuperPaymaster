@@ -89,6 +89,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @dev If price is 0, token is not supported.
     mapping(address => uint256) public tokenPrices;
 
+    /// @notice Ordered list of supported token addresses
+    address[] private _supportedTokens;
+
+    /// @notice Quick lookup: token address => index+1 in _supportedTokens (0 = not in list)
+    mapping(address => uint256) private _tokenIndex;
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -103,6 +109,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__InvalidOraclePrice();
     error Paymaster__TokenNotSupported();
     error Paymaster__PriceNotInitialized();
+    error Paymaster__MaxTokensReached();
+    error Paymaster__TokenNotInList();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -117,6 +125,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     event FundsDeposited(address indexed user, address indexed token, uint256 amount);
     event FundsWithdrawn(address indexed user, address indexed token, uint256 amount);
     event TokenPriceUpdated(address indexed token, uint256 price);
+    event TokenRemoved(address indexed token);
     
     event PostOpProcessed(
         address indexed user,
@@ -467,8 +476,20 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     }
 
 
-    /// @notice Set supported token price (enable token)
+    /// @notice Set supported token price (enable or update token)
+    /// @param token ERC20 token address
+    /// @param price USD price with 8 decimals (e.g. 1e8 = $1.00)
     function setTokenPrice(address token, uint256 price) external onlyOwner {
+        if (token == address(0)) revert Paymaster__ZeroAddress();
+        if (price == 0) revert Paymaster__InvalidOraclePrice();
+
+        // Add to tracking list if new token
+        if (_tokenIndex[token] == 0) {
+            if (_supportedTokens.length >= MAX_GAS_TOKENS) revert Paymaster__MaxTokensReached();
+            _supportedTokens.push(token);
+            _tokenIndex[token] = _supportedTokens.length; // 1-based index
+        }
+
         // Cache decimals to avoid external call during validation
         uint8 decimals = 18;
         try IERC20Metadata(token).decimals() returns (uint8 d) {
@@ -479,6 +500,60 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         tokenDecimals[token] = decimals;
         tokenPrices[token] = price;
         emit TokenPriceUpdated(token, price);
+    }
+
+    /// @notice Remove a supported token
+    /// @param token ERC20 token address to remove
+    function removeToken(address token) external onlyOwner {
+        if (_tokenIndex[token] == 0) revert Paymaster__TokenNotInList();
+
+        // Swap-and-pop from _supportedTokens
+        uint256 idx = _tokenIndex[token] - 1; // convert to 0-based
+        uint256 lastIdx = _supportedTokens.length - 1;
+        if (idx != lastIdx) {
+            address lastToken = _supportedTokens[lastIdx];
+            _supportedTokens[idx] = lastToken;
+            _tokenIndex[lastToken] = idx + 1; // keep 1-based
+        }
+        _supportedTokens.pop();
+        delete _tokenIndex[token];
+
+        // Clear price and decimals
+        delete tokenPrices[token];
+        delete tokenDecimals[token];
+
+        emit TokenRemoved(token);
+    }
+
+    /// @notice Get all supported token addresses
+    function getSupportedTokens() external view returns (address[] memory) {
+        return _supportedTokens;
+    }
+
+    /// @notice Check if a token is supported
+    function isTokenSupported(address token) external view returns (bool) {
+        return _tokenIndex[token] != 0;
+    }
+
+    /// @notice Get full info for all supported tokens
+    /// @return tokens Array of token addresses
+    /// @return prices Array of USD prices (8 decimals)
+    /// @return decimalsArr Array of token decimals
+    function getSupportedTokensInfo()
+        external
+        view
+        returns (address[] memory tokens, uint256[] memory prices, uint8[] memory decimalsArr)
+    {
+        uint256 len = _supportedTokens.length;
+        tokens = new address[](len);
+        prices = new uint256[](len);
+        decimalsArr = new uint8[](len);
+        for (uint256 i = 0; i < len; i++) {
+            address t = _supportedTokens[i];
+            tokens[i] = t;
+            prices[i] = tokenPrices[t];
+            decimalsArr[i] = tokenDecimals[t];
+        }
     }
 
     /// @notice Deposit funds for user (Push Model)

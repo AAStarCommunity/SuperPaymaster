@@ -1,0 +1,82 @@
+{
+  "description": "Stablecoin addresses per chain for PaymasterV4 token configuration",
+  "priceUsd8Decimals": {
+    "USDC": 100000000,
+    "USDT": 100000000
+  },
+  "chains": {
+    "ethereum": {
+      "chainId": 1,
+      "tokens": {
+        "USDC": {
+          "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "decimals": 6
+        },
+        "USDT": {
+          "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "decimals": 6
+        }
+      }
+    },
+    "optimism": {
+      "chainId": 10,
+      "tokens": {
+        "USDC": {
+          "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+          "decimals": 6
+        },
+        "USDT": {
+          "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e68",
+          "decimals": 6
+        }
+      }
+    },
+    "arbitrum": {
+      "chainId": 42161,
+      "tokens": {
+        "USDC": {
+          "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "decimals": 6
+        },
+        "USDT": {
+          "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+          "decimals": 6
+        }
+      }
+    },
+    "base": {
+      "chainId": 8453,
+      "tokens": {
+        "USDC": {
+          "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "decimals": 6
+        }
+      }
+    },
+    "sepolia": {
+      "chainId": 11155111,
+      "tokens": {
+        "USDC": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "decimals": 6,
+          "note": "Deploy MockUSDC or use faucet; no canonical USDC on Sepolia"
+        },
+        "USDT": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "decimals": 6,
+          "note": "Deploy MockUSDT or use faucet; no canonical USDT on Sepolia"
+        }
+      }
+    },
+    "op-sepolia": {
+      "chainId": 11155420,
+      "tokens": {
+        "USDC": {
+          "address": "0x0000000000000000000000000000000000000000",
+          "decimals": 6,
+          "note": "Deploy MockUSDC or use faucet; no canonical USDC on OP Sepolia"
+        }
+      }
+    }
+  }
+}
