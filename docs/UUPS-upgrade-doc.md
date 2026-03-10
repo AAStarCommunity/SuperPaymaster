@@ -17,6 +17,11 @@
 11. [Test Coverage Analysis](#11-test-coverage-analysis)
 12. [Operational Checklist](#12-operational-checklist)
 13. [Version History](#13-version-history)
+- [Appendix A: OpenZeppelin v5.0.2 Security Status](#appendix-a-openzeppelin-v502-security-status)
+- [Appendix B: File Quick Reference](#appendix-b-file-quick-reference)
+- [Appendix C: Architecture Knowledge Base](#appendix-c-architecture-knowledge-base) ← NEW
+- [Appendix D: TODO List](#appendix-d-todo-list) ← NEW
+- [Appendix E: Refactoring Notes Audit](#appendix-e-refactoring-notes-audit-2026-03-05) ← NEW
 
 ---
 
@@ -679,16 +684,16 @@ EntryPoint v0.7 注册的是 **proxy 地址**（永久不变）。`validatePayma
 
 | Category | Tests | Status |
 |----------|-------|--------|
-| UUPS Upgrade (dedicated) | 13 | ✅ All pass |
+| UUPS Upgrade (dedicated) | 19 | ✅ All pass |
 | Registry tests | 33 | ✅ All pass |
 | SuperPaymaster tests | 55 | ✅ All pass |
 | Tokens/xPNTs tests | 35 | ✅ All pass |
 | PaymasterV4 tests | 25 | ✅ All pass |
 | Module tests (BLS/DVT/Rep) | 19 | ✅ All pass |
 | Other | 131 | ✅ All pass |
-| **Total** | **311** | **0 failed** |
+| **Total** | **317** | **0 failed** |
 
-### UUPS-Specific Tests (13)
+### UUPS-Specific Tests (19)
 
 | Test | Covers |
 |------|--------|
@@ -698,31 +703,32 @@ EntryPoint v0.7 注册的是 **proxy 地址**（永久不变）。`validatePayma
 | `test_Registry_CannotReinitialize` | Re-initialization blocked |
 | `test_Registry_ImplCannotBeInitialized` | Implementation init blocked |
 | `test_Registry_StatePreservedAfterUpgrade` | Custom state survives upgrade |
+| `test_Registry_UpgradeToNonUUPS_Reverts` | Non-UUPS impl rejected (ERC-1967 safety) |
+| `test_Registry_DoubleUpgrade_StatePreserved` | V1→V2→V3 state preserved |
+| `test_Registry_BusinessLogicAfterUpgrade` | Admin functions work post-upgrade |
 | `test_SuperPaymaster_InitialState` | All proxy state correct |
 | `test_SuperPaymaster_UpgradeSuccess` | Upgrade + state preservation |
 | `test_SuperPaymaster_UpgradeRejectedByNonOwner` | Access control |
 | `test_SuperPaymaster_CannotReinitialize` | Re-init blocked |
 | `test_SuperPaymaster_ImplCannotBeInitialized` | Implementation init blocked |
+| `test_SuperPaymaster_UpgradeToNonUUPS_Reverts` | Non-UUPS impl rejected |
+| `test_SuperPaymaster_DoubleUpgrade_StatePreserved` | V1→V2→V3 state preserved |
+| `test_SuperPaymaster_BusinessLogicAfterUpgrade` | Admin + deposit work post-upgrade |
 | `test_MultisigUpgrade_TransferAndUpgrade` | Ownership transfer + upgrade |
 | `test_ProxyAddressStableAfterUpgrade` | Address permanence |
 
-### Coverage Gaps & Recommended Additional Tests
+### Remaining Coverage Gaps
 
 | # | Missing Test | Priority | Why |
 |---|-------------|----------|-----|
-| 1 | Upgrade to non-UUPS implementation → should revert | **HIGH** | Prevents accidental bricking |
-| 2 | Double upgrade (A→B→C) state preservation | **MEDIUM** | Validates multi-version lifecycle |
-| 3 | Business logic after upgrade (deposit, withdraw, configureOperator) | **MEDIUM** | Validates hot-path functions work |
-| 4 | `upgradeToAndCall` with migration data (reinitializer) | **MEDIUM** | V2 migration path validation |
-| 5 | Initialize with `_owner = address(0)` behavior | **LOW** | Edge case documentation |
-| 6 | ReentrancyGuard works correctly after upgrade | **LOW** | Validates guard state |
-| 7 | `forge inspect` storage layout snapshot test | **LOW** | Automated regression |
+| 1 | `upgradeToAndCall` with migration data (reinitializer) | **MEDIUM** | V2 migration path validation |
+| 2 | Initialize with `_owner = address(0)` behavior | **LOW** | Edge case documentation |
+| 3 | ReentrancyGuard works correctly after upgrade | **LOW** | Validates guard state |
+| 4 | `forge inspect` storage layout snapshot test | **LOW** | Automated regression |
 
 ### Assessment
 
-当前 13 个 UUPS 测试覆盖了核心场景（初始化、升级权限、状态保留、重初始化防护、多签模拟）。对于 V1 发布来说是**足够的**。
-
-建议在下次迭代中添加 #1（非 UUPS implementation 升级）和 #2（多版本升级链），因为这些是生产环境中最可能遇到的场景。
+当前 19 个 UUPS 测试覆盖了全部核心场景：初始化、升级权限、状态保留、重初始化防护、多签模拟、非 UUPS 合约拒绝、多版本升级链、升级后业务逻辑验证。对于生产发布来说是**充分的**。
 
 ---
 
@@ -819,8 +825,241 @@ contracts/test/
 ├── helpers/
 │   └── UUPSDeployHelper.sol           ← NEW
 ├── v3/
-│   └── UUPSUpgrade.t.sol             ← NEW (13 tests)
+│   └── UUPSUpgrade.t.sol             ← NEW (19 tests)
 contracts/script/v3/
 ├── DeployAnvil.s.sol                  ← MODIFIED
 └── DeployLive.s.sol                   ← MODIFIED
 ```
+
+---
+
+## Appendix C: Architecture Knowledge Base
+
+> 从重构笔记中整理的关键架构知识，供后续开发参考。
+
+### C.1 Two-Tier Slash Architecture
+
+系统实现了两层惩罚机制，分别针对不同资产：
+
+| 层级 | 目标合约 | 扣除资产 | 触发场景 | 权限 |
+|------|---------|---------|---------|------|
+| **Tier 1** | `SuperPaymaster.executeSlashWithBLS()` | aPNTs 运营资金 | 服务质量问题（交易失败、离线） | `BLS_AGGREGATOR` |
+| **Tier 2** | `GTokenStaking.slashByDVT()` | GToken 质押物 | 严重违规（恶意行为、持续离线） | `authorizedSlashers` |
+
+- `SuperPaymaster.slashOperator()` (onlyOwner) 是管理员手动 slash 接口
+- `SuperPaymaster._slash()` 有 30% hardcap 保护
+- `GTokenStaking.setAuthorizedSlasher(blsAggregator, true)` 需在部署时 wiring
+- Slash 三级别：WARNING (-10 rep), MINOR (-20 rep + -10% balance), MAJOR (-50 rep + pause)
+
+**Slash vs 自动停服的关系**：
+- `validatePaymasterUserOp:798` 的 `aPNTsBalance < required → 拒绝 UserOp` 是**被动保护**（没钱了 → 停服）
+- Slash 是**主动惩罚**（作恶 → 罚款 + 降级）
+- 两者互补，不能互相替代
+
+### C.2 Reputation System Three-Tier Architecture
+
+| 层级 | 接口 | 数据流 | 场景 |
+|------|------|--------|------|
+| **Tier 1 (Manual)** | `ReputationSystem.setCommunityReputation()` | Owner/白名单直接写入 | 管理员手动设置 |
+| **Tier 2 (Rule-based)** | `ReputationSystem.computeScore()` → `syncToRegistry()` | 链上透明算法 | 测试/小规模 |
+| **Tier 3 (DVT Batch)** | `Registry.batchUpdateGlobalReputation()` | BLS 聚合签名证明 | **生产路径** |
+
+**Event-Driven 架构**：
+- SuperPaymaster 不再每次 UserOp 调用 Registry.updateReputation（gas 太高）
+- 改为 emit `UserReputationAccrued(user, aPNTsValue)` 事件
+- Off-chain Validator 监听事件、聚合、定期 batch 提交
+
+**Community Reputation Rules**：
+- `ReputationSystem.setRule(ruleId, baseScore, bonus, maxBonus, desc)` — 社区自定义评分权重
+- `setNFTBoost(collection, boost)` — onlyOwner，NFT 持有加速器
+- 声誉标准化为 aPNTs 金额（非 xPNTs 数量）：`AccumulatedReputation += aPNTsAmount`
+
+### C.3 Credit System (Revolving Credit Model)
+
+```
+信用额度 = Registry.getCreditLimit(user)     ← 基于 globalReputation 和 Fibonacci 阈值
+当前债务 = xPNTsToken.getDebt(user)          ← 在 xPNTs 层记录
+可用信用 = creditLimit - currentDebt          ← SuperPaymaster.getAvailableCredit()
+```
+
+**Fibonacci 阈值配置**（默认）：
+
+| Level | Reputation >= | Credit Limit |
+|-------|--------------|-------------|
+| 1 | 0 | 0 aPNTs |
+| 2 | 13 | 100 aPNTs |
+| 3 | 34 | 300 aPNTs |
+| 4 | 89 | 600 aPNTs |
+| 5 | 233 | 1,000 aPNTs |
+| 6 | 610 | 2,000 aPNTs |
+
+**Global Debt Anti-Double-Spend**：用户在社区 A 透支 500 aPNTs → 社区 B、C 的可用信用立即归零。
+
+**Auto-Repayment**：`xPNTsToken._update()` hook 仅在 `mint` 时触发自动还款（协议奖励/空投），普通 `transfer` 走标准 ERC20 逻辑。`repayDebt()` 提供手动还款。
+
+### C.4 Oracle Hybrid Pricing Model
+
+```
+Validation Phase → 读取 cachedPrice（合规 ERC-4337，无外部存储访问）
+PostOp Phase     → 读取 Chainlink.latestRoundData()（实时）
+                   └→ Chainlink 失败 → 回退到 cachedPrice
+```
+
+**三层防御**：
+1. Keeper 正常 → `updatePrice()` 定期刷新 cache
+2. Keeper 宕机 → PostOp 中 Chainlink fallback（每 4h auto-refresh，~6k-10k gas）
+3. 双重故障 → try/catch 使用旧 cache（Liveness > Accuracy）
+
+**SuperPaymaster vs PaymasterV4 定价差异**：
+
+| 特性 | SuperPaymaster | PaymasterV4 |
+|------|---------------|-------------|
+| 价格源 | DVT 共识 + Chainlink | Chainlink + Keeper |
+| 管理员后门 | 无 `setCachedPrice` | 有 `setCachedPrice` |
+| DVT fallback | `updatePriceDVT()` + ±20% 偏差检查 | 无 |
+| 适用场景 | 公共基础设施 | 社区私有域 |
+
+**价格计算公式**：
+```
+TokenAmount = (GasWei * EthPrice * TotalRate * 10^TokenDecimals) / (TokenPrice * BPS * 10^(10 + EthDecimals))
+```
+使用 `Math.mulDiv` 防溢出和最小精度损失。
+
+### C.5 ABI Encoding Compatibility (SDK ↔ Contract)
+
+**问题**：Solidity `abi.encode(struct)` 自动前缀 32 字节 offset (`0x0000...0020`)，而 Viem `encodeAbiParameters(tuple)` 不加。这导致 Registry 解码 `roleData` 时 `panic code 0x41` (内存分配错误)。
+
+**解决方案**：
+- SDK 端: `RoleDataFactory.community()` 包装 struct，手动前缀 `0x0000...0020`
+- 合约端: `Registry.sol` 有双解码逻辑（检测 0x20 offset 存在与否）
+
+**维护规则**：若 `roleData` 结构变化，必须同步更新：
+1. `Registry.sol` helper decode 函数
+2. SDK `roleData.ts`
+3. 回归测试中的 `encodeAbiParameters` 定义
+
+### C.6 V3 (SuperPaymaster) vs V4 (PaymasterV4) Architecture
+
+| 特性 | SuperPaymaster (V3/AOA+) | Paymaster (V4/AOA) |
+|------|-------------------------|-------------------|
+| Token 类型 | 专属 xPNTsToken | 任意 ERC20 (USDC/USDT) |
+| 核心函数 | `burnFromWithOpHash()` — xPNTs 特有 | 标准 ERC20 transfer |
+| SBT 验证 | 被动/黑名单（DVT push `blockedUsers`） | 主动/白名单（`balanceOf` 检查） |
+| 定价 | DVT 共识 + Chainlink | Admin-set + Chainlink |
+| 适用场景 | 公共基础设施、多运营商 | 社区私有域、单运营商 |
+| Gas 支付模型 | 信用+即时（revolving credit） | 预充值（deposit-only） |
+| 部署方式 | UUPS Proxy | EIP-1167 Clone (PaymasterFactory) |
+
+### C.7 Role Management Reference
+
+**7 个预定义角色**：
+
+| 角色 | Role ID | 最低质押 | Entry Burn | 说明 |
+|------|---------|---------|-----------|------|
+| COMMUNITY | `keccak256("COMMUNITY")` | 30 GT | 3 GT | 社区注册 |
+| ENDUSER | `keccak256("ENDUSER")` | 0.3 GT | 0.05 GT | 终端用户 |
+| PAYMASTER_AOA | `keccak256("PAYMASTER_AOA")` | 30 GT | 3 GT | AOA 模式 Paymaster |
+| PAYMASTER_SUPER | `keccak256("PAYMASTER_SUPER")` | 50 GT | 5 GT | AOA+ 超级运营商 |
+| DVT | `keccak256("DVT")` | 30 GT | 0 | 验证者 |
+| ANODE | `keccak256("ANODE")` | 20 GT | 2 GT | 应用节点 |
+| KMS | `keccak256("KMS")` | 100 GT | 10 GT | 密钥管理 |
+
+**业务规则**：注册 Paymaster 角色必须先有 Community 角色（双重质押）。`exitRole` 释放 namespace（`communityByNameV3` mapping 清除）。
+
+**SBT 生命周期绑定**：一账户一 SBT 多角色。注册首个角色 → mint SBT。退出最后一个角色 → burn SBT + 撤销 SuperPaymaster 权限。
+
+### C.8 Deployment Network Configuration
+
+| Network | Env File | Chain ID |
+|---------|----------|----------|
+| Anvil | `.env.anvil` | 31337 |
+| Sepolia | `.env.sepolia` | 11155111 |
+| OP Sepolia | `.env.op-sepolia` | 11155420 |
+| OP Mainnet | `.env.op-mainnet` | 10 |
+| ETH Mainnet | `.env.mainnet` | 1 |
+
+**Deployment Hash Skip 机制**：`deploy-core` 脚本计算所有 `contracts/src/*.sol` 的 SHA256，与 `deployments/config.<env>.json` 中存储的 `srcHash` 比较，代码无变化时跳过部署（除非 `--force`）。
+
+---
+
+## Appendix D: TODO List
+
+### D.1 Contract-Level TODO (合约层)
+
+> 合约代码改动或部署配置相关
+
+| # | Item | Priority | Status | Notes |
+|---|------|----------|--------|-------|
+| 1 | **Deploy wiring: `setAuthorizedSlasher(blsAggregator, true)`** | HIGH | ❌ Pending | GTokenStaking 需要在部署脚本中注册 BLSAggregator 为授权 slasher，否则 Tier 2 slash 无法执行 |
+| 2 | **Role lock duration 配置** | HIGH | ❌ Pending | 生产部署前需通过 `configureRole()` 为每个角色设置合理的 `roleLockDuration`（建议 7-30 天），当前默认为 0（无锁定期） |
+| 3 | **补充测试: Registry 角色注册** | MEDIUM | ❌ Pending | Paymaster/SuperPaymaster 角色注册完整流程、动态角色管理、全生命周期（注册→运营→退出） |
+| 4 | **补充测试: Staking exit flow** | MEDIUM | ❌ Pending | unlock → withdraw 完整流程、Slash 参数验证（penalty/treasury/refund）、timelock 测试 |
+| 5 | **补充测试: MySBT burn 联动** | MEDIUM | ❌ Pending | Active burn、role exit 联动 burn、metadata 验证 |
+| 6 | **Ownable2Step 迁移评估** | LOW | ❌ Pending | 当前使用 OZ v5 `Ownable`（单步 transferOwnership），生产前建议评估迁移到 `Ownable2Step` 防止误操作丢失 owner |
+| 7 | **`upgradeToAndCall` + reinitializer 测试** | LOW | ❌ Pending | V2 升级路径验证：带 migration data 的原子升级 |
+| 8 | **`updateBlockedStatus` 端到端验证** | LOW | ❌ Pending | Registry → SuperPaymaster 的黑名单同步路径需要集成测试验证 |
+
+### D.2 Deployment Script TODO (部署脚本)
+
+| # | Item | Priority | Notes |
+|---|------|----------|-------|
+| 1 | `DeployLive.s.sol` 添加 `setAuthorizedSlasher` wiring | HIGH | `staking.setAuthorizedSlasher(address(aggregator), true)` |
+| 2 | 删除笔记中 "Short-term: Immutable + Migration" 策略描述 | LOW | 已被 UUPS proxy 替代，该策略不再适用 |
+
+### D.3 SDK-Level TODO (移至 SDK 仓库)
+
+> 以下 TODO 属于 SDK 层面，合并 UUPS 分支后转移到 SDK 仓库的 TODO 中
+
+| # | Item | Category | Notes |
+|---|------|----------|-------|
+| 1 | **L1 Core Actions ABI 覆盖** | SDK-Core | 当前 186/446 函数 (41.7%)，目标 357 (80%)。UUPS 迁移不影响 ABI（4 个新函数仅部署用） |
+| 2 | **L2 Business Clients** | SDK-Business | `CommunityClient`, `OperatorClient`, `EndUserClient` 面向 DApp 开发者。关键规则：L2 必须 100% 构建在 L1 之上，不直接 `viem.writeContract` |
+| 3 | **L3 Scenario Patterns** | SDK-Patterns | `DAO Launchpad`, `Operator Lifecycle`, `User Onboarding` 端到端模板 |
+| 4 | **ABI Encoding Wrapper 维护** | SDK-Core | `RoleDataFactory.community()` 中的 struct 前缀逻辑（见 C.5），`roleData` 结构变化时必须同步 |
+| 5 | **Dynamic Gas Estimation** | SDK-Core | 1.5x 动态调参：`eth_estimateUserOperationGas` × 1.5 (validation) / × 1.1 (execution)。完全 SDK 层面 |
+| 6 | **Node Tools 分离** | SDK-Infra | `@aastar/sdk/node` sub-path export (`KeyManager`, `FundingManager`)，主入口保持 browser-compatible |
+| 7 | **React Hooks / UI Components** | SDK-Frontend | `useSuperPaymaster`, `useEndUserCredit`, `<EvaluationPanel />` — Milestone 3 目标 |
+| 8 | **UserClient Registration Pattern** | SDK-Business | AA 账户 via UserOperation vs EOA owner 直接调用 `registry.registerRole` 的区分。合约层已支持 `user` 参数 |
+| 9 | **Error Mapping** | SDK-Core | EVM Revert → TypeScript `ErrorCode.OPERATOR_PAUSED` 等可读错误码 |
+| 10 | **L3 Complete Demo** | SDK-Patterns | `examples/l3-complete-demo.ts` — 完整生命周期演示脚本 |
+
+---
+
+## Appendix E: Refactoring Notes Audit (2026-03-05)
+
+> 对历史重构笔记（30 个话题）的审计结果
+
+| # | Topic | Status | Disposition |
+|---|-------|--------|-------------|
+| 1 | Decentralized Slash (V2.3.3→V3) | ✅ 已完成 | 合约层全部实现，仅缺部署 wiring → D.1 #1 |
+| 2 | Reputation System | ✅ 已完成 | 三层架构全部实现 |
+| 3 | Credit/Debt System | ✅ 已完成 | Revolving credit + Fibonacci + auto-repayment |
+| 4 | DVT/BLS Consensus | ✅ 已完成 | BLS12-381 + threshold + replay protection |
+| 5 | SDK L1-L3 Architecture | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 |
+| 6 | PaymasterV4 Stablecoin | ✅ 已完成 | Deposit-only + multi-token + 13 unit tests |
+| 7 | xPNTsFactory Binding | ✅ 已完成 | Factory binding + burnFromWithOpHash + replay |
+| 8 | Oracle/Pricing | ✅ 已完成 | Hybrid pricing + DVT fallback + ±20% check |
+| 9 | Deployment Workflows | ⚠️ 部分过时 | "Immutable + Migration" 策略已废弃，UUPS 替代 |
+| 10 | Role Management | ✅ 已完成 | 7 roles + lock + burn + lifecycle |
+| 11 | SBT Lifecycle | ✅ 已完成 | 一 SBT 多角色 + onlyRegistry burn |
+| 12 | Blacklist/Rate Limiting | ✅ 已完成 | blockedUsers + minTxInterval + DVT blacklist |
+| 13 | Gas Optimization (Bit-Pack) | ✅ 已完成 | OperatorConfig struct 打包优化 |
+| 14 | ABI Encoding Compat | 📚 知识库 | 永久性注意点 → C.5 |
+| 15 | Version Standardization | ✅ 已完成 | 统一 `version()` + virtual |
+| 16 | PaymasterFactory Logic | ✅ 已完成 | addImplementation + deploy + deterministic |
+| 17 | Sepolia Config Sync | 📋 运维 | sync 脚本仍有效 |
+| 18 | Dynamic Gas Estimation | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 #5 |
+| 19 | 7702 Account Support | ✅ 已完成 | Bridge 文件存在 |
+| 20 | SDK Project Structure | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 |
+| 21 | Missing Test Scenarios | ⚠️ 仍需补充 | → D.1 #3, #4, #5 |
+| 22 | UserClient Registration | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 #8 |
+| 23 | SP Storage Mappings | 🗑️ 已过时 | 设计讨论记录，已实现 |
+| 24 | xPNTs Auto-Repayment | ✅ 已完成 | Mint-only auto-repay + manual repayDebt |
+| 25 | V3 vs V4 Differences | 📚 知识库 | → C.6 |
+| 26 | L2 Client Rules | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 #2 |
+| 27 | PMV4 Security Features | ✅ 已完成 | factory binding + disableInitializers |
+| 28 | xPNTs Consumption Limit | ✅ 已完成 | 5000 ether 单笔限额 |
+| 29 | L3 Complete Demo | ⏩ SDK 范畴 | 转入 SDK TODO → D.3 #10 |
+| 30 | Reputation Test Results | 📚 知识库 | Sepolia 验证基线保留 |
+
+**统计**: 20 已完成 / 6 SDK 范畴 / 4 保留参考
