@@ -7,6 +7,7 @@ import "forge-std/StdJson.sol";
 
 // Interfaces
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/GToken.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -59,7 +60,10 @@ contract FixDeployerRole is Script {
         // 1. Bypass Lock (If Owner)
         if (registry.owner() == deployer) {
             console.log("Deployer is Registry Owner. Resetting Lock Duration...");
-            try registry.setRoleLockDuration(ROLE_PAYMASTER_SUPER, 0) {} catch { console.log("SetLock Failed"); }
+            try registry.getRoleConfig(ROLE_PAYMASTER_SUPER) returns (IRegistry.RoleConfig memory cfg) {
+                cfg.roleLockDuration = 0;
+                try registry.configureRole(ROLE_PAYMASTER_SUPER, cfg) {} catch { console.log("ConfigureRole Failed"); }
+            } catch { console.log("GetRoleConfig Failed"); }
         }
 
         // 2. Exit SuperPaymaster Role

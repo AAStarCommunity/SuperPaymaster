@@ -7,6 +7,7 @@ import "src/core/Registry.sol";
 import "src/mocks/MockBLSValidator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
@@ -47,9 +48,14 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Authorize repSystem as reputation source
         registry.setReputationSource(address(repSystem), true);
-        
+
+        // Mock staking setRoleExitFee (mockStaking is not a real contract)
+        vm.mockCall(mockStaking, abi.encodeWithSignature("setRoleExitFee(bytes32,uint256,uint256)"), "");
+
         // Set community role owner
-        registry.setRoleOwner(keccak256("COMMUNITY"), community1);
+        IRegistry.RoleConfig memory commCfg = registry.getRoleConfig(keccak256("COMMUNITY"));
+        commCfg.owner = community1;
+        registry.configureRole(keccak256("COMMUNITY"), commCfg);
         
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)

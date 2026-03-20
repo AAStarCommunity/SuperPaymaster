@@ -69,7 +69,7 @@ contract RegistryV3NewFeaturesTest is Test {
 
     function test_CreateNewRole_Success() public {
         vm.startPrank(owner);
-        
+
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
@@ -81,12 +81,12 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 2 ether,
             isActive: true,
             description: "Custom Role",
-            owner: address(0), // Set by param
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
-        
+
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
+
         // Verify role was created
         IRegistry.RoleConfig memory stored = registry.getRoleConfig(ROLE_NEW_CUSTOM);
         assertEq(stored.minStake, 50 ether);
@@ -94,13 +94,13 @@ contract RegistryV3NewFeaturesTest is Test {
         assertEq(stored.exitFeePercent, 1000);
         assertEq(stored.minExitFee, 2 ether);
         assertTrue(stored.isActive);
-        
+
         vm.stopPrank();
     }
 
     function test_CreateNewRole_OnlyOwner() public {
         vm.startPrank(roleOwner1);
-        
+
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
@@ -112,19 +112,20 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 2 ether,
             isActive: true,
             description: "Custom Role",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        
+
+        // New role (no existing owner) requires contract owner
         vm.expectRevert();
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
-        
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
+
         vm.stopPrank();
     }
 
-    function test_CreateNewRole_DuplicateReverts() public {
+    function test_ConfigureRole_UpdateExistingSucceeds() public {
         vm.startPrank(owner);
-        
+
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
@@ -136,21 +137,25 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 2 ether,
             isActive: true,
             description: "Custom Role",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
-        
-        vm.expectRevert("Role already exists");
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
-        
+
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
+
+        // configureRole on existing role updates it (does not revert)
+        config.minStake = 100 ether;
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
+
+        IRegistry.RoleConfig memory stored = registry.getRoleConfig(ROLE_NEW_CUSTOM);
+        assertEq(stored.minStake, 100 ether);
+
         vm.stopPrank();
     }
 
     function test_CreateNewRole_SyncsExitFee() public {
         vm.startPrank(owner);
-        
+
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
             entryBurn: 5 ether,
@@ -162,17 +167,17 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 3 ether,
             isActive: true,
             description: "Custom Role",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
-        
+
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
+
         // Verify exit fee was synced to GTokenStaking
         (uint256 feePercent, uint256 minFee) = staking.roleExitConfigs(ROLE_NEW_CUSTOM);
         assertEq(feePercent, 1500);
         assertEq(minFee, 3 ether);
-        
+
         vm.stopPrank();
     }
 
@@ -190,19 +195,19 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 0.05 ether,
             isActive: true,
             description: "MyTask Role",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 7 days
         });
 
-        registry.createNewRole(ROLE_JURY, config, roleOwner1);
-        registry.createNewRole(ROLE_PUBLISHER, config, roleOwner1);
-        registry.createNewRole(ROLE_TASKER, config, roleOwner1);
-        registry.createNewRole(ROLE_SUPPLIER, config, roleOwner1);
+        registry.configureRole(ROLE_JURY, config);
+        registry.configureRole(ROLE_PUBLISHER, config);
+        registry.configureRole(ROLE_TASKER, config);
+        registry.configureRole(ROLE_SUPPLIER, config);
 
-        assertEq(registry.roleOwners(ROLE_JURY), roleOwner1);
-        assertEq(registry.roleOwners(ROLE_PUBLISHER), roleOwner1);
-        assertEq(registry.roleOwners(ROLE_TASKER), roleOwner1);
-        assertEq(registry.roleOwners(ROLE_SUPPLIER), roleOwner1);
+        assertEq(registry.getRoleConfig(ROLE_JURY).owner, roleOwner1);
+        assertEq(registry.getRoleConfig(ROLE_PUBLISHER).owner, roleOwner1);
+        assertEq(registry.getRoleConfig(ROLE_TASKER).owner, roleOwner1);
+        assertEq(registry.getRoleConfig(ROLE_SUPPLIER).owner, roleOwner1);
 
         IRegistry.RoleConfig memory juryConfig = registry.getRoleConfig(ROLE_JURY);
         assertEq(juryConfig.minStake, 0.3 ether);
@@ -249,7 +254,10 @@ contract RegistryV3NewFeaturesTest is Test {
 
     function test_ConfigureRole_UpdatesExitFee() public {
         vm.startPrank(owner);
-        
+
+        // Get current config to preserve owner
+        IRegistry.RoleConfig memory currentCfg = registry.getRoleConfig(ROLE_COMMUNITY);
+
         IRegistry.RoleConfig memory newConfig = IRegistry.RoleConfig({
             minStake: 20 ether,
             entryBurn: 2 ether,
@@ -261,10 +269,10 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 1.5 ether,
             isActive: true,
             description: "Updated Community",
-            owner: address(0),
+            owner: currentCfg.owner,
             roleLockDuration: 0
         });
-        
+
         registry.configureRole(ROLE_COMMUNITY, newConfig);
         
         // Verify exit fee was updated in GTokenStaking
@@ -293,10 +301,10 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 2 ether,
             isActive: true,
             description: "Custom Role",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        registry.createNewRole(ROLE_NEW_CUSTOM, config, roleOwner1);
+        registry.configureRole(ROLE_NEW_CUSTOM, config);
         vm.stopPrank();
         
         // Role owner should be able to configure
@@ -311,7 +319,7 @@ contract RegistryV3NewFeaturesTest is Test {
 
     function test_RoleOwner_CannotConfigureOthersRole() public {
         vm.startPrank(roleOwner1);
-        
+
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 20 ether,
             entryBurn: 2 ether,
@@ -323,11 +331,11 @@ contract RegistryV3NewFeaturesTest is Test {
             minExitFee: 1 ether,
             isActive: true,
             description: "Hacked",
-            owner: address(0),
+            owner: roleOwner1,
             roleLockDuration: 0
         });
-        
-        vm.expectRevert("Unauthorized");
+
+        vm.expectRevert(Registry.Unauthorized.selector);
         registry.configureRole(ROLE_COMMUNITY, config);
         
         vm.stopPrank();

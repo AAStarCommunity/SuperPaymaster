@@ -68,15 +68,18 @@ contract RegistryV3_Changes_Test is Test {
         TestCommunityRoleData memory dataStruct = TestCommunityRoleData("TestCommunity", "test.eth", "https://test.com", "Desc", "logo", 30 ether);
         bytes memory data = abi.encode(dataStruct);
         
-        registry.registerRoleSelf(ROLE_COMMUNITY, data);
-        
+        registry.registerRole(ROLE_COMMUNITY, community, data);
+
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
         assertEq(registry.communityByName("TestCommunity"), community);
         assertEq(registry.communityByENS("test.eth"), community);
         
         vm.stopPrank();
-        vm.prank(admin);
-        registry.setRoleLockDuration(ROLE_COMMUNITY, 0);
+        vm.startPrank(admin);
+        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(ROLE_COMMUNITY);
+        cfg.roleLockDuration = 0;
+        registry.configureRole(ROLE_COMMUNITY, cfg);
+        vm.stopPrank();
         vm.startPrank(community);
         registry.exitRole(ROLE_COMMUNITY);
         
@@ -132,24 +135,27 @@ contract RegistryV3_Changes_Test is Test {
 
         vm.startPrank(user1);
         gtoken.approve(address(staking), 100 ether);
-        registry.registerRoleSelf(ROLE_COMMUNITY, abi.encode(TestCommunityRoleData("U1", "u1.eth", "", "", "", 30 ether)));
+        registry.registerRole(ROLE_COMMUNITY, user1, abi.encode(TestCommunityRoleData("U1", "u1.eth", "", "", "", 30 ether)));
         vm.stopPrank();
 
         vm.startPrank(user2);
         gtoken.approve(address(staking), 100 ether);
-        registry.registerRoleSelf(ROLE_COMMUNITY, abi.encode(TestCommunityRoleData("U2", "u2.eth", "", "", "", 30 ether)));
+        registry.registerRole(ROLE_COMMUNITY, user2, abi.encode(TestCommunityRoleData("U2", "u2.eth", "", "", "", 30 ether)));
         vm.stopPrank();
 
         vm.startPrank(user3);
         gtoken.approve(address(staking), 100 ether);
-        registry.registerRoleSelf(ROLE_COMMUNITY, abi.encode(TestCommunityRoleData("U3", "u3.eth", "", "", "", 30 ether)));
+        registry.registerRole(ROLE_COMMUNITY, user3, abi.encode(TestCommunityRoleData("U3", "u3.eth", "", "", "", 30 ether)));
         vm.stopPrank();
         
         uint256 countBefore = registry.getRoleUserCount(ROLE_COMMUNITY);
         
         
-        vm.prank(admin);
-        registry.setRoleLockDuration(ROLE_COMMUNITY, 0);
+        vm.startPrank(admin);
+        IRegistry.RoleConfig memory cfg2 = registry.getRoleConfig(ROLE_COMMUNITY);
+        cfg2.roleLockDuration = 0;
+        registry.configureRole(ROLE_COMMUNITY, cfg2);
+        vm.stopPrank();
 
         vm.prank(user2);
         registry.exitRole(ROLE_COMMUNITY);

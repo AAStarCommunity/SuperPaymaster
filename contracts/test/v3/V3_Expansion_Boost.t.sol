@@ -7,6 +7,7 @@ import "src/tokens/MySBT.sol";
 import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
@@ -33,9 +34,14 @@ contract V3_Reputation_SBT_BoostTest is Test {
         registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(0));
         mysbt = new MySBT(mockGToken, mockStaking, address(registry), admin);
         registry.setMySBT(address(mysbt));
-        
+
+        // Mock staking setRoleExitFee (mockStaking is not a real contract)
+        vm.mockCall(mockStaking, abi.encodeWithSignature("setRoleExitFee(bytes32,uint256,uint256)"), "");
+
         // 4. Set Role Owner for Authorization
-        registry.setRoleOwner(keccak256("COMMUNITY"), community);
+        IRegistry.RoleConfig memory commCfg = registry.getRoleConfig(keccak256("COMMUNITY"));
+        commCfg.owner = community;
+        registry.configureRole(keccak256("COMMUNITY"), commCfg);
         
         // Setup Reputation
         repSystem = new ReputationSystem(address(registry));

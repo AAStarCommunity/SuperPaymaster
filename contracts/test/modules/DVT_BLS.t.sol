@@ -21,24 +21,17 @@ contract MockRegistryV3 is IRegistry {
     function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
     
     // Stubs
-    function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }
     function configureRole(bytes32, RoleConfig calldata) external override {}
-    function createNewRole(bytes32, RoleConfig calldata, address) external override {}
     function exitRole(bytes32) external override {}
-    function setRoleLockDuration(bytes32, uint256) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
         return RoleConfig(0,0,0,0,0,0,0,false,0,"stub",address(0),0); 
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
-    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
     function setCreditTier(uint256, uint256) external override {}
-    function setRoleOwner(bytes32, address) external override {}
-    function roleOwners(bytes32) external view override returns (address) { return address(0); }
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}

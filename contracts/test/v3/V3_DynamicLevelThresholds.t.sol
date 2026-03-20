@@ -61,48 +61,65 @@ contract V3_DynamicLevelThresholds_Test is Test {
 
     function test_SetLevelThreshold_Success() public {
         vm.prank(admin);
-        registry.setLevelThreshold(0, 20); // Change Level 2 threshold from 13 to 20
-        
+        // Replace full array: change index 0 from 13 to 20
+        uint256[] memory t = new uint256[](5);
+        t[0] = 20; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610;
+        registry.setLevelThresholds(t);
+
         assertEq(registry.levelThresholds(0), 20);
     }
 
     function test_SetLevelThreshold_MustBeAscending() public {
         vm.startPrank(admin);
-        
-        // Try to set threshold[1] lower than threshold[0]
-        vm.expectRevert("Thresholds must be ascending");
-        registry.setLevelThreshold(1, 10); // 10 < 13 (threshold[0])
-        
-        // Try to set threshold[1] higher than threshold[2]
-        vm.expectRevert("Thresholds must be ascending");
-        registry.setLevelThreshold(1, 100); // 100 > 89 (threshold[2])
-        
+
+        // Try array with threshold[1]=10, which is < threshold[0]=13
+        uint256[] memory t1 = new uint256[](5);
+        t1[0] = 13; t1[1] = 10; t1[2] = 89; t1[3] = 233; t1[4] = 610;
+        vm.expectRevert(Registry.ThreshNotAscending.selector);
+        registry.setLevelThresholds(t1);
+
+        // Try array with threshold[1]=100, which is > threshold[2]=89
+        uint256[] memory t2 = new uint256[](5);
+        t2[0] = 13; t2[1] = 100; t2[2] = 89; t2[3] = 233; t2[4] = 610;
+        vm.expectRevert(Registry.ThreshNotAscending.selector);
+        registry.setLevelThresholds(t2);
+
         vm.stopPrank();
     }
 
     function test_SetLevelThreshold_OnlyOwner() public {
         vm.prank(user1);
+        uint256[] memory t = new uint256[](5);
+        t[0] = 20; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610;
         vm.expectRevert();
-        registry.setLevelThreshold(0, 20);
+        registry.setLevelThresholds(t);
     }
 
     function test_AddLevelThreshold_Success() public {
         vm.prank(admin);
-        registry.addLevelThreshold(1597); // Add Level 7 (Fibonacci 17)
-        
+        // Add Level 7 by appending 1597 to existing thresholds
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
+        registry.setLevelThresholds(t);
+
         assertEq(registry.levelThresholds(5), 1597);
     }
 
     function test_AddLevelThreshold_MustBeHigherThanLast() public {
         vm.prank(admin);
-        vm.expectRevert("Threshold must be higher than last");
-        registry.addLevelThreshold(500); // 500 < 610 (last threshold)
+        // Try to append 500 which is < 610 (last threshold)
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 500;
+        vm.expectRevert(Registry.ThreshNotAscending.selector);
+        registry.setLevelThresholds(t);
     }
 
     function test_AddLevelThreshold_OnlyOwner() public {
         vm.prank(user1);
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
         vm.expectRevert();
-        registry.addLevelThreshold(1597);
+        registry.setLevelThresholds(t);
     }
 
     // ====================================
@@ -164,8 +181,10 @@ contract V3_DynamicLevelThresholds_Test is Test {
         assertEq(registry.getCreditLimit(user1), 100 ether); // Level 2
         
         // Change Level 2 threshold from 13 to 20
-        registry.setLevelThreshold(0, 20);
-        
+        uint256[] memory t = new uint256[](5);
+        t[0] = 20; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610;
+        registry.setLevelThresholds(t);
+
         // Now user with rep=15 should be Level 1
         assertEq(registry.getCreditLimit(user1), 0); // Level 1
         
@@ -176,7 +195,9 @@ contract V3_DynamicLevelThresholds_Test is Test {
         vm.startPrank(admin);
         
         // Add Level 7 with threshold 1597
-        registry.addLevelThreshold(1597);
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
+        registry.setLevelThresholds(t);
         registry.setCreditTier(7, 5000 ether);
         
         // User with rep=2000 should be Level 7
@@ -230,16 +251,20 @@ contract V3_DynamicLevelThresholds_Test is Test {
         assertEq(registry.getCreditLimit(user1), 300 ether); // Level 3
         
         // 2. Adjust threshold to make Level 3 harder to reach
-        registry.setLevelThreshold(1, 60); // Level 3 now requires rep >= 60
+        uint256[] memory t1 = new uint256[](5);
+        t1[0] = 13; t1[1] = 60; t1[2] = 89; t1[3] = 233; t1[4] = 610;
+        registry.setLevelThresholds(t1); // Level 3 now requires rep >= 60
         assertEq(registry.getCreditLimit(user1), 100 ether); // Downgraded to Level 2
-        
+
         // 3. User improves reputation
         scores[0] = 70;
         registry.batchUpdateGlobalReputation(2, users, scores, 201, _dummyProof());
         assertEq(registry.getCreditLimit(user1), 300 ether); // Back to Level 3
-        
+
         // 4. Add new high-tier level
-        registry.addLevelThreshold(1597); // Level 7
+        uint256[] memory t2 = new uint256[](6);
+        t2[0] = 13; t2[1] = 60; t2[2] = 89; t2[3] = 233; t2[4] = 610; t2[5] = 1597;
+        registry.setLevelThresholds(t2); // Level 7
         registry.setCreditTier(7, 10000 ether);
         
         // 5. User reaches top tier (need multiple updates to reach 2000)

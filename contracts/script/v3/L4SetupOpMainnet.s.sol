@@ -269,7 +269,7 @@ contract L4SetupOpMainnet is Script {
             if (!registry.hasRole(ROLE_ENDUSER, myAA)) {
                 // Ensure ROLE_ENDUSER is active (Deployer maintenance)
                 if (user == DEPLOYER && sender == DEPLOYER) {
-                    (address roleOwner) = registry.roleOwners(ROLE_ENDUSER);
+                    address roleOwner = registry.getRoleConfig(ROLE_ENDUSER).owner;
                     // Minimal Config if needed
                      IRegistry.RoleConfig memory euConfig = IRegistry.RoleConfig({
                         minStake: 1 wei, entryBurn: 0, slashThreshold: 0, slashBase: 0, slashInc: 0, slashMax: 0,
@@ -279,7 +279,7 @@ contract L4SetupOpMainnet is Script {
 
                      if (roleOwner == address(0)) {
                          console.log(unicode"📝 Creating ROLE_ENDUSER...");
-                         registry.createNewRole(ROLE_ENDUSER, euConfig, DEPLOYER);
+                         registry.configureRole(ROLE_ENDUSER, euConfig);
                      } else {
                          (,,,,,,,bool isActive,,,,) = registry.roleConfigs(ROLE_ENDUSER);
                          if (!isActive && roleOwner == DEPLOYER) {

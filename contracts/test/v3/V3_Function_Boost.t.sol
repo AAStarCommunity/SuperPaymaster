@@ -50,9 +50,12 @@ contract V3_Function_BoostTest is Test {
     // --- Registry Function Boost ---
 
     function test_Registry_AdminSetters() public {
-        vm.prank(owner);
-        registry.setRoleOwner(registry.ROLE_COMMUNITY(), manager);
-        assertEq(registry.roleOwners(registry.ROLE_COMMUNITY()), manager);
+        vm.startPrank(owner);
+        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(registry.ROLE_COMMUNITY());
+        cfg.owner = manager;
+        registry.configureRole(registry.ROLE_COMMUNITY(), cfg);
+        vm.stopPrank();
+        assertEq(registry.getRoleConfig(registry.ROLE_COMMUNITY()).owner, manager);
 
         // setRegistry (on Staking side via Registry call if exists or direct)
         // Note: Registry doesn't have setStakingRegistry usually, handled in setup
@@ -84,24 +87,27 @@ contract V3_Function_BoostTest is Test {
         
         vm.startPrank(manager);
         gToken.approve(address(staking), 100 ether);
-        registry.registerRoleSelf(commRole, commData);
+        registry.registerRole(commRole, manager, commData);
         vm.stopPrank();
 
         // 2. Setup EndUser
         bytes memory data = abi.encode(Registry.EndUserRoleData(user, manager, "avatar", "user.eth", 0.3 ether));
         gToken.mint(user, 10 ether);
-        
+
         vm.startPrank(user);
         gToken.approve(address(staking), 10 ether);
-        registry.registerRoleSelf(endRole, data);
+        registry.registerRole(endRole, user, data);
         
         // 3. Verify
         assertEq(registry.getRoleUserCount(endRole), 1);
         
         // Exit
         vm.stopPrank(); // Stop user prank
-        vm.prank(owner);
-        registry.setRoleLockDuration(endRole, 0);
+        vm.startPrank(owner);
+        IRegistry.RoleConfig memory endCfg = registry.getRoleConfig(endRole);
+        endCfg.roleLockDuration = 0;
+        registry.configureRole(endRole, endCfg);
+        vm.stopPrank();
         vm.startPrank(user); // Restart user prank
         registry.exitRole(endRole);
         vm.stopPrank();
@@ -165,8 +171,8 @@ contract V3_Function_BoostTest is Test {
         
         vm.startPrank(manager);
         gToken.approve(address(staking), 100 ether);
-        registry.registerRoleSelf(commRole, data);
-        
+        registry.registerRole(commRole, manager, data);
+
         // 1.5 Register as SuperPaymaster
         bytes memory opData = abi.encode(Registry.PaymasterRoleData({
             paymasterContract: address(0x123),
