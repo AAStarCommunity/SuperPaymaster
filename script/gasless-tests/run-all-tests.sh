@@ -8,24 +8,31 @@
 # 2. SuperPaymasterV2 + xPNTs1
 # 3. SuperPaymasterV2 + xPNTs2
 #
-# Configuration is read from /Volumes/UltraDisk/Dev2/aastar/env/.env
+# Configuration is read from .env.sepolia in the project root
 ###############################################################################
 
 set -e  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║       Running All Gasless Transfer Test Cases            ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Check if env file exists
-ENV_FILE="/Volumes/UltraDisk/Dev2/aastar/env/.env"
+# Check if env file exists (allow override via ENV_FILE variable)
+ENV_FILE="${ENV_FILE:-$PROJECT_ROOT/.env.sepolia}"
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ Error: Configuration file not found at $ENV_FILE"
+    echo "   Set ENV_FILE to override, e.g.: ENV_FILE=.env.sepolia ./run-all-tests.sh"
     exit 1
 fi
+
+# Export all variables from the env file for child node processes
+set -a
+source "$ENV_FILE"
+set +a
 
 echo "✅ Configuration file found: $ENV_FILE"
 echo ""

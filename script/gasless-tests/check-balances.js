@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { ethers } = require('ethers');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../env/.env') });
+require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const ERC20_ABI = ["function balanceOf(address) view returns (uint256)", "function symbol() view returns (string)", "function decimals() view returns (uint8)", "function totalSupply() view returns (uint256)"];
 

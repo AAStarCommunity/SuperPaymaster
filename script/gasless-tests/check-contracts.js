@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { ethers } = require('ethers');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../env/.env') });
+require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 async function main() {
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
