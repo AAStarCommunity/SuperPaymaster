@@ -134,6 +134,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
     event BLSValidatorUpdated(address indexed oldVal, address indexed newVal);
+    event ExitFeeSyncFailed(bytes32 indexed roleId);
 
     function _initRole(
         bytes32 roleId, 
@@ -166,7 +167,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         for (uint256 i = 0; i < roles.length; i++) {
             RoleConfig memory cfg = roleConfigs[roles[i]];
             if (cfg.isActive) {
-                try GTOKEN_STAKING.setRoleExitFee(roles[i], cfg.exitFeePercent, cfg.minExitFee) {} catch {}
+                try GTOKEN_STAKING.setRoleExitFee(roles[i], cfg.exitFeePercent, cfg.minExitFee) {} catch {
+                    emit ExitFeeSyncFailed(roles[i]);
+                }
             }
         }
     }
