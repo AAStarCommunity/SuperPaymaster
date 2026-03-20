@@ -937,6 +937,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit PendingDebtRetried(token, user, amount);
     }
 
+    /// @notice Admin function to clear stuck pending debt (escape hatch)
+    /// @dev Use when accumulated debt exceeds MAX_SINGLE_TX_LIMIT or token is unreachable
+    /// @param token The xPNTs token address
+    /// @param user The user address
+    function clearPendingDebt(address token, address user) external onlyOwner {
+        uint256 amount = pendingDebts[token][user];
+        require(amount > 0, "No pending debt");
+        delete pendingDebts[token][user];
+        emit PendingDebtRetried(token, user, amount);
+    }
+
     // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
