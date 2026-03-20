@@ -29,22 +29,10 @@ contract V3_Reputation_SBT_BoostTest is Test {
         address mockGToken = address(0x888);
         address mockStaking = address(0x999);
         
-        // Circular dependency handling:
-        // 1. Deploy Registry with a dummy SBT address
-        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(0x777));
-        
-        // 2. Deploy MySBT with the real registry
+        // Scheme B: Deploy Registry proxy first, then MySBT with immutable Registry
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(0));
         mysbt = new MySBT(mockGToken, mockStaking, address(registry), admin);
-        
-        // 3. Update Registry's SBT (MYSBT is immutable in Registry, so I must RE-DEPLOY Registry or use a mock)
-        // Wait, if Registry.MYSBT is immutable, I MUST deploy MySBT first.
-        // But MySBT constructor needs REGISTRY. 
-        // MySBT has setRegistry(), so I can deploy MySBT with address(0) or dummy, then Registry, then setRegistry.
-        
-        // Let's do:
-        mysbt = new MySBT(mockGToken, mockStaking, address(0), admin);
-        registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, address(mysbt));
-        mysbt.setRegistry(address(registry));
+        registry.setMySBT(address(mysbt));
         
         // 4. Set Role Owner for Authorization
         registry.setRoleOwner(keccak256("COMMUNITY"), community);

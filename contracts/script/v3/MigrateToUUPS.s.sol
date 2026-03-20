@@ -204,7 +204,12 @@ contract MigrateToUUPS is Script {
         // Cross-link monitoring modules
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
-        console.log("  Aggregator <-> DVT linked");
+        superPaymaster.setBLSAggregator(address(aggregator));
+        console.log("  Aggregator <-> DVT <-> SP linked");
+
+        // Authorize BLSAggregator as slasher for two-tier slash
+        GTokenStaking(STAKING).setAuthorizedSlasher(address(aggregator), true);
+        console.log("  staking.setAuthorizedSlasher(aggregator) -> done");
 
         // PaymasterFactory: register V4 impl
         pmFactory.addImplementation("v4.3", address(pmV4Impl));

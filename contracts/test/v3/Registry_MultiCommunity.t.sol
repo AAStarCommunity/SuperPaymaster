@@ -34,19 +34,17 @@ contract RegistryMultiCommunityTest is Test {
         // Deploy GToken
         gtoken = new GToken(1_000_000 ether);
         gtoken.mint(deployer, 1_000_000 ether);
-        
-        // Deploy Staking
-        staking = new GTokenStaking(address(gtoken), deployer);
-        
-        // Deploy MySBT (placeholder)
-        mysbt = new MySBT(address(gtoken), address(staking), address(0), deployer);
-        
-        // Deploy Registry
-        registry = UUPSDeployHelper.deployRegistryProxy(deployer, address(staking), address(mysbt));
-        
-        // Wire up contracts
-        staking.setRegistry(address(registry));
-        mysbt.setRegistry(address(registry));
+
+        // Scheme B: Deploy Registry proxy first with placeholders
+        registry = UUPSDeployHelper.deployRegistryProxy(deployer, address(0), address(0));
+
+        // Deploy Staking and MySBT with immutable Registry
+        staking = new GTokenStaking(address(gtoken), deployer, address(registry));
+        mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+
+        // Wire into Registry
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(mysbt));
         
         // Fund user with GToken
         gtoken.transfer(user, 100 ether);

@@ -46,23 +46,18 @@ contract RegistryV3NewFeaturesTest is Test {
         vm.startPrank(owner);
 
         gtoken = new MockGToken();
-        staking = new GTokenStaking(address(gtoken), treasury);
-        
-        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(0x1));
-        staking.setRegistry(address(registry));
 
+        // Scheme B: Deploy Registry proxy first with placeholders
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
+
+        // Deploy Staking and MySBT with immutable Registry
+        staking = new GTokenStaking(address(gtoken), treasury, address(registry));
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
 
-        Registry newRegistry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
-        registry = newRegistry;
-        staking.setRegistry(address(registry));
-        
-        vm.stopPrank();
-        vm.startPrank(dao);
-        sbt.setRegistry(address(registry));
-        vm.stopPrank();
-        
-        vm.startPrank(owner);
+        // Wire into Registry
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(sbt));
+
         gtoken.mint(roleOwner1, 1000 ether);
         gtoken.mint(roleOwner2, 1000 ether);
         vm.stopPrank();

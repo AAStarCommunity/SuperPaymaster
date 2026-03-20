@@ -28,11 +28,10 @@ contract V3_Function_BoostTest is Test {
 
     function setUp() public {
         gToken = new GToken(1000 ether);
-        staking = new GTokenStaking(address(gToken), treasury);
         mockSBT = new MockSBT();
-        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(mockSBT));
-        
-        staking.setRegistry(address(registry));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(mockSBT));
+        staking = new GTokenStaking(address(gToken), treasury, address(registry));
+        registry.setStaking(address(staking));
         
         vm.startPrank(owner);
         staking.setRoleExitFee(registry.ROLE_KMS(), 1000, 5 ether);

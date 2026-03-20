@@ -62,7 +62,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-4.0.0";
+        return "SuperPaymaster-4.1.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -91,6 +91,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // State Variables (Restored)
     uint256 public totalTrackedBalance;
     uint256 public protocolRevenue;
+
+    // V4.1: Pending debt fallback for postOp resilience
+    // token => user => accumulated pending debt (xPNTs)
+    mapping(address => mapping(address => uint256)) public pendingDebts;
 
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
@@ -129,6 +133,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     event OracleFallbackTriggered(uint256 timestamp);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
+    event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
+    event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
 
     error Unauthorized();
     error InvalidAddress();
@@ -882,8 +888,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             uint256 exchangeRate = operators[operator].exchangeRate;
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
             
-            IxPNTsToken(token).recordDebt(user, finalXPNTsDebt);
-            
+            try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                pendingDebts[token][user] += finalXPNTsDebt;
+                emit DebtRecordFailed(token, user, finalXPNTsDebt);
+            }
+
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
              // Should rarely happen (Actual > Max), just cap at Max
@@ -892,8 +901,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // Here finalCharge = initialAPNTs (since we capped it implicitly by not refunding)
              // But let's be explicit:
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
-             
-             IxPNTsToken(token).recordDebt(user, finalXPNTsDebt);
+
+             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                 pendingDebts[token][user] += finalXPNTsDebt;
+                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
+             }
         }
 
     }
@@ -911,8 +923,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     // ====================================
+    // Pending Debt Recovery
+    // ====================================
+
+    /// @notice Retry recording a pending debt that failed during postOp
+    /// @param token The xPNTs token address
+    /// @param user The user address
+    function retryPendingDebt(address token, address user) external nonReentrant {
+        uint256 amount = pendingDebts[token][user];
+        require(amount > 0, "No pending debt");
+        delete pendingDebts[token][user];
+        IxPNTsToken(token).recordDebt(user, amount);
+        emit PendingDebtRetried(token, user, amount);
+    }
+
+    // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }

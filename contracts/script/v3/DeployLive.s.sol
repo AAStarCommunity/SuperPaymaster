@@ -32,7 +32,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 
 /**
  * @title DeployLive
- * @notice Phase 1: Core Infrastructure Deployment (Steps 1-38)
+ * @notice Full Infrastructure Deployment (Steps 1-5 AAStar + Step 6 Mycelium Community)
  */
 contract DeployLive is Script {
     using Clones for address;
@@ -56,6 +56,7 @@ contract DeployLive is Script {
     xPNTsFactory xpntsFactory;
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
+    address pntsAddr; // Mycelium Community PNTs
 
     function setUp() public {
         // System / External Infrastructure (Remains in ENV)
@@ -79,19 +80,22 @@ contract DeployLive is Script {
         
         console.log("Deployer:", deployer);
 
-        console.log("=== Step 1: Deploy Foundation (UUPS Proxy) ===");
+        console.log("=== Step 1: Deploy Foundation (Scheme B - UUPS Proxy) ===");
         gtoken = new GToken(21_000_000 * 1e18);
-        staking = new GTokenStaking(address(gtoken), deployer);
 
-        // Deploy Registry as UUPS proxy
+        // Deploy Registry as UUPS proxy first (placeholder initialize)
         Registry regImpl = new Registry();
-        uint256 nonce = vm.getNonce(deployer);
-        // Next deploys: MySBT (nonce), ERC1967Proxy (nonce+1)
-        address precomputedProxy = vm.computeCreateAddress(deployer, nonce + 1);
-        mysbt = new MySBT(address(gtoken), address(staking), precomputedProxy, deployer);
-        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(staking), address(mysbt)));
+        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
+
+        // Deploy Staking and MySBT with immutable Registry reference
+        staking = new GTokenStaking(address(gtoken), deployer, address(registry));
+        mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+
+        // Wire staking and MySBT into Registry (setStaking triggers _syncExitFees)
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(mysbt));
 
         console.log("=== Step 2: Deploy Core (UUPS Proxy) ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry));
@@ -112,16 +116,17 @@ contract DeployLive is Script {
         console.log("=== Step 4: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 5: Role Orchestration (Jason Final) ===");
+        console.log("=== Step 5: Role Orchestration (Jason / AAStar) ===");
         _orchestrateRolesJason();
+
+        console.log("=== Step 6: Mycelium Community (Anni) ===");
+        _setupMyceliumCommunity();
 
         vm.stopBroadcast();
         _generateConfig();
     }
 
     function _executeWiring() internal {
-        staking.setRegistry(address(registry));
-        mysbt.setRegistry(address(registry));
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
@@ -199,6 +204,61 @@ contract DeployLive is Script {
         apnts.mint(deployer, 20_000 ether);
     }
 
+    function _setupMyceliumCommunity() internal {
+        uint256 anniPK = vm.envUint("PRIVATE_KEY_ANNI");
+        address anni = vm.addr(anniPK);
+        console.log("  Anni (Mycelium Admin):", anni);
+
+        // --- Deployer prepares Anni (safeMintForRole = deployer pays stake) ---
+        gtoken.approve(address(staking), 100 ether);
+
+        // 6a. Register Mycelium as COMMUNITY (deployer pays 30 stake + 3 burn)
+        Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
+            name: "Mycelium Community",
+            ensName: "mushroom.box",
+            website: "https://mushroom.box",
+            description: "Mycelium, Explorer Your World!",
+            logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
+            stakeAmount: 30 ether
+        });
+        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(mycData));
+        console.log("  Mycelium Community Registered");
+
+        // 6b. Register as PAYMASTER_SUPER (deployer pays 50 stake + 5 burn)
+        registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+        console.log("  Mycelium PAYMASTER_SUPER Registered");
+
+        // 6c. Fund Anni with aPNTs for SuperPaymaster deposit
+        apnts.transfer(anni, 1000 ether);
+
+        // --- Switch to Anni broadcast for operator-specific calls ---
+        vm.stopBroadcast();
+        vm.startBroadcast(anniPK);
+
+        // 6d. Deploy PNTs (Mycelium community token — special token name)
+        pntsAddr = xpntsFactory.deployxPNTsToken(
+            "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
+        );
+        console.log("  PNTs Deployed at:", pntsAddr);
+
+        // 6e. Configure Anni as SuperPaymaster operator
+        superPaymaster.configureOperator(pntsAddr, anni, 1e18);
+        console.log("  Operator Configured (PNTs -> SuperPaymaster)");
+
+        // 6f. Deposit aPNTs into SuperPaymaster (gasless sponsorship fund)
+        apnts.approve(address(superPaymaster), 1000 ether);
+        superPaymaster.deposit(1000 ether);
+        console.log("  1000 aPNTs Deposited to SuperPaymaster");
+
+        // 6g. Mint PNTs for test users
+        xPNTsToken(pntsAddr).mint(anni, 500 ether);
+        console.log("  500 PNTs Minted to Anni");
+
+        // --- Switch back to deployer ---
+        vm.stopBroadcast();
+        vm.startBroadcast();
+    }
+
     function _generateConfig() internal {
         string memory network = vm.envString("ENV");
         string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
@@ -217,6 +277,7 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
+        vm.serializeAddress(jsonObj, "pnts", pntsAddr);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);

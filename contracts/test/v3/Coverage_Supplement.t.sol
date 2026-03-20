@@ -106,9 +106,9 @@ contract CoverageSupplementTest is Test {
         oracle = new MockOracle(2000e8); // $2000 ETH
         xpnts = new MockXPNTs();
         
-        staking = new GTokenStaking(address(gtoken), treasury);
-        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
-        staking.setRegistry(address(registry));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(sbt));
+        staking = new GTokenStaking(address(gtoken), treasury, address(registry));
+        registry.setStaking(address(staking));
         
         // Config Roles for basic testing
         IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Comm", address(0), 0);

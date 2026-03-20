@@ -27,7 +27,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-4.0.0";
+        return "Registry-4.1.0";
     }
 
     // --- Constants ---
@@ -161,10 +161,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
 
+    function _syncExitFees() internal {
+        bytes32[7] memory roles = [ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER, ROLE_DVT, ROLE_ANODE, ROLE_KMS, ROLE_COMMUNITY, ROLE_ENDUSER];
+        for (uint256 i = 0; i < roles.length; i++) {
+            RoleConfig memory cfg = roleConfigs[roles[i]];
+            if (cfg.isActive) {
+                try GTOKEN_STAKING.setRoleExitFee(roles[i], cfg.exitFeePercent, cfg.minExitFee) {} catch {}
+            }
+        }
+    }
+
     function setStaking(address _staking) external onlyOwner {
         address old = address(GTOKEN_STAKING);
         GTOKEN_STAKING = IGTokenStaking(_staking);
         emit StakingContractUpdated(old, _staking);
+        // Auto-sync exit fees for all roles when staking contract changes
+        _syncExitFees();
     }
 
     function setMySBT(address _mysbt) external onlyOwner {

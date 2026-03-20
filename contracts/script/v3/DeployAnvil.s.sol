@@ -74,33 +74,26 @@ contract DeployAnvil is Script {
         priceFeedAddr = address(new MockPriceFeed());
         entryPointAddr = address(new EntryPoint());
 
-        console.log("=== Step 1: Deploy Foundation ===");
+        console.log("=== Step 1: Deploy Foundation (Scheme B) ===");
         gtoken = new GToken(21_000_000 * 1e18);
-        staking = new GTokenStaking(address(gtoken), deployer);
 
-        // Deploy Registry as UUPS proxy
+        // Deploy Registry as UUPS proxy first (placeholder initialize)
         Registry regImpl = new Registry();
-        // Pre-compute Registry proxy address for MySBT constructor
-        uint256 nonce = vm.getNonce(deployer);
-        address precomputedRegistryProxy = vm.computeCreateAddress(deployer, nonce + 1); // MySBT is next
-        // Actually MySBT needs registry address, and registry proxy is deployed after MySBT
-        // So we need to compute the proxy address (which is nonce+2: MySBT=nonce, regProxy=nonce+1... no)
-        // Let's reorder: deploy proxy first with a temp MySBT, then deploy MySBT, then update
-        // OR: pre-compute proxy address
-        // nonce is current. Next deploys: MySBT (nonce), ERC1967Proxy (nonce+1)
-        address precomputedProxy = vm.computeCreateAddress(deployer, nonce + 1);
-        mysbt = new MySBT(address(gtoken), address(staking), precomputedProxy, deployer);
-        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(staking), address(mysbt)));
+        bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
 
+        // Deploy Staking and MySBT with immutable Registry reference
+        staking = new GTokenStaking(address(gtoken), deployer, address(registry));
+        mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+
+        // Wire staking and MySBT into Registry (setStaking triggers _syncExitFees)
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(mysbt));
+
         console.log("=== Step 2: Deploy Foundation Modules ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet
-        
-        // CRITICAL: Must wire registry BEFORE registering roles!
-        staking.setRegistry(address(registry));
-        mysbt.setRegistry(address(registry));
-        
+
         console.log("=== Step 3: Pre-register Deployer as COMMUNITY ===");
         // CRITICAL: Must register COMMUNITY role BEFORE deploying xPNTs via factory
         gtoken.mint(deployer, 2000 ether);
@@ -205,8 +198,6 @@ contract DeployAnvil is Script {
     }
 
     function _executeWiring() internal {
-        staking.setRegistry(address(registry));
-        mysbt.setRegistry(address(registry));
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));

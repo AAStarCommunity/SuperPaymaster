@@ -28,22 +28,19 @@ contract DVTSlashTest is Test {
 
     function setUp() public {
         vm.startPrank(owner);
-        
+
         gtoken = new GToken(1000000 ether);
-        staking = new GTokenStaking(address(gtoken), treasury);
-        
-        // 1. Deploy MySBT with placeholder registry
-        sbt = new MySBT(address(gtoken), address(staking), address(0), dao);
-        
-        // 2. Deploy Registry with real MySBT
-        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(sbt));
-        
-        // 3. Finalize linkage
-        staking.setRegistry(address(registry));
-        vm.stopPrank();
-        vm.prank(dao);
-        sbt.setRegistry(address(registry));
-        vm.startPrank(owner);
+
+        // Scheme B: Deploy Registry proxy first with placeholders
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
+
+        // Deploy Staking and MySBT with immutable Registry
+        staking = new GTokenStaking(address(gtoken), treasury, address(registry));
+        sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
+
+        // Wire into Registry
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(sbt));
         
         // Define new variables for the SuperPaymaster constructor
         address entryPoint = address(0x123); // Dummy non-zero address

@@ -386,21 +386,6 @@ contract MySBT_Simplified_Test is Test {
         mysbt.setReputationCalculator(address(0x999));
     }
 
-    function test_SetRegistry() public {
-        address newRegistry = address(0x888);
-        
-        vm.prank(admin);
-        mysbt.setRegistry(newRegistry);
-        
-        assertEq(mysbt.REGISTRY(), newRegistry);
-    }
-
-    function test_SetRegistry_OnlyDAO() public {
-        vm.prank(user1);
-        vm.expectRevert("Only DAO");
-        mysbt.setRegistry(address(0x888));
-    }
-
     function test_SetDAOMultisig() public {
         address newDAO = address(0x777);
         
@@ -462,7 +447,7 @@ contract MySBT_Simplified_Test is Test {
     // ====================================
 
     function test_Version() public {
-        assertEq(mysbt.version(), "MySBT-3.1.2");
+        assertEq(mysbt.version(), "MySBT-3.1.3");
     }
 
 
