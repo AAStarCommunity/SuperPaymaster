@@ -216,16 +216,21 @@ contract SuperPaymasterHardenVerification is Test {
         
         // Simulate EntryPoint calling postOp
         bytes memory context = abi.encode(
-            address(mal), 
-            1 ether, 
-            address(0xabc), 
-            1 ether, 
-            bytes32(0), 
+            address(mal),
+            1 ether,
+            address(0xabc),
+            1 ether,
+            bytes32(0),
             community
         );
-        
+
+        // With try/catch, postOp no longer reverts on malicious recordDebt.
+        // Reentrancy is still blocked (withdraw fails), debt goes to pendingDebts.
         vm.prank(ep);
-        vm.expectRevert(abi.encodeWithSignature("ReentrancyGuardReentrantCall()"));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.01 ether, 0);
+
+        // Verify: reentrancy was blocked, debt stored in pendingDebts instead
+        uint256 pending = paymaster.pendingDebts(address(mal), address(0xabc));
+        assertGt(pending, 0, "Pending debt should be recorded");
     }
 }

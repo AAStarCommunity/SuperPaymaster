@@ -21,6 +21,7 @@ contract GTokenBurnMechanismTest is Test {
     address public treasury = address(0x2);
     address public user1 = address(0x3);
     address public user2 = address(0x4);
+    address public mockRegistry = address(0x999);
     
     uint256 public constant CAP = 21_000_000 ether;
     uint256 public constant INITIAL_MINT = 10_000_000 ether;
@@ -35,7 +36,7 @@ contract GTokenBurnMechanismTest is Test {
         gToken = new GToken(CAP);
         
         // Deploy Staking
-        staking = new GTokenStaking(address(gToken), treasury);
+        staking = new GTokenStaking(address(gToken), treasury, mockRegistry);
         
         // Initial mint
         gToken.mint(admin, INITIAL_MINT);
@@ -158,12 +159,6 @@ contract GTokenBurnMechanismTest is Test {
     // ====================================
     
     function testStakingBurnReducesTotalSupply() public {
-        // Setup: Create mock registry
-        address mockRegistry = address(0x999);
-        
-        vm.prank(admin);
-        staking.setRegistry(mockRegistry);
-        
         // Fund user1
         vm.prank(admin);
         gToken.transfer(user1, 1000 ether);
@@ -186,11 +181,6 @@ contract GTokenBurnMechanismTest is Test {
     }
     
     function testStakingBurnCreatesRemintCapacity() public {
-        address mockRegistry = address(0x999);
-        
-        vm.prank(admin);
-        staking.setRegistry(mockRegistry);
-        
         vm.prank(admin);
         gToken.transfer(user1, 1000 ether);
         

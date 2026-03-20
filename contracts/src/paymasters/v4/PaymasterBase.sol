@@ -463,6 +463,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     function updatePrice() external {
         (, int256 price,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
+        if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
+        if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }
@@ -497,6 +499,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         } catch {
             // default 18
         }
+        require(decimals <= 24, "Token decimals too large");
         tokenDecimals[token] = decimals;
         tokenPrices[token] = price;
         emit TokenPriceUpdated(token, price);
@@ -585,6 +588,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         serviceFeeRate = _serviceFeeRate;
     }
     function setMaxGasCostCap(uint256 _maxGasCostCap) external onlyOwner {
+        require(_maxGasCostCap > 0, "Gas cost cap must be > 0");
         emit MaxGasCostCapUpdated(maxGasCostCap, _maxGasCostCap);
         maxGasCostCap = _maxGasCostCap;
     }

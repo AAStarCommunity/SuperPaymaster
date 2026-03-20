@@ -62,14 +62,13 @@ contract BlacklistSyncTest is Test {
         vm.warp(block.timestamp + 1 days);
         vm.startPrank(owner);
 
-        // 1. Deploy Core Dependencies
+        // 1. Deploy Core Dependencies (Scheme B)
         gtoken = new GToken(1_000_000_000 ether);
-        staking = new GTokenStaking(address(gtoken), owner);
-        mysbt = new MySBT(address(gtoken), address(staking), address(0), owner);
-        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(staking), address(mysbt));
-        
-        staking.setRegistry(address(registry));
-        mysbt.setRegistry(address(registry));
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
+        staking = new GTokenStaking(address(gtoken), owner, address(registry));
+        mysbt = new MySBT(address(gtoken), address(staking), address(registry), owner);
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(mysbt));
 
         // 2. Deploy Paymaster Dependencies
         entryPoint = new MockEntryPoint();

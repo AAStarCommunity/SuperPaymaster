@@ -44,50 +44,21 @@ contract RegistryTest is Test {
         // 1. Deploy Tokens
         gtoken = new MockGToken();
 
-        // 2. Deploy Staking
-        staking = new GTokenStaking(address(gtoken), treasury);
+        // 2. Deploy Registry proxy first (Scheme B: placeholder initialize)
+        registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
 
-        // 3. Deploy Registry先 (with temporary MySBT placeholder)
-        // We'll create a temporary MySBT address then update Registry later
-        address tempMySBT = address(0x1); // Temporary non-zero placeholder
-        registry = UUPSDeployHelper.deployRegistryProxy(
-            owner,
-            address(staking),
-            tempMySBT
-        );
-
-        // 4. Deploy MySBT (now we can pass Registry address)
+        // 3. Deploy Staking and MySBT with immutable Registry reference
+        staking = new GTokenStaking(address(gtoken), treasury, address(registry));
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
 
-        // 5. Update Registry with real MySBT address
-        // Registry needs to be updated to use the real MySBT
-        // Since Registry doesn't have a setMySBT function, we need to deploy Registry again
-        vm.stopPrank();
-        vm.startPrank(owner);
-        
-        // Re-deploy Registry with correct MySBT
-        registry = UUPSDeployHelper.deployRegistryProxy(
-            owner,
-            address(staking),
-            address(sbt)
-        );
+        // 4. Wire staking and MySBT into Registry
+        registry.setStaking(address(staking));
+        registry.setMySBT(address(sbt));
 
-        // 6. Configuration Wiring
-        
-        // Update MySBT registry to point to final Registry
-        vm.stopPrank();
-        vm.startPrank(dao);
-        sbt.setRegistry(address(registry));
-        vm.stopPrank();
-
-        // Update Staking Registry
-        vm.startPrank(owner);
-        staking.setRegistry(address(registry));
-        
         // Setup initial balances
         gtoken.mint(user, 1000 ether);
         gtoken.mint(communityUser, 1000 ether);
-        
+
         vm.stopPrank();
     }
 

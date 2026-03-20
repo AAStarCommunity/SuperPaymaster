@@ -27,7 +27,7 @@ contract GTokenStakingSlashBasicTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         gtoken = new MockGToken();
-        staking = new GTokenStaking(address(gtoken), treasury);
+        staking = new GTokenStaking(address(gtoken), treasury, address(0x999));
         vm.stopPrank();
     }
 

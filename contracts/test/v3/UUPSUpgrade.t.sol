@@ -5,8 +5,11 @@ import "forge-std/Test.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "src/core/Registry.sol";
+import "src/core/GTokenStaking.sol";
+import "src/tokens/MySBT.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // Mock EntryPoint for testing
@@ -42,7 +45,7 @@ contract SuperPaymasterV2 is SuperPaymaster {
     ) SuperPaymaster(_entryPoint, _registry, _ethUsdPriceFeed) {}
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymaster-4.1.0-test";
+        return "SuperPaymaster-4.2.0-test";
     }
 }
 
@@ -113,7 +116,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-4.0.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-4.1.0"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -182,7 +185,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_SuperPaymaster_InitialState() public view {
         assertEq(paymaster.owner(), owner);
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.0.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.1.0"));
         assertEq(paymaster.APNTS_TOKEN(), mockAPNTs);
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.priceStalenessThreshold(), 3600);
@@ -207,7 +210,7 @@ contract UUPSUpgradeTest is Test {
         paymaster.upgradeToAndCall(address(newImpl), "");
 
         // Version updated
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.1.0-test"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.2.0-test"));
         // State preserved
         assertEq(paymaster.owner(), owner);
         assertEq(paymaster.APNTS_TOKEN(), address(0x77));
@@ -315,7 +318,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-4.0.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-4.1.0"));
 
         vm.stopPrank();
     }
@@ -329,7 +332,7 @@ contract UUPSUpgradeTest is Test {
         paymaster.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.0.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.1.0"));
 
         vm.stopPrank();
     }
@@ -459,5 +462,78 @@ contract UUPSUpgradeTest is Test {
         assertEq(registry.levelThresholds(5), 1000);
 
         vm.stopPrank();
+    }
+
+    // ====================================
+    // Immutable REGISTRY Tests
+    // ====================================
+
+    /// @notice GTokenStaking.REGISTRY is immutable and set at construction
+    function test_StakingRegistryIsImmutable() public {
+        vm.startPrank(owner);
+
+        // Deploy a real GTokenStaking with registry address
+        MockGTokenUUPS gtoken = new MockGTokenUUPS();
+        GTokenStaking staking = new GTokenStaking(address(gtoken), owner, address(registry));
+
+        // Verify REGISTRY is set correctly
+        assertEq(staking.REGISTRY(), address(registry));
+
+        // No setRegistry function exists — immutable by design
+        vm.stopPrank();
+    }
+
+    /// @notice MySBT.REGISTRY is immutable and set at construction
+    function test_MySBTRegistryIsImmutable() public {
+        vm.startPrank(owner);
+
+        MockGTokenUUPS gtoken = new MockGTokenUUPS();
+        GTokenStaking staking = new GTokenStaking(address(gtoken), owner, address(registry));
+        MySBT sbt = new MySBT(address(gtoken), address(staking), address(registry), owner);
+
+        // Verify REGISTRY is set correctly
+        assertEq(sbt.REGISTRY(), address(registry));
+
+        // No setRegistry function exists — immutable by design
+        vm.stopPrank();
+    }
+
+    /// @notice Registry.setStaking() triggers _syncExitFees for all active roles
+    function test_RegistrySetStakingSyncsExitFees() public {
+        vm.startPrank(owner);
+
+        MockGTokenUUPS gtoken = new MockGTokenUUPS();
+
+        // Deploy Registry with placeholder staking
+        Registry reg = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
+
+        // Deploy real staking
+        GTokenStaking staking = new GTokenStaking(address(gtoken), owner, address(reg));
+
+        // setStaking triggers _syncExitFees
+        reg.setStaking(address(staking));
+
+        // Verify exit fees were synced for ROLE_COMMUNITY (exitFeePercent=500, minExitFee=1 ether)
+        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+        (uint256 feePercent, uint256 minFee) = staking.roleExitConfigs(ROLE_COMMUNITY);
+        assertEq(feePercent, 500, "Exit fee percent should be synced");
+        assertEq(minFee, 1 ether, "Min exit fee should be synced");
+
+        // Verify exit fees were synced for ROLE_ENDUSER (exitFeePercent=1000, minExitFee=0.05 ether)
+        bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
+        (uint256 feePercentUser, uint256 minFeeUser) = staking.roleExitConfigs(ROLE_ENDUSER);
+        assertEq(feePercentUser, 1000, "Enduser exit fee percent should be synced");
+        assertEq(minFeeUser, 0.05 ether, "Enduser min exit fee should be synced");
+
+        vm.stopPrank();
+    }
+}
+
+contract MockGTokenUUPS is ERC20 {
+    constructor() ERC20("MockGToken", "mGT") {
+        _mint(msg.sender, 1000000 ether);
+    }
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
     }
 }

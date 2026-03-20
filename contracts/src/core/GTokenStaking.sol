@@ -25,7 +25,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ...
 
     function version() external pure override returns (string memory) {
-        return "Staking-3.1.2";
+        return "Staking-3.2.0";
     }
 
     // ====================================
@@ -33,7 +33,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ====================================
 
     IERC20 public immutable GTOKEN;
-    address public REGISTRY;
+    address public immutable REGISTRY;
     address public treasury;
 
     // User stake info (total per user)
@@ -68,15 +68,12 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         _;
     }
 
-    constructor(address _gtoken, address _treasury) Ownable(msg.sender) {
+    constructor(address _gtoken, address _treasury, address _registry) Ownable(msg.sender) {
         if (_gtoken == address(0)) revert("Invalid GToken");
         if (_treasury == address(0)) revert("Invalid Treasury");
+        if (_registry == address(0)) revert("Invalid Registry");
         GTOKEN = IERC20(_gtoken);
         treasury = _treasury;
-    }
-
-    function setRegistry(address _registry) external onlyOwner {
-        if (_registry == address(0)) revert("Invalid Registry");
         REGISTRY = _registry;
     }
 

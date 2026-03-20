@@ -14,10 +14,6 @@ import "../interfaces/v3/IRegistry.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 
-interface IRegistryLegacy {
-    function isRegisteredCommunity(address community) external view returns (bool);
-}
-
 /**
  * @title MySBT v3.0.0
  * @notice Integration with Registry v3.0.0 Role-Based System
@@ -103,7 +99,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     event ContractPaused(address indexed by, uint256 timestamp);
     event ContractUnpaused(address indexed by, uint256 timestamp);
-    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry, uint256 timestamp);
     event MinLockAmountUpdated(uint256 oldAmount, uint256 newAmount, uint256 timestamp);
     event MintFeeUpdated(uint256 oldFee, uint256 newFee, uint256 timestamp);
     event DAOMultisigUpdated(address indexed oldDAO, address indexed newDAO, uint256 timestamp);
@@ -126,7 +121,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     address public immutable GTOKEN_STAKING;
     
 
-    address public REGISTRY;
+    address public immutable REGISTRY;
     address public daoMultisig;
     address public reputationCalculator;
     string private _baseTokenURI;
@@ -162,7 +157,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         address _r,
         address _d
     ) ERC721("Mycelium Soul Bound Token", "MySBT") {
-        require(_g != address(0) && _s != address(0) && _d != address(0));
+        require(_g != address(0) && _s != address(0) && _r != address(0) && _d != address(0));
         GTOKEN = _g;
         GTOKEN_STAKING = _s;
         REGISTRY = _r;
@@ -174,7 +169,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
 
     function version() external pure override returns (string memory) {
-        return "MySBT-3.1.2";
+        return "MySBT-3.1.3";
     }
 
     // ====================================
@@ -539,13 +534,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         return _baseTokenURI;
     }
 
-    function setRegistry(address r) external onlyDAO {
-        require(r != address(0));
-        address old = REGISTRY;
-        REGISTRY = r;
-        emit RegistryUpdated(old, r, block.timestamp);
-    }
-
     function pause() external onlyDAO {
         _pause();
         emit ContractPaused(msg.sender, block.timestamp);
@@ -563,19 +551,11 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      */
     function _isValid(address c) internal view returns (bool) {
         if (REGISTRY == address(0)) return false;
-
-        // V3: Use hasRole() with ROLE_COMMUNITY constant
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-
         try IRegistry(REGISTRY).hasRole(ROLE_COMMUNITY, c) returns (bool r) {
             return r;
         } catch {
-            // Fallback to v2 for backward compatibility during transition
-            try IRegistryLegacy(REGISTRY).isRegisteredCommunity(c) returns (bool r) {
-                return r;
-            } catch {
-                return false;
-            }
+            return false;
         }
     }
 

@@ -50,12 +50,11 @@ contract RegistryV3_Changes_Test is Test {
     function setUp() public {
         vm.startPrank(admin);
         gtoken = new GToken(1000000 ether);
-        staking = new GTokenStaking(address(gtoken), admin);
         mockMySBT = new MockMySBT();
-        
-        registry = UUPSDeployHelper.deployRegistryProxy(admin, address(staking), address(mockMySBT));
-        
-        staking.setRegistry(address(registry));
+
+        registry = UUPSDeployHelper.deployRegistryProxy(admin, address(0), address(mockMySBT));
+        staking = new GTokenStaking(address(gtoken), admin, address(registry));
+        registry.setStaking(address(staking));
         vm.stopPrank();
     }
 
