@@ -1449,3 +1449,27 @@ graph TD
 ## 📈 最新进展 (New Progress)
 
 - [ ] **V3 角色-实体交互完整测试矩阵**: [V3_Test_Matrix.md](./docs/V3_Test_Matrix.md) - 已完成 100% 业务场景穷举与覆盖率规划。
+
+---
+
+## 📚 V4 UUPS Migration Documents (2026-03)
+
+### Architecture & Migration
+- [UUPS Upgrade Documentation](./docs/UUPS-upgrade-doc.md) — UUPS 代理架构全面文档：存储布局、升级流程、安全分析、知识库附录
+- [UUPS Migration Plan](./docs/UUPS-migration-plan-2026.md) — Registry & SuperPaymaster 的 UUPS 改造方案：存储打包、初始化迁移、部署步骤
+- [Evaluation Report (March 2026)](./docs/evaluation_report-March-2026.md) — 合约改进与扩展评估报告（V2.0 修订版）：全新部署策略、EIP-8141 Native AA 展望
+- [UUPS Evaluation Report](./docs/uups-evaluation_report.md) — SuperPaymaster 合约改进与扩展评估（含存储优化、Gas 效率保障分析）
+
+### Versioning & Governance
+- [Contract Version Map](./docs/VERSION_MAP.md) — 各合约链上版本号映射表及治理路线图（Phase 1-4: Ownable → Timelock → DAO）
+- [Immutable REGISTRY Review](./docs/immutable-registry-review.md) — GTokenStaking/MySBT 的 REGISTRY 不可变引用重构安全评审
+
+### Security Audits
+- [Kimi AI Full Audit Report](./docs/Kimi_SuperPaymaster_Full_Audit_Report.md) — Kimi AI 全面安全审计：Registry-4.1.0、SuperPaymaster-4.0.0、MySBT-3.1.3
+- [Codeex Audit (2026-03-20)](./docs/codeex-audit-2026-03-20.md) — Codeex 静态+文档一致性快速审计：核心逻辑、Gas 效率、部署流程
+
+### Protocol Design
+- [Spores Protocol Design](./docs/Spores-protocol-design-2026.md) — Spores 去中心化分润网络设计：SporesMarketplace、Escrow、三方架构
+
+### SDK / Frontend Integration
+- [Registry v4.1 SDK Migration Guide](./docs/registry-v4.1-sdk-migration.md) — Registry v4.1.0 接口精简迁移指南：5 个函数合并为 2 个，viem 代码示例，custom errors 对照表
