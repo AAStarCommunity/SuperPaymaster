@@ -21,7 +21,7 @@
 
 ## 环境配置
 
-所有测试脚本从 `/Volumes/UltraDisk/Dev2/aastar/env/.env` 读取配置：
+所有测试脚本默认从项目根目录的 `.env.sepolia` 读取配置（可通过 `ENV_FILE` 环境变量覆盖）：
 
 - `SEPOLIA_RPC_URL`: Sepolia RPC endpoint
 - `OWNER_PRIVATE_KEY` / `DEPLOYER_PRIVATE_KEY`: 发送者私钥
@@ -36,8 +36,8 @@
 ### 安装依赖
 
 ```bash
-cd /Volumes/UltraDisk/Dev2/aastar/SuperPaymaster
-npm install ethers dotenv
+cd script/gasless-tests
+pnpm install ethers dotenv
 ```
 
 ### 运行单个测试
@@ -63,7 +63,7 @@ node script/gasless-tests/test-case-3-superpaymaster-xpnts2.js
 
 每个测试脚本执行以下步骤：
 
-1. **配置加载**: 从 `/Volumes/UltraDisk/Dev2/aastar/env/.env` 读取配置
+1. **配置加载**: 从项目根目录 `.env.sepolia` 读取配置
 2. **余额检查**: 检查 AA 账户的 xPNTs token 余额
 3. **构建 CallData**: 创建 ERC20 transfer 的 calldata
 4. **构建 UserOperation**: 构建 EIP-4337 UserOperation 结构

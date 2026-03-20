@@ -8,12 +8,12 @@
  * - xPNTs2 Token: 0x311580CC1dF2dE49f9FCebB57f97c5182a57964f
  * - EntryPoint v0.7: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
  *
- * Reads RPC URL and private keys from /Volumes/UltraDisk/Dev2/aastar/env/.env
+ * Reads RPC URL and private keys from .env.sepolia in the project root
  */
 
 const { ethers } = require('ethers');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../env/.env') });
+require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 // Contract addresses
 const SUPER_PAYMASTER_ADDRESS = '0xD6aa17587737C59cbb82986Afbac88Db75771857';
@@ -48,7 +48,7 @@ async function main() {
   const recipientAddress = process.env.OWNER2_ADDRESS || process.env.TEST_EOA_ADDRESS;
 
   if (!rpcUrl || !senderPrivateKey || !recipientAddress) {
-    throw new Error('Required env variables not found in /Volumes/UltraDisk/Dev2/aastar/env/.env');
+    throw new Error('Required env variables not found in .env.sepolia');
   }
 
   console.log('📌 Configuration:');

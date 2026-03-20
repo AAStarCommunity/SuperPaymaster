@@ -4,7 +4,7 @@
  */
 const { ethers } = require('ethers');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../../env/.env') });
+require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
