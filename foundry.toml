@@ -7,7 +7,7 @@ libs = ["contracts/lib", "singleton-paymaster/lib"]
 cache_path = "cache"
 solc_version = "0.8.33"
 optimizer = true
-optimizer_runs = 10000
+optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
 
@@ -45,7 +45,7 @@ cache_path = "cache"
 solc_version = "0.8.33"
 optimizer = true
 optimizer_runs = 10000
-via_ir = true
+via_ir = false
 evm_version = "cancun"
 
 # Exclude all non-V3 contracts

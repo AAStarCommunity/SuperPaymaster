@@ -82,10 +82,6 @@ interface IRegistry is IVersioned {
         string reason
     );
 
-    event RoleLockDurationUpdated(
-        bytes32 indexed roleId, 
-        uint256 duration
-    );
 
     // ====================================
     // Core Functions
@@ -104,61 +100,17 @@ interface IRegistry is IVersioned {
     ) external;
 
     /**
-     * @notice Register self for a role (convenience wrapper)
-     * @param roleId Role identifier
-     * @param roleData Encoded role-specific data
-     * @return sbtTokenId Token ID if SBT was minted
-     */
-    function registerRoleSelf(
-        bytes32 roleId,
-        bytes calldata roleData
-    ) external returns (uint256 sbtTokenId);
-
-    /**
      * @notice Exit from a role
      * @param roleId Role to exit from
      */
     function exitRole(bytes32 roleId) external;
 
     /**
-     * @notice Configure role parameters (DAO only)
+     * @notice Configure or create a role
      * @param roleId Role to configure
-     * @param config New configuration
+     * @param config New configuration (must include owner)
      */
     function configureRole(bytes32 roleId, RoleConfig calldata config) external;
-    
-    /**
-     * @notice Admin-only role configuration with full parameter control
-     */
-    function adminConfigureRole(
-        bytes32 roleId,
-        uint256 minStake,
-        uint256 entryBurn,
-        uint256 exitFeePercent,
-        uint256 minExitFee
-    ) external;
-    
-    /**
-     * @notice Create a new role (Owner only)
-     * @param roleId Unique role identifier
-     * @param config Role configuration
-     * @param roleOwner Address that will own this role
-     */
-    function createNewRole(bytes32 roleId, RoleConfig calldata config, address roleOwner) external;
-
-    /**
-     * @notice Transfer role ownership (Admin only)
-     * @param roleId Role to transfer
-     * @param newOwner New owner address
-     */
-    function setRoleOwner(bytes32 roleId, address newOwner) external;
-
-    /**
-     * @notice Set lock duration for a role
-     * @param roleId Role identifier
-     * @param duration Lock duration in seconds
-     */
-    function setRoleLockDuration(bytes32 roleId, uint256 duration) external;
 
     /**
      * @notice Mint SBT for multiple users in a role (admin function)
@@ -253,38 +205,12 @@ interface IRegistry is IVersioned {
     function getUserRoles(address user) external view returns (bytes32[] memory);
 
     /**
-     * @notice Calculate exit fee for a role
-        external
-        view
-        returns (uint256 exitFee);
-
-
-
-    /**
-     * @notice Calculate exit fee for a role
-     * @param roleId Role identifier
-     * @param lockedAmount Amount locked
-     * @return exitFee Calculated exit fee
-     */
-    function calculateExitFee(bytes32 roleId, uint256 lockedAmount)
-        external
-        view
-        returns (uint256 exitFee);
-
-    /**
      * @notice Get total users with a specific role
      * @param roleId Role identifier
      * @return Total count
      */
     function getRoleUserCount(bytes32 roleId) external view returns (uint256);
 
-    /**
-     * @notice Get role owner
-     * @param roleId Role identifier
-     * @return Owner address
-     */
-    function roleOwners(bytes32 roleId) external view returns (address);
-    
     function ROLE_PAYMASTER_SUPER() external view returns (bytes32);
     function ROLE_PAYMASTER_AOA() external view returns (bytes32);
     function ROLE_KMS() external view returns (bytes32);

@@ -79,11 +79,25 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     mapping(bytes32 => address) public roleOwners;
     mapping(bytes32 => uint256) public roleLockDurations; // NEW
 
-    error InvalidParameter(string message);
     error RoleNotConfigured(bytes32 roleId, bool isActive);
     error RoleAlreadyGranted(bytes32 roleId, address user);
     error RoleNotGranted(bytes32 roleId, address user);
     error InsufficientStake(uint256 provided, uint256 required);
+    error InvalidParam();
+    error LockNotMet();
+    error CallerNotCommunity();
+    error Unauthorized();
+    error FeeTooHigh();
+    error InvalidAddr();
+    error UnauthorizedSource();
+    error LenMismatch();
+    error BLSProofRequired();
+    error InsufficientConsensus();
+    error ProposalExecuted();
+    error BLSFailed();
+    error BLSNotConfigured();
+    error SPNotSet();
+    error ThreshNotAscending();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() Ownable(msg.sender) {
@@ -103,13 +117,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         MYSBT = IMySBT(_mysbt);
 
         // Initialize 7 roles
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "AOA Paymaster", _owner, 30 days);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "SuperPaymaster", _owner, 30 days);
-        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "Generic DVT", _owner, 30 days);
-        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "ANODE", _owner, 30 days);
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "KMS", _owner, 30 days);
-        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "Community", _owner, 30 days);
-        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "EndUser", _owner, 7 days);
+        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "", _owner, 30 days);
+        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "", _owner, 7 days);
 
         // Initialize Credit Tiers (Default in aPNTs)
         creditTierConfig[1] = 0;
@@ -207,87 +221,54 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
-        if (user == address(0)) revert InvalidParameter("User required");
-        if (roleData.length > 2048) revert InvalidParameter("Data too large");
-        
+        if (user == address(0)) revert InvalidParam();
+        if (roleData.length > 2048) revert InvalidParam();
+
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
-        
+
         // IDEMPOTENT only for ROLE_ENDUSER to support multi-community joining.
-        // For other roles, keep it strict to avoid configuration corruption.
         bool alreadyHasRole = hasRole[roleId][user];
         if (alreadyHasRole && roleId != ROLE_ENDUSER) revert RoleAlreadyGranted(roleId, user);
 
-        // BUS-RULE: Must be Community to be Paymaster
         if (roleId == ROLE_PAYMASTER_SUPER || roleId == ROLE_PAYMASTER_AOA) {
              if (!hasRole[ROLE_COMMUNITY][user]) revert RoleNotGranted(ROLE_COMMUNITY, user);
         }
 
-        uint256 stakeAmount = _validateAndExtractStake(roleId, user, roleData);
+        (uint256 stakeAmount, bytes memory sbtData) = _validateAndProcessRole(roleId, user, roleData);
+        if (stakeAmount == 0) stakeAmount = config.minStake;
         if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
 
         if (!alreadyHasRole) {
-            // First time registration: Full flow
-            hasRole[roleId][user] = true;
-            roleStakes[roleId][user] = stakeAmount;
-            roleMembers[roleId].push(user);
-            roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
-            
-            // Increment role count
-            userRoleCount[user]++;
+            _firstTimeRegister(roleId, user, roleData, stakeAmount, config.entryBurn, user);
             userRoles[user].push(roleId);
-
-            // Lock stake with entryBurn for first-time registration
-            GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, user);
         } else {
-            // Re-registration or Top-up: Use topUpStake to PRESERVE lockedAt timestamp
-            // This fixes the Role Lock Bypass vulnerability (H-01/C-01)
+            // Re-registration / Top-up: preserve lockedAt (H-01/C-01 fix)
             GTOKEN_STAKING.topUpStake(user, roleId, stakeAmount - roleStakes[roleId][user], user);
             roleStakes[roleId][user] = stakeAmount;
+            roleMetadata[roleId][user] = roleData;
         }
-        
-        // Always update metadata (supports multiple communities)
-        roleMetadata[roleId][user] = roleData;
 
-        // Always call MySBT.mintForRole (idempotent at MySBT level)
-        // MySBT will mint new SBT on first call, add membership on subsequent calls
-        bytes memory sbtData = _convertRoleDataForSBT(roleId, user, roleData);
-        (uint256 sbtTokenId, bool isNewMint) = MYSBT.mintForRole(user, roleId, sbtData);
+        (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
-
-        _postRegisterRole(roleId, user, roleData);
-
-        // Emit event with 0 burn for re-registration
         emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.entryBurn, block.timestamp);
-    }
-
-    function registerRoleSelf(bytes32 roleId, bytes calldata roleData) external returns (uint256 sbtTokenId) {
-        registerRole(roleId, msg.sender, roleData);
-        return roleSBTTokenIds[roleId][msg.sender];
     }
 
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
-        
-        // --- TIMELOCK CHECK ---
-        uint256 lockDuration = roleConfigs[roleId].roleLockDuration; // Use from RoleConfig
+
+        uint256 lockDuration = roleConfigs[roleId].roleLockDuration;
         if (lockDuration > 0) {
             uint256 lockedAt;
-            // Get lockedAt from Staking
-            // Unpack 3rd item (lockedAt)
             (,,lockedAt,,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
-            if (block.timestamp < lockedAt + lockDuration) revert("Lock duration not met");
+            if (block.timestamp < lockedAt + lockDuration) revert LockNotMet();
         }
 
         uint256 stakedAmount = roleStakes[roleId][msg.sender];
 
-        // --- SBT LINKAGE ---
         if (roleId == ROLE_ENDUSER) {
-            // H-02 FIX: Deactivate ALL community memberships when exiting ENDUSER role  
-            // This prevents users from retaining community benefits after withdrawing stake
             MYSBT.deactivateAllMemberships(msg.sender);
         } else if (roleId == ROLE_COMMUNITY) {
-            // Logic to cleanup community-specific state
             bytes memory metadata = roleMetadata[roleId][msg.sender];
             if (metadata.length > 0) {
                 CommunityRoleData memory data = abi.decode(metadata, (CommunityRoleData));
@@ -298,38 +279,27 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                     delete communityByENS[data.ensName];
                 }
             }
-            // V3: Deactivate community's own SBT membership
             MYSBT.deactivateMembership(msg.sender, msg.sender);
         }
 
         emit BurnExecuted(msg.sender, roleId, stakedAmount, "Exit");
-        
-        
+
         hasRole[roleId][msg.sender] = false;
-        // Remove from roleMembers (O(n) but usually small members or handled by indexing)
         _removeFromRoleMembers(roleId, msg.sender);
-        
-        // Decrement role count (Check for underflow though logically impossible if logic is sound)
+
         if (userRoleCount[msg.sender] > 0) {
             userRoleCount[msg.sender]--;
         }
-        
-        // V3.6 FIX: Update userRoles array for O(1) enumeration
         _removeFromUserRoles(msg.sender, roleId);
 
-        // Sync SBT removal to SuperPaymaster if no identity roles left
-        // OPTIMIZATION: Removed external call to this.getUserRoles()
-        // We use the new userRoleCount mapping
         if (userRoleCount[msg.sender] == 0) {
             if (SUPER_PAYMASTER != address(0)) {
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
-            // ⚡ FINAL CLOSURE: Burn the physical SBT badge as well
             MYSBT.burnSBT(msg.sender);
         }
 
         uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
-        
         emit RoleExited(roleId, msg.sender, stakedAmount - netAmount, block.timestamp);
     }
 
@@ -337,104 +307,52 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
         if (hasRole[roleId][user]) revert RoleAlreadyGranted(roleId, user);
-        
-        if (!hasRole[ROLE_COMMUNITY][msg.sender]) revert("Caller must be Community");
+        if (!hasRole[ROLE_COMMUNITY][msg.sender]) revert CallerNotCommunity();
 
-        // BUS-RULE: Must be Community to be Paymaster
         if (roleId == ROLE_PAYMASTER_SUPER || roleId == ROLE_PAYMASTER_AOA) {
              if (!hasRole[ROLE_COMMUNITY][user]) revert RoleNotGranted(ROLE_COMMUNITY, user);
         }
 
-        uint256 stakeAmount = _validateAndExtractStake(roleId, user, data);
+        (uint256 stakeAmount, bytes memory sbtData) = _validateAndProcessRole(roleId, user, data);
+        if (stakeAmount == 0) stakeAmount = config.minStake;
         if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
 
-        hasRole[roleId][user] = true;
-        roleStakes[roleId][user] = stakeAmount;
-        roleMembers[roleId].push(user);
-        roleMemberIndex[roleId][user] = roleMembers[roleId].length; // 1-based
-        roleMetadata[roleId][user] = data;
+        _firstTimeRegister(roleId, user, data, stakeAmount, config.entryBurn, msg.sender);
 
-        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, config.entryBurn, msg.sender);
-        
-        // Increment role count
-        userRoleCount[user]++;
-        
         emit RoleGranted(roleId, user, msg.sender);
-        bytes memory sbtData = _convertRoleDataForSBT(roleId, user, data);
         (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
-
-        _postRegisterRole(roleId, user, data);
         emit RoleRegistered(roleId, user, config.entryBurn, block.timestamp);
         return sbtTokenId;
     }
 
+    /// @dev Shared first-time registration: state writes + stake lock
+    function _firstTimeRegister(
+        bytes32 roleId, address user, bytes calldata roleData,
+        uint256 stakeAmount, uint256 entryBurn, address sponsor
+    ) internal {
+        hasRole[roleId][user] = true;
+        roleStakes[roleId][user] = stakeAmount;
+        roleMembers[roleId].push(user);
+        roleMemberIndex[roleId][user] = roleMembers[roleId].length;
+        roleMetadata[roleId][user] = roleData;
+        userRoleCount[user]++;
+        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, entryBurn, sponsor);
+    }
+
+    /// @notice Configure or create a role. New roles (owner==0) require contract owner.
     function configureRole(bytes32 roleId, RoleConfig calldata config) external {
-        if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
-        require(config.exitFeePercent <= 2000, "Fee too high");
+        address currentOwner = roleConfigs[roleId].owner;
+        if (currentOwner == address(0)) {
+            if (msg.sender != owner()) revert Unauthorized();
+        } else {
+            if (msg.sender != currentOwner && msg.sender != owner()) revert Unauthorized();
+        }
+        if (config.exitFeePercent > 2000) revert FeeTooHigh();
+        if (config.owner == address(0)) revert InvalidAddr();
         roleConfigs[roleId] = config;
-        // Sync exit fee to GTokenStaking when role is reconfigured
         GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
         emit RoleConfigured(roleId, config, block.timestamp);
-    }
-
-    /**
-     * @notice Admin-only role configuration with full parameter control
-     */
-    function adminConfigureRole(
-        bytes32 roleId,
-        uint256 minStake,
-        uint256 entryBurn,
-        uint256 exitFeePercent,
-        uint256 minExitFee
-    ) external onlyOwner {
-        require(exitFeePercent <= 2000, "Fee too high");
-        RoleConfig storage config = roleConfigs[roleId];
-        config.minStake = minStake;
-        config.entryBurn = entryBurn;
-        if (exitFeePercent > type(uint16).max) revert("Value exceeds uint16");
-        config.exitFeePercent = uint16(exitFeePercent);
-        config.minExitFee = minExitFee;
-        
-        GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee);
-        emit RoleConfigured(roleId, config, block.timestamp);
-    }
-
-    function setRoleLockDuration(bytes32 roleId, uint256 duration) external {
-        if (msg.sender != roleOwners[roleId] && msg.sender != owner()) revert("Unauthorized");
-        roleConfigs[roleId].roleLockDuration = duration;
-        emit RoleLockDurationUpdated(roleId, duration);
-    }
-    
-    /**
-     * @notice Create a new role (Owner only)
-     * @dev This allows the protocol admin to dynamically add new roles
-     * @param roleId Unique role identifier (e.g., keccak256("NEW_ROLE"))
-     * @param config Role configuration
-     * @param roleOwner Address that will own this role (can reconfigure it later)
-     */
-    function createNewRole(bytes32 roleId, RoleConfig calldata config, address roleOwner) external onlyOwner {
-        require(roleOwners[roleId] == address(0), "Role already exists");
-        require(roleOwner != address(0), "Invalid owner");
-        
-        roleConfigs[roleId] = config;
-        roleOwners[roleId] = roleOwner;
-        
-        // Sync exit fee to GTokenStaking
-        GTOKEN_STAKING.setRoleExitFee(roleId, config.exitFeePercent, config.minExitFee);
-        
-        emit RoleConfigured(roleId, config, block.timestamp);
-    }
-
-    /**
-     * @notice Set the owner of a role (Protocol Admin only)
-     * @param roleId Role to update
-     * @param newOwner New owner address
-     */
-    function setRoleOwner(bytes32 roleId, address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Invalid owner");
-        roleOwners[roleId] = newOwner;
-        // No event needed specifically for ownership transfer in minimal V3, but can be added if needed
     }
 
     // ====================================
@@ -457,11 +375,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         uint256 epoch,
         bytes calldata proof
     ) external nonReentrant {
-        if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
-        require(users.length == newScores.length, "Length mismatch");
+        if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
+        if (users.length != newScores.length) revert LenMismatch();
 
         // --- BLS12-381 PAIRING CHECK (EIP-2537) ---
-        require(proof.length > 0, "BLS Proof required");
+        if (proof.length == 0) revert BLSProofRequired();
         
         // proof: abi.encode(bytes aggregatedPkG1, bytes aggregatedSigG2, bytes msgG2, uint256 signerMask)
         (bytes memory pkG1, bytes memory sigG2, bytes memory msgG2, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
@@ -476,7 +394,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 // Fallback to 3 if call fails
             }
         }
-        require(count >= threshold, "Insufficient consensus threshold");
+        if (count < threshold) revert InsufficientConsensus();
 
         // Strategy Pattern for BLS Verification
         if (address(blsValidator) != address(0)) {
@@ -484,7 +402,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             // This ensures "签名绑定" is consistent across the entire system
             // V3.6 FIX: Prevent replay by tracking proposalId
             if (proposalId != 0) {
-                if (executedProposals[proposalId]) revert("Proposal already executed");
+                if (executedProposals[proposalId]) revert ProposalExecuted();
                 executedProposals[proposalId] = true;
             }
 
@@ -499,9 +417,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             ));
             bytes memory message = abi.encodePacked(messageHash);
             
-            require(blsValidator.verifyProof(proof, message), "Registry: BLS Verification Failed");
+            if (!blsValidator.verifyProof(proof, message)) revert BLSFailed();
         } else {
-            revert("BLS Validator not configured");
+            revert BLSNotConfigured();
         }
 
         uint256 maxChange = 100; // Protocol safety limit
@@ -543,14 +461,14 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         bool[] calldata statuses,
         bytes calldata proof
     ) external nonReentrant {
-        if (!isReputationSource[msg.sender]) revert("Unauthorized Reputation Source");
-        require(users.length == statuses.length, "Length mismatch");
-        require(SUPER_PAYMASTER != address(0), "SuperPaymaster not set");
+        if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
+        if (users.length != statuses.length) revert LenMismatch();
+        if (SUPER_PAYMASTER == address(0)) revert SPNotSet();
 
         // --- BLS Verification ---
         if (address(blsValidator) != address(0) && proof.length > 0) {
              bytes memory message = abi.encode(operator, users, statuses);
-             require(blsValidator.verifyProof(proof, message), "Registry: BLS Verification Failed");
+             if (!blsValidator.verifyProof(proof, message)) revert BLSFailed();
         }
 
         // Forward to SuperPaymaster
@@ -567,32 +485,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit ReputationSourceUpdated(source, active);
     }
 
-    /**
-     * @notice Set or update a level threshold
-     * @param index Index in levelThresholds array (0-based)
-     * @param threshold Minimum reputation score for this level
-     * @dev levelThresholds[i] defines the min score for level i+2 (level 1 is default)
-     */
-    function setLevelThreshold(uint256 index, uint256 threshold) external onlyOwner {
-        require(index < levelThresholds.length, "Index out of bounds");
-        if (index > 0) {
-            require(threshold > levelThresholds[index - 1], "Thresholds must be ascending");
+    /// @notice Replace all level thresholds (must be strictly ascending)
+    function setLevelThresholds(uint256[] calldata thresholds) external onlyOwner {
+        delete levelThresholds;
+        for (uint256 i = 0; i < thresholds.length; i++) {
+            if (i > 0 && thresholds[i] <= thresholds[i - 1]) revert ThreshNotAscending();
+            levelThresholds.push(thresholds[i]);
         }
-        if (index < levelThresholds.length - 1) {
-            require(threshold < levelThresholds[index + 1], "Thresholds must be ascending");
-        }
-        levelThresholds[index] = threshold;
-    }
-
-    /**
-     * @notice Add a new level threshold (extends the level system)
-     * @param threshold Minimum reputation score for the new level
-     */
-    function addLevelThreshold(uint256 threshold) external onlyOwner {
-        if (levelThresholds.length > 0) {
-            require(threshold > levelThresholds[levelThresholds.length - 1], "Threshold must be higher than last");
-        }
-        levelThresholds.push(threshold);
     }
 
     function getCreditLimit(address user) external view returns (uint256) {
@@ -612,65 +511,33 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         return creditTierConfig[level];
     }
 
-    function _decodeCommunityData(bytes calldata roleData) internal pure returns (CommunityRoleData memory data) {
-        if (roleData.length >= 32 && bytes32(roleData[0:32]) == bytes32(uint256(0x20))) {
-            data = abi.decode(roleData, (CommunityRoleData));
-        } else {
-            (string memory n, string memory e, string memory w, string memory d, string memory l, uint256 s) = 
-                abi.decode(roleData, (string, string, string, string, string, uint256));
-            data = CommunityRoleData(n, e, w, d, l, s);
-        }
-    }
-
-    function _decodeEndUserData(bytes calldata roleData) internal pure returns (EndUserRoleData memory data) {
-        if (roleData.length >= 32 && bytes32(roleData[0:32]) == bytes32(uint256(0x20))) {
-            data = abi.decode(roleData, (EndUserRoleData));
-        } else {
-            (address acc, address comm, string memory avatar, string memory ens, uint256 stake) = 
-                abi.decode(roleData, (address, address, string, string, uint256));
-            data = EndUserRoleData(acc, comm, avatar, ens, stake);
-        }
-    }
-
-    function _validateAndExtractStake(bytes32 roleId, address user, bytes calldata roleData) internal view returns (uint256 stakeAmount) {
-        RoleConfig memory config = roleConfigs[roleId];
+    /**
+     * @dev Decode-once: validate, extract stake, build SBT data, and apply post-register
+     *      side effects in a single pass to avoid redundant abi.decode calls.
+     */
+    function _validateAndProcessRole(bytes32 roleId, address user, bytes calldata roleData)
+        internal returns (uint256 stakeAmount, bytes memory sbtData)
+    {
         if (roleId == ROLE_COMMUNITY) {
-            CommunityRoleData memory data = _decodeCommunityData(roleData);
-            if (bytes(data.name).length == 0) revert InvalidParameter("Name required");
-            if (communityByName[data.name] != address(0)) revert InvalidParameter("Name taken");
+            CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
+            if (bytes(data.name).length == 0) revert InvalidParam();
+            if (communityByName[data.name] != address(0)) revert InvalidParam();
             stakeAmount = data.stakeAmount;
-        } else if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = _decodeEndUserData(roleData);
-            bool commActive = hasRole[ROLE_COMMUNITY][data.community];
-            if (!commActive) revert InvalidParameter("Invalid community");
-            stakeAmount = data.stakeAmount;
-        } else {
-            if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
-        }
-        if (stakeAmount == 0) stakeAmount = config.minStake;
-    }
-
-    function _convertRoleDataForSBT(bytes32 roleId, address user, bytes calldata roleData) internal pure returns (bytes memory) {
-        if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = _decodeEndUserData(roleData);
-            return abi.encode(data.community, "");
-        }
-        return abi.encode(user, "");
-    }
-
-    function _postRegisterRole(bytes32 roleId, address user, bytes calldata roleData) internal {
-        // Sync SBT status to SuperPaymaster (System Qualification)
-        if (SUPER_PAYMASTER != address(0)) {
-            ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(user, true);
-        }
-
-        if (roleId == ROLE_COMMUNITY) {
-            CommunityRoleData memory data = _decodeCommunityData(roleData);
+            sbtData = abi.encode(user, "");
             communityByName[data.name] = user;
             if (bytes(data.ensName).length > 0) communityByENS[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
-            EndUserRoleData memory data = _decodeEndUserData(roleData);
+            EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParam();
+            stakeAmount = data.stakeAmount;
+            sbtData = abi.encode(data.community, "");
             accountToUser[data.account] = user;
+        } else {
+            if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
+            sbtData = abi.encode(user, "");
+        }
+        if (SUPER_PAYMASTER != address(0)) {
+            ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(user, true);
         }
     }
     
@@ -678,11 +545,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) {
         return userRoles[user];
-    }
-
-    function calculateExitFee(bytes32 roleId, uint256 amount) external view returns (uint256) {
-        (uint256 fee, ) = GTOKEN_STAKING.previewExitFee(msg.sender, roleId);
-        return fee;
     }
 
     function getRoleMembers(bytes32 roleId) external view returns (address[] memory) { return roleMembers[roleId]; }
