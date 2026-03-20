@@ -110,14 +110,14 @@ contract CoverageSupplementTest is Test {
         staking = new GTokenStaking(address(gtoken), treasury, address(registry));
         registry.setStaking(address(staking));
         
-        // Config Roles for basic testing
-        IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Comm", address(0), 0);
+        // Config Roles for basic testing (preserve owner from initialize)
+        IRegistry.RoleConfig memory commConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Comm", owner, 0);
         registry.configureRole(ROLE_COMMUNITY, commConfig);
-        
-        IRegistry.RoleConfig memory userConfig = IRegistry.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, true, 0.1 ether, "User", address(0), 0);
+
+        IRegistry.RoleConfig memory userConfig = IRegistry.RoleConfig(1 ether, 0.1 ether, 5, 2, 1, 10, 1000, true, 0.1 ether, "User", owner, 0);
         registry.configureRole(ROLE_ENDUSER, userConfig);
 
-        IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Paymaster", address(0), 0);
+        IRegistry.RoleConfig memory pmConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 500, true, 1 ether, "Paymaster", owner, 0);
         registry.configureRole(ROLE_PAYMASTER_SUPER, pmConfig);
         
         // Paymaster Setup via UUPS proxy
@@ -185,13 +185,13 @@ contract CoverageSupplementTest is Test {
         
         // 5. Length Mismatch check
         uint256[] memory badScores = new uint256[](2);
-        vm.expectRevert("Length mismatch");
+        vm.expectRevert(Registry.LenMismatch.selector);
         registry.batchUpdateGlobalReputation(4, users, badScores, 4, _dummyProof());
         
         // 6. Unauthorized
         vm.stopPrank();
         vm.startPrank(user);
-        vm.expectRevert("Unauthorized Reputation Source");
+        vm.expectRevert(Registry.UnauthorizedSource.selector);
         registry.batchUpdateGlobalReputation(5, users, scores, 5, _dummyProof());
         vm.stopPrank();
     }
@@ -201,7 +201,7 @@ contract CoverageSupplementTest is Test {
         gtoken.approve(address(staking), 100 ether);
         
         bytes memory data = abi.encode(Registry.CommunityRoleData("Comm1", "e1", "w1", "d1", "l1", 10 ether));
-        registry.registerRoleSelf(ROLE_COMMUNITY, data);
+        registry.registerRole(ROLE_COMMUNITY, community, data);
         
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
         vm.stopPrank();
@@ -237,12 +237,12 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(comm2);
         gtoken.approve(address(staking), 100 ether);
         
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParameter.selector, "Name taken"));
+        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Name taken"));
         registry.registerRole(ROLE_COMMUNITY, comm2, data);
         
         // Try empty name
         bytes memory emptyData = abi.encode(Registry.CommunityRoleData("", "", "", "", "", 10 ether));
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParameter.selector, "Name required"));
+        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Name required"));
         registry.registerRole(ROLE_COMMUNITY, comm2, emptyData);
         vm.stopPrank();
     }
@@ -253,7 +253,7 @@ contract CoverageSupplementTest is Test {
         // Point to non-existent community
         bytes memory data = abi.encode(Registry.EndUserRoleData(address(1), address(0xDead), "", "", 1 ether));
         
-        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParameter.selector, "Invalid community"));
+        vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Invalid community"));
         registry.registerRole(ROLE_ENDUSER, user, data);
         vm.stopPrank();
     }
@@ -269,7 +269,12 @@ contract CoverageSupplementTest is Test {
         // Setup: Admin sets 50% exit fee for ENDUSER
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.adminConfigureRole(ROLE_ENDUSER, 1 ether, 0.1 ether, 2000, 0.1 ether); // 20% fee
+        IRegistry.RoleConfig memory currentConfig = registry.getRoleConfig(ROLE_ENDUSER);
+        currentConfig.minStake = 1 ether;
+        currentConfig.entryBurn = 0.1 ether;
+        currentConfig.exitFeePercent = 2000; // 20% fee
+        currentConfig.minExitFee = 0.1 ether;
+        registry.configureRole(ROLE_ENDUSER, currentConfig);
         vm.stopPrank();
         
         // User joins
@@ -277,7 +282,7 @@ contract CoverageSupplementTest is Test {
         // Need community first for EndUser? Yes.
         // Shortcut: Use KMS role for simpler testing logic if needed, but EndUser is fine if we mock community check.
         // Actually, let's use KMS role.
-        IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, true, 1 ether, "KMS", address(0), 0);
+        IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, true, 1 ether, "KMS", owner, 0);
         vm.stopPrank();
         vm.startPrank(owner);
         registry.configureRole(registry.ROLE_KMS(), kmsConfig);
@@ -291,8 +296,11 @@ contract CoverageSupplementTest is Test {
         uint256 balBefore = gtoken.balanceOf(user);
         bytes32 kmsRole = registry.ROLE_KMS();
         vm.stopPrank();
-        vm.prank(owner);
-        registry.setRoleLockDuration(kmsRole, 0);
+        vm.startPrank(owner);
+        IRegistry.RoleConfig memory kmsCfg = registry.getRoleConfig(kmsRole);
+        kmsCfg.roleLockDuration = 0;
+        registry.configureRole(kmsRole, kmsCfg);
+        vm.stopPrank();
         vm.startPrank(user);
         registry.exitRole(kmsRole);
         uint256 balAfter = gtoken.balanceOf(user);
@@ -316,7 +324,7 @@ contract CoverageSupplementTest is Test {
         bytes32 TEST_ROLE = keccak256("TEST");
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.createNewRole(TEST_ROLE, IRegistry.RoleConfig(10 ether, 0, 0,0,0,0, 0, true, 0, "Test", address(0), 0), owner);
+        registry.configureRole(TEST_ROLE, IRegistry.RoleConfig(10 ether, 0, 0,0,0,0, 0, true, 0, "Test", owner, 0));
         vm.stopPrank();
         
         vm.startPrank(user);

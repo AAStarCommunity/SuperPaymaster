@@ -24,21 +24,11 @@ contract MockRegistry is IRegistry {
     function ROLE_COMMUNITY() external view override returns (bytes32) { return keccak256("COMMUNITY"); }
     function ROLE_ENDUSER() external view override returns (bytes32) { return keccak256("ENDUSER"); }
     mapping(bytes32 => mapping(address => bool)) public roles;
-    mapping(bytes32 => address) public _roleOwners;
 
     function hasRole(bytes32 role, address account) external view override returns (bool) {
         return roles[role][account];
     }
 
-    function roleOwners(bytes32 roleId) external view override returns (address) {
-        return _roleOwners[roleId];
-    }
-    
-    function setRoleOwner(bytes32 roleId, address owner) external override {
-        _roleOwners[roleId] = owner;
-    }
-    
-    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
 
@@ -47,18 +37,14 @@ contract MockRegistry is IRegistry {
     }
 
     // Stub implementations for interface compliance
-    function calculateExitFee(bytes32, uint256) external pure override returns (uint256) { return 0; }
     function configureRole(bytes32, RoleConfig calldata) external override {}
-    function createNewRole(bytes32, RoleConfig calldata, address) external override {}
     function exitRole(bytes32) external override {}
-    function setRoleLockDuration(bytes32, uint256) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
         return RoleConfig(0,0,0,0,0,0,0,false,0,"stub",address(0),0); 
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function registerRoleSelf(bytes32, bytes calldata) external override returns (uint256) { return 0; }
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
     
     // V3.1 Mock Logic

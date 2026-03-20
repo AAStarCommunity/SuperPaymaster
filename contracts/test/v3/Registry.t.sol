@@ -69,20 +69,18 @@ contract RegistryTest is Test {
         vm.startPrank(owner);
         
         // Configure ENDUSER
-        IRegistry.RoleConfig memory endUserConfig = IRegistry.RoleConfig({
-            minStake: 0.3 ether,
-            entryBurn: 0.05 ether,
-            slashThreshold: 5,
-            slashBase: 10,
-            slashInc: 5,
-            slashMax: 50,
-            exitFeePercent: 1000,
-            minExitFee: 0.05 ether,
-            isActive: true,
-            description: "End User",
-            owner: address(0),
-            roleLockDuration: 0
-        });
+        IRegistry.RoleConfig memory endUserConfig = registry.getRoleConfig(ROLE_ENDUSER);
+        endUserConfig.minStake = 0.3 ether;
+        endUserConfig.entryBurn = 0.05 ether;
+        endUserConfig.slashThreshold = 5;
+        endUserConfig.slashBase = 10;
+        endUserConfig.slashInc = 5;
+        endUserConfig.slashMax = 50;
+        endUserConfig.exitFeePercent = 1000;
+        endUserConfig.minExitFee = 0.05 ether;
+        endUserConfig.isActive = true;
+        endUserConfig.description = "End User";
+        endUserConfig.roleLockDuration = 0;
         registry.configureRole(ROLE_ENDUSER, endUserConfig);
         
         vm.stopPrank();
@@ -118,20 +116,18 @@ contract RegistryTest is Test {
     function test_RegisterCommunity() public {
         vm.startPrank(owner);
         
-        IRegistry.RoleConfig memory communityConfig = IRegistry.RoleConfig({
-            minStake: 30 ether,
-            entryBurn: 3 ether,
-            slashThreshold: 10,
-            slashBase: 2,
-            slashInc: 1,
-            slashMax: 10,
-            exitFeePercent: 500,
-            minExitFee: 1 ether,
-            isActive: true,
-            description: "Community",
-            owner: address(0),
-            roleLockDuration: 0
-        });
+        IRegistry.RoleConfig memory communityConfig = registry.getRoleConfig(ROLE_COMMUNITY);
+        communityConfig.minStake = 30 ether;
+        communityConfig.entryBurn = 3 ether;
+        communityConfig.slashThreshold = 10;
+        communityConfig.slashBase = 2;
+        communityConfig.slashInc = 1;
+        communityConfig.slashMax = 10;
+        communityConfig.exitFeePercent = 500;
+        communityConfig.minExitFee = 1 ether;
+        communityConfig.isActive = true;
+        communityConfig.description = "Community";
+        communityConfig.roleLockDuration = 0;
         registry.configureRole(ROLE_COMMUNITY, communityConfig);
         vm.stopPrank();
         
@@ -169,8 +165,11 @@ contract RegistryTest is Test {
         
         // Exit
         vm.stopPrank();
-        vm.prank(owner);
-        registry.setRoleLockDuration(ROLE_ENDUSER, 0);
+        vm.startPrank(owner);
+        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(ROLE_ENDUSER);
+        cfg.roleLockDuration = 0;
+        registry.configureRole(ROLE_ENDUSER, cfg);
+        vm.stopPrank();
         vm.startPrank(user);
         registry.exitRole(ROLE_ENDUSER);
         

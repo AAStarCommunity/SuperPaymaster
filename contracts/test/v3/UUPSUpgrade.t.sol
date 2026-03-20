@@ -458,7 +458,9 @@ contract UUPSUpgradeTest is Test {
         registry.setCreditTier(7, 5000 ether);
         assertEq(registry.creditTierConfig(7), 5000 ether);
 
-        registry.addLevelThreshold(1000);
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1000;
+        registry.setLevelThresholds(t);
         assertEq(registry.levelThresholds(5), 1000);
 
         vm.stopPrank();

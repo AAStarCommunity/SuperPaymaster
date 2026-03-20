@@ -52,29 +52,21 @@ contract MockRegistryStub is IRegistry {
     
     // Ignore others
     function setRole(bytes32, address, bool) external {}
-    function setRoleLockDuration(bytes32, uint256) external {}
-    function setRoleOwner(bytes32, address) external {}
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
     function registerRole(bytes32, address, bytes calldata) external {}
-    function registerRoleSelf(bytes32, bytes calldata) external returns (uint256) { return 0; }
     function exitRole(bytes32) external {}
     function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) { return 0; }
     function configureRole(bytes32, IRegistry.RoleConfig calldata) external {}
-    function adminConfigureRole(bytes32, uint256, uint256, uint256, uint256) external {}
-    function createNewRole(bytes32, IRegistry.RoleConfig calldata, address) external {}
     function setStaking(address) external {}
     function setMySBT(address) external {}
     function setSuperPaymaster(address) external {}
     function setBLSAggregator(address) external {}
     function setBLSValidator(address) external {}
     function setCreditTier(uint256, uint256) external {}
-    function setLevelThreshold(uint256, uint256) external {}
-    function addLevelThreshold(uint256) external {}
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory) {}
     function getUserRoles(address) external view returns (bytes32[] memory) {}
-    function calculateExitFee(bytes32, uint256) external view returns (uint256) { return 0; }
     function getRoleMembers(bytes32) external view returns (address[] memory) {}
     function getRoleUserCount(bytes32) external view returns (uint256) { return 0; }
     function version() external pure returns (string memory) { return "Mock"; }

@@ -92,7 +92,8 @@ contract BlacklistSyncTest is Test {
         
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10000 ether);
-        registry.registerRole(registry.ROLE_COMMUNITY(), operator, abi.encode("OpComm", "op.eth", "", "", "", 100 ether));
+        Registry.CommunityRoleData memory commData = Registry.CommunityRoleData("OpComm", "op.eth", "", "", "", 100 ether);
+        registry.registerRole(registry.ROLE_COMMUNITY(), operator, abi.encode(commData));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(100 ether)));
         
         // Configure Operator
@@ -190,7 +191,7 @@ contract BlacklistSyncTest is Test {
         statuses[0] = true;
 
         vm.prank(hacker);
-        vm.expectRevert("Unauthorized Reputation Source");
+        vm.expectRevert(Registry.UnauthorizedSource.selector);
         registry.updateOperatorBlacklist(operator, users, statuses, "");
     }
 

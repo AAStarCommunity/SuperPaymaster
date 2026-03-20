@@ -52,16 +52,9 @@ contract ConfigureMyTaskRoles is Script {
     function _upsertRole(Registry registry, bytes32 roleId, IRegistry.RoleConfig memory config, address roleOwner)
         internal
     {
-        address currentOwner = registry.roleOwners(roleId);
-        if (currentOwner == address(0)) {
-            registry.createNewRole(roleId, config, roleOwner);
-            return;
-        }
-
-        if (currentOwner != roleOwner) {
-            registry.setRoleOwner(roleId, roleOwner);
-        }
-
+        // configureRole handles both creating new roles and updating existing ones.
+        // Ensure config.owner is set to the desired roleOwner.
+        config.owner = roleOwner;
         registry.configureRole(roleId, config);
     }
 }

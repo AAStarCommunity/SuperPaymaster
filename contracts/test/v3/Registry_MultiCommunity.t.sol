@@ -59,23 +59,18 @@ contract RegistryMultiCommunityTest is Test {
     
     function _registerCommunity(address community, string memory name) internal {
         vm.startPrank(community);
-        
+
         // Approve staking
         gtoken.approve(address(staking), 100 ether);
-        
+
         // Prepare community data
         bytes memory communityData = abi.encode(
-            name,      // name
-            "",        // ensName
-            "",        // website
-            "",        // description
-            "",        // logoURI
-            30 ether   // stakeAmount
+            Registry.CommunityRoleData(name, "", "", "", "", 30 ether)
         );
-        
+
         // Register community
-        registry.registerRoleSelf(ROLE_COMMUNITY, communityData);
-        
+        registry.registerRole(ROLE_COMMUNITY, community, communityData);
+
         vm.stopPrank();
     }
     
@@ -87,16 +82,13 @@ contract RegistryMultiCommunityTest is Test {
         
         // Prepare user data
         bytes memory userData = abi.encode(
-            _user,      // account
-            community,  // community
-            "",         // avatarURI
-            "",         // ensName
-            1 ether     // stakeAmount
+            Registry.EndUserRoleData(_user, community, "", "", 1 ether)
         );
         
         // Join community
-        sbtId = registry.registerRoleSelf(ROLE_ENDUSER, userData);
-        
+        registry.registerRole(ROLE_ENDUSER, _user, userData);
+        sbtId = mysbt.getUserSBT(_user);
+
         vm.stopPrank();
     }
     
@@ -190,13 +182,13 @@ contract RegistryMultiCommunityTest is Test {
         _registerCommunity(communityA, "CommunityA");
         
         // Prepare second registration data
-        bytes memory communityData = abi.encode("CommunityA_Duplicate", "", "", "", "", 30 ether);
+        bytes memory communityData = abi.encode(Registry.CommunityRoleData("CommunityA_Duplicate", "", "", "", "", 30 ether));
         
         // Second registration should revert (strictly non-idempotent for non-ENDUSER)
         vm.startPrank(communityA);
         gtoken.approve(address(staking), 100 ether);
         vm.expectRevert(abi.encodeWithSelector(Registry.RoleAlreadyGranted.selector, ROLE_COMMUNITY, communityA));
-        registry.registerRoleSelf(ROLE_COMMUNITY, communityData);
+        registry.registerRole(ROLE_COMMUNITY, communityA, communityData);
         vm.stopPrank();
     }
 }
