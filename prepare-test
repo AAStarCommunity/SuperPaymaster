@@ -30,10 +30,24 @@ fi
 export CONFIG_FILE="config.$ENV.json"
 export ENV="$ENV"
 
+# Determine Signer (same logic as deploy-core)
+FORGE_FLAGS="--rpc-url $RPC_URL --broadcast --slow --timeout 300 -vv"
+if [ -n "$DEPLOYER_ACCOUNT" ]; then
+    FORGE_FLAGS="$FORGE_FLAGS --account $DEPLOYER_ACCOUNT"
+elif [ -n "$PRIVATE_KEY" ]; then
+    FORGE_FLAGS="$FORGE_FLAGS --private-key $PRIVATE_KEY"
+else
+    if [ "$ENV" == "anvil" ]; then
+        FORGE_FLAGS="$FORGE_FLAGS --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    else
+        echo "❌ Error: No DEPLOYER_ACCOUNT or PRIVATE_KEY defined"
+        exit 1
+    fi
+fi
+
 echo "🧪 Starting Phase 2: Test Account Preparation ($ENV)"
 
-forge script "contracts/script/v3/TestAccountPrepare.s.sol:TestAccountPrepare" \
-    --rpc-url "$RPC_URL" --broadcast --slow --timeout 300 -vv
+forge script "contracts/script/v3/TestAccountPrepare.s.sol:TestAccountPrepare" $FORGE_FLAGS
 
 echo -e "\n🛡️ Verifying Test Accounts..."
 forge script "contracts/script/checks/Check09_TestAccounts.s.sol:Check09_TestAccounts" \

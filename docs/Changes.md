@@ -1,5 +1,27 @@
 # Changes
 
+## 2026-03-21 (v4.1.1 Comprehensive E2E Test Suite)
+- **Comprehensive E2E Test Suite**: 14 new files, ~68 test points covering all major contract flows on Sepolia
+  - `test-helpers.js`: Shared utility module (ABI definitions, role constants, display/assertion helpers, nonce-managed TX wrapper)
+  - A1: Registry role lifecycle (register community, enduser, SBT verification)
+  - A2: Registry view queries (role constants, configs, member counts, credit tiers, wiring)
+  - B1: Operator configuration (configureOperator, limits, pause/unpause cycle)
+  - B2: Operator deposit/withdraw (deposit, depositFor, withdraw, excess revert)
+  - C1: SuperPaymaster negative cases (no SBT, paused operator, unconfigured operator)
+  - C2: PaymasterV4 negative cases (zero-balance user, supported tokens query)
+  - D1: Reputation rules & scoring (setRule, computeScore, entropyFactor, communityReputation)
+  - D2: Credit tier configuration (setCreditTier, levelThresholds, getCreditLimit)
+  - E1: Pricing & oracle (cachedPrice, updatePrice, setAPNTSPrice, Chainlink direct, V4 updatePrice)
+  - E2: Protocol fee configuration (setProtocolFee, MAX_PROTOCOL_FEE revert, revenue queries)
+  - F1: Staking queries (totalStaked, stakes, lockedStake, previewExitFee, wiring verification)
+  - F2: Slash history & WARNING test (getSlashCount, slashOperator WARNING/0, updateReputation restore)
+  - `run-all-e2e-tests.sh`: Full test runner with dependency-ordered phases and summary table
+- **Idempotent & Safe**: All write tests check state before acting, restore modified configs, use WARNING-level slash (0 penalty)
+- **Nonce Management**: Explicit nonce tracking in `sendTxSafe` to prevent TX conflicts on Sepolia rapid sends
+- **prepare-test**: Added deployer account/key detection logic (DEPLOYER_ACCOUNT > PRIVATE_KEY > anvil default)
+- **docs**: Kimi final audit report, AGENTS.md
+- **Sepolia verified**: 17/17 test groups passing (12 new + 2 preflight + 3 legacy gasless)
+
 ## 2026-03-21 (v4.1.0 UUPS Migration)
 - **UUPS Proxy Migration**: Registry and SuperPaymaster converted to UUPS upgradeable proxies (ERC-1967/ERC-1822)
 - **Registry API Consolidation**: 5 admin functions merged into 2 (`configureRole`, `setLevelThresholds`) for EIP-170 compliance (24,383B)
