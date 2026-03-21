@@ -1,0 +1,33 @@
+name: Forge Tests
+
+on:
+  push:
+    branches: [main, feature/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build
+        run: forge build --sizes
+
+      - name: Run Tests
+        run: forge test -v
+
+      - name: Check EIP-170 Contract Sizes
+        run: |
+          REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
+          echo "Registry runtime size: ${REGISTRY_SIZE}B"
+          if [ "$REGISTRY_SIZE" -gt 24576 ]; then
+            echo "::error::Registry exceeds EIP-170 limit (24576B)"
+            exit 1
+          fi
