@@ -111,6 +111,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__PriceNotInitialized();
     error Paymaster__MaxTokensReached();
     error Paymaster__TokenNotInList();
+    error Paymaster__TokenDecimalsTooLarge();
+    error Paymaster__InvalidGasCostCap();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -499,7 +501,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         } catch {
             // default 18
         }
-        require(decimals <= 24, "Token decimals too large");
+        if (decimals > 24) revert Paymaster__TokenDecimalsTooLarge();
         tokenDecimals[token] = decimals;
         tokenPrices[token] = price;
         emit TokenPriceUpdated(token, price);
@@ -588,7 +590,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         serviceFeeRate = _serviceFeeRate;
     }
     function setMaxGasCostCap(uint256 _maxGasCostCap) external onlyOwner {
-        require(_maxGasCostCap > 0, "Gas cost cap must be > 0");
+        if (_maxGasCostCap == 0 || _maxGasCostCap > 100 ether) revert Paymaster__InvalidGasCostCap();
         emit MaxGasCostCapUpdated(maxGasCostCap, _maxGasCostCap);
         maxGasCostCap = _maxGasCostCap;
     }

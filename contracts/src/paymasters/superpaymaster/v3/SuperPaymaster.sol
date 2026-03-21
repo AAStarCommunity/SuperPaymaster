@@ -135,6 +135,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
+    event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
 
     error Unauthorized();
     error InvalidAddress();
@@ -144,6 +145,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error OracleError();
     error NoSlashHistory();
     error InsufficientRevenue();
+    error InvalidXPNTsToken();
+    error FactoryVerificationFailed();
+    error AmountExceedsUint128();
+    error ScoreExceedsUint32();
+    error NoPendingDebt();
 
     // ====================================
     // Constructor & Initializer (UUPS)
@@ -173,12 +179,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 _priceStalenessThreshold
     ) external initializer {
         __BasePaymaster_init(_owner);
+        if (_apntsToken == address(0)) revert InvalidAddress();
         APNTS_TOKEN = _apntsToken;
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
         priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
         // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
         aPNTsPriceUSD = 0.02 ether;
         protocolFeeBPS = 1000;
+        // Cache oracle decimals (Chainlink decimals are immutable per feed)
+        if (address(ETH_USD_PRICE_FEED) != address(0) && address(ETH_USD_PRICE_FEED).code.length > 0) {
+            try ETH_USD_PRICE_FEED.decimals() returns (uint8 d) {
+                oracleDecimals = d;
+            } catch {
+                oracleDecimals = 8;
+            }
+        } else {
+            oracleDecimals = 8; // Default for tests or when feed not yet set
+        }
     }
 
     // ====================================
@@ -208,9 +225,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (xpntsFactory != address(0)) {
             // Verify that this token actually belongs to the community
             try IxPNTsFactory(xpntsFactory).getTokenAddress(msg.sender) returns (address validToken) {
-                if (validToken != xPNTsToken) revert("Security: Invalid xPNTsToken for this Community");
+                if (validToken != xPNTsToken) revert InvalidXPNTsToken();
             } catch {
-                revert("Security: Factory verification failed");
+                revert FactoryVerificationFailed();
             }
         }
 
@@ -381,7 +398,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         // Check overflow for uint128
-        if (amount > type(uint128).max) revert("Amount exceeds uint128");
+        if (amount > type(uint128).max) revert AmountExceedsUint128();
         // casting to 'uint128' is safe because of the check above
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[msg.sender].aPNTsBalance += uint128(amount);
@@ -409,7 +426,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
 
 
-        if (value > type(uint128).max) revert("Amount exceeds uint128");
+        if (value > type(uint128).max) revert AmountExceedsUint128();
         // casting to 'uint128' is safe because of the check above
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[from].aPNTsBalance += uint128(value);
@@ -439,7 +456,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Transfer from sender (must approve first)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         
-        if (amount > type(uint128).max) revert("Amount exceeds uint128");
+        if (amount > type(uint128).max) revert AmountExceedsUint128();
         // casting to 'uint128' is safe because of the check above
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[targetOperator].aPNTsBalance += uint128(amount);
@@ -508,57 +525,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @dev Reduces reputation and optionally pauses operator
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        ISuperPaymaster.OperatorConfig storage config = operators[operator];
-        
-        uint256 reputationLoss = 0;
-        if (level == ISuperPaymaster.SlashLevel.WARNING) {
-            reputationLoss = 10;
-        } else if (level == ISuperPaymaster.SlashLevel.MINOR) {
-            reputationLoss = 20;
-        } else if (level == ISuperPaymaster.SlashLevel.MAJOR) {
-            reputationLoss = 50;
-            config.isPaused = true;
-            emit OperatorPaused(operator);
-        }
-
-        // Apply Reputation Loss
-        if (config.reputation > reputationLoss) {
-            config.reputation -= uint32(reputationLoss);
-        } else {
-            config.reputation = 0;
-        }
-
-        // Apply Financial Penalty (Burn aPNTs to Protocol Revenue)
-        if (penaltyAmount > 0) {
-            if (config.aPNTsBalance >= penaltyAmount) {
-                config.aPNTsBalance -= uint128(penaltyAmount);
-                // Fix: Move slashed funds to Protocol Revenue
-                protocolRevenue += penaltyAmount;
-            } else {
-                // Slash all remaining
-                uint256 actualBurn = config.aPNTsBalance;
-                config.aPNTsBalance = 0;
-                protocolRevenue += actualBurn;
-            }
-        }
-
-        slashHistory[operator].push(SlashRecord({
-            timestamp: block.timestamp,
-            amount: penaltyAmount,
-            reputationLoss: reputationLoss,
-            reason: reason,
-            level: level
-        }));
-
-        emit OperatorSlashed(operator, penaltyAmount, level);
-        emit ReputationUpdated(operator, config.reputation);
+        // Owner slash: no 30% hardcap (full authority for governance actions)
+        _slash(operator, level, penaltyAmount, reason, "", false);
     }
 
     /**
      * @notice Update Operator Reputation (External Credit Manager)
      */
     function updateReputation(address operator, uint256 newScore) external onlyOwner {
-        if (newScore > type(uint32).max) revert("Score exceeds uint32");
+        if (newScore > type(uint32).max) revert ScoreExceedsUint32();
         operators[operator].reputation = uint32(newScore);
         emit ReputationUpdated(operator, newScore);
     }
@@ -582,18 +557,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // ✅ Store proof hash for audit traceability (永久存储在event中)
         bytes32 proofHash = keccak256(proof);
         
-        _slash(operator, level, penalty, "DVT BLS Slash", proof);
+        _slash(operator, level, penalty, "DVT BLS Slash", proof, true);
         
         // ✅ Emit event with proof hash (链上永久可查,DVT保留完整proof 30天供验证)
         emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
-    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory proof) internal {
+    /// @param applyCap If true, enforce 30% slash hardcap (BLS/DVT path). If false, no cap (owner governance).
+    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory, bool applyCap) internal {
         ISuperPaymaster.OperatorConfig storage config = operators[operator];
-        
+
         uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
         if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
-        
+
         if (config.isPaused) {
              emit OperatorPaused(operator);
         }
@@ -602,15 +578,24 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         else config.reputation = 0;
 
         if (penaltyAmount > 0) {
-            // V3.6 SECURITY: Enforce 30% Slash Hardcap
-            uint256 maxSlash = (uint256(config.aPNTsBalance) * 3000) / BPS_DENOMINATOR;
-            if (penaltyAmount > maxSlash) {
-                penaltyAmount = maxSlash;
-                reason = string(abi.encodePacked(reason, " (Capped at 30%)"));
+            if (applyCap) {
+                // V3.6 SECURITY: Enforce 30% Slash Hardcap for automated (BLS/DVT) slashing
+                uint256 maxSlash = (uint256(config.aPNTsBalance) * 3000) / BPS_DENOMINATOR;
+                if (penaltyAmount > maxSlash) {
+                    penaltyAmount = maxSlash;
+                    reason = string(abi.encodePacked(reason, " (Capped at 30%)"));
+                }
             }
-            
-            config.aPNTsBalance -= uint128(penaltyAmount);
-            protocolRevenue += penaltyAmount;
+
+            if (config.aPNTsBalance >= penaltyAmount) {
+                config.aPNTsBalance -= uint128(penaltyAmount);
+                protocolRevenue += penaltyAmount;
+            } else {
+                uint256 actualBurn = config.aPNTsBalance;
+                config.aPNTsBalance = 0;
+                protocolRevenue += actualBurn;
+                penaltyAmount = actualBurn;
+            }
         }
 
         slashHistory[operator].push(ISuperPaymaster.SlashRecord({
@@ -622,6 +607,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }));
 
         emit OperatorSlashed(operator, penaltyAmount, level);
+        emit ReputationUpdated(operator, config.reputation);
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {
@@ -679,7 +665,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 price: price,
                 updatedAt: updatedAt,
                 roundId: roundId,
-                decimals: ETH_USD_PRICE_FEED.decimals()
+                decimals: oracleDecimals
             });
             
             emit PriceUpdated(price, updatedAt);
@@ -699,7 +685,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 // Only use if positive and valid
                 if (p > 0) {
                     ethUsdPrice = p;
-                    priceDecimals = ETH_USD_PRICE_FEED.decimals();
+                    priceDecimals = oracleDecimals;
                 }
             } catch {
                 // If Oracle fails, fall back to cache below
@@ -796,7 +782,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
-        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR);
+        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
 
 
 
@@ -853,41 +839,26 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Defense: If postOp previously failed, validation already charged - avoid double charging
         if (mode == PostOpMode.postOpReverted) return;
 
-        // 1. Calculate Actual Cost in aPNTs
-        // Optimization: "Cache-First, Passive Fallback" Strategy
-        // Default to reading cache (Gas efficient)
-        bool useRealtime = false;
-        
-        // Dead Code Removed: Passive Price Update fallback (Unreachable due to validation checks)
-        
-        // 1. Calculate Actual Cost in aPNTs
-        // actualGasCost is in Wei.
-        // If useRealtime=false: Reads storage (Cheap)
-        // If useRealtime=true: Calls Oracle (Expensive, but necessary occasionally)
-        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, useRealtime);
+        // 1. Calculate Actual Cost in aPNTs (always uses cached price)
+        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, false);
 
         // 2. Apply Protocol Fee Markup (e.g. 10%)
         // We want the final deduction to be Actual + 10%.
         uint256 finalCharge = (actualAPNTsCost * (BPS_DENOMINATOR + protocolFeeBPS)) / BPS_DENOMINATOR;
 
-        // 3. Process Refund
-        // We initially deducted `initialAPNTs` (Max) and credited it ALL to `protocolRevenue`.
-        // Now we need to adjust:
-        // - If finalCharge < initialAPNTs: Refund the difference.
-        // - Funds move: Revenue -> Operator Balance.
+        // 3. Process Refund & Record Debt
+        uint256 exchangeRate = operators[operator].exchangeRate;
+
         if (finalCharge < initialAPNTs) {
             uint256 refund = initialAPNTs - finalCharge;
-            
-            if (refund > type(uint128).max) refund = type(uint128).max; // Cap refund at uint128 max (unlikely)
-            if (refund > protocolRevenue) refund = protocolRevenue; // Safety check
+
+            if (refund > type(uint128).max) refund = type(uint128).max;
+            if (refund > protocolRevenue) refund = protocolRevenue;
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
-            // totalTrackedBalance remains unchanged (funds just moved pockets)
-            
-            // Recalculate User Debt based on Final Charge
-            uint256 exchangeRate = operators[operator].exchangeRate;
+
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
-            
+
             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
                 pendingDebts[token][user] += finalXPNTsDebt;
                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
@@ -895,11 +866,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
-             // Should rarely happen (Actual > Max), just cap at Max
-             // FIX: Ensure consistent debt recording even if we charge the Max
-             uint256 exchangeRate = operators[operator].exchangeRate;
-             // Here finalCharge = initialAPNTs (since we capped it implicitly by not refunding)
-             // But let's be explicit:
+             // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
 
              try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
@@ -931,7 +898,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @param user The user address
     function retryPendingDebt(address token, address user) external nonReentrant {
         uint256 amount = pendingDebts[token][user];
-        require(amount > 0, "No pending debt");
+        if (amount == 0) revert NoPendingDebt();
         delete pendingDebts[token][user];
         IxPNTsToken(token).recordDebt(user, amount);
         emit PendingDebtRetried(token, user, amount);
@@ -943,14 +910,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @param user The user address
     function clearPendingDebt(address token, address user) external onlyOwner {
         uint256 amount = pendingDebts[token][user];
-        require(amount > 0, "No pending debt");
+        if (amount == 0) revert NoPendingDebt();
         delete pendingDebts[token][user];
-        emit PendingDebtRetried(token, user, amount);
+        emit PendingDebtCleared(token, user, amount);
     }
+
+    /// @dev Cached oracle decimals (Chainlink decimals never change per feed contract)
+    uint8 public oracleDecimals;
 
     // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 }

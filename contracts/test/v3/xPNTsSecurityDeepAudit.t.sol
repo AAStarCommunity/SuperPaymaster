@@ -68,14 +68,14 @@ contract xPNTsSecurityDeepAuditTest is Test {
 
         // Attempt to repay 20 when debt is only 10
         vm.prank(user);
-        vm.expectRevert("Repay amount exceeds debt");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.RepayExceedsDebt.selector));
         token.repayDebt(20 ether);
 
         // Attempt to repay 10 when balance is 5 (cheat by burning user tokens)
         vm.prank(user);
         token.burn(95 ether); // balance is now 5
         vm.prank(user);
-        vm.expectRevert("ERC20: burn amount exceeds balance");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.BurnExceedsBalance.selector));
         token.repayDebt(10 ether);
     }
 
@@ -95,7 +95,7 @@ contract xPNTsSecurityDeepAuditTest is Test {
         
         // C. 5,000.01... ether - Should REVERT
         vm.prank(paymaster);
-        vm.expectRevert("Single transaction limit exceeded");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.SingleTxLimitExceeded.selector));
         token.transferFrom(user, paymaster, 5000 ether + 1);
     }
 
@@ -138,7 +138,7 @@ contract xPNTsSecurityDeepAuditTest is Test {
     // 4. Exchange Rate Sanity
     function test_Security_ExchangeRate_NonZero() public {
         vm.prank(admin);
-        vm.expectRevert("Exchange rate cannot be zero");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.ExchangeRateCannotBeZero.selector));
         token.updateExchangeRate(0);
     }
 
@@ -152,7 +152,7 @@ contract xPNTsSecurityDeepAuditTest is Test {
 
         // Attempt to record debt when SP is not configured
         vm.prank(admin); // even admin can't record debt if SP isn't set
-        vm.expectRevert("System: SuperPaymaster not configured");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.SuperPaymasterNotConfigured.selector));
         token2.recordDebt(user, 1 ether);
     }
 

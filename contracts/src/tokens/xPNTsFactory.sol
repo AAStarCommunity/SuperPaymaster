@@ -121,6 +121,9 @@ contract xPNTsFactory is Ownable, IVersioned {
     error AlreadyDeployed(address community);
     error InvalidAddress(address addr);
     error InvalidParameters();
+    error CallerNotCommunity();
+    error InvalidPrice();
+    error InvalidMultiplier();
 
     // ====================================
     // Constructor
@@ -176,7 +179,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         address paymasterAOA
     ) external returns (address token) {
         if (!IRegistry(REGISTRY).hasRole(keccak256("COMMUNITY"), msg.sender)) {
-            revert("Caller must be Community");
+            revert CallerNotCommunity();
         }
         if (communityToToken[msg.sender] != address(0)) {
             revert AlreadyDeployed(msg.sender);
@@ -322,7 +325,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param _superPaymaster The address of the deployed SuperPaymaster contract.
      */
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
-        require(_superPaymaster != address(0), "Invalid address");
+        if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
         SUPERPAYMASTER = _superPaymaster;
     }
 
@@ -332,7 +335,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
      */
     function updateAPNTsPrice(uint256 newPrice) external onlyOwner {
-        require(newPrice > 0, "Price must be positive");
+        if (newPrice == 0) revert InvalidPrice();
 
         uint256 oldPrice = aPNTsPriceUSD;
         aPNTsPriceUSD = newPrice;
@@ -349,7 +352,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         external
         onlyOwner
     {
-        require(multiplier > 0 && multiplier <= 10 ether, "Invalid multiplier");
+        if (multiplier == 0 || multiplier > 10 ether) revert InvalidMultiplier();
 
         industryMultipliers[industry] = multiplier;
 

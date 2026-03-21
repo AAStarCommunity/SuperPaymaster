@@ -92,6 +92,22 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error PaymasterNotFound(address paymaster);
 
     // ====================================
+    // Internal Helpers
+    // ====================================
+
+    /// @dev Initialize a newly deployed paymaster and verify owner is set correctly
+    function _initAndVerify(address paymaster, address operator, bytes memory initData) internal {
+        if (initData.length == 0) revert("initData required for secure deployment");
+        (bool success, bytes memory returnData) = paymaster.call(initData);
+        require(success, string(abi.encodePacked("Init failed: ", returnData)));
+        (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
+            abi.encodeWithSignature("owner()")
+        );
+        require(ownerSuccess && abi.decode(ownerData, (address)) == operator,
+                "Owner not set correctly");
+    }
+
+    // ====================================
     // Constructor
     // ====================================
 
@@ -127,20 +143,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // Deploy minimal proxy using OpenZeppelin Clones
         paymaster = implementation.clone();
 
-        // Initialize the Paymaster (MUST succeed and enforce security)
-        if (initData.length > 0) {
-            (bool success, bytes memory returnData) = paymaster.call(initData);
-            require(success, string(abi.encodePacked("Init failed: ", returnData)));
-            
-            // ✅ Verify owner is correctly set to msg.sender (Operator)
-            (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
-                abi.encodeWithSignature("owner()")
-            );
-            require(ownerSuccess && abi.decode(ownerData, (address)) == operator, 
-                    "Owner not set correctly");
-        } else {
-            revert("initData required for secure deployment");
-        }
+        _initAndVerify(paymaster, operator, initData);
 
         // Update mappings
         paymasterByOperator[operator] = paymaster;
@@ -178,19 +181,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // Deploy with deterministic address
         paymaster = implementation.cloneDeterministic(salt);
 
-        if (initData.length > 0) {
-            (bool success, bytes memory returnData) = paymaster.call(initData);
-            require(success, string(abi.encodePacked("Init failed: ", returnData)));
-            
-            // ✅ Verify owner is correctly set to msg.sender (Operator)
-            (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
-                abi.encodeWithSignature("owner()")
-            );
-            require(ownerSuccess && abi.decode(ownerData, (address)) == operator, 
-                    "Owner not set correctly");
-        } else {
-            revert("initData required for secure deployment");
-        }
+        _initAndVerify(paymaster, operator, initData);
 
         paymasterByOperator[operator] = paymaster;
         operatorByPaymaster[paymaster] = operator;

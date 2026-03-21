@@ -127,7 +127,7 @@ contract ReputationSystem_Complete_Test is Test {
 
     function test_SetRule_Unauthorized() public {
         vm.prank(user1);
-        vm.expectRevert("Not Authorized");
+        vm.expectRevert(abi.encodeWithSelector(ReputationSystem.NotAuthorized.selector));
         repSystem.setRule(keccak256("TEST"), 10, 1, 100, "Test");
     }
 

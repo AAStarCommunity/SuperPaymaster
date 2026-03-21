@@ -172,7 +172,7 @@ contract SuperPaymasterHardenVerification is Test {
         address fakeToken = address(0xdead);
         
         vm.prank(community);
-        vm.expectRevert("Security: Invalid xPNTsToken for this Community");
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
         paymaster.configureOperator(fakeToken, community, 1e18);
         
         // Now deploy a real one through factory

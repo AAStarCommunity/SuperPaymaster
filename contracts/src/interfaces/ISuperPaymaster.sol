@@ -47,7 +47,7 @@ interface ISuperPaymaster is IVersioned {
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
     event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
     event ReputationUpdated(address indexed operator, uint256 newScore);
-    event ValidationRejected(address indexed user, address indexed operator, uint8 reasonCode);
+    // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
 
     // ============ Functions ============
 

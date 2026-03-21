@@ -42,6 +42,7 @@ contract DVTValidator is Ownable, IVersioned {
     error NotValidator();
     error AlreadySigned();
     error ProposalExecutedAlready();
+    error OnlyBLSAggregator();
 
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistry(_registry);
@@ -70,7 +71,7 @@ contract DVTValidator is Ownable, IVersioned {
      * @dev This is called after BLS proof verification succeeds
      */
     function markProposalExecuted(uint256 id) external {
-        require(msg.sender == BLS_AGGREGATOR, "Only BLS Aggregator");
+        if (msg.sender != BLS_AGGREGATOR) revert OnlyBLSAggregator();
         proposals[id].executed = true;
         emit ProposalExecuted(id);
     }
