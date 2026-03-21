@@ -991,21 +991,21 @@ TokenAmount = (GasWei * EthPrice * TotalRate * 10^TokenDecimals) / (TokenPrice *
 
 | # | Item | Priority | Status | Notes |
 |---|------|----------|--------|-------|
-| 1 | **Deploy wiring: `setAuthorizedSlasher(blsAggregator, true)`** | HIGH | ❌ Pending | GTokenStaking 需要在部署脚本中注册 BLSAggregator 为授权 slasher，否则 Tier 2 slash 无法执行 |
-| 2 | **Role lock duration 配置** | HIGH | ❌ Pending | 生产部署前需通过 `configureRole()` 为每个角色设置合理的 `roleLockDuration`（建议 7-30 天），当前默认为 0（无锁定期） |
-| 3 | **补充测试: Registry 角色注册** | MEDIUM | ❌ Pending | Paymaster/SuperPaymaster 角色注册完整流程、动态角色管理、全生命周期（注册→运营→退出） |
-| 4 | **补充测试: Staking exit flow** | MEDIUM | ❌ Pending | unlock → withdraw 完整流程、Slash 参数验证（penalty/treasury/refund）、timelock 测试 |
-| 5 | **补充测试: MySBT burn 联动** | MEDIUM | ❌ Pending | Active burn、role exit 联动 burn、metadata 验证 |
-| 6 | **Ownable2Step 迁移评估** | LOW | ❌ Pending | 当前使用 OZ v5 `Ownable`（单步 transferOwnership），生产前建议评估迁移到 `Ownable2Step` 防止误操作丢失 owner |
-| 7 | **`upgradeToAndCall` + reinitializer 测试** | LOW | ❌ Pending | V2 升级路径验证：带 migration data 的原子升级 |
-| 8 | **`updateBlockedStatus` 端到端验证** | LOW | ❌ Pending | Registry → SuperPaymaster 的黑名单同步路径需要集成测试验证 |
+| 1 | **Deploy wiring: `setAuthorizedSlasher(blsAggregator, true)`** | HIGH | ✅ Done | Added to both DeployLive.s.sol and DeployAnvil.s.sol `_executeWiring()` |
+| 2 | **Role lock duration 配置** | HIGH | ✅ Done | Already set in `initialize()` via `_initRole()`: 30 days for AOA/SUPER/DVT/ANODE/KMS/COMMUNITY, 7 days for ENDUSER. All deploy paths (DeployAnvil, DeployLive, MigrateToUUPS) call `initialize()`. |
+| 3 | **补充测试: Registry 角色注册** | MEDIUM | ✅ Done | Added in `SupplementaryLifecycle.t.sol`: 7 tests covering register→exit lifecycle, multi-role, safeMintForRole, dynamic role config, lock duration enforcement |
+| 4 | **补充测试: Staking exit flow** | MEDIUM | ✅ Done | Added in `SupplementaryLifecycle.t.sol`: 3 tests covering exit fee verification (preview→actual), slash-then-exit, view functions |
+| 5 | **补充测试: MySBT burn 联动** | MEDIUM | ✅ Done | Added in `SupplementaryLifecycle.t.sol`: 4 tests covering mint-on-registration, burn-on-all-exit, deactivation, metadata fields |
+| 6 | **Ownable2Step 迁移评估** | LOW | ✅ Evaluated | OZ v5.0.2 has `Ownable2Step.sol` but **NOT** `Ownable2StepUpgradeable`. Key blocker: `_pendingOwner` inserts at Slot 1, causing storage collision with ReentrancyGuard._status on existing proxies. **Decision: Defer to mainnet deployment as a clean redeploy operation.** Interim mitigation: verify Safe address with a dry-run `onlyOwner` call before `transferOwnership`. |
+| 7 | **`upgradeToAndCall` + reinitializer 测试** | LOW | ✅ Done | Added in `SupplementaryLifecycle.t.sol`: 3 tests — Registry reinitializer(2), cannot-run-twice, SuperPaymaster reinitializer(2) |
+| 8 | **`updateBlockedStatus` 端到端验证** | LOW | ✅ Done | Added in `SupplementaryLifecycle.t.sol`: 5 tests — Registry→SP blocked status sync, unblock, onlyRegistry guards, SBT status sync/clear |
 
 ### D.2 Deployment Script TODO (部署脚本)
 
 | # | Item | Priority | Notes |
 |---|------|----------|-------|
-| 1 | `DeployLive.s.sol` 添加 `setAuthorizedSlasher` wiring | HIGH | `staking.setAuthorizedSlasher(address(aggregator), true)` |
-| 2 | 删除笔记中 "Short-term: Immutable + Migration" 策略描述 | LOW | 已被 UUPS proxy 替代，该策略不再适用 |
+| 1 | `DeployLive.s.sol` 添加 `setAuthorizedSlasher` wiring | HIGH | ✅ Done — Added to both DeployLive and DeployAnvil |
+| 2 | 删除笔记中 "Short-term: Immutable + Migration" 策略描述 | LOW | ✅ Done — Old strategy descriptions were already removed during UUPS migration. Only historical reference in Appendix E #9 remains as audit record. |
 
 ### D.3 SDK-Level TODO (移至 SDK 仓库)
 
@@ -1040,7 +1040,7 @@ TokenAmount = (GasWei * EthPrice * TotalRate * 10^TokenDecimals) / (TokenPrice *
 | 6 | PaymasterV4 Stablecoin | ✅ 已完成 | Deposit-only + multi-token + 13 unit tests |
 | 7 | xPNTsFactory Binding | ✅ 已完成 | Factory binding + burnFromWithOpHash + replay |
 | 8 | Oracle/Pricing | ✅ 已完成 | Hybrid pricing + DVT fallback + ±20% check |
-| 9 | Deployment Workflows | ⚠️ 部分过时 | "Immutable + Migration" 策略已废弃，UUPS 替代 |
+| 9 | Deployment Workflows | ✅ 已清理 | "Immutable + Migration" 策略已废弃，UUPS 替代。旧策略描述已在迁移过程中清除。 |
 | 10 | Role Management | ✅ 已完成 | 7 roles + lock + burn + lifecycle |
 | 11 | SBT Lifecycle | ✅ 已完成 | 一 SBT 多角色 + onlyRegistry burn |
 | 12 | Blacklist/Rate Limiting | ✅ 已完成 | blockedUsers + minTxInterval + DVT blacklist |
