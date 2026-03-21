@@ -207,8 +207,8 @@ contract SuperPaymasterTest is Test {
     function testDepositFailsIfExceedLimit() public {
         vm.startPrank(operator);
         // Default limit is 5000 ether
-        vm.expectRevert("Single transaction limit exceeded");
-        paymaster.deposit(6000 ether); 
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.SingleTxLimitExceeded.selector));
+        paymaster.deposit(6000 ether);
         vm.stopPrank();
     }
 
@@ -229,7 +229,7 @@ contract SuperPaymasterTest is Test {
         // Simulate Paymaster trying to steal funds to a 3rd party (user)
         // We prank the Paymaster address itself
         vm.startPrank(address(paymaster));
-        vm.expectRevert("Security: Unauthorized recipient for auto-approved spender");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.UnauthorizedRecipient.selector));
         apnts.transferFrom(operator, user, 100 ether);
         vm.stopPrank();
     }

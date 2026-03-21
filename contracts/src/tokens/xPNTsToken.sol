@@ -114,6 +114,21 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error Unauthorized(address caller);
     error InvalidAddress(address addr);
     error OperationAlreadyProcessed(bytes32 userOpHash);
+    error UnauthorizedRecipient();
+    error SingleTxLimitExceeded();
+    error SuperPaymasterNotConfigured();
+    error NoDebtToRepay();
+    error RepayExceedsDebt();
+    error BurnExceedsBalance();
+    error MustUseBurnFromWithOpHash();
+    error BurnExceedsAllowance();
+    error ExchangeRateCannotBeZero();
+
+    /// @dev Only factory or community owner can call
+    modifier onlyFactoryOrOwner() {
+        if (msg.sender != FACTORY && msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        _;
+    }
 
     // ====================================
     // Constructor
@@ -249,12 +264,12 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (autoApprovedSpenders[msg.sender]) {
             // Auto-approved members can ONLY move funds to themselves or the current SuperPaymaster
             if (to != msg.sender && to != SUPERPAYMASTER_ADDRESS) {
-                 revert("Security: Unauthorized recipient for auto-approved spender");
+                 revert UnauthorizedRecipient();
             }
 
             // Single transaction limit (anti-bug safeguard)
             if (value > MAX_SINGLE_TX_LIMIT) {
-                revert("Single transaction limit exceeded");
+                revert SingleTxLimitExceeded();
             }
         }
 
@@ -296,7 +311,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         // 4. Single transaction limit (anti-bug safeguard)
         if (amount > MAX_SINGLE_TX_LIMIT) {
-            revert("Single transaction limit exceeded");
+            revert SingleTxLimitExceeded();
         }
 
         // 5. Execute Burn
@@ -313,14 +328,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Record user debt (only SuperPaymaster)
      */
     function recordDebt(address user, uint256 amountXPNTs) external {
-        if (SUPERPAYMASTER_ADDRESS == address(0)) revert("System: SuperPaymaster not configured");
+        if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
         }
 
         // Single transaction limit (anti-bug safeguard)
         if (amountXPNTs > MAX_SINGLE_TX_LIMIT) {
-            revert("Single transaction limit exceeded");
+            revert SingleTxLimitExceeded();
         }
 
         debts[user] += amountXPNTs;
@@ -334,9 +349,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     function repayDebt(uint256 amount) external {
         uint256 currentDebt = debts[msg.sender];
         if (amount == 0) return;
-        if (currentDebt == 0) revert("No debt to repay");
-        if (amount > currentDebt) revert("Repay amount exceeds debt");
-        if (balanceOf(msg.sender) < amount) revert("ERC20: burn amount exceeds balance");
+        if (currentDebt == 0) revert NoDebtToRepay();
+        if (amount > currentDebt) revert RepayExceedsDebt();
+        if (balanceOf(msg.sender) < amount) revert BurnExceedsBalance();
 
         debts[msg.sender] = currentDebt - amount;
         _burn(msg.sender, amount);
@@ -381,10 +396,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Sets or updates the trusted SuperPaymaster address.
      * @dev Can only be called by the factory or the community owner.
      */
-    function setSuperPaymasterAddress(address _spAddress) external {
-        if (msg.sender != FACTORY && msg.sender != communityOwner) {
-            revert Unauthorized(msg.sender);
-        }
+    function setSuperPaymasterAddress(address _spAddress) external onlyFactoryOrOwner {
         if (_spAddress == address(0)) {
             revert InvalidAddress(_spAddress);
         }
@@ -431,10 +443,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
     }
 
-    function addAutoApprovedSpender(address spender) external {
-        if (msg.sender != communityOwner && msg.sender != FACTORY) {
-            revert Unauthorized(msg.sender);
-        }
+    function addAutoApprovedSpender(address spender) external onlyFactoryOrOwner {
         if (spender == address(0)) {
             revert InvalidAddress(spender);
         }
@@ -456,10 +465,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     // Minting & Standard Burning
     // ====================================
 
-    function mint(address to, uint256 amount) external {
-        if (msg.sender != FACTORY && msg.sender != communityOwner) {
-            revert Unauthorized(msg.sender);
-        }
+    function mint(address to, uint256 amount) external onlyFactoryOrOwner {
         if (to == address(0)) {
             revert InvalidAddress(to);
         }
@@ -470,13 +476,13 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     function burn(address from, uint256 amount) external {
         // SECURITY: The SuperPaymaster is explicitly forbidden from using this function.
         if (msg.sender == SUPERPAYMASTER_ADDRESS) {
-            revert("SuperPaymaster must use burnFromWithOpHash()");
+            revert MustUseBurnFromWithOpHash();
         }
 
         if (msg.sender != from) {
             uint256 allowed = allowance(from, msg.sender);
             if (allowed < amount) {
-                revert("ERC20: burn amount exceeds allowance");
+                revert BurnExceedsAllowance();
             }
             if (allowed != type(uint256).max) {
                 _approve(from, msg.sender, allowed - amount);
@@ -491,11 +497,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     // ... (rest of the original functions: updateExchangeRate, transferCommunityOwnership, getMetadata, etc.) ...
     
-    function updateExchangeRate(uint256 _newRate) external {
-        if (msg.sender != FACTORY && msg.sender != communityOwner) {
-            revert Unauthorized(msg.sender);
-        }
-        if (_newRate == 0) revert("Exchange rate cannot be zero");
+    function updateExchangeRate(uint256 _newRate) external onlyFactoryOrOwner {
+        if (_newRate == 0) revert ExchangeRateCannotBeZero();
 
         emit ExchangeRateUpdated(exchangeRate, _newRate);
         exchangeRate = _newRate;

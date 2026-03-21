@@ -202,6 +202,7 @@ uint256[49] private __gap;              // slots 19-67 (reduced by 1)
 - Change variable types for existing slots
 - Remove variables from the middle of storage
 - Reorder variables
+- Attempt in-place `upgradeToAndCall` from pre-UUPS (non-proxy) deployments — storage layouts are incompatible (e.g., `pendingDebts` was inserted at SuperPaymaster slot 17, shifting subsequent slots). Migration path is always: deploy new proxy → migrate state via script.
 
 ---
 

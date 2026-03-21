@@ -134,7 +134,7 @@ contract GTokenStakingSlashBasicTest is Test {
         
         // 未授权的调用应该失败
         vm.prank(dvtSlasher);
-        vm.expectRevert("Not authorized slasher");
+        vm.expectRevert(abi.encodeWithSelector(GTokenStaking.NotAuthorizedSlasher.selector));
         staking.slashByDVT(operator, roleId, 1 ether, "Test");
         
         // 授权后可以调用 (虽然会因为没有 stake 而失败,但不会因为权限失败)
@@ -142,7 +142,7 @@ contract GTokenStakingSlashBasicTest is Test {
         staking.setAuthorizedSlasher(dvtSlasher, true);
         
         vm.prank(dvtSlasher);
-        vm.expectRevert("Insufficient stake");  // 现在是因为没有 stake 而失败,不是权限问题
+        vm.expectRevert(abi.encodeWithSelector(GTokenStaking.InsufficientStake.selector));  // 现在是因为没有 stake 而失败,不是权限问题
         staking.slashByDVT(operator, roleId, 1 ether, "Test");
     }
 }

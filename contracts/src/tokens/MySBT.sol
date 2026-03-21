@@ -114,6 +114,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     mapping(uint256 => SBTData) public sbtData;
     mapping(uint256 => CommunityMembership[]) private _m;
     mapping(uint256 => mapping(address => uint256)) public membershipIndex;
+    /// @notice DEPRECATED: Unused since v3.1; kept for storage/ABI stability. Will be removed in next major version.
     mapping(uint256 => mapping(address => mapping(uint256 => bool))) public weeklyActivity;
     mapping(uint256 => mapping(address => uint256)) public lastActivityTime;
 
@@ -135,7 +136,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     uint256 constant ACT_WIN = 4;
     uint256 constant MIN_INT = 5 minutes;
 
-    error E();
+    // error E() removed — was unused legacy from v2
 
     modifier onlyDAO() {
         require(msg.sender == daoMultisig, "Only DAO");
@@ -549,10 +550,12 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      * @param c Community address to validate
      * @return bool True if address has COMMUNITY role in Registry v3
      */
+    /// @dev Compile-time constant, identical to Registry.ROLE_COMMUNITY
+    bytes32 private constant _ROLE_COMMUNITY = keccak256("COMMUNITY");
+
     function _isValid(address c) internal view returns (bool) {
         if (REGISTRY == address(0)) return false;
-        bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-        try IRegistry(REGISTRY).hasRole(ROLE_COMMUNITY, c) returns (bool r) {
+        try IRegistry(REGISTRY).hasRole(_ROLE_COMMUNITY, c) returns (bool r) {
             return r;
         } catch {
             return false;

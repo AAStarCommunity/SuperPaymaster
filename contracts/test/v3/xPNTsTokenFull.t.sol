@@ -67,7 +67,7 @@ contract xPNTsTokenFullTest is Test {
         
         // SuperPaymaster cannot use transferFrom to arbitrary addresses
         vm.prank(paymaster);
-        vm.expectRevert("Security: Unauthorized recipient for auto-approved spender");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.UnauthorizedRecipient.selector));
         token.transferFrom(user, other, 10 ether);
     }
 
@@ -206,7 +206,7 @@ contract xPNTsTokenFullTest is Test {
 
         // 3. Transfer exceeding single-tx limit should REVERT
         vm.prank(paymaster);
-        vm.expectRevert("Single transaction limit exceeded");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.SingleTxLimitExceeded.selector));
         token.transferFrom(user, paymaster, 6000 ether); // > 5000 limit
 
         // 4. Verify the state hasn't changed

@@ -69,7 +69,7 @@ contract xPNTsFactoryTest is Test {
             abi.encode(false)
         );
         
-        vm.expectRevert("Caller must be Community");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.CallerNotCommunity.selector));
         factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
     }
     
@@ -198,23 +198,23 @@ contract xPNTsFactoryTest is Test {
         // setSuperPaymasterAddress
         factory.setSuperPaymasterAddress(address(99));
         assertEq(factory.SUPERPAYMASTER(), address(99));
-        vm.expectRevert("Invalid address");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidAddress.selector, address(0)));
         factory.setSuperPaymasterAddress(address(0));
         
         // updateAPNTsPrice
         factory.updateAPNTsPrice(1 ether);
         assertEq(factory.getAPNTsPrice(), 1 ether);
-        vm.expectRevert("Price must be positive");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidPrice.selector));
         factory.updateAPNTsPrice(0);
         
         // setIndustryMultiplier
         factory.setIndustryMultiplier("Custom", 5 ether);
         assertEq(factory.getIndustryMultiplier("Custom"), 5 ether);
         
-        vm.expectRevert("Invalid multiplier");
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidMultiplier.selector));
         factory.setIndustryMultiplier("Bad", 0);
-        
-        vm.expectRevert("Invalid multiplier");
+
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidMultiplier.selector));
         factory.setIndustryMultiplier("Bad", 11 ether);
         
         vm.stopPrank();

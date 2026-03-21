@@ -128,7 +128,7 @@ contract DVTSlashTest is Test {
         address hacker = address(0x1337);
         vm.startPrank(hacker);
         
-        vm.expectRevert("Not authorized slasher");
+        vm.expectRevert(abi.encodeWithSelector(GTokenStaking.NotAuthorizedSlasher.selector));
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 1 ether, "Hacked");
         
         vm.stopPrank();
@@ -139,7 +139,7 @@ contract DVTSlashTest is Test {
         staking.setAuthorizedSlasher(dvtAggregator, true);
 
         vm.startPrank(dvtAggregator);
-        vm.expectRevert("Insufficient stake");
+        vm.expectRevert(abi.encodeWithSelector(GTokenStaking.InsufficientStake.selector));
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 1 ether, "No stake yet");
         vm.stopPrank();
     }

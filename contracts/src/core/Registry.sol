@@ -98,6 +98,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error BLSNotConfigured();
     error SPNotSet();
     error ThreshNotAscending();
+    error BatchTooLarge();
+    error TooManyLevels();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() Ownable(msg.sender) {
@@ -241,7 +243,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
         if (!alreadyHasRole) {
             _firstTimeRegister(roleId, user, roleData, stakeAmount, config.entryBurn, user);
-            userRoles[user].push(roleId);
         } else {
             // Re-registration / Top-up: preserve lockedAt (H-01/C-01 fix)
             GTOKEN_STAKING.topUpStake(user, roleId, stakeAmount - roleStakes[roleId][user], user);
@@ -337,6 +338,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         roleMemberIndex[roleId][user] = roleMembers[roleId].length;
         roleMetadata[roleId][user] = roleData;
         userRoleCount[user]++;
+        userRoles[user].push(roleId);
         GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, entryBurn, sponsor);
     }
 
@@ -377,6 +379,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) external nonReentrant {
         if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
         if (users.length != newScores.length) revert LenMismatch();
+        if (users.length > 200) revert BatchTooLarge();
 
         // --- BLS12-381 PAIRING CHECK (EIP-2537) ---
         if (proof.length == 0) revert BLSProofRequired();
@@ -487,6 +490,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     /// @notice Replace all level thresholds (must be strictly ascending)
     function setLevelThresholds(uint256[] calldata thresholds) external onlyOwner {
+        if (thresholds.length > 20) revert TooManyLevels();
         delete levelThresholds;
         for (uint256 i = 0; i < thresholds.length; i++) {
             if (i > 0 && thresholds[i] <= thresholds[i - 1]) revert ThreshNotAscending();

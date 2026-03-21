@@ -41,6 +41,13 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     mapping(address => uint256) public nftCollectionBoost;
     mapping(address => mapping(address => uint256)) public nftHoldStart; // user => collection => timestamp
     address[] public boostedCollections;
+    uint256 public constant MAX_BOOSTED_COLLECTIONS = 50;
+
+    error Unauthorized();
+    error NotAuthorized();
+    error MaxBoostedReached();
+    error DoesNotHoldNFT();
+    error InvalidCollection();
 
     event RuleUpdated(address indexed community, bytes32 indexed ruleId, uint256 base, uint256 bonus);
     event EntropyFactorUpdated(address indexed community, uint256 factor);
@@ -72,7 +79,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
      */
     function setCommunityReputation(address community, address user, uint256 score) external {
         // Reuse Registry's reputation source whitelist for access control
-        require(msg.sender == owner() || REGISTRY.isReputationSource(msg.sender), "Unauthorized");
+        if (msg.sender != owner() && !REGISTRY.isReputationSource(msg.sender)) revert Unauthorized();
         communityReputations[community][user] = score;
         emit CommunityReputationUpdated(community, user, score);
     }
@@ -84,7 +91,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     function setRule(bytes32 ruleId, uint256 base, uint256 bonus, uint256 max, string calldata desc) external {
         address community = msg.sender; 
         // Verify msg.sender has the COMMUNITY role (multi-tenant: each community manages its own rules)
-        require(REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) || owner() == msg.sender, "Not Authorized");
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) && owner() != msg.sender) revert NotAuthorized();
 
         
         if (communityRules[community][ruleId].baseScore == 0 && base > 0) {
@@ -97,6 +104,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
 
     function setNFTBoost(address collection, uint256 boost) external onlyOwner {
         if (nftCollectionBoost[collection] == 0) {
+            if (boostedCollections.length >= MAX_BOOSTED_COLLECTIONS) revert MaxBoostedReached();
             boostedCollections.push(collection);
         }
         nftCollectionBoost[collection] = boost;
@@ -247,12 +255,12 @@ contract ReputationSystem is Ownable, IReputationCalculator {
      */
     function updateNFTHoldStart(address collection) external {
         try IERC721(collection).balanceOf(msg.sender) returns (uint256 balance) {
-            require(balance > 0, "Does not hold NFT");
+            if (balance == 0) revert DoesNotHoldNFT();
             if (nftHoldStart[msg.sender][collection] == 0) {
                 nftHoldStart[msg.sender][collection] = block.timestamp;
             }
         } catch {
-            revert("Invalid collection");
+            revert InvalidCollection();
         }
     }
 }

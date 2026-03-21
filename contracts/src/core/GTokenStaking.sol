@@ -22,6 +22,17 @@ import "../interfaces/v3/IGTokenStaking.sol";
 contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     using SafeERC20 for IERC20;
 
+    error OnlyRegistry();
+    error InvalidAddress();
+    error RoleAlreadyLocked();
+    error AmountExceedsUint128();
+    error RoleNotLocked();
+    error NoLockFound();
+    error OnlyRegistryOrAuthorized();
+    error Unauthorized();
+    error NotAuthorizedSlasher();
+    error InsufficientStake();
+
     // ...
 
     function version() external pure override returns (string memory) {
@@ -64,14 +75,14 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ====================================
 
     modifier onlyRegistry() {
-        if (msg.sender != REGISTRY) revert("Only Registry");
+        if (msg.sender != REGISTRY) revert OnlyRegistry();
         _;
     }
 
     constructor(address _gtoken, address _treasury, address _registry) Ownable(msg.sender) {
-        if (_gtoken == address(0)) revert("Invalid GToken");
-        if (_treasury == address(0)) revert("Invalid Treasury");
-        if (_registry == address(0)) revert("Invalid Registry");
+        if (_gtoken == address(0)) revert InvalidAddress();
+        if (_treasury == address(0)) revert InvalidAddress();
+        if (_registry == address(0)) revert InvalidAddress();
         GTOKEN = IERC20(_gtoken);
         treasury = _treasury;
         REGISTRY = _registry;
@@ -93,7 +104,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         uint256 entryBurn,
         address payer
     ) external nonReentrant onlyRegistry returns (uint256 lockId) {
-        if (roleLocks[user][roleId].amount > 0) revert("Role already locked");
+        if (roleLocks[user][roleId].amount > 0) revert RoleAlreadyLocked();
         
         uint256 totalAmount = stakeAmount + entryBurn;
         
@@ -113,8 +124,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         }
 
         // Safe Casts for Packed Storage
-        if (stakeAmount > type(uint128).max) revert("Amount exceeds uint128");
-        if (entryBurn > type(uint128).max) revert("Amount exceeds uint128");
+        if (stakeAmount > type(uint128).max) revert AmountExceedsUint128();
+        if (entryBurn > type(uint128).max) revert AmountExceedsUint128();
         
         // Create lock
         RoleLock memory newLock = RoleLock({
@@ -146,7 +157,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         address payer
     ) external nonReentrant onlyRegistry {
         RoleLock storage lock = roleLocks[user][roleId];
-        if (lock.amount == 0) revert("Role not locked");
+        if (lock.amount == 0) revert RoleNotLocked();
 
         GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
         
@@ -165,7 +176,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         bytes32 roleId
     ) external nonReentrant onlyRegistry returns (uint256 netAmount) {
         RoleLock storage lock = roleLocks[user][roleId];
-        if (lock.lockedAt == 0) revert("No lock found");
+        if (lock.lockedAt == 0) revert NoLockFound();
         
         // Slashes are now handled immediately in slash() by transferring to treasury
         // and reducing totalStaked. Here we just process the remaining lock.
@@ -210,7 +221,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         string calldata reason
     ) external nonReentrant returns (uint256 slashedAmount) {
         if (msg.sender != REGISTRY && !authorizedSlashers[msg.sender]) {
-            revert("Only Registry or authorized");
+            revert OnlyRegistryOrAuthorized();
         }
 
         StakeInfo storage info = stakes[user];
@@ -324,7 +335,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ====================================
 
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
-        if (msg.sender != REGISTRY && msg.sender != owner()) revert("Unauthorized");
+        if (msg.sender != REGISTRY && msg.sender != owner()) revert Unauthorized();
         
         RoleExitConfig storage config = roleExitConfigs[roleId]; // Assuming RoleExitConfig is the correct struct name based on original code
         config.feePercent = feePercent;
@@ -343,7 +354,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
      * @param _treasury New treasury address
      */
     function setTreasury(address _treasury) external onlyOwner {
-        if (_treasury == address(0)) revert("Invalid Treasury");
+        if (_treasury == address(0)) revert InvalidAddress();
         treasury = _treasury;
     }
 
@@ -376,17 +387,17 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         uint256 penaltyAmount,
         string calldata reason
     ) external {
-        require(authorizedSlashers[msg.sender], "Not authorized slasher");
+        if (!authorizedSlashers[msg.sender]) revert NotAuthorizedSlasher();
         
         RoleLock storage lock = roleLocks[operator][roleId];
-        require(lock.amount >= penaltyAmount, "Insufficient stake");
+        if (lock.amount < penaltyAmount) revert InsufficientStake();
         
         // Deduct from role lock  
         lock.amount -= uint128(penaltyAmount);
         
         // H-01 FIX: Deduct from stake and track cumulative slashed
         StakeInfo storage stake = stakes[operator];
-        require(stake.amount >= penaltyAmount, "Insufficient stake");
+        if (stake.amount < penaltyAmount) revert InsufficientStake();
         stake.slashedAmount += penaltyAmount;  // Track cumulative slashed
         stake.amount -= penaltyAmount;         // Reduce actual balance
         totalStaked -= penaltyAmount;
