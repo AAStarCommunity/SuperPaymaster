@@ -28,9 +28,6 @@ CONTRACTS=(
     "BLSAggregator"
     "DVTValidator"
     "BLSValidator"
-    "EntryPoint"
-    "SimpleAccount"
-    "SimpleAccountFactory"
 )
 
 echo "🔍 Starting ABI extraction for V3/V4..."
