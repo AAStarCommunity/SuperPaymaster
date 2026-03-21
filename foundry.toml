@@ -17,10 +17,8 @@ evm_version = "cancun"
 
 # Remappings for dependencies
 remappings = [
-    "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
-    "account-abstraction/=lib/account-abstraction/contracts/",
     "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
     "solady/=contracts/lib/solady/src/",
     "singleton-paymaster/=singleton-paymaster/",
@@ -65,10 +63,8 @@ evm_version = "cancun"
 # ]
 
 remappings = [
-    "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
-    "account-abstraction/=lib/account-abstraction/contracts/",
     "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
     "solady/=contracts/lib/solady/src/",
     "src/=contracts/src/"

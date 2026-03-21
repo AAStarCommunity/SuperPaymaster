@@ -1,29 +1,34 @@
 # Dependabot configuration for SuperPaymaster
 # This file configures GitHub Dependabot to manage dependency updates
 # and security alerts for the project
+#
+# NOTE: Git submodules (singleton-paymaster/, contracts/lib/, lib/) contain
+# upstream dependencies (OpenZeppelin, Pimlico, eth-infinitism, Chainlink).
+# Their internal npm dependencies should NOT be updated here — they are pinned
+# to specific upstream commits. Only monitor our own root-level dependencies.
 
 version: 2
 updates:
-  # Monitor npm dependencies in the root project
+  # Monitor npm dependencies in the root project ONLY
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-    # Bundling all updates into a single weekly PR to reduce noise
     groups:
       all-dependencies:
         patterns:
           - "*"
     open-pull-requests-limit: 1
+    # Exclude git submodule internal directories
+    directories:
+      - "/"
     ignore:
-      # Ignore development dependencies vulnerabilities
       - dependency-name: "eslint"
         update-types: ["version-update:semver-patch", "version-update:semver-minor"]
       - dependency-name: "hardhat"
         update-types: ["version-update:semver-patch", "version-update:semver-minor"]
       - dependency-name: "@sentry/node"
       - dependency-name: "axios"
-        # Only ignore dev dependency updates, not security patches
         update-types: ["version-update:semver-minor"]
       - dependency-name: "cookie"
       - dependency-name: "brace-expansion"
@@ -39,9 +44,3 @@ updates:
         patterns:
           - "*"
     open-pull-requests-limit: 1
-
-# Note: To further configure security alerts:
-# 1. Go to: https://github.com/AAStarCommunity/SuperPaymaster/settings/security_analysis
-# 2. Enable "Dependabot security updates"
-# 3. Configure alert severity thresholds
-# 4. You can dismiss specific alerts for development dependencies
