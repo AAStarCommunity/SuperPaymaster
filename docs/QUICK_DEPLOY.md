@@ -49,7 +49,7 @@ NEXT_PUBLIC_SUPER_PAYMASTER_V8="SuperPaymasterV8合约地址"
 anvil
 
 # 在新终端部署到本地网络
-forge script script/DeploySuperpaymaster.s.sol:DeploySuperpaymaster --rpc-url http://127.0.0.1:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
+forge script script/DeploySuperpaymaster.s.sol:DeploySuperpaymaster --rpc-url http://127.0.0.1:8545 --private-key $PRIVATE_KEY --broadcast
 ```
 
 ## 🆘 问题排除
