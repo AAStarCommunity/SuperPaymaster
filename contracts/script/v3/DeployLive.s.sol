@@ -137,6 +137,9 @@ contract DeployLive is Script {
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
         
+        // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
+        staking.setAuthorizedSlasher(address(aggregator), true);
+
         // Oracle Init
         try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
             try superPaymaster.updatePriceDVT(price, block.timestamp, "") {
