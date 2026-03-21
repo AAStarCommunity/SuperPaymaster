@@ -179,7 +179,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 _priceStalenessThreshold
     ) external initializer {
         __BasePaymaster_init(_owner);
-        if (_apntsToken == address(0)) revert InvalidAddress();
+        // Note: _apntsToken can be address(0) during staged deployment
+        // (deployed later via setAPNTsToken which has its own zero-address check)
         APNTS_TOKEN = _apntsToken;
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
         priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
