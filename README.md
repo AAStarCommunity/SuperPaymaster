@@ -1473,3 +1473,32 @@ graph TD
 
 ### SDK / Frontend Integration
 - [Registry v4.1 SDK Migration Guide](./docs/registry-v4.1-sdk-migration.md) — Registry v4.1.0 接口精简迁移指南：5 个函数合并为 2 个，viem 代码示例，custom errors 对照表
+
+---
+
+## Post-Deployment Checklist
+
+After deploying to a new network, complete these operational tasks:
+
+### Event Monitoring (Required)
+- [ ] Monitor `DebtRecordFailed(token, user, amount)` — SuperPaymaster postOp debt recording failures, needs `retryPendingDebt` or `clearPendingDebt`
+- [ ] Monitor `ExitFeeSyncFailed(roleId)` — Registry exit fee sync failures during `setStaking()`
+- [ ] Monitor `PendingDebtCleared(token, user, amount)` — Admin debt write-offs for accounting reconciliation
+- [ ] Monitor `UserSlashed(user, amount, reason, timestamp)` — Slash events for governance review
+
+### Oracle & Keeper Operations
+- [ ] Verify Chainlink ETH/USD price feed is active and returning fresh data
+- [ ] Configure `priceStalenessThreshold` appropriate for the network (default: 3600s)
+- [ ] Set up Keeper for periodic `retryPendingDebt` calls (if any accumulate)
+
+### Access Control Verification
+- [ ] Confirm `owner()` is set to deployer/multisig (not EOA for mainnet)
+- [ ] Verify `setAuthorizedSlasher()` wired BLSAggregator correctly
+- [ ] Verify `setReputationSource()` authorized the correct DVT aggregator
+- [ ] Confirm `_authorizeUpgrade` restricted to owner (UUPS contracts)
+
+### Smoke Tests
+- [ ] Register a test community via `registerRole(ROLE_COMMUNITY, ...)`
+- [ ] Register a test end-user via `registerRole(ROLE_ENDUSER, ...)`
+- [ ] Execute a gasless transaction through SuperPaymaster
+- [ ] Verify xPNTs token deployment via factory

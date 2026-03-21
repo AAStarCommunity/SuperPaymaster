@@ -273,7 +273,65 @@ contract V3_DynamicLevelThresholds_Test is Test {
             registry.batchUpdateGlobalReputation(i + 202, users, scores, 202 + i, _dummyProof());
         }
         assertEq(registry.getCreditLimit(user1), 10000 ether); // Level 7
-        
+
+        vm.stopPrank();
+    }
+
+    // ====================================
+    // Boundary Condition Tests (Kimi audit)
+    // ====================================
+
+    function test_SetLevelThresholds_MaxLength20() public {
+        vm.startPrank(admin);
+        // Exactly 20 thresholds should succeed (max allowed)
+        uint256[] memory t = new uint256[](20);
+        for (uint256 i = 0; i < 20; i++) {
+            t[i] = (i + 1) * 100;
+        }
+        registry.setLevelThresholds(t);
+        assertEq(registry.levelThresholds(19), 2000);
+        vm.stopPrank();
+    }
+
+    function test_SetLevelThresholds_Exceeds20_Reverts() public {
+        vm.startPrank(admin);
+        // 21 thresholds should revert
+        uint256[] memory t = new uint256[](21);
+        for (uint256 i = 0; i < 21; i++) {
+            t[i] = (i + 1) * 100;
+        }
+        vm.expectRevert(Registry.TooManyLevels.selector);
+        registry.setLevelThresholds(t);
+        vm.stopPrank();
+    }
+
+    function test_BatchUpdateReputation_Max200() public {
+        vm.startPrank(admin);
+        // Exactly 200 users should succeed
+        address[] memory users = new address[](200);
+        uint256[] memory scores = new uint256[](200);
+        for (uint256 i = 0; i < 200; i++) {
+            users[i] = address(uint160(0x1000 + i));
+            scores[i] = 10;
+        }
+        registry.batchUpdateGlobalReputation(1, users, scores, 300, _dummyProof());
+        // Verify first and last
+        assertEq(registry.globalReputation(users[0]), 10);
+        assertEq(registry.globalReputation(users[199]), 10);
+        vm.stopPrank();
+    }
+
+    function test_BatchUpdateReputation_Exceeds200_Reverts() public {
+        vm.startPrank(admin);
+        // 201 users should revert
+        address[] memory users = new address[](201);
+        uint256[] memory scores = new uint256[](201);
+        for (uint256 i = 0; i < 201; i++) {
+            users[i] = address(uint160(0x2000 + i));
+            scores[i] = 10;
+        }
+        vm.expectRevert(Registry.BatchTooLarge.selector);
+        registry.batchUpdateGlobalReputation(2, users, scores, 301, _dummyProof());
         vm.stopPrank();
     }
 }

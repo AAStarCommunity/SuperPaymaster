@@ -251,6 +251,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
                 }
             }
 
+            // Cleanup zero-amount role locks to prevent storage bloat
+            _cleanupZeroLocks(user);
+
             GTOKEN.safeTransfer(treasury, slashedAmount);
         }
 
@@ -272,6 +275,20 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             fee = amount;
         }
         net = amount - fee;
+    }
+
+    /// @dev Remove all zero-amount role locks from userActiveRoles (post-slash cleanup)
+    function _cleanupZeroLocks(address user) internal {
+        bytes32[] storage roles = userActiveRoles[user];
+        uint256 i = 0;
+        while (i < roles.length) {
+            if (roleLocks[user][roles[i]].amount == 0) {
+                roles[i] = roles[roles.length - 1];
+                roles.pop();
+            } else {
+                i++;
+            }
+        }
     }
 
     function _removeUserRole(address user, bytes32 roleId) internal {
@@ -402,6 +419,11 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         stake.amount -= penaltyAmount;         // Reduce actual balance
         totalStaked -= penaltyAmount;
         
+        // Cleanup if lock is now zero
+        if (lock.amount == 0) {
+            _removeUserRole(operator, roleId);
+        }
+
         // Transfer to treasury
         GTOKEN.safeTransfer(treasury, penaltyAmount);
         emit UserSlashed(operator, penaltyAmount, reason, block.timestamp);
