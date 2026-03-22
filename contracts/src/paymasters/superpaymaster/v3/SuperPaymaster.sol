@@ -8,6 +8,8 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../../../interfaces/v3/IRegistry.sol";
+import "../../../interfaces/v3/IAgentIdentityRegistry.sol";
+import "../../../interfaces/v3/IAgentReputationRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
@@ -136,6 +138,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
+    event AgentRegistriesUpdated(address indexed identityRegistry, address indexed reputationRegistry);
 
     error Unauthorized();
     error InvalidAddress();
@@ -916,12 +919,41 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit PendingDebtCleared(token, user, amount);
     }
 
+    // ====================================
+    // ERC-8004 Agent Registry Integration
+    // ====================================
+
+    /// @notice Set ERC-8004 registry addresses for agent identity verification
+    /// @param _identityRegistry ERC-8004 Identity Registry (ERC-721 based)
+    /// @param _reputationRegistry ERC-8004 Reputation Registry
+    function setAgentRegistries(address _identityRegistry, address _reputationRegistry) external onlyOwner {
+        agentIdentityRegistry = _identityRegistry;
+        agentReputationRegistry = _reputationRegistry;
+        emit AgentRegistriesUpdated(_identityRegistry, _reputationRegistry);
+    }
+
+    /// @notice Check if an address is a registered ERC-8004 agent
+    /// @param account The address to check
+    /// @return True if the account holds an ERC-8004 Agent NFT
+    function isRegisteredAgent(address account) public view returns (bool) {
+        if (agentIdentityRegistry == address(0)) return false;
+        try IAgentIdentityRegistry(agentIdentityRegistry).balanceOf(account) returns (uint256 bal) {
+            return bal > 0;
+        } catch {
+            return false;
+        }
+    }
+
     /// @dev Cached oracle decimals (Chainlink decimals never change per feed contract)
     uint8 public oracleDecimals;
+
+    // V5.3: ERC-8004 Agent Registry addresses
+    address public agentIdentityRegistry;
+    address public agentReputationRegistry;
 
     // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    uint256[48] private __gap;
+    uint256[46] private __gap;
 }
