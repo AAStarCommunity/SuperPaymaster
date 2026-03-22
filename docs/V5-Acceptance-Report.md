@@ -1,9 +1,34 @@
-# SuperPaymaster V5.2 Acceptance Report
+# SuperPaymaster V5 Acceptance Report (V5.0 → V5.2)
 
 **Date**: 2026-03-22
+**Scope**: V5.0 (consumeCredit kernel) + V5.1 (microPayment EIP-712) + V5.2 (x402/Agent/EIP-1153)
 **Branch**: `feature/micropayment` (PR #61)
 **Network**: Sepolia (Chain ID: 11155111)
 **Compiler**: Solidity 0.8.33, optimizer 10,000 runs, via-IR, Cancun EVM
+**On-chain version**: `SuperPaymaster-5.2.0`
+
+---
+
+## 0. V5 Version Evolution
+
+V5 是一个累积版本，合约 `version()` 返回最新值 `SuperPaymaster-5.2.0`。
+
+| 版本 | 功能 | 合约内标记 |
+|------|------|-----------|
+| **V5.0** | `_consumeCredit()` 计费内核提取 + `chargeMicroPayment()` EIP-712 签名微支付 + solady EIP712 | 首次部署为 5.0.0 |
+| **V5.1** | (同 V5.0，合并实现) microPaymentNonces, SignatureCheckerLib 支持 AirAccount | 合入 5.0.0 |
+| **V5.2** | Agent Sponsorship Policy + x402 Permit2 Settlement + EIP-1153 Transient Cache + Feedback | UUPS 升级至 5.2.0 |
+
+### ERC-8004 Agent Registry 状态
+
+| 组件 | Sepolia 状态 | 说明 |
+|------|-------------|------|
+| `agentIdentityRegistry` | `address(0)` — **未部署** | 需要 ERC-8004 Agent Identity Registry 合约 |
+| `agentReputationRegistry` | `address(0)` — **未部署** | 需要 ERC-8004 Agent Reputation Registry 合约 |
+| Agent Sponsorship 代码 | ✅ 存在于合约中 | `setAgentPolicies`, `getAgentSponsorshipRate`, `_applyAgentSponsorship` |
+| Agent Sponsorship 效果 | 无操作 (graceful) | 注册表为空时，`isRegisteredAgent()` 返回 false，所有 agent 路径被跳过 |
+
+**影响**: Agent Sponsorship 功能已编码但不活跃。设置注册表后即可生效，无需再次升级合约。调用 `setAgentRegistries(identity, reputation)` 即可激活。
 
 ---
 
@@ -216,7 +241,7 @@ Same 3 P0 findings — all verified with identical conclusions.
 
 | Document | Path | Content |
 |----------|------|---------|
-| Gas Report | `docs/V5.2-Gas-Report.md` | Full gas analysis with 7 sections |
+| Gas Report | `docs/V5-Gas-Report.md` | Full gas analysis with 7 sections |
 | Parameter Safety Guide | `docs/Parameter-Safety-Guide.md` | Safe ranges, oracle checklist, deployment checklist, monitoring |
 | Version Map | `docs/VERSION_MAP.md` | All 14 contract versions, governance roadmap |
 | Adversarial Audit | `docs/adversarial-review-2026-03-22.md` | P0/P1/P2 findings (all P0 verified) |
@@ -227,7 +252,227 @@ Same 3 P0 findings — all verified with identical conclusions.
 
 ---
 
-## 9. Known Limitations & TODO
+## 9. Ecosystem Dependencies & Deployment Guide
+
+### 9.1 External Protocol Dependencies
+
+| 协议 | 地址 | 用途 | 部署责任 |
+|------|------|------|---------|
+| **EntryPoint v0.7** | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | ERC-4337 核心 | Ethereum Foundation (已部署) |
+| **Chainlink ETH/USD** | `0x694AA1769357215DE4FAC081bf1f309aDC325306` (Sepolia) | 价格预言机 | Chainlink (已部署) |
+| **Uniswap Permit2** | `0x000000000022D473030F116dDEE9F6B43aC78BA3` | x402 结算授权转账 | Uniswap (已部署, 全链统一) |
+| **Circle USDC** | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (Sepolia) | x402 结算资产 | Circle (已部署) |
+| **SimpleAccountFactory** | `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985` | AA 钱包工厂 | Ethereum Foundation (已部署) |
+
+### 9.2 Core Contracts — Full Deployment Order (Scheme B)
+
+17 个合约，严格按依赖顺序部署。分 4 个阶段：
+
+**Phase 1: Foundation (无依赖)**
+
+| # | 合约 | 构造器参数 | 部署方式 |
+|---|------|-----------|---------|
+| 1 | GToken | `deployer` (initial owner) | Direct deploy |
+| 2 | Registry impl | — | Direct deploy → ERC1967Proxy + `initialize(deployer, address(0), address(0))` |
+
+**Phase 2: Core Infrastructure (依赖 Phase 1)**
+
+| # | 合约 | 构造器参数 | 部署方式 |
+|---|------|-----------|---------|
+| 3 | GTokenStaking | `gToken, treasury, registryProxy` | Direct deploy (immutable REGISTRY) |
+| 4 | MySBT | `gToken, staking, registryProxy, daoMultisig` | Direct deploy (immutable REGISTRY) |
+| 5 | BLSValidator | — | Direct deploy |
+| 6 | ReputationSystem | `registryProxy` | Direct deploy |
+
+**Phase 3: Paymaster Layer (依赖 Phase 2)**
+
+| # | 合约 | 构造器参数 | 部署方式 |
+|---|------|-----------|---------|
+| 7 | SuperPaymaster impl | `entryPoint, registryProxy, priceFeed` | Direct deploy → ERC1967Proxy + `initialize(deployer, aPNTs, protocolFeeBPS, aPNTsPriceUSD)` |
+| 8 | PaymasterV4 impl | `registryProxy` | Direct deploy (EIP-1167 template) |
+| 9 | PaymasterFactory | `registryProxy` | Direct deploy |
+| 10 | xPNTsFactory | `registryProxy` | Direct deploy |
+
+**Phase 4: Monitoring & Validation (依赖 Phase 3)**
+
+| # | 合约 | 构造器参数 | 部署方式 |
+|---|------|-----------|---------|
+| 11 | BLSAggregator | `blsValidator, registryProxy` | Direct deploy |
+| 12 | DVTValidator | `registryProxy` | Direct deploy |
+
+### 9.3 Post-Deployment Wiring Checklist
+
+部署后需执行以下 wiring 调用，缺少任何一步都会导致功能异常：
+
+```
+Registry Wiring:
+  ├── registry.setStaking(staking)           # 触发 _syncExitFees() 同步 7 个角色退出费
+  ├── registry.setMySBT(mysbt)               # 设置 SBT 合约
+  ├── registry.setSuperPaymaster(spProxy)    # 设置 SuperPaymaster 代理
+  └── registry.setReputationSystem(repSys)   # 设置声誉系统
+
+SuperPaymaster Wiring:
+  ├── sp.setAPNTSToken(aPNTs)                # 设置 aPNTs 代币地址
+  ├── sp.setAPNTSPrice(price)                # 设置 aPNTs USD 价格 (18 dec)
+  ├── sp.setProtocolFee(feeBPS)              # 设置协议费 (推荐 500-1000)
+  ├── sp.setFacilitatorFeeBPS(feeBPS)        # 设置 x402 facilitator 费率 (推荐 50-200)
+  └── sp.setAgentRegistries(identity, rep)   # [可选] 激活 ERC-8004 Agent Sponsorship
+
+Slash System Wiring (Two-Tier):
+  ├── sp.setAuthorizedSlasher(blsAggregator, true)        # Tier 1: aPNTs slash
+  └── staking.setAuthorizedSlasher(blsAggregator, true)   # Tier 2: GToken slash
+
+PaymasterFactory Wiring:
+  ├── factory.addImplementation("v4.3.1", paymasterV4Impl)
+  └── factory.setDefaultVersion("v4.3.1")
+
+EntryPoint Deposit:
+  ├── sp.addStake{value: X}(unstakeDelaySec)  # SuperPaymaster 质押 ETH
+  └── paymaster.addStake{value: X}(delay)     # 各 PaymasterV4 实例质押 ETH
+```
+
+### 9.4 Sepolia 已部署地址
+
+| 合约 | 地址 |
+|------|------|
+| GToken (aPNTs) | `0xEA4b9d046285DC21484174C36BbFb58015Ad5E1f` |
+| GTokenStaking | `0x6eBFd303171eBA1C2573301413Df53df10e82ceB` |
+| MySBT | `0xf7D5C3c2443f8F0492fB9F5E2690ae6206Da0A9F` |
+| Registry (Proxy) | `0xD88CF5316c64f753d024fcd665E69789b33A5EB6` |
+| SuperPaymaster (Proxy) | `0x829C3178DeF488C2dB65207B4225e18824696860` |
+| PaymasterV4 Impl | `0x55a58F982e74F97751d8cD4E2C8d4F22C4714828` (v4.3.0) / `0x394c0BcF5A3e253607d18DfCe7E181Cd218b0aF6` (v4.3.1) |
+| PaymasterFactory | `0x48c88B63512f4E697Ce606Ee73a5C6416FBD39Eb` |
+| xPNTsFactory | `0xdEe2e78f0884a210Da64759FD306a7BfF5db4AA1` |
+| BLSValidator | `0x0A71C5a32b8CBC517523D2C88b539Ab22AeF0654` |
+| BLSAggregator | `0x03bA2ED609474127feF0B7686b55DAffCbBF5A3b` |
+| DVTValidator | `0x02F5f4dc659cbF554c749fa3883fbd5bdF1fA702` |
+| ReputationSystem | `0xB54F98b5133e8960ad92F03F98fc5868dd57deA2` |
+| xPNTs (community1) | `0x02aF973302D32A91Ce30b03E5B19E392c1255a19` |
+| Chainlink ETH/USD | `0x694AA1769357215DE4FAC081bf1f309aDC325306` |
+| EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
+| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
+| USDC (Sepolia) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+
+### 9.5 Keeper / Cron 服务
+
+| 服务 | 频率 | 调用 | 优先级 |
+|------|------|------|--------|
+| **Price Oracle Keeper** | 每 5 分钟 (Sepolia) / 每 20 分钟 (Optimism) | `superPaymaster.updatePrice()` + `paymasterV4.updatePrice()` | **P0 CRITICAL** — 价格过期导致 AA32 paymaster expired |
+| **Debt Retry Worker** | 每小时检查 | `superPaymaster.retryPendingDebt(token, user)` | P1 — 失败的债务记录需要重试 |
+| **Solvency Monitor** | 每 10 分钟 | 检查 `operators[op].aPNTsBalance` > threshold | P2 — 余额不足导致 gas 赞助失败 |
+
+**Price Keeper 配置**:
+```bash
+# AAStar SDK keeper (推荐)
+cd ../aastar-sdk && keeper run keep
+
+# 或手动 cast 调用
+cast send $SUPER_PAYMASTER "updatePrice()" --rpc-url $RPC_URL --private-key $KEEPER_KEY
+cast send $PAYMASTER_V4 "updatePrice()" --rpc-url $RPC_URL --private-key $KEEPER_KEY
+```
+
+**关键**: `priceStalenessThreshold` 必须 >= Chainlink heartbeat × 1.5。Sepolia 推荐 3600s，Optimism 推荐 1800s。
+
+### 9.6 DVT / BLS Slash 系统配置
+
+Two-Tier Slash 架构：
+
+```
+Tier 1 (Operational): SuperPaymaster.executeSlashWithBLS()
+  → 扣减 operator 的 aPNTs 运营资金
+  → 需要 BLSAggregator 作为 authorizedSlasher
+
+Tier 2 (Governance): GTokenStaking.slashByDVT()
+  → 扣减 operator 的 GToken 质押
+  → 需要 BLSAggregator 作为 authorizedSlasher
+```
+
+**部署后配置**:
+1. `superPaymaster.setAuthorizedSlasher(blsAggregator, true)`
+2. `staking.setAuthorizedSlasher(blsAggregator, true)`
+3. 注册 DVT Validator 节点: `dvtValidator.registerValidator(pubkey, ...)`
+4. BLS 验证器需要至少 3 个节点形成多数签名
+
+### 9.7 x402 结算配置
+
+**前置条件**:
+1. `facilitatorFeeBPS` 已设置 (当前 200 = 2%)
+2. Facilitator 必须持有 `ROLE_PAYMASTER_SUPER` 角色
+3. Payer 需要 approve Permit2 对 ERC20 token 的授权
+4. SuperPaymaster 需要在 Permit2 上被认可为 spender
+
+**结算流程**:
+```
+Payer approve(Permit2, MaxUint256) on USDC
+  → Payer signs EIP-712 PermitWitnessTransferFrom (witness: payee)
+  → Facilitator calls settleX402PaymentPermit2(permit, transferDetails, owner, sig)
+  → Permit2 pulls USDC to SuperPaymaster
+  → SuperPaymaster transfers (amount - fee) to payee
+  → Fee tracked in facilitatorEarnings[facilitator][asset]
+  → Facilitator later calls withdrawFacilitatorEarnings(asset) to claim
+```
+
+**支持的 token**: 任何 ERC20 (通过 Permit2 路径)。已测试: Sepolia USDC。
+
+### 9.8 ERC-8004 Agent Registry 部署指南 (Future)
+
+Agent Sponsorship 功能需要部署两个 ERC-8004 注册表合约：
+
+| 注册表 | 接口 | 关键方法 |
+|--------|------|---------|
+| AgentIdentityRegistry | `IAgentIdentityRegistry` | `balanceOf(agent)` → 判断是否注册 agent |
+| AgentReputationRegistry | `IAgentReputationRegistry` | `getSummary(agentId)` → 返回 (score, txCount) |
+
+**激活步骤**:
+1. 部署 AgentIdentityRegistry (ERC-721 based)
+2. 部署 AgentReputationRegistry (score tracking)
+3. 调用 `superPaymaster.setAgentRegistries(identityAddr, reputationAddr)`
+4. Operator 调用 `setAgentPolicies(policies)` 设置分层赞助策略
+
+**无需升级合约** — 代码已在 SuperPaymaster-5.2.0 中，只需设置注册表地址即可激活。
+
+### 9.9 Operator 运营配置
+
+新 Operator 接入完整流程：
+
+```bash
+# 1. 注册社区 (需要 GToken stake)
+registry.registerCommunity(communityName, metadata)
+
+# 2. 创建 xPNTs 社区代币
+xPNTsFactory.createXPNTs(name, symbol, communityId)
+
+# 3. 配置 Operator (SuperPaymaster)
+superPaymaster.configureOperator(operator, xPNTsToken, exchangeRate, ...)
+
+# 4. 充值 aPNTs (供 gas 赞助消耗)
+aPNTs.approve(superPaymaster, amount)
+superPaymaster.deposit(amount)
+# 或 superPaymaster.depositFor(operator, amount)
+
+# 5. [可选] 部署独立 PaymasterV4 (AOA 模式)
+paymasterFactory.deployPaymaster("v4.3.1", entryPoint, owner, treasury, priceFeed, ...)
+
+# 6. EntryPoint 质押 (必须)
+superPaymaster.addStake{value: 0.1 ether}(86400)  # 1 day unstake delay
+```
+
+### 9.10 Mainnet 部署注意事项
+
+| 项目 | Sepolia 配置 | Mainnet/Optimism 建议 |
+|------|-------------|---------------------|
+| Chainlink ETH/USD | `0x694A...` (Sepolia) | 使用目标链的官方 feed 地址 |
+| priceStalenessThreshold | 3600s | Optimism: 1800s, Mainnet: 5400s |
+| protocolFeeBPS | 500 (5%) | 根据市场定价 |
+| facilitatorFeeBPS | 200 (2%) | 根据 x402 生态定价 |
+| EntryPoint stake | 0.01 ETH | 建议 >= 0.1 ETH |
+| Keeper 频率 | 5 min | = Chainlink heartbeat |
+| USDC 地址 | `0x1c7D...` (Sepolia) | 使用目标链的官方 USDC |
+| Permit2 | `0x000...BA3` (全链统一) | 相同地址 |
+
+---
+
+## 10. Known Limitations & Future TODO
 
 ### EIP-1167 Upgrade Gap
 Existing PaymasterV4 instance (`0xE419c...`) is an EIP-1167 immutable proxy pointing to v4.3.0 implementation. New operators get v4.3.1 via factory. **No mechanism to upgrade existing EIP-1167 instances.**
@@ -258,7 +503,7 @@ See `docs/Parameter-Safety-Guide.md` Section 5 for full monitoring guide.
 
 ---
 
-## 10. Verification Checklist
+## 11. Verification Checklist
 
 - [x] SuperPaymaster V5.2.0 deployed on Sepolia
 - [x] PaymasterV4 v4.3.1 implementation deployed and factory-registered
