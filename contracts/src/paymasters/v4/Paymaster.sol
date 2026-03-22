@@ -101,7 +101,7 @@ contract Paymaster is PaymasterBase, Initializable {
     /// @notice Get contract version
     /// @return Version string
     function version() external pure override returns (string memory) {
-        return "PMV4-Deposit-4.3.0";
+        return "PMV4-Deposit-4.3.1";
     }
 
     /// @notice Get the Paymaster data offset (version specific)
