@@ -11,6 +11,9 @@ import "../../../interfaces/v3/IRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
+import "../../../interfaces/v3/IAgentIdentityRegistry.sol";
+import "../../../interfaces/v3/IAgentReputationRegistry.sol";
+import "../../../interfaces/v3/ISignatureTransfer.sol";
 
 
 
@@ -62,7 +65,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-4.1.0";
+        return "SuperPaymaster-5.2.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -787,9 +790,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
 
 
-        // 4. Solvency Check (Pure Storage)
+        // 4. Solvency Check
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
-             return ("", _packValidationData(true, 0, 0)); 
+             return ("", _packValidationData(true, 0, 0));
         }
 
         // 5. Accounting (Optimistic)
@@ -876,6 +879,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              }
         }
 
+        // F2: Submit positive feedback to ERC-8004 reputation registry
+        // Short-circuit: skip external call if no registry configured
+        if (agentIdentityRegistry != address(0) && isRegisteredAgent(user)) {
+            _submitSponsorshipFeedback(user, actualAPNTsCost);
+        }
+
     }
     
 
@@ -920,8 +929,251 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint8 public oracleDecimals;
 
     // ====================================
+    // V5 Storage: Agent Sponsorship & x402
+    // ====================================
+
+    // ERC-8004 Agent Registries
+    address public agentIdentityRegistry;
+    address public agentReputationRegistry;
+
+    // x402 Facilitator Fees
+    uint256 public facilitatorFeeBPS; // Default fee (e.g. 30 = 0.3%)
+    mapping(address => uint256) public operatorFacilitatorFees; // Per-operator override
+    mapping(bytes32 => bool) public x402SettlementNonces; // Replay prevention
+    mapping(address => mapping(address => uint256)) public facilitatorEarnings; // operator => asset => amount
+
+    // F1: Agent Sponsorship Policy
+    mapping(address => ISuperPaymaster.AgentSponsorshipPolicy[]) public agentPolicies; // operator => policies
+    mapping(address => mapping(uint256 => uint256)) private _agentDailySpend; // operator => day => USD spent
+
+    // V5 Events
+    event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
+    event AgentRegistriesUpdated(address identityRegistry, address reputationRegistry);
+    event FacilitatorEarningsWithdrawn(address indexed operator, address indexed asset, uint256 amount);
+
+    // V5 Errors
+    error NonceAlreadyUsed();
+    error InvalidFee();
+
+    // x402 Constants
+    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
+
+    // ====================================
+    // V5: Admin Setters
+    // ====================================
+
+    /// @notice Set ERC-8004 agent registries (Owner only)
+    function setAgentRegistries(address _identity, address _reputation) external onlyOwner {
+        agentIdentityRegistry = _identity;
+        agentReputationRegistry = _reputation;
+        emit AgentRegistriesUpdated(_identity, _reputation);
+    }
+
+    /// @notice Set default facilitator fee BPS (Owner only)
+    function setFacilitatorFeeBPS(uint256 _fee) external onlyOwner {
+        if (_fee > MAX_FACILITATOR_FEE) revert InvalidFee();
+        uint256 oldFee = facilitatorFeeBPS;
+        facilitatorFeeBPS = _fee;
+        emit FacilitatorFeeUpdated(oldFee, _fee);
+    }
+
+    /// @notice Set per-operator facilitator fee override (Owner only)
+    function setOperatorFacilitatorFee(address operator, uint256 _fee) external onlyOwner {
+        if (_fee > MAX_FACILITATOR_FEE) revert InvalidFee();
+        operatorFacilitatorFees[operator] = _fee;
+    }
+
+    /// @notice Withdraw accumulated facilitator earnings
+    function withdrawFacilitatorEarnings(address asset) external nonReentrant {
+        uint256 amount = facilitatorEarnings[msg.sender][asset];
+        if (amount == 0) revert InsufficientBalance(0, 1);
+        delete facilitatorEarnings[msg.sender][asset];
+        IERC20(asset).safeTransfer(msg.sender, amount);
+        emit FacilitatorEarningsWithdrawn(msg.sender, asset, amount);
+    }
+
+    // ====================================
+    // F1: Agent Sponsorship Policy
+    // ====================================
+
+    /// @notice Check if an address is a registered ERC-8004 agent
+    function isRegisteredAgent(address account) public view returns (bool) {
+        address reg = agentIdentityRegistry;
+        if (reg == address(0)) return false;
+        try IAgentIdentityRegistry(reg).balanceOf(account) returns (uint256 bal) {
+            return bal > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    uint256 public constant MAX_AGENT_POLICIES = 10;
+
+    /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
+    function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        if (policies.length > MAX_AGENT_POLICIES) revert InvalidConfiguration();
+        delete agentPolicies[msg.sender];
+        for (uint256 i = 0; i < policies.length; i++) {
+            if (policies[i].sponsorshipBPS > BPS_DENOMINATOR) revert InvalidConfiguration();
+            agentPolicies[msg.sender].push(policies[i]);
+        }
+        emit AgentPoliciesUpdated(msg.sender, policies.length);
+    }
+
+    /// @notice Get the sponsorship rate for an agent from an operator
+    /// @return bps Sponsorship rate in basis points (0 = no sponsorship)
+    function getAgentSponsorshipRate(address agent, address operator) external view override returns (uint256 bps) {
+        // Must be a registered agent
+        if (!isRegisteredAgent(agent)) return 0;
+
+        (uint256 bestBPS, uint256 dailyCap) = _resolveAgentPolicy(agent, operator);
+        if (bestBPS == 0) return 0;
+
+        // Check daily cap
+        uint256 day = block.timestamp / 1 days;
+        if (dailyCap > 0 && _agentDailySpend[operator][day] >= dailyCap) return 0;
+
+        return bestBPS;
+    }
+
+    /// @dev Shared helper: resolve best matching agent sponsorship policy
+    /// @return bestBPS Best sponsorship rate in BPS (0 = no match)
+    /// @return dailyCap Daily USD cap from the matched policy
+    function _resolveAgentPolicy(address agent, address operator) internal view returns (uint256 bestBPS, uint256 dailyCap) {
+        // Get agent reputation score
+        int128 score;
+        address repReg = agentReputationRegistry;
+        if (repReg != address(0)) {
+            address[] memory empty = new address[](0);
+            try IAgentReputationRegistry(repReg).getSummary(
+                uint256(uint160(agent)), empty, bytes32(0), bytes32(0)
+            ) returns (uint64, int128 avgScore) {
+                score = avgScore;
+            } catch {}
+        }
+
+        // Find best matching policy (highest sponsorshipBPS where score >= min)
+        ISuperPaymaster.AgentSponsorshipPolicy[] storage policies = agentPolicies[operator];
+        for (uint256 i = 0; i < policies.length; i++) {
+            // Guard: skip if minReputationScore overflows int128 (unreachable in practice)
+            if (policies[i].minReputationScore <= uint128(type(int128).max)
+                && score >= int128(policies[i].minReputationScore)
+                && policies[i].sponsorshipBPS > bestBPS) {
+                bestBPS = policies[i].sponsorshipBPS;
+                dailyCap = policies[i].maxDailyUSD;
+            }
+        }
+    }
+
+    /// @dev Apply agent sponsorship discount and track daily spend (used by _consumeCredit in V5.1)
+    function _applyAgentSponsorship(address agent, address operator, uint256 chargeAPNTs) internal returns (uint256) {
+        if (!isRegisteredAgent(agent)) return chargeAPNTs;
+
+        (uint256 bestBPS, uint256 dailyCap) = _resolveAgentPolicy(agent, operator);
+        if (bestBPS == 0) return chargeAPNTs;
+
+        // Check daily cap
+        uint256 day = block.timestamp / 1 days;
+        if (dailyCap > 0 && _agentDailySpend[operator][day] >= dailyCap) return chargeAPNTs;
+
+        // Apply discount
+        uint256 discounted = chargeAPNTs * (BPS_DENOMINATOR - bestBPS) / BPS_DENOMINATOR;
+
+        // Track daily spend (approximate USD = aPNTs * aPNTsPriceUSD / 1e18, scaled to 1e6)
+        uint256 sponsoredAPNTs = chargeAPNTs - discounted;
+        uint256 usdAmount = (sponsoredAPNTs * aPNTsPriceUSD) / 1e18;
+        uint256 usdScaled = usdAmount / 1e12; // scale to 1e6
+        _agentDailySpend[operator][day] += usdScaled;
+
+        return discounted;
+    }
+
+    // ====================================
+    // F2: Sponsorship Feedback
+    // ====================================
+
+    /// @dev Submit positive feedback to ERC-8004 reputation registry after sponsoring agent gas
+    function _submitSponsorshipFeedback(address agent, uint256 aPNTsBase) internal {
+        address reg = agentReputationRegistry;
+        if (reg == address(0)) return;
+        // Guard: prevent int128 overflow from reverting postOp
+        if (aPNTsBase > uint128(type(int128).max)) return;
+        try IAgentReputationRegistry(reg).giveFeedback(
+            uint256(uint160(agent)),
+            int128(int256(aPNTsBase)),
+            18,
+            bytes32("gas-sponsor"),
+            bytes32("success"),
+            "",
+            "",
+            bytes32(0)
+        ) {} catch {}
+    }
+
+    // ====================================
+    // F3: x402 Payment Settlement (Permit2)
+    // ====================================
+
+    // Witness type: payee is signed by the token owner to prevent redirection
+    string public constant WITNESS_TYPE_STRING =
+        "X402Settlement witness)TokenPermissions(address token,uint256 amount)X402Settlement(address payee)";
+    bytes32 public constant X402_SETTLEMENT_TYPEHASH = keccak256("X402Settlement(address payee)");
+
+    /// @notice Settle x402 payment using Uniswap Permit2 with witness (payee signed by payer)
+    /// @dev Only registered operators (ROLE_PAYMASTER_SUPER) can call this.
+    ///      The payer's Permit2 signature covers (token, amount, nonce, deadline, spender, payee).
+    function settleX402PaymentPermit2(
+        ISignatureTransfer.PermitTransferFrom calldata permit,
+        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        address owner_,
+        bytes calldata signature
+    ) external override nonReentrant returns (bytes32 settlementId) {
+        // 0. Access control: only registered operators can settle
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+
+        // 1. Nonce replay check
+        bytes32 nonce = bytes32(permit.nonce);
+        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
+        x402SettlementNonces[nonce] = true;
+
+        // 2. Fee calculation
+        uint256 amount = transferDetails.requestedAmount;
+        uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
+        if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
+        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
+
+        // 3. Track earnings (CEI: effects before interactions)
+        address asset = permit.permitted.token;
+        if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
+
+        // 4. Pull via Permit2 with witness (payee is signed by token owner)
+        bytes32 witness = keccak256(abi.encode(X402_SETTLEMENT_TYPEHASH, transferDetails.to));
+        ISignatureTransfer(PERMIT2).permitWitnessTransferFrom(
+            permit,
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: amount
+            }),
+            owner_,
+            witness,
+            WITNESS_TYPE_STRING,
+            signature
+        );
+
+        // 5. Transfer net to payee (payee is now cryptographically guaranteed by the signature)
+        IERC20(asset).safeTransfer(transferDetails.to, amount - fee);
+
+        // 6. Emit + return
+        emit X402PaymentSettled(owner_, transferDetails.to, asset, amount, fee, nonce);
+        settlementId = keccak256(abi.encodePacked(owner_, transferDetails.to, asset, amount, nonce));
+    }
+
+    // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    uint256[48] private __gap;
+    // Was 48, minus 8 new storage slots (2 addresses + 1 uint256 + 5 mappings)
+    uint256[40] private __gap;
 }
