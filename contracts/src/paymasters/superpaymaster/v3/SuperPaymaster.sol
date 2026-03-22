@@ -11,6 +11,7 @@ import "../../../interfaces/v3/IRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
+import "../../../interfaces/v3/IERC3009.sol";
 
 
 
@@ -62,7 +63,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-4.1.0";
+        return "SuperPaymaster-5.2.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -920,8 +921,169 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint8 public oracleDecimals;
 
     // ====================================
+    // V5.2: x402 Payment Settlement
+    // ====================================
+
+    /// @notice Default facilitator fee in basis points (0.3% = 30 BPS)
+    uint256 public facilitatorFeeBPS;
+
+    /// @notice Per-operator facilitator fee override (0 = use default)
+    mapping(address => uint256) public operatorFacilitatorFees;
+
+    /// @notice Nonce tracking for x402 settlement replay prevention
+    mapping(bytes32 => bool) public x402SettlementNonces;
+
+    /// @notice Maximum facilitator fee (5% = 500 BPS)
+    uint256 public constant MAX_FACILITATOR_FEE = 500;
+
+    error NonceAlreadyUsed();
+    error FeeExceedsMax();
+    error X402TimingInvalid();
+    error X402InsufficientBalance();
+
+    // ====================================
+    // x402 Admin Functions
+    // ====================================
+
+    /**
+     * @notice Set the default facilitator fee in basis points
+     * @param _fee Fee in basis points (max 500 = 5%)
+     */
+    function setFacilitatorFeeBPS(uint256 _fee) external onlyOwner {
+        if (_fee > MAX_FACILITATOR_FEE) revert FeeExceedsMax();
+        emit FacilitatorFeeUpdated(facilitatorFeeBPS, _fee);
+        facilitatorFeeBPS = _fee;
+    }
+
+    /**
+     * @notice Set a per-operator facilitator fee override
+     * @param operator Operator address
+     * @param _fee Fee in basis points (0 = use default, max 500 = 5%)
+     */
+    function setOperatorFacilitatorFee(address operator, uint256 _fee) external onlyOwner {
+        if (_fee > MAX_FACILITATOR_FEE) revert FeeExceedsMax();
+        operatorFacilitatorFees[operator] = _fee;
+    }
+
+    // ====================================
+    // x402 Payment Verification
+    // ====================================
+
+    /**
+     * @notice Verify an x402 payment before settlement (off-chain pre-check)
+     * @dev Checks timing window, balance, and nonce. Full EIP-3009 signature verification
+     *      happens implicitly during settleX402Payment via transferWithAuthorization.
+     * @param from     Payer address (token holder)
+     * @param to       Payee address (content provider)
+     * @param asset    EIP-3009 compatible token address (e.g., USDC)
+     * @param amount   Payment amount in token units
+     * @param validAfter  Earliest valid timestamp
+     * @param validBefore Latest valid timestamp
+     * @param nonce    Unique nonce for replay prevention
+     * @return valid   Whether the payment can be settled
+     * @return reason  Failure reason (empty if valid)
+     */
+    function verifyX402Payment(
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata /* signature */
+    ) external view returns (bool valid, string memory reason) {
+        // Suppress unused variable warnings
+        to;
+
+        // 1. Check timing window
+        if (block.timestamp < validAfter) {
+            return (false, "Authorization not yet valid");
+        }
+        if (block.timestamp > validBefore) {
+            return (false, "Authorization expired");
+        }
+
+        // 2. Check payer balance
+        uint256 balance = IERC20(asset).balanceOf(from);
+        if (balance < amount) {
+            return (false, "Insufficient balance");
+        }
+
+        // 3. Check nonce not already consumed
+        if (x402SettlementNonces[nonce]) {
+            return (false, "Nonce already used");
+        }
+
+        return (true, "");
+    }
+
+    // ====================================
+    // x402 Payment Settlement
+    // ====================================
+
+    /**
+     * @notice Settle an x402 payment using EIP-3009 transferWithAuthorization
+     * @dev Pulls full amount via EIP-3009, deducts facilitator fee, forwards net to payee.
+     *      Fee stays in contract as facilitator earnings.
+     * @param from     Payer address (token holder)
+     * @param to       Payee address (content provider)
+     * @param asset    EIP-3009 compatible token address (e.g., USDC)
+     * @param amount   Payment amount in token units
+     * @param validAfter  Earliest valid timestamp
+     * @param validBefore Latest valid timestamp
+     * @param nonce    Unique nonce for replay prevention
+     * @param signature EIP-3009 authorization signature
+     * @return settlementId Unique settlement identifier
+     */
+    function settleX402Payment(
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external nonReentrant returns (bytes32 settlementId) {
+        // 1. Check and mark nonce (CEI pattern)
+        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
+        x402SettlementNonces[nonce] = true;
+
+        // 2. Calculate fee
+        uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
+        if (effectiveFeeBPS == 0) {
+            effectiveFeeBPS = facilitatorFeeBPS;
+        }
+        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
+        uint256 netAmount = amount - fee;
+
+        // 3. Pull full amount from payer via EIP-3009
+        IERC3009(asset).transferWithAuthorization(
+            from,
+            address(this),
+            amount,
+            validAfter,
+            validBefore,
+            nonce,
+            signature
+        );
+
+        // 4. Transfer net amount to payee
+        IERC20(asset).safeTransfer(to, netAmount);
+
+        // 5. Fee stays in contract (tracked as facilitator earnings)
+
+        // 6. Emit event
+        emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
+
+        // 7. Return settlement ID
+        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+    }
+
+    // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    uint256[48] private __gap;
+    uint256[45] private __gap;
 }

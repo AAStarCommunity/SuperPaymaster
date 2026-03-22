@@ -49,6 +49,18 @@ interface ISuperPaymaster is IVersioned {
     event ReputationUpdated(address indexed operator, uint256 newScore);
     // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
 
+    // ============ x402 Events ============
+
+    event X402PaymentSettled(
+        address indexed from,
+        address indexed to,
+        address asset,
+        uint256 amount,
+        uint256 fee,
+        bytes32 nonce
+    );
+    event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
+
     // ============ Functions ============
 
     /**
@@ -100,5 +112,67 @@ interface ISuperPaymaster is IVersioned {
     function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
     function updateSBTStatus(address user, bool status) external;
+
+    // ============ x402 Functions ============
+
+    /**
+     * @notice Verify an x402 payment before settlement (off-chain pre-check)
+     * @param from     Payer address (token holder)
+     * @param to       Payee address (content provider)
+     * @param asset    EIP-3009 compatible token address (e.g., USDC)
+     * @param amount   Payment amount in token units
+     * @param validAfter  Earliest valid timestamp
+     * @param validBefore Latest valid timestamp
+     * @param nonce    Unique nonce for replay prevention
+     * @param signature EIP-3009 authorization signature
+     * @return valid   Whether the payment can be settled
+     * @return reason  Failure reason (empty if valid)
+     */
+    function verifyX402Payment(
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external view returns (bool valid, string memory reason);
+
+    /**
+     * @notice Settle an x402 payment using EIP-3009 transferWithAuthorization
+     * @param from     Payer address (token holder)
+     * @param to       Payee address (content provider)
+     * @param asset    EIP-3009 compatible token address (e.g., USDC)
+     * @param amount   Payment amount in token units
+     * @param validAfter  Earliest valid timestamp
+     * @param validBefore Latest valid timestamp
+     * @param nonce    Unique nonce for replay prevention
+     * @param signature EIP-3009 authorization signature
+     * @return settlementId Unique settlement identifier
+     */
+    function settleX402Payment(
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external returns (bytes32 settlementId);
+
+    /**
+     * @notice Set the default facilitator fee in basis points
+     * @param _fee Fee in basis points (max 500 = 5%)
+     */
+    function setFacilitatorFeeBPS(uint256 _fee) external;
+
+    /**
+     * @notice Set a per-operator facilitator fee override
+     * @param operator Operator address
+     * @param _fee Fee in basis points (0 = use default, max 500 = 5%)
+     */
+    function setOperatorFacilitatorFee(address operator, uint256 _fee) external;
 
 }
