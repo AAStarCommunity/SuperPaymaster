@@ -170,7 +170,7 @@ contract PaymasterV4Test is Test {
     function test_Initialize() public view {
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.serviceFeeRate(), SERVICE_FEE);
-        assertEq(paymaster.version(), "PaymasterV4-4.3.0");
+        assertEq(paymaster.version(), "PaymasterV4-4.3.1");
     }
     
     function test_DepositFor_Success() public {
