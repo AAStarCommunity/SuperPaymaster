@@ -64,7 +64,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-4.1.0";
+        return "SuperPaymaster-5.3.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -748,8 +748,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              return ("", _packValidationData(true, 0, 0)); 
         }
 
-        // V3.3 Security: Check SBT Qualification (Local Cache)
-        if (!sbtHolders[userOp.sender]) {
+        // V5.3: Dual-channel identity check (SBT OR ERC-8004 Agent)
+        if (!isEligibleForSponsorship(userOp.sender)) {
              return ("", _packValidationData(true, 0, 0));
         }
 
@@ -942,6 +942,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         } catch {
             return false;
         }
+    }
+
+    /// @notice Check if user is eligible for gas sponsorship via dual channels
+    /// @param user The user address to check
+    /// @return True if user has SBT OR is a registered ERC-8004 agent
+    function isEligibleForSponsorship(address user) public view returns (bool) {
+        // Channel 1: Traditional — user has SBT via our Registry
+        if (sbtHolders[user]) return true;
+        // Channel 2: ERC-8004 — user is a registered Agent
+        return isRegisteredAgent(user);
     }
 
     /// @dev Cached oracle decimals (Chainlink decimals never change per feed contract)
