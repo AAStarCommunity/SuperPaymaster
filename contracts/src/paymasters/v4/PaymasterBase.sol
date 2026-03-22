@@ -26,7 +26,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Contract version
     function version() external pure override virtual returns (string memory) {
-        return "PaymasterV4-4.3.0";
+        return "PaymasterV4-4.3.1";
     }
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
@@ -355,6 +355,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         if (useRealtime) {
             // PostOp: Get Realtime Price
             (, ethUsdPrice,, updatedAt,) = ethUsdPriceFeed.latestRoundData();
+            if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
         } else {
             // Validation: Get Cached Price
             PriceCache memory cache = cachedPrice;
@@ -437,12 +438,13 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // RawAmount = (gasCostWei * ethUsdPrice * totalRate * 10^tokenDecimals) / (tokenPriceUSD * BPS * 10^(10 + ethDec))
         
         uint8 tDecimals = tokenDecimals[token];
-        
-        uint256 numerator = gasCostWei * uint256(ethUsdPrice) * totalRate * (10 ** tDecimals);
-        uint256 denominatorLimit = 10 ** (10 + ethDecimals);
-        uint256 denominator = tokenPriceUSD * BPS_DENOMINATOR * denominatorLimit;
-        
-        return Math.mulDiv(numerator, 1, denominator);
+
+        // Split multiplication to leverage Math.mulDiv's 512-bit intermediate precision.
+        // partA fits in ~124 bits (67+43+14), safe in uint256.
+        uint256 partA = gasCostWei * uint256(ethUsdPrice) * totalRate;
+        uint256 denominator = tokenPriceUSD * BPS_DENOMINATOR * (10 ** (10 + ethDecimals));
+
+        return Math.mulDiv(partA, 10 ** tDecimals, denominator);
     }
 
     /// @notice External wrapper for try/catch in postOp (Legacy)
@@ -467,6 +469,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
         if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
+        if (block.timestamp > priceStalenessThreshold && updatedAt < block.timestamp - priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }
