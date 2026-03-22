@@ -185,7 +185,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_SuperPaymaster_InitialState() public view {
         assertEq(paymaster.owner(), owner);
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.1.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.2.0"));
         assertEq(paymaster.APNTS_TOKEN(), mockAPNTs);
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.priceStalenessThreshold(), 3600);
@@ -332,7 +332,7 @@ contract UUPSUpgradeTest is Test {
         paymaster.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-4.1.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.2.0"));
 
         vm.stopPrank();
     }

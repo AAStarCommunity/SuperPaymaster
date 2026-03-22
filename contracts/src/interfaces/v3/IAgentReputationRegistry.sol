@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+
+/// @title IAgentReputationRegistry - ERC-8004 Agent Reputation
+/// @notice Minimal interface for agent reputation queries and feedback
+interface IAgentReputationRegistry {
+    function getSummary(
+        uint256 agentId,
+        address[] calldata clients,
+        bytes32 tag1,
+        bytes32 tag2
+    ) external view returns (uint64 count, int128 avgScore);
+
+    function giveFeedback(
+        uint256 agentId,
+        int128 value,
+        uint8 decimals,
+        bytes32 tag1,
+        bytes32 tag2,
+        string calldata endpoint,
+        string calldata feedbackURI,
+        bytes32 fileHash
+    ) external;
+}

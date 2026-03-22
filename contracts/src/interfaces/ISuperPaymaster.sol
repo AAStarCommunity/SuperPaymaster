@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 import "src/interfaces/IVersioned.sol";
+import "src/interfaces/v3/ISignatureTransfer.sol";
 
 /**
  * @title ISuperPaymaster - Multi-tenant SuperPaymaster Interface
@@ -39,6 +40,13 @@ interface ISuperPaymaster is IVersioned {
         SlashLevel level;
     }
 
+    // V5: Agent Sponsorship Policy (tiered sponsorship for ERC-8004 agents)
+    struct AgentSponsorshipPolicy {
+        uint128 minReputationScore;
+        uint64  sponsorshipBPS;   // 10000 = 100%
+        uint64  maxDailyUSD;      // USD * 1e6
+    }
+
     // ============ Events ============
 
     event OperatorDeposited(address indexed operator, uint256 amount);
@@ -48,6 +56,10 @@ interface ISuperPaymaster is IVersioned {
     event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
     event ReputationUpdated(address indexed operator, uint256 newScore);
     // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
+
+    // V5: Agent Sponsorship & x402 Events
+    event AgentPoliciesUpdated(address indexed operator, uint256 policyCount);
+    event X402PaymentSettled(address indexed from, address indexed to, address asset, uint256 amount, uint256 fee, bytes32 nonce);
 
     // ============ Functions ============
 
@@ -100,5 +112,17 @@ interface ISuperPaymaster is IVersioned {
     function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
     function updateSBTStatus(address user, bool status) external;
+
+    // V5: Agent Sponsorship Policy
+    function setAgentPolicies(AgentSponsorshipPolicy[] calldata policies) external;
+    function getAgentSponsorshipRate(address agent, address operator) external view returns (uint256 bps);
+
+    // V5: x402 Permit2 Settlement
+    function settleX402PaymentPermit2(
+        ISignatureTransfer.PermitTransferFrom calldata permit,
+        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        address owner,
+        bytes calldata signature
+    ) external returns (bytes32 settlementId);
 
 }
