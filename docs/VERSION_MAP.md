@@ -1,19 +1,25 @@
 # Contract Version Map
 
-**Updated**: 2026-03-20
+**Updated**: 2026-03-22
 
 ## On-Chain Version Strings
 
 | Contract | `version()` Return | Role |
 |----------|-------------------|------|
 | Registry | `Registry-4.1.0` | UUPS Proxy — Community/Role management |
-| SuperPaymaster | `SuperPaymaster-4.1.0` | UUPS Proxy — AOA+ shared paymaster |
+| SuperPaymaster | `SuperPaymaster-5.2.0` | UUPS Proxy — AOA+ shared paymaster |
 | GTokenStaking | `Staking-3.2.0` | Pointer-replacement — Role-based staking |
 | MySBT | `MySBT-3.1.3` | Pointer-replacement — Soulbound identity |
-| PaymasterBase | `PaymasterV4-4.3.0` | Base class for AOA paymaster |
+| PaymasterBase | `PaymasterV4-4.3.1` | Base class for AOA paymaster |
 | Paymaster (V4) | `PMV4-Deposit-4.3.0` | EIP-1167 proxy — Independent per-community paymaster |
-| xPNTsToken | `XPNTs-3.0.0` | EIP-1167 proxy — Community gas token |
-| GToken | `GToken-2.1.0` | Standalone — Governance token (21M cap) |
+| xPNTsToken | `XPNTs-3.0.0-unlimited` | EIP-1167 proxy — Community gas token |
+| xPNTsFactory | `xPNTsFactory-2.1.0-clone-optimized` | Standalone — Token factory |
+| GToken | `GToken-2.1.2` | Standalone — Governance token (21M cap) |
+| BLSValidator | `BLSValidator-0.3.2` | Standalone — BLS signature validation |
+| BLSAggregator | `BLSAggregator-3.2.1` | Standalone — BLS proof aggregation |
+| DVTValidator | `DVTValidator-0.3.2` | Standalone — Distributed validator tech |
+| ReputationSystem | `Reputation-0.3.2` | Standalone — Operator reputation scoring |
+| PaymasterFactory | `PaymasterFactory-1.0.2` | Standalone — V4 deployment factory |
 
 ## Naming Convention
 
@@ -31,8 +37,11 @@
 |---------|------|---------|
 | Registry-4.1.0 | 2026-03-20 | Added `_syncExitFees()`, immutable REGISTRY support |
 | Registry-4.0.0 | 2026-03-07 | UUPS proxy migration |
+| SuperPaymaster-5.2.0 | 2026-03-22 | Agent sponsorship policies, x402 Permit2 settlement, EIP-1153 cache, feedback |
+| SuperPaymaster-5.0.0 | 2026-03-21 | `_consumeCredit` kernel, `chargeMicroPayment` EIP-712, solady EIP712 |
 | SuperPaymaster-4.1.0 | 2026-03-20 | postOp try/catch + pendingDebts resilience |
 | SuperPaymaster-4.0.0 | 2026-03-07 | UUPS proxy migration |
+| PaymasterV4-4.3.1 | 2026-03-22 | mulDiv 512-bit fix, oracle updatedAt validation, staleness check |
 | Staking-3.2.0 | 2026-03-20 | REGISTRY → immutable, removed `setRegistry()` |
 | MySBT-3.1.3 | 2026-03-20 | REGISTRY → immutable, removed `setRegistry()`, cleaned IRegistryLegacy |
 | PMV4-Deposit-4.3.0 | 2026-03-20 | Added oracle bounds check, decimals validation, gas cap validation |

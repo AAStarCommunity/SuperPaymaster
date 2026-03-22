@@ -152,6 +152,36 @@ Both SuperPaymaster and PaymasterV4 now validate:
 2. **Alert on**: No `PriceUpdated` for > 2× heartbeat
 3. **Keeper frequency**: Match Chainlink heartbeat (call `updatePrice()` every heartbeat)
 
+### Debt & Settlement Monitoring
+
+SuperPaymaster's postOp uses try-catch for external `recordDebt()` calls. When the call fails, debt is stored in `pendingDebts` mapping and can be retried.
+
+**Critical Events to Monitor:**
+
+| Event | Severity | Action Required |
+|-------|----------|----------------|
+| `DebtRecordFailed(token, user, amount)` | **HIGH** | Immediate alert. Debt accumulated but not recorded on xPNTs. Call `retryPendingDebt(token, user)` to retry. |
+| `PendingDebtRetried(token, user, amount)` | INFO | Debt successfully retried. Clear alert. |
+| `PendingDebtCleared(token, user, amount)` | WARN | Admin cleared debt without recording. Review if intentional. |
+| `X402PaymentSettled(payer, payee, asset, amount, fee, nonce)` | INFO | x402 settlement executed. Track for revenue accounting. |
+
+**Recovery Procedures:**
+
+1. **When `DebtRecordFailed` fires:**
+   - Check if xPNTs token contract is responsive: `cast call <xPNTs> "totalSupply()"`
+   - If responsive: call `retryPendingDebt(token, user)` — anyone can call
+   - If unresponsive: escalate to admin, consider `clearPendingDebt(token, user)` (owner-only)
+
+2. **Monitoring query (read pending debts):**
+   ```bash
+   cast call <SuperPaymaster> "pendingDebts(address,address)(uint256)" <token> <user> --rpc-url $RPC_URL
+   ```
+
+3. **Alert thresholds:**
+   - Any `DebtRecordFailed` → PagerDuty/Slack alert (P1)
+   - `pendingDebts > 0` for > 1 hour → escalate to P0
+   - Multiple `DebtRecordFailed` from same token → investigate token contract health
+
 ---
 
 ## 6. Fee Stacking Model
