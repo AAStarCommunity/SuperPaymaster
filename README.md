@@ -1474,6 +1474,24 @@ graph TD
 ### SDK / Frontend Integration
 - [Registry v4.1 SDK Migration Guide](./docs/registry-v4.1-sdk-migration.md) — Registry v4.1.0 接口精简迁移指南：5 个函数合并为 2 个，viem 代码示例，custom errors 对照表
 
+## 📐 V5 Roadmap & Design Documents (2026-03)
+
+### Vision & Roadmap
+- [V5 Roadmap](./docs/V5-Roadmap.md) (v1.4.0) — SuperPaymaster V5 完整演进路线图：从 Gas 代付基础设施向 Agent Economy 社区化支付层演进。涵盖 V5.1 Agent-Native Gas Sponsorship、V5.2 x402 Facilitator + Session 微支付通道、V5.3 ERC-8004 集成 + SKILL.md Agent Discovery、V5.4 dShop Protocol。
+
+### Technical Design
+- [V5 Design Document](./docs/SuperPaymaster-V5-Design.md) (v0.6.0) — V5 架构设计详细文档：`_consumeCredit()` 提取、x402 验证结算、ERC-8004 三大注册表集成、Native AA 分析、Tempo/MPP 战术级技术借鉴（Payment Channel、HMAC Challenge、SKILL.md、MCP Transport）。
+
+### Competitive Research & Ecosystem Evaluation
+- [Stripe Tempo & MPP Research](./docs/research-stripe-tempo-mpp.md) (v1.1.0) — Stripe Tempo 区块链与 MPP (Machine Payments Protocol) 深度研究报告：Tempo 技术架构、MPP 协议规范（Charge/Session Intent）、SPT/ACP 分析、mppx SDK 代码审计、SuperPaymaster 战略战术借鉴、可控依赖评估。
+- [V5 Roadmap Ecosystem Evaluation](./docs/evaluate-roadmap.md) (v1.1.0) — V5 生态评估报告：SuperPaymaster + SDK + AirAccount 三项目能力矩阵、与 Tempo/Coinbase 竞争力对比评分、核心差距分析（SDK 成熟度/生态采用量/法币入口）、SDK 诉求清单（6 个新 package, ~21-30 天）、AirAccount 诉求清单（Session Key 签 Voucher、ERC-8004 集成, ~4 天）、协同开发时间线。
+
+### Implementation Plans
+- [V5 Master Implementation Plan](./docs/V5-Implementation-Plan.md) (v1.0.0) — 高维度进度安排（16 周）、Worktree 并行开发策略（V5.1/V5.2/V5.3 三分支并行开发+串行集成）、三项目协调时间线、阶段性评分追踪（22→26→33→36/50）、风险缓解矩阵。
+- [V5.1 Plan: Agent-Native Gas Sponsorship](./docs/V5.1-Plan.md) (v1.0.0) — `_consumeCredit()` 提取 + `chargeMicroPayment()` + EIP-1153 批量优化。7 个任务组、35+ 验收标准、4 周交付。
+- [V5.2 Plan: x402 Facilitator + Payment Channel](./docs/V5.2-Plan.md) (v1.0.0) — x402 验证结算（EIP-3009 + Permit2）+ `MicroPaymentChannel.sol` 独立合约 + Operator Node 框架。10 个任务组、50+ 验收标准、6 周交付。
+- [V5.3 Plan: ERC-8004 + Agent Discovery](./docs/V5.3-Plan.md) (v1.0.0) — ERC-8004 双通道身份验证 + Agent 信誉驱动赞助策略 + SKILL.md + OpenAPI + MCP + CLI 工具。13 个任务组、45+ 验收标准、6 周交付。
+
 ---
 
 ## Post-Deployment Checklist
