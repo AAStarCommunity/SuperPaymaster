@@ -8,7 +8,7 @@ import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/interfaces/v3/IAgentIdentityRegistry.sol";
 import "src/interfaces/v3/IAgentReputationRegistry.sol";
-import "src/interfaces/v3/ISignatureTransfer.sol";
+import "src/interfaces/v3/IERC3009.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
@@ -87,45 +87,32 @@ contract MockAgentReputationRegistry is IAgentReputationRegistry {
     }
 }
 
-contract MockPermit2 is ISignatureTransfer {
-    IERC20 public token;
-    bool public shouldRevert;
-
-    function setToken(address _token) external {
-        token = IERC20(_token);
-    }
-
-    function setShouldRevert(bool _revert) external {
-        shouldRevert = _revert;
-    }
-
-    function permitTransferFrom(
-        PermitTransferFrom calldata permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner_,
-        bytes calldata
-    ) external override {
-        require(!shouldRevert, "MockPermit2: revert");
-        IERC20(permit.permitted.token).transferFrom(owner_, transferDetails.to, transferDetails.requestedAmount);
-    }
-
-    function permitWitnessTransferFrom(
-        PermitTransferFrom memory permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner_,
-        bytes32,
-        string calldata,
-        bytes calldata
-    ) external override {
-        require(!shouldRevert, "MockPermit2: revert");
-        IERC20(permit.permitted.token).transferFrom(owner_, transferDetails.to, transferDetails.requestedAmount);
-    }
-}
-
-contract MockSettlementToken is ERC20 {
+/// @dev Mock ERC-3009 token (USDC-like) with transferWithAuthorization
+contract MockERC3009Token is ERC20, IERC3009 {
     constructor() ERC20("USDC", "USDC") {}
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+    function transferWithAuthorization(
+        address from, address to, uint256 value,
+        uint256, uint256, bytes32, bytes calldata
+    ) external override {
+        _transfer(from, to, value);
+    }
+}
+
+/// @dev Mock xPNTs-like token (auto-approves SuperPaymaster)
+contract MockDirectToken is ERC20 {
+    address public superPaymaster;
+    constructor(address _sp) ERC20("xPNTs", "xPNTs") {
+        superPaymaster = _sp;
+    }
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+    function allowance(address owner_, address spender) public view override returns (uint256) {
+        if (spender == superPaymaster) return type(uint256).max;
+        return super.allowance(owner_, spender);
     }
 }
 
@@ -144,8 +131,8 @@ contract SuperPaymasterV5Features_Test is Test {
     MockAPNTsV5 public apnts;
     MockAgentIdentityRegistry public agentIdRegistry;
     MockAgentReputationRegistry public agentRepRegistry;
-    MockPermit2 public permit2;
-    MockSettlementToken public usdc;
+    MockERC3009Token public usdc;
+    MockDirectToken public xpnts;
 
     address public owner = address(0x1);
     address public treasury = address(0x2);
@@ -166,12 +153,7 @@ contract SuperPaymasterV5Features_Test is Test {
         apnts = new MockAPNTsV5();
         agentIdRegistry = new MockAgentIdentityRegistry();
         agentRepRegistry = new MockAgentReputationRegistry();
-        usdc = new MockSettlementToken();
-
-        // Deploy permit2 mock
-        // We need to deploy at the exact PERMIT2 address
-        permit2 = new MockPermit2();
-        permit2.setToken(address(usdc));
+        usdc = new MockERC3009Token();
 
         address mockStaking = address(0x999);
         address mockSBT = address(0x888);
@@ -186,6 +168,9 @@ contract SuperPaymasterV5Features_Test is Test {
             treasury,
             3600
         );
+
+        // Deploy mock xPNTs (auto-approves SuperPaymaster)
+        xpnts = new MockDirectToken(address(paymaster));
 
         // Update price cache
         vm.warp(block.timestamp + 2 hours);
@@ -427,159 +412,125 @@ contract SuperPaymasterV5Features_Test is Test {
     }
 
     // ====================================
-    // F3: settleX402PaymentPermit2 Tests
+    // F3: settleX402Payment (EIP-3009) Tests
     // ====================================
 
-    function test_SettlePermit2_Success() public {
-        uint256 amount = 1000e6; // 1000 USDC (6 decimals)
+    function test_SettleEIP3009_Success() public {
+        uint256 amount = 1000e6;
         address payer = address(0x10);
 
-        // Deploy permit2 at the correct constant address first
-        address permit2Addr = paymaster.PERMIT2();
-        bytes memory permit2Code = address(permit2).code;
-        vm.etch(permit2Addr, permit2Code);
-
-        // Mint tokens to payer and approve permit2
         usdc.mint(payer, amount);
-        vm.prank(payer);
-        usdc.approve(permit2Addr, amount);
 
-        // Prepare permit
-        ISignatureTransfer.PermitTransferFrom memory permit_ = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({
-                token: address(usdc),
-                amount: amount
-            }),
-            nonce: 1,
-            deadline: block.timestamp + 1 hours
-        });
-
-        ISignatureTransfer.SignatureTransferDetails memory details = ISignatureTransfer.SignatureTransferDetails({
-            to: payee,
-            requestedAmount: amount
-        });
-
-        // Set operator facilitator fee (operator1 is the caller)
         vm.prank(owner);
         paymaster.setOperatorFacilitatorFee(operator1, 100); // 1%
 
-        // Settle
         vm.prank(operator1);
-        bytes32 settlementId = paymaster.settleX402PaymentPermit2(
-            permit_, details, payer, ""
+        bytes32 settlementId = paymaster.settleX402Payment(
+            payer, payee, address(usdc), amount,
+            0, block.timestamp + 1 hours, bytes32(uint256(1)), ""
         );
 
-        // Verify: payee received net amount
-        uint256 fee = (amount * 100) / 10000; // 1%
+        uint256 fee = (amount * 100) / 10000;
         assertEq(usdc.balanceOf(payee), amount - fee);
-
-        // Verify: facilitator earnings tracked
         assertEq(paymaster.facilitatorEarnings(operator1, address(usdc)), fee);
-
-        // Verify non-zero settlement ID
         assertTrue(settlementId != bytes32(0));
     }
 
-    function test_SettlePermit2_Replay() public {
+    function test_SettleEIP3009_Replay() public {
         uint256 amount = 100e6;
         address payer = address(0x10);
-
-        // Deploy permit2 at correct address first
-        address permit2Addr = paymaster.PERMIT2();
-        bytes memory permit2Code = address(permit2).code;
-        vm.etch(permit2Addr, permit2Code);
-
         usdc.mint(payer, amount * 2);
-        vm.prank(payer);
-        usdc.approve(permit2Addr, amount * 2);
 
-        ISignatureTransfer.PermitTransferFrom memory permit_ = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({
-                token: address(usdc),
-                amount: amount
-            }),
-            nonce: 42,
-            deadline: block.timestamp + 1 hours
-        });
+        bytes32 nonce = bytes32(uint256(42));
 
-        ISignatureTransfer.SignatureTransferDetails memory details = ISignatureTransfer.SignatureTransferDetails({
-            to: payee,
-            requestedAmount: amount
-        });
-
-        // First settlement succeeds
         vm.prank(operator1);
-        paymaster.settleX402PaymentPermit2(permit_, details, payer, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, 0, block.timestamp + 1 hours, nonce, "");
 
-        // Second with same nonce should revert
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402PaymentPermit2(permit_, details, payer, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, 0, block.timestamp + 1 hours, nonce, "");
     }
 
-    function test_SettlePermit2_ZeroFee() public {
-        uint256 amount = 100e6;
-        address payer = address(0x10);
-
-        // Deploy permit2 at correct address first
-        address permit2Addr = paymaster.PERMIT2();
-        bytes memory permit2Code = address(permit2).code;
-        vm.etch(permit2Addr, permit2Code);
-
-        usdc.mint(payer, amount);
-        vm.prank(payer);
-        usdc.approve(permit2Addr, amount);
-
-        ISignatureTransfer.PermitTransferFrom memory permit_ = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({
-                token: address(usdc),
-                amount: amount
-            }),
-            nonce: 99,
-            deadline: block.timestamp + 1 hours
-        });
-
-        ISignatureTransfer.SignatureTransferDetails memory details = ISignatureTransfer.SignatureTransferDetails({
-            to: payee,
-            requestedAmount: amount
-        });
-
-        // Set both default and per-operator fee to 0
-        vm.prank(owner);
-        paymaster.setFacilitatorFeeBPS(0);
-        vm.prank(owner);
-        paymaster.setOperatorFacilitatorFee(operator1, 0);
-
-        vm.prank(operator1);
-        paymaster.settleX402PaymentPermit2(permit_, details, payer, "");
-
-        // Payee should receive full amount
-        assertEq(usdc.balanceOf(payee), amount);
-        assertEq(paymaster.facilitatorEarnings(operator1, address(usdc)), 0);
-    }
-
-    function test_SettlePermit2_Unauthorized() public {
-        uint256 amount = 100e6;
-        address payer = address(0x10);
-
-        ISignatureTransfer.PermitTransferFrom memory permit_ = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({
-                token: address(usdc),
-                amount: amount
-            }),
-            nonce: 77,
-            deadline: block.timestamp + 1 hours
-        });
-
-        ISignatureTransfer.SignatureTransferDetails memory details = ISignatureTransfer.SignatureTransferDetails({
-            to: payee,
-            requestedAmount: amount
-        });
-
-        // user1 has no ROLE_PAYMASTER_SUPER — should revert
+    function test_SettleEIP3009_Unauthorized() public {
         vm.prank(user1);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentPermit2(permit_, details, payer, "");
+        paymaster.settleX402Payment(address(0x10), payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, bytes32(uint256(77)), "");
+    }
+
+    // ====================================
+    // F3b: settleX402PaymentDirect (xPNTs) Tests
+    // ====================================
+
+    function test_SettleDirect_Success() public {
+        uint256 amount = 500 ether;
+        address payer = address(0x10);
+        xpnts.mint(payer, amount);
+
+        vm.prank(owner);
+        paymaster.setOperatorFacilitatorFee(operator1, 200); // 2%
+
+        vm.prank(operator1);
+        bytes32 settlementId = paymaster.settleX402PaymentDirect(
+            payer, payee, address(xpnts), amount, bytes32(uint256(1))
+        );
+
+        uint256 fee = (amount * 200) / 10000;
+        assertEq(xpnts.balanceOf(payee), amount - fee);
+        assertEq(paymaster.facilitatorEarnings(operator1, address(xpnts)), fee);
+        assertTrue(settlementId != bytes32(0));
+    }
+
+    function test_SettleDirect_Replay() public {
+        uint256 amount = 100 ether;
+        address payer = address(0x10);
+        xpnts.mint(payer, amount * 2);
+        bytes32 nonce = bytes32(uint256(99));
+
+        vm.prank(operator1);
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, nonce);
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, nonce);
+    }
+
+    function test_SettleDirect_Unauthorized() public {
+        vm.prank(user1);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        paymaster.settleX402PaymentDirect(address(0x10), payee, address(xpnts), 100 ether, bytes32(uint256(77)));
+    }
+
+    // ====================================
+    // V5.3: isEligibleForSponsorship Tests
+    // ====================================
+
+    function test_IsEligible_SBTOnly() public {
+        address sbtUser = address(0x20);
+        // updateSBTStatus is restricted to Registry — write storage directly
+        stdstore.target(address(paymaster)).sig("sbtHolders(address)").with_key(sbtUser).checked_write(true);
+        assertTrue(paymaster.isEligibleForSponsorship(sbtUser));
+    }
+
+    function test_IsEligible_AgentOnly() public {
+        // agent1 is registered but has no SBT
+        assertFalse(paymaster.sbtHolders(agent1));
+        assertTrue(paymaster.isEligibleForSponsorship(agent1));
+    }
+
+    function test_IsEligible_Neither() public {
+        address nobody = address(0x30);
+        assertFalse(paymaster.isEligibleForSponsorship(nobody));
+    }
+
+    function test_IsEligible_NoRegistry() public {
+        // Reset registries to zero
+        vm.prank(owner);
+        paymaster.setAgentRegistries(address(0), address(0));
+        // Non-SBT user should fail (agent identity registry gone)
+        assertFalse(paymaster.isEligibleForSponsorship(agent1));
+        // SBT user should still pass
+        stdstore.target(address(paymaster)).sig("sbtHolders(address)").with_key(agent1).checked_write(true);
+        assertTrue(paymaster.isEligibleForSponsorship(agent1));
     }
 
     // ====================================
@@ -631,6 +582,6 @@ contract SuperPaymasterV5Features_Test is Test {
     // The cache integration is tested implicitly via validatePaymasterUserOp.
 
     function test_Version() public {
-        assertEq(paymaster.version(), "SuperPaymaster-5.2.0");
+        assertEq(paymaster.version(), "SuperPaymaster-5.3.0");
     }
 }

@@ -13,7 +13,7 @@ import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
 import "../../../interfaces/v3/IAgentIdentityRegistry.sol";
 import "../../../interfaces/v3/IAgentReputationRegistry.sol";
-import "../../../interfaces/v3/ISignatureTransfer.sol";
+import "../../../interfaces/v3/IERC3009.sol";
 
 
 
@@ -65,7 +65,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.2.0";
+        return "SuperPaymaster-5.3.0";
     }
 
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -748,8 +748,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              return ("", _packValidationData(true, 0, 0)); 
         }
 
-        // V3.3 Security: Check SBT Qualification (Local Cache)
-        if (!sbtHolders[userOp.sender]) {
+        // V5.3: Dual-channel identity check (SBT holder OR ERC-8004 Agent NFT)
+        if (!isEligibleForSponsorship(userOp.sender)) {
              return ("", _packValidationData(true, 0, 0));
         }
 
@@ -956,7 +956,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error InvalidFee();
 
     // x402 Constants
-    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
 
     // ====================================
@@ -996,6 +995,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
     // F1: Agent Sponsorship Policy
     // ====================================
+
+    /// @notice V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent
+    function isEligibleForSponsorship(address user) public view returns (bool) {
+        return sbtHolders[user] || isRegisteredAgent(user);
+    }
 
     /// @notice Check if an address is a registered ERC-8004 agent
     function isRegisteredAgent(address account) public view returns (bool) {
@@ -1113,61 +1117,51 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     // ====================================
-    // F3: x402 Payment Settlement (Permit2)
+    // F3: x402 Payment Settlement
     // ====================================
 
-    // Witness type: payee is signed by the token owner to prevent redirection
-    string public constant WITNESS_TYPE_STRING =
-        "X402Settlement witness)TokenPermissions(address token,uint256 amount)X402Settlement(address payee)";
-    bytes32 public constant X402_SETTLEMENT_TYPEHASH = keccak256("X402Settlement(address payee)");
-
-    /// @notice Settle x402 payment using Uniswap Permit2 with witness (payee signed by payer)
-    /// @dev Only registered operators (ROLE_PAYMASTER_SUPER) can call this.
-    ///      The payer's Permit2 signature covers (token, amount, nonce, deadline, spender, payee).
-    function settleX402PaymentPermit2(
-        ISignatureTransfer.PermitTransferFrom calldata permit,
-        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
-        address owner_,
-        bytes calldata signature
-    ) external override nonReentrant returns (bytes32 settlementId) {
-        // 0. Access control: only registered operators can settle
+    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    function settleX402Payment(
+        address from, address to, address asset, uint256 amount,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external nonReentrant returns (bytes32 settlementId) {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
-
-        // 1. Nonce replay check
-        bytes32 nonce = bytes32(permit.nonce);
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
         x402SettlementNonces[nonce] = true;
 
-        // 2. Fee calculation
-        uint256 amount = transferDetails.requestedAmount;
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
         if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
         uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
 
-        // 3. Track earnings (CEI: effects before interactions)
-        address asset = permit.permitted.token;
         if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
 
-        // 4. Pull via Permit2 with witness (payee is signed by token owner)
-        bytes32 witness = keccak256(abi.encode(X402_SETTLEMENT_TYPEHASH, transferDetails.to));
-        ISignatureTransfer(PERMIT2).permitWitnessTransferFrom(
-            permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: amount
-            }),
-            owner_,
-            witness,
-            WITNESS_TYPE_STRING,
-            signature
-        );
+        IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
+        IERC20(asset).safeTransfer(to, amount - fee);
 
-        // 5. Transfer net to payee (payee is now cryptographically guaranteed by the signature)
-        IERC20(asset).safeTransfer(transferDetails.to, amount - fee);
+        emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
+        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+    }
 
-        // 6. Emit + return
-        emit X402PaymentSettled(owner_, transferDetails.to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(owner_, transferDetails.to, asset, amount, nonce));
+    /// @notice Settle x402 payment via direct transferFrom (for xPNTs and pre-approved tokens)
+    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve)
+    function settleX402PaymentDirect(
+        address from, address to, address asset, uint256 amount, bytes32 nonce
+    ) external nonReentrant returns (bytes32 settlementId) {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
+        x402SettlementNonces[nonce] = true;
+
+        uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
+        if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
+        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
+
+        if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
+
+        IERC20(asset).safeTransferFrom(from, address(this), amount);
+        IERC20(asset).safeTransfer(to, amount - fee);
+
+        emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
+        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
     }
 
     // ====================================
