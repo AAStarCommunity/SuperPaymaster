@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 import "src/interfaces/IVersioned.sol";
-import "src/interfaces/v3/ISignatureTransfer.sol";
 
 /**
  * @title ISuperPaymaster - Multi-tenant SuperPaymaster Interface
@@ -117,12 +116,18 @@ interface ISuperPaymaster is IVersioned {
     function setAgentPolicies(AgentSponsorshipPolicy[] calldata policies) external;
     function getAgentSponsorshipRate(address agent, address operator) external view returns (uint256 bps);
 
-    // V5: x402 Permit2 Settlement
-    function settleX402PaymentPermit2(
-        ISignatureTransfer.PermitTransferFrom calldata permit,
-        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
-        address owner,
-        bytes calldata signature
+    // V5.3: Dual-channel eligibility
+    function isEligibleForSponsorship(address user) external view returns (bool);
+
+    // V5: x402 EIP-3009 Settlement (USDC native)
+    function settleX402Payment(
+        address from, address to, address asset, uint256 amount,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external returns (bytes32 settlementId);
+
+    // V5: x402 Direct Settlement (xPNTs and pre-approved tokens)
+    function settleX402PaymentDirect(
+        address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external returns (bytes32 settlementId);
 
 }
