@@ -33,8 +33,15 @@ export function healthRoute(config: Config) {
         blockNumber: Number(blockNumber),
       };
       return c.json(resp);
-    } catch {
-      return c.json({ status: "degraded", version: "0.1.0" } satisfies Partial<HealthResponse>, 503);
+    } catch (err) {
+      console.error("Health check failed:", err);
+      return c.json({
+        status: "degraded",
+        version: "0.1.0",
+        chainId: config.chainId,
+        network: config.network,
+        operator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      } satisfies HealthResponse, 503);
     }
   });
 

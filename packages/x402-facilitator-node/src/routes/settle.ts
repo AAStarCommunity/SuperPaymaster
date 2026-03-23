@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { type Config } from "../lib/config.js";
 import { getPublicClient, getWalletClient, getAccount } from "../lib/chain.js";
 import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
+import { validatePaymentFields, validateHex } from "../lib/validate.js";
 import type { SettleRequest, SettleResponse } from "../types.js";
 
 export function settleRoute(config: Config) {
@@ -14,6 +15,20 @@ export function settleRoute(config: Config) {
 
     if (!body.payment) {
       return c.json({ success: false, error: "Missing payment data" } satisfies SettleResponse, 400);
+    }
+
+    // Validate all payment fields
+    const validationError = validatePaymentFields(body.payment);
+    if (validationError) {
+      return c.json({ success: false, error: validationError } satisfies SettleResponse, 400);
+    }
+
+    // Validate signature for non-direct schemes
+    if (body.scheme !== "direct") {
+      const sigResult = validateHex(body.payment.signature, "signature");
+      if (typeof sigResult === "string" && !sigResult.startsWith("0x")) {
+        return c.json({ success: false, error: sigResult } satisfies SettleResponse, 400);
+      }
     }
 
     const { from, to, asset, amount, nonce, validAfter, validBefore, signature } = body.payment;
@@ -75,8 +90,13 @@ export function settleRoute(config: Config) {
         settlementId: nonce,
       } satisfies SettleResponse);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Settlement failed";
-      return c.json({ success: false, error: message } satisfies SettleResponse, 500);
+      console.error("Settlement error:", err);
+      // Return generic message to avoid leaking internal details
+      const isRevert = err instanceof Error && err.message.includes("revert");
+      return c.json(
+        { success: false, error: isRevert ? "Transaction reverted" : "Settlement failed" } satisfies SettleResponse,
+        isRevert ? 400 : 500,
+      );
     }
   });
 
