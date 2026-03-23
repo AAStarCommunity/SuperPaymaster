@@ -5,6 +5,7 @@ import { type Config } from "../lib/config.js";
 import { getPublicClient } from "../lib/chain.js";
 import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
 import { verifyEIP3009Signature } from "../lib/verify-sig.js";
+import { validatePaymentFields, validateHex } from "../lib/validate.js";
 import type { VerifyRequest, VerifyResponse } from "../types.js";
 
 export function verifyRoute(config: Config) {
@@ -15,6 +16,12 @@ export function verifyRoute(config: Config) {
 
     if (!body.payment) {
       return c.json({ valid: false, reason: "Missing payment data" } satisfies VerifyResponse, 400);
+    }
+
+    // Validate all payment fields
+    const validationError = validatePaymentFields(body.payment);
+    if (validationError) {
+      return c.json({ valid: false, reason: validationError } satisfies VerifyResponse, 400);
     }
 
     const { from, to, asset, amount, nonce, validAfter, validBefore, signature } = body.payment;
