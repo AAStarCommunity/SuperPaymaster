@@ -33,7 +33,11 @@ export function loadConfig(): Config {
     rpcUrl: requireEnv("RPC_URL"),
     operatorPrivateKey: requireEnv("OPERATOR_PRIVATE_KEY") as `0x${string}`,
     superPaymasterAddress: requireEnv("SUPER_PAYMASTER_ADDRESS") as `0x${string}`,
-    usdcAddress: (process.env.USDC_ADDRESS || usdcDefaults[chainId] || "") as `0x${string}`,
+    usdcAddress: (() => {
+      const addr = process.env.USDC_ADDRESS || usdcDefaults[chainId];
+      if (!addr) throw new Error(`No USDC address for chainId ${chainId}. Set USDC_ADDRESS env var.`);
+      return addr as `0x${string}`;
+    })(),
     network: process.env.NETWORK || "sepolia",
     baseUrl: process.env.BASE_URL || `http://localhost:${process.env.PORT || "3402"}`,
   };
