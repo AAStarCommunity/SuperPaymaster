@@ -1,0 +1,57 @@
+{
+  "$schema": "https://agentskills.io/schemas/metadata.json",
+  "name": "superpaymaster",
+  "version": "0.1.0",
+  "description": "Gasless transactions and micropayments for Web3 agents. ERC-4337 gas sponsorship, x402 payment facilitation, streaming micropayments via payment channels.",
+  "author": {
+    "name": "SuperPaymaster Team",
+    "url": "https://github.com/AAStarCommunity"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/AAStarCommunity/SuperPaymaster",
+  "tags": [
+    "web3",
+    "payments",
+    "gas-sponsorship",
+    "x402",
+    "erc-4337",
+    "micropayments",
+    "agent-economy",
+    "erc-8004"
+  ],
+  "capabilities": {
+    "gas-sponsorship": {
+      "description": "Sponsor gas fees for users via community tokens (xPNTs) instead of ETH",
+      "entrypoint": "ERC-4337",
+      "cost": "Variable (community-funded)"
+    },
+    "x402-settlement": {
+      "description": "HTTP 402 payment protocol for API monetization and agent services",
+      "schemes": ["eip-3009", "permit2", "direct"],
+      "cost": "2% facilitator fee"
+    },
+    "micropayment-channels": {
+      "description": "Off-chain streaming payments with on-chain settlement",
+      "pattern": "cumulative EIP-712 vouchers",
+      "cost": "Gas for open/settle only"
+    },
+    "agent-identity": {
+      "description": "ERC-8004 agent registration and reputation-based sponsorship tiers",
+      "standard": "ERC-8004",
+      "cost": "Free (reputation earns better rates)"
+    }
+  },
+  "networks": ["ethereum-sepolia", "base", "base-sepolia", "optimism"],
+  "transport": {
+    "x402": {
+      "verifyUrl": "/verify",
+      "settleUrl": "/settle"
+    },
+    "mcp": {
+      "errorCode": -32042,
+      "description": "MCP payment required error with x-payment header"
+    }
+  },
+  "skillFile": "./SKILL.md",
+  "paymentInfo": "./.well-known/x-payment-info.json"
+}
