@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { serve } from "@hono/node-server";
 import { loadConfig } from "./lib/config.js";
 import { initClients } from "./lib/chain.js";
 import { healthRoute } from "./routes/health.js";
@@ -44,7 +45,8 @@ console.log(`x402 Facilitator Node starting on port ${port}`);
 console.log(`  Network: ${config.network} (chainId: ${config.chainId})`);
 console.log(`  SuperPaymaster: ${config.superPaymasterAddress}`);
 
-export default {
-  port,
-  fetch: app.fetch,
-};
+serve({ fetch: app.fetch, port }, (info) => {
+  console.log(`  Listening on http://localhost:${info.port}`);
+});
+
+export default app;
