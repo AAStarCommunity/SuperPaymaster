@@ -207,6 +207,9 @@ contract DeployAnvil is Script {
         
         // CRITICAL: Update factory's SuperPaymaster address
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
+
+        // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
+        staking.setAuthorizedSlasher(address(aggregator), true);
         
         // Configure auto-approval for aPNTs (already deployed via factory)
         apnts.setSuperPaymasterAddress(address(superPaymaster));
