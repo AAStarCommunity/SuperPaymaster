@@ -1,11 +1,11 @@
-# SuperPaymaster V5 Acceptance Report (V5.0 → V5.2)
+# SuperPaymaster V5 Acceptance Report (V5.0 → V5.3)
 
-**Date**: 2026-03-22
-**Scope**: V5.0 (consumeCredit kernel) + V5.1 (microPayment EIP-712) + V5.2 (x402/Agent/EIP-1153)
+**Date**: 2026-03-23 (updated)
+**Scope**: V5.0 (consumeCredit kernel) + V5.1 (microPayment EIP-712) + V5.2 (x402/Agent/EIP-1153) + V5.3 (EIP-3009/Direct settlement, dual-channel, MicroPaymentChannel, Operator Node, SKILL.md)
 **Branch**: `feature/micropayment` (PR #61)
 **Network**: Sepolia (Chain ID: 11155111)
 **Compiler**: Solidity 0.8.33, optimizer 10,000 runs, via-IR, Cancun EVM
-**On-chain version**: `SuperPaymaster-5.2.0`
+**On-chain version**: `SuperPaymaster-5.3.0`
 
 ---
 
@@ -18,6 +18,7 @@ V5 是一个累积版本，合约 `version()` 返回最新值 `SuperPaymaster-5.
 | **V5.0** | `_consumeCredit()` 计费内核提取 + `chargeMicroPayment()` EIP-712 签名微支付 + solady EIP712 | 首次部署为 5.0.0 |
 | **V5.1** | (同 V5.0，合并实现) microPaymentNonces, SignatureCheckerLib 支持 AirAccount | 合入 5.0.0 |
 | **V5.2** | Agent Sponsorship Policy + x402 Permit2 Settlement + EIP-1153 Transient Cache + Feedback | UUPS 升级至 5.2.0 |
+| **V5.3** | EIP-3009 + Direct settlement (替代 Permit2), dual-channel eligibility, MicroPaymentChannel, Operator Node, SKILL.md | UUPS 升级至 5.3.0 |
 
 ### ERC-8004 Agent Registry 状态
 
@@ -64,6 +65,32 @@ V5 是一个累积版本，合约 `version()` 返回最新值 `SuperPaymaster-5.
 | **F3: x402 Permit2 Settlement** | Settle x402 micropayments via Uniswap Permit2 with witness | ✅ Forge tested, E2E pending USDC |
 | **F4: EIP-1153 Transient Cache** | Cache operator config SLOAD in transient storage | ✅ Forge tested |
 
+### V5.3 New Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **settleX402Payment (EIP-3009)** | USDC native `transferWithAuthorization` — 161K gas | ✅ E2E verified on Sepolia |
+| **settleX402PaymentDirect** | `transferFrom` for xPNTs and pre-approved tokens | ✅ Forge tested |
+| **isEligibleForSponsorship()** | Dual-channel: SBT holders OR ERC-8004 Agent NFT | ✅ Forge tested |
+| **MicroPaymentChannel** | Independent streaming micropayment contract (cumulative vouchers, 15min dispute) | ✅ Deployed on Sepolia |
+| **x402 Facilitator Node** | Hono HTTP server — /verify, /settle, /quote, /health, /.well-known | ✅ TypeScript build passes |
+| **SKILL.md + Agent Discovery** | Anthropic Agent Skills spec + .well-known discovery files | ✅ Created |
+
+### V5.3 Off-Chain Components
+
+| Component | Path | Description |
+|-----------|------|-------------|
+| x402 Facilitator Node | `packages/x402-facilitator-node/` | Hono HTTP, viem, TypeScript strict |
+| SKILL.md | `SKILL.md` | Agent Skills metadata + code examples |
+| x-payment-info | `.well-known/x-payment-info.json` | x402 protocol discovery |
+| agent-metadata | `.well-known/agent-metadata.json` | MCP + agent discovery |
+
+### MicroPaymentChannel Deployment (Sepolia)
+
+| Contract | Address | Size |
+|----------|---------|------|
+| MicroPaymentChannel | `0x5753e9675f68221cA901e495C1696e33F552ea36` | 4,638 bytes |
+
 ### PaymasterV4 Hardening (v4.3.1)
 
 | Fix | Description | Status |
@@ -79,7 +106,7 @@ V5 是一个累积版本，合约 `version()` 返回最新值 `SuperPaymaster-5.
 ### 3.1 Forge Unit Tests
 
 ```
-362 tests passed, 0 failed, 0 skipped
+414 tests passed, 0 failed, 0 skipped
 ```
 
 Key test files:
@@ -210,9 +237,10 @@ Same 3 P0 findings — all verified with identical conclusions.
 
 | Contract | Size (bytes) | Limit | Remaining |
 |----------|-------------|-------|-----------|
-| SuperPaymaster | 24,039 | 24,576 | 537 (2.2%) |
+| SuperPaymaster | 24,185 | 24,576 | 391 (1.6%) |
+| MicroPaymentChannel | 4,638 | 24,576 | 19,938 (81.2%) |
 
-**Warning**: Only 537 bytes remaining. Future features must be extremely size-conscious or use external libraries.
+**Warning**: SuperPaymaster has only 391 bytes remaining. Future features must be extremely size-conscious or use external libraries.
 
 ---
 
@@ -224,7 +252,7 @@ Same 3 P0 findings — all verified with identical conclusions.
 | GTokenStaking | `Staking-3.2.0` | Pointer-replacement |
 | MySBT | `MySBT-3.1.3` | Pointer-replacement |
 | Registry | `Registry-4.1.0` | UUPS Proxy |
-| SuperPaymaster | `SuperPaymaster-5.2.0` | UUPS Proxy |
+| SuperPaymaster | `SuperPaymaster-5.3.0` | UUPS Proxy |
 | PaymasterBase | `PaymasterV4-4.3.1` | Direct |
 | Paymaster (V4) | `PMV4-Deposit-4.3.1` | EIP-1167 Proxy |
 | xPNTsToken | `XPNTs-3.0.0-unlimited` | EIP-1167 Proxy |
@@ -248,7 +276,14 @@ Same 3 P0 findings — all verified with identical conclusions.
 | Comprehensive Audit | `docs/comprehensive-audit-2026-03-22.md` | Full-spectrum audit reference |
 | UUPS Upgrade Script | `contracts/script/v3/UpgradeToV5_2.s.sol` | Sepolia UUPS upgrade script |
 | V4.3.1 Deploy Script | `contracts/script/v3/DeployPaymasterV4_3_1.s.sol` | New impl + factory registration |
-| x402 E2E Test | `script/gasless-tests/test-x402-permit2-settlement.js` | Permit2 settlement E2E (pending USDC) |
+| x402 E2E Test (EIP-3009) | `script/gasless-tests/test-x402-eip3009-settlement.js` | EIP-3009 settlement E2E (verified) |
+| x402 E2E Test (Permit2) | `script/gasless-tests/test-x402-permit2-settlement.js` | Permit2 settlement E2E (pending USDC) |
+| MicroPaymentChannel | `contracts/src/MicroPaymentChannel.sol` | Independent streaming micropayment contract |
+| MicroPaymentChannel E2E | `script/gasless-tests/test-micropayment-channel.js` | Channel lifecycle E2E test |
+| x402 Facilitator Node | `packages/x402-facilitator-node/` | Hono HTTP operator server |
+| SKILL.md | `SKILL.md` | Anthropic Agent Skills discovery |
+| x-payment-info | `.well-known/x-payment-info.json` | x402 protocol discovery |
+| Ecosystem Research | `docs/research-x402-ecosystem-2026-03.md` | Coinbase/Stripe/Paradigm/Cloudflare research |
 
 ---
 
@@ -351,6 +386,7 @@ EntryPoint Deposit:
 | Chainlink ETH/USD | `0x694AA1769357215DE4FAC081bf1f309aDC325306` |
 | EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
 | Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
+| MicroPaymentChannel | `0x5753e9675f68221cA901e495C1696e33F552ea36` |
 | USDC (Sepolia) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 
 ### 9.5 Keeper / Cron 服务
@@ -505,9 +541,10 @@ See `docs/Parameter-Safety-Guide.md` Section 5 for full monitoring guide.
 
 ## 11. Verification Checklist
 
-- [x] SuperPaymaster V5.2.0 deployed on Sepolia
+- [x] SuperPaymaster V5.3.0 deployed on Sepolia
+- [x] MicroPaymentChannel deployed on Sepolia (`0x5753...`)
 - [x] PaymasterV4 v4.3.1 implementation deployed and factory-registered
-- [x] 362/362 Forge unit tests passing
+- [x] 414/414 Forge unit tests passing
 - [x] 17/17 E2E tests passing (Sepolia on-chain)
 - [x] 3/3 Gasless AA transactions verified with Etherscan links
 - [x] 4/4 Boundary condition tests (batch=200, levels=20)
@@ -515,5 +552,11 @@ See `docs/Parameter-Safety-Guide.md` Section 5 for full monitoring guide.
 - [x] VERSION_MAP.md synced to code reality
 - [x] Parameter Safety Guide with monitoring procedures
 - [x] Gas analysis report with cost breakdown
-- [x] x402 E2E test (1 USDC settlement, 2% fee verified, replay rejected)
+- [x] x402 EIP-3009 E2E test (1 USDC settlement, 2% fee verified, replay rejected)
+- [x] x402 Facilitator Node — Hono HTTP, typecheck + build passing
+- [x] SKILL.md + .well-known discovery files created
+- [x] Ecosystem research report (Coinbase, Stripe, Paradigm, Cloudflare)
+- [x] Agent Economy capability matrix (54 standard + 10 unique, 23/54 complete)
 - [ ] Agent Sponsorship E2E (requires ERC-8004 registries)
+- [ ] x402 Facilitator Node E2E test with deployed contract
+- [ ] MicroPaymentChannel E2E test (channel lifecycle on Sepolia)
