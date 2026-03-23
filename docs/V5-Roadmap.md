@@ -1644,10 +1644,10 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 
 | # | 能力 | 描述 | SuperPaymaster | 状态 |
 |---|------|------|---------------|------|
-| 1 | HTTP 402 Payment Required | 服务端返回 402 + 支付要求 | Operator Node `/verify` 端点 | P0 待实现 |
-| 2 | X-PAYMENT Header | 客户端在请求中附带支付签名 | Operator Node 解析 | P0 待实现 |
-| 3 | Facilitator /verify | 链下密码学验证（~100ms） | `POST /verify` 端点 | P0 待实现 |
-| 4 | Facilitator /settle | 链上结算（~2s on Base） | `POST /settle` → `settleX402Payment()` | P0 待实现 |
+| 1 | HTTP 402 Payment Required | 服务端返回 402 + 支付要求 | Operator Node `/verify` 端点 | ✅ P0 完成 |
+| 2 | X-PAYMENT Header | 客户端在请求中附带支付签名 | Operator Node 解析 | ✅ P0 完成 |
+| 3 | Facilitator /verify | 链下密码学验证（~100ms） | `POST /verify` 端点 | ✅ P0 完成 |
+| 4 | Facilitator /settle | 链上结算（~2s on Base） | `POST /settle` → `settleX402Payment()` | ✅ P0 完成 |
 | 5 | EIP-3009 Settlement | USDC `transferWithAuthorization` 一步转账 | `settleX402Payment()` | ✅ V5.3 完成 |
 | 6 | Permit2 Settlement | 任意 ERC-20 via `permitWitnessTransferFrom` | `settleX402PaymentPermit2()` → 已移除 | ❌ 设计决定移除 |
 | 7 | ERC-7710 Delegation | 智能账户委托结算 | — | ❌ 未规划 |
@@ -1655,30 +1655,30 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 | 9 | Nonce Replay Protection | 防重放保护 | `x402SettlementNonces` mapping | ✅ V5.3 完成 |
 | 10 | Facilitator Fee | 结算手续费 | `facilitatorFeeBPS` + per-operator override | ✅ V5.2 完成 |
 | 11 | Facilitator Earnings Tracking | 手续费累计追踪 | `facilitatorEarnings[operator][token]` | ✅ V5.2 完成 |
-| 12 | x402 V2 Plugin Architecture | 自定义链/facilitator/支付模式插件 | Operator Node Method 插件 | P0 待实现 |
+| 12 | x402 V2 Plugin Architecture | 自定义链/facilitator/支付模式插件 | Operator Node Method 插件 | P0 架构就绪 |
 | 13 | Wallet Sessions | 订阅式访问，跳过完整支付流程 | — | 未规划 |
 | 14 | Multi-chain Support | Base, Polygon, Solana 等 | Sepolia (开发中) | 部署到更多链 |
-| 15 | `/.well-known/x-payment-info` | x402 发现元数据 | Operator Node 端点 | P0 待实现 |
+| 15 | `/.well-known/x-payment-info` | x402 发现元数据 | Operator Node 端点 | ✅ P0 完成 |
 | 16 | Client SDK (`@x402/fetch`) | 自动处理 402 响应 | — | 未规划 (可用官方SDK) |
-| 17 | Server Middleware (`@x402/hono`) | Hono/Express/Next.js 中间件 | Operator Node 本身 | P0 待实现 |
+| 17 | Server Middleware (`@x402/hono`) | Hono/Express/Next.js 中间件 | Operator Node 本身 | ✅ P0 完成 |
 | 18 | Direct Settlement (xPNTs) | 预授权代币直接转账 | `settleX402PaymentDirect()` | ✅ V5.3 完成 |
 
 #### MPP — Machine Payments Protocol (Stripe/Tempo) — IETF Draft
 
 | # | 能力 | 描述 | SuperPaymaster | 状态 |
 |---|------|------|---------------|------|
-| 19 | Payment Auth Scheme | `WWW-Authenticate: Payment` 标准 | 兼容（共享 HTTP 402 语义） | P0 部分兼容 |
-| 20 | Challenge-Credential-Receipt | 三阶段支付验证流 | Operator Node 实现 | P0 待实现 |
+| 19 | Payment Auth Scheme | `WWW-Authenticate: Payment` 标准 | 兼容（共享 HTTP 402 语义） | ✅ P0 兼容 |
+| 20 | Challenge-Credential-Receipt | 三阶段支付验证流 | Operator Node 实现 | ✅ P0 完成 |
 | 21 | Charge Intent | 一次性即时结算（映射到 x402 exact） | `settleX402Payment()` | ✅ V5.3 完成 |
 | 22 | Session Intent | 流式 voucher + 批量结算 | `MicroPaymentChannel.sol` | ✅ 已部署 Sepolia |
 | 23 | Payment Channel Escrow | 链上托管 + 链下 voucher | `openChannel()` + cumulative voucher | ✅ 已完成 |
 | 24 | Off-chain Voucher Signing | 高频签名（sub-100ms 验证） | EIP-712 `Voucher(channelId, cumulativeAmount)` | ✅ 已完成 |
 | 25 | Batch Settlement | 批量链上结算 | `settleChannel()` + `closeChannel()` | ✅ 已完成 |
 | 26 | Authorized Signer (Session Key) | 委托签名人 | `authorizedSigner` in MPC | ✅ 已完成 |
-| 27 | HMAC Challenge | 无状态 Challenge (SHA256) | — | P0 待实现 |
-| 28 | Multi-Method Support | Tempo/Stripe/Lightning/Card | Operator Node Method 插件 | P0 架构待实现 |
-| 29 | MCP Transport (-32042) | JSON-RPC 支付信号 | MCP -32042 error 定义 | P1 待实现 |
-| 30 | `mppx` Server Middleware | `Mppx.charge()` 服务端中间件 | Operator Node 自有中间件 | P0 待实现 |
+| 27 | HMAC Challenge | 无状态 Challenge (SHA256) | — | P2 待实现 |
+| 28 | Multi-Method Support | Tempo/Stripe/Lightning/Card | Operator Node Method 插件 | P0 架构就绪 |
+| 29 | MCP Transport (-32042) | JSON-RPC 支付信号 | `.well-known/agent-metadata.json` | ✅ P1 完成 |
+| 30 | `mppx` Server Middleware | `Mppx.charge()` 服务端中间件 | Operator Node 自有中间件 | ✅ P0 完成 |
 | 31 | `mppx` Client | 全局 fetch 自动处理 402 | — | 未规划 (可用官方 SDK) |
 | 32 | CLI Tool | HTTP 请求自动支付 | `@superpaymaster/cli` | P2 待实现 |
 | 33 | Tempo Stablecoin (TIP-20) | 高吞吐专用链代币 | — | ❌ 不适用 (不同链) |
@@ -1687,8 +1687,8 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 
 | # | 能力 | 描述 | SuperPaymaster | 状态 |
 |---|------|------|---------------|------|
-| 34 | Edge Payment Middleware | 边缘节点支付验证（300+ PoP） | Operator Node (自部署) | P0 待实现 |
-| 35 | `paidTool()` MCP | MCP 工具按次收费 | Operator Node 集成 | P0 待实现 |
+| 34 | Edge Payment Middleware | 边缘节点支付验证（300+ PoP） | Operator Node (自部署) | ✅ P0 完成 |
+| 35 | `paidTool()` MCP | MCP 工具按次收费 | Operator Node 集成 | P0 架构就绪 |
 | 36 | Deferred Payment Scheme | HTTP Msg Sig + 批量结算 | `chargeMicroPayment()` (类似模式) | ✅ V5.1 概念实现 |
 | 37 | Pay-per-Crawl | 爬虫按页付费 | — | 未规划 (应用层) |
 | 38 | `withX402Client` Agent SDK | Agent 客户端 viem 支付 | — | 未规划 (可用官方 SDK) |
@@ -1705,7 +1705,7 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 | 44 | Dual-channel Eligibility | SBT OR Agent NFT 双通道身份 | `isEligibleForSponsorship()` | ✅ V5.3 完成 |
 | 45 | Agent Sponsorship Policy | 分层赞助费率 + 每日限额 | `setAgentPolicies()` + `getAgentSponsorshipRate()` | ✅ V5.2 完成 |
 | 46 | Sponsorship Feedback | Gas 赞助后声誉反馈 | `_submitSponsorshipFeedback()` | ✅ V5.2 完成 |
-| 47 | Self-registration as Agent | SuperPaymaster 注册为 ERC-8004 Agent | agent-metadata.json | P1 待实现 |
+| 47 | Self-registration as Agent | SuperPaymaster 注册为 ERC-8004 Agent | `.well-known/agent-metadata.json` | ✅ P1 完成 |
 | 48 | ChaosChain BFT Verify | 去中心化 BFT 验证 (Chainlink CRE) | DVT/BLS 验证器网络 | ✅ 已有架构 |
 
 #### Google AP2 — Agent Payments Protocol
@@ -1720,9 +1720,9 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 
 | # | 能力 | 描述 | SuperPaymaster | 状态 |
 |---|------|------|---------------|------|
-| 52 | SKILL.md | Agent 能力发现文件 | `SKILL.md` | P1 待实现 |
-| 53 | Progressive Disclosure | 元数据→指令→资源分层加载 | SKILL.md 结构设计 | P1 待实现 |
-| 54 | OpenAPI x-payment-info | API 支付信息扩展 | `openapi-x-payment-info.json` | P1 待实现 |
+| 52 | SKILL.md | Agent 能力发现文件 | `SKILL.md` | ✅ P1 完成 |
+| 53 | Progressive Disclosure | 元数据→指令→资源分层加载 | SKILL.md 结构设计 | ✅ P1 完成 |
+| 54 | OpenAPI x-payment-info | API 支付信息扩展 | `.well-known/x-payment-info.json` | ✅ P1 完成 |
 
 ### F.2 SuperPaymaster 独有能力（竞品无）
 
@@ -1745,50 +1745,43 @@ ReputationSystem                 → V5.3 信誉驱动赞助
 总能力数: 54 (标准) + 10 (独有) = 64
 
 标准能力 (54):
-  ✅ 已完成: 23 (43%)
-  🔨 P0 待实现 (Operator Node): 14 (26%)
-  📋 P1 待实现 (SKILL.md/Discovery): 6 (11%)
-  📋 P2 待实现 (CLI/未来): 2 (4%)
-  ❌ 不适用/不规划: 9 (16%)
+  ✅ 已完成: 38 (70%)  ← P0/P1 完成后从 23 提升到 38
+  🔨 架构就绪 (待完善): 3 (6%)  — 插件架构、paidTool、Multi-Method
+  📋 P2 待实现 (CLI/HMAC/未来): 4 (7%)
+  ❌ 不适用/不规划: 9 (17%)
 
 独有能力 (10):
   ✅ 全部已实现: 10 (100%)
 
-综合完成率: 33/54 标准能力可实现 = 已完成 23 + P0/P1 进行中 20 → 目标 43/54 (80%)
+综合完成率: 38/54 标准能力已完成 (70%), 目标 45/54 (83%)
 ```
 
 ### F.4 优先级排序：P0 → P1 → P2
 
-#### P0: Operator Node x402 Facilitator（分支: `feature/p0-operator-node`）
+#### P0: Operator Node x402 Facilitator — ✅ 完成 (2026-03-23)
 
 交付物: `packages/x402-facilitator-node/` — Hono + viem HTTP 服务
 
-| # | 端点/能力 | 对应矩阵 | 预估 |
+| # | 端点/能力 | 对应矩阵 | 状态 |
 |---|----------|---------|------|
-| 1 | `/health` — 运营商状态 | — | 0.5h |
-| 2 | `/verify` — 链下签名验证 | #1, #3 | 3h |
-| 3 | `/settle` — 链上结算 | #4 | 3h |
-| 4 | `/quote` — 费率查询 | #10 | 1h |
-| 5 | `/.well-known/x-payment-info` | #15 | 1h |
-| 6 | HMAC Challenge | #27 | 2h |
-| 7 | Method 插件架构 | #12, #28 | 3h |
-| 8 | HTTP 402 中间件 | #1, #2, #34 | 2h |
-| 9 | Docker compose | — | 1h |
-| 10 | E2E 集成测试 | — | 4h |
+| 1 | `/health` — 运营商状态 | — | ✅ |
+| 2 | `/verify` — 链下签名验证 (EIP-3009) | #1, #3 | ✅ |
+| 3 | `/settle` — 链上结算 (EIP-3009 + Direct) | #4 | ✅ |
+| 4 | `/quote` — 费率查询 | #10 | ✅ |
+| 5 | `/.well-known/x-payment-info` | #15 | ✅ |
+| 6 | 输入验证 + 错误脱敏 | 安全加固 | ✅ |
+| 7 | Dockerfile | 部署 | ✅ |
+| 8 | TypeScript strict + build | — | ✅ |
 
-**总计: ~20.5h**
+**待完善 (P2)**: HMAC Challenge (#27), Method 插件 (#12), E2E 集成测试
 
-#### P1: SKILL.md + Agent Discovery（分支: `feature/p1-skill-md`）
+#### P1: SKILL.md + Agent Discovery — ✅ 完成 (2026-03-23)
 
-| # | 交付物 | 对应矩阵 | 预估 |
+| # | 交付物 | 对应矩阵 | 状态 |
 |---|--------|---------|------|
-| 1 | `SKILL.md` 文件 | #52, #53 | 3h |
-| 2 | `openapi-x-payment-info.json` | #54 | 1h |
-| 3 | MCP -32042 信号定义 | #29 | 1h |
-| 4 | ERC-8004 自注册元数据 | #47 | 1h |
-| 5 | 文档 + AI Agent 测试 | — | 2h |
-
-**总计: ~8h**
+| 1 | `SKILL.md` 文件 | #52, #53 | ✅ |
+| 2 | `.well-known/x-payment-info.json` | #54 | ✅ |
+| 3 | `.well-known/agent-metadata.json` (MCP -32042) | #29, #47 | ✅ |
 
 #### P2: CLI + SDK（未来）
 
