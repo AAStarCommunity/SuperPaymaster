@@ -1,0 +1,58 @@
+{
+  "$schema": "https://x402.org/schemas/payment-info.json",
+  "name": "SuperPaymaster",
+  "version": "0.1.0",
+  "description": "Decentralized gas payment and x402 facilitation for Web3 agents",
+  "operator": {
+    "type": "facilitator",
+    "capabilities": [
+      "gas-sponsorship",
+      "x402-settlement",
+      "micropayment-channels",
+      "agent-sponsorship"
+    ]
+  },
+  "networks": [
+    {
+      "name": "ethereum-sepolia",
+      "chainId": 11155111,
+      "contracts": {
+        "superPaymaster": "0x829C3178DeF488C2dB65207B4225e18824696860",
+        "microPaymentChannel": "0x5753e9675f68221cA901e495C1696e33F552ea36"
+      },
+      "supportedAssets": [
+        {
+          "symbol": "USDC",
+          "address": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+          "decimals": 6
+        }
+      ]
+    }
+  ],
+  "settlement": {
+    "schemes": [
+      {
+        "name": "eip-3009",
+        "description": "USDC native transferWithAuthorization",
+        "supportedTokens": ["USDC", "EURC"]
+      },
+      {
+        "name": "permit2",
+        "description": "Uniswap Permit2 for any ERC-20",
+        "contract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+      },
+      {
+        "name": "direct",
+        "description": "Direct transfer for xPNTs and pre-approved tokens"
+      }
+    ],
+    "feeBPS": 200,
+    "feeDescription": "2% facilitator fee"
+  },
+  "endpoints": {
+    "verify": "/verify",
+    "settle": "/settle",
+    "quote": "/quote",
+    "health": "/health"
+  }
+}
