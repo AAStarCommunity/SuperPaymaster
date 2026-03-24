@@ -141,6 +141,30 @@ Key test files:
 
 **Result: 17/17 PASS**
 
+### 3.4 x402 Facilitator Node E2E (Sepolia — 2026-03-24)
+
+| # | Endpoint | Method | Result |
+|---|----------|--------|--------|
+| 1 | `/` | GET | ✅ Returns service metadata |
+| 2 | `/health` | GET | ✅ status=ok, contractVersion=SuperPaymaster-5.3.0, block=10505904 |
+| 3 | `/quote` | GET | ✅ feeBPS=200, USDC supported, schemes=eip-3009+direct |
+| 4 | `/.well-known/x-payment-info` | GET | ✅ Facilitator discovery with endpoints |
+| 5 | `/verify` (missing payment) | POST | ✅ 400 "Missing payment data" |
+| 6 | `/verify` (bad address) | POST | ✅ 400 "Invalid from: must be a valid Ethereum address" |
+| 7 | `/verify` (direct scheme) | POST | ✅ valid=true, payer confirmed |
+| 8 | `/verify` (bad EIP-3009 sig) | POST | ✅ "Signature verification failed" |
+| 9 | `/settle` (missing payment) | POST | ✅ 400 "Missing payment data" |
+
+### 3.5 MicroPaymentChannel E2E (Sepolia — 2026-03-24)
+
+| # | Step | Gas | TX |
+|---|------|-----|-----|
+| 1 | Open channel (10 aPNTs) | 163,085 | [`0x3b3415...`](https://sepolia.etherscan.io/tx/0x3b34155290aa4d109c203ee7f2619fdced5209da4df0bae42b027e90548083c6) |
+| 2 | Settle partial (3 aPNTs) | 72,074 | [`0xc13059...`](https://sepolia.etherscan.io/tx/0xc13059883626dba4767b0dd4e40e84140fe6b65b1c3d7ac2172a2a63bb6219eb) |
+| 3 | Close channel (7 aPNTs) | 97,605 | [`0xfde372...`](https://sepolia.etherscan.io/tx/0xfde3720081bb214a388bec68f2e22a937b069d726a9e77941d286ac89bb7afba) |
+| 4 | Finalization check | — | ✅ Correctly rejects |
+| 5 | Payee balance: 7 aPNTs, Refund: 3 aPNTs | — | ✅ All assertions pass |
+
 ### 3.3 Boundary Condition Tests
 
 | Test | Boundary | Result |
@@ -558,5 +582,5 @@ See `docs/Parameter-Safety-Guide.md` Section 5 for full monitoring guide.
 - [x] Ecosystem research report (Coinbase, Stripe, Paradigm, Cloudflare)
 - [x] Agent Economy capability matrix (54 standard + 10 unique, 23/54 complete)
 - [ ] Agent Sponsorship E2E (requires ERC-8004 registries)
-- [ ] x402 Facilitator Node E2E test with deployed contract
-- [ ] MicroPaymentChannel E2E test (channel lifecycle on Sepolia)
+- [x] x402 Facilitator Node E2E — /health, /quote, /.well-known, /verify, /settle all verified on Sepolia
+- [x] MicroPaymentChannel E2E — open→settle(3)→close(7)→verify refund(3), all pass on Sepolia
