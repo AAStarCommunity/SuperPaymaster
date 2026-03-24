@@ -12,6 +12,7 @@ import { verifyRoute } from "./routes/verify.js";
 import { settleRoute } from "./routes/settle.js";
 import { quoteRoute } from "./routes/quote.js";
 import { wellKnownRoute } from "./routes/well-known.js";
+import { hmacChallengeInjector, hmacSettleGuard, isHmacEnabled } from "./middleware/hmac-challenge.js";
 
 const config = loadConfig();
 initClients(config);
@@ -21,6 +22,13 @@ const app = new Hono();
 // Middleware
 app.use("*", cors());
 app.use("*", logger());
+
+// Optional HMAC challenge middleware (enable via ENABLE_HMAC_CHALLENGE=true)
+if (isHmacEnabled()) {
+  app.use("*", hmacChallengeInjector());
+  app.use("/settle", hmacSettleGuard());
+  console.log("  HMAC Challenge: ENABLED");
+}
 
 // Routes
 app.route("/", healthRoute(config));

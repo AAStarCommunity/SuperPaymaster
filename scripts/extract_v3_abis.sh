@@ -28,6 +28,7 @@ CONTRACTS=(
     "BLSAggregator"
     "DVTValidator"
     "BLSValidator"
+    "MicroPaymentChannel"
 )
 
 echo "🔍 Starting ABI extraction for V3/V4..."
