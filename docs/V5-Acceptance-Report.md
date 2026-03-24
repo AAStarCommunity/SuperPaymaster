@@ -22,14 +22,21 @@ V5 是一个累积版本，合约 `version()` 返回最新值 `SuperPaymaster-5.
 
 ### ERC-8004 Agent Registry 状态
 
-| 组件 | Sepolia 状态 | 说明 |
+| 组件 | Sepolia 状态 | 地址 |
 |------|-------------|------|
-| `agentIdentityRegistry` | `address(0)` — **未部署** | 需要 ERC-8004 Agent Identity Registry 合约 |
-| `agentReputationRegistry` | `address(0)` — **未部署** | 需要 ERC-8004 Agent Reputation Registry 合约 |
-| Agent Sponsorship 代码 | ✅ 存在于合约中 | `setAgentPolicies`, `getAgentSponsorshipRate`, `_applyAgentSponsorship` |
-| Agent Sponsorship 效果 | 无操作 (graceful) | 注册表为空时，`isRegisteredAgent()` 返回 false，所有 agent 路径被跳过 |
+| `agentIdentityRegistry` | ✅ **已部署激活** | `0x400624Fa1423612B5D16c416E1B4125699467d9a` |
+| `agentReputationRegistry` | ✅ **已部署激活** | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` |
+| Agent Sponsorship 代码 | ✅ 合约中 + 链上激活 | `setAgentPolicies`, `getAgentSponsorshipRate`, `_applyAgentSponsorship` |
+| Agent Sponsorship 效果 | ✅ **功能完整** | 已注册测试 Agent (User3)，设置 50% 赞助策略，验证通过 |
 
-**影响**: Agent Sponsorship 功能已编码但不活跃。设置注册表后即可生效，无需再次升级合约。调用 `setAgentRegistries(identity, reputation)` 即可激活。
+**E2E 验证**: Agent Sponsorship 功能链完整验证：
+1. `registerAgent(User3)` → TX `0x96a4bf...` ✅
+2. `setReputation(agentId, 10, 800)` → avg score = 80 ✅
+3. `setAgentPolicies([{min:50, bps:5000, daily:$100}])` → TX `0x5b2f45...` ✅
+4. `isRegisteredAgent(User3)` → true ✅
+5. `isEligibleForSponsorship(User3)` → true (Agent NFT 通道) ✅
+6. `getAgentSponsorshipRate(User3, operator)` → 5000 BPS (50%) ✅
+7. `isRegisteredAgent(non-agent)` → false ✅
 
 ---
 
@@ -411,6 +418,8 @@ EntryPoint Deposit:
 | EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
 | Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
 | MicroPaymentChannel | `0x5753e9675f68221cA901e495C1696e33F552ea36` |
+| AgentIdentityRegistry (Mock) | `0x400624Fa1423612B5D16c416E1B4125699467d9a` |
+| AgentReputationRegistry (Mock) | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` |
 | USDC (Sepolia) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 
 ### 9.5 Keeper / Cron 服务
@@ -474,22 +483,26 @@ Payer approve(Permit2, MaxUint256) on USDC
 
 **支持的 token**: 任何 ERC20 (通过 Permit2 路径)。已测试: Sepolia USDC。
 
-### 9.8 ERC-8004 Agent Registry 部署指南 (Future)
+### 9.8 ERC-8004 Agent Registry (已部署)
 
-Agent Sponsorship 功能需要部署两个 ERC-8004 注册表合约：
+Mock ERC-8004 注册表已部署到 Sepolia 并激活 Agent Sponsorship：
 
-| 注册表 | 接口 | 关键方法 |
+| 注册表 | 地址 | 关键方法 |
 |--------|------|---------|
-| AgentIdentityRegistry | `IAgentIdentityRegistry` | `balanceOf(agent)` → 判断是否注册 agent |
-| AgentReputationRegistry | `IAgentReputationRegistry` | `getSummary(agentId)` → 返回 (score, txCount) |
+| MockAgentIdentityRegistry | `0x400624Fa1423612B5D16c416E1B4125699467d9a` | `balanceOf(agent)`, `registerAgent(addr)` |
+| MockAgentReputationRegistry | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` | `getSummary(agentId)`, `setReputation(id, count, score)` |
 
-**激活步骤**:
-1. 部署 AgentIdentityRegistry (ERC-721 based)
-2. 部署 AgentReputationRegistry (score tracking)
-3. 调用 `superPaymaster.setAgentRegistries(identityAddr, reputationAddr)`
-4. Operator 调用 `setAgentPolicies(policies)` 设置分层赞助策略
+**已完成激活步骤**:
+1. ✅ 部署 MockAgentIdentityRegistry — `DeployAgentRegistries.s.sol`
+2. ✅ 部署 MockAgentReputationRegistry
+3. ✅ 调用 `superPaymaster.setAgentRegistries(identity, reputation)`
+4. ✅ 注册测试 Agent (User3: `0x85744FD1...`)
+5. ✅ 设置 Agent reputation (avgScore=80)
+6. ✅ Operator 调用 `setAgentPolicies([{min:50, bps:5000, daily:$100}])`
+7. ✅ 验证 `getAgentSponsorshipRate()` → 5000 BPS (50%)
 
-**无需升级合约** — 代码已在 SuperPaymaster-5.2.0 中，只需设置注册表地址即可激活。
+**部署脚本**: `contracts/script/v3/DeployAgentRegistries.s.sol`
+**注意**: 生产环境应替换为正式 ERC-8004 实现。
 
 ### 9.9 Operator 运营配置
 
@@ -550,8 +563,8 @@ SuperPaymaster at 24,039 / 24,576 bytes (97.8%). Future features require:
 - Using facet/diamond pattern
 - Deploying companion contracts
 
-### Agent Sponsorship E2E
-V5.2 agent sponsorship policies only have Forge unit tests. E2E testing requires deploying ERC-8004 agent registries on Sepolia.
+### Agent Sponsorship E2E (已完成)
+Mock ERC-8004 registries 已部署到 Sepolia，Agent Sponsorship 功能链完整验证通过。
 
 ### Monitoring Setup
 Post-deployment monitoring required for:
@@ -580,7 +593,7 @@ See `docs/Parameter-Safety-Guide.md` Section 5 for full monitoring guide.
 - [x] x402 Facilitator Node — Hono HTTP, typecheck + build passing
 - [x] SKILL.md + .well-known discovery files created
 - [x] Ecosystem research report (Coinbase, Stripe, Paradigm, Cloudflare)
-- [x] Agent Economy capability matrix (54 standard + 10 unique, 23/54 complete)
-- [ ] Agent Sponsorship E2E (requires ERC-8004 registries)
+- [x] Agent Economy capability matrix (54 standard + 10 unique, 38/54 complete)
+- [x] Agent Sponsorship E2E — Mock registries deployed, agent registered, 50% sponsorship policy set, getAgentSponsorshipRate verified
 - [x] x402 Facilitator Node E2E — /health, /quote, /.well-known, /verify, /settle all verified on Sepolia
 - [x] MicroPaymentChannel E2E — open→settle(3)→close(7)→verify refund(3), all pass on Sepolia
