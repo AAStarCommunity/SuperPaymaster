@@ -90,7 +90,7 @@ Coinbase 不做的事                    我们可以做
 
 Stripe/Tempo 不做的事               我们可以做
 ──────────────────────────────────────────────────
-非 Tempo 链的微支付通道             ✅ 任何 EVM 链部署 MPC
+非 Tempo 链的微支付通道             ✅ 任何 EVM 链部署 MicroPaymentChannel
 无需 Stripe 账户的 Agent 注册      ✅ 纯链上注册 + SBT
 开源的 Operator 节点               ✅ 完全开源自部署
 社区代币 gas 赞助                  ✅ xPNTs / aPNTs 生态
@@ -141,7 +141,7 @@ Stripe/Tempo 不做的事               我们可以做
 
 ### 创新维度 3: 混合支付通道
 
-**概念**: "x402 + MPC = 即时支付 + 流式支付"
+**概念**: "x402 + MicroPaymentChannel = 即时支付 + 流式支付"
 
 ```
 一次性 API 调用:      x402 (settleX402Payment) — 单次结算
@@ -346,5 +346,5 @@ Hackathon 55 + Content 引流 15 + 合作集成 45 = 115 开发者
 | x402 标准大幅变更 | 中 | 高 | 持续 submodule 追踪 + 快速适配 |
 | Tempo 主网上线抢占市场 | 高 | 中 | 聚焦去中心化差异，不在中心化赛道竞争 |
 | Agent Economy 泡沫破裂 | 低 | 高 | 保持 gasless 基本盘（ERC-4337 刚需） |
-| 合约 size 到达上限 | 已发生 | 中 | 模块化拆分（MPC 已独立） |
+| 合约 size 到达上限 | 已发生 | 中 | 模块化拆分（MicroPaymentChannel 已独立） |
 | 开发者采用缓慢 | 中 | 中 | 降低集成门槛 + hackathon + 文档 |

@@ -377,3 +377,445 @@ Week 4:  Phase 4.2 (MCP Agent) + Phase 6 (文档)
 6. ✅ 前端页面展示全部流程
 7. ✅ CLI 工具可执行全部操作
 8. ✅ SDK E2E 测试 12/12 通过
+
+---
+
+## 三阶段部署路线图：从 Sepolia 到主网到多链
+
+### 总览
+
+```
+Stage 1: Sepolia MVP        →  Stage 2: Sepolia 完整版      →  Stage 3: 主网 + 多链
+(核心合约 + Facilitator)       (全组件 + Agent 集成)           (生产部署 + 多链扩展)
+```
+
+---
+
+### Stage 1: Sepolia MVP（最小可用测试环境）
+
+**目标**: 验证核心支付链路 — gasless 交易 + x402 单笔支付
+
+**组件清单**:
+- 合约层: SuperPaymaster + Registry + EntryPoint (已部署)
+- 后端: x402 Facilitator Node (1 个实例)
+- 客户端: @aastar/cli + curl 测试
+- 无前端、无 Agent Bot
+
+```mermaid
+graph TB
+    subgraph "Sepolia Chain"
+        EP[EntryPoint v0.7]
+        SP[SuperPaymaster V5.3<br/>UUPS Proxy]
+        REG[Registry V4.1<br/>UUPS Proxy]
+        USDC[USDC Token]
+        SP --> EP
+        SP --> REG
+        SP --> USDC
+    end
+
+    subgraph "Backend (单机部署)"
+        FAC[x402 Facilitator Node<br/>Hono HTTP :3001]
+    end
+
+    subgraph "Client"
+        CLI[@aastar/cli<br/>命令行工具]
+        CURL[curl / httpie<br/>手动测试]
+    end
+
+    FAC -- "RPC (JSON-RPC)" --> SP
+    FAC -- "读取费率/nonce" --> SP
+    CLI -- "HTTP POST /settle" --> FAC
+    CLI -- "直接 RPC" --> SP
+    CURL -- "HTTP GET /health, /quote" --> FAC
+
+    style SP fill:#e1f5fe
+    style FAC fill:#fff3e0
+    style CLI fill:#e8f5e9
+```
+
+**Stage 1 通信关系**:
+
+| 从 | 到 | 协议 | 说明 |
+|----|-----|------|------|
+| CLI | Facilitator | HTTP REST | /verify, /settle, /quote |
+| CLI | SuperPaymaster | JSON-RPC | 直接合约调用 (读取) |
+| Facilitator | SuperPaymaster | JSON-RPC | settleX402Payment 写入 |
+| Facilitator | USDC | JSON-RPC | transferWithAuthorization |
+| SuperPaymaster | EntryPoint | EVM 内部调用 | validatePaymasterUserOp |
+| SuperPaymaster | Registry | EVM 内部调用 | 查询 Operator 配置 |
+
+**Stage 1 部署步骤**:
+1. 确认合约已部署 (已完成)
+2. `pnpm build` facilitator node
+3. 部署到 Railway/Render (配置 .env.sepolia)
+4. 验证: `curl https://facilitator.xxx/health`
+5. CLI 测试: `aastar x402 quote`
+6. E2E: 手动执行 x402 settle 交易
+
+**Stage 1 完成标准**:
+- [ ] Facilitator /health 返回 v5.3.0
+- [ ] CLI aastar x402 quote 返回费率
+- [ ] 手动 settleX402Payment 交易成功
+
+---
+
+### Stage 2: Sepolia 完整版（全组件 + Agent 集成）
+
+**目标**: 完整的 Agent Economy Demo — gasless + x402 + 微支付通道 + Agent 身份
+
+**新增组件** (在 Stage 1 基础上):
+- 合约层: + MicroPaymentChannel + AgentRegistries (已部署)
+- 后端: + Operator Node + Price Keeper
+- 前端: Demo 页面 (Next.js)
+- Agent: Demo Bot + MCP Server
+- 402 API: 受保护的示例端点
+
+```mermaid
+graph TB
+    subgraph "Sepolia Chain"
+        EP[EntryPoint v0.7]
+        SP[SuperPaymaster V5.3]
+        REG[Registry V4.1]
+        MPC[MicroPaymentChannel V1.0]
+        AIR[AgentIdentityRegistry<br/>ERC-8004]
+        ARR[AgentReputationRegistry]
+        USDC[USDC Token]
+        XPNTS[xPNTs Token]
+
+        SP --> EP
+        SP --> REG
+        SP --> USDC
+        SP --> AIR
+        SP --> ARR
+        MPC --> USDC
+    end
+
+    subgraph "Backend Services (云部署)"
+        FAC[x402 Facilitator Node<br/>:3001]
+        OPN[Operator Node<br/>:3002]
+        KEP[Price Keeper<br/>cron job]
+        API[402 Protected API<br/>:3003]
+    end
+
+    subgraph "Frontend"
+        WEB[Demo 页面<br/>Next.js on Vercel]
+    end
+
+    subgraph "Agent"
+        BOT[Agent Demo Bot<br/>TypeScript CLI]
+        MCPS[MCP Server<br/>Claude/Cursor 集成]
+    end
+
+    subgraph "SDK"
+        X402[@aastar/x402]
+        CHN[@aastar/channel]
+        CORE[@aastar/core]
+    end
+
+    %% Backend 通信
+    FAC -- "JSON-RPC" --> SP
+    OPN -- "JSON-RPC" --> SP
+    OPN -- "JSON-RPC" --> REG
+    KEP -- "JSON-RPC (定时)" --> SP
+    API -- "HTTP → Facilitator" --> FAC
+
+    %% Frontend 通信
+    WEB -- "HTTP REST" --> FAC
+    WEB -- "HTTP REST" --> OPN
+    WEB -- "HTTP REST" --> API
+    WEB -- "RPC (viem)" --> SP
+
+    %% Agent 通信
+    BOT -- "SDK 调用" --> X402
+    BOT -- "SDK 调用" --> CHN
+    MCPS -- "SDK 调用" --> CORE
+    X402 -- "HTTP" --> FAC
+    X402 -- "JSON-RPC" --> SP
+    CHN -- "JSON-RPC" --> MPC
+
+    %% Agent → 402 API 支付流程
+    BOT -- "1. GET (收到 402)" --> API
+    BOT -- "2. 签名 EIP-3009" --> X402
+    BOT -- "3. 重试 + PAYMENT-SIGNATURE" --> API
+    API -- "4. /settle" --> FAC
+    FAC -- "5. settleX402Payment" --> SP
+
+    style SP fill:#e1f5fe
+    style MPC fill:#e1f5fe
+    style FAC fill:#fff3e0
+    style OPN fill:#fff3e0
+    style WEB fill:#f3e5f5
+    style BOT fill:#e8f5e9
+    style MCPS fill:#e8f5e9
+```
+
+**Stage 2 新增通信关系**:
+
+| 从 | 到 | 协议 | 说明 |
+|----|-----|------|------|
+| Operator Node | SuperPaymaster | JSON-RPC | 价格更新、赞助策略配置 |
+| Operator Node | Registry | JSON-RPC | 社区管理、Operator 注册 |
+| Price Keeper | SuperPaymaster | JSON-RPC (cron) | 每 5 分钟更新价格缓存 |
+| Demo 页面 | Facilitator | HTTP REST | 支付流程 UI |
+| Demo 页面 | Operator | HTTP REST | 状态查询 |
+| Agent Bot | 402 API | HTTP (402→重试) | x402 自动支付流程 |
+| Agent Bot | @aastar/channel | SDK | 签 voucher, 管理通道 |
+| MCP Server | @aastar/core | SDK | Claude/Cursor 工具调用 |
+| 402 API | Facilitator | HTTP POST /settle | 代理结算 |
+
+**Stage 2 新增组件依赖关系**:
+
+```mermaid
+graph LR
+    subgraph "构建依赖"
+        CORE[@aastar/core] --> X402[@aastar/x402]
+        CORE --> CHN[@aastar/channel]
+        X402 --> CLII[@aastar/cli]
+        CHN --> CLII
+        CORE --> CLII
+        X402 --> SDK[@aastar/sdk umbrella]
+        CHN --> SDK
+    end
+
+    subgraph "运行时依赖"
+        FAC[Facilitator Node] --> |ABI| CORE
+        OPN[Operator Node] --> |ABI| CORE
+        WEB[Demo 页面] --> |import| SDK
+        BOT[Agent Bot] --> |import| SDK
+        MCPS[MCP Server] --> |import| CORE
+    end
+
+    style CORE fill:#e1f5fe
+    style SDK fill:#e1f5fe
+```
+
+**Stage 2 部署步骤**:
+1. Stage 1 完成 ✅
+2. 开发 Operator Node (`packages/operator-node/`)
+3. 开发 Price Keeper (集成到 Operator Node 或独立 cron)
+4. 创建 402 Protected API 示例端点
+5. 开发前端 Demo 页面 (Next.js)
+6. 开发 Agent Demo Bot
+7. 开发 MCP Server
+8. 部署全部服务到云 (Railway/Render + Vercel)
+9. 配置 Agent 身份和赞助策略
+10. 运行 SDK E2E 测试 12/12
+
+**Stage 2 完成标准**:
+- [ ] 12/12 SDK E2E 测试通过
+- [ ] Agent Bot 完成全流程: 注册 → gasless → x402 → 通道
+- [ ] Demo 页面可公开访问
+- [ ] MCP Server 可被 Claude 调用
+
+---
+
+### Stage 3: 主网部署 + 多链扩展
+
+**目标**: 生产环境上线 (Optimism 主网优先) + 扩展到其他 EVM 链
+
+**新增/变更**:
+- 合约: 主网部署 (审计后)
+- 后端: 高可用 + 监控 + 告警
+- 安全: 多签治理 + 审计报告
+- 多链: Optimism → Base → Arbitrum
+
+```mermaid
+graph TB
+    subgraph "Optimism Mainnet (首发链)"
+        OP_SP[SuperPaymaster V5.3]
+        OP_REG[Registry V4.1]
+        OP_MPC[MicroPaymentChannel]
+        OP_AIR[AgentIdentityRegistry]
+    end
+
+    subgraph "Base (第二链)"
+        BASE_SP[SuperPaymaster V5.3]
+        BASE_REG[Registry V4.1]
+    end
+
+    subgraph "Arbitrum (第三链)"
+        ARB_SP[SuperPaymaster V5.3]
+        ARB_REG[Registry V4.1]
+    end
+
+    subgraph "Shared Backend (高可用)"
+        LB[Load Balancer<br/>Cloudflare / Nginx]
+        FAC1[Facilitator Node #1]
+        FAC2[Facilitator Node #2]
+        OPN1[Operator Node]
+        MON[Monitoring<br/>Prometheus + Grafana]
+        ALERT[Alerting<br/>PagerDuty / Discord]
+    end
+
+    subgraph "Frontend (Vercel CDN)"
+        WEB[Production 页面<br/>superpaymaster.dev]
+        DOCS[文档站<br/>docs.superpaymaster.dev]
+    end
+
+    subgraph "治理"
+        MSIG[多签钱包<br/>Gnosis Safe]
+        GOV[GToken 投票<br/>Snapshot / 链上]
+    end
+
+    subgraph "Cross-Chain (Phase 3+)"
+        CCIP[CCIP / LayerZero<br/>信誉同步]
+    end
+
+    LB --> FAC1
+    LB --> FAC2
+    FAC1 -- "RPC" --> OP_SP
+    FAC1 -- "RPC" --> BASE_SP
+    FAC2 -- "RPC" --> OP_SP
+    FAC2 -- "RPC" --> ARB_SP
+    OPN1 --> OP_SP
+    OPN1 --> BASE_SP
+    OPN1 --> ARB_SP
+    MON --> FAC1
+    MON --> FAC2
+    MON --> OPN1
+    MON --> ALERT
+
+    WEB --> LB
+    MSIG --> OP_SP
+    MSIG --> BASE_SP
+    GOV --> MSIG
+
+    OP_AIR -- "跨链信誉" --> CCIP
+    CCIP --> BASE_SP
+    CCIP --> ARB_SP
+
+    style OP_SP fill:#e1f5fe
+    style BASE_SP fill:#e1f5fe
+    style ARB_SP fill:#e1f5fe
+    style LB fill:#fff3e0
+    style MSIG fill:#ffebee
+    style CCIP fill:#f3e5f5
+```
+
+**Stage 3 网络拓扑**:
+
+```mermaid
+graph LR
+    subgraph "用户侧"
+        U1[dApp 开发者]
+        U2[DAO 管理者]
+        U3[AI Agent]
+    end
+
+    subgraph "接入层 (CDN + LB)"
+        CF[Cloudflare CDN]
+        LB[Load Balancer]
+    end
+
+    subgraph "服务层"
+        FAC[Facilitator Cluster]
+        OPN[Operator Node]
+        KEP[Price Keeper]
+        MCP[MCP Server]
+    end
+
+    subgraph "链层"
+        OP[Optimism]
+        BASE[Base]
+        ARB[Arbitrum]
+        SEP[Sepolia<br/>staging]
+    end
+
+    subgraph "监控层"
+        PROM[Prometheus]
+        GRAF[Grafana Dashboard]
+        DISC[Discord Alerts]
+    end
+
+    U1 -- HTTPS --> CF
+    U2 -- HTTPS --> CF
+    U3 -- HTTPS/MCP --> CF
+    CF --> LB
+    LB --> FAC
+    LB --> OPN
+    LB --> MCP
+    FAC --> OP
+    FAC --> BASE
+    FAC --> ARB
+    OPN --> OP
+    KEP -- "cron" --> OP
+    KEP -- "cron" --> BASE
+    PROM --> FAC
+    PROM --> OPN
+    PROM --> GRAF
+    GRAF --> DISC
+
+    style CF fill:#fff3e0
+    style OP fill:#e1f5fe
+    style BASE fill:#e1f5fe
+    style ARB fill:#e1f5fe
+```
+
+**Stage 3 部署步骤**:
+
+**3A. 主网准备 (Optimism)**
+1. 安全审计 (外部 + 内部)
+2. 多签钱包创建 (Gnosis Safe, 3/5)
+3. 主网合约部署 (deploy-core optimism)
+4. 部署后验证 (verify-all.sh)
+5. Facilitator Node 主网配置
+6. 高可用部署 (2+ 实例 + LB)
+7. 监控 + 告警配置
+
+**3B. 上线运营**
+8. 价格 Keeper 启动 (cron)
+9. 首批 Operator 注册 + 配置
+10. 前端切换到主网
+11. 文档发布
+12. 社区公告
+
+**3C. 多链扩展**
+13. Base 部署 (与 x402 生态共存)
+14. Arbitrum 部署
+15. 跨链信誉同步 (CCIP/LayerZero)
+16. Facilitator 多链路由配置
+
+**Stage 3 完成标准**:
+- [ ] 审计报告无高危/中危
+- [ ] 多签治理就绪
+- [ ] Facilitator 99.9% 可用性
+- [ ] 首个主网 Agent 支付交易
+- [ ] 2+ 链部署并通信
+
+---
+
+### 阶段对比总览
+
+```mermaid
+gantt
+    title 三阶段部署时间线
+    dateFormat  YYYY-MM-DD
+    section Stage 1 - Sepolia MVP
+    合约确认 (已完成)       :done, s1a, 2026-03-24, 1d
+    Facilitator 部署        :s1b, after s1a, 2d
+    CLI E2E 验证           :s1c, after s1b, 2d
+    section Stage 2 - Sepolia 完整版
+    Operator Node          :s2a, after s1c, 7d
+    Agent Demo Bot         :s2b, after s1c, 5d
+    前端 Demo              :s2c, after s2a, 7d
+    MCP Server             :s2d, after s2b, 3d
+    SDK E2E 12/12          :s2e, after s2c, 3d
+    section Stage 3 - 主网 + 多链
+    安全审计                :s3a, after s2e, 14d
+    Optimism 部署           :s3b, after s3a, 5d
+    高可用 + 监控           :s3c, after s3b, 5d
+    Base + Arbitrum         :s3d, after s3c, 7d
+    跨链信誉同步            :s3e, after s3d, 14d
+```
+
+| 维度 | Stage 1 | Stage 2 | Stage 3 |
+|------|---------|---------|---------|
+| **链** | Sepolia | Sepolia | Optimism + Base + Arbitrum |
+| **合约** | SP + Registry | + MPC + AgentRegistries | 审计后全量 |
+| **后端服务** | 1 (Facilitator) | 4 (+ Operator + Keeper + 402 API) | 高可用集群 |
+| **前端** | 无 | Demo 页面 | 生产页面 + 文档站 |
+| **Agent 集成** | CLI 手动 | Demo Bot + MCP Server | LangChain + 多框架 |
+| **SDK** | @aastar/cli | 全 SDK E2E | + Python + Go |
+| **安全** | 测试密钥 | 测试密钥 | 多签治理 + 审计 |
+| **监控** | 手动 | 手动 | Prometheus + Grafana |
+| **用户** | 开发者自测 | Demo 展示 | 真实用户 |
