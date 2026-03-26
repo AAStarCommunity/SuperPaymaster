@@ -152,8 +152,9 @@ contract PaymasterOptimizationsTest is Test {
         // 1. Warp Time > 1 Hour (cache becomes stale)
         vm.warp(block.timestamp + 3601);
 
-        // PostOp no longer calls this.updatePrice() — it reads oracle directly via useRealtime=true.
-        // So no PriceUpdated event is expected. Cache stays stale but calculation uses live oracle.
+        // this.updatePrice() IS still called (try/catch), but the oracle's own staleness check
+        // rejects the stale price and reverts inside the catch — so no PriceUpdated event is emitted.
+        // Calculation then falls back to realtime oracle read via useRealtime=true.
         vm.recordLogs();
 
         bytes memory context = abi.encode(user, address(token), 1 ether);
