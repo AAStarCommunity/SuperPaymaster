@@ -221,17 +221,17 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             tokenId = nextTokenId++;
             isNewMint = true;
 
-            // Decode community address from roleData
-            address community = abi.decode(roleData, (address));
+            // P-04 FIX: Decode once — community always present, meta only if data > 32 bytes
+            address community;
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (community, meta) = abi.decode(roleData, (address, string));
+            } else {
+                community = abi.decode(roleData, (address));
+            }
 
             sbtData[tokenId] = SBTData(user, community, block.timestamp, 1);
             userToSBT[user] = tokenId;
-
-            // Decode full metadata if provided
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (, meta) = abi.decode(roleData, (address, string));
-            }
 
             // Add community membership
             _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
@@ -245,7 +245,14 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             // Add role to existing SBT
             isNewMint = false;
 
-            address community = abi.decode(roleData, (address));
+            // P-04 FIX: Decode once — community always present, meta only if data > 32 bytes
+            address community;
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (community, meta) = abi.decode(roleData, (address, string));
+            } else {
+                community = abi.decode(roleData, (address));
+            }
 
             // Check if membership exists
             uint256 idx = membershipIndex[tokenId][community];
@@ -253,16 +260,9 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
                 // HIGH-FIX: Reactivate if inactive (Re-join)
                 if (!_m[tokenId][idx].isActive) {
                     _m[tokenId][idx].isActive = true;
-                    // No event for reactivation in V3 spec, but we could emit MembershipAdded again or a new event.
-                    // For now, emit MembershipAdded to signal effective join.
                     emit MembershipAdded(tokenId, community, "", block.timestamp);
                 }
                 return (tokenId, false);
-            }
-
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (, meta) = abi.decode(roleData, (address, string));
             }
 
             // Add new membership

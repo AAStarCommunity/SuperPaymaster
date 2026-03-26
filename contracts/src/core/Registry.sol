@@ -92,6 +92,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error UnauthorizedSource();
     error LenMismatch();
     error BLSProofRequired();
+    error InvalidProposalId();
     error InsufficientConsensus();
     error ProposalExecuted();
     error BLSFailed();
@@ -205,12 +206,14 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
     function setSuperPaymaster(address _sp) external onlyOwner {
+        if (_sp == address(0)) revert InvalidAddr();
         address old = SUPER_PAYMASTER;
         SUPER_PAYMASTER = _sp;
         emit SuperPaymasterUpdated(old, _sp);
     }
 
     function setBLSAggregator(address _aggregator) external onlyOwner {
+        if (_aggregator == address(0)) revert InvalidAddr();
         address old = blsAggregator;
         blsAggregator = _aggregator;
         emit BLSAggregatorUpdated(old, _aggregator);
@@ -403,11 +406,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (address(blsValidator) != address(0)) {
             // ✅ UNIFIED MESSAGE SCHEMA: Match BLSAggregator format exactly
             // This ensures "签名绑定" is consistent across the entire system
-            // V3.6 FIX: Prevent replay by tracking proposalId
-            if (proposalId != 0) {
-                if (executedProposals[proposalId]) revert ProposalExecuted();
-                executedProposals[proposalId] = true;
-            }
+            // H-02 FIX: proposalId=0 previously bypassed replay protection entirely.
+            // All proposals must have a non-zero ID; zero is reserved as "unset".
+            if (proposalId == 0) revert InvalidProposalId();
+            if (executedProposals[proposalId]) revert ProposalExecuted();
+            executedProposals[proposalId] = true;
 
             bytes32 messageHash = keccak256(abi.encode(
                 proposalId,     // actual proposalId

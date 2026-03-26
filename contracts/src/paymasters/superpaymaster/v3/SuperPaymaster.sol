@@ -615,6 +615,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {
+        if (_bls == address(0)) revert InvalidAddress();
         address oldAggregator = BLS_AGGREGATOR;
         BLS_AGGREGATOR = _bls;
         emit BLSAggregatorUpdated(oldAggregator, _bls);
@@ -855,18 +856,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
         if (finalCharge < initialAPNTs) {
             uint256 refund = initialAPNTs - finalCharge;
-
             if (refund > type(uint128).max) refund = type(uint128).max;
             if (refund > protocolRevenue) refund = protocolRevenue;
-            operators[operator].aPNTsBalance += uint128(refund);
-            protocolRevenue -= refund;
 
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
 
+            // H-01 FIX: Record debt BEFORE issuing refund.
+            // Original code gave operator refund first, then recorded user debt.
+            // If recordDebt reverted, user escaped xPNTs debt while operator already
+            // received excess. Now: attempt debt recording first (on-chain or pendingDebts),
+            // then credit the refund. If catch block itself fails (OOG), postOp reverts safely.
             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
                 pendingDebts[token][user] += finalXPNTsDebt;
                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
             }
+
+            operators[operator].aPNTsBalance += uint128(refund);
+            protocolRevenue -= refund;
 
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
