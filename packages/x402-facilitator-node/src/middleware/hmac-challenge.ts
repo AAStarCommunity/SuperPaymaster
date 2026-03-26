@@ -29,12 +29,31 @@ async function hmacSha256(key: string, data: string): Promise<string> {
     encoder.encode(key),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign", "verify"],
+    ["sign"],
   );
   const signature = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(data));
   return Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/**
+ * Constant-time HMAC verification using Web Crypto subtle.verify().
+ * Avoids timing attacks that arise from short-circuit string === comparison.
+ */
+async function verifyHmacSha256(key: string, data: string, expectedHex: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const expectedBytes = new Uint8Array(
+    (expectedHex.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)),
+  );
+  return crypto.subtle.verify("HMAC", cryptoKey, expectedBytes, encoder.encode(data));
 }
 
 /**
@@ -59,8 +78,7 @@ export async function verifyChallenge(challenge: string): Promise<boolean> {
   const ts = Number(timestamp);
   if (isNaN(ts) || Date.now() - ts > CHALLENGE_TTL_MS) return false;
 
-  const expected = await hmacSha256(getHmacSecret(), `challenge:${timestamp}`);
-  return mac === expected;
+  return verifyHmacSha256(getHmacSecret(), `challenge:${timestamp}`, mac);
 }
 
 /**
@@ -72,8 +90,7 @@ export async function verifyHmacResponse(
   paymentData: string,
   clientHmac: string,
 ): Promise<boolean> {
-  const expected = await hmacSha256(challenge, paymentData);
-  return expected === clientHmac;
+  return verifyHmacSha256(challenge, paymentData, clientHmac);
 }
 
 /**
