@@ -26,7 +26,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Contract version
     function version() external pure override virtual returns (string memory) {
-        return "PaymasterV4-4.3.1";
+        return "PaymasterV4-4.3.2";
     }
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
@@ -295,19 +295,13 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             
         // 1. Gas Optimization: Hybrid Cache Strategy
         bool useRealtime = false;
-        // Check staleness (if > threshold, force update)
+        // Check staleness (if > threshold, force realtime read)
         if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
-             try this.updatePrice() {} catch {}
-             // If manual update failed or price still old, force realtime read to be safe
-             // or assume Keeper failed and we stick to old price if updatePrice reverts?
-             // Safest: useRealtime = true if we suspect cache is bad.
              useRealtime = true;
         }
 
-        // 2. Calculate Actual Cost
-        // 2. Calculate Actual Cost
+        // 2. Calculate Actual Cost (try/catch needed for safety — keep external wrapper)
         uint256 actualTokenCost;
-        // Optimization: Use 'calculateCost' wrapper to pass 'useRealtime' flag.
         try this.calculateCost(actualGasCost, token, useRealtime) returns (uint256 cost) {
              actualTokenCost = cost;
         } catch {
