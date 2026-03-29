@@ -1,47 +1,79 @@
-# SuperPaymasterV2 API Reference
+# SuperPaymaster API Reference
 
-**[English](#english)** | **[中文](#chinese)**
+**Version**: `SuperPaymaster-5.3.0`
 
-<a name="english"></a>
+> This document covers the full public API as of v5.3.0, including V3/V4 baseline
+> functions and all V5.x additions (agent-native gas sponsorship, x402 settlement,
+> ERC-8004 dual-channel eligibility, and agent sponsorship policies).
 
 ---
 
 ## Contract Information
 
-- **Version**: v2.3.3
-- **Sepolia Address**: `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db`
-- **EntryPoint**: v0.7 (`0x0000000071727De22E5E9d8BAf0edAc6f37da032`)
+| Field | Value |
+|-------|-------|
+| **Version** | `SuperPaymaster-5.3.0` |
+| **Sepolia Proxy** | `0x829C3178DeF488C2dB65207B4225e18824696860` |
+| **Sepolia Impl** | `0x3C4DE35f6391Dd07B56c70cB45A7D3dEc219855e` |
+| **MicroPaymentChannel (Sepolia)** | `0x5753e9675f68221cA901e495C1696e33F552ea36` |
+| **AgentIdentityRegistry (Sepolia)** | `0x400624Fa1423612B5D16c416E1B4125699467d9a` |
+| **AgentReputationRegistry (Sepolia)** | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` |
+| **EntryPoint** | v0.7 — `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
+| **Upgrade pattern** | UUPS (ERC1967Proxy) |
+| **Solidity** | 0.8.33, optimizer 10,000 runs, Cancun EVM, via-IR |
+
+---
 
 ## Data Structures
 
-### OperatorAccount (struct)
+### OperatorConfig (struct)
+
+Packed into 4 storage slots for gas efficiency.
 
 ```solidity
-struct OperatorAccount {
-    address xPNTsToken;         // Community xPNTs token
-    address treasury;           // Treasury address
-    bool isPaused;              // Paused status
-    uint256 aPNTsBalance;       // aPNTs balance
-    uint256 totalSpent;         // Total spent
-    uint256 totalTxSponsored;   // Sponsored tx count
-    uint256 stGTokenLocked;     // Locked stake
-    uint256 exchangeRate;       // xPNTs <-> aPNTs rate (18 decimals)
-    uint256 reputationScore;    // Reputation score
-    uint256 reputationLevel;    // Level (1-12, Fibonacci)
-    uint256 stakedAt;           // Stake timestamp
-    uint256 lastRefillTime;     // Last refill time
-    uint256 lastCheckTime;      // Last check time
-    uint256 minBalanceThreshold;// Min balance threshold
-    uint256 consecutiveDays;    // Consecutive active days
+struct OperatorConfig {
+    // Slot 0: HOT (validation critical)
+    uint128 aPNTsBalance;   // gas collateral in aPNTs (cap ~3.4e38)
+    uint96  exchangeRate;   // xPNTs:aPNTs rate (1e18 = 1:1)
+    bool    isConfigured;
+    bool    isPaused;
+    // 2 bytes remaining
+
+    // Slot 1: WARM
+    address xPNTsToken;     // community gas token to charge users
+    uint32  reputation;     // reputation score (max 4 billion)
+    uint48  minTxInterval;  // minimum seconds between user ops (rate limit)
+
+    // Slot 2: COLD
+    address treasury;       // receives user xPNTs payments
+
+    // Slot 3+: Stats
+    uint256 totalSpent;
+    uint256 totalTxSponsored;
 }
 ```
 
-### SBTHolder (struct)
+### SlashRecord (struct)
 
 ```solidity
-struct SBTHolder {
-    address holder;     // Holder address
-    uint256 tokenId;    // MySBT token ID
+struct SlashRecord {
+    uint256  timestamp;
+    uint256  amount;
+    uint256  reputationLoss;
+    string   reason;
+    SlashLevel level;
+}
+```
+
+### AgentSponsorshipPolicy (struct) — V5
+
+Defines a tiered sponsorship rule for ERC-8004 registered agents.
+
+```solidity
+struct AgentSponsorshipPolicy {
+    uint128 minReputationScore; // minimum agent reputation to qualify
+    uint64  sponsorshipBPS;     // discount in basis points (10000 = 100% free)
+    uint64  maxDailyUSD;        // USD cap per day (scaled by 1e6); 0 = unlimited
 }
 ```
 
@@ -49,256 +81,123 @@ struct SBTHolder {
 
 ```solidity
 enum SlashLevel {
-    WARNING,    // Warning only
-    MINOR,      // 5% slash
-    MAJOR       // 10% slash + pause
+    WARNING,  // reputation -10, no balance slash
+    MINOR,    // reputation -20, 10% balance slash (BLS: capped at 30%)
+    MAJOR     // reputation -50, full balance slash, operator paused
+}
+```
+
+### UserOperatorState (struct)
+
+Packed user state per operator (1 storage slot).
+
+```solidity
+struct UserOperatorState {
+    uint48 lastTimestamp; // last op timestamp for rate limiting
+    bool   isBlocked;     // blacklist flag
+}
+```
+
+### PriceCache (struct)
+
+```solidity
+struct PriceCache {
+    int256  price;      // ETH/USD price (8 decimals)
+    uint256 updatedAt;  // unix timestamp of last update
+    uint80  roundId;    // Chainlink round ID (0 for DVT updates)
+    uint8   decimals;   // oracle decimals (typically 8)
 }
 ```
 
 ---
 
-## Operator Functions
+## Storage Layout — V5.3
 
-### depositAPNTs
+SuperPaymaster uses UUPS upgradeable storage (OZ v5.0.2 pattern):
 
-Deposit aPNTs and register as operator.
+| Slot | Variable | Notes |
+|------|----------|-------|
+| 0 | `_owner` (Ownable) | traditional slot |
+| 1 | `_status` (ReentrancyGuard) | traditional slot |
+| 2 | `APNTS_TOKEN` | |
+| 3 | `xpntsFactory` | |
+| 4 | `treasury` | |
+| 5 | `operators` mapping | |
+| 6 | `userOpState` mapping | |
+| 7 | `sbtHolders` mapping | |
+| 8 | `slashHistory` mapping | |
+| 9 | `aPNTsPriceUSD` | default 0.02 ether |
+| 10 | `cachedPrice` (PriceCache) | 2 slots |
+| 12 | `protocolFeeBPS` | default 1000 (10%) |
+| 13 | `BLS_AGGREGATOR` | |
+| 14 | `totalTrackedBalance` | |
+| 15 | `protocolRevenue` | |
+| 16 | `pendingDebts` mapping | |
+| 17 | `priceStalenessThreshold` | |
+| 18 | `oracleDecimals` | |
+| **V5 additions (8 new slots):** | | |
+| 19 | `agentIdentityRegistry` | ERC-8004 agent NFT registry |
+| 20 | `agentReputationRegistry` | ERC-8004 reputation registry |
+| 21 | `facilitatorFeeBPS` | default x402 facilitator fee |
+| 22 | `operatorFacilitatorFees` mapping | per-operator fee override |
+| 23 | `x402SettlementNonces` mapping | replay prevention |
+| 24 | `facilitatorEarnings` mapping | operator => asset => amount |
+| 25 | `agentPolicies` mapping | operator sponsorship tiers |
+| 26 | `_agentDailySpend` mapping | daily USD spend tracker |
+| 27–66 | `__gap[40]` | UUPS upgrade safety (was 50, consumed 8 for V5, then 2 for immutables note) |
 
-```solidity
-function depositAPNTs(
-    address operator,
-    uint256 amount,
-    address xPNTsToken,
-    address treasury,
-    uint256 exchangeRate
-) external
-```
-
-**Parameters:**
-- `operator`: Operator address
-- `amount`: aPNTs amount to deposit
-- `xPNTsToken`: Community gas token
-- `treasury`: Where user payments go
-- `exchangeRate`: xPNTs:aPNTs rate (18 decimals, 1e18 = 1:1)
-
-**Events:** `OperatorDeposited`
-
----
-
-### withdrawAPNTs
-
-Withdraw aPNTs balance.
-
-```solidity
-function withdrawAPNTs(uint256 amount) external
-```
-
-**Events:** `OperatorWithdrawn`
-
----
-
-### updateOperatorConfig
-
-Update operator configuration.
-
-```solidity
-function updateOperatorConfig(
-    address xPNTsToken,
-    address treasury,
-    uint256 exchangeRate,
-    uint256 minBalanceThreshold
-) external
-```
-
-**Events:** `OperatorConfigUpdated`
+> **Note:** `REGISTRY`, `ETH_USD_PRICE_FEED`, and `entryPoint` are **immutable** — stored in implementation bytecode, not proxy storage.
 
 ---
 
-### pauseOperator / unpauseOperator
+## PaymasterAndData Format
 
-```solidity
-function pauseOperator() external
-function unpauseOperator() external
+For ERC-4337 v0.7, the `paymasterAndData` field layout is:
+
+```
+| Paymaster (20) | VerificationGasLimit (16) | PostOpGasLimit (16) | Operator (20) | [MaxRate (32)] |
 ```
 
-**Events:** `OperatorPaused`, `OperatorUnpaused`
+- Bytes 0–19: SuperPaymaster proxy address
+- Bytes 20–51: gas limits (packed by EntryPoint v0.7)
+- Bytes 52–71: operator address (`PAYMASTER_DATA_OFFSET = 52`)
+- Bytes 72–103: optional `maxRate` (uint256) — rate commitment for rug-pull protection (`RATE_OFFSET = 72`)
 
----
+```javascript
+// viem example (no maxRate commitment):
+const paymasterAndData = concat([
+  SUPERPAYMASTER_ADDRESS,                              // 20 bytes
+  pad(toHex(150000n), { size: 16, dir: 'left' }),     // verificationGasLimit
+  pad(toHex(100000n), { size: 16, dir: 'left' }),     // postOpGasLimit
+  OPERATOR_ADDRESS                                     // 20 bytes
+]);
 
-## SBT Registry Functions (v2.3.3)
-
-### registerSBTHolder
-
-Called by MySBT on mint.
-
-```solidity
-function registerSBTHolder(
-    address holder,
-    uint256 tokenId
-) external
-```
-
-**Access:** MySBT contract only
-
----
-
-### unregisterSBTHolder
-
-Called by MySBT on burn.
-
-```solidity
-function unregisterSBTHolder(address holder) external
-```
-
-**Access:** MySBT contract only
-
----
-
-## Read Functions
-
-### accounts
-
-Get operator account info.
-
-```solidity
-function accounts(address operator)
-    external view
-    returns (OperatorAccount memory)
+// With rate commitment:
+const paymasterAndData = concat([
+  SUPERPAYMASTER_ADDRESS,
+  pad(toHex(150000n), { size: 16, dir: 'left' }),
+  pad(toHex(100000n), { size: 16, dir: 'left' }),
+  OPERATOR_ADDRESS,
+  pad(toHex(maxExchangeRate), { size: 32, dir: 'left' }) // maxRate (uint256)
+]);
 ```
 
 ---
 
-### sbtHolders
+## Constants
 
-Get SBT holder info.
-
-```solidity
-function sbtHolders(address holder)
-    external view
-    returns (SBTHolder memory)
-```
-
----
-
-### tokenIdToHolder
-
-Get holder by token ID.
-
-```solidity
-function tokenIdToHolder(uint256 tokenId)
-    external view
-    returns (address)
-```
-
----
-
-### userDebts
-
-Get user's total debt.
-
-```solidity
-function userDebts(address user)
-    external view
-    returns (uint256)
-```
-
----
-
-### userDebtsByToken
-
-Get user's debt by token.
-
-```solidity
-function userDebtsByToken(address user, address token)
-    external view
-    returns (uint256)
-```
-
----
-
-### getOperatorForUser
-
-Find operator for a user based on SBT.
-
-```solidity
-function getOperatorForUser(address user)
-    external view
-    returns (address operator)
-```
-
----
-
-### calculateGasCost
-
-Calculate gas cost in aPNTs.
-
-```solidity
-function calculateGasCost(uint256 gasUsed)
-    external view
-    returns (uint256 aPNTsCost)
-```
-
----
-
-### getETHPrice
-
-Get cached ETH/USD price.
-
-```solidity
-function getETHPrice()
-    external view
-    returns (int256 price, uint256 updatedAt)
-```
-
----
-
-## Admin Functions (Owner Only)
-
-### setAPNTsToken
-
-```solidity
-function setAPNTsToken(address _aPNTs) external onlyOwner
-```
-
----
-
-### setSuperPaymasterTreasury
-
-```solidity
-function setSuperPaymasterTreasury(address _treasury) external onlyOwner
-```
-
----
-
-### setDVTAggregator
-
-```solidity
-function setDVTAggregator(address _dvt) external onlyOwner
-```
-
----
-
-### setDefaultSBT
-
-```solidity
-function setDefaultSBT(address _sbt) external onlyOwner
-```
-
----
-
-### slash
-
-Slash operator's stake.
-
-```solidity
-function slash(
-    address operator,
-    uint256 amount,
-    string memory reason,
-    SlashLevel level
-) external onlyOwner
-```
-
-**Events:** `OperatorSlashed`
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `PRICE_CACHE_DURATION` | 300 | seconds; price cache TTL reference |
+| `MIN_ETH_USD_PRICE` | `100 * 1e8` | minimum valid Chainlink price |
+| `MAX_ETH_USD_PRICE` | `100_000 * 1e8` | maximum valid Chainlink price |
+| `PAYMASTER_DATA_OFFSET` | 52 | operator address byte offset in paymasterAndData |
+| `RATE_OFFSET` | 72 | maxRate byte offset in paymasterAndData |
+| `BPS_DENOMINATOR` | 10000 | basis points denominator |
+| `MAX_PROTOCOL_FEE` | 2000 | 20% hardcap on protocolFeeBPS |
+| `VALIDATION_BUFFER_BPS` | 1000 | 10% safety buffer applied during validation |
+| `MAX_FACILITATOR_FEE` | 500 | 5% hardcap on x402 facilitator fees |
+| `MAX_AGENT_POLICIES` | 10 | max sponsorship policies per operator |
 
 ---
 
@@ -306,7 +205,7 @@ function slash(
 
 ### validatePaymasterUserOp
 
-Validate UserOperation (called by EntryPoint).
+Called exclusively by EntryPoint during UserOperation validation.
 
 ```solidity
 function validatePaymasterUserOp(
@@ -316,11 +215,22 @@ function validatePaymasterUserOp(
 ) external returns (bytes memory context, uint256 validationData)
 ```
 
+**Access:** `onlyEntryPoint`, `nonReentrant`
+
+**Validation order:**
+1. Extract operator from `paymasterAndData[52:72]`
+2. Require `isConfigured && !isPaused`
+3. Require `isEligibleForSponsorship(userOp.sender)` — SBT holder OR registered ERC-8004 agent (V5.3)
+4. Require `!isBlocked` and enforce `minTxInterval` via `validAfter`
+5. Enforce `maxRate` commitment if provided at offset 72
+6. Optimistic aPNTs deduction with 10% fee + 10% validation buffer
+7. Returns context `(xPNTsToken, xPNTsAmount, sender, aPNTsAmount, userOpHash, operator)` and `validUntil = cachedPrice.updatedAt + priceStalenessThreshold`
+
 ---
 
 ### postOp
 
-Post-operation handler (called by EntryPoint).
+Called by EntryPoint after UserOperation execution.
 
 ```solidity
 function postOp(
@@ -331,457 +241,657 @@ function postOp(
 ) external
 ```
 
----
+**Access:** `onlyEntryPoint`, `nonReentrant`
 
-## Events
-
-```solidity
-event OperatorDeposited(address indexed operator, uint256 amount);
-event OperatorWithdrawn(address indexed operator, uint256 amount);
-event OperatorConfigUpdated(address indexed operator);
-event OperatorPaused(address indexed operator);
-event OperatorUnpaused(address indexed operator);
-event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level, string reason);
-event GasSponsored(address indexed operator, address indexed user, uint256 gasUsed, uint256 aPNTsCost);
-event SBTHolderRegistered(address indexed holder, uint256 tokenId);
-event SBTHolderUnregistered(address indexed holder);
-event UserDebtRecorded(address indexed user, address indexed token, uint256 amount);
-```
-
-## Errors
-
-```solidity
-error OperatorNotFound(address operator);
-error OperatorPaused(address operator);
-error InsufficientBalance(uint256 available, uint256 required);
-error InvalidOperator(address operator);
-error InvalidUser(address user);
-error UnauthorizedCaller(address caller);
-error StalePriceData(uint256 updatedAt);
-error PriceOutOfBounds(int256 price);
-error UserNotSBTHolder(address user);
-error DebtExceedsLimit(address user, uint256 debt);
-```
-
-## Constants
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `MIN_DEPOSIT` | 10 ether | Min aPNTs deposit |
-| `MAX_GAS_LIMIT` | 1,000,000 | Max gas per operation |
-| `PRICE_STALENESS` | 1 hour | Max price age |
-| `MIN_ETH_PRICE` | $100 | Min valid ETH price |
-| `MAX_ETH_PRICE` | $100,000 | Max valid ETH price |
-| `VERSION` | "2.3.3" | Contract version |
-
-## PaymasterAndData Format
-
-For ERC-4337 v0.7, the `paymasterAndData` field is 72 bytes:
-
-```
-| Paymaster (20) | VerificationGasLimit (16) | PostOpGasLimit (16) | Operator (20) |
-```
-
-```javascript
-const paymasterAndData = concat([
-  SUPERPAYMASTER_ADDRESS,                              // 20 bytes
-  pad(toHex(150000n), { size: 16, dir: 'left' }),     // 16 bytes
-  pad(toHex(100000n), { size: 16, dir: 'left' }),     // 16 bytes
-  OPERATOR_ADDRESS                                     // 20 bytes
-]);
-```
+**Behavior:**
+- Always updates `lastTimestamp` for rate limiting (even on revert mode)
+- Skips processing if `mode == postOpReverted`
+- Recalculates actual aPNTs cost with protocol fee markup
+- Refunds excess to operator; records xPNTs debt to user via `IxPNTsToken.recordDebt()`
+- Falls back to `pendingDebts` if debt recording fails
+- Calls `_submitSponsorshipFeedback()` for registered agents (F2)
 
 ---
 
-<a name="chinese"></a>
+## Operator Functions
 
-# SuperPaymasterV2 API 参考
+### configureOperator
 
-**[English](#english)** | **[中文](#chinese)**
-
----
-
-## 合约信息
-
-- **版本**: v2.3.3
-- **Sepolia 地址**: `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db`
-- **EntryPoint**: v0.7 (`0x0000000071727De22E5E9d8BAf0edAc6f37da032`)
-
-## 数据结构
-
-### OperatorAccount (结构体)
+Configure billing settings. Caller must hold `ROLE_PAYMASTER_SUPER` and `ROLE_COMMUNITY` in Registry.
 
 ```solidity
-struct OperatorAccount {
-    address xPNTsToken;         // 社区 xPNTs 代币
-    address treasury;           // 财务地址
-    bool isPaused;              // 暂停状态
-    uint256 aPNTsBalance;       // aPNTs 余额
-    uint256 totalSpent;         // 总支出
-    uint256 totalTxSponsored;   // 赞助交易数
-    uint256 stGTokenLocked;     // 锁定的质押
-    uint256 exchangeRate;       // xPNTs <-> aPNTs 汇率（18 位小数）
-    uint256 reputationScore;    // 声誉分数
-    uint256 reputationLevel;    // 等级（1-12，斐波那契）
-    uint256 stakedAt;           // 质押时间戳
-    uint256 lastRefillTime;     // 最后充值时间
-    uint256 lastCheckTime;      // 最后检查时间
-    uint256 minBalanceThreshold;// 最低余额阈值
-    uint256 consecutiveDays;    // 连续活跃天数
-}
-```
-
-### SBTHolder (结构体)
-
-```solidity
-struct SBTHolder {
-    address holder;     // 持有者地址
-    uint256 tokenId;    // MySBT 代币 ID
-}
-```
-
-### SlashLevel (枚举)
-
-```solidity
-enum SlashLevel {
-    WARNING,    // 仅警告
-    MINOR,      // 5% 惩罚
-    MAJOR       // 10% 惩罚 + 暂停
-}
-```
-
----
-
-## 运营商函数
-
-### depositAPNTs
-
-存入 aPNTs 并注册为运营商。
-
-```solidity
-function depositAPNTs(
-    address operator,
-    uint256 amount,
+function configureOperator(
     address xPNTsToken,
-    address treasury,
+    address _opTreasury,
     uint256 exchangeRate
 ) external
 ```
 
-**参数:**
-- `operator`: 运营商地址
-- `amount`: 存入的 aPNTs 数量
-- `xPNTsToken`: 社区 Gas 代币
-- `treasury`: 用户支付去向
-- `exchangeRate`: xPNTs:aPNTs 汇率（18 位小数，1e18 = 1:1）
-
-**事件:** `OperatorDeposited`
+**Events:** `OperatorConfigured(operator, xPNTsToken, treasury, exchangeRate)`
 
 ---
 
-### withdrawAPNTs
+### deposit
 
-提取 aPNTs 余额。
+Deposit aPNTs as gas collateral (legacy pull mode — requires ERC-20 approval).
 
 ```solidity
-function withdrawAPNTs(uint256 amount) external
+function deposit(uint256 amount) external nonReentrant
 ```
 
-**事件:** `OperatorWithdrawn`
+**Access:** Must hold `ROLE_PAYMASTER_SUPER` in Registry
+
+**Events:** `OperatorDeposited(operator, amount)`
 
 ---
 
-### updateOperatorConfig
+### depositFor
 
-更新运营商配置。
+Deposit aPNTs on behalf of a specific operator (secure push mode).
 
 ```solidity
-function updateOperatorConfig(
-    address xPNTsToken,
-    address treasury,
-    uint256 exchangeRate,
-    uint256 minBalanceThreshold
+function depositFor(address targetOperator, uint256 amount) external nonReentrant
+```
+
+**Events:** `OperatorDeposited(targetOperator, amount)`
+
+---
+
+### onTransferReceived
+
+ERC1363 callback — handles push-mode deposits where the token calls the receiver.
+
+```solidity
+function onTransferReceived(
+    address,
+    address from,
+    uint256 value,
+    bytes calldata
+) external nonReentrant returns (bytes4)
+```
+
+**Access:** Only callable by `APNTS_TOKEN` contract
+
+**Returns:** `this.onTransferReceived.selector`
+
+**Events:** `OperatorDeposited(from, value)`
+
+---
+
+### withdraw
+
+Withdraw aPNTs collateral.
+
+```solidity
+function withdraw(uint256 amount) external nonReentrant
+```
+
+**Events:** `OperatorWithdrawn(operator, amount)`
+
+---
+
+### setOperatorLimits
+
+Set minimum transaction interval for rate limiting.
+
+```solidity
+function setOperatorLimits(uint48 _minTxInterval) external
+```
+
+**Access:** Must hold `ROLE_PAYMASTER_SUPER` in Registry
+
+**Events:** `OperatorMinTxIntervalUpdated(operator, minTxInterval)`
+
+---
+
+## V5.x — Agent Sponsorship Functions
+
+### isEligibleForSponsorship
+
+V5.3 dual-channel eligibility check. Returns `true` if the user is an SBT holder **or** a registered ERC-8004 agent NFT holder.
+
+```solidity
+function isEligibleForSponsorship(address user) external view returns (bool)
+```
+
+**Implementation:** `sbtHolders[user] || isRegisteredAgent(user)`
+
+---
+
+### isRegisteredAgent
+
+Check if an address holds at least one ERC-8004 Agent NFT in the configured identity registry.
+
+```solidity
+function isRegisteredAgent(address account) external view returns (bool)
+```
+
+**Returns:** `false` if `agentIdentityRegistry == address(0)` or `balanceOf` reverts.
+
+---
+
+### setAgentPolicies
+
+Set tiered agent sponsorship policies for the calling operator. Policies should be sorted by `minReputationScore` descending for optimal matching. Up to `MAX_AGENT_POLICIES` (10) entries.
+
+```solidity
+function setAgentPolicies(
+    ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies
 ) external
 ```
 
-**事件:** `OperatorConfigUpdated`
+**Access:** Must hold `ROLE_PAYMASTER_SUPER` in Registry
+
+**Events:** `AgentPoliciesUpdated(operator, policyCount)`
 
 ---
 
-### pauseOperator / unpauseOperator
+### getAgentSponsorshipRate
+
+Query the effective sponsorship BPS for an agent from an operator, accounting for reputation and daily caps.
 
 ```solidity
-function pauseOperator() external
-function unpauseOperator() external
+function getAgentSponsorshipRate(
+    address agent,
+    address operator
+) external view returns (uint256 bps)
 ```
 
-**事件:** `OperatorPaused`, `OperatorUnpaused`
+**Returns:** Basis points discount (0 = no sponsorship, 10000 = 100% free). Returns 0 if agent is not registered, no matching policy, or daily cap exhausted.
 
 ---
 
-## SBT 注册函数 (v2.3.3)
+## V5.x — x402 Payment Settlement Functions
 
-### registerSBTHolder
+### settleX402Payment
 
-在 MySBT 铸造时调用。
+Settle an x402 HTTP payment via EIP-3009 `transferWithAuthorization` (native USDC path, ~161K gas, 19% more efficient than Permit2).
 
 ```solidity
-function registerSBTHolder(
-    address holder,
-    uint256 tokenId
+function settleX402Payment(
+    address from,
+    address to,
+    address asset,
+    uint256 amount,
+    uint256 validAfter,
+    uint256 validBefore,
+    bytes32 nonce,
+    bytes calldata signature
+) external nonReentrant returns (bytes32 settlementId)
+```
+
+**Access:** Caller must hold `ROLE_PAYMASTER_SUPER` in Registry (acts as facilitator)
+
+**Parameters:**
+- `from` — payer address (must have signed the EIP-3009 authorization)
+- `to` — payee / service provider address
+- `asset` — ERC-20 token implementing EIP-3009 (e.g. USDC)
+- `amount` — gross transfer amount
+- `validAfter`, `validBefore` — authorization time window (EIP-3009)
+- `nonce` — unique bytes32 nonce for replay prevention
+- `signature` — EIP-3009 authorization signature from `from`
+
+**Returns:** `settlementId = keccak256(from, to, asset, amount, nonce)`
+
+**Fee:** Deducts `facilitatorFeeBPS` (or per-operator override) from `amount` before forwarding net to `to`. Fee credited to `facilitatorEarnings[msg.sender][asset]`.
+
+**Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`
+
+**Errors:** `NonceAlreadyUsed`, `Unauthorized`
+
+---
+
+### settleX402PaymentDirect
+
+Settle an x402 payment via standard `transferFrom` (for xPNTs tokens auto-approved by factory, or any pre-approved ERC-20).
+
+```solidity
+function settleX402PaymentDirect(
+    address from,
+    address to,
+    address asset,
+    uint256 amount,
+    bytes32 nonce
+) external nonReentrant returns (bytes32 settlementId)
+```
+
+**Access:** Caller must hold `ROLE_PAYMASTER_SUPER` in Registry
+
+**Parameters:** same semantics as `settleX402Payment` except no signature required (uses `transferFrom` allowance).
+
+**Returns:** `settlementId = keccak256(from, to, asset, amount, nonce)`
+
+**Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`
+
+**Errors:** `NonceAlreadyUsed`, `Unauthorized`
+
+---
+
+### withdrawFacilitatorEarnings
+
+Withdraw accumulated facilitator fee earnings for a given asset.
+
+```solidity
+function withdrawFacilitatorEarnings(address asset) external nonReentrant
+```
+
+**Access:** Any operator who has accumulated earnings
+
+**Events:** `FacilitatorEarningsWithdrawn(operator, asset, amount)`
+
+---
+
+## Oracle & Price Functions
+
+### updatePrice
+
+Pull latest price from Chainlink oracle and update the internal cache.
+
+```solidity
+function updatePrice() external
+```
+
+**Access:** Public (typically called by keeper)
+
+**Events:** `PriceUpdated(price, timestamp)`
+
+**Errors:** `OracleError` — if Chainlink call fails, price out of bounds, or data is stale.
+
+---
+
+### updatePriceDVT
+
+Update price via BLS/DVT consensus (Chainlink fallback path).
+
+```solidity
+function updatePriceDVT(
+    int256 price,
+    uint256 updatedAt,
+    bytes calldata proof
 ) external
 ```
 
-**访问权限:** 仅 MySBT 合约
+**Access:** `BLS_AGGREGATOR` or `owner()`
+
+**Validation:**
+- `updatedAt` must be strictly greater than `cachedPrice.updatedAt`
+- Must be within 2 hours of current time
+- Price must be within `[MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]`
+- If Chainlink is live and recent, rejects prices deviating >20% from Chainlink
+
+**Events:** `PriceUpdated(price, updatedAt)`
 
 ---
 
-### unregisterSBTHolder
+## SBT Registry Functions
 
-在 MySBT 销毁时调用。
+### updateSBTStatus
+
+Update the global SBT holder flag for a user (called by Registry on MySBT mint/burn events).
 
 ```solidity
-function unregisterSBTHolder(address holder) external
+function updateSBTStatus(address user, bool status) external
 ```
 
-**访问权限:** 仅 MySBT 合约
+**Access:** `REGISTRY` contract only
 
 ---
 
-## 读取函数
+### updateBlockedStatus
 
-### accounts
-
-获取运营商账户信息。
+Batch-update the user blocklist for a specific operator (called by Registry via DVT credit exhaustion sync).
 
 ```solidity
-function accounts(address operator)
+function updateBlockedStatus(
+    address operator,
+    address[] calldata users,
+    bool[] calldata statuses
+) external
+```
+
+**Access:** `REGISTRY` contract only
+
+**Events:** `UserBlockedStatusUpdated(operator, user, isBlocked)` per entry
+
+---
+
+## Slash Functions
+
+### slashOperator
+
+Owner-governed slash with no BPS hardcap.
+
+```solidity
+function slashOperator(
+    address operator,
+    ISuperPaymaster.SlashLevel level,
+    uint256 penaltyAmount,
+    string calldata reason
+) external onlyOwner
+```
+
+**Events:** `OperatorSlashed(operator, amount, level)`, `ReputationUpdated(operator, newScore)`
+
+---
+
+### executeSlashWithBLS
+
+BLS-consensus-triggered slash (DVT path). Enforces 30% aPNTs slash hardcap.
+
+```solidity
+function executeSlashWithBLS(
+    address operator,
+    ISuperPaymaster.SlashLevel level,
+    bytes calldata proof
+) external
+```
+
+**Access:** `BLS_AGGREGATOR` only
+
+**Events:** `SlashExecutedWithProof(operator, level, penalty, proofHash, timestamp)`, `OperatorSlashed(...)`, `ReputationUpdated(...)`
+
+---
+
+### getSlashHistory
+
+```solidity
+function getSlashHistory(address operator)
     external view
-    returns (OperatorAccount memory)
+    returns (ISuperPaymaster.SlashRecord[] memory)
+```
+
+---
+
+### getSlashCount
+
+```solidity
+function getSlashCount(address operator) external view returns (uint256)
+```
+
+---
+
+### getLatestSlash
+
+```solidity
+function getLatestSlash(address operator)
+    external view
+    returns (ISuperPaymaster.SlashRecord memory)
+```
+
+**Errors:** `NoSlashHistory`
+
+---
+
+## Pending Debt Recovery
+
+### retryPendingDebt
+
+Retry recording a pending xPNTs debt that failed during `postOp`.
+
+```solidity
+function retryPendingDebt(address token, address user) external nonReentrant
+```
+
+**Events:** `PendingDebtRetried(token, user, amount)`
+
+**Errors:** `NoPendingDebt`
+
+---
+
+### clearPendingDebt
+
+Admin escape hatch to clear a stuck pending debt without recording it.
+
+```solidity
+function clearPendingDebt(address token, address user) external onlyOwner
+```
+
+**Events:** `PendingDebtCleared(token, user, amount)`
+
+---
+
+## View Functions
+
+### getAvailableCredit
+
+Get remaining credit for a user under a specific xPNTs token (aPNTs units).
+
+```solidity
+function getAvailableCredit(address user, address token)
+    external view returns (uint256)
+```
+
+**Logic:** `REGISTRY.getCreditLimit(user) - debtInAPNTs` (floored at 0)
+
+---
+
+### operators
+
+Get operator configuration struct.
+
+```solidity
+function operators(address operator)
+    external view
+    returns (
+        uint128 aPNTsBalance,
+        uint96  exchangeRate,
+        bool    isConfigured,
+        bool    isPaused,
+        address xPNTsToken,
+        uint32  reputation,
+        uint48  minTxInterval,
+        address treasury,
+        uint256 totalSpent,
+        uint256 totalTxSponsored
+    )
 ```
 
 ---
 
 ### sbtHolders
 
-获取 SBT 持有者信息。
+```solidity
+function sbtHolders(address user) external view returns (bool)
+```
+
+---
+
+### userOpState
 
 ```solidity
-function sbtHolders(address holder)
+function userOpState(address operator, address user)
     external view
-    returns (SBTHolder memory)
+    returns (uint48 lastTimestamp, bool isBlocked)
 ```
 
 ---
 
-### tokenIdToHolder
-
-通过代币 ID 获取持有者。
+### pendingDebts
 
 ```solidity
-function tokenIdToHolder(uint256 tokenId)
+function pendingDebts(address token, address user) external view returns (uint256)
+```
+
+---
+
+### x402SettlementNonces
+
+```solidity
+function x402SettlementNonces(bytes32 nonce) external view returns (bool)
+```
+
+---
+
+### facilitatorEarnings
+
+```solidity
+function facilitatorEarnings(address operator, address asset) external view returns (uint256)
+```
+
+---
+
+### agentPolicies
+
+```solidity
+function agentPolicies(address operator, uint256 index)
     external view
-    returns (address)
+    returns (ISuperPaymaster.AgentSponsorshipPolicy memory)
 ```
 
 ---
 
-### userDebts
-
-获取用户的总债务。
+### cachedPrice
 
 ```solidity
-function userDebts(address user)
+function cachedPrice()
     external view
-    returns (uint256)
+    returns (int256 price, uint256 updatedAt, uint80 roundId, uint8 decimals)
 ```
 
 ---
 
-### userDebtsByToken
+## Admin Functions (Owner Only)
 
-按代币获取用户债务。
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `setAPNTsToken` | `(address)` | Update aPNTs token address |
+| `setAPNTSPrice` | `(uint256)` | Update aPNTs USD price (18 decimals; default 0.02 ether = $0.02) |
+| `setProtocolFee` | `(uint256 bps)` | Set protocol fee BPS (max 2000 = 20%) |
+| `setTreasury` | `(address)` | Set protocol treasury address |
+| `setXPNTsFactory` | `(address)` | Set xPNTs factory for binding verification |
+| `setBLSAggregator` | `(address)` | Set trusted BLS aggregator for DVT slash |
+| `setOperatorPaused` | `(address operator, bool paused)` | Emergency pause/unpause operator |
+| `updateReputation` | `(address operator, uint256 score)` | Manually set operator reputation score |
+| `withdrawProtocolRevenue` | `(address to, uint256 amount)` | Withdraw accumulated protocol fees |
+| `setAgentRegistries` | `(address identity, address reputation)` | Set ERC-8004 agent registries (V5) |
+| `setFacilitatorFeeBPS` | `(uint256 fee)` | Set default x402 facilitator fee BPS (max 500 = 5%) |
+| `setOperatorFacilitatorFee` | `(address operator, uint256 fee)` | Set per-operator facilitator fee override |
+
+---
+
+## Events
+
+### Core Events
 
 ```solidity
-function userDebtsByToken(address user, address token)
-    external view
-    returns (uint256)
+event OperatorDeposited(address indexed operator, uint256 amount);
+event OperatorWithdrawn(address indexed operator, uint256 amount);
+event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
+event OperatorPaused(address indexed operator);
+event OperatorUnpaused(address indexed operator);
+event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
+event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
+event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
+event ReputationUpdated(address indexed operator, uint256 newScore);
+event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
+```
+
+### Oracle Events
+
+```solidity
+event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
+event OracleFallbackTriggered(uint256 timestamp);
+event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
+```
+
+### Slash Events
+
+```solidity
+event SlashExecutedWithProof(
+    address indexed operator,
+    ISuperPaymaster.SlashLevel level,
+    uint256 penalty,
+    bytes32 proofHash,
+    uint256 timestamp
+);
+```
+
+### Debt Events
+
+```solidity
+event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
+event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
+event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
+```
+
+### Admin Events
+
+```solidity
+event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
+event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
+event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
+```
+
+### V5 Events
+
+```solidity
+event AgentPoliciesUpdated(address indexed operator, uint256 policyCount);
+event X402PaymentSettled(address indexed from, address indexed to, address asset, uint256 amount, uint256 fee, bytes32 nonce);
+event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
+event AgentRegistriesUpdated(address identityRegistry, address reputationRegistry);
+event FacilitatorEarningsWithdrawn(address indexed operator, address indexed asset, uint256 amount);
 ```
 
 ---
 
-### getOperatorForUser
-
-根据 SBT 查找用户的运营商。
+## Errors
 
 ```solidity
-function getOperatorForUser(address user)
-    external view
-    returns (address operator)
+error Unauthorized();
+error InvalidAddress();
+error InvalidConfiguration();
+error InsufficientBalance(uint256 available, uint256 required);
+error DepositNotVerified();
+error OracleError();
+error NoSlashHistory();
+error InsufficientRevenue();
+error InvalidXPNTsToken();
+error FactoryVerificationFailed();
+error AmountExceedsUint128();
+error ScoreExceedsUint32();
+error NoPendingDebt();
+
+// V5 errors
+error NonceAlreadyUsed();
+error InvalidFee();
 ```
 
 ---
 
-### calculateGasCost
+## MicroPaymentChannel (Companion Contract)
 
-计算 aPNTs 形式的 Gas 成本。
+The `MicroPaymentChannel` contract is a separate deployment that provides unidirectional payment channel streaming for agent-to-service-provider micropayments. It is referenced by the x402 facilitator SDK but is **not** part of SuperPaymaster's on-chain code.
 
-```solidity
-function calculateGasCost(uint256 gasUsed)
-    external view
-    returns (uint256 aPNTsCost)
+**Sepolia address:** `0x5753e9675f68221cA901e495C1696e33F552ea36`
+
+**Key functions:**
+
+| Function | Description |
+|----------|-------------|
+| `openChannel(payee, token, deposit, salt, authorizedSigner)` | Open a new channel; returns `channelId` |
+| `settle(channelId, cumulativeAmount, signature)` | Payee submits a cumulative voucher to collect payment |
+| `topUp(channelId, amount)` | Payer adds funds to an open channel |
+| `requestClose(channelId)` | Payer initiates 15-minute dispute window |
+| `closeChannel(channelId, cumulativeAmount, signature)` | Payee submits final voucher during close window |
+| `withdrawAfterTimeout(channelId)` | Payer withdraws remaining funds after timeout |
+| `getChannel(channelId)` | View channel state |
+
+**Channel voucher EIP-712 typehash:**
+
 ```
+Voucher(bytes32 channelId, uint128 cumulativeAmount)
+```
+
+**Events:** `ChannelOpened`, `ChannelSettled`, `ChannelTopUp`, `CloseRequested`, `ChannelClosed`, `ChannelWithdrawn`
 
 ---
 
-### getETHPrice
+## Version History
 
-获取缓存的 ETH/USD 价格。
-
-```solidity
-function getETHPrice()
-    external view
-    returns (int256 price, uint256 updatedAt)
-```
-
----
-
-## 管理函数（仅所有者）
-
-### setAPNTsToken
-
-```solidity
-function setAPNTsToken(address _aPNTs) external onlyOwner
-```
-
----
-
-### setSuperPaymasterTreasury
-
-```solidity
-function setSuperPaymasterTreasury(address _treasury) external onlyOwner
-```
-
----
-
-### setDVTAggregator
-
-```solidity
-function setDVTAggregator(address _dvt) external onlyOwner
-```
-
----
-
-### setDefaultSBT
-
-```solidity
-function setDefaultSBT(address _sbt) external onlyOwner
-```
-
----
-
-### slash
-
-惩罚运营商的质押。
-
-```solidity
-function slash(
-    address operator,
-    uint256 amount,
-    string memory reason,
-    SlashLevel level
-) external onlyOwner
-```
-
-**事件:** `OperatorSlashed`
-
----
-
-## ERC-4337 Paymaster 函数
-
-### validatePaymasterUserOp
-
-验证 UserOperation（由 EntryPoint 调用）。
-
-```solidity
-function validatePaymasterUserOp(
-    PackedUserOperation calldata userOp,
-    bytes32 userOpHash,
-    uint256 maxCost
-) external returns (bytes memory context, uint256 validationData)
-```
-
----
-
-### postOp
-
-操作后处理程序（由 EntryPoint 调用）。
-
-```solidity
-function postOp(
-    PostOpMode mode,
-    bytes calldata context,
-    uint256 actualGasCost,
-    uint256 actualUserOpFeePerGas
-) external
-```
-
----
-
-## 事件
-
-```solidity
-event OperatorDeposited(address indexed operator, uint256 amount);      // 运营商存款
-event OperatorWithdrawn(address indexed operator, uint256 amount);      // 运营商提款
-event OperatorConfigUpdated(address indexed operator);                   // 运营商配置更新
-event OperatorPaused(address indexed operator);                          // 运营商暂停
-event OperatorUnpaused(address indexed operator);                        // 运营商取消暂停
-event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level, string reason);  // 运营商被惩罚
-event GasSponsored(address indexed operator, address indexed user, uint256 gasUsed, uint256 aPNTsCost);  // Gas 赞助
-event SBTHolderRegistered(address indexed holder, uint256 tokenId);     // SBT 持有者注册
-event SBTHolderUnregistered(address indexed holder);                     // SBT 持有者注销
-event UserDebtRecorded(address indexed user, address indexed token, uint256 amount);  // 用户债务记录
-```
-
-## 错误
-
-```solidity
-error OperatorNotFound(address operator);                    // 未找到运营商
-error OperatorPaused(address operator);                      // 运营商已暂停
-error InsufficientBalance(uint256 available, uint256 required);  // 余额不足
-error InvalidOperator(address operator);                      // 无效运营商
-error InvalidUser(address user);                              // 无效用户
-error UnauthorizedCaller(address caller);                     // 未授权调用者
-error StalePriceData(uint256 updatedAt);                     // 价格数据过期
-error PriceOutOfBounds(int256 price);                        // 价格超出范围
-error UserNotSBTHolder(address user);                        // 用户非 SBT 持有者
-error DebtExceedsLimit(address user, uint256 debt);          // 债务超限
-```
-
-## 常量
-
-| 常量 | 值 | 描述 |
-|------|-----|------|
-| `MIN_DEPOSIT` | 10 ether | 最小 aPNTs 存款 |
-| `MAX_GAS_LIMIT` | 1,000,000 | 每次操作最大 Gas |
-| `PRICE_STALENESS` | 1 小时 | 最大价格有效期 |
-| `MIN_ETH_PRICE` | $100 | 最小有效 ETH 价格 |
-| `MAX_ETH_PRICE` | $100,000 | 最大有效 ETH 价格 |
-| `VERSION` | "2.3.3" | 合约版本 |
-
-## PaymasterAndData 格式
-
-对于 ERC-4337 v0.7，`paymasterAndData` 字段为 72 字节：
-
-```
-| Paymaster (20) | VerificationGasLimit (16) | PostOpGasLimit (16) | Operator (20) |
-```
-
-```javascript
-const paymasterAndData = concat([
-  SUPERPAYMASTER_ADDRESS,                              // 20 字节
-  pad(toHex(150000n), { size: 16, dir: 'left' }),     // 16 字节
-  pad(toHex(100000n), { size: 16, dir: 'left' }),     // 16 字节
-  OPERATOR_ADDRESS                                     // 20 字节
-]);
-```
+| Version | Key Changes |
+|---------|-------------|
+| `SuperPaymaster-5.3.0` | V5.3: ERC-8004 dual-channel sponsorship (`isEligibleForSponsorship`), agent sponsorship policies (F1), reputation feedback (F2), x402 EIP-3009 settlement (`settleX402Payment`), xPNTs direct settlement (`settleX402PaymentDirect`), `__gap` reduced 48→40 |
+| `SuperPaymaster-5.0.0` | V5.1: `_consumeCredit()` kernel, `chargeMicroPayment()` EIP-712, solady EIP-712, `microPaymentNonces` |
+| `SuperPaymaster-4.x` | UUPS upgradeable proxy migration (ERC1967), `BasePaymasterUpgradeable`, `initialize()` |
+| `SuperPaymaster-3.2.2` | V3 baseline: Registry integration, Chainlink oracle, DVT/BLS slash, xPNTs factory binding, packed storage |
