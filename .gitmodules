@@ -9,3 +9,15 @@
 [submodule "contracts/lib/solady"]
 	path = contracts/lib/solady
 	url = https://github.com/Vectorized/solady.git
+[submodule "standards/x402"]
+	path = standards/x402
+	url = https://github.com/coinbase/x402.git
+[submodule "standards/mpp-specs"]
+	path = standards/mpp-specs
+	url = https://github.com/tempoxyz/mpp-specs.git
+[submodule "standards/ercs"]
+	path = standards/ercs
+	url = https://github.com/ethereum/ERCs.git
+[submodule "standards/permit2"]
+	path = standards/permit2
+	url = https://github.com/Uniswap/permit2.git
