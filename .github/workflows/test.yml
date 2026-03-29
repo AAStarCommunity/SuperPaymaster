@@ -18,7 +18,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Build
-        run: forge build
+        run: forge build --sizes
 
       - name: Run Tests
         run: forge test -v
