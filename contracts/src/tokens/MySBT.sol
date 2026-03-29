@@ -215,20 +215,12 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(user != address(0), "Invalid user");
 
         tokenId = userToSBT[user];
+        (address community, string memory meta) = _decodeRoleData(roleData);
 
         if (tokenId == 0) {
             // Create new SBT
             tokenId = nextTokenId++;
             isNewMint = true;
-
-            // P-04 FIX: Decode once — community always present, meta only if data > 32 bytes
-            address community;
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (community, meta) = abi.decode(roleData, (address, string));
-            } else {
-                community = abi.decode(roleData, (address));
-            }
 
             sbtData[tokenId] = SBTData(user, community, block.timestamp, 1);
             userToSBT[user] = tokenId;
@@ -244,15 +236,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         } else {
             // Add role to existing SBT
             isNewMint = false;
-
-            // P-04 FIX: Decode once — community always present, meta only if data > 32 bytes
-            address community;
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (community, meta) = abi.decode(roleData, (address, string));
-            } else {
-                community = abi.decode(roleData, (address));
-            }
 
             // Check if membership exists
             uint256 idx = membershipIndex[tokenId][community];
@@ -295,23 +278,15 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(u != address(0), "Invalid user");
 
         tid = userToSBT[u];
+        (address community, string memory meta) = _decodeRoleData(roleData);
 
         if (tid == 0) {
             // Create new SBT
             tid = nextTokenId++;
             isNew = true;
 
-            // Decode community address
-            address community = abi.decode(roleData, (address));
-
             sbtData[tid] = SBTData(u, community, block.timestamp, 1);
             userToSBT[u] = tid;
-
-            // Decode metadata if provided
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (, meta) = abi.decode(roleData, (address, string));
-            }
 
             // Add community membership
             _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
@@ -324,12 +299,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         } else {
             // Add role to existing SBT
             isNew = false;
-
-            address community = abi.decode(roleData, (address));
-            string memory meta = "";
-            if (roleData.length > 32) {
-                (, meta) = abi.decode(roleData, (address, string));
-            }
 
             // Check if membership exists
             uint256 idx = membershipIndex[tid][community];
@@ -376,6 +345,19 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     function deactivateMembership(address user, address community) external onlyRegistry {
         _deactivateMembership(user, community);
+    }
+
+    /// @dev Decode roleData into community address and optional metadata string.
+    function _decodeRoleData(bytes calldata roleData)
+        internal
+        pure
+        returns (address community, string memory meta)
+    {
+        if (roleData.length > 32) {
+            (community, meta) = abi.decode(roleData, (address, string));
+        } else {
+            community = abi.decode(roleData, (address));
+        }
     }
 
     function _deactivateMembership(address user, address community) internal {

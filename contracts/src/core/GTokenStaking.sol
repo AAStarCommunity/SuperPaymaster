@@ -143,9 +143,10 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         roleLocks[user][roleId] = newLock;
         userActiveRoles[user].push(roleId);
         
-        // Update global stats
-        totalStaked += stakeAmount;
-        if (totalStaked > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
+        // Update global stats — pre-check avoids a second SLOAD after the write
+        uint256 newTotal = totalStaked + stakeAmount;
+        if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
+        totalStaked = newTotal;
 
         emit StakeLocked(user, roleId, stakeAmount, entryBurn, block.timestamp);
         return uint256(roleId); // Use roleId as lockId
@@ -166,10 +167,11 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
         GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
         
+        uint256 newTotal = totalStaked + stakeAmount;
+        if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
         lock.amount += uint128(stakeAmount);
         stakes[user].amount += stakeAmount;
-        totalStaked += stakeAmount;
-        if (totalStaked > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
+        totalStaked = newTotal;
 
         emit StakeLocked(user, roleId, stakeAmount, 0, lock.lockedAt); // Reuse existing lockedAt
     }

@@ -861,11 +861,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
 
-            // H-01 FIX: Record debt BEFORE issuing refund.
-            // Original code gave operator refund first, then recorded user debt.
-            // If recordDebt reverted, user escaped xPNTs debt while operator already
-            // received excess. Now: attempt debt recording first (on-chain or pendingDebts),
-            // then credit the refund. If catch block itself fails (OOG), postOp reverts safely.
+            // Record debt before refund: prevents user escaping xPNTs debt if recordDebt reverts.
             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
                 pendingDebts[token][user] += finalXPNTsDebt;
                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
