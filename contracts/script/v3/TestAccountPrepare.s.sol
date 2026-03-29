@@ -76,7 +76,7 @@ contract TestAccountPrepare is Script {
                 name: communityName,
                 ensName: "mushroom.box",
                 website: "https://mushroom.box",
-                description: "Protocols and Networks",
+                description: "Mycelium, Explorer Your World!",
                 logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
                 stakeAmount: 30 ether
             });

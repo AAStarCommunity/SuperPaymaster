@@ -215,15 +215,23 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(user != address(0), "Invalid user");
 
         tokenId = userToSBT[user];
-        (address community, string memory meta) = _decodeRoleData(roleData);
 
         if (tokenId == 0) {
             // Create new SBT
             tokenId = nextTokenId++;
             isNewMint = true;
 
+            // Decode community address from roleData
+            address community = abi.decode(roleData, (address));
+
             sbtData[tokenId] = SBTData(user, community, block.timestamp, 1);
             userToSBT[user] = tokenId;
+
+            // Decode full metadata if provided
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
 
             // Add community membership
             _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
@@ -237,15 +245,24 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             // Add role to existing SBT
             isNewMint = false;
 
+            address community = abi.decode(roleData, (address));
+
             // Check if membership exists
             uint256 idx = membershipIndex[tokenId][community];
             if (idx < _m[tokenId].length && _m[tokenId][idx].community == community) {
                 // HIGH-FIX: Reactivate if inactive (Re-join)
                 if (!_m[tokenId][idx].isActive) {
                     _m[tokenId][idx].isActive = true;
+                    // No event for reactivation in V3 spec, but we could emit MembershipAdded again or a new event.
+                    // For now, emit MembershipAdded to signal effective join.
                     emit MembershipAdded(tokenId, community, "", block.timestamp);
                 }
                 return (tokenId, false);
+            }
+
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
             }
 
             // Add new membership
@@ -278,15 +295,23 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(u != address(0), "Invalid user");
 
         tid = userToSBT[u];
-        (address community, string memory meta) = _decodeRoleData(roleData);
 
         if (tid == 0) {
             // Create new SBT
             tid = nextTokenId++;
             isNew = true;
 
+            // Decode community address
+            address community = abi.decode(roleData, (address));
+
             sbtData[tid] = SBTData(u, community, block.timestamp, 1);
             userToSBT[u] = tid;
+
+            // Decode metadata if provided
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
 
             // Add community membership
             _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
@@ -299,6 +324,12 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         } else {
             // Add role to existing SBT
             isNew = false;
+
+            address community = abi.decode(roleData, (address));
+            string memory meta = "";
+            if (roleData.length > 32) {
+                (, meta) = abi.decode(roleData, (address, string));
+            }
 
             // Check if membership exists
             uint256 idx = membershipIndex[tid][community];
@@ -345,19 +376,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     function deactivateMembership(address user, address community) external onlyRegistry {
         _deactivateMembership(user, community);
-    }
-
-    /// @dev Decode roleData into community address and optional metadata string.
-    function _decodeRoleData(bytes calldata roleData)
-        internal
-        pure
-        returns (address community, string memory meta)
-    {
-        if (roleData.length > 32) {
-            (community, meta) = abi.decode(roleData, (address, string));
-        } else {
-            community = abi.decode(roleData, (address));
-        }
     }
 
     function _deactivateMembership(address user, address community) internal {

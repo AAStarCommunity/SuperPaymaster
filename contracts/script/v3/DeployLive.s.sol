@@ -163,7 +163,7 @@ contract DeployLive is Script {
             name: "AAStar",
             ensName: "aastar.eth",
             website: "https://aastar.io",
-            description: "Empower Community, Unleash Humanity\xF0\x9F\x8D\x84",
+            description: "AAStar - Empower Community!",
             logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
             stakeAmount: 30 ether
         });
@@ -220,7 +220,7 @@ contract DeployLive is Script {
             name: "Mycelium Community",
             ensName: "mushroom.box",
             website: "https://mushroom.box",
-            description: "Protocols and Networks",
+            description: "Mycelium, Explorer Your World!",
             logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
             stakeAmount: 30 ether
         });

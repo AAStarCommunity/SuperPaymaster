@@ -44,7 +44,7 @@ contract RegistryV2Reinit is Registry {
     uint256 public migrationFlag;
 
     function version() external pure override returns (string memory) {
-        return "R2";
+        return "Registry-5.0.0-test";
     }
 
     function reinitializeV2(uint256 _flag) external reinitializer(2) {
@@ -446,7 +446,7 @@ contract SupplementaryLifecycleTest is Test {
         assertEq(registry.owner(), owner);
         assertEq(address(registry.GTOKEN_STAKING()), address(staking));
         assertEq(address(registry.MYSBT()), address(sbt));
-        assertEq(keccak256(bytes(registry.version())), keccak256("R2"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.0.0-test"));
 
         vm.stopPrank();
     }

@@ -32,12 +32,11 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     error Unauthorized();
     error NotAuthorizedSlasher();
     error InsufficientStake();
-    error TotalStakeExceedsCap();
 
     // ...
 
     function version() external pure override returns (string memory) {
-        return "Staking-3.2.1";
+        return "Staking-3.2.0";
     }
 
     // ====================================
@@ -66,9 +65,6 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
     // Global stats
     uint256 public totalStaked;
-
-    /// @notice Maximum total stake cap (21M GToken = total supply)
-    uint256 public constant MAX_TOTAL_STAKE = 21_000_000 ether;
 
 
     // Authorized slashers
@@ -143,10 +139,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         roleLocks[user][roleId] = newLock;
         userActiveRoles[user].push(roleId);
         
-        // Update global stats — pre-check avoids a second SLOAD after the write
-        uint256 newTotal = totalStaked + stakeAmount;
-        if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
-        totalStaked = newTotal;
+        // Update global stats
+        totalStaked += stakeAmount;
 
         emit StakeLocked(user, roleId, stakeAmount, entryBurn, block.timestamp);
         return uint256(roleId); // Use roleId as lockId
@@ -167,11 +161,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
         GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
         
-        uint256 newTotal = totalStaked + stakeAmount;
-        if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
         lock.amount += uint128(stakeAmount);
         stakes[user].amount += stakeAmount;
-        totalStaked = newTotal;
+        totalStaked += stakeAmount;
 
         emit StakeLocked(user, roleId, stakeAmount, 0, lock.lockedAt); // Reuse existing lockedAt
     }

@@ -179,10 +179,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         uint256[] memory scores = new uint256[](1);
         scores[0] = score;
         
-        // Derive a non-zero proposalId from (user, epoch) — unique per sync call since
-        // epoch is monotonically increasing per user in Registry.
-        uint256 proposalId = uint256(keccak256(abi.encode(user, epoch)));
-        REGISTRY.batchUpdateGlobalReputation(proposalId, users, scores, epoch, proof);
+        REGISTRY.batchUpdateGlobalReputation(0, users, scores, epoch, proof);
         emit ReputationComputed(user, score);
     }
 

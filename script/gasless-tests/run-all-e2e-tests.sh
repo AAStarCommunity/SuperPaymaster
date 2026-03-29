@@ -156,23 +156,11 @@ run_test "F1: Staking Queries"  "node $SCRIPT_DIR/test-group-F1-staking-queries.
 run_test "F2: Slash History"    "node $SCRIPT_DIR/test-group-F2-slash-queries.js"
 
 # ─────────────────────────────────────────────────────────────
-# Phase 7: V5.3 Agent Economy Scenarios
+# Phase 7: Legacy Gasless Transfer Tests
 # ─────────────────────────────────────────────────────────────
 echo ""
 echo "================================================================"
-echo "  Phase 7: V5.3 Agent Economy Scenarios"
-echo "================================================================"
-
-run_test "G1: Reputation-Gated Sponsorship"          "node $SCRIPT_DIR/test-group-G1-reputation-gated-sponsorship.js"
-run_test "G2: Agent Identity Sponsorship (ERC-8004)"  "node $SCRIPT_DIR/test-group-G2-agent-identity-sponsorship.js"
-run_test "G3: Credit Tier Escalation"                "node $SCRIPT_DIR/test-group-G3-credit-tier-escalation.js"
-
-# ─────────────────────────────────────────────────────────────
-# Phase 8: Legacy Gasless Transfer Tests
-# ─────────────────────────────────────────────────────────────
-echo ""
-echo "================================================================"
-echo "  Phase 8: Legacy Gasless Transfer Tests"
+echo "  Phase 7: Legacy Gasless Transfer Tests"
 echo "================================================================"
 
 run_test "Gasless: PaymasterV4"            "node $SCRIPT_DIR/test-case-1-paymasterv4.js"
