@@ -67,7 +67,10 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // Global stats
     uint256 public totalStaked;
 
-    /// @notice Maximum total stake cap (21M GToken = total supply)
+    /// @notice Maximum total stake cap — equals GToken total supply (21M).
+    /// GToken is a limited-issuance governance token (analogous to BTC's 21M cap).
+    /// Using `constant` is intentional: the supply cap is a protocol invariant,
+    /// not a tunable parameter. Adjusting it requires a full token economics redesign.
     uint256 public constant MAX_TOTAL_STAKE = 21_000_000 ether;
 
 
