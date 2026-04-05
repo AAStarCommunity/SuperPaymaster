@@ -1,0 +1,6 @@
+{
+	"dependencies": {
+		"ethers": "^6.16.0",
+		"dotenv": "^17.3.1"
+	}
+}
