@@ -60,7 +60,9 @@ contract UpgradeAuditFix is Script {
         console.log("  Old ReputationSystem:", oldRepSystem);
         console.log("");
 
-        // Pre-checks: verify caller is owner of both proxies
+        // Pre-checks: verify caller is owner of both proxies.
+        // In Forge Script context, msg.sender is the broadcast account
+        // (set via --account or --private-key flag).
         address registryOwner = Registry(registryProxy).owner();
         address spOwner       = SuperPaymaster(payable(spProxy)).owner();
         require(registryOwner == msg.sender, "Caller is not Registry owner");

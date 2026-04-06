@@ -4,10 +4,10 @@
 本报告以“挑战者”视角进行深度复审，目标是识别可利用漏洞与性能黑洞。结论：当前代码库存在可利用的逻辑缺口与性能陷阱，**主网发布前需修复至少 P0/P1 项**。
 
 ## 关键漏洞（含利用面）
-1. **角色视图污染（权限与索引失真）**
+1. ~~**角色视图污染（权限与索引失真）**~~ **[已验证：非问题]**
 位置：`contracts/src/core/Registry.sol`
-问题：`safeMintForRole()` 未维护 `userRoles` 数组，导致 `getUserRoles()` 与 `userRoleCount` 不一致。攻击者可利用该不一致制造“无角色/错角色”视图，在前端或索引器上绕过风控或触发错误授权流程。
-建议：将 `userRoles` 维护合并进 `_firstTimeRegister()` 或在 `safeMintForRole()` 中补齐。
+原始描述：`safeMintForRole()` 未维护 `userRoles` 数组。
+**验证结果**：代码第344行 `userRoles[user].push(roleId)` 已正确维护，`getUserRoles()` 与实际角色一致。本条为静态审计误报。
 
 2. **PaymasterV4 价格计算溢出 → 拒绝服务**
 位置：`contracts/src/paymasters/v4/PaymasterBase.sol`
@@ -57,7 +57,7 @@ GTokenStaking 采用共享池模型，slash 会影响所有质押者，易被攻
 - **性能黑洞级**：字符串索引、零金额锁残留、外部自调用、BLS 高成本路径无边界。
 
 ## 发布前最小修复清单
-1. 修复 `safeMintForRole` 的 `userRoles` 维护。
+1. ~~修复 `safeMintForRole` 的 `userRoles` 维护。~~ **[已验证：非问题，代码已正确维护]**
 2. 修复 PaymasterV4 价格计算溢出风险。
 3. 为 SuperPaymaster `postOp` 添加容错与告警。
 4. 明确关键参数安全区间并写入发布流程。
