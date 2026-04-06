@@ -1,1522 +1,438 @@
-# SuperPaymaster - Decentralized Gas Payment Infrastructure
+# SuperPaymaster
+
+**Decentralized Payment & Gas Sponsorship Infrastructure for ERC-4337**
 
 **[English](#english)** | **[中文](#chinese)**
+
+> **Beta 0.22** (Internal: V5.3) — Sepolia Testnet Live
 
 <a name="english"></a>
 
 ---
 
-## 🎯 What is SuperPaymaster?
+## What is SuperPaymaster?
 
-SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Account Abstraction that enables:
+SuperPaymaster is a **multi-mode payment infrastructure** for the ERC-4337 Account Abstraction ecosystem. It goes beyond simple gas sponsorship — combining gasless transactions, x402 resource payments, micropayment channels, and AI agent economy into a unified on-chain settlement layer.
 
-- **For Communities**: Deploy custom paymasters with your own community tokens (xPNTs)
-- **For Users**: Seamless gas sponsorship using community points instead of ETH
-- **For Developers**: Easy integration with shared configuration and battle-tested contracts
-- **CLI Guide**: [Command Line Interface Guide](./docs/CLI_GUIDE.md)
+### Who is it for?
 
-### Key Features
-
-✅ **Two Operating Modes**:
-- **AOA Mode**: Independent paymaster for each community (via PaymasterFactory)
-- **AOA+ Mode**: Shared multi-operator paymaster (via SuperPaymasterV2)
-
-✅ **Community-First Design**:
-- Register your community in the Registry
-- Deploy custom xPNTs tokens for your members
-- Manage SBT (Soulbound Token) memberships with reputation system
-
-✅ **Security & Governance**:
-- GToken staking system with slashing mechanism
-- Chainlink oracle integration for price feeds (v2.0.1: enhanced security)
-- Multi-layer validation and reputation tracking
-- **V3.1.1 Testing & Security**:
-  - 🧪 [V3.1.1 Testing Framework (Beginner Ready)](./docs/V3_Testing_Framework.md) - How to run V3 tests
-  - 📜 [Stage 1 Audit Summary](./docs/Stage1_Audit_Summary.md) - Coverage & security audit report
-  - 🛡️ [Security Architecture V3.1.1](./docs/Security_Architecture_V3_1.md) - DVT Slashing & Reputation System
-  - 🚀 [Security & Performance Action Plan](./docs/SECURITY_AND_PERFORMANCE.md) - Best practices workflow
-- **V3 Refactor Planned**: [Credit-Based Architecture & DVT Security](./docs/V3_REFACTOR_DESIGN.md) on Sepolia testnet
-- **Deployment Strategy V3**: [Deterministic Deployment & Upgradability](./docs/DEPLOYMENT_STRATEGY_V3.md) (Planned)
-- Mainnet deployment ready (pending audit)
-
-🧪- [Stage 2 测试覆盖率分析报告](file:///Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/docs/StageScenariosCoverage.md)
-- [业务场景与 SDK 模块映射表](file:///jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/docs/Scenario_SDK_Mapping.md)
- (100% Regression Pass)
-✅ **Production Ready**:
-- 213/213 tests passing
-- Deployed on Sepolia testnet
+- **Communities**: Sponsor gas fees for members using community tokens (xPNTs)
+- **AI Agents**: Discover and pay for on-chain services via ERC-8004 identity + x402
+- **Developers**: Integrate gasless UX, micropayments, or x402 settlement with battle-tested contracts
+- **Operators**: Run decentralized paymaster nodes with DVT/BLS consensus
 
 ---
 
-## 🏗️ Architecture Overview
+## Payment Modes
 
-### AAstar SuperPaymaster Ecosystem
+SuperPaymaster supports **4 payment channels** in a single contract system:
 
-```
-┌────────────────────────────────────────────────────────────┐
-│             AAstar SuperPaymaster Ecosystem                 │
-├────────────────────────────────────────────────────────────┤
-│                                                              │
-│  【SuperPaymaster】(Core Contracts)                          │
-│   Solidity Smart Contracts                                  │
-│   ├─ SuperPaymasterV2 v2.3.3 (AOA+ Shared Mode)            │
-│   ├─ PaymasterV4/V4_1 (AOA Independent Mode)               │
-│   ├─ Registry v2.2.1 (Community Registry)                  │
-│   ├─ GTokenStaking v2.0.1 (Staking + Slash)                │
-│   ├─ MySBT v2.4.5 (Identity System)                        │
-│   └─ xPNTsFactory v2.0.0 (Gas Token Factory)               │
-│        ↓ Deployment                                          │
-│        ↓ ABI + Addresses                                     │
-│                                                              │
-│  【shared-config】(Configuration Hub)                        │
-│   npm package @aastar/shared-config v0.2.18                 │
-│   ├─ All Contract Addresses (Sepolia)                       │
-│   ├─ Network Configuration (RPC, Explorer)                  │
-│   ├─ Constants (Fee Rates, Stake Amounts)                   │
-│   └─ ABI Exports                                             │
-│        ↓ Dependency                                          │
-│        ↓                                                     │
-│  【registry】(Operations Frontend)      ←─────┐              │
-│   React 19 + TypeScript + Vite                │              │
-│   ├─ DeployWizard (7-Step Deployment)        │              │
-│   ├─ ExplorerHub (Registry Browser)          │              │
-│   ├─ Analytics (Gas Analysis)                 │              │
-│   └─ RPC Proxy (Vercel Serverless)           │              │
-│                                                │              │
-│  【faucet】(Testing Tools)              ←─────┘              │
-│   Vercel Serverless + Pure HTML Frontend                    │
-│   ├─ Distribute SBT/PNT/GToken/USDT                         │
-│   ├─ Create SimpleAccount                                    │
-│   └─ PaymasterV4 Liquidity Pool Init                        │
-│                                                              │
-└────────────────────────────────────────────────────────────┘
+| Mode | Protocol | Description | Since |
+|------|----------|-------------|-------|
+| **Gas Sponsorship** | ERC-4337 | Operators pre-fund aPNTs; users pay zero gas, repay in xPNTs (community tokens) | V3 |
+| **x402 Settlement** | HTTP 402 + EIP-3009 | Single-payment resource purchases — client pays USDC/xPNTs per request | V5.1 |
+| **Micropayment Channel** | EIP-712 Vouchers | Streaming micro-charges with off-chain signing and batch on-chain settlement | V5.2 |
+| **Agent Sponsorship** | ERC-8004 | Reputation-driven tiered gas sponsorship for registered AI agents | V5.3 |
 
-### Core Contracts (7 Main Components)
+### Two Operating Modes
 
-#### Contract Dependency Graph
-
-```mermaid
-graph TB
-    GToken[GToken v2.0.0<br/>ERC20 Governance Token]
-
-    GTokenStaking[GTokenStaking v2.0.1<br/>Staking + Lock + Slash]
-    GToken --> GTokenStaking
-
-    Registry[Registry v2.2.1<br/>Community Registry]
-    GToken --> Registry
-    GTokenStaking --> Registry
-
-    MySBT[MySBT v2.4.5<br/>Soulbound Token + Reputation]
-    GToken --> MySBT
-    GTokenStaking --> MySBT
-    Registry --> MySBT
-
-    SuperPaymasterV2[SuperPaymasterV2 v2.3.3<br/>AOA+ Shared Paymaster]
-    GToken --> SuperPaymasterV2
-    GTokenStaking --> SuperPaymasterV2
-    Registry --> SuperPaymasterV2
-    MySBT -.->|SBT Callback| SuperPaymasterV2
-
-    xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas Token Factory]
-    SuperPaymasterV2 --> xPNTsFactory
-    Registry --> xPNTsFactory
-
-    PaymasterFactory[PaymasterFactory v1.0.0<br/>AOA Mode Factory]
-
-    style GToken fill:#e1f5ff
-    style GTokenStaking fill:#fff4e1
-    style Registry fill:#ffe1f5
-    style MySBT fill:#e1ffe1
-    style SuperPaymasterV2 fill:#ffe1e1
-    style xPNTsFactory fill:#f5e1ff
-    style PaymasterFactory fill:#e1e1e1
-```
-
-**Deployment Order**:
-1. GToken (no dependencies)
-2. GTokenStaking (depends on GToken)
-3. Registry (depends on GTokenStaking)
-4. MySBT (depends on GToken, GTokenStaking, Registry)
-5. SuperPaymasterV2 (depends on GTokenStaking, Registry, Chainlink Price Feed)
-6. xPNTsFactory (depends on SuperPaymasterV2, Registry)
-7. PaymasterFactory (no dependencies)
-
-#### 1. **GToken** (Governance Token)
-- **Version**: v2.0.0
-- **Type**: ERC20 with Cap + Ownable
-- **Purpose**: System governance token, supports staking and minting
-- **Features**: Capped supply, transferable, mintable by owner
-
-#### 2. **GTokenStaking** (Staking Contract)
-- **Version**: v2.0.1
-- **Type**: Staking + Lock + Slash Mechanism
-- **Purpose**: GToken staking, locking, and slashing system
-- **New Features**:
-  - `stakeFor()` - Stake on behalf of other users
-  - `balanceOf()` - Unified API for staked balance
-- **Security**: Authorized locker system for Registry, MySBT, and SuperPaymaster
-
-#### 3. **Registry** (Community Registry)
-- **Version**: v2.2.1 (latest)
-- **Type**: Community Registry + Slash System
-- **Purpose**: Community registration, node management, slashing mechanism
-- **Node Types**:
-  - `PAYMASTER_AOA`: Independent paymaster (30 GT stake)
-  - `PAYMASTER_SUPER`: Shared paymaster (50 GT stake)
-  - `ANODE`: Community compute node (20 GT stake)
-  - `KMS`: Key management service (100 GT stake)
-- **New Features (v2.2.1)**:
-  - `registerCommunityWithAutoStake()` - Single transaction registration
-  - Duplicate prevention with `isRegistered` mapping
-
-#### 4. **MySBT** (Soulbound Token)
-- **Version**: v2.4.5 (latest)
-- **Type**: ERC721 (Soulbound) + Reputation System
-- **Purpose**: User identity, community membership, reputation tracking
-- **Key Features**:
-  - `mintWithAutoStake()` - Single transaction for staking + minting
-  - NFT avatar binding
-  - Multi-community membership support
-  - Reputation scoring with activity bonuses
-  - **SuperPaymaster callback** - Auto-register SBT holders in paymaster
-- **Size**: 21.4KB (optimized from 27.2KB)
-
-#### 5. **SuperPaymasterV2** (AOA+ Mode Paymaster)
-- **Version**: v2.3.3 (latest)
-- **Type**: ERC-4337 Paymaster + Multi-operator
-- **Purpose**: Shared paymaster for AOA+ mode, aPNTs payment
-- **Key Features (v2.3.3)**:
-  - ✅ **PostOp Payment**: xPNTs transfer in postOp phase
-  - ✅ **SBT Internal Registry**: MySBT callback integration
-  - ✅ **Debt Tracking**: User debt management system
-  - ✅ **Price Caching**: Optimized Chainlink oracle calls
-  - ✅ Chainlink oracle validation with staleness check
-  - ✅ Price bounds validation ($100-$100k)
-
-#### 6. **PaymasterFactory** (Paymaster Factory)
-- **Version**: v1.0.0
-- **Type**: EIP-1167 Minimal Proxy Factory
-- **Purpose**: Deploy independent AOA mode paymasters
-- **Benefits**: Gas-efficient deployment, isolated operator control
-
-#### 7. **xPNTsFactory** (xPNTs Token Factory)
-- **Version**: v2.0.0
-- **Type**: Token Factory
-- **Purpose**: Deploy custom xPNTs tokens for communities
-- **Features**: Exchange rate configuration, paymaster integration
+- **AOA+ Mode** (SuperPaymaster): Shared multi-operator paymaster with Registry-based community management
+- **AOA Mode** (PaymasterV4): Independent per-community paymasters deployed via EIP-1167 minimal proxy factory
 
 ---
 
-## 🚀 Quick Start
+## Architecture
 
-### For Community Operators
-
-#### 1. Register Your Community
-
-```solidity
-import "@aastar/shared-config/contracts/Registry.sol";
-
-// Get Registry contract from shared-config
-Registry registry = Registry(REGISTRY_ADDRESS);
-
-// Register your community
-registry.registerCommunity(
-    "MyAwesomeCommunity",           // name
-    "myawesome.eth",                // ENS name
-    xpntsTokenAddress,              // your community token
-    [mySBTAddress],                 // supported SBTs
-    Registry.NodeType.PAYMASTER_AOA, // node type
-    address(0)                       // paymaster (set later)
-);
+```
+                    ┌──────────────────────────────────┐
+                    │         EntryPoint v0.7           │
+                    │   (ERC-4337 Standard)             │
+                    └──────────┬───────────────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+   ┌──────────────────┐ ┌───────────┐ ┌──────────────────┐
+   │  SuperPaymaster   │ │ Paymaster │ │ MicroPayment     │
+   │  (AOA+ Shared)    │ │ V4 (AOA)  │ │ Channel          │
+   │  ┌──────────────┐ │ │ EIP-1167  │ │ EIP-712 Vouchers │
+   │  │ Gas Sponsor  │ │ │ Proxies   │ │ Batch Settle     │
+   │  │ x402 Settle  │ │ └───────────┘ └──────────────────┘
+   │  │ Agent Policy │ │
+   │  │ Credit/Debt  │ │
+   │  └──────────────┘ │
+   └────────┬──────────┘
+            │
+   ┌────────┼──────────────────────────────────┐
+   │        ▼            ▼            ▼        │
+   │   ┌─────────┐ ┌─────────┐ ┌───────────┐  │
+   │   │Registry │ │ MySBT   │ │ GToken    │  │
+   │   │ (UUPS)  │ │ (SBT)   │ │ Staking   │  │
+   │   └─────────┘ └─────────┘ └───────────┘  │
+   │        ▼            ▼                     │
+   │   ┌──────────┐ ┌──────────────┐           │
+   │   │xPNTs     │ │ Reputation   │           │
+   │   │Factory   │ │ System       │           │
+   │   └──────────┘ └──────────────┘           │
+   │                                           │
+   │   ┌──────────┐ ┌──────────────┐           │
+   │   │DVT       │ │ BLS          │           │
+   │   │Validator │ │ Aggregator   │           │
+   │   └──────────┘ └──────────────┘           │
+   └───────────────────────────────────────────┘
+              Supporting Contracts
 ```
 
-#### 2. Deploy Your xPNTs Token
+### Core Contracts
 
-```solidity
-import "@aastar/shared-config/contracts/xPNTsFactory.sol";
+| Contract | Version | Type | Role |
+|----------|---------|------|------|
+| **SuperPaymaster** | 5.3.0 | UUPS Proxy | AOA+ shared paymaster — gas sponsorship, x402, agent policies, credit/debt |
+| **Registry** | 4.1.0 | UUPS Proxy | Community/node registration, role management, BLS replay protection, slashing |
+| **PaymasterV4** | 4.3.0 | EIP-1167 Proxy | AOA independent paymaster per community |
+| **GToken** | 2.0.0 | ERC20 | Governance token (21M cap, mintable, burnable) |
+| **GTokenStaking** | 3.2.0 | Immutable | Role-based staking with burn mechanism, DVT/governance slashing |
+| **MySBT** | 3.1.3 | ERC721 (Soulbound) | Identity + reputation, community membership, SBT-gated sponsorship |
+| **xPNTsFactory** | 2.0.0 | Clones | Deploys per-community xPNTs gas tokens |
+| **ReputationSystem** | 1.0.0 | — | Community-rule-based reputation scoring |
+| **BLSAggregator** | 1.0.0 | — | BLS12-381 threshold signature aggregation |
+| **DVTValidator** | 1.0.0 | — | Distributed validator consensus (7-of-13 quorum) |
+| **PaymasterFactory** | 1.0.0 | — | EIP-1167 proxy factory for PaymasterV4 instances |
 
-xPNTsFactory factory = xPNTsFactory(XPNTS_FACTORY_ADDRESS);
+### V5 Feature Highlights
 
-address xpntsToken = factory.deployxPNTsToken(
-    "MyAwesome Points",      // token name
-    "MAP",                   // token symbol
-    "MyAwesomeCommunity",    // community name
-    "myawesome.eth",         // ENS name
-    1 ether,                 // exchange rate (1:1)
-    paymasterAddress         // your paymaster
-);
-```
+**V5.1 — x402 Exact Settlement**
+- `settleX402Payment()` — EIP-3009 `transferWithAuthorization` for USDC-native settlement
+- `settleX402PaymentDirect()` — `transferFrom` for xPNTs (auto-approved by factory)
+- `chargeMicroPayment()` — EIP-712 signed deferred settlement
 
-#### 3. Choose Your Paymaster Mode
+**V5.2 — Micropayment Channel**
+- `MicroPaymentChannel` contract — open/sign/settle streaming sessions
+- EIP-712 cumulative voucher signing with dispute window
+- Batch settlement for high-frequency micro-charges
 
-**Option A: AOA Mode (Independent Paymaster)**
+**V5.3 — Agent Economy (ERC-8004)**
+- Dual-channel eligibility: SBT holders OR registered AI agents
+- `AgentSponsorshipPolicy` — per-operator tiered BPS rates + daily USD cap
+- `_submitSponsorshipFeedback()` — on-chain reputation feedback loop
+- EIP-1153 transient storage cache for same-operator batch optimization
 
-```solidity
-import "@aastar/shared-config/contracts/PaymasterFactory.sol";
+### Security Architecture
 
-PaymasterFactory factory = PaymasterFactory(PAYMASTER_FACTORY_ADDRESS);
-
-address myPaymaster = factory.deployPaymaster(
-    xpntsTokenAddress,       // your xPNTs token
-    mySBTAddress,            // your MySBT contract
-    treasuryAddress,         // your treasury
-    200                      // fee rate (2%)
-);
-```
-
-**Option B: AOA+ Mode (Shared Paymaster)**
-
-```solidity
-import "@aastar/shared-config/contracts/SuperPaymasterV2.sol";
-
-SuperPaymasterV2 superPaymaster = SuperPaymasterV2(SUPERPAYMASTER_V2_ADDRESS);
-
-// Join as operator
-superPaymaster.depositAPNTs(
-    operatorAddress,
-    apntsAmount,
-    xpntsTokenAddress,
-    treasuryAddress,
-    exchangeRate
-);
-```
-
-### For Developers
-
-#### Install Shared Config
-
-```bash
-npm install @aastar/shared-config
-# or
-pnpm add @aastar/shared-config
-```
-
-#### Use Contract Addresses
-
-```typescript
-import {
-  getRegistryAddress,
-  getSuperPaymasterAddress,
-  getxPNTsFactoryAddress
-} from '@aastar/shared-config';
-
-const registryAddress = getRegistryAddress('sepolia');
-const superPaymasterAddress = getSuperPaymasterAddress('sepolia');
-```
-
-#### Integrate with Your dApp
-
-```javascript
-import { ethers } from 'ethers';
-import SuperPaymasterV2ABI from '@aastar/shared-config/abis/SuperPaymasterV2.json';
-
-const superPaymaster = new ethers.Contract(
-  superPaymasterAddress,
-  SuperPaymasterV2ABI,
-  signer
-);
-
-// Get operator info
-const operatorInfo = await superPaymaster.accounts(operatorAddress);
-console.log('aPNTs Balance:', operatorInfo.aPNTsBalance);
-```
+- **UUPS Upgradeable Proxies** for Registry and SuperPaymaster
+- **ReentrancyGuard** on all state-changing functions
+- **Two-tier slashing**: aPNTs (operational) + GToken stake (governance)
+- **DVT/BLS consensus**: 7-of-13 Byzantine quorum for validator operations
+- **Chainlink oracle** with staleness check, price bounds ($100–$100K), and keeper cache
+- **Zero-address guards** on all setter functions (L-04 audit fix)
+- **BLS replay protection** with non-zero proposalId enforcement (H-02 audit fix)
+- **CEI order** in postOp with nonReentrant double protection (H-01 audit fix)
 
 ---
 
-## 📱 Web Interface
-
-The SuperPaymaster ecosystem has a full-featured web dashboard:
-
-**Repository**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-
-**Features**:
-- 🌐 Community registration and management
-- 🎫 Deploy xPNTs tokens
-- 🚀 Launch paymasters (AOA & AOA+ modes)
-- 👤 Mint and manage MySBT tokens
-- 📊 Monitor paymaster activity and statistics
-- 🔍 View community profiles and reputation
-
-**Live Demo**: [superpaymaster.aastar.io](https://superpaymaster.aastar.io)
-
-**Local Development**:
-```bash
-# Clone registry repository
-git clone https://github.com/AAStarCommunity/registry.git
-cd registry
-
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm dev
-
-# Visit http://localhost:3000
-```
-
----
-
-## 💼 For Users
-
-### Mint Your MySBT
-
-```solidity
-import "@aastar/shared-config/contracts/MySBT.sol";
-
-MySBT mySBT = MySBT(MYSBT_ADDRESS);
-
-// Mint with auto-stake (single transaction)
-mySBT.mintWithAutoStake{value: mintFee}(
-    communityAddress,
-    minLockAmount,
-    metadata
-);
-```
-
-### Use Gas Sponsorship
-
-Your dApp can sponsor user transactions using community tokens:
-
-```javascript
-// Prepare UserOperation with paymaster
-const userOp = {
-  sender: userAddress,
-  // ... other fields
-  paymasterAndData: encodePaymasterData(
-    paymasterAddress,
-    validUntil,
-    validAfter,
-    signature
-  )
-};
-
-// Send to bundler
-const result = await bundler.sendUserOperation(userOp, entryPointAddress);
-```
-
----
-
-## 🛠️ Development
+## Quick Start
 
 ### Prerequisites
 
-- [Foundry](https://book.getfoundry.sh/) - Smart contract development framework
-- [Node.js](https://nodejs.org/) v16+ - For scripts and testing
-- [pnpm](https://pnpm.io/) - Package manager
+- [Foundry](https://book.getfoundry.sh/) (Solidity 0.8.33, via-IR, Cancun EVM)
+- [Node.js](https://nodejs.org/) v18+
+- [pnpm](https://pnpm.io/)
 
-### Repository Structure
+### Build & Test
+
+```bash
+# Clone and init submodules
+git clone https://github.com/AAStarCommunity/SuperPaymaster.git
+cd SuperPaymaster
+./init-submoduel.sh
+
+# Build
+forge build
+
+# Run all tests (400+ tests)
+forge test
+
+# Run specific test suite
+forge test --match-path contracts/test/v3/Registry.t.sol
+
+# Run with gas report
+forge test --gas-report
+
+# Echidna fuzz testing
+echidna . --config echidna.yaml
+```
+
+### Deploy
+
+```bash
+# Deploy to local Anvil
+./deploy-core anvil
+
+# Deploy to Sepolia
+./deploy-core sepolia
+
+# Prepare test accounts
+./prepare-test sepolia
+
+# Run E2E gasless tests
+cd script/gasless-tests && pnpm install && ./run-all-tests.sh
+```
+
+For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./docs/DEPLOYMENT_V3_GUIDE.md).
+
+---
+
+## Contract Addresses (Sepolia)
+
+| Contract | Proxy | Implementation |
+|----------|-------|----------------|
+| Registry | `0xD88CF5316c64f753d024fcd665E69789b33A5EB6` | `0x84bB9e3CAfb90C5938731A6dA1ADdee301F0B2D0` |
+| SuperPaymaster | `0x829C3178DeF488C2dB65207B4225e18824696860` | `0xf4d022Ea721Aaa1Dec8CC8f3B630547D34C6c972` |
+| ReputationSystem | — | `0x3384317Da5312077218C990CeB1010CCb5dc5897` |
+| GToken | — | `0x868F8437F1be18008B31E4E590e62C0BfD81B72c` |
+| GTokenStaking | — | `0x92eD5b65A97E98ee84B3d3d73aA33F678B68a64B` |
+| MySBT | — | `0xc108584B5b6bc7D95e55E12FCEFa61108cE0D378` |
+| xPNTsFactory | — | `0xC2AFEA04f06C2A8d2A19cCd1839DFaf84b6bC1e0` |
+| PaymasterFactory | — | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
+
+**EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
+
+**Mainnet**: Pending audit — deployment after Beta stabilization.
+
+---
+
+## Documentation
+
+### Architecture & Design
+- [Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)
+- [UUPS Upgrade Guide](./docs/UUPS-upgrade-doc.md)
+- [DVT + BLS Architecture](./docs/DVT_BLS_Architecture.md)
+- [V5 Design Overview](./docs/SuperPaymaster-V5-Design.md)
+- [x402 Ecosystem Research](./docs/research-x402-ecosystem-2026-03.md)
+- [Agent + x402 + Micropayment Research](./docs/research-agent-x402-micropayment.md)
+
+### Developer Guides
+- [Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — Gasless, x402, micropayment scenarios
+- [SDK E2E Scenario Guide](./docs/SDK-E2E-Scenario-Guide.md) — 7 complete user scenarios
+- [Ecosystem Services Setup](./docs/ECOSYSTEM-SERVICES-SETUP-GUIDE.md) — Operator node, facilitator, keeper
+
+### API References
+- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (V5.3.0)
+- [Registry API](./docs/API_REGISTRY.md) (V4.1.0)
+- [MySBT API](./docs/API_MYSBT.md)
+
+### Security
+- [Security Policy](./docs/SECURITY.md)
+- [Audit Fix Summary](./docs/challenger-review-2026-03-26.md)
+
+### Testing
+- [Anvil Testing Guide](./docs/Anvil_Testing_Guide.md)
+- [E2E Test Guide](./docs/E2E-TEST-GUIDE.md)
+- [Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md)
+
+---
+
+## Repository Structure
 
 ```
 SuperPaymaster/
-├── contracts/                    # All Solidity code
-│   ├── src/                      # Contract source
-│   │   ├── paymasters/           # Paymaster implementations
-│   │   │   ├── v2/              # SuperPaymasterV2
-│   │   │   ├── v3/              # PaymasterV3 variants
-│   │   │   └── v4/              # PaymasterV4 family
-│   │   ├── tokens/              # MySBT, xPNTs tokens
-│   │   ├── base/                # GToken, Staking, Registry
-│   │   └── utils/               # Helper contracts
-│   ├── test/                    # Test files (206 tests)
-│   ├── lib/                     # Dependencies
-│   └── deployments/             # Deployment records
-├── script/                      # Foundry deployment scripts
-├── docs/                        # Documentation
-├── deprecated/                  # Archived old code
-└── foundry.toml                 # Foundry configuration
-```
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/AAStarCommunity/SuperPaymaster.git
-cd SuperPaymaster
-
-# Initialize submodules
-git submodule update --init --recursive
-
-# Install Foundry dependencies
-forge install
-
-# Build contracts
-forge build
-```
-
-### Testing
-
-```bash
-# Run all tests
-forge test
-
-# Run with verbosity
-forge test -vvv
-
-# Run specific test file
-forge test --match-path contracts/test/SuperPaymasterV2.t.sol
-
-# Run specific test function
-forge test --match-test test_PaymasterExecution
-
-# Generate gas snapshot
-forge snapshot
-
-# Generate coverage report
-forge coverage
-```
-
-### Deployment
-
-#### Deploy to Sepolia Testnet
-
-```bash
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your keys
-
-# Deploy SuperPaymasterV2 v2.0.1
-forge script script/DeploySuperPaymasterV2_0_1.s.sol:DeploySuperPaymasterV2_0_1 \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast \
-  --verify \
-  -vvvv
-
-# Check deployment info
-cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
-```
-
-#### Secure Deployment (Mainnet/Testnet)
-We use **Foundry Keystore** to manage private keys securely (simulating hardware wallets).
-
-**1. Secure Import (Offline Procedure)**:
-*   **Disconnect from Internet** (Turn off Wi-Fi/Ethernet).
-*   **Import Private Key**:
-    ```bash
-    # Interactive import (paste your private key securely)
-    cast wallet import optimism-deployer --interactive
-    ```
-*   **Clear Clipboard** (MacOS):
-    ```bash
-    pbcopy < /dev/null
-    ```
-*   **Reconnect to Internet**.
-
-**2. Configure Environment**:
-Edit your `.env.<network>` (e.g., `.env.optimism`) to include:
-```bash
-DEPLOYER_ACCOUNT=optimizer-deployer
-RPC_URL=...
-ENTRY_POINT=...
-ETH_USD_FEED=...
-SIMPLE_ACCOUNT_FACTORY=...
-ETHERSCAN_API_KEY=...
-```
-
-3. **Deploy**:
-```bash
-# The script automatically detects the DEPLOYER_ACCOUNT and uses secure signing
-./deploy-core optimism
-```
-
-**Deployment Guides**:
-- [SuperPaymasterV2 v2.0.1 Deployment](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)
-- [Registry v2.2.0 Deployment](./docs/DEPLOY_REGISTRY_V2.2.0.md) (coming soon)
-- [Full Deployment Guide](./docs/DEPLOYMENT_READY.md)
-- [**Sepolia Redeployment Summary (V3.1.1)**](./docs/SEPOLIA_DEPLOYMENT_SUMMARY.md) (Latest Dec 28)
-
-#### PaymasterV4 Stablecoin Configuration
-
-PaymasterV4 (AOA Mode) supports **any ERC20 token** as gas payment, including stablecoins (USDC, USDT). Token addresses differ per chain — see [`deployments/stablecoins.json`](./deployments/stablecoins.json) for canonical addresses.
-
-| Chain | USDC | USDT |
-|-------|------|------|
-| Ethereum (1) | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
-| Optimism (10) | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e68` |
-| Arbitrum (42161) | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
-| Base (8453) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | N/A |
-| Sepolia / OP-Sepolia | Deploy MockUSDC | Deploy MockUSDT |
-
-> **Note**: USDC/USDT addresses are **different on every chain**. There is no universal address.
-
-**Configure stablecoins after deploying PaymasterV4:**
-
-```bash
-# 1. Batch-configure USDC + USDT on a deployed PaymasterV4
-PAYMASTER_V4=0x... \
-USDC_ADDR=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
-USDT_ADDR=0x94b008aA00579c1307B0EF2c499aD98a8ce58e68 \
-forge script contracts/script/v4/ConfigureStablecoins.s.sol:ConfigureStablecoins \
-  --rpc-url $OPTIMISM_RPC_URL --broadcast --account deployer
-
-# 2. Query all supported tokens on-chain
-cast call $PAYMASTER_V4 "getSupportedTokensInfo()" --rpc-url $RPC_URL
-
-# 3. Add / remove tokens individually
-cast send $PAYMASTER_V4 "setTokenPrice(address,uint256)" $NEW_TOKEN 1e8 --account deployer
-cast send $PAYMASTER_V4 "removeToken(address)" $OLD_TOKEN --account deployer
+├── contracts/
+│   ├── src/
+│   │   ├── paymasters/
+│   │   │   ├── superpaymaster/v3/   # SuperPaymaster (UUPS)
+│   │   │   └── v4/                  # PaymasterV4 (AOA mode)
+│   │   ├── core/
+│   │   │   ├── Registry.sol         # Community registry (UUPS)
+│   │   │   ├── GTokenStaking.sol    # Staking + slashing
+│   │   │   └── PaymasterFactory.sol # EIP-1167 factory
+│   │   ├── tokens/
+│   │   │   ├── GToken.sol           # Governance token
+│   │   │   ├── MySBT.sol            # Soulbound identity
+│   │   │   ├── xPNTsFactory.sol     # Community token factory
+│   │   │   └── xPNTsToken.sol       # Community gas token
+│   │   ├── modules/
+│   │   │   ├── validators/          # BLS validator
+│   │   │   ├── monitoring/          # DVT + BLS aggregator
+│   │   │   └── reputation/          # Reputation system
+│   │   └── interfaces/              # Contract interfaces
+│   ├── test/                        # 400+ Foundry tests
+│   ├── script/                      # Forge deployment scripts
+│   └── lib/                         # Dependencies (OZ, Chainlink, Solady)
+├── script/
+│   └── gasless-tests/               # E2E Sepolia test suite
+├── deployments/                     # Config per network
+├── docs/                            # All documentation
+├── abis/                            # Extracted ABI JSONs
+└── subgraph/                        # The Graph indexing
 ```
 
 ---
 
-## 📊 Contract Addresses
+## Security
 
-### Sepolia Testnet
+- 400+ Foundry tests passing (including UUPS upgrade, V5 feature, fuzz tests)
+- Echidna property-based fuzzing
+- Internal adversarial review completed
+- External audit pending for mainnet deployment
 
-| Contract | Version | Address |
-|----------|---------|---------|
-| GToken | v2.0.0 | `0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc` |
-| GTokenStaking | v2.0.1 | `0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0` |
-| Registry | v2.2.1 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
-| MySBT | **v2.4.5** | `0xa4eda5d023ea94a60b1d4b5695f022e1972858e7` |
-| SuperPaymasterV2 | **v2.3.3** | `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db` |
-| PaymasterFactory | v1.0.0 | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
-| xPNTsFactory | v2.0.0 | `0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd` |
-
-**Latest Updates (2025-11-25)**:
-- MySBT **v2.4.5**: Contract size optimized (27.2KB → 21.4KB), SuperPaymaster callback
-- SuperPaymasterV2 **v2.3.3**: PostOp payment, SBT internal registry, debt tracking
-- ✅ Gasless transaction verified: [0x9ea5ca...](https://sepolia.etherscan.io/tx/0x9ea5ca33fd7790a422cf27f2999d344f8a8f999beb5a15f03cd441ad07b494bb)
-
-**Import via Shared Config**:
-```typescript
-import { SEPOLIA_ADDRESSES } from '@aastar/shared-config';
-
-console.log(SEPOLIA_ADDRESSES.REGISTRY);
-console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
-```
-
-### Mainnet
-
-Coming soon after security audit.
+**Report a Vulnerability**: jason@aastar.io or david@aastar.io — see [Security Policy](./docs/SECURITY.md)
 
 ---
 
-## 📖 Documentation
-
-### Technical Documentation
-
-- **[Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)** - Complete dependency graph, data structures, and constructor params
-- **[Registry Role Mechanism](./contracts/docs/Registry_Role_Mechanism.md)** - Role configuration, management, and exit fee system
-- [Two-Tier Slashing Mechanism](docs/Two_Tier_Slashing_Mechanism.md)
-- [Admin Configuration Rights](docs/Admin_Configuration_Rights.md)
-- [Phase 7: Credit System Redesign (用户信用债务系统)](docs/Phase7_Credit_System_Redesign.md)
-- **[Phase 6 Verification Report](./contracts/docs/Phase6_Verification_Report.md)** - V3.1.1 test results and deployment readiness
-- **[Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless transaction integration
-- **[DVT+BLS Architecture](./docs/DVT_BLS_Architecture.md)** - 去中心化验证者技术架构与BLS签名聚合
-- **[Oracle Failover Mechanism](./docs/Oracle_Failover_Mechanism.md)** - Chainlink降级与DVT自动切换机制
-- **[Price Cache Technical Reference](./docs/Price_Cache_Technical_Reference.md)** - Price Cache机制技术实现详解
-- **[Oracle Security Fix](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 security enhancement details
-- **[Repository Refactoring](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - Recent improvements
-- **[Deployment Guide](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - Step-by-step deployment
-- **[Gas Optimization Plan](./docs/GAS_OPTIMIZATION_PLAN.md)** - Hybrid Cache + Keeper Strategy Analysis
-
-### User Guides
-
-- **[MySBT User Guide](./docs/MYSBT_USER_GUIDE.md)** - Minting and managing SBT tokens
-- **[Community Registration](./docs/COMMUNITY_REGISTRATION.md)** - Registering your community
-- **[Paymaster Operator Guide](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - Operating AOA/AOA+ paymasters
-- **[Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md)** - Testing gasless transactions
-
-### API References
-
-- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
-- **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
-- **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
-
-### Testing & Evaluation
-- **[Anvil Testing Guide](./docs/Anvil_Testing_Guide.md)** - Complete guide for local Anvil testing (NEW)
-- **[Local Test Guide](./docs/Local_Test_Guide.md)** - Getting started with local Anvil testing
-- **[Coverage & Scenario Matrix](./docs/Coverage_and_Scenario_Matrix.md)** - Function coverage audit and multi-role testing
-
-### Security
-
-- **[Security Policy](./docs/SECURITY_PGP.md)** - Vulnerability reporting and bug bounty
-
----
-
-## 🔐 Security
-
-### Audit Status
-
-- ✅ Internal security review completed
-- ✅ 206/206 tests passing
-- ✅ Oracle security fix applied (v2.0.1)
-- 🔄 External audit pending for mainnet deployment
-
-### Security Features
-
-**SuperPaymasterV2 v2.0.1**:
-- Chainlink oracle validation (`answeredInRound >= roundId`)
-- Price staleness check (1-hour timeout)
-- Price bounds validation ($100-$100k)
-- Multi-operator slashing mechanism
-
-**GTokenStaking**:
-- 7-day unstaking delay
-- Authorized locker system
-- Slashing protection with appeal period
-
-**Registry**:
-- Fibonacci-based slashing algorithm
-- Node-type specific stake requirements
-- Community reputation tracking
-
-### Report a Vulnerability
-
-**Security Contact**: jason@aastar.io or david@aastar.io
-
-For security details, see: **[Security Policy](./docs/SECURITY.md)**
-
----
-
-## 🌐 Network Support
-
-| Network | Status | EntryPoint v0.7 | Chainlink Feed |
-|---------|--------|----------------|----------------|
-| Ethereum Sepolia | ✅ Live | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x694AA1769357215DE4FAC081bf1f309aDC325306` |
-| Ethereum Mainnet | 🔜 Soon | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` |
-| Polygon | 🔜 Soon | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0xAB594600376Ec9fD91F8e885dADF0CE036862dE0` |
-| Arbitrum | 🔜 Soon | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612` |
-| Base | 📋 Planned | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | TBD |
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md).
-
-### Development Workflow
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Run tests: `forge test`
-5. Commit changes: `git commit -m 'feat: Add amazing feature'`
-6. Push to branch: `git push origin feature/amazing-feature`
-7. Open a Pull Request
+3. Run tests: `forge test`
+4. Commit: `git commit -m 'feat: Add amazing feature'`
+5. Open a Pull Request
 
-### Code Style
-
-- Solidity: Follow [Solidity Style Guide](https://docs.soliditylang.org/en/latest/style-guide.html)
-- Use `forge fmt` for formatting
-- Add comprehensive tests for new features
-- Document public functions with NatSpec
+**Code style**: `forge fmt` — Solidity 0.8.33, comments in English.
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
-
----
-
-## 🔗 Links
+## Links
 
 - **Website**: [aastar.io](https://aastar.io)
-- **Web Dashboard**: [superpaymaster.aastar.io](https://superpaymaster.aastar.io)
-- **Docs**: [docs.aastar.io](https://docs.aastar.io)
-- **GitHub**: [AAStarCommunity/SuperPaymaster](https://github.com/AAStarCommunity/SuperPaymaster)
+- **Dashboard**: [superpaymaster.aastar.io](https://superpaymaster.aastar.io)
+- **GitHub**: [AAStarCommunity](https://github.com/AAStarCommunity)
 - **Registry Frontend**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-- **Twitter**: [@AAStarCommunity](https://twitter.com/AAStarCommunity)
 
 ---
 
-## 📞 Support
+## License
 
-- **Documentation**: [docs.aastar.io](https://docs.aastar.io)
-- **GitHub Issues**: [Report a bug](https://github.com/AAStarCommunity/SuperPaymaster/issues)
-- **Email**: jason@aastar.io
+MIT — see [LICENSE](./LICENSE)
 
 ---
 
 <a name="chinese"></a>
 
-# SuperPaymaster - 去中心化燃料费支付基础设施
+# SuperPaymaster — 去中心化支付与 Gas 赞助基础设施
 
 **[English](#english)** | **[中文](#chinese)**
 
-## 🎯 什么是 SuperPaymaster？
+> **Beta 0.22** (内部版本: V5.3) — Sepolia 测试网运行中
 
-SuperPaymaster 是一个用于 ERC-4337 账户抽象的**去中心化燃料费支付基础设施**，它能够：
+## SuperPaymaster 是什么？
 
-- **对于社区**: 使用自己的社区代币 (xPNTs) 部署自定义 paymaster
-- **对于用户**: 使用社区积分而不是 ETH 实现无缝 gas 赞助
-- **对于开发者**: 通过共享配置和经过实战检验的合约轻松集成
+SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**。它不仅仅是 Gas 赞助——而是将无 Gas 交易、x402 资源支付、微支付通道和 AI Agent 经济统一到一个链上结算层中。
 
-### 核心特性
+### 面向谁？
 
-✅ **两种运营模式**:
-- **AOA 模式**: 每个社区独立的 paymaster（通过 PaymasterFactory）
-- **AOA+ 模式**: 共享的多运营商 paymaster（通过 SuperPaymasterV2）
-
-✅ **社区优先设计**:
-- 在 Registry 中注册你的社区
-- 为你的成员部署自定义 xPNTs 代币
-- 管理带有声誉系统的 SBT（灵魂绑定代币）会员资格
-
-✅ **安全与治理**:
-- 带有惩罚机制的 GToken 质押系统
-- Chainlink 预言机集成用于价格信息（v2.0.1：增强安全性）
-- 多层验证和声誉追踪
-
-✅ **生产就绪**:
-- 206/206 测试通过
-- 已部署在 Sepolia 测试网
-- 主网部署就绪（等待审计）
-- **安全与性能**: [🛡️ 安全与性能最佳实践](./docs/SECURITY_AND_PERFORMANCE.md)
-- **V3 重构计划**: [基于信用的架构与 DVT 安全](./docs/V3_REFACTOR_DESIGN.md)
+- **社区**: 用社区代币 (xPNTs) 为成员赞助 Gas 费
+- **AI Agent**: 通过 ERC-8004 身份 + x402 发现并支付链上服务
+- **开发者**: 集成无 Gas UX、微支付或 x402 结算
+- **运营商**: 运行去中心化 Paymaster 节点（DVT/BLS 共识）
 
 ---
 
-## 🏗️ 架构概览
+## 支付模式
 
-### AAstar SuperPaymaster 生态系统
+| 模式 | 协议 | 描述 | 版本 |
+|------|------|------|------|
+| **Gas 赞助** | ERC-4337 | 运营商预存 aPNTs，用户零 Gas 交易，以 xPNTs 偿还 | V3 |
+| **x402 结算** | HTTP 402 + EIP-3009 | 单次资源购买 — USDC/xPNTs 按请求付费 | V5.1 |
+| **微支付通道** | EIP-712 凭证 | 流式微额扣费，链下签名 + 批量链上结算 | V5.2 |
+| **Agent 赞助** | ERC-8004 | 基于声誉的分级 Gas 赞助（注册 AI Agent） | V5.3 |
 
-```
-┌────────────────────────────────────────────────────────────┐
-│             AAstar SuperPaymaster 生态系统                   │
-├────────────────────────────────────────────────────────────┤
-│                                                              │
-│  【SuperPaymaster】(核心合约)                                │
-│   Solidity智能合约                                            │
-│   ├─ SuperPaymasterV2 v2.3.3 (AOA+共享模式)                 │
-│   ├─ PaymasterV4/V4_1 (AOA独立模式)                         │
-│   ├─ Registry v2.2.1 (社区注册中心)                         │
-│   ├─ GTokenStaking v2.0.1 (质押+slash)                      │
-│   ├─ MySBT v2.4.5 (身份系统)                                │
-│   └─ xPNTsFactory v2.0.0 (Gas代币工厂)                      │
-│        ↓ 部署                                                │
-│        ↓ ABI + 地址                                          │
-│                                                              │
-│  【shared-config】(配置中心)                                 │
-│   npm包 @aastar/shared-config v0.2.18                        │
-│   ├─ 所有合约地址 (Sepolia)                                  │
-│   ├─ 网络配置 (RPC, Explorer)                                │
-│   ├─ 常量 (费率, 质押量)                                      │
-│   └─ ABI导出                                                 │
-│        ↓ 被依赖                                              │
-│        ↓                                                     │
-│  【registry】(运营前端)                ←─────┐                │
-│   React 19 + TypeScript + Vite               │                │
-│   ├─ DeployWizard (7步部署流程)             │                │
-│   ├─ ExplorerHub (注册表浏览器)             │                │
-│   ├─ Analytics (Gas分析)                     │                │
-│   └─ RPC代理 (Vercel serverless)            │                │
-│                                              │                │
-│  【faucet】(测试工具)                   ←─────┘                │
-│   Vercel Serverless + 纯HTML前端                              │
-│   ├─ 分发 SBT/PNT/GToken/USDT                                │
-│   ├─ 创建 SimpleAccount                                       │
-│   └─ PaymasterV4 流动性池初始化                               │
-│                                                              │
-└────────────────────────────────────────────────────────────┘
-```
+### 双模式运营
 
-### 核心合约（7 个主要组件）
-
-#### 合约依赖关系图
-
-```mermaid
-graph TB
-    GToken[GToken v2.0.0<br/>ERC20 治理代币]
-
-    GTokenStaking[GTokenStaking v2.0.1<br/>质押 + 锁定 + 惩罚]
-    GToken --> GTokenStaking
-
-    Registry[Registry v2.2.1<br/>社区注册中心]
-    GToken --> Registry
-    GTokenStaking --> Registry
-
-    MySBT[MySBT v2.4.5<br/>灵魂绑定代币 + 声誉系统]
-    GToken --> MySBT
-    GTokenStaking --> MySBT
-    Registry --> MySBT
-
-    SuperPaymasterV2[SuperPaymasterV2 v2.3.3<br/>AOA+ 共享 Paymaster]
-    GToken --> SuperPaymasterV2
-    GTokenStaking --> SuperPaymasterV2
-    Registry --> SuperPaymasterV2
-    MySBT -.->|SBT 回调| SuperPaymasterV2
-
-    xPNTsFactory[xPNTsFactory v2.0.0<br/>Gas 代币工厂]
-    SuperPaymasterV2 --> xPNTsFactory
-    Registry --> xPNTsFactory
-
-    PaymasterFactory[PaymasterFactory v1.0.0<br/>AOA 模式工厂]
-
-    style GToken fill:#e1f5ff
-    style GTokenStaking fill:#fff4e1
-    style Registry fill:#ffe1f5
-    style MySBT fill:#e1ffe1
-    style SuperPaymasterV2 fill:#ffe1e1
-    style xPNTsFactory fill:#f5e1ff
-    style PaymasterFactory fill:#e1e1e1
-```
-
-**部署顺序**:
-1. GToken（无依赖）
-2. GTokenStaking（依赖 GToken）
-3. Registry（依赖 GTokenStaking）
-4. MySBT（依赖 GToken, GTokenStaking, Registry）
-5. SuperPaymasterV2（依赖 GTokenStaking, Registry, Chainlink Price Feed）
-6. xPNTsFactory（依赖 SuperPaymasterV2, Registry）
-7. PaymasterFactory（无依赖）
-
-#### 1. **GToken**（治理代币）
-- **版本**: v2.0.0
-- **类型**: 带上限的 ERC20 + Ownable
-- **用途**: 系统治理代币，支持质押和铸造
-- **特性**: 供应量上限，可转让，所有者可铸造
-
-#### 2. **GTokenStaking**（质押合约）
-- **版本**: v2.0.1
-- **类型**: 质押 + 锁定 + 惩罚机制
-- **用途**: GToken 质押、锁定和惩罚系统
-- **新功能**:
-  - `stakeFor()` - 代表其他用户质押
-  - `balanceOf()` - 统一的质押余额 API
-- **安全性**: 为 Registry、MySBT 和 SuperPaymaster 提供授权锁定系统
-
-#### 3. **Registry**（社区注册中心）
-- **版本**: v2.2.1（最新）
-- **类型**: 社区注册 + 惩罚系统
-- **用途**: 社区注册、节点管理、惩罚机制
-- **节点类型**:
-  - `PAYMASTER_AOA`: 独立 paymaster（30 GT 质押）
-  - `PAYMASTER_SUPER`: 共享 paymaster（50 GT 质押）
-  - `ANODE`: 社区计算节点（20 GT 质押）
-  - `KMS`: 密钥管理服务（100 GT 质押）
-- **新功能 (v2.2.1)**:
-  - `registerCommunityWithAutoStake()` - 单笔交易注册
-  - 使用 `isRegistered` 映射防止重复注册
-
-#### 4. **MySBT**（灵魂绑定代币）
-- **版本**: v2.4.5（最新）
-- **类型**: ERC721（灵魂绑定）+ 声誉系统
-- **用途**: 用户身份、社区会员、声誉追踪
-- **关键功能**:
-  - `mintWithAutoStake()` - 单笔交易完成质押 + 铸造
-  - NFT 头像绑定
-  - 多社区会员支持
-  - 带活动奖励的声誉评分
-  - **SuperPaymaster 回调** - 自动注册 SBT 持有者到 paymaster
-- **大小**: 21.4KB（从 27.2KB 优化）
-
-#### 5. **SuperPaymasterV2**（AOA+ 模式 Paymaster）
-- **版本**: v2.3.3（最新）
-- **类型**: ERC-4337 Paymaster + 多运营商
-- **用途**: AOA+ 模式共享 paymaster，aPNTs 支付
-- **核心功能 (v2.3.3)**:
-  - ✅ **PostOp 支付**: xPNTs 在 postOp 阶段转账
-  - ✅ **SBT 内部注册**: MySBT 回调集成
-  - ✅ **债务追踪**: 用户债务管理系统
-  - ✅ **价格缓存**: 优化 Chainlink 预言机调用
-  - ✅ Chainlink 预言机验证与过期检查
-  - ✅ 价格边界验证（$100-$100k）
-
-#### 6. **PaymasterFactory**（Paymaster 工厂）
-- **版本**: v1.0.0
-- **类型**: EIP-1167 最小代理工厂
-- **用途**: 部署独立的 AOA 模式 paymaster
-- **优势**: Gas 高效部署，隔离的运营商控制
-
-#### 7. **xPNTsFactory**（xPNTs 代币工厂）
-- **版本**: v2.0.0
-- **类型**: 代币工厂
-- **用途**: 为社区部署自定义 xPNTs 代币
-- **特性**: 兑换率配置，paymaster 集成
+- **AOA+ 模式** (SuperPaymaster): 共享多运营商 Paymaster，Registry 管理社区
+- **AOA 模式** (PaymasterV4): 每社区独立 Paymaster，EIP-1167 最小代理工厂部署
 
 ---
 
-## 🚀 快速开始
+## 核心合约
 
-### 对于社区运营者
+| 合约 | 版本 | 类型 | 职责 |
+|------|------|------|------|
+| **SuperPaymaster** | 5.3.0 | UUPS 代理 | AOA+ 共享 Paymaster — Gas 赞助、x402、Agent 策略、信用/债务 |
+| **Registry** | 4.1.0 | UUPS 代理 | 社区/节点注册、角色管理、BLS 重放保护、惩罚 |
+| **PaymasterV4** | 4.3.0 | EIP-1167 代理 | AOA 独立 Paymaster |
+| **GToken** | 2.0.0 | ERC20 | 治理代币（2100 万上限，限量发行） |
+| **GTokenStaking** | 3.2.0 | 不可变 | 基于角色的质押 + 燃烧机制，DVT/治理惩罚 |
+| **MySBT** | 3.1.3 | ERC721（灵魂绑定） | 身份 + 声誉，社区会员，SBT 门控赞助 |
+| **xPNTsFactory** | 2.0.0 | Clones | 部署每社区 xPNTs Gas 代币 |
+| **ReputationSystem** | 1.0.0 | — | 基于社区规则的声誉评分 |
+| **BLSAggregator** | 1.0.0 | — | BLS12-381 阈值签名聚合 |
+| **DVTValidator** | 1.0.0 | — | 分布式验证者共识（7/13 拜占庭法定人数） |
 
-#### 1. 注册你的社区
+---
 
-```solidity
-import "@aastar/shared-config/contracts/Registry.sol";
+## V5 特性
 
-// 从 shared-config 获取 Registry 合约
-Registry registry = Registry(REGISTRY_ADDRESS);
+**V5.1 — x402 精确结算**
+- `settleX402Payment()` — EIP-3009 USDC 原生结算（节省 19% Gas）
+- `settleX402PaymentDirect()` — xPNTs 直接转账（工厂自动授权）
 
-// 注册你的社区
-registry.registerCommunity(
-    "我的超棒社区",                    // name
-    "myawesome.eth",                // ENS 名称
-    xpntsTokenAddress,              // 你的社区代币
-    [mySBTAddress],                 // 支持的 SBT
-    Registry.NodeType.PAYMASTER_AOA, // 节点类型
-    address(0)                       // paymaster（稍后设置）
-);
-```
+**V5.2 — 微支付通道**
+- `MicroPaymentChannel` 合约 — 开通/签名/结算流式会话
+- EIP-712 累计凭证签名 + 争议窗口
 
-#### 2. 部署你的 xPNTs 代币
+**V5.3 — Agent 经济 (ERC-8004)**
+- 双通道资格：SBT 持有者 **或** 注册 AI Agent
+- `AgentSponsorshipPolicy` — 每运营商分级 BPS 费率 + 每日 USD 上限
+- 声誉反馈闭环 + EIP-1153 瞬态存储优化
 
-```solidity
-import "@aastar/shared-config/contracts/xPNTsFactory.sol";
+---
 
-xPNTsFactory factory = xPNTsFactory(XPNTS_FACTORY_ADDRESS);
-
-address xpntsToken = factory.deployxPNTsToken(
-    "我的超棒积分",               // 代币名称
-    "MAP",                        // 代币符号
-    "我的超棒社区",               // 社区名称
-    "myawesome.eth",             // ENS 名称
-    1 ether,                     // 兑换率（1:1）
-    paymasterAddress             // 你的 paymaster
-);
-```
-
-#### 3. 选择你的 Paymaster 模式
-
-**选项 A: AOA 模式（独立 Paymaster）**
-
-```solidity
-import "@aastar/shared-config/contracts/PaymasterFactory.sol";
-
-PaymasterFactory factory = PaymasterFactory(PAYMASTER_FACTORY_ADDRESS);
-
-address myPaymaster = factory.deployPaymaster(
-    xpntsTokenAddress,       // 你的 xPNTs 代币
-    mySBTAddress,            // 你的 MySBT 合约
-    treasuryAddress,         // 你的财务地址
-    200                      // 费率（2%）
-);
-```
-
-**选项 B: AOA+ 模式（共享 Paymaster）**
-
-```solidity
-import "@aastar/shared-config/contracts/SuperPaymasterV2.sol";
-
-SuperPaymasterV2 superPaymaster = SuperPaymasterV2(SUPERPAYMASTER_V2_ADDRESS);
-
-// 作为运营商加入
-superPaymaster.depositAPNTs(
-    operatorAddress,
-    apntsAmount,
-    xpntsTokenAddress,
-    treasuryAddress,
-    exchangeRate
-);
-```
-
-### 对于开发者
-
-#### 安装 Shared Config
+## 快速开始
 
 ```bash
-npm install @aastar/shared-config
-# 或
-pnpm add @aastar/shared-config
-```
-
-#### 使用合约地址
-
-```typescript
-import {
-  getRegistryAddress,
-  getSuperPaymasterAddress,
-  getxPNTsFactoryAddress
-} from '@aastar/shared-config';
-
-const registryAddress = getRegistryAddress('sepolia');
-const superPaymasterAddress = getSuperPaymasterAddress('sepolia');
-```
-
-#### 与你的 dApp 集成
-
-```javascript
-import { ethers } from 'ethers';
-import SuperPaymasterV2ABI from '@aastar/shared-config/abis/SuperPaymasterV2.json';
-
-const superPaymaster = new ethers.Contract(
-  superPaymasterAddress,
-  SuperPaymasterV2ABI,
-  signer
-);
-
-// 获取运营商信息
-const operatorInfo = await superPaymaster.accounts(operatorAddress);
-console.log('aPNTs 余额:', operatorInfo.aPNTsBalance);
-```
-
----
-
-## 📱 Web 界面
-
-SuperPaymaster 生态系统有一个功能齐全的 Web 仪表板：
-
-**仓库**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-
-**功能**:
-- 🌐 社区注册和管理
-- 🎫 部署 xPNTs 代币
-- 🚀 启动 paymaster（AOA 和 AOA+ 模式）
-- 👤 铸造和管理 MySBT 代币
-- 📊 监控 paymaster 活动和统计
-- 🔍 查看社区资料和声誉
-
-**在线演示**: [superpaymaster.aastar.io](https://superpaymaster.aastar.io)
-
-**本地开发**:
-```bash
-# 克隆 registry 仓库
-git clone https://github.com/AAStarCommunity/registry.git
-cd registry
-
-# 安装依赖
-pnpm install
-
-# 启动开发服务器
-pnpm dev
-
-# 访问 http://localhost:3000
-```
-
----
-
-## 💼 对于用户
-
-### 铸造你的 MySBT
-
-```solidity
-import "@aastar/shared-config/contracts/MySBT.sol";
-
-MySBT mySBT = MySBT(MYSBT_ADDRESS);
-
-// 使用自动质押铸造（单笔交易）
-mySBT.mintWithAutoStake{value: mintFee}(
-    communityAddress,
-    minLockAmount,
-    metadata
-);
-```
-
-### 使用 Gas 赞助
-
-你的 dApp 可以使用社区代币赞助用户交易：
-
-```javascript
-// 准备带有 paymaster 的 UserOperation
-const userOp = {
-  sender: userAddress,
-  // ... 其他字段
-  paymasterAndData: encodePaymasterData(
-    paymasterAddress,
-    validUntil,
-    validAfter,
-    signature
-  )
-};
-
-// 发送到 bundler
-const result = await bundler.sendUserOperation(userOp, entryPointAddress);
-```
-
----
-
-## 🛠️ 开发
-
-### 前置要求
-
-- [Foundry](https://book.getfoundry.sh/) - 智能合约开发框架
-- [Node.js](https://nodejs.org/) v16+ - 用于脚本和测试
-- [pnpm](https://pnpm.io/) - 包管理器
-
-### 仓库结构
-
-```
-SuperPaymaster/
-├── contracts/                    # 所有 Solidity 代码
-│   ├── src/                      # 合约源码
-│   │   ├── paymasters/           # Paymaster 实现
-│   │   │   ├── v2/              # SuperPaymasterV2
-│   │   │   ├── v3/              # PaymasterV3 变体
-│   │   │   └── v4/              # PaymasterV4 系列
-│   │   ├── tokens/              # MySBT, xPNTs 代币
-│   │   ├── base/                # GToken, Staking, Registry
-│   │   └── utils/               # 辅助合约
-│   ├── test/                    # 测试文件（206 个测试）
-│   ├── lib/                     # 依赖
-│   └── deployments/             # 部署记录
-├── script/                      # Foundry 部署脚本
-├── docs/                        # 文档
-├── deprecated/                  # 归档的旧代码
-└── foundry.toml                 # Foundry 配置
-```
-
-### 安装
-
-```bash
-# 克隆仓库
+# 克隆并初始化子模块
 git clone https://github.com/AAStarCommunity/SuperPaymaster.git
-cd SuperPaymaster
+cd SuperPaymaster && ./init-submoduel.sh
 
-# 初始化子模块
-git submodule update --init --recursive
-
-# 安装 Foundry 依赖
-forge install
-
-# 构建合约
+# 构建
 forge build
-```
 
-### 测试
-
-```bash
-# 运行所有测试
+# 运行所有测试（400+）
 forge test
 
-# 详细输出
-forge test -vvv
+# 部署到本地 Anvil
+./deploy-core anvil
 
-# 运行特定测试文件
-forge test --match-path contracts/test/SuperPaymasterV2.t.sol
-
-# 运行特定测试函数
-forge test --match-test test_PaymasterExecution
-
-# 生成 gas 快照
-forge snapshot
-
-# 生成覆盖率报告
-forge coverage
-```
-
-### 部署
-
-#### 部署到 Sepolia 测试网
-
-```bash
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 填入你的密钥
-
-# 部署 SuperPaymasterV2 v2.0.1
-forge script script/DeploySuperPaymasterV2_0_1.s.sol:DeploySuperPaymasterV2_0_1 \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast \
-  --verify \
-  -vvvv
-
-# 查看部署信息
-cat contracts/deployments/superpaymaster-v2.0.1-sepolia.json
-```
-
-**部署指南**:
-- [SuperPaymasterV2 v2.0.1 部署](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)
-- [Registry v2.2.0 部署](./docs/DEPLOY_REGISTRY_V2.2.0.md)（即将推出）
-- [完整部署指南](./docs/DEPLOYMENT_READY.md)
-
-#### PaymasterV4 稳定币配置
-
-PaymasterV4（AOA 模式）支持**任意 ERC20 代币**作为 gas 支付方式，包括稳定币（USDC、USDT）。各链代币地址不同，详见 [`deployments/stablecoins.json`](./deployments/stablecoins.json)。
-
-| 链 | USDC | USDT |
-|----|------|------|
-| Ethereum (1) | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
-| Optimism (10) | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e68` |
-| Arbitrum (42161) | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
-| Base (8453) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | N/A |
-| Sepolia / OP-Sepolia | 需部署 MockUSDC | 需部署 MockUSDT |
-
-> **注意**：USDC/USDT 地址在**每条链上都不同**，无法使用通用地址。
-
-**部署 PaymasterV4 后配置稳定币：**
-
-```bash
-# 1. 批量配置 USDC + USDT
-PAYMASTER_V4=0x... \
-USDC_ADDR=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 \
-USDT_ADDR=0x94b008aA00579c1307B0EF2c499aD98a8ce58e68 \
-forge script contracts/script/v4/ConfigureStablecoins.s.sol:ConfigureStablecoins \
-  --rpc-url $OPTIMISM_RPC_URL --broadcast --account deployer
-
-# 2. 链上查询所有已支持代币
-cast call $PAYMASTER_V4 "getSupportedTokensInfo()" --rpc-url $RPC_URL
-
-# 3. 单独添加/移除代币
-cast send $PAYMASTER_V4 "setTokenPrice(address,uint256)" $NEW_TOKEN 1e8 --account deployer
-cast send $PAYMASTER_V4 "removeToken(address)" $OLD_TOKEN --account deployer
+# 部署到 Sepolia
+./deploy-core sepolia
 ```
 
 ---
 
-## 📊 合约地址
+## 合约地址（Sepolia 测试网）
 
-### Sepolia 测试网
+| 合约 | 代理地址 | 实现地址 |
+|------|----------|----------|
+| Registry | `0xD88CF531...` | `0x84bB9e3C...` |
+| SuperPaymaster | `0x829C3178...` | `0xf4d022Ea...` |
+| ReputationSystem | — | `0x3384317D...` |
 
-| 合约 | 版本 | 地址 |
-|------|------|------|
-| GToken | v2.0.0 | `0x99cCb70646Be7A5aeE7aF98cE853a1EA1A676DCc` |
-| GTokenStaking | v2.0.1 | `0xbEbF9b4c6a4cDB92Ac184aF211AdB13a0b9BF6c0` |
-| Registry | v2.2.1 | `0xf384c592D5258c91805128291c5D4c069DD30CA6` |
-| MySBT | **v2.4.5** | `0xa4eda5d023ea94a60b1d4b5695f022e1972858e7` |
-| SuperPaymasterV2 | **v2.3.3** | `0x7c3c355d9aa4723402bec2a35b61137b8a10d5db` |
-| PaymasterFactory | v1.0.0 | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
-| xPNTsFactory | v2.0.0 | `0x9dD72cB42427fC9F7Bf0c949DB7def51ef29D6Bd` |
+**EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
-**最新更新 (2025-11-25)**:
-- MySBT **v2.4.5**: 合约大小优化 (27.2KB → 21.4KB)，SuperPaymaster 回调
-- SuperPaymasterV2 **v2.3.3**: PostOp 支付，SBT 内部注册，债务追踪
-- ✅ Gasless 交易已验证: [0x9ea5ca...](https://sepolia.etherscan.io/tx/0x9ea5ca33fd7790a422cf27f2999d344f8a8f999beb5a15f03cd441ad07b494bb)
-
-**通过 Shared Config 导入**:
-```typescript
-import { SEPOLIA_ADDRESSES } from '@aastar/shared-config';
-
-console.log(SEPOLIA_ADDRESSES.REGISTRY);
-console.log(SEPOLIA_ADDRESSES.SUPERPAYMASTER_V2);
-```
-
-```mermaid
-graph TD
-    subgraph "Governance (Step 1-2)"
-        GToken["GToken (ERC20)"]
-        Staking["GTokenStaking (Locker)"]
-    end
-
-    subgraph "Identity (Step 3-4)"
-        Registry["Registry V3.1 (Brain)"]
-        MySBT["MySBT (Identity)"]
-    end
-
-    subgraph "Payment System (Step 5-7)"
-        SP["SuperPaymaster V3.1 (Muscle)"]
-        Factory["xPNTsFactory"]
-        APNTS["aPNTs (Mock Token)"]
-    end
-
-    %% Dependencies during Initialization/Wiring (Step 8)
-    Staking -- "setRegistry" --> Registry
-    MySBT -- "setRegistry" --> Registry
-    Registry -- "Immutable" --> Staking
-    Registry -- "Immutable" --> MySBT
-    
-    Factory -- "setSuperPaymaster" --> SP
-    APNTS -- "setSuperPaymaster" --> SP
-    SP -- "Immutable" --> Registry
-    SP -- "Query Credit/Rep" --> Registry
-
-    %% Runtime Flow
-    UserOp["UserOperation"] -- "Validate" --> SP
-    SP -- "1. Check Credit/Burn" --> APNTS
-    SP -- "2. Record Debt (if fail)" --> Registry
-    DVT["DVT Validators"] -- "Batch Update Rep" --> Registry
-```
-
-### 主网
-
-安全审计后即将推出。
+完整地址见 [`deployments/config.sepolia.json`](./deployments/config.sepolia.json)
 
 ---
 
-## 📖 文档
+## 文档
 
-### 技术文档
-
-- **[合约架构](./docs/CONTRACT_ARCHITECTURE.md)** - 完整的依赖图、数据结构和构造函数参数
-- **[开发者集成指南](./docs/DEVELOPER_INTEGRATION_GUIDE.md)** - Gasless 交易集成（新）
-- **[预言机安全修复](./docs/ORACLE_SECURITY_FIX.md)** - v2.0.1 安全增强详情
-- **[仓库重构](./docs/REFACTORING_SUMMARY_2025-11-08.md)** - 最近的改进
-- **[部署指南](./docs/DEPLOY_SUPERPAYMASTER_V2.0.1.md)** - 分步部署说明
-
-### 用户指南
-
-- **[MySBT 用户指南](./docs/MYSBT_USER_GUIDE.md)** - 铸造和管理 SBT 代币
-- **[社区注册指南](./docs/COMMUNITY_REGISTRATION.md)** - 注册你的社区
-- **[Paymaster 运营指南](./docs/PAYMASTER_OPERATOR_GUIDE.md)** - 运营 AOA/AOA+ paymaster
-- **[Gasless 测试指南](./docs/GASLESS_TEST_GUIDE.md)** - 测试 gasless 交易
-
-### API 参考
-
-- **[SuperPaymaster API](./docs/API_SUPERPAYMASTER.md)** - SuperPaymasterV2 v2.3.3 API
-- **[MySBT API](./docs/API_MYSBT.md)** - MySBT v2.4.5 API
-- **[Registry API](./docs/API_REGISTRY.md)** - Registry v2.2.1 API
-
-### 测试与评估
-- **[本地测试新手指南](./docs/Local_Test_Guide.md)** - 本地 Anvil 环境下的快速上手路径 (新)
-- **[覆盖率与场景矩阵](./docs/Coverage_and_Scenario_Matrix.md)** - 函数级覆盖率审计与多角色场景测试 (新)
-
-### 安全
-
-- **[安全策略](./docs/SECURITY_PGP.md)** - 漏洞报告和赏金计划
+- [合约架构](./docs/CONTRACT_ARCHITECTURE.md) | [UUPS 升级指南](./docs/UUPS-upgrade-doc.md)
+- [开发者集成指南](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — 无 Gas、x402、微支付场景
+- [SDK E2E 场景指南](./docs/SDK-E2E-Scenario-Guide.md) — 7 个完整用户场景
+- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) | [Registry API](./docs/API_REGISTRY.md)
+- [安全策略](./docs/SECURITY.md) | [审计修复总结](./docs/challenger-review-2026-03-26.md)
 
 ---
 
-## 🔐 安全
+## 安全
 
-### 审计状态
+- 400+ Foundry 测试通过（含 UUPS 升级、V5 特性、模糊测试）
+- Echidna 属性测试
+- 内部对抗性审查完成
+- 外部审计待主网部署前完成
 
-- ✅ 内部安全审查完成
-- ✅ 206/206 测试通过
-- ✅ 预言机安全修复已应用（v2.0.1）
-- 🔄 主网部署前等待外部审计
-
-### 安全功能
-
-**SuperPaymasterV2 v2.0.1**:
-- Chainlink 预言机验证（`answeredInRound >= roundId`）
-- 价格过期检查（1小时超时）
-- 价格边界验证（$100-$100k）
-- 多运营商惩罚机制
-
-**GTokenStaking**:
-- 7 天解除质押延迟
-- 授权锁定器系统
-- 带申诉期的惩罚保护
-
-**Registry**:
-- 基于斐波那契的惩罚算法
-- 节点类型特定的质押要求
-- 社区声誉追踪
-
-### 报告漏洞
-
-**安全联系**: jason@aastar.io or david@aastar.io
-
-安全详情请参阅：**[安全策略](./docs/SECURITY.md)**
+**报告漏洞**: jason@aastar.io 或 david@aastar.io
 
 ---
 
-## 🌐 网络支持
+## 许可证
 
-| 网络 | 状态 | EntryPoint v0.7 | Chainlink Feed |
-|------|------|----------------|----------------|
-| Ethereum Sepolia | ✅ 在线 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x694AA1769357215DE4FAC081bf1f309aDC325306` |
-| Ethereum Mainnet | 🔜 即将 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` |
-| Polygon | 🔜 即将 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0xAB594600376Ec9fD91F8e885dADF0CE036862dE0` |
-| Arbitrum | 🔜 即将 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612` |
-| Base | 📋 计划中 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | TBD |
-
----
-
-## 🤝 贡献
-
-我们欢迎贡献！请查看我们的 [贡献指南](./CONTRIBUTING.md)。
-
-### 开发工作流程
-
-1. Fork 仓库
-2. 创建功能分支：`git checkout -b feature/amazing-feature`
-3. 进行更改
-4. 运行测试：`forge test`
-5. 提交更改：`git commit -m 'feat: 添加惊人的功能'`
-6. 推送到分支：`git push origin feature/amazing-feature`
-7. 打开 Pull Request
-
-### 代码风格
-
-- Solidity：遵循 [Solidity 风格指南](https://docs.soliditylang.org/en/latest/style-guide.html)
-- 使用 `forge fmt` 进行格式化
-- 为新功能添加全面的测试
-- 使用 NatSpec 文档化公共函数
-
----
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](./LICENSE) 文件。
-
----
-
-## 🔗 链接
-
-- **网站**: [aastar.io](https://aastar.io)
-- **Web 仪表板**: [superpaymaster.aastar.io](https://superpaymaster.aastar.io)
-- **文档**: [docs.aastar.io](https://docs.aastar.io)
-- **GitHub**: [AAStarCommunity/SuperPaymaster](https://github.com/AAStarCommunity/SuperPaymaster)
-- **Registry 前端**: [AAStarCommunity/registry](https://github.com/AAStarCommunity/registry)
-- **Twitter**: [@AAStarCommunity](https://twitter.com/AAStarCommunity)
-
----
-
-## 📞 支持
-
-- **文档**: [docs.aastar.io](https://docs.aastar.io)
-- **GitHub Issues**: [报告错误](https://github.com/AAStarCommunity/SuperPaymaster/issues)
-- **邮箱**: jason@aastar.io
-
----
-
-**Built with ❤️ by [AAStarCommunity](https://github.com/AAStarCommunity)**
-
----
-
-## 📈 最新进展 (New Progress)
-
-- [ ] **V3 角色-实体交互完整测试矩阵**: [V3_Test_Matrix.md](./docs/V3_Test_Matrix.md) - 已完成 100% 业务场景穷举与覆盖率规划。
-
----
-
-## 📚 V4 UUPS Migration Documents (2026-03)
-
-### Architecture & Migration
-- [UUPS Upgrade Documentation](./docs/UUPS-upgrade-doc.md) — UUPS 代理架构全面文档：存储布局、升级流程、安全分析、知识库附录
-- [UUPS Migration Plan](./docs/UUPS-migration-plan-2026.md) — Registry & SuperPaymaster 的 UUPS 改造方案：存储打包、初始化迁移、部署步骤
-- [Evaluation Report (March 2026)](./docs/evaluation_report-March-2026.md) — 合约改进与扩展评估报告（V2.0 修订版）：全新部署策略、EIP-8141 Native AA 展望
-- [UUPS Evaluation Report](./docs/uups-evaluation_report.md) — SuperPaymaster 合约改进与扩展评估（含存储优化、Gas 效率保障分析）
-
-### Versioning & Governance
-- [Contract Version Map](./docs/VERSION_MAP.md) — 各合约链上版本号映射表及治理路线图（Phase 1-4: Ownable → Timelock → DAO）
-- [Immutable REGISTRY Review](./docs/immutable-registry-review.md) — GTokenStaking/MySBT 的 REGISTRY 不可变引用重构安全评审
-
-### Security Audits
-- [Kimi AI Full Audit Report](./docs/Kimi_SuperPaymaster_Full_Audit_Report.md) — Kimi AI 全面安全审计：Registry-4.1.0、SuperPaymaster-4.0.0、MySBT-3.1.3
-- [Codeex Audit (2026-03-20)](./docs/codeex-audit-2026-03-20.md) — Codeex 静态+文档一致性快速审计：核心逻辑、Gas 效率、部署流程
-
-### Protocol Design
-- [Spores Protocol Design](./docs/Spores-protocol-design-2026.md) — Spores 去中心化分润网络设计：SporesMarketplace、Escrow、三方架构
-
-### SDK / Frontend Integration
-- [Registry v4.1 SDK Migration Guide](./docs/registry-v4.1-sdk-migration.md) — Registry v4.1.0 接口精简迁移指南：5 个函数合并为 2 个，viem 代码示例，custom errors 对照表
-
-## 📐 V5 Roadmap & Design Documents (2026-03)
-
-### Vision & Roadmap
-- [V5 Roadmap](./docs/V5-Roadmap.md) (v1.4.0) — SuperPaymaster V5 完整演进路线图：从 Gas 代付基础设施向 Agent Economy 社区化支付层演进。涵盖 V5.1 Agent-Native Gas Sponsorship、V5.2 x402 Facilitator + Session 微支付通道、V5.3 ERC-8004 集成 + SKILL.md Agent Discovery、V5.4 dShop Protocol。
-
-### Technical Design
-- [V5 Design Document](./docs/SuperPaymaster-V5-Design.md) (v0.6.0) — V5 架构设计详细文档：`_consumeCredit()` 提取、x402 验证结算、ERC-8004 三大注册表集成、Native AA 分析、Tempo/MPP 战术级技术借鉴（Payment Channel、HMAC Challenge、SKILL.md、MCP Transport）。
-
-### Competitive Research & Ecosystem Evaluation
-- [Stripe Tempo & MPP Research](./docs/research-stripe-tempo-mpp.md) (v1.1.0) — Stripe Tempo 区块链与 MPP (Machine Payments Protocol) 深度研究报告：Tempo 技术架构、MPP 协议规范（Charge/Session Intent）、SPT/ACP 分析、mppx SDK 代码审计、SuperPaymaster 战略战术借鉴、可控依赖评估。
-- [V5 Roadmap Ecosystem Evaluation](./docs/evaluate-roadmap.md) (v1.1.0) — V5 生态评估报告：SuperPaymaster + SDK + AirAccount 三项目能力矩阵、与 Tempo/Coinbase 竞争力对比评分、核心差距分析（SDK 成熟度/生态采用量/法币入口）、SDK 诉求清单（6 个新 package, ~21-30 天）、AirAccount 诉求清单（Session Key 签 Voucher、ERC-8004 集成, ~4 天）、协同开发时间线。
-
-### Implementation Plans
-- [V5 Master Implementation Plan](./docs/V5-Implementation-Plan.md) (v1.0.0) — 高维度进度安排（16 周）、Worktree 并行开发策略（V5.1/V5.2/V5.3 三分支并行开发+串行集成）、三项目协调时间线、阶段性评分追踪（22→26→33→36/50）、风险缓解矩阵。
-- [V5.1 Plan: Agent-Native Gas Sponsorship](./docs/V5.1-Plan.md) (v1.0.0) — `_consumeCredit()` 提取 + `chargeMicroPayment()` + EIP-1153 批量优化。7 个任务组、35+ 验收标准、4 周交付。
-- [V5.2 Plan: x402 Facilitator + Payment Channel](./docs/V5.2-Plan.md) (v1.0.0) — x402 验证结算（EIP-3009 + Permit2）+ `MicroPaymentChannel.sol` 独立合约 + Operator Node 框架。10 个任务组、50+ 验收标准、6 周交付。
-- [V5.3 Plan: ERC-8004 + Agent Discovery](./docs/V5.3-Plan.md) (v1.0.0) — ERC-8004 双通道身份验证 + Agent 信誉驱动赞助策略 + SKILL.md + OpenAPI + MCP + CLI 工具。13 个任务组、45+ 验收标准、6 周交付。
-
----
-
-## Post-Deployment Checklist
-
-After deploying to a new network, complete these operational tasks:
-
-### Event Monitoring (Required)
-- [ ] Monitor `DebtRecordFailed(token, user, amount)` — SuperPaymaster postOp debt recording failures, needs `retryPendingDebt` or `clearPendingDebt`
-- [ ] Monitor `ExitFeeSyncFailed(roleId)` — Registry exit fee sync failures during `setStaking()`
-- [ ] Monitor `PendingDebtCleared(token, user, amount)` — Admin debt write-offs for accounting reconciliation
-- [ ] Monitor `UserSlashed(user, amount, reason, timestamp)` — Slash events for governance review
-
-### Oracle & Keeper Operations
-- [ ] Verify Chainlink ETH/USD price feed is active and returning fresh data
-- [ ] Configure `priceStalenessThreshold` appropriate for the network (default: 3600s)
-- [ ] Set up Keeper for periodic `retryPendingDebt` calls (if any accumulate)
-
-### Access Control Verification
-- [ ] Confirm `owner()` is set to deployer/multisig (not EOA for mainnet)
-- [ ] Verify `setAuthorizedSlasher()` wired BLSAggregator correctly
-- [ ] Verify `setReputationSource()` authorized the correct DVT aggregator
-- [ ] Confirm `_authorizeUpgrade` restricted to owner (UUPS contracts)
-
-### Smoke Tests
-- [ ] Register a test community via `registerRole(ROLE_COMMUNITY, ...)`
-- [ ] Register a test end-user via `registerRole(ROLE_ENDUSER, ...)`
-- [ ] Execute a gasless transaction through SuperPaymaster
-- [ ] Verify xPNTs token deployment via factory
+MIT — 见 [LICENSE](./LICENSE)
