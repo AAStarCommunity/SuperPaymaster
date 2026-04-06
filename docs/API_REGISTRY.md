@@ -34,7 +34,7 @@ When `setStaking()` is called, it immediately calls the internal `_syncExitFees(
 `batchUpdateGlobalReputation` requires a **non-zero proposalId** for replay protection. When `proposalId == 0` the replay-guard is skipped silently; callers MUST supply a unique non-zero proposalId. Reuse of an already-executed proposalId reverts with `ProposalExecuted()`.
 
 ### L-04: Zero-Address Guards
-`configureRole()` enforces `if (config.owner == address(0)) revert InvalidAddr()`. Callers of `setSuperPaymaster()` and `setBLSAggregator()` should ensure they never pass `address(0)` — while the functions themselves do not revert on zero address, doing so would break `updateOperatorBlacklist` (which checks `SUPER_PAYMASTER != address(0)`) and DVT slashing flows.
+`configureRole()` enforces `if (config.owner == address(0)) revert InvalidAddr()`. `setSuperPaymaster()` and `setBLSAggregator()` also revert with `InvalidAddr()` when passed `address(0)` — all three functions enforce zero-address guards at the contract level.
 
 ---
 
@@ -249,7 +249,7 @@ Set the SuperPaymaster contract address.
 function setSuperPaymaster(address _sp) external onlyOwner
 ```
 
-**L-04 Note:** Passing `address(0)` will silently succeed but breaks `updateOperatorBlacklist` (reverts with `SPNotSet`) and any flow that calls `ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus()`. Always pass a valid contract address.
+**L-04 Note:** Passing `address(0)` reverts with `InvalidAddr()`. Zero-address guard enforced at the contract level.
 
 **Events:** `SuperPaymasterUpdated`
 
@@ -263,7 +263,7 @@ Set the BLS aggregator address used for DVT consensus threshold lookup.
 function setBLSAggregator(address _aggregator) external onlyOwner
 ```
 
-**L-04 Note:** Passing `address(0)` is allowed (threshold fallback = 3), but disables on-chain threshold queries from the aggregator contract. Set to a valid `IBLSAggregator` address in production.
+**L-04 Note:** Passing `address(0)` reverts with `InvalidAddr()`. Zero-address guard enforced at the contract level.
 
 **Events:** `BLSAggregatorUpdated`
 
@@ -476,7 +476,7 @@ error TooManyLevels();
 `batchUpdateGlobalReputation` 要求提供**非零 proposalId** 以防重放攻击。当 `proposalId == 0` 时重放保护被静默跳过；调用方必须提供唯一的非零 proposalId。重复使用已执行的 proposalId 会触发 `ProposalExecuted()` 回滚。
 
 ### L-04：零地址防护
-`configureRole()` 强制检查 `if (config.owner == address(0)) revert InvalidAddr()`。调用 `setSuperPaymaster()` 和 `setBLSAggregator()` 时应避免传入 `address(0)`——虽然函数本身不会回滚，但传入零地址会导致 `updateOperatorBlacklist`（检查 `SUPER_PAYMASTER != address(0)`）和 DVT 惩罚流程异常。
+`configureRole()` 强制检查 `if (config.owner == address(0)) revert InvalidAddr()`。`setSuperPaymaster()` 和 `setBLSAggregator()` 同样会在传入 `address(0)` 时以 `InvalidAddr()` 回滚——三个函数均在合约层面强制零地址防护。
 
 ---
 
@@ -646,7 +646,7 @@ function setStaking(address _staking) external onlyOwner
 function setSuperPaymaster(address _sp) external onlyOwner
 ```
 
-**L-04 说明：** 传入 `address(0)` 会静默成功，但会导致 `updateOperatorBlacklist`（触发 `SPNotSet` 回滚）和 SBT 状态回调异常。请始终传入有效合约地址。
+**L-04 说明：** 传入 `address(0)` 会以 `InvalidAddr()` 回滚。零地址防护已在合约层面强制执行。
 
 **事件：** `SuperPaymasterUpdated`
 
@@ -660,7 +660,7 @@ function setSuperPaymaster(address _sp) external onlyOwner
 function setBLSAggregator(address _aggregator) external onlyOwner
 ```
 
-**L-04 说明：** 传入 `address(0)` 允许（阈值回退为 3），但禁用链上聚合器阈值查询。生产环境请设置为有效的 `IBLSAggregator` 地址。
+**L-04 说明：** 传入 `address(0)` 会以 `InvalidAddr()` 回滚。零地址防护已在合约层面强制执行。
 
 **事件：** `BLSAggregatorUpdated`
 

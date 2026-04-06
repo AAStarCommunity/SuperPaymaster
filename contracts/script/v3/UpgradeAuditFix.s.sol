@@ -60,7 +60,12 @@ contract UpgradeAuditFix is Script {
         console.log("  Old ReputationSystem:", oldRepSystem);
         console.log("");
 
-        // Pre-checks
+        // Pre-checks: verify caller is owner of both proxies
+        address registryOwner = Registry(registryProxy).owner();
+        address spOwner       = SuperPaymaster(payable(spProxy)).owner();
+        require(registryOwner == msg.sender, "Caller is not Registry owner");
+        require(spOwner == msg.sender, "Caller is not SuperPaymaster owner");
+
         string memory regVerBefore = Registry(registryProxy).version();
         string memory spVerBefore  = SuperPaymaster(payable(spProxy)).version();
         console.log("  Registry version before:      ", regVerBefore);
