@@ -670,3 +670,303 @@ Gas Fee: ~146.22 aPNTs
 
 - GitHub: https://github.com/AAStar/SuperPaymaster-Contract/issues
 - Discord: https://discord.gg/aastar
+
+---
+
+## V5.3 Integration Scenarios
+
+> Applicable version: SuperPaymaster v5.3.0 / Registry-4.1.0 / EntryPoint v0.7
+> Sepolia SuperPaymaster: `0x829C3178DeF488C2dB65207B4225e18824696860`
+
+The V5.3 release introduces three new integration paths: x402 payment settlement, ERC-8004 agent identity sponsorship, and off-path micro-payment charging. All three share the same `paymasterAndData` format from V3/V4 and are additive — existing integrations continue to work without changes.
+
+---
+
+### Scenario A — x402 Payment Settlement
+
+SuperPaymaster V5.3 acts as a self-hosted x402 facilitator. Two settlement paths are available depending on the payment token.
+
+#### A1. USDC Settlement via EIP-3009 (settleX402Payment)
+
+Used when the payer holds USDC. Leverages EIP-3009 `transferWithAuthorization` — no separate `approve` required.
+
+```typescript
+import { encodeAbiParameters, parseAbiParameters, keccak256, toBytes } from 'viem';
+
+// 1. Build the EIP-3009 authorization signature off-chain (user signs)
+//    Fields: from, to, value, validAfter, validBefore, nonce
+const domain = {
+  name: 'USD Coin',
+  version: '2',
+  chainId: 11155111n, // Sepolia
+  verifyingContract: USDC_ADDRESS,
+};
+const types = {
+  TransferWithAuthorization: [
+    { name: 'from',        type: 'address' },
+    { name: 'to',          type: 'address' },
+    { name: 'value',       type: 'uint256' },
+    { name: 'validAfter',  type: 'uint256' },
+    { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce',       type: 'bytes32' },
+  ],
+};
+
+const validAfter  = 0n;
+const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
+const nonce       = keccak256(toBytes(crypto.randomUUID()));       // unique bytes32
+
+const signature = await walletClient.signTypedData({
+  account: payerAccount,
+  domain,
+  types,
+  primaryType: 'TransferWithAuthorization',
+  message: {
+    from:        payerAddress,
+    to:          SUPER_PAYMASTER,    // facilitator receives funds
+    value:       amountUSDC,
+    validAfter,
+    validBefore,
+    nonce,
+  },
+});
+
+// 2. Call settleX402Payment (operator calls on behalf of user after service delivery)
+const txHash = await walletClient.writeContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'settleX402Payment',
+  args: [
+    operatorAddress,   // operator receiving the aPNTs credit
+    payerAddress,      // USDC sender (payer)
+    amountUSDC,        // amount in USDC smallest unit (6 decimals)
+    validAfter,
+    validBefore,
+    nonce,
+    signature,         // EIP-3009 signature from payer
+  ],
+});
+// Gas: ~161,000 (19% savings vs ERC-20 approve + transferFrom path)
+```
+
+**Notes:**
+- `nonce` is a `bytes32` random value tracked in `x402SettlementNonces` — reuse reverts.
+- The USDC amount is converted to aPNTs credit using the Chainlink ETH/USD price feed.
+- `validBefore` enforces a time window; expired signatures revert.
+
+---
+
+#### A2. xPNTs Settlement (settleX402PaymentDirect)
+
+Used when the payer holds community xPNTs tokens. xPNTs deployed by `xPNTsFactory` carry a built-in infinite approval to SuperPaymaster, so no user signature is required.
+
+```typescript
+// settleX402PaymentDirect: xPNTs transferFrom (auto-approved by factory)
+const txHash = await walletClient.writeContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'settleX402PaymentDirect',
+  args: [
+    operatorAddress,   // operator whose aPNTs balance is credited
+    payerAddress,      // xPNTs holder (payer)
+    amountXPNTs,       // amount in xPNTs (18 decimals)
+  ],
+});
+// Gas: lower than USDC path — no EIP-3009 verification
+```
+
+**Notes:**
+- xPNTs must be from the `xPNTsFactory` deployment (pre-approved to SuperPaymaster).
+- The amount is debited from `payer`'s xPNTs balance and credited to `operator`'s aPNTs account.
+
+---
+
+### Scenario B — Agent Identity Sponsorship (ERC-8004)
+
+V5.3 introduces dual-channel eligibility: a user/agent is eligible for gas sponsorship if they hold an SBT **or** a registered ERC-8004 Agent NFT.
+
+#### B1. Check Sponsorship Eligibility
+
+```typescript
+// isEligibleForSponsorship returns true if:
+//   sbtHolders[user] is set (legacy SBT path)  OR
+//   agentIdentityRegistry.isRegisteredAgent(user) is true (ERC-8004 path)
+
+const eligible = await client.readContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'isEligibleForSponsorship',
+  args: [agentOrUserAddress],
+});
+
+if (!eligible) {
+  // Register the agent via ERC-8004 Agent Identity Registry, OR
+  // mint an SBT for the user via Registry.registerRole(ROLE_ENDUSER, ...)
+  throw new Error('Address not eligible for sponsorship');
+}
+```
+
+#### B2. Agent Policy Configuration (Operator)
+
+Operators can set tiered BPS sponsorship rates and daily USD caps per agent category.
+
+```typescript
+// setAgentPolicies — operator configures sponsorship policy
+await walletClient.writeContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'setAgentPolicies',
+  args: [
+    [agentAddress1, agentAddress2], // agents to configure
+    [9500n, 8000n],                 // sponsorshipBPS (9500 = 95% sponsored)
+    [100_000000n, 50_000000n],      // dailyUSDCapPerAgent (USDC 6-decimal, e.g. $100)
+  ],
+});
+```
+
+#### B3. UserOp Flow with Dual-Channel Check
+
+The `validatePaymasterUserOp` function internally calls `isEligibleForSponsorship(sender)`. No changes to the `paymasterAndData` format are required — eligibility is checked automatically.
+
+```typescript
+// Same paymasterAndData format as V3:
+// [superPaymasterAddress (20)] [verificationGasLimit (16)] [postOpGasLimit (16)] [operator (20)]
+
+const paymasterAndData = concat([
+  SUPER_PAYMASTER,
+  pad(`0x${(300000n).toString(16)}`, { dir: 'left', size: 16 }),  // verificationGas (higher for agent check)
+  pad(`0x${(80000n).toString(16)}`,  { dir: 'left', size: 16 }),  // postOpGas
+  OPERATOR,
+]);
+
+// After execution, if sender is a registered agent, SuperPaymaster internally calls
+// IAgentReputationRegistry.giveFeedback(agent, success) in postOp.
+```
+
+**Notes:**
+- Agent policies are stored per `(operator, agent)` pair in `agentPolicies` mapping.
+- Daily USD spend is tracked in `_agentDailySpend[operator][agent][day]`.
+- `getAgentSponsorshipRate(operator, agent)` returns the configured BPS rate.
+
+---
+
+### Scenario C — Micro-Payment via chargeMicroPayment (Off-Path)
+
+`chargeMicroPayment` allows an operator to charge a user off the UserOp hot path using an EIP-712 signature. Useful for API metering, streaming payments, and pay-per-call models.
+
+#### C1. User Signs EIP-712 Authorization
+
+```typescript
+import { hashTypedData } from 'viem';
+
+const domain = {
+  name: 'SuperPaymaster',
+  version: '5',
+  chainId: 11155111n,
+  verifyingContract: SUPER_PAYMASTER,
+};
+
+const types = {
+  MicroPayment: [
+    { name: 'operator',  type: 'address' },
+    { name: 'user',      type: 'address' },
+    { name: 'amount',    type: 'uint256' },
+    { name: 'nonce',     type: 'uint256' },
+    { name: 'deadline',  type: 'uint256' },
+  ],
+};
+
+const nonce    = await client.readContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'microPaymentNonces',
+  args: [userAddress],
+});
+const deadline = BigInt(Math.floor(Date.now() / 1000) + 600); // 10 minutes
+
+const signature = await walletClient.signTypedData({
+  account: userAccount,
+  domain,
+  types,
+  primaryType: 'MicroPayment',
+  message: {
+    operator: operatorAddress,
+    user:     userAddress,
+    amount:   chargeAmountAPNTs,  // in aPNTs (18 decimals)
+    nonce,
+    deadline,
+  },
+});
+```
+
+#### C2. Operator Calls chargeMicroPayment
+
+```typescript
+// Operator submits the signed authorization to charge the user
+const txHash = await walletClient.writeContract({
+  address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI,
+  functionName: 'chargeMicroPayment',
+  args: [
+    operatorAddress,
+    userAddress,
+    chargeAmountAPNTs,
+    nonce,
+    deadline,
+    signature,
+  ],
+  account: operatorAccount,
+});
+```
+
+**Notes:**
+- `microPaymentNonces[user]` is auto-incremented on each successful call (replay protection).
+- `deadline` is a Unix timestamp — expired signatures revert.
+- The charge is debited from `operator`'s aPNTs balance in SuperPaymaster (not from the user's xPNTs directly).
+- Supports both EOA signatures and ERC-1271 smart contract signatures (via `SignatureCheckerLib` from solady).
+- EIP-712 domain version is `"5"` for SuperPaymaster v5.x.
+
+#### C3. Query Nonce Before Signing
+
+```typescript
+// Always fetch the current nonce immediately before building the signature
+// to avoid race conditions in concurrent environments.
+const currentNonce = await client.readContract({
+  address: SUPER_PAYMASTER,
+  abi: [{ type: 'function', name: 'microPaymentNonces', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] }],
+  functionName: 'microPaymentNonces',
+  args: [userAddress],
+});
+```
+
+---
+
+### V5.3 Contract Addresses (Sepolia)
+
+| Contract | Address | Version |
+|----------|---------|---------|
+| SuperPaymaster (proxy) | `0x829C3178DeF488C2dB65207B4225e18824696860` | 5.3.0 |
+| Registry (proxy) | `0xD88CF5316c64f753d024fcd665E69789b33A5EB6` | 4.1.0 |
+| AgentIdentityRegistry | `0x400624Fa1423612B5D16c416E1B4125699467d9a` | — |
+| AgentReputationRegistry | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` | — |
+| MicroPaymentChannel | `0x5753e9675f68221cA901e495C1696e33F552ea36` | — |
+| xPNTsFactory | `0xdEe2e78f0884a210Da64759FD306a7BfF5db4AA1` | — |
+| EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | 0.7 |
+
+### V5.3 New Errors
+
+| Error | Scenario |
+|-------|---------|
+| `InvalidNonce` | chargeMicroPayment: nonce mismatch |
+| `SignatureExpired` | chargeMicroPayment: deadline passed |
+| `InvalidSignature` | chargeMicroPayment: signature verification failed |
+| `DailyCapExceeded` | Agent sponsorship: operator daily USD cap reached |
+| `SettlementNonceUsed` | settleX402Payment: nonce already consumed |
+| `InvalidTimeWindow` | settleX402Payment: validBefore expired or validAfter not reached |
+
+### Related Documentation
+
+- [UUPS-upgrade-doc.md](./UUPS-upgrade-doc.md) — UUPS upgrade guide and knowledge base
+- [API_REGISTRY.md](./API_REGISTRY.md) — Registry v4.1.0 API reference
+- [research-x402-ecosystem-2026-03.md](./research-x402-ecosystem-2026-03.md) — x402 ecosystem research
+- [research-agent-x402-micropayment.md](./research-agent-x402-micropayment.md) — Agent x402 micropayment research

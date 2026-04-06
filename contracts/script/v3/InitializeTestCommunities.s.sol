@@ -46,8 +46,8 @@ contract InitializeTestCommunities is Script {
             name: "AAStar",
             ensName: "aastar.eth",
             website: "aastar.io",
-            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
-            logoURI: "ipfs://aastar-logo",
+            description: "Empower Community, Unleash Humanity\xF0\x9F\x8D\x84",
+            logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
             stakeAmount: 30 ether
         });
         

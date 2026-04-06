@@ -118,6 +118,39 @@ const ABI = {
     "function getSlashCount(address operator) view returns (uint256)",
     "function getSlashHistory(address operator) view returns (tuple(uint256 timestamp, uint256 amount, uint256 reputationLoss, string reason, uint8 level)[])",
     "function updateReputation(address operator, uint256 newScore)",
+    // V5.3: Agent Sponsorship
+    "function agentIdentityRegistry() view returns (address)",
+    "function agentReputationRegistry() view returns (address)",
+    "function isEligibleForSponsorship(address user) view returns (bool)",
+    "function isRegisteredAgent(address account) view returns (bool)",
+    "function getAgentSponsorshipRate(address agent, address operator) view returns (uint256 bps)",
+    "function setAgentPolicies(tuple(uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)[] policies)",
+    "function setAgentRegistries(address identity, address reputation)",
+    "function agentPolicies(address operator, uint256 index) view returns (uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)",
+    // V5.3: x402 Facilitator
+    "function facilitatorFeeBPS() view returns (uint256)",
+    "function operatorFacilitatorFees(address operator) view returns (uint256)",
+    "function x402SettlementNonces(bytes32 nonce) view returns (bool)",
+    "function facilitatorEarnings(address operator, address asset) view returns (uint256)",
+    "function setFacilitatorFeeBPS(uint256 _fee)",
+    "function setOperatorFacilitatorFee(address operator, uint256 _fee)",
+    "function withdrawFacilitatorEarnings(address asset)",
+    "function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature) returns (bytes32)",
+    "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, bytes32 settlementRef) returns (bytes32)",
+    // V5.3: Credit
+    "function getAvailableCredit(address user, address token) view returns (uint256)",
+  ],
+
+  MicroPaymentChannel: [
+    "function version() view returns (string)",
+    "function openChannel(address payee, address token, uint128 deposit, bytes32 salt, address authorizedSigner) returns (bytes32 channelId)",
+    "function settleChannel(bytes32 channelId, uint128 cumulativeAmount, bytes signature)",
+    "function closeChannel(bytes32 channelId, uint128 cumulativeAmount, bytes signature)",
+    "function topUpChannel(bytes32 channelId, uint128 amount)",
+    "function requestCloseChannel(bytes32 channelId)",
+    "function withdrawChannel(bytes32 channelId)",
+    "function getChannel(bytes32 channelId) view returns (tuple(address payer, address payee, address token, address authorizedSigner, uint128 deposit, uint128 settled, uint64 closeRequestedAt, bool finalized))",
+    "function VOUCHER_TYPEHASH() view returns (bytes32)",
   ],
 
   GTokenStaking: [
@@ -384,7 +417,7 @@ async function sendTxSafe(contract, method, args, label) {
 // ============================================================
 
 function getContracts(config, signerOrProvider) {
-  return {
+  const contracts = {
     registry:         new ethers.Contract(config.registry, ABI.Registry, signerOrProvider),
     superPaymaster:   new ethers.Contract(config.superPaymaster, ABI.SuperPaymaster, signerOrProvider),
     gToken:           new ethers.Contract(config.gToken, ABI.ERC20, signerOrProvider),
@@ -396,6 +429,11 @@ function getContracts(config, signerOrProvider) {
     priceFeed:        new ethers.Contract(config.priceFeed, ABI.PriceFeed, signerOrProvider),
     entryPoint:       new ethers.Contract(config.entryPoint, ABI.EntryPoint, signerOrProvider),
   };
+  // V5.3 contracts (optional — only present after V5.3 deployment)
+  if (config.microPaymentChannel) {
+    contracts.microPaymentChannel = new ethers.Contract(config.microPaymentChannel, ABI.MicroPaymentChannel, signerOrProvider);
+  }
+  return contracts;
 }
 
 // ============================================================
