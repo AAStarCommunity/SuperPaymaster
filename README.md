@@ -203,31 +203,58 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 ## Documentation
 
 ### Architecture & Design
-- [Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md)
-- [UUPS Upgrade Guide](./docs/UUPS-upgrade-doc.md)
-- [DVT + BLS Architecture](./docs/DVT_BLS_Architecture.md)
-- [V5 Design Overview](./docs/SuperPaymaster-V5-Design.md)
-- [x402 Ecosystem Research](./docs/research-x402-ecosystem-2026-03.md)
-- [Agent + x402 + Micropayment Research](./docs/research-agent-x402-micropayment.md)
+- [Contract Architecture](./docs/CONTRACT_ARCHITECTURE.md) — Dependency graph, data structures, constructor params
+- [UUPS Upgrade Guide](./docs/UUPS-upgrade-doc.md) — Storage layout, upgrade flow, security analysis, knowledge base
+- [DVT + BLS Architecture](./docs/DVT_BLS_Architecture.md) — Decentralized validator technology & BLS signature aggregation
+- [Oracle Failover Mechanism](./docs/Oracle_Failover_Mechanism.md) — Chainlink degradation & DVT auto-switch
+- [Price Cache Technical Reference](./docs/Price_Cache_Technical_Reference.md) — Price cache implementation details
+- [Registry Role Mechanism](./contracts/docs/Registry_Role_Mechanism.md) — Role configuration, management, exit fees
+- [Admin Configuration Rights](./docs/Admin_Configuration_Rights.md) — Permission matrix for admin operations
+- [Credit System Design](./docs/Phase7_Credit_System_Redesign.md) — User credit/debt system architecture
+- [Contract Version Map](./docs/VERSION_MAP.md) — On-chain version mapping & governance roadmap
+
+### V5 Design & Roadmap
+- [V5 Design Document](./docs/SuperPaymaster-V5-Design.md) — `_consumeCredit()`, x402 settlement, ERC-8004 integration
+- [V5 Roadmap](./docs/V5-Roadmap.md) — Evolution from gas sponsorship to Agent Economy
+- [V5 Implementation Plan](./docs/V5-Implementation-Plan.md) — 16-week schedule, worktree strategy, milestone tracking
+- [V5.1 Plan](./docs/V5.1-Plan.md) — Agent-Native Gas Sponsorship & `chargeMicroPayment()`
+- [V5.2 Plan](./docs/V5.2-Plan.md) — x402 Facilitator + MicroPaymentChannel
+- [V5.3 Plan](./docs/V5.3-Plan.md) — ERC-8004 Agent Discovery + SKILL.md + CLI
+- [V5 Acceptance Report](./docs/V5-Acceptance-Report.md) — Feature verification & test results
+
+### Research
+- [x402 Ecosystem Research](./docs/research-x402-ecosystem-2026-03.md) — Coinbase x402, Cloudflare Workers, settlement methods
+- [Agent + x402 + Micropayment Research](./docs/research-agent-x402-micropayment.md) — Agent economy & payment channel design
+- [Spores Protocol Design](./docs/Spores-protocol-design-2026.md) — Decentralized revenue sharing network
 
 ### Developer Guides
 - [Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — Gasless, x402, micropayment scenarios
 - [SDK E2E Scenario Guide](./docs/SDK-E2E-Scenario-Guide.md) — 7 complete user scenarios
 - [Ecosystem Services Setup](./docs/ECOSYSTEM-SERVICES-SETUP-GUIDE.md) — Operator node, facilitator, keeper
+- [Registry v4.1 SDK Migration](./docs/registry-v4.1-sdk-migration.md) — Interface changes, viem examples, error mapping
+- [Deployment Guide](./docs/DEPLOYMENT_V3_GUIDE.md) — Secure deployment with Foundry Keystore
+
+### User Guides
+- [MySBT User Guide](./docs/MYSBT_USER_GUIDE.md) — Minting and managing SBT tokens
+- [Community Registration](./docs/COMMUNITY_REGISTRATION.md) — Registering your community
+- [Paymaster Operator Guide](./docs/PAYMASTER_OPERATOR_GUIDE.md) — Operating AOA/AOA+ paymasters
 
 ### API References
 - [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (V5.3.0)
 - [Registry API](./docs/API_REGISTRY.md) (V4.1.0)
 - [MySBT API](./docs/API_MYSBT.md)
 
-### Security
-- [Security Policy](./docs/SECURITY.md)
-- [Audit Fix Summary](./docs/challenger-review-2026-03-26.md)
+### Security & Audits
+- [Security Policy](./docs/SECURITY.md) — Vulnerability reporting
+- [Security PGP](./docs/SECURITY_PGP.md) — PGP keys & bug bounty
+- [Challenger Review](./docs/challenger-review-2026-03-26.md) — Adversarial review report
+- [Kimi AI Audit Report](./docs/Kimi_SuperPaymaster_Full_Audit_Report.md) — Full security audit
+- [Codeex Audit](./docs/codeex-audit-2026-03-20.md) — Static analysis & doc consistency audit
 
 ### Testing
-- [Anvil Testing Guide](./docs/Anvil_Testing_Guide.md)
-- [E2E Test Guide](./docs/E2E-TEST-GUIDE.md)
-- [Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md)
+- [Anvil Testing Guide](./docs/Anvil_Testing_Guide.md) — Local Anvil environment setup
+- [E2E Test Guide](./docs/E2E-TEST-GUIDE.md) — End-to-end Sepolia test suite
+- [Gasless Test Guide](./docs/GASLESS_TEST_GUIDE.md) — Testing gasless transactions
 
 ---
 
@@ -414,11 +441,57 @@ forge test
 
 ## 文档
 
-- [合约架构](./docs/CONTRACT_ARCHITECTURE.md) | [UUPS 升级指南](./docs/UUPS-upgrade-doc.md)
+### 架构与设计
+- [合约架构](./docs/CONTRACT_ARCHITECTURE.md) — 依赖图、数据结构、构造参数
+- [UUPS 升级指南](./docs/UUPS-upgrade-doc.md) — 存储布局、升级流程、安全分析
+- [DVT + BLS 架构](./docs/DVT_BLS_Architecture.md) — 去中心化验证者 & BLS 签名聚合
+- [预言机降级机制](./docs/Oracle_Failover_Mechanism.md) — Chainlink 降级 & DVT 切换
+- [价格缓存技术参考](./docs/Price_Cache_Technical_Reference.md) — 价格缓存实现
+- [角色机制](./contracts/docs/Registry_Role_Mechanism.md) — 角色配置、管理、退出费用
+- [管理权限矩阵](./docs/Admin_Configuration_Rights.md) — 管理操作权限
+- [信用系统设计](./docs/Phase7_Credit_System_Redesign.md) — 用户信用/债务系统
+- [合约版本映射](./docs/VERSION_MAP.md) — 链上版本号 & 治理路线图
+
+### V5 设计与路线图
+- [V5 设计文档](./docs/SuperPaymaster-V5-Design.md) — `_consumeCredit()`、x402、ERC-8004 集成
+- [V5 路线图](./docs/V5-Roadmap.md) — 从 Gas 代付到 Agent Economy 的演进
+- [V5 实施计划](./docs/V5-Implementation-Plan.md) — 16 周进度、Worktree 并行策略
+- [V5.1 计划](./docs/V5.1-Plan.md) — Agent-Native Gas & `chargeMicroPayment()`
+- [V5.2 计划](./docs/V5.2-Plan.md) — x402 Facilitator + MicroPaymentChannel
+- [V5.3 计划](./docs/V5.3-Plan.md) — ERC-8004 Agent Discovery + SKILL.md + CLI
+- [V5 验收报告](./docs/V5-Acceptance-Report.md) — 功能验证 & 测试结果
+
+### 研究
+- [x402 生态研究](./docs/research-x402-ecosystem-2026-03.md) — Coinbase x402、Cloudflare Workers
+- [Agent + x402 + 微支付研究](./docs/research-agent-x402-micropayment.md) — Agent 经济 & 支付通道
+- [Spores 协议设计](./docs/Spores-protocol-design-2026.md) — 去中心化分润网络
+
+### 开发者指南
 - [开发者集成指南](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — 无 Gas、x402、微支付场景
 - [SDK E2E 场景指南](./docs/SDK-E2E-Scenario-Guide.md) — 7 个完整用户场景
-- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) | [Registry API](./docs/API_REGISTRY.md)
-- [安全策略](./docs/SECURITY.md) | [审计修复总结](./docs/challenger-review-2026-03-26.md)
+- [生态服务部署](./docs/ECOSYSTEM-SERVICES-SETUP-GUIDE.md) — Operator 节点、Facilitator、Keeper
+- [Registry v4.1 SDK 迁移](./docs/registry-v4.1-sdk-migration.md) — 接口变更、viem 示例
+- [部署指南](./docs/DEPLOYMENT_V3_GUIDE.md) — Foundry Keystore 安全部署
+
+### 用户指南
+- [MySBT 用户指南](./docs/MYSBT_USER_GUIDE.md) — 铸造和管理 SBT 代币
+- [社区注册指南](./docs/COMMUNITY_REGISTRATION.md) — 注册你的社区
+- [Paymaster 运营指南](./docs/PAYMASTER_OPERATOR_GUIDE.md) — 运营 AOA/AOA+ Paymaster
+
+### API 参考
+- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (V5.3.0)
+- [Registry API](./docs/API_REGISTRY.md) (V4.1.0)
+- [MySBT API](./docs/API_MYSBT.md)
+
+### 安全与审计
+- [安全策略](./docs/SECURITY.md) | [安全 PGP](./docs/SECURITY_PGP.md)
+- [对抗性审查](./docs/challenger-review-2026-03-26.md) | [Kimi AI 审计](./docs/Kimi_SuperPaymaster_Full_Audit_Report.md)
+- [Codeex 审计](./docs/codeex-audit-2026-03-20.md)
+
+### 测试
+- [Anvil 测试指南](./docs/Anvil_Testing_Guide.md) — 本地环境
+- [E2E 测试指南](./docs/E2E-TEST-GUIDE.md) — Sepolia 端到端测试
+- [Gasless 测试指南](./docs/GASLESS_TEST_GUIDE.md) — 无 Gas 交易测试
 
 ---
 
