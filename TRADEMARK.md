@@ -59,7 +59,7 @@ The following logos are protected (actual files to be added):
 - Mycelium Protocol logo
 - GToken symbol
 
-*(Logo files will be deposited in this directory when finalized.)*
+*(Logo files will be deposited in this directory when brand design is finalized, estimated Q3 2026.)*
 
 ---
 
@@ -80,20 +80,20 @@ The following logos are protected (actual files to be added):
 4. **Discuss MushroomDAO.** You may use the names in articles, blog posts,
    talks, and other commentary about the project.
 
-### "Powered By" Clause:
+### "Powered By" / Compatibility Statements:
 
 Forks and derivative works **MAY** use the phrases **"Compatible with Mycelium
-Protocol"** or **"Powered by Mycelium"** in descriptive text, **ONLY IF** they
-actually interoperate with the Mycelium Protocol network. Use of these phrases
-does not grant any additional trademark rights.
+Protocol"** or **"Powered by Mycelium"** in descriptive text (e.g., README,
+documentation, marketing copy), **ONLY IF** they actually interoperate with
+the Mycelium Protocol network. These are permitted **nominative uses** — they
+describe a factual relationship, not brand affiliation.
 
-Regardless of whether they use a "Powered By" phrase, all forks and derivatives
-**MUST** retain the NOTICE file and all attribution contained within it,
-including the line:
+This is separate from the fork rebranding requirement below: you must remove
+MushroomDAO trademarks from your **product name and UI**, but you may use
+descriptive compatibility statements in **documentation and marketing text**.
 
-> Built on Mycelium Protocol by MushroomDAO (https://mushroom.cv)
-
-Removing or obscuring this attribution violates the Apache 2.0 license (Section 4).
+All forks and derivatives **MUST** retain the NOTICE file per Apache 2.0
+Section 4(d).
 
 ### You MAY NOT:
 
@@ -111,11 +111,9 @@ Removing or obscuring this attribution violates the Apache 2.0 license (Section 
    names, social media accounts, or trademarks that are confusingly
    similar to the protected names listed above.
 
-5. **Delete or obscure MushroomDAO attribution.** You may NOT remove, hide,
-   or obscure MushroomDAO attribution from NOTICE files, about pages,
-   documentation, or any other location where it appears. This applies to
-   all forks, derivative works, and redistributions. Doing so violates both
-   this trademark policy and the Apache 2.0 license (Section 4).
+5. **Delete the NOTICE file.** You may NOT remove the NOTICE file from
+   redistributions or derivative works. This is required by the Apache 2.0
+   license (Section 4), independent of this trademark policy.
 
 ### Forks:
 
