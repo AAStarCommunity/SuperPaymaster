@@ -1,0 +1,46 @@
+Mycelium Protocol — SuperPaymaster
+Copyright 2024-2026 MushroomDAO Contributors
+
+This product includes software developed by MushroomDAO
+(https://github.com/MushroomDAO).
+
+Licensed under the Apache License, Version 2.0.
+Licensed under Apache 2.0 (https://opensource.org/licenses/Apache-2.0) — an
+OSI-approved (https://opensource.org/osd) open source license.
+See LICENSE file for full terms.
+
+== Attribution Requirement ==
+
+All redistributions, derivative works, and projects that incorporate code from
+this repository MUST include the following attribution in a prominent location
+(e.g., NOTICE file, about page, or documentation):
+
+    Built on Mycelium Protocol by MushroomDAO (https://mushroom.cv)
+
+This requirement derives from Apache License 2.0, Section 4(d), which mandates
+that derivative works include a copy of the NOTICE file and retain all
+attribution notices contained within it. Removing the NOTICE file, deleting
+this attribution, or obscuring it in any way constitutes a violation of the
+Apache 2.0 license terms.
+
+== Trademark Notice ==
+
+MushroomDAO, Mycelium Protocol, Mycelium, GToken, PNTs, and related names
+are trademarks of MushroomDAO. Use of these marks is governed by TRADEMARK.md.
+Forks and derivative works must remove MushroomDAO trademarks and branding.
+
+== Access Model ==
+
+  Code:              Apache 2.0 — free to use, modify, and distribute.
+  Protocol Network:  Accessing the live Mycelium Protocol network requires
+                     a GToken ticket. The code is open; the network is gated.
+  Organizations:     Organizations with >50 members seeking network access
+                     should apply for Network Access Authorization.
+                     See COMMUNITY-USE-POLICY.md
+  Commercial:        Code is free under Apache 2.0. Trademark use and
+                     network access for commercial purposes: contact
+                     HyperCapital (jason@aastar.io).
+
+== Contributor License Agreement ==
+
+All contributions require a signed CLA managed via cla-assistant.io.
