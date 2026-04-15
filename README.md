@@ -1,5 +1,6 @@
 # SuperPaymaster
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 **Decentralized Payment & Gas Sponsorship Infrastructure for ERC-4337**
 
 **[English](#english)** | **[中文](#chinese)**
