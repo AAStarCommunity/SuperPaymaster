@@ -94,8 +94,8 @@ contract DVTSlashTest is Test {
         registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);
         vm.stopPrank();
 
-        // Verify initial stake (30 for community + 50 for paymaster)
-        assertEq(staking.balanceOf(operator), 80 ether);
+        // Verify initial stake (COMMUNITY is non-operator: no stake; 50 for paymaster only)
+        assertEq(staking.balanceOf(operator), 50 ether);
 
         // 2. Perform Tier 1 Slash (aPNTs Rep Loss) via SuperPaymaster
         vm.startPrank(dvtAggregator);
@@ -117,9 +117,9 @@ contract DVTSlashTest is Test {
             "Tier 2 Penalty"
         );
         
-        // Verify GToken balance reduced (80 - 10 = 70)
-        assertEq(staking.balanceOf(operator), 70 ether);
-        assertEq(staking.totalStaked(), 70 ether);
+        // Verify GToken balance reduced (50 - 10 = 40)
+        assertEq(staking.balanceOf(operator), 40 ether);
+        assertEq(staking.totalStaked(), 40 ether);
         
         vm.stopPrank();
     }

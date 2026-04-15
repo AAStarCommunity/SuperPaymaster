@@ -40,13 +40,14 @@ contract MockRegistry {
     function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory) {
         return IRegistry.RoleConfig({
             minStake: 0,
-            entryBurn: 0,
+            ticketPrice: 0,
             slashThreshold: 0,
             slashBase: 0,
             slashInc: 0,
             slashMax: 0,
             exitFeePercent: 0,
             isActive: false,
+            isOperatorRole: false,
             minExitFee: 0,
             description: "stub",
             owner: address(0),

@@ -72,14 +72,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
-            entryBurn: 5 ether,
+            ticketPrice: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
-            minExitFee: 2 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
             roleLockDuration: 0
@@ -90,7 +91,7 @@ contract RegistryV3NewFeaturesTest is Test {
         // Verify role was created
         IRegistry.RoleConfig memory stored = registry.getRoleConfig(ROLE_NEW_CUSTOM);
         assertEq(stored.minStake, 50 ether);
-        assertEq(stored.entryBurn, 5 ether);
+        assertEq(stored.ticketPrice, 5 ether);
         assertEq(stored.exitFeePercent, 1000);
         assertEq(stored.minExitFee, 2 ether);
         assertTrue(stored.isActive);
@@ -103,14 +104,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
-            entryBurn: 5 ether,
+            ticketPrice: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
-            minExitFee: 2 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
             roleLockDuration: 0
@@ -128,14 +130,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
-            entryBurn: 5 ether,
+            ticketPrice: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
-            minExitFee: 2 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
             roleLockDuration: 0
@@ -158,14 +161,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
-            entryBurn: 5 ether,
+            ticketPrice: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1500, // 15%
-            minExitFee: 3 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 3 ether,
             description: "Custom Role",
             owner: roleOwner1,
             roleLockDuration: 0
@@ -186,14 +190,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 0.3 ether,
-            entryBurn: 0.05 ether,
+            ticketPrice: 0.05 ether,
             slashThreshold: 0,
             slashBase: 0,
             slashInc: 0,
             slashMax: 0,
             exitFeePercent: 1000,
-            minExitFee: 0.05 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 0.05 ether,
             description: "MyTask Role",
             owner: roleOwner1,
             roleLockDuration: 7 days
@@ -211,7 +216,7 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory juryConfig = registry.getRoleConfig(ROLE_JURY);
         assertEq(juryConfig.minStake, 0.3 ether);
-        assertEq(juryConfig.entryBurn, 0.05 ether);
+        assertEq(juryConfig.ticketPrice, 0.05 ether);
         assertEq(juryConfig.exitFeePercent, 1000);
         assertEq(juryConfig.minExitFee, 0.05 ether);
         assertTrue(juryConfig.isActive);
@@ -260,14 +265,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory newConfig = IRegistry.RoleConfig({
             minStake: 20 ether,
-            entryBurn: 2 ether,
+            ticketPrice: 2 ether,
             slashThreshold: 10,
             slashBase: 2,
             slashInc: 1,
             slashMax: 10,
             exitFeePercent: 2000, // 20%
-            minExitFee: 1.5 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 1.5 ether,
             description: "Updated Community",
             owner: currentCfg.owner,
             roleLockDuration: 0
@@ -292,21 +298,22 @@ contract RegistryV3NewFeaturesTest is Test {
         vm.startPrank(owner);
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 50 ether,
-            entryBurn: 5 ether,
+            ticketPrice: 5 ether,
             slashThreshold: 5,
             slashBase: 10,
             slashInc: 5,
             slashMax: 100,
             exitFeePercent: 1000,
-            minExitFee: 2 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
             roleLockDuration: 0
         });
         registry.configureRole(ROLE_NEW_CUSTOM, config);
         vm.stopPrank();
-        
+
         // Role owner should be able to configure
         vm.startPrank(roleOwner1);
         config.minStake = 60 ether;
@@ -322,14 +329,15 @@ contract RegistryV3NewFeaturesTest is Test {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 20 ether,
-            entryBurn: 2 ether,
+            ticketPrice: 2 ether,
             slashThreshold: 10,
             slashBase: 2,
             slashInc: 1,
             slashMax: 10,
             exitFeePercent: 1000,
-            minExitFee: 1 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 1 ether,
             description: "Hacked",
             owner: roleOwner1,
             roleLockDuration: 0

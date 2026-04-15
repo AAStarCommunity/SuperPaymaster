@@ -65,13 +65,13 @@ contract RegistryTest is Test {
     function test_RegisterEndUser() public {
         // First register a community
         test_RegisterCommunity();
-        
+
         vm.startPrank(owner);
-        
-        // Configure ENDUSER
+
+        // Configure ENDUSER (non-operator: ticketPrice only, no stake)
         IRegistry.RoleConfig memory endUserConfig = registry.getRoleConfig(ROLE_ENDUSER);
-        endUserConfig.minStake = 0.3 ether;
-        endUserConfig.entryBurn = 0.05 ether;
+        endUserConfig.minStake = 0;
+        endUserConfig.ticketPrice = 0.3 ether;
         endUserConfig.slashThreshold = 5;
         endUserConfig.slashBase = 10;
         endUserConfig.slashInc = 5;
@@ -82,43 +82,47 @@ contract RegistryTest is Test {
         endUserConfig.description = "End User";
         endUserConfig.roleLockDuration = 0;
         registry.configureRole(ROLE_ENDUSER, endUserConfig);
-        
+
         vm.stopPrank();
         vm.startPrank(user);
-        
-        // 2. Register with proper approvals
-        uint256 required = 0.3 ether + 0.05 ether;
-        gtoken.approve(address(staking), required); 
-        
+
+        // 2. Register with proper approvals (ticketPrice goes to treasury)
+        gtoken.approve(address(staking), 1 ether);
+
+        uint256 treasuryBefore = gtoken.balanceOf(treasury);
+
         // Preparing Role Data - use registered community
         bytes memory roleData = abi.encode(
             Registry.EndUserRoleData({
                 account: address(0x123),
-                community: communityUser, // Use the registered community
+                community: communityUser,
                 avatarURI: "ipfs://avatar",
                 ensName: "user.eth",
-                stakeAmount: 0 // use min
+                stakeAmount: 0
             })
         );
-        
+
         registry.registerRole(ROLE_ENDUSER, user, roleData);
-        
+
         // Asserts
         assertTrue(registry.hasRole(ROLE_ENDUSER, user));
-        assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0.3 ether);
-        
-        // ✅ Verify TRUE BURN: blackhole should be empty (no longer used)
+        // Non-operator: no stake, ticketPrice transferred to treasury
+        assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0);
+        assertEq(gtoken.balanceOf(treasury) - treasuryBefore, 0.3 ether, "Treasury should receive ticketPrice");
+
+        // Verify TRUE BURN: blackhole should be empty (no longer used)
         assertEq(gtoken.balanceOf(0x000000000000000000000000000000000000dEaD), 0, "Blackhole should be empty");
-        
+
         vm.stopPrank();
     }
     
     function test_RegisterCommunity() public {
         vm.startPrank(owner);
-        
+
+        // COMMUNITY is non-operator: ticketPrice only, no stake
         IRegistry.RoleConfig memory communityConfig = registry.getRoleConfig(ROLE_COMMUNITY);
-        communityConfig.minStake = 30 ether;
-        communityConfig.entryBurn = 3 ether;
+        communityConfig.minStake = 0;
+        communityConfig.ticketPrice = 30 ether;
         communityConfig.slashThreshold = 10;
         communityConfig.slashBase = 2;
         communityConfig.slashInc = 1;
@@ -130,11 +134,13 @@ contract RegistryTest is Test {
         communityConfig.roleLockDuration = 0;
         registry.configureRole(ROLE_COMMUNITY, communityConfig);
         vm.stopPrank();
-        
+
         vm.startPrank(communityUser);
-        
-        gtoken.approve(address(staking), 33 ether);
-        
+
+        gtoken.approve(address(staking), 30 ether);
+
+        uint256 treasuryBefore = gtoken.balanceOf(treasury);
+
         bytes memory roleData = abi.encode(
             Registry.CommunityRoleData({
                 name: "MyDAO",
@@ -142,48 +148,31 @@ contract RegistryTest is Test {
                 website: "https://dao.com",
                 description: "Best DAO",
                 logoURI: "ipfs://logo",
-                stakeAmount: 30 ether // Explicitly set stake amount
+                stakeAmount: 0 // non-operator: no stake
             })
         );
-        
+
         registry.registerRole(ROLE_COMMUNITY, communityUser, roleData);
-        
+
         assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
-        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 30 ether);
-        
+        // Non-operator: no stake, ticketPrice goes to treasury
+        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 0);
+        assertEq(gtoken.balanceOf(treasury) - treasuryBefore, 30 ether, "Treasury should receive ticketPrice");
+
         vm.stopPrank();
     }
     
     function test_ExitRole() public {
         // Setup EndUser
         test_RegisterEndUser();
-        
+
+        // ENDUSER is a non-operator (ticket-only) role — exit is blocked
         vm.startPrank(user);
-        
-        uint256 beforeBalance = gtoken.balanceOf(user);
-        uint256 stakedAmount = staking.getLockedStake(user, ROLE_ENDUSER);
-        
-        // Exit
-        vm.stopPrank();
-        vm.startPrank(owner);
-        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(ROLE_ENDUSER);
-        cfg.roleLockDuration = 0;
-        registry.configureRole(ROLE_ENDUSER, cfg);
-        vm.stopPrank();
-        vm.startPrank(user);
+        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
         registry.exitRole(ROLE_ENDUSER);
-        
-        assertFalse(registry.hasRole(ROLE_ENDUSER, user));
-        assertEq(staking.getLockedStake(user, ROLE_ENDUSER), 0);
-        
-        // Check refund (actual refund after exit fee)
-        uint256 afterBalance = gtoken.balanceOf(user);
-        uint256 refunded = afterBalance - beforeBalance;
-        
-        // Verify refund amount (may include min fee protection)
-        assertTrue(refunded > 0, "Should receive some refund");
-        assertTrue(refunded < stakedAmount, "Should deduct exit fee");
-        
+
+        // Role should still be active
+        assertTrue(registry.hasRole(ROLE_ENDUSER, user));
         vm.stopPrank();
     }
 }

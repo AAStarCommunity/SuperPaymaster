@@ -34,7 +34,7 @@ contract MockRegistryForProposal is IRegistry {
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,0,false,0,"stub",address(0),0); 
+        return RoleConfig(0,0,0,0,0,0,0,false,false,0,"stub",address(0),0); 
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }

@@ -27,7 +27,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-4.1.0";
+        return "Registry-5.0.0";
     }
 
     // --- Constants ---
@@ -101,6 +101,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error ThreshNotAscending();
     error BatchTooLarge();
     error TooManyLevels();
+    error NoExitForTicketOnlyRoles();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() Ownable(msg.sender) {
@@ -119,14 +120,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
         MYSBT = IMySBT(_mysbt);
 
-        // Initialize 7 roles
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_COMMUNITY, 30 ether, 3 ether, 10, 2, 1, 10, 500, 1 ether, true, "", _owner, 30 days);
-        _initRole(ROLE_ENDUSER, 0.3 ether, 0.05 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, "", _owner, 7 days);
+        // Initialize 7 roles — Ticket Model v4
+        // Operators: isOperatorRole=true, have both ticketPrice and minStake
+        // Regular users: isOperatorRole=false, ticketPrice only, minStake=0
+        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, true, "", _owner, 30 days);
+        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, true, true, "", _owner, 30 days);
+        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, true, true, "", _owner, 30 days);
+        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, true, true, "", _owner, 30 days);
+        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, true, true, "", _owner, 30 days);
+        _initRole(ROLE_COMMUNITY, 0, 30 ether, 10, 2, 1, 10, 500, 1 ether, true, false, "", _owner, 0);
+        _initRole(ROLE_ENDUSER, 0, 0.3 ether, 0, 0, 0, 0, 1000, 0.05 ether, true, false, "", _owner, 0);
 
         // Initialize Credit Tiers (Default in aPNTs)
         creditTierConfig[1] = 0;
@@ -154,21 +157,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event ExitFeeSyncFailed(bytes32 indexed roleId);
 
     function _initRole(
-        bytes32 roleId, 
-        uint256 min, 
-        uint256 burn, 
-        uint32 thresh, // Changed to uint32
-        uint32 base,   // Changed to uint32
-        uint32 inc,    // Changed to uint32
-        uint32 max,    // Changed to uint32
-        uint16 exitFeePercent, // Changed to uint16
+        bytes32 roleId,
+        uint256 min,
+        uint256 ticketPrice,
+        uint32 thresh,
+        uint32 base,
+        uint32 inc,
+        uint32 max,
+        uint16 exitFeePercent,
         uint256 minExitFee,
-        bool active, 
-        string memory desc, 
+        bool active,
+        bool isOperatorRole,
+        string memory desc,
         address owner,
         uint256 lockDuration
     ) internal {
-        roleConfigs[roleId] = RoleConfig(min, burn, thresh, base, inc, max, exitFeePercent, active, minExitFee, desc, owner, lockDuration);
+        roleConfigs[roleId] = RoleConfig(min, ticketPrice, thresh, base, inc, max, exitFeePercent, active, isOperatorRole, minExitFee, desc, owner, lockDuration);
         // roleOwners[roleId] = owner; // Moved into RoleConfig
         // roleLockDurations[roleId] = lockDuration; // Moved into RoleConfig
         // Automatically set exit fee in staking contract if setup correctly
@@ -241,25 +245,33 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
 
         (uint256 stakeAmount, bytes memory sbtData) = _validateAndProcessRole(roleId, user, roleData);
-        if (stakeAmount == 0) stakeAmount = config.minStake;
-        if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
+
+        if (config.isOperatorRole) {
+            // Operator roles: require stake
+            if (stakeAmount == 0) stakeAmount = config.minStake;
+            if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
+        }
 
         if (!alreadyHasRole) {
-            _firstTimeRegister(roleId, user, roleData, stakeAmount, config.entryBurn, user);
+            _firstTimeRegister(roleId, user, roleData, stakeAmount, config.ticketPrice, config.isOperatorRole, user);
         } else {
             // Re-registration / Top-up: preserve lockedAt (H-01/C-01 fix)
-            GTOKEN_STAKING.topUpStake(user, roleId, stakeAmount - roleStakes[roleId][user], user);
-            roleStakes[roleId][user] = stakeAmount;
+            // Only operator roles have stake to top up
+            if (config.isOperatorRole) {
+                GTOKEN_STAKING.topUpStake(user, roleId, stakeAmount - roleStakes[roleId][user], user);
+                roleStakes[roleId][user] = stakeAmount;
+            }
             roleMetadata[roleId][user] = roleData;
         }
 
         (uint256 sbtTokenId, ) = MYSBT.mintForRole(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
-        emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.entryBurn, block.timestamp);
+        emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.ticketPrice, block.timestamp);
     }
 
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
+        if (!roleConfigs[roleId].isOperatorRole) revert NoExitForTicketOnlyRoles();
 
         uint256 lockDuration = roleConfigs[roleId].roleLockDuration;
         if (lockDuration > 0) {
@@ -318,31 +330,41 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
 
         (uint256 stakeAmount, bytes memory sbtData) = _validateAndProcessRole(roleId, user, data);
-        if (stakeAmount == 0) stakeAmount = config.minStake;
-        if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
 
-        _firstTimeRegister(roleId, user, data, stakeAmount, config.entryBurn, msg.sender);
+        if (config.isOperatorRole) {
+            if (stakeAmount == 0) stakeAmount = config.minStake;
+            if (stakeAmount < config.minStake) revert InsufficientStake(stakeAmount, config.minStake);
+        }
+
+        _firstTimeRegister(roleId, user, data, stakeAmount, config.ticketPrice, config.isOperatorRole, msg.sender);
 
         emit RoleGranted(roleId, user, msg.sender);
         (uint256 sbtTokenId, ) = MYSBT.airdropMint(user, roleId, sbtData);
         roleSBTTokenIds[roleId][user] = sbtTokenId;
-        emit RoleRegistered(roleId, user, config.entryBurn, block.timestamp);
+        emit RoleRegistered(roleId, user, config.ticketPrice, block.timestamp);
         return sbtTokenId;
     }
 
-    /// @dev Shared first-time registration: state writes + stake lock
+    /// @dev Shared first-time registration: state writes + ticket burn / stake lock
     function _firstTimeRegister(
         bytes32 roleId, address user, bytes calldata roleData,
-        uint256 stakeAmount, uint256 entryBurn, address sponsor
+        uint256 stakeAmount, uint256 ticketPrice, bool isOperatorRole, address sponsor
     ) internal {
         hasRole[roleId][user] = true;
-        roleStakes[roleId][user] = stakeAmount;
         roleMembers[roleId].push(user);
         roleMemberIndex[roleId][user] = roleMembers[roleId].length;
         roleMetadata[roleId][user] = roleData;
         userRoleCount[user]++;
         userRoles[user].push(roleId);
-        GTOKEN_STAKING.lockStake(user, roleId, stakeAmount, entryBurn, sponsor);
+
+        if (isOperatorRole) {
+            // Operators: stake (locked) + ticket (to treasury)
+            roleStakes[roleId][user] = stakeAmount;
+            GTOKEN_STAKING.lockStakeWithTicket(user, roleId, stakeAmount, ticketPrice, sponsor);
+        } else {
+            // Regular users: ticket only (to treasury), no stake
+            GTOKEN_STAKING.burnTicket(user, roleId, ticketPrice, sponsor);
+        }
     }
 
     /// @notice Configure or create a role. New roles (owner==0) require contract owner.

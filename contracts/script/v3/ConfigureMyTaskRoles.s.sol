@@ -28,14 +28,15 @@ contract ConfigureMyTaskRoles is Script {
 
         IRegistry.RoleConfig memory config = IRegistry.RoleConfig({
             minStake: 0.3 ether,
-            entryBurn: 0.05 ether,
+            ticketPrice: 0.05 ether,
             slashThreshold: 0,
             slashBase: 0,
             slashInc: 0,
             slashMax: 0,
             exitFeePercent: 1000,
-            minExitFee: 0.05 ether,
             isActive: true,
+            isOperatorRole: false,
+            minExitFee: 0.05 ether,
             description: "MyTask Role",
             owner: roleOwner,
             roleLockDuration: 7 days
