@@ -165,7 +165,7 @@ reason of your accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS
 
-Copyright 2024-2026 MushroomDAO Contributors
+Copyright 2024-present MushroomDAO Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -178,34 +178,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-===============================================================================
-
-ACCESS MODEL
-
-The source code in this repository is licensed under the Apache License 2.0
-above. You are free to use, modify, and distribute it — including for
-commercial purposes — subject to the terms of that license.
-
-Separately from the code license, the following apply:
-
-  Trademark:  The names MushroomDAO, Mycelium Protocol, GToken, and related
-              marks are protected trademarks. Forks must rebrand. You may
-              state "compatible with Mycelium Protocol" but may NOT use
-              protected names in your product name. See TRADEMARK.md.
-
-  Protocol    Accessing the live Mycelium Protocol network requires a
-  Network:    GToken ticket (burned on entry). The code is open; the
-              running network is access-controlled. This is analogous to
-              how Ethereum clients are open source but you need ETH to
-              transact on the network.
-
-  Network     Organizations with >50 members that wish to access the
-  Access:     protocol network should apply for Network Access Authorization.
-              See COMMUNITY-USE-POLICY.md. This is a free review process
-              (7-day response guaranteed), not a paywall.
-
-CONTRIBUTOR LICENSE AGREEMENT
-
-All contributions require a signed CLA. See https://cla-assistant.io
-for the signing process on pull requests.
