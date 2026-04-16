@@ -150,7 +150,6 @@
 - [ ] 准备 EndUserRoleData:
   ```json
   {
-    "account": "<senderAA>",
     "community": "<Admin地址>",
     "avatarURI": "",
     "ensName": "",
