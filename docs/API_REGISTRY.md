@@ -87,7 +87,7 @@ bytes32 public constant ROLE_KMS             = keccak256("KMS");
 
 ```solidity
 struct CommunityRoleData   { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
-struct EndUserRoleData     { address account; address community; string avatarURI; string ensName; uint256 stakeAmount; }
+struct EndUserRoleData     { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 struct PaymasterRoleData   { address paymasterContract; string name; string apiEndpoint; uint256 stakeAmount; }
 struct KMSRoleData         { address kmsContract; string name; string apiEndpoint; bytes32[] supportedAlgos; uint256 maxKeysPerUser; uint256 stakeAmount; }
 struct GenericRoleData     { string name; bytes extraData; uint256 stakeAmount; }
