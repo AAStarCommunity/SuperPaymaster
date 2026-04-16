@@ -127,6 +127,14 @@ interface IRegistry is IVersioned {
         bytes calldata roleData
     ) external returns (uint256 tokenId);
 
+    /**
+     * @notice Bind the calling account (msg.sender) to `user`.
+     * @dev Called by the account itself (EOA or smart account via AA) to
+     *      establish the authoritative `accountToUser[msg.sender] = user`
+     *      mapping. `user` must already hold ROLE_ENDUSER.
+     */
+    function bindAccount(address user) external;
+
     // ====================================
     // V3.1: Reputation & Credit Management
     // ====================================

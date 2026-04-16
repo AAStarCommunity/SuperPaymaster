@@ -277,6 +277,26 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         return sbtTokenId;
     }
 
+    event AccountBound(address indexed account, address indexed user);
+
+    /**
+     * @notice Bind msg.sender (the calling account) to `user`.
+     * @dev Only the account itself (EOA directly, or smart account via AA)
+     *      can establish its own `accountToUser` mapping. This prevents a
+     *      rogue ROLE_COMMUNITY holder from hijacking arbitrary smart-account
+     *      bindings via `safeMintForRole`. Idempotent on same user.
+     *      `user` must already hold ROLE_ENDUSER.
+     */
+    function bindAccount(address user) external {
+        if (user == address(0)) revert InvalidParam();
+        if (!hasRole[ROLE_ENDUSER][user]) revert RoleNotGranted(ROLE_ENDUSER, user);
+        address existing = accountToUser[msg.sender];
+        if (existing == user) return; // idempotent no-op
+        if (existing != address(0)) revert InvalidParam();
+        accountToUser[msg.sender] = user;
+        emit AccountBound(msg.sender, user);
+    }
+
     function _firstTimeRegister(
         bytes32 roleId, address user, bytes calldata roleData,
         uint256 stakeAmount, uint256 ticketPrice, address sponsor
@@ -417,13 +437,15 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (bytes(data.ensName).length > 0) communityByENS[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
-            if (data.account == address(0)) revert InvalidParam();
             if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParam();
-            address existingOwner = accountToUser[data.account];
-            if (existingOwner != address(0) && existingOwner != user) revert InvalidParam();
             stakeAmount = data.stakeAmount;
             sbtData = abi.encode(data.community, "");
-            accountToUser[data.account] = user;
+            // accountToUser is NOT written here. The smart account / EOA must
+            // call bindAccount() themselves to establish the authoritative
+            // "this account belongs to this user" mapping. This prevents a
+            // rogue community from hijacking bindings via safeMintForRole.
+            // data.account is retained in the struct for SDK backward-compat
+            // but has no on-chain effect.
         } else {
             if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
             sbtData = abi.encode(user, "");

@@ -120,20 +120,29 @@ Registry-size reduction. No users are on production yet, so shims were not added
   `Registry.safeMintForRole(roleId, user, data)`. That function is gated by
   `hasRole[ROLE_COMMUNITY][msg.sender]` and remains the intended path for
   community airdrops / user onboarding.
-- `accountToUser[data.account]` can no longer be silently overwritten by a
-  different user — ENDUSER registrations that collide on the same smart
-  account now revert with `InvalidParam`.
-- `data.account == address(0)` is now rejected in the ENDUSER branch of
-  `_validateAndProcessRole` (applies to both `registerRole` and
-  `safeMintForRole` paths).
-- Known residual risk: any address that holds `ROLE_COMMUNITY` can call
-  `safeMintForRole(ROLE_ENDUSER, fakeUser, EndUserRoleData{account: X, ...})`
-  and first-claim `accountToUser[X] = fakeUser` without proof that `fakeUser`
-  controls account `X`. COMMUNITY in the ticket-model is `minStake == 0` —
-  the practical gate is the ticket fee + whatever off-chain vetting a
-  deployment applies to communities. **Before `accountToUser` is relied on
-  by any downstream paymaster / AA / bundler flow, EIP-712 account-signed
-  authorization MUST be added to this path.** Tracked as a follow-up PR.
+- `accountToUser[data.account]` is **no longer written** by `registerRole`
+  or `safeMintForRole`. The mapping is now populated **only** by the account
+  itself calling `Registry.bindAccount(user)` after the ENDUSER role has
+  been granted. This closes the hijack vector where a rogue ROLE_COMMUNITY
+  holder could first-claim `accountToUser[X] = fakeUser` via
+  `safeMintForRole`. The full rationale and the options considered are
+  documented in `docs/design/accountToUser-binding-auth.md`.
+- `data.account` is retained on `EndUserRoleData` for SDK backward-compat
+  but has no on-chain effect. The `data.account == address(0)` guard was
+  removed along with the write.
+- **SDK migration — two-step onboarding**:
+  1. Community calls `safeMintForRole(ROLE_ENDUSER, user, data)` to mint
+     the SBT (unchanged).
+  2. The user's smart account (or EOA) calls `registry.bindAccount(user)`
+     itself. This is the authoritative binding; because `msg.sender` on this
+     call IS the account, no signature is needed and no rogue community
+     can hijack the mapping.
+  Paymasters / AA flows must continue to key off `accountToUser[msg.sender]`
+  — unbound accounts are simply unrecognized and must go through
+  `bindAccount` once.
+- `bindAccount` is idempotent on the same user and reverts on attempts to
+  rebind to a different user (`InvalidParam`) or when `user` does not hold
+  ROLE_ENDUSER (`RoleNotGranted`).
 
 ## Proxy upgrade note (⚠️ storage layout break)
 

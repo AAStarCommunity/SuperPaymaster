@@ -57,6 +57,7 @@ contract MockRegistryStub is IRegistry {
     function setReputationSource(address, bool) external {}
     function registerRole(bytes32, address, bytes calldata) external {}
     function exitRole(bytes32) external {}
+    function bindAccount(address) external {}
     function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) { return 0; }
     function configureRole(bytes32, IRegistry.RoleConfig calldata) external {}
     function setStaking(address) external {}

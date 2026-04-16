@@ -46,7 +46,8 @@ contract MockRegistry is IRegistry {
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
     function registerRole(bytes32, address, bytes calldata) external override {}
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
-    
+    function bindAccount(address) external override {}
+
     // V3.1 Mock Logic
     mapping(address => uint256) public creditLimits;
     
