@@ -111,19 +111,13 @@ Todos updated: 3 items
 
 ---
 
-### 4) **Medium：accountToUser 可被任意覆盖（潜在身份绑定风险）**
-位置：`accountToUser` 写入（见 [Registry.sol:L656-L659](file:///Users/jason/Dev/mycelium/my-exploration/projects/SuperPaymaster/contracts/src/core/Registry.sol#L656-L659)）
+### 4) **~~Medium：accountToUser 可被任意覆盖（潜在身份绑定风险）~~ — RESOLVED**
 
-现状：
-- EndUser 注册时，roleData 里带一个 `account`，Registry 直接 `accountToUser[account] = user`。
-- 未校验该 `account` 是否已经绑定别人，也未校验 `account` 与 `user` 的控制关系。
-
-风险：
-- 当前仓库里暂时没看到其它合约依赖 `accountToUser` 做强鉴权，但这类映射很容易在未来被拿去做“身份归属”，一旦用上就会变成可劫持入口。
-
-建议：
-- 至少加“不可覆盖别人绑定”的约束：若 `accountToUser[account] != 0` 则只能写回同一个 user。
-- 如果你们的业务确实需要“user(质押者) ↔ account(AA钱包/智能账户)”绑定：建议要求 account 提供 EIP-1271/EIP-712 签名，证明同意绑定。
+**处置（feat/remove-account-to-user）**：整个 `accountToUser` mapping 与
+`EndUserRoleData.account` 字段已被 **彻底删除**。链上没有任何消费方
+（SDK 里 `user == account == AA address`；`SuperPaymaster.isEligibleForSponsorship`
+用的是 `sbtHolders[user]` 而非 `accountToUser`），所以选择删除而非加固 EIP-712
+授权路径。此条 finding 不再适用。
 
 ---
 

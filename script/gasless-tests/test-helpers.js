@@ -76,7 +76,6 @@ const ABI = {
     // Community & reputation
     "function communityByName(string name) view returns (address)",
     "function globalReputation(address user) view returns (uint256)",
-    "function accountToUser(address account) view returns (address)",
     // Credit
     "function creditTierConfig(uint256 level) view returns (uint256)",
     "function setCreditTier(uint256 level, uint256 limit)",
@@ -447,10 +446,10 @@ function encodeCommunityRoleData(name, desc, stakeAmount) {
   );
 }
 
-function encodeEndUserRoleData(account, community, stakeAmount) {
+function encodeEndUserRoleData(community, stakeAmount) {
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ["tuple(address,address,string,string,uint256)"],
-    [[account, community, "", "", stakeAmount || ethers.parseEther("0.3")]]
+    ["tuple(address,string,string,uint256)"],
+    [[community, "", "", stakeAmount || ethers.parseEther("0.3")]]
   );
 }
 

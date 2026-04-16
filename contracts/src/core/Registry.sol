@@ -16,7 +16,7 @@ import "../interfaces/v3/IBLSAggregator.sol";
 contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
 
     struct CommunityRoleData { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
-    struct EndUserRoleData { address account; address community; string avatarURI; string ensName; uint256 stakeAmount; }
+    struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
         return "Registry-5.1.0";
@@ -46,7 +46,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     mapping(string => address) public communityByName;
     mapping(string => address) public communityByENS;
-    mapping(address => address) public accountToUser;
     mapping(address => bytes32[]) public userRoles;
     mapping(address => uint256) public userRoleCount;
 
@@ -446,13 +445,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (bytes(data.ensName).length > 0) communityByENS[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
-            if (data.account == address(0)) revert InvalidParam();
             if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParam();
-            address existingOwner = accountToUser[data.account];
-            if (existingOwner != address(0) && existingOwner != user) revert InvalidParam();
             stakeAmount = data.stakeAmount;
             sbtData = abi.encode(data.community, "");
-            accountToUser[data.account] = user;
         } else {
             if (roleData.length == 32) stakeAmount = abi.decode(roleData, (uint256));
             sbtData = abi.encode(user, "");

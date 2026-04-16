@@ -120,20 +120,27 @@ Registry-size reduction. No users are on production yet, so shims were not added
   `Registry.safeMintForRole(roleId, user, data)`. That function is gated by
   `hasRole[ROLE_COMMUNITY][msg.sender]` and remains the intended path for
   community airdrops / user onboarding.
-- `accountToUser[data.account]` can no longer be silently overwritten by a
-  different user — ENDUSER registrations that collide on the same smart
-  account now revert with `InvalidParam`.
-- `data.account == address(0)` is now rejected in the ENDUSER branch of
-  `_validateAndProcessRole` (applies to both `registerRole` and
-  `safeMintForRole` paths).
-- Known residual risk: any address that holds `ROLE_COMMUNITY` can call
-  `safeMintForRole(ROLE_ENDUSER, fakeUser, EndUserRoleData{account: X, ...})`
-  and first-claim `accountToUser[X] = fakeUser` without proof that `fakeUser`
-  controls account `X`. COMMUNITY in the ticket-model is `minStake == 0` —
-  the practical gate is the ticket fee + whatever off-chain vetting a
-  deployment applies to communities. **Before `accountToUser` is relied on
-  by any downstream paymaster / AA / bundler flow, EIP-712 account-signed
-  authorization MUST be added to this path.** Tracked as a follow-up PR.
+- `accountToUser` mapping and `EndUserRoleData.account` field have been
+  **removed entirely**. No production consumers existed: the SDK encoded
+  `user == account == AA address`, and eligibility checks inside
+  `SuperPaymaster` use `sbtHolders[user]`, not `accountToUser`. Retaining
+  the mapping would have required an EIP-712 account-signed authorization
+  path to harden the known "COMMUNITY can first-claim any address" risk —
+  since no path actually reads the mapping, deletion was simpler and
+  cheaper than hardening.
+- **Breaking:** `EndUserRoleData` shrinks from 5 fields to 4. SDKs must
+  stop encoding the leading `account` field:
+
+  ```solidity
+  // Before (5 fields):
+  abi.encode(EndUserRoleData({
+      account: aaAddr, community: c, avatarURI: "", ensName: "", stakeAmount: s
+  }))
+  // After (4 fields):
+  abi.encode(EndUserRoleData({
+      community: c, avatarURI: "", ensName: "", stakeAmount: s
+  }))
+  ```
 
 ## Proxy upgrade note (⚠️ storage layout break)
 

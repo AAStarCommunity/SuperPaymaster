@@ -181,10 +181,9 @@ contract DeployV3FullLocal is Script {
         
         // Encode EndUserRoleData: LINK TO DEPLOYER AS COMMUNITY
         // bytes memory aliceData = abi.encode(Registry.EndUserRoleData({
-        //     account: aliceAccount, 
         //     community: deployer,   // Deployer is the operator/community
-        //     avatarURI: "ipfs://alice", 
-        //     ensName: "alice.local.eth", 
+        //     avatarURI: "ipfs://alice",
+        //     ensName: "alice.local.eth",
         //     stakeAmount: 0        // Min stake is used if 0
         // }));
         

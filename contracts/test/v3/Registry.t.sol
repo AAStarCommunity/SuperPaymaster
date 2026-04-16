@@ -94,7 +94,6 @@ contract RegistryTest is Test {
         // Preparing Role Data - use registered community
         bytes memory roleData = abi.encode(
             Registry.EndUserRoleData({
-                account: address(0x123),
                 community: communityUser,
                 avatarURI: "ipfs://avatar",
                 ensName: "user.eth",
