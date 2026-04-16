@@ -294,7 +294,7 @@ contract L4SetupOpMainnet is Script {
                     ISimpleAccount(myAA).execute(address(gToken), 0, abi.encodeCall(gToken.approve, (config.staking, 1 ether)));
                     
                     Registry.EndUserRoleData memory euData = Registry.EndUserRoleData({
-                        account: myAA, community: user, avatarURI: "", ensName: "", stakeAmount: 0.3 ether
+                        community: user, avatarURI: "", ensName: "", stakeAmount: 0.3 ether
                     });
                     registry.registerRole(ROLE_ENDUSER, myAA, abi.encode(euData));
                     console.log(unicode"✅ AA registered as ENDUSER");

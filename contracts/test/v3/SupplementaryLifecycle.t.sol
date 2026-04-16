@@ -270,7 +270,6 @@ contract SupplementaryLifecycleTest is Test {
 
         bytes memory endUserData = abi.encode(
             Registry.EndUserRoleData({
-                account: endUser,
                 community: communityUser,
                 avatarURI: "ipfs://avatar",
                 ensName: "testuser.eth",

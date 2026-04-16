@@ -216,7 +216,7 @@ contract CoverageSupplementTest is Test {
         gtoken.mint(community, 100 ether); // Extra funds for burning
         gtoken.approve(address(staking), 100 ether);
         
-        bytes memory userData = abi.encode(Registry.EndUserRoleData(address(1), community, "Av", "Ens", 1 ether));
+        bytes memory userData = abi.encode(Registry.EndUserRoleData(community, "Av", "Ens", 1 ether));
         
         registry.safeMintForRole(ROLE_ENDUSER, user, userData);
         
@@ -251,7 +251,7 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(user);
         gtoken.approve(address(staking), 100 ether);
         // Point to non-existent community
-        bytes memory data = abi.encode(Registry.EndUserRoleData(address(1), address(0xDead), "", "", 1 ether));
+        bytes memory data = abi.encode(Registry.EndUserRoleData(address(0xDead), "", "", 1 ether));
         
         vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Invalid community"));
         registry.registerRole(ROLE_ENDUSER, user, data);
@@ -409,7 +409,7 @@ contract CoverageSupplementTest is Test {
         // Register User in Registry
         vm.startPrank(user);
         gtoken.approve(address(staking), 100 ether);
-        bytes memory uData = abi.encode(Registry.EndUserRoleData(address(123), operator, "", "", 1 ether));
+        bytes memory uData = abi.encode(Registry.EndUserRoleData(operator, "", "", 1 ether));
         registry.registerRole(ROLE_ENDUSER, user, uData);
         vm.stopPrank();
         

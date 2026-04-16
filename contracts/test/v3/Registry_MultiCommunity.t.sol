@@ -82,7 +82,7 @@ contract RegistryMultiCommunityTest is Test {
         
         // Prepare user data
         bytes memory userData = abi.encode(
-            Registry.EndUserRoleData(_user, community, "", "", 1 ether)
+            Registry.EndUserRoleData(community, "", "", 1 ether)
         );
         
         // Join community

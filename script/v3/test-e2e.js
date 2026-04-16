@@ -104,8 +104,8 @@ async function main() {
     // Register EndUser (AA)
     if (!(await registry.hasRole(ROLE_ENDUSER, sender))) {
         // Do NOT refetch nonce. Trust increment.
-        await (await registry.connect(adminWallet).registerRole(ROLE_ENDUSER, sender, 
-            ethers.AbiCoder.defaultAbiCoder().encode(["tuple(address,address,string,string,uint256)"], [[sender, adminWallet.address, "","" ,0]]),
+        await (await registry.connect(adminWallet).registerRole(ROLE_ENDUSER, sender,
+            ethers.AbiCoder.defaultAbiCoder().encode(["tuple(address,string,string,uint256)"], [[adminWallet.address, "","" ,0]]),
             { nonce: nonce++ }
         )).wait();
          console.log("   Sender AA Registered as ENDUSER.");
