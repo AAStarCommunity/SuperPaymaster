@@ -126,12 +126,14 @@ Registry-size reduction. No users are on production yet, so shims were not added
 - `data.account == address(0)` is now rejected in the ENDUSER branch of
   `_validateAndProcessRole` (applies to both `registerRole` and
   `safeMintForRole` paths).
-- Known residual risk: a malicious community can call
-  `safeMintForRole(ROLE_ENDUSER, attackerAccount, anyAddr)` to claim an
-  arbitrary smart-account binding without that account's signature. Since
-  `safeMintForRole` is gated by community membership (staked), the attacker
-  pays a real cost; EIP-712 account-signed authorization is tracked as a
-  follow-up.
+- Known residual risk: any address that holds `ROLE_COMMUNITY` can call
+  `safeMintForRole(ROLE_ENDUSER, fakeUser, EndUserRoleData{account: X, ...})`
+  and first-claim `accountToUser[X] = fakeUser` without proof that `fakeUser`
+  controls account `X`. COMMUNITY in the ticket-model is `minStake == 0` —
+  the practical gate is the ticket fee + whatever off-chain vetting a
+  deployment applies to communities. **Before `accountToUser` is relied on
+  by any downstream paymaster / AA / bundler flow, EIP-712 account-signed
+  authorization MUST be added to this path.** Tracked as a follow-up PR.
 
 ## Proxy upgrade note (⚠️ storage layout break)
 
