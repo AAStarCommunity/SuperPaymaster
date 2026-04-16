@@ -159,7 +159,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             emit StakeLocked(user, roleId, stakeAmount, ticketPrice, block.timestamp);
         }
 
-        return uint256(roleId);
+        return uint256(keccak256(abi.encode(user, roleId, block.number, totalStaked)));
     }
 
     /**

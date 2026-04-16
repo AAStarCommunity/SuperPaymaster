@@ -192,6 +192,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         if (user == address(0)) revert InvalidParam();
+        if (msg.sender != user) revert Unauthorized();
         if (roleData.length > 2048) revert InvalidParam();
 
         RoleConfig memory config = roleConfigs[roleId];
@@ -325,9 +326,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (proof.length == 0) revert BLSProofRequired();
         (,,, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
         uint256 signerCount = _countSetBits(signerMask);
-        uint256 threshold = 3;
+        uint256 threshold = 7;
         if (blsAggregator != address(0)) {
-            try IBLSAggregator(blsAggregator).minThreshold() returns (uint256 t) {
+            try IBLSAggregator(blsAggregator).defaultThreshold() returns (uint256 t) {
                 threshold = t;
             } catch {}
         }
@@ -417,6 +418,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
             if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParam();
+            address existingOwner = accountToUser[data.account];
+            if (existingOwner != address(0) && existingOwner != user) revert InvalidParam();
             stakeAmount = data.stakeAmount;
             sbtData = abi.encode(data.community, "");
             accountToUser[data.account] = user;

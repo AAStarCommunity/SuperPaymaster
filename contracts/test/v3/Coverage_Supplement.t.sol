@@ -147,7 +147,7 @@ contract CoverageSupplementTest is Test {
     }
     
     function _dummyProof() internal pure returns (bytes memory) {
-        return abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+        return abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
     }
     
     // --- Registry Tests ---

@@ -73,15 +73,20 @@ Registry-size reduction. No users are on production yet, so shims were not added
 
 - `IBLSAggregator.threshold()` → `IBLSAggregator.minThreshold()`. The concrete
   contract exposes both `minThreshold` (safety floor) and `defaultThreshold`
-  via public state getters. Registry queries `minThreshold()` for validator
-  quorum checks.
+  via public state getters. The interface now declares both.
+  Registry's `batchUpdateGlobalReputation` queries `defaultThreshold()` for
+  stronger consensus on reputation updates (was previously `minThreshold()`).
 
 ### Replay / input hardening
 
 - `verifyAndExecute` and `executeProposal` now reject `proposalId == 0`
   (previously used as a sentinel that bypassed `executedProposals`). Callers
-  must supply a non-zero proposal identifier.
+  must supply a non-zero proposal identifier. **Breaking change:** any
+  off-chain signer that previously relied on `proposalId = 0` for one-shot
+  calls must now generate unique non-zero IDs.
 - `setMinThreshold` enforces `minThreshold <= defaultThreshold`.
+- `Registry.batchUpdateGlobalReputation` now rejects `proposalId == 0` as
+  well (via `InvalidProposalId`).
 
 ## MySBT
 
@@ -92,11 +97,41 @@ Registry-size reduction. No users are on production yet, so shims were not added
 
 ## Deploy script updates
 
-- `DeployLive.s.sol` / `DeployAnvil.s.sol`: call `registry.syncExitFees([...])`
-  after `setStaking` to propagate operator-role exit fees into GTokenStaking.
+- `DeployLive.s.sol` / `DeployAnvil.s.sol`: **must** call
+  `registry.syncExitFees([ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER, ROLE_DVT,
+  ROLE_ANODE, ROLE_KMS])` after `setStaking`. Without this call, operator
+  role exit fees in GTokenStaking stay at zero — `previewExitFee`/
+  `unlockAndTransfer` will not apply the configured fee. New deploys inherit
+  this step; existing ops scripts must be updated.
 - `07b_DeployBLSModules.s.sol`: uses `aggregator.setMinThreshold(3)` (old
   `setThreshold` never existed on BLSAggregator).
 - Legacy scripts referencing the removed APIs moved to `deprecated/scripts/`.
+
+## registerRole authorization (breaking)
+
+- `Registry.registerRole(roleId, user, data)` now requires
+  `msg.sender == user`. Previously any address could call on behalf of
+  `user` as long as `user` had a matching GToken allowance, allowing
+  grief-attacks that drained a victim's allowance to bind them to an
+  unwanted community. If sponsored registration is needed later, a new
+  `registerRoleFor(user, sig)` entry with EIP-712 authorization will be
+  added separately.
+- `accountToUser[data.account]` can no longer be silently overwritten by a
+  different user — ENDUSER registrations that collide on the same smart
+  account now revert with `InvalidParam`.
+
+## Proxy upgrade note (⚠️ storage layout break)
+
+Registry v5.1 **removes** four storage mappings:
+`proposedRoleNames`, `roleOwners`, `roleLockDurations`, `executedProposals`.
+This shifts the storage slot index of every subsequent mapping
+(`globalReputation`, `lastReputationEpoch`, `creditTierConfig`,
+`isReputationSource`, `levelThresholds`). Existing proxies **cannot be
+upgraded** — they must be redeployed.
+
+Since no production users exist yet, we accept the redeploy cost in exchange
+for a clean storage layout and the EIP-170 bytecode margin recovered by the
+deletion.
 
 ## Outstanding follow-ups
 

@@ -2,7 +2,9 @@
 pragma solidity 0.8.33;
 interface IBLSAggregator {
     function minThreshold() external view returns (uint256);
-    
+    function defaultThreshold() external view returns (uint256);
+
+
     function verifyAndExecute(
         uint256 proposalId,
         address operator,
