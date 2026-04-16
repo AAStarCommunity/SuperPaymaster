@@ -168,7 +168,7 @@ contract RegistryTest is Test {
 
         // ENDUSER is a non-operator (ticket-only) role — exit is blocked
         vm.startPrank(user);
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_ENDUSER);
 
         // Role should still be active

@@ -83,14 +83,7 @@ contract DVTSlashTest is Test {
         );
         registry.registerRole(registry.ROLE_COMMUNITY(), operator, commData);
 
-        bytes memory roleData = abi.encode(
-            Registry.PaymasterRoleData({
-                paymasterContract: address(0x123),
-                name: "TestPM",
-                apiEndpoint: "https://pm.com",
-                stakeAmount: 50 ether
-            })
-        );
+        bytes memory roleData = abi.encode(uint256(50 ether));
         registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);
         vm.stopPrank();
 

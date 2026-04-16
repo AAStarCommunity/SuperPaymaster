@@ -47,7 +47,6 @@ contract MockRegistry {
             slashMax: 0,
             exitFeePercent: 0,
             isActive: false,
-            isOperatorRole: false,
             minExitFee: 0,
             description: "stub",
             owner: address(0),

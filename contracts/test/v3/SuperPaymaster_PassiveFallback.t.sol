@@ -78,7 +78,6 @@ contract MockRegistryStub is IRegistry {
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external view returns (bool) { return false; }
-    function roleOwners(bytes32) external view returns (address) { return address(0); }
 }
 
 contract MockERC20 is ERC20 {

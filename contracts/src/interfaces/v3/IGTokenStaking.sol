@@ -4,10 +4,10 @@ import "src/interfaces/IVersioned.sol";
 
 /**
  * @title IGTokenStaking
- * @notice GTokenStaking v4 interface — Ticket Model
- * @dev v4: Replace Stake+Burn with Ticket Model (burn to treasury, not destroy)
- *      Regular users: burnTicket (transfer to treasury, no stake)
- *      Operators: lockStakeWithTicket (ticket to treasury + stake locked)
+ * @notice GTokenStaking v4.2 interface — Unified Ticket Model
+ * @dev Single unified flow via lockStakeWithTicket() for all roles:
+ *      stakeAmount=0: ticket-only (transfer to treasury, no lock)
+ *      stakeAmount>0: ticket to treasury + stake locked
  */
 interface IGTokenStaking is IVersioned {
     // ====================================
@@ -75,13 +75,6 @@ interface IGTokenStaking is IVersioned {
         uint256 timestamp
     );
 
-    event TokensBurned(
-        address indexed user,
-        bytes32 indexed roleId,
-        uint256 amount,
-        string purpose
-    );
-
     event UserSlashed(
         address indexed user,
         uint256 amount,
@@ -94,44 +87,10 @@ interface IGTokenStaking is IVersioned {
     // ====================================
 
     /**
-     * @notice Lock stake for a specific role (Registry only)
-     * @dev DEPRECATED — kept for backward compatibility. New registrations should use
-     *      burnTicket() for regular users or lockStakeWithTicket() for operators.
-     * @param user User whose stake to lock
-     * @param roleId Role identifier
-     * @param stakeAmount Amount to stake (if new stake)
-     * @param entryBurn Amount to burn on entry
-     * @return lockId Unique lock identifier
-     */
-    function lockStake(
-        address user,
-        bytes32 roleId,
-        uint256 stakeAmount,
-        uint256 entryBurn,
-        address payer
-    ) external returns (uint256 lockId);
-
-    /**
-     * @notice Burn ticket for a regular user role (Registry only)
-     * @dev Transfers ticketPrice from payer to treasury. No stake, no lock.
-     *      For ENDUSER and COMMUNITY roles — lifetime membership, no exit.
-     * @param user User registering for the role
-     * @param roleId Role identifier
-     * @param ticketPrice Amount to transfer to treasury
-     * @param payer Address providing the tokens
-     */
-    function burnTicket(
-        address user,
-        bytes32 roleId,
-        uint256 ticketPrice,
-        address payer
-    ) external;
-
-    /**
-     * @notice Lock stake with ticket for an operator role (Registry only)
+     * @notice Unified registration: handle ticket + optional stake for any role
      * @dev Transfers (stakeAmount + ticketPrice) from payer.
-     *      ticketPrice goes to treasury, stakeAmount stays locked in contract.
-     *      For DVT, KMS, PAYMASTER_*, ANODE roles.
+     *      When stakeAmount=0: ticket-only (no lock created).
+     *      When stakeAmount>0: ticket to treasury + stake locked.
      * @param user User registering for the role
      * @param roleId Role identifier
      * @param stakeAmount Amount to lock as security deposit
@@ -168,7 +127,7 @@ interface IGTokenStaking is IVersioned {
      *      Implementation should have onlyRegistry modifier
      *
      * Why auto-transfer?
-     *   - If we just unlock without transfer, user could call lockStake() again
+     *   - If we just unlock without transfer, user could call lockStakeWithTicket() again
      *   - This would bypass the exitRole() flow and keep role active with no stake
      *   - Auto-transfer ensures user gets tokens immediately, can't re-lock
      *
@@ -204,7 +163,7 @@ interface IGTokenStaking is IVersioned {
     //         This ensures stake is always locked for a specific role
     //         Prevents users from staking without commitment
     //
-    // Internal staking is handled by Registry via lockStake()
+    // Internal staking is handled by Registry via lockStakeWithTicket()
 
     // ====================================
     // SECURITY FIX: Removed user-callable unstake functions

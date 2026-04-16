@@ -35,7 +35,6 @@ contract ConfigureMyTaskRoles is Script {
             slashMax: 0,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 0.05 ether,
             description: "MyTask Role",
             owner: roleOwner,

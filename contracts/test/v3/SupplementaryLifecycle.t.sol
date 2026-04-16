@@ -106,6 +106,17 @@ contract SupplementaryLifecycleTest is Test {
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
 
         registry.setStaking(address(staking));
+        {
+            bytes32[] memory roles = new bytes32[](7);
+            roles[0] = keccak256("PAYMASTER_AOA");
+            roles[1] = keccak256("PAYMASTER_SUPER");
+            roles[2] = keccak256("DVT");
+            roles[3] = keccak256("ANODE");
+            roles[4] = keccak256("KMS");
+            roles[5] = keccak256("COMMUNITY");
+            roles[6] = keccak256("ENDUSER");
+            registry.syncExitFees(roles);
+        }
         registry.setMySBT(address(sbt));
 
         // Deploy SuperPaymaster proxy
@@ -161,7 +172,7 @@ contract SupplementaryLifecycleTest is Test {
 
         // COMMUNITY is a non-operator (ticket-only) role — exit is blocked
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
         // Role should still be active
@@ -286,7 +297,6 @@ contract SupplementaryLifecycleTest is Test {
             slashMax: 5,
             exitFeePercent: 500,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 0.5 ether,
             description: "Custom Role",
             owner: owner,
@@ -416,7 +426,7 @@ contract SupplementaryLifecycleTest is Test {
 
         // COMMUNITY is non-operator, cannot exit
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
         // SBT should still exist since COMMUNITY role can't be exited
@@ -432,7 +442,7 @@ contract SupplementaryLifecycleTest is Test {
 
         // COMMUNITY is non-operator — exit is blocked
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
         // Membership should still be active
@@ -587,7 +597,7 @@ contract SupplementaryLifecycleTest is Test {
 
         // COMMUNITY is non-operator — exit is blocked
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
         // SBT status should still be true since role can't be exited

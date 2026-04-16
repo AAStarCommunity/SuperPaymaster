@@ -79,7 +79,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 100,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
@@ -111,7 +110,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 100,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
@@ -137,7 +135,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 100,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
@@ -168,7 +165,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 100,
             exitFeePercent: 1500, // 15%
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 3 ether,
             description: "Custom Role",
             owner: roleOwner1,
@@ -197,7 +193,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 0,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 0.05 ether,
             description: "MyTask Role",
             owner: roleOwner1,
@@ -234,27 +229,34 @@ contract RegistryV3NewFeaturesTest is Test {
     // ====================================
 
     function test_ExitFeeConfiguration_InRoleConfig() public {
+        // ENDUSER is ticket-only (no stake to exit); exit fee fields are zero.
         IRegistry.RoleConfig memory config = registry.getRoleConfig(ROLE_ENDUSER);
-        
-        assertEq(config.exitFeePercent, 1000, "EndUser exit fee should be 10%");
-        assertEq(config.minExitFee, 0.05 ether, "EndUser min exit fee should be 0.05 ether");
+
+        assertEq(config.exitFeePercent, 0, "EndUser is ticket-only, exit fee must be 0");
+        assertEq(config.minExitFee, 0, "EndUser is ticket-only, min exit fee must be 0");
     }
 
     function test_ExitFeeConfiguration_AllRoles() public {
-        bytes32[] memory roles = new bytes32[](6);
-        roles[0] = keccak256("PAYMASTER_AOA");
-        roles[1] = keccak256("PAYMASTER_SUPER");
-        roles[2] = keccak256("ANODE");
-        roles[3] = keccak256("KMS");
-        roles[4] = ROLE_COMMUNITY;
-        roles[5] = ROLE_ENDUSER;
-        
-        for (uint i = 0; i < roles.length; i++) {
-            IRegistry.RoleConfig memory config = registry.getRoleConfig(roles[i]);
-            uint256 expectedFee = roles[i] == ROLE_COMMUNITY ? 500 : 1000;
-            assertEq(config.exitFeePercent, expectedFee, "Exit fee mismatch for role");
-            assertTrue(config.minExitFee > 0, "All roles should have min exit fee");
+        bytes32[] memory operatorRoles = new bytes32[](4);
+        operatorRoles[0] = keccak256("PAYMASTER_AOA");
+        operatorRoles[1] = keccak256("PAYMASTER_SUPER");
+        operatorRoles[2] = keccak256("ANODE");
+        operatorRoles[3] = keccak256("KMS");
+
+        for (uint i = 0; i < operatorRoles.length; i++) {
+            IRegistry.RoleConfig memory config = registry.getRoleConfig(operatorRoles[i]);
+            assertEq(config.exitFeePercent, 1000, "Operator exit fee should be 10%");
+            assertTrue(config.minExitFee > 0, "Operator roles should have min exit fee");
         }
+
+        // Ticket-only roles have no exit fee
+        IRegistry.RoleConfig memory communityCfg = registry.getRoleConfig(ROLE_COMMUNITY);
+        assertEq(communityCfg.exitFeePercent, 0, "COMMUNITY is ticket-only");
+        assertEq(communityCfg.minExitFee, 0, "COMMUNITY has no min exit fee");
+
+        IRegistry.RoleConfig memory enduserCfg = registry.getRoleConfig(ROLE_ENDUSER);
+        assertEq(enduserCfg.exitFeePercent, 0, "ENDUSER is ticket-only");
+        assertEq(enduserCfg.minExitFee, 0, "ENDUSER has no min exit fee");
     }
 
     function test_ConfigureRole_UpdatesExitFee() public {
@@ -272,7 +274,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 10,
             exitFeePercent: 2000, // 20%
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 1.5 ether,
             description: "Updated Community",
             owner: currentCfg.owner,
@@ -305,7 +306,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 100,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 2 ether,
             description: "Custom Role",
             owner: roleOwner1,
@@ -336,7 +336,6 @@ contract RegistryV3NewFeaturesTest is Test {
             slashMax: 10,
             exitFeePercent: 1000,
             isActive: true,
-            isOperatorRole: false,
             minExitFee: 1 ether,
             description: "Hacked",
             owner: roleOwner1,

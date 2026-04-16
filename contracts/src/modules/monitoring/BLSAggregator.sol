@@ -96,6 +96,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidParameter(string message);
     error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
     error InvalidTarget(address target);
+    error InvalidProposalId();
 
     // ====================================
     // Constructor
@@ -134,7 +135,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
             revert UnauthorizedCaller(msg.sender);
         }
-        if (executedProposals[proposalId] && proposalId != 0) {
+        if (proposalId == 0) revert InvalidProposalId();
+        if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
         
@@ -164,11 +166,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             _executeSlash(proposalId, operator, slashLevel, proof);
         }
 
-        if (proposalId != 0) {
-            executedProposals[proposalId] = true;
-            if (DVT_VALIDATOR != address(0)) {
-                IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
-            }
+        executedProposals[proposalId] = true;
+        if (DVT_VALIDATOR != address(0)) {
+            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
         }
     }
 
@@ -194,6 +194,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert UnauthorizedCaller(msg.sender);
         }
         if (target == address(0)) revert InvalidTarget(target);
+        if (proposalId == 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
         if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
@@ -366,6 +367,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function setMinThreshold(uint256 _newThreshold) external onlyOwner {
         if (_newThreshold < 2) revert InvalidParameter("Min threshold too low");
         if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
+        // Invariant: minThreshold must not exceed defaultThreshold
+        if (_newThreshold > defaultThreshold) revert InvalidParameter("minThreshold > defaultThreshold");
         emit ThresholdUpdated(minThreshold, _newThreshold);
         minThreshold = _newThreshold;
     }

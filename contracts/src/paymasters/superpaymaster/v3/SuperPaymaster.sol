@@ -54,13 +54,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // --- Mappings ---
 
     // CONSOLIDATED MAPPING: operator => user => state (Saves 1 SLOAD in hot path)
-    mapping(address => mapping(address => UserOperatorState)) public userOpState; 
-    
-    // Legacy mappings kept for ABI compatibility or migration? 
-    // Actually, we should deprecate blockedUsers and lastUserOpTimestamp
-    // mapping(address => mapping(address => bool)) public blockedUsers; // DEPRECATED
-    // mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // DEPRECATED
-    
+    mapping(address => mapping(address => UserOperatorState)) public userOpState;
+
     mapping(address => bool) public sbtHolders; // Global SBT holders list (verified via Registry)
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 

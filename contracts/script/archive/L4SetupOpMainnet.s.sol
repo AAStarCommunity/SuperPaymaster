@@ -273,7 +273,7 @@ contract L4SetupOpMainnet is Script {
                     // Minimal Config if needed
                      IRegistry.RoleConfig memory euConfig = IRegistry.RoleConfig({
                         minStake: 1 wei, ticketPrice: 0, slashThreshold: 0, slashBase: 0, slashInc: 0, slashMax: 0,
-                        exitFeePercent: 0, isActive: true, isOperatorRole: false, minExitFee: 0, description: "EndUser Role",
+                        exitFeePercent: 0, isActive: true, minExitFee: 0, description: "EndUser Role",
                         owner: DEPLOYER, roleLockDuration: 0
                      });
 
@@ -281,7 +281,7 @@ contract L4SetupOpMainnet is Script {
                          console.log(unicode"📝 Creating ROLE_ENDUSER...");
                          registry.configureRole(ROLE_ENDUSER, euConfig);
                      } else {
-                         (,,,,,,,bool isActive,,,,,) = registry.roleConfigs(ROLE_ENDUSER);
+                         (,,,,,,,bool isActive,,,,) = registry.roleConfigs(ROLE_ENDUSER);
                          if (!isActive && roleOwner == DEPLOYER) {
                             console.log(unicode"📝 Activating ROLE_ENDUSER...");
                             registry.configureRole(ROLE_ENDUSER, euConfig);

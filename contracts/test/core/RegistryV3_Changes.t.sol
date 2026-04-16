@@ -75,7 +75,7 @@ contract RegistryV3_Changes_Test is Test {
         assertEq(registry.communityByENS("test.eth"), community);
 
         // COMMUNITY is a non-operator (ticket-only) role — exit is blocked
-        vm.expectRevert(Registry.NoExitForTicketOnlyRoles.selector);
+        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
         // Role should still be active

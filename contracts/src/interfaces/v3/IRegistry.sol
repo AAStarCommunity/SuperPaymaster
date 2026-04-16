@@ -17,7 +17,7 @@ interface IRegistry is IVersioned {
 
     /**
      * @notice Role configuration parameters
-     * @param minStake Minimum stake required (ONLY for operator roles, 0 for regular users)
+     * @param minStake Minimum stake required (0 = ticket-only role, >0 = staking role)
      * @param ticketPrice Ticket price — transferred to treasury on registration (was entryBurn in v3)
      * @param slashThreshold Slash trigger threshold (ONLY for operator roles)
      * @param slashBase Base slash amount
@@ -25,7 +25,6 @@ interface IRegistry is IVersioned {
      * @param slashMax Maximum slash amount
      * @param exitFeePercent Exit fee percentage in basis points (ONLY for operator roles)
      * @param isActive Whether this role is currently active
-     * @param isOperatorRole True for operator roles (DVT, KMS, PAYMASTER_*, ANODE); false for regular users
      * @param minExitFee Minimum exit fee amount (ONLY for operator roles)
      * @param description Role description
      * @param owner Role owner address
@@ -42,8 +41,7 @@ interface IRegistry is IVersioned {
         uint32 slashMax;
         uint16 exitFeePercent;
         bool isActive;
-        bool isOperatorRole;
-        // 12 bytes left
+        // 13 bytes left
 
         uint256 minExitFee;
         string description;

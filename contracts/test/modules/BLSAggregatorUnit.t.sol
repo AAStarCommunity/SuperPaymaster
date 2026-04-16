@@ -19,7 +19,7 @@ contract MockRegistryUnit is IRegistry {
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
-        return RoleConfig(0,0,0,0,0,0,0,false,false,0,"stub",address(0),0);
+        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0);
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
@@ -147,11 +147,11 @@ contract BLSAggregatorUnitTest is Test {
 
     function test_SetMinThreshold_ExactMax_Success() public {
         vm.startPrank(owner);
-        bls.setMinThreshold(13);
-        assertEq(bls.minThreshold(), 13);
-        // Also update default to match (must be >= min)
+        // Invariant: minThreshold <= defaultThreshold — raise default first
         bls.setDefaultThreshold(13);
         assertEq(bls.defaultThreshold(), 13);
+        bls.setMinThreshold(13);
+        assertEq(bls.minThreshold(), 13);
         vm.stopPrank();
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 interface IBLSAggregator {
-    function threshold() external view returns (uint256);
+    function minThreshold() external view returns (uint256);
     
     function verifyAndExecute(
         uint256 proposalId,

@@ -132,9 +132,9 @@ contract V3_Function_BoostTest is Test {
         vm.prank(user);
         gToken.approve(address(staking), 100 ether);
 
-        // 2. Mock lockStake by Registry
+        // 2. Mock lockStakeWithTicket by Registry
         vm.startPrank(address(registry));
-        staking.lockStake(user, commRole, 30 ether, 3 ether, user);
+        staking.lockStakeWithTicket(user, commRole, 30 ether, 3 ether, user);
         vm.stopPrank();
 
         // 3. Check getters
@@ -142,7 +142,8 @@ contract V3_Function_BoostTest is Test {
         assertEq(locks.length, 1);
 
         (uint256 fee, uint256 net) = staking.previewExitFee(user, commRole);
-        assertEq(fee, 1.5 ether); // 5% of 30
+        // setUp() explicitly configures COMMUNITY with 500bps to exercise the fee path
+        assertEq(fee, 1.5 ether);
         assertEq(net, 28.5 ether);
     }
 
@@ -173,12 +174,7 @@ contract V3_Function_BoostTest is Test {
         registry.registerRole(commRole, manager, data);
 
         // 1.5 Register as SuperPaymaster
-        bytes memory opData = abi.encode(Registry.PaymasterRoleData({
-            paymasterContract: address(0x123),
-            name: "TestPM",
-            apiEndpoint: "https://pm.com",
-            stakeAmount: 50 ether
-        }));
+        bytes memory opData = abi.encode(uint256(50 ether));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), manager, opData);
 
         // 2. Configure in Paymaster

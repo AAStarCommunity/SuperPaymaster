@@ -17,7 +17,6 @@ interface IMySBT {
     struct CommunityMembership {
         address community;
         uint256 joinedAt;
-        uint256 lastActiveTime;
         bool isActive;
         string metadata;
     }

@@ -116,7 +116,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.0.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.1.0"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -318,7 +318,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.0.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.1.0"));
 
         vm.stopPrank();
     }
@@ -500,32 +500,43 @@ contract UUPSUpgradeTest is Test {
         vm.stopPrank();
     }
 
-    /// @notice Registry.setStaking() triggers _syncExitFees for all active roles
+    /// @notice Registry.setStaking() + syncExitFees() syncs exit fees
     function test_RegistrySetStakingSyncsExitFees() public {
         vm.startPrank(owner);
 
         MockGTokenUUPS gtoken = new MockGTokenUUPS();
 
-        // Deploy Registry with placeholder staking
         Registry reg = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(0));
 
-        // Deploy real staking
         GTokenStaking staking = new GTokenStaking(address(gtoken), owner, address(reg));
 
-        // setStaking triggers _syncExitFees
         reg.setStaking(address(staking));
+        bytes32[] memory roles = new bytes32[](7);
+        roles[0] = keccak256("PAYMASTER_AOA");
+        roles[1] = keccak256("PAYMASTER_SUPER");
+        roles[2] = keccak256("DVT");
+        roles[3] = keccak256("ANODE");
+        roles[4] = keccak256("KMS");
+        roles[5] = keccak256("COMMUNITY");
+        roles[6] = keccak256("ENDUSER");
+        reg.syncExitFees(roles);
 
-        // Verify exit fees were synced for ROLE_COMMUNITY (exitFeePercent=500, minExitFee=1 ether)
+        // COMMUNITY and ENDUSER are ticket-only roles — exit fee must be zero.
         bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
         (uint256 feePercent, uint256 minFee) = staking.roleExitConfigs(ROLE_COMMUNITY);
-        assertEq(feePercent, 500, "Exit fee percent should be synced");
-        assertEq(minFee, 1 ether, "Min exit fee should be synced");
+        assertEq(feePercent, 0, "COMMUNITY ticket-only: exit fee percent must be 0");
+        assertEq(minFee, 0, "COMMUNITY ticket-only: min exit fee must be 0");
 
-        // Verify exit fees were synced for ROLE_ENDUSER (exitFeePercent=1000, minExitFee=0.05 ether)
         bytes32 ROLE_ENDUSER = keccak256("ENDUSER");
         (uint256 feePercentUser, uint256 minFeeUser) = staking.roleExitConfigs(ROLE_ENDUSER);
-        assertEq(feePercentUser, 1000, "Enduser exit fee percent should be synced");
-        assertEq(minFeeUser, 0.05 ether, "Enduser min exit fee should be synced");
+        assertEq(feePercentUser, 0, "ENDUSER ticket-only: exit fee percent must be 0");
+        assertEq(minFeeUser, 0, "ENDUSER ticket-only: min exit fee must be 0");
+
+        // Operator roles still sync to non-zero fees.
+        bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+        (uint256 opFeePercent, uint256 opMinFee) = staking.roleExitConfigs(ROLE_PAYMASTER_AOA);
+        assertEq(opFeePercent, 1000, "Operator exit fee percent should be synced (10%)");
+        assertEq(opMinFee, 1 ether, "Operator min exit fee should be synced");
 
         vm.stopPrank();
     }
