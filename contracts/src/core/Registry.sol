@@ -417,6 +417,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (bytes(data.ensName).length > 0) communityByENS[data.ensName] = user;
         } else if (roleId == ROLE_ENDUSER) {
             EndUserRoleData memory data = abi.decode(roleData, (EndUserRoleData));
+            if (data.account == address(0)) revert InvalidParam();
             if (!hasRole[ROLE_COMMUNITY][data.community]) revert InvalidParam();
             address existingOwner = accountToUser[data.account];
             if (existingOwner != address(0) && existingOwner != user) revert InvalidParam();

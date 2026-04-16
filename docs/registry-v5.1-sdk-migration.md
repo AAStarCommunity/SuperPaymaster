@@ -116,9 +116,22 @@ Registry-size reduction. No users are on production yet, so shims were not added
   unwanted community. If sponsored registration is needed later, a new
   `registerRoleFor(user, sig)` entry with EIP-712 authorization will be
   added separately.
+- **Community-sponsored registration still works** via
+  `Registry.safeMintForRole(roleId, user, data)`. That function is gated by
+  `hasRole[ROLE_COMMUNITY][msg.sender]` and remains the intended path for
+  community airdrops / user onboarding.
 - `accountToUser[data.account]` can no longer be silently overwritten by a
   different user — ENDUSER registrations that collide on the same smart
   account now revert with `InvalidParam`.
+- `data.account == address(0)` is now rejected in the ENDUSER branch of
+  `_validateAndProcessRole` (applies to both `registerRole` and
+  `safeMintForRole` paths).
+- Known residual risk: a malicious community can call
+  `safeMintForRole(ROLE_ENDUSER, attackerAccount, anyAddr)` to claim an
+  arbitrary smart-account binding without that account's signature. Since
+  `safeMintForRole` is gated by community membership (staked), the attacker
+  pays a real cost; EIP-712 account-signed authorization is tracked as a
+  follow-up.
 
 ## Proxy upgrade note (⚠️ storage layout break)
 
