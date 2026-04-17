@@ -166,13 +166,12 @@ contract RegistryTest is Test {
         // Setup EndUser
         test_RegisterEndUser();
 
-        // ENDUSER is a non-operator (ticket-only) role — exit is blocked
+        // ENDUSER is a ticket-only role — exit succeeds (cleanup only, no stake refund)
         vm.startPrank(user);
-        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_ENDUSER);
 
-        // Role should still be active
-        assertTrue(registry.hasRole(ROLE_ENDUSER, user));
+        // Role should be removed
+        assertFalse(registry.hasRole(ROLE_ENDUSER, user));
         vm.stopPrank();
     }
 }

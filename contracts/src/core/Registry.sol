@@ -54,6 +54,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     mapping(address => uint256) public lastReputationEpoch;
     mapping(uint256 => uint256) public creditTierConfig;
     mapping(address => bool) public isReputationSource;
+    mapping(uint256 => bool) public executedProposals;
 
     uint256[] public levelThresholds;
 
@@ -72,14 +73,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error BLSProofRequired();
     error InsufficientConsensus();
     error InvalidProposalId();
+    error ProposalAlreadyExecuted();
     error BLSFailed();
     error BLSNotConfigured();
     error SPNotSet();
     error ThreshNotAscending();
     error BatchTooLarge();
     error TooManyLevels();
-    error NoStakeToExit();
-
     constructor() Ownable(msg.sender) {
         _disableInitializers();
     }
@@ -223,26 +223,26 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
-        if (roleStakes[roleId][msg.sender] == 0) revert NoStakeToExit();
 
-        uint256 lockDuration = roleConfigs[roleId].roleLockDuration;
-        if (lockDuration > 0) {
-            uint256 lockedAt;
-            (,,lockedAt,,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
-            if (block.timestamp < lockedAt + lockDuration) revert LockNotMet();
-        }
+        bool hasStake = roleStakes[roleId][msg.sender] > 0;
 
-        uint256 actualLocked = GTOKEN_STAKING.getLockedStake(msg.sender, roleId);
-
-        emit BurnExecuted(msg.sender, roleId, actualLocked, "Exit");
-
+        // --- common state cleanup (both staked and ticket-only roles) ---
         hasRole[roleId][msg.sender] = false;
         _removeFromRoleMembers(roleId, msg.sender);
-
         if (userRoleCount[msg.sender] > 0) {
             userRoleCount[msg.sender]--;
         }
         _removeFromUserRoles(msg.sender, roleId);
+
+        // Clean up community name/ENS slots so they can be re-registered
+        if (roleId == ROLE_COMMUNITY) {
+            bytes memory meta = roleMetadata[roleId][msg.sender];
+            if (meta.length > 0) {
+                CommunityRoleData memory data = abi.decode(meta, (CommunityRoleData));
+                delete communityByName[data.name];
+                if (bytes(data.ensName).length > 0) delete communityByENS[data.ensName];
+            }
+        }
 
         if (userRoleCount[msg.sender] == 0) {
             if (SUPER_PAYMASTER != address(0)) {
@@ -251,9 +251,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             MYSBT.burnSBT(msg.sender);
         }
 
-        roleStakes[roleId][msg.sender] = 0;
-        uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
-        uint256 exitFee = actualLocked > netAmount ? actualLocked - netAmount : 0;
+        // --- stake unlock (operator roles only) ---
+        uint256 exitFee;
+        if (hasStake) {
+            uint256 lockDuration = roleConfigs[roleId].roleLockDuration;
+            if (lockDuration > 0) {
+                uint256 lockedAt;
+                (,,lockedAt,,) = GTOKEN_STAKING.roleLocks(msg.sender, roleId);
+                if (block.timestamp < lockedAt + lockDuration) revert LockNotMet();
+            }
+            uint256 actualLocked = GTOKEN_STAKING.getLockedStake(msg.sender, roleId);
+            emit BurnExecuted(msg.sender, roleId, actualLocked, "Exit");
+            roleStakes[roleId][msg.sender] = 0;
+            uint256 netAmount = GTOKEN_STAKING.unlockAndTransfer(msg.sender, roleId);
+            exitFee = actualLocked > netAmount ? actualLocked - netAmount : 0;
+        }
+
         emit RoleExited(roleId, msg.sender, exitFee, block.timestamp);
     }
 
@@ -326,7 +339,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (proof.length == 0) revert BLSProofRequired();
         (,,, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
         uint256 signerCount = _countSetBits(signerMask);
-        uint256 threshold = 7;
+        uint256 threshold = 3;
         if (blsAggregator != address(0)) {
             try IBLSAggregator(blsAggregator).defaultThreshold() returns (uint256 t) {
                 threshold = t;
@@ -335,6 +348,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (signerCount < threshold) revert InsufficientConsensus();
         if (address(blsValidator) == address(0)) revert BLSNotConfigured();
         if (proposalId == 0) revert InvalidProposalId();
+        if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
+        executedProposals[proposalId] = true;
         bytes32 messageHash = keccak256(abi.encode(
             proposalId, address(0), uint8(0),
             users, newScores, epoch, block.chainid

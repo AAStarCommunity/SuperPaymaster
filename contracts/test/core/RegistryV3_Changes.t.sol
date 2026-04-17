@@ -74,12 +74,13 @@ contract RegistryV3_Changes_Test is Test {
         assertEq(registry.communityByName("TestCommunity"), community);
         assertEq(registry.communityByENS("test.eth"), community);
 
-        // COMMUNITY is a non-operator (ticket-only) role — exit is blocked
-        vm.expectRevert(Registry.NoStakeToExit.selector);
+        // COMMUNITY exit succeeds — cleanup name/ENS slots
         registry.exitRole(ROLE_COMMUNITY);
 
-        // Role should still be active
-        assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
+        // Role should be removed, name/ENS slots freed
+        assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
+        assertEq(registry.communityByName("TestCommunity"), address(0));
+        assertEq(registry.communityByENS("test.eth"), address(0));
         vm.stopPrank();
     }
 

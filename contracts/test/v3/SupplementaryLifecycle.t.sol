@@ -170,13 +170,13 @@ contract SupplementaryLifecycleTest is Test {
         assertEq(registry.communityByName("TestDAO"), communityUser);
         assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should be minted");
 
-        // COMMUNITY is a non-operator (ticket-only) role — exit is blocked
+        // COMMUNITY is a ticket-only role — exit succeeds, cleans up name/ENS
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // Role should still be active
-        assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        // Role should be removed, name slot freed
+        assertFalse(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        assertEq(registry.communityByName("TestDAO"), address(0));
     }
 
     function test_RoleLifecycle_SuperPaymasterRole() public {
@@ -418,19 +418,17 @@ contract SupplementaryLifecycleTest is Test {
     }
 
     function test_MySBT_BurnOnAllRolesExit() public {
-        // Use an operator role to test SBT burn on exit
-        // Register community + PAYMASTER_SUPER, then exit PAYMASTER_SUPER
+        // Register community then exit — SBT should be burned when last role removed
         _registerCommunity(communityUser, "BurnSBT_DAO");
         uint256 tokenId = sbt.userToSBT(communityUser);
         assertTrue(tokenId != 0);
 
-        // COMMUNITY is non-operator, cannot exit
+        // COMMUNITY exit succeeds (ticket-only, cleanup only)
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // SBT should still exist since COMMUNITY role can't be exited
-        assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should remain for ticket-only role");
+        // SBT should be burned since it was the last role
+        assertEq(sbt.userToSBT(communityUser), 0, "SBT should be burned after last role exit");
     }
 
     function test_MySBT_DeactivateMembership_OnCommunityExit() public {
@@ -440,13 +438,12 @@ contract SupplementaryLifecycleTest is Test {
         uint256 tokenId = sbt.userToSBT(communityUser);
         assertTrue(sbt.verifyCommunityMembership(communityUser, communityUser));
 
-        // COMMUNITY is non-operator — exit is blocked
+        // COMMUNITY exit succeeds — SBT burned, membership deactivated
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // Membership should still be active
-        assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should remain for ticket-only role");
+        // SBT should be burned and membership deactivated
+        assertEq(sbt.userToSBT(communityUser), 0, "SBT should be burned");
     }
 
     function test_MySBT_MetadataFields() public {
@@ -595,12 +592,11 @@ contract SupplementaryLifecycleTest is Test {
         _registerCommunity(communityUser, "ClearDAO");
         assertTrue(superPaymaster.sbtHolders(communityUser));
 
-        // COMMUNITY is non-operator — exit is blocked
+        // COMMUNITY exit succeeds — SBT status should be cleared
         vm.prank(communityUser);
-        vm.expectRevert(Registry.NoStakeToExit.selector);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // SBT status should still be true since role can't be exited
-        assertTrue(superPaymaster.sbtHolders(communityUser), "SBT status should remain for ticket-only role");
+        // SBT status should be cleared after last role exit
+        assertFalse(superPaymaster.sbtHolders(communityUser), "SBT status should be cleared after exit");
     }
 }

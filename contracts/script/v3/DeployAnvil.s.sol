@@ -90,7 +90,8 @@ contract DeployAnvil is Script {
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
         registry.setMySBT(address(mysbt));
-        // Sync exit fees for operator roles (minStake > 0)
+        // Sync exit fees for ALL operator roles (minStake > 0).
+        // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
         bytes32[] memory exitFeeRoles = new bytes32[](5);
         exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
         exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
