@@ -856,10 +856,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
 
-            // Record debt before refund: prevents user escaping xPNTs debt if recordDebt reverts.
-            try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                pendingDebts[token][user] += finalXPNTsDebt;
-                emit DebtRecordFailed(token, user, finalXPNTsDebt);
+            // Preferred: burn from user's xPNTs balance with replay protection.
+            // Falls back to recordDebt when user has insufficient balance (e.g. new user).
+            // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
+            try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
+                try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                    pendingDebts[token][user] += finalXPNTsDebt;
+                    emit DebtRecordFailed(token, user, finalXPNTsDebt);
+                }
             }
 
             operators[operator].aPNTsBalance += uint128(refund);
@@ -870,9 +874,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
 
-             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                 pendingDebts[token][user] += finalXPNTsDebt;
-                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
+             try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
+                 try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                     pendingDebts[token][user] += finalXPNTsDebt;
+                     emit DebtRecordFailed(token, user, finalXPNTsDebt);
+                 }
              }
         }
 
