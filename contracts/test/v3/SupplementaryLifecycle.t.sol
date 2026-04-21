@@ -59,10 +59,6 @@ contract SuperPaymasterV2Reinit is SuperPaymaster {
         IEntryPoint _ep, IRegistry _reg, address _feed
     ) SuperPaymaster(_ep, _reg, _feed) {}
 
-    function version() external pure override returns (string memory) {
-        return "SuperPaymaster-5.0.0-test";
-    }
-
     function reinitializeV2(uint256 _flag) external reinitializer(2) {
         migrationFlag = _flag;
     }
@@ -510,7 +506,6 @@ contract SupplementaryLifecycleTest is Test {
         superPaymaster.upgradeToAndCall(address(newImpl), initData);
 
         assertEq(SuperPaymasterV2Reinit(payable(address(superPaymaster))).migrationFlag(), 99);
-        assertEq(keccak256(bytes(superPaymaster.version())), keccak256("SuperPaymaster-5.0.0-test"));
         assertEq(superPaymaster.owner(), owner);
 
         vm.stopPrank();

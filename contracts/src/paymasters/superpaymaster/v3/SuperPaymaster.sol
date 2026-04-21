@@ -1123,24 +1123,28 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F3: x402 Payment Settlement
     // ====================================
 
-    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
-    function settleX402Payment(
-        address from, address to, address asset, uint256 amount,
-        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
-    ) external nonReentrant returns (bytes32 settlementId) {
+    /// @notice Shared validation and fee logic for both x402 settle paths.
+    function _validateX402AndComputeFee(
+        address asset, uint256 amount, bytes32 nonce
+    ) internal returns (uint256 fee) {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
         x402SettlementNonces[nonce] = true;
 
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
         if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
-        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
-
+        fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
         if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
+    }
 
+    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    function settleX402Payment(
+        address from, address to, address asset, uint256 amount,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external nonReentrant returns (bytes32 settlementId) {
+        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
-
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
         settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
     }
@@ -1150,19 +1154,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
-        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
-        x402SettlementNonces[nonce] = true;
-
-        uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
-        if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
-        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
-
-        if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
-
+        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
-
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
         settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
     }
