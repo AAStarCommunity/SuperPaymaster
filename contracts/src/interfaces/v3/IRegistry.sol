@@ -162,6 +162,11 @@ interface IRegistry is IVersioned {
     ) external;
 
     /**
+     * @notice Mark a BLS proposal as executed (called by BLSAggregator for slash-only proposals)
+     */
+    function markProposalExecuted(uint256 proposalId) external;
+
+    /**
      * @notice Authorize or revoke a reputation source
      */
     function setReputationSource(address source, bool isActive) external;

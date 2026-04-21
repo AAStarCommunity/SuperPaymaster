@@ -342,12 +342,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
         if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
         
-        // 2. Verify BLS proof via IBLSAggregator interface
-        if (proof.length > 0 && BLS_AGGREGATOR != address(0)) {
-            // BLS signature verification happens in BLSAggregator before calling this
-            // We trust msg.sender == BLS_AGGREGATOR means proof was verified
-            // This design allows owner to bypass for emergency situations
-        }
+        // 2. BLS proof is verified by BLSAggregator before it calls this function.
+        // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
+        // emergency break-glass bypass (intentional, acknowledged risk: Chainlink ±20%
+        // deviation guard below provides the secondary protection when BLS is bypassed).
+        // proof parameter is kept for ABI compatibility and future on-chain verification.
         
         // 3. Validate price bounds
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();

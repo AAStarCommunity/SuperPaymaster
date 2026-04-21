@@ -78,8 +78,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Constants (BLS12-381 Math)
     // ====================================
     
-    bytes constant G1_X_BYTES = hex"17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb";
-    bytes constant G1_Y_BYTES = hex"08b3f481e3aaa9a12174adfa9d9e00912180f1482c0bcd3b0ff955a6d051029441c4a4f147cc520556770e0a5c483a27";
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
 
@@ -159,6 +157,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (repUsers.length > 0) {
             REGISTRY.batchUpdateGlobalReputation(proposalId, repUsers, newScores, epoch, proof);
             emit ReputationEpochTriggered(epoch, repUsers.length);
+        } else {
+            // Slash-only proposal: mark proposalId in Registry to prevent cross-path replay
+            // (attacker holding valid proof cannot reuse proposalId via direct Registry call)
+            REGISTRY.markProposalExecuted(proposalId);
         }
 
         // 3. Execute Slash if operator is provided
@@ -307,37 +309,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         p.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
         p.y_a = bytes32(uint256(0x08b3f481e3aaa0f1a09e30ed741d8ae4));
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
-    }
-
-    function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {
-        bytes memory x = new bytes(48);
-        bytes memory y = new bytes(48);
-        for(uint i=0; i<48; i++) {
-            x[i] = pkG1[i];
-            y[i] = pkG1[i+48];
-        }
-        
-        uint256 y_lo;
-        uint256 y_hi;
-        assembly {
-            y_lo := mload(add(y, 48))
-            y_hi := mload(add(y, 32))
-            y_hi := shr(128, y_hi)
-        }
-
-        uint256 new_y_lo;
-        uint256 new_y_hi;
-
-        if (P_LO >= y_lo) {
-            new_y_lo = P_LO - y_lo;
-            new_y_hi = P_HI - y_hi;
-        } else {
-            new_y_lo = (type(uint256).max - y_lo + 1) + P_LO;
-            new_y_hi = P_HI - y_hi - 1;
-        }
-
-        bytes memory new_y = abi.encodePacked(uint128(new_y_hi), new_y_lo);
-        return abi.encodePacked(x, new_y);
     }
 
     function _countSetBits(uint256 n) internal pure returns (uint256 count) {

@@ -242,6 +242,12 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 delete communityByName[data.name];
                 if (bytes(data.ensName).length > 0) delete communityByENS[data.ensName];
             }
+            delete roleMetadata[roleId][msg.sender];
+            delete roleSBTTokenIds[roleId][msg.sender];
+        } else if (roleId == ROLE_ENDUSER) {
+            // accountToUser is intentionally preserved: AA address → user credit binding is permanent.
+            delete roleMetadata[roleId][msg.sender];
+            delete roleSBTTokenIds[roleId][msg.sender];
         }
 
         if (userRoleCount[msg.sender] == 0) {
@@ -307,7 +313,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         GTOKEN_STAKING.lockStakeWithTicket(user, roleId, stakeAmount, ticketPrice, sponsor);
     }
 
-    function configureRole(bytes32 roleId, RoleConfig calldata config) external {
+    function configureRole(bytes32 roleId, RoleConfig calldata config) external nonReentrant {
         address currentOwner = roleConfigs[roleId].owner;
         if (currentOwner == address(0)) {
             if (msg.sender != owner()) revert Unauthorized();
@@ -386,6 +392,14 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
 
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
+    }
+
+    /// @notice Mark a proposal as executed in Registry (called by BLSAggregator for slash-only proposals
+    ///         where repUsers.length == 0, preventing cross-path replay attacks).
+    function markProposalExecuted(uint256 proposalId) external {
+        if (msg.sender != blsAggregator) revert UnauthorizedSource();
+        if (proposalId == 0) revert InvalidProposalId();
+        executedProposals[proposalId] = true;
     }
 
     function setCreditTier(uint256 level, uint256 limit) external onlyOwner {

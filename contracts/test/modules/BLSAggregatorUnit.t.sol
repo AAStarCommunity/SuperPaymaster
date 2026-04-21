@@ -26,6 +26,7 @@ contract MockRegistryUnit is IRegistry {
     function registerRole(bytes32, address, bytes calldata) external override {}
     function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
     function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
     function isReputationSource(address) external pure override returns (bool) { return true; }

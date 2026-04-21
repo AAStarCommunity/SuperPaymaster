@@ -31,6 +31,7 @@ contract MockRegistry is IRegistry {
 
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
 
     function grantRole(bytes32 role, address account) external {
         roles[role][account] = true;

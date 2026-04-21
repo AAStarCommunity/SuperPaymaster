@@ -50,6 +50,7 @@ contract MockRegistryV2 is IRegistry {
     
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
 }
 

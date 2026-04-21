@@ -55,6 +55,7 @@ contract MockRegistryStub is IRegistry {
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
+    function markProposalExecuted(uint256) external override {}
     function registerRole(bytes32, address, bytes calldata) external {}
     function exitRole(bytes32) external {}
     function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) { return 0; }

@@ -34,6 +34,7 @@ contract MockRegistry is IRegistry {
     // Unused methods
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { return RoleConfig(0,0,0,0,0,0,0,false, 0,"",address(0),0); }

@@ -111,7 +111,31 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     ) external nonReentrant onlyRegistry returns (uint256 lockId) {
         uint256 totalAmount = stakeAmount + ticketPrice;
 
-        // Transfer total from payer
+        // CEI: validate and update all state before external calls
+        if (stakeAmount > 0) {
+            if (roleLocks[user][roleId].amount > 0) revert RoleAlreadyLocked();
+            if (stakeAmount > type(uint128).max) revert AmountExceedsUint128();
+            if (ticketPrice > type(uint128).max) revert AmountExceedsUint128();
+
+            uint256 newTotal = totalStaked + stakeAmount;
+            if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
+
+            totalStaked = newTotal;
+            stakes[user].amount += stakeAmount;
+            if (stakes[user].stakedAt == 0) {
+                stakes[user].stakedAt = block.timestamp;
+            }
+            roleLocks[user][roleId] = RoleLock({
+                amount: uint128(stakeAmount),
+                ticketPrice: uint128(ticketPrice),
+                lockedAt: uint48(block.timestamp),
+                roleId: roleId,
+                metadata: ""
+            });
+            userActiveRoles[user].push(roleId);
+        }
+
+        // External calls after state updates
         if (totalAmount > 0) {
             if (stakeAmount > 0) {
                 // Stake + ticket: transfer to this contract first, then forward ticket to treasury
@@ -125,37 +149,10 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             }
         }
 
-        // Emit ticket event
         if (ticketPrice > 0) {
             emit TicketBurned(user, roleId, ticketPrice, payer);
         }
-
-        // Only create lock when staking
         if (stakeAmount > 0) {
-            if (roleLocks[user][roleId].amount > 0) revert RoleAlreadyLocked();
-
-            stakes[user].amount += stakeAmount;
-            if (stakes[user].stakedAt == 0) {
-                stakes[user].stakedAt = block.timestamp;
-            }
-
-            if (stakeAmount > type(uint128).max) revert AmountExceedsUint128();
-            if (ticketPrice > type(uint128).max) revert AmountExceedsUint128();
-
-            roleLocks[user][roleId] = RoleLock({
-                amount: uint128(stakeAmount),
-                ticketPrice: uint128(ticketPrice),
-                lockedAt: uint48(block.timestamp),
-                roleId: roleId,
-                metadata: ""
-            });
-
-            userActiveRoles[user].push(roleId);
-
-            uint256 newTotal = totalStaked + stakeAmount;
-            if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
-            totalStaked = newTotal;
-
             emit StakeLocked(user, roleId, stakeAmount, ticketPrice, block.timestamp);
         }
 
@@ -373,17 +370,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
         if (msg.sender != REGISTRY && msg.sender != owner()) revert Unauthorized();
-        
-        RoleExitConfig storage config = roleExitConfigs[roleId]; // Assuming RoleExitConfig is the correct struct name based on original code
+        RoleExitConfig storage config = roleExitConfigs[roleId];
         config.feePercent = feePercent;
         config.minFee = minFee;
-        // Assuming 'isActive' field is not part of RoleExitConfig based on original code,
-        // and 'RoleExitFeeConfigured' event is not defined.
-        // Sticking to the original structure for setRoleExitFee, but adding the new function.
-        // If the user intended to change RoleExitConfig to RoleExitFee and add isActive,
-        // they should provide the full context for that struct and event.
-        // For now, I will only apply the setTreasury function and keep setRoleExitFee as close to original as possible,
-        // while incorporating the new require/revert style.
     }
 
     /**
@@ -423,7 +412,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         bytes32 roleId,
         uint256 penaltyAmount,
         string calldata reason
-    ) external {
+    ) external nonReentrant {
         if (!authorizedSlashers[msg.sender]) revert NotAuthorizedSlasher();
         
         RoleLock storage lock = roleLocks[operator][roleId];

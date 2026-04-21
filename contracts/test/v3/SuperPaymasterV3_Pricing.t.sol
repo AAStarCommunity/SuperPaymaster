@@ -93,6 +93,7 @@ contract MockRegistry is IRegistry {
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
+    function markProposalExecuted(uint256) external override {}
     
     // Stubs for other IRegistry methods
     function registerRole(bytes32, address, bytes calldata) external {}
