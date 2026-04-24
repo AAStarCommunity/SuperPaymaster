@@ -156,6 +156,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             emit StakeLocked(user, roleId, stakeAmount, ticketPrice, block.timestamp);
         }
 
+        // Ticket-only path creates no lock → return 0. Only stake locks have meaningful identifiers.
+        if (stakeAmount == 0) return 0;
         return uint256(keccak256(abi.encode(user, roleId, block.number, totalStaked)));
     }
 

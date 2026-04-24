@@ -131,6 +131,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     event OracleFallbackTriggered(uint256 timestamp);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
+    /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
+    /// @dev Happens when owner withdrew protocolRevenue between validation and postOp, leaving
+    ///      insufficient balance to cover the validation-phase buffer refund. Clamp avoids revert
+    ///      in postOp (which would break UserOp flow); cost is operator absorbing the shortfall.
+    event ProtocolRevenueUnderflow(address indexed operator, uint256 requestedRefund, uint256 availableRevenue);
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
@@ -851,7 +856,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (finalCharge < initialAPNTs) {
             uint256 refund = initialAPNTs - finalCharge;
             if (refund > type(uint128).max) refund = type(uint128).max;
-            if (refund > protocolRevenue) refund = protocolRevenue;
+            if (refund > protocolRevenue) {
+                emit ProtocolRevenueUnderflow(operator, refund, protocolRevenue);
+                refund = protocolRevenue;
+            }
 
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
 

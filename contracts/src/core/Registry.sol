@@ -244,7 +244,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             delete roleMetadata[roleId][msg.sender];
             delete roleSBTTokenIds[roleId][msg.sender];
         } else if (roleId == ROLE_ENDUSER) {
-            // accountToUser is intentionally preserved: AA address → user credit binding is permanent.
             delete roleMetadata[roleId][msg.sender];
             delete roleSBTTokenIds[roleId][msg.sender];
         }
