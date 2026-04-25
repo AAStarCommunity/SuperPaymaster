@@ -9,15 +9,12 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 
 /**
- * @title GTokenStaking v3.1.0
- * @notice Unified Role-Based Staking System with True Burn
- * @dev Replaces v2 locker system with role-based locking
- *      Strictly couples staking with Registry roles
- *      
- * Version 3.1.0 Changes:
- * - Entry burn now uses true token destruction (ERC20Burnable.burn)
- * - totalSupply decreases on burn, creating auto-remint capacity
- * - Removed blackhole transfer (0xdead) pattern
+ * @title GTokenStaking v4.2.0 — Unified Ticket Model
+ * @notice Unified Role-Based Staking with Ticket Model (transfer to treasury)
+ * @dev Single unified flow for all roles via lockStakeWithTicket():
+ *      - stakeAmount=0: ticket-only (transfer to treasury, no lock)
+ *      - stakeAmount>0: ticket to treasury + stake locked
+ *      - 21M GT total supply is CONSTANT — nothing is destroyed
  */
 contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     using SafeERC20 for IERC20;
@@ -37,7 +34,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ...
 
     function version() external pure override returns (string memory) {
-        return "Staking-3.2.1";
+        return "Staking-4.2.0";
     }
 
     // ====================================
@@ -100,59 +97,68 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ====================================
 
     /**
-     * @notice Lock stake for a role (Registry only)
-     * @dev Transfers tokens, burns entry fee (TRUE BURN), locks remainder
-     * @custom:burn Entry burn uses ERC20Burnable.burn() to decrease totalSupply
+     * @notice Unified registration: handle ticket + optional stake for any role
+     * @dev Transfers (stakeAmount + ticketPrice) from payer.
+     *      When stakeAmount=0: ticket-only, no lock created (for ENDUSER, COMMUNITY).
+     *      When stakeAmount>0: ticket to treasury + stake locked (for operators).
      */
-    function lockStake(
+    function lockStakeWithTicket(
         address user,
         bytes32 roleId,
         uint256 stakeAmount,
-        uint256 entryBurn,
+        uint256 ticketPrice,
         address payer
     ) external nonReentrant onlyRegistry returns (uint256 lockId) {
-        if (roleLocks[user][roleId].amount > 0) revert RoleAlreadyLocked();
-        
-        uint256 totalAmount = stakeAmount + entryBurn;
-        
-        // Transfer GToken from PAYER (stake + burn)
-        GTOKEN.safeTransferFrom(payer, address(this), totalAmount);
-        
-        // Handle entry burn: TRUE BURN (totalSupply decreases)
-        if (entryBurn > 0) {
-            ERC20Burnable(address(GTOKEN)).burn(entryBurn);
-            emit TokensBurned(user, roleId, entryBurn, "Entry Burn");
-        }
-        
-        // Update user global stake info
-        stakes[user].amount += stakeAmount;
-        if (stakes[user].stakedAt == 0) {
-            stakes[user].stakedAt = block.timestamp;
+        uint256 totalAmount = stakeAmount + ticketPrice;
+
+        // CEI: validate and update all state before external calls
+        if (stakeAmount > 0) {
+            if (roleLocks[user][roleId].amount > 0) revert RoleAlreadyLocked();
+            if (stakeAmount > type(uint128).max) revert AmountExceedsUint128();
+            if (ticketPrice > type(uint128).max) revert AmountExceedsUint128();
+
+            uint256 newTotal = totalStaked + stakeAmount;
+            if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
+
+            totalStaked = newTotal;
+            stakes[user].amount += stakeAmount;
+            if (stakes[user].stakedAt == 0) {
+                stakes[user].stakedAt = block.timestamp;
+            }
+            roleLocks[user][roleId] = RoleLock({
+                amount: uint128(stakeAmount),
+                ticketPrice: uint128(ticketPrice),
+                lockedAt: uint48(block.timestamp),
+                roleId: roleId,
+                metadata: ""
+            });
+            userActiveRoles[user].push(roleId);
         }
 
-        // Safe Casts for Packed Storage
-        if (stakeAmount > type(uint128).max) revert AmountExceedsUint128();
-        if (entryBurn > type(uint128).max) revert AmountExceedsUint128();
-        
-        // Create lock
-        RoleLock memory newLock = RoleLock({
-            amount: uint128(stakeAmount),
-            entryBurn: uint128(entryBurn),
-            lockedAt: uint48(block.timestamp),
-            roleId: roleId,
-            metadata: ""
-        });
-        
-        roleLocks[user][roleId] = newLock;
-        userActiveRoles[user].push(roleId);
-        
-        // Update global stats — pre-check avoids a second SLOAD after the write
-        uint256 newTotal = totalStaked + stakeAmount;
-        if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
-        totalStaked = newTotal;
+        // External calls after state updates
+        if (totalAmount > 0) {
+            if (stakeAmount > 0) {
+                // Stake + ticket: transfer to this contract first, then forward ticket to treasury
+                GTOKEN.safeTransferFrom(payer, address(this), totalAmount);
+                if (ticketPrice > 0) {
+                    GTOKEN.safeTransfer(treasury, ticketPrice);
+                }
+            } else {
+                // Ticket-only: transfer directly to treasury
+                GTOKEN.safeTransferFrom(payer, treasury, ticketPrice);
+            }
+        }
 
-        emit StakeLocked(user, roleId, stakeAmount, entryBurn, block.timestamp);
-        return uint256(roleId); // Use roleId as lockId
+        if (ticketPrice > 0) {
+            emit TicketBurned(user, roleId, ticketPrice, payer);
+        }
+        if (stakeAmount > 0) {
+            emit StakeLocked(user, roleId, stakeAmount, ticketPrice, block.timestamp);
+        }
+
+        // Ticket-only path creates no lock → return 0. Only stake locks have meaningful identifiers.
+        if (stakeAmount == 0) return 0;
+        return uint256(keccak256(abi.encode(user, roleId, block.number, totalStaked)));
     }
 
     /**
@@ -181,6 +187,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
     /**
      * @notice Unlock and transfer to user (Registry only)
+     * @dev OPERATORS ONLY — Regular user roles (ENDUSER, COMMUNITY) have no exit.
+     *      Registry enforces this by checking roleStakes before calling.
      */
     function unlockAndTransfer(
         address user,
@@ -364,17 +372,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
         if (msg.sender != REGISTRY && msg.sender != owner()) revert Unauthorized();
-        
-        RoleExitConfig storage config = roleExitConfigs[roleId]; // Assuming RoleExitConfig is the correct struct name based on original code
+        RoleExitConfig storage config = roleExitConfigs[roleId];
         config.feePercent = feePercent;
         config.minFee = minFee;
-        // Assuming 'isActive' field is not part of RoleExitConfig based on original code,
-        // and 'RoleExitFeeConfigured' event is not defined.
-        // Sticking to the original structure for setRoleExitFee, but adding the new function.
-        // If the user intended to change RoleExitConfig to RoleExitFee and add isActive,
-        // they should provide the full context for that struct and event.
-        // For now, I will only apply the setTreasury function and keep setRoleExitFee as close to original as possible,
-        // while incorporating the new require/revert style.
     }
 
     /**
@@ -414,7 +414,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         bytes32 roleId,
         uint256 penaltyAmount,
         string calldata reason
-    ) external {
+    ) external nonReentrant {
         if (!authorizedSlashers[msg.sender]) revert NotAuthorizedSlasher();
         
         RoleLock storage lock = roleLocks[operator][roleId];

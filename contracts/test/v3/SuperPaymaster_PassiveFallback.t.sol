@@ -55,6 +55,7 @@ contract MockRegistryStub is IRegistry {
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
+    function markProposalExecuted(uint256) external override {}
     function registerRole(bytes32, address, bytes calldata) external {}
     function exitRole(bytes32) external {}
     function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) { return 0; }
@@ -78,7 +79,6 @@ contract MockRegistryStub is IRegistry {
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external view returns (bool) { return false; }
-    function roleOwners(bytes32) external view returns (address) { return address(0); }
 }
 
 contract MockERC20 is ERC20 {

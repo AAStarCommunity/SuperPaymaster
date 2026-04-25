@@ -16,7 +16,7 @@ contract DeployBLSModules is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         BLSAggregator aggregator = new BLSAggregator(registryAddr, spAddr, address(0));
-        aggregator.setThreshold(3);
+        aggregator.setMinThreshold(3);
 
         DVTValidator dvt = new DVTValidator(registryAddr);
         dvt.setBLSAggregator(address(aggregator));

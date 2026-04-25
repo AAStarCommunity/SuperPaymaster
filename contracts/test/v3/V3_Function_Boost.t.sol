@@ -79,37 +79,36 @@ contract V3_Function_BoostTest is Test {
 
     function test_Registry_HistoryAndMembers() public {
         bytes32 commRole = registry.ROLE_COMMUNITY();
-        bytes32 endRole = registry.ROLE_ENDUSER();
-        
+        bytes32 kmsRole = registry.ROLE_KMS();
+
         // 1. Setup Community
         bytes memory commData = abi.encode(Registry.CommunityRoleData("CommA","a","b","c","d", 30 ether));
-        gToken.mint(manager, 100 ether);
-        
+        gToken.mint(manager, 200 ether);
+
         vm.startPrank(manager);
-        gToken.approve(address(staking), 100 ether);
+        gToken.approve(address(staking), 200 ether);
         registry.registerRole(commRole, manager, commData);
         vm.stopPrank();
 
-        // 2. Setup EndUser
-        bytes memory data = abi.encode(Registry.EndUserRoleData(user, manager, "avatar", "user.eth", 0.3 ether));
-        gToken.mint(user, 10 ether);
+        // 2. Setup KMS (operator role that can exit)
+        gToken.mint(user, 200 ether);
 
         vm.startPrank(user);
-        gToken.approve(address(staking), 10 ether);
-        registry.registerRole(endRole, user, data);
-        
+        gToken.approve(address(staking), 200 ether);
+        registry.registerRole(kmsRole, user, abi.encode(uint256(100 ether)));
+
         // 3. Verify
-        assertEq(registry.getRoleUserCount(endRole), 1);
-        
-        // Exit
-        vm.stopPrank(); // Stop user prank
-        vm.startPrank(owner);
-        IRegistry.RoleConfig memory endCfg = registry.getRoleConfig(endRole);
-        endCfg.roleLockDuration = 0;
-        registry.configureRole(endRole, endCfg);
+        assertEq(registry.getRoleUserCount(kmsRole), 1);
+
+        // Exit KMS (operator role)
         vm.stopPrank();
-        vm.startPrank(user); // Restart user prank
-        registry.exitRole(endRole);
+        vm.startPrank(owner);
+        IRegistry.RoleConfig memory kmsCfg = registry.getRoleConfig(kmsRole);
+        kmsCfg.roleLockDuration = 0;
+        registry.configureRole(kmsRole, kmsCfg);
+        vm.stopPrank();
+        vm.startPrank(user);
+        registry.exitRole(kmsRole);
         vm.stopPrank();
     }
 
@@ -133,9 +132,9 @@ contract V3_Function_BoostTest is Test {
         vm.prank(user);
         gToken.approve(address(staking), 100 ether);
 
-        // 2. Mock lockStake by Registry
+        // 2. Mock lockStakeWithTicket by Registry
         vm.startPrank(address(registry));
-        staking.lockStake(user, commRole, 30 ether, 3 ether, user);
+        staking.lockStakeWithTicket(user, commRole, 30 ether, 3 ether, user);
         vm.stopPrank();
 
         // 3. Check getters
@@ -143,7 +142,8 @@ contract V3_Function_BoostTest is Test {
         assertEq(locks.length, 1);
 
         (uint256 fee, uint256 net) = staking.previewExitFee(user, commRole);
-        assertEq(fee, 1.5 ether); // 5% of 30
+        // setUp() explicitly configures COMMUNITY with 500bps to exercise the fee path
+        assertEq(fee, 1.5 ether);
         assertEq(net, 28.5 ether);
     }
 
@@ -174,12 +174,7 @@ contract V3_Function_BoostTest is Test {
         registry.registerRole(commRole, manager, data);
 
         // 1.5 Register as SuperPaymaster
-        bytes memory opData = abi.encode(Registry.PaymasterRoleData({
-            paymasterContract: address(0x123),
-            name: "TestPM",
-            apiEndpoint: "https://pm.com",
-            stakeAmount: 50 ether
-        }));
+        bytes memory opData = abi.encode(uint256(50 ether));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), manager, opData);
 
         // 2. Configure in Paymaster

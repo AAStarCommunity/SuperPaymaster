@@ -82,7 +82,7 @@ contract RegistryMultiCommunityTest is Test {
         
         // Prepare user data
         bytes memory userData = abi.encode(
-            Registry.EndUserRoleData(_user, community, "", "", 1 ether)
+            Registry.EndUserRoleData(community, "", "", 1 ether)
         );
         
         // Join community
@@ -153,28 +153,29 @@ contract RegistryMultiCommunityTest is Test {
         // Setup
         _registerCommunity(communityA, "CommunityA");
         _registerCommunity(communityB, "CommunityB");
-        
-        // Record initial balance
+
+        // Record initial balance and treasury balance
         uint256 balanceBefore = gtoken.balanceOf(user);
-        
-        // First join (should burn entryBurn)
+        uint256 treasuryBefore = gtoken.balanceOf(deployer); // deployer is treasury in this test
+
+        // First join (ticketPrice goes to treasury, no stake for non-operator)
         _joinCommunity(user, communityA);
         uint256 balanceAfterFirst = gtoken.balanceOf(user);
-        
-        // Calculate burn amount
-        uint256 firstBurn = balanceBefore - balanceAfterFirst;
-        assertTrue(firstBurn > 1 ether, "First join should burn entry fee + stake");
-        
-        // Second join (should NOT burn entryBurn, only additional stake if needed)
+
+        // Calculate cost
+        uint256 firstCost = balanceBefore - balanceAfterFirst;
+        assertTrue(firstCost > 0, "First join should cost ticketPrice");
+
+        // Second join (idempotent for ENDUSER, should NOT burn ticketPrice again)
         _joinCommunity(user, communityB);
         uint256 balanceAfterSecond = gtoken.balanceOf(user);
-        
+
         // Calculate cost of second join
         uint256 secondCost = balanceAfterFirst - balanceAfterSecond;
-        
-        // Second join should cost less (no entryBurn)
-        assertTrue(secondCost < firstBurn, "Second join should cost less (no entryBurn)");
-        assertEq(secondCost, 0, "Second join should not cost additional balance if stake is same");
+
+        // Second join should cost less (no ticketPrice)
+        assertTrue(secondCost < firstCost, "Second join should cost less (no ticketPrice)");
+        assertEq(secondCost, 0, "Second join should not cost additional balance");
     }
     
     function testCommunityReregistrationReverts() public {

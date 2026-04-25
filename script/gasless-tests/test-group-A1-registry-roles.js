@@ -104,7 +104,7 @@ async function main() {
     if (hasEnduser) {
       printSkip(`AA Account ${aaAccountA} already has ROLE_ENDUSER`);
     } else {
-      const roleData = encodeEndUserRoleData(aaAccountA, deployerAddr, ethers.parseEther('0.3'));
+      const roleData = encodeEndUserRoleData(deployerAddr, ethers.parseEther('0.3'));
       const receipt = await sendTxSafe(registry, 'safeMintForRole', [ROLES.ENDUSER, aaAccountA, roleData], 'safeMintForRole(ENDUSER)');
       if (receipt) {
         printSuccess(`Registered ENDUSER for ${aaAccountA}`);

@@ -93,9 +93,18 @@ contract DeployLive is Script {
         staking = new GTokenStaking(address(gtoken), deployer, address(registry));
         mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
 
-        // Wire staking and MySBT into Registry (setStaking triggers _syncExitFees)
+        // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
         registry.setMySBT(address(mysbt));
+        // Sync exit fees for ALL operator roles (minStake > 0).
+        // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
+        bytes32[] memory exitFeeRoles = new bytes32[](5);
+        exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
+        exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
+        exitFeeRoles[2] = registry.ROLE_DVT();
+        exitFeeRoles[3] = registry.ROLE_ANODE();
+        exitFeeRoles[4] = registry.ROLE_KMS();
+        registry.syncExitFees(exitFeeRoles);
 
         console.log("=== Step 2: Deploy Core (UUPS Proxy) ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry));
@@ -191,14 +200,8 @@ contract DeployLive is Script {
         // Step 34: $0.02
         Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 
 
-        Registry.PaymasterRoleData memory pmData = Registry.PaymasterRoleData({
-            paymasterContract: pmProxy,
-            name: "Jason V4 PM",
-            apiEndpoint: "https://rpc.aastar.io/pm",
-            stakeAmount: 30 ether
-        });
         gtoken.approve(address(staking), 33 ether);
-        registry.registerRole(keccak256("PAYMASTER_AOA"), deployer, abi.encode(pmData));
+        registry.registerRole(registry.ROLE_PAYMASTER_AOA(), deployer, abi.encode(uint256(30 ether)));
         
         // Step 37: 0.05 ETH
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);

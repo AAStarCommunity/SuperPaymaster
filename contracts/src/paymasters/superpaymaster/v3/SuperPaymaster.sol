@@ -54,13 +54,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // --- Mappings ---
 
     // CONSOLIDATED MAPPING: operator => user => state (Saves 1 SLOAD in hot path)
-    mapping(address => mapping(address => UserOperatorState)) public userOpState; 
-    
-    // Legacy mappings kept for ABI compatibility or migration? 
-    // Actually, we should deprecate blockedUsers and lastUserOpTimestamp
-    // mapping(address => mapping(address => bool)) public blockedUsers; // DEPRECATED
-    // mapping(address => mapping(address => uint48)) public lastUserOpTimestamp; // DEPRECATED
-    
+    mapping(address => mapping(address => UserOperatorState)) public userOpState;
+
     mapping(address => bool) public sbtHolders; // Global SBT holders list (verified via Registry)
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
@@ -136,6 +131,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     event OracleFallbackTriggered(uint256 timestamp);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
+    /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
+    /// @dev Happens when owner withdrew protocolRevenue between validation and postOp, leaving
+    ///      insufficient balance to cover the validation-phase buffer refund. Clamp avoids revert
+    ///      in postOp (which would break UserOp flow); cost is operator absorbing the shortfall.
+    event ProtocolRevenueUnderflow(address indexed operator, uint256 requestedRefund, uint256 availableRevenue);
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
@@ -347,12 +347,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
         if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
         
-        // 2. Verify BLS proof via IBLSAggregator interface
-        if (proof.length > 0 && BLS_AGGREGATOR != address(0)) {
-            // BLS signature verification happens in BLSAggregator before calling this
-            // We trust msg.sender == BLS_AGGREGATOR means proof was verified
-            // This design allows owner to bypass for emergency situations
-        }
+        // 2. BLS proof is verified by BLSAggregator before it calls this function.
+        // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
+        // emergency break-glass bypass (intentional, acknowledged risk: Chainlink ±20%
+        // deviation guard below provides the secondary protection when BLS is bypassed).
+        // proof parameter is kept for ABI compatibility and future on-chain verification.
         
         // 3. Validate price bounds
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
@@ -857,14 +856,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (finalCharge < initialAPNTs) {
             uint256 refund = initialAPNTs - finalCharge;
             if (refund > type(uint128).max) refund = type(uint128).max;
-            if (refund > protocolRevenue) refund = protocolRevenue;
+            if (refund > protocolRevenue) {
+                emit ProtocolRevenueUnderflow(operator, refund, protocolRevenue);
+                refund = protocolRevenue;
+            }
 
             uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
 
-            // Record debt before refund: prevents user escaping xPNTs debt if recordDebt reverts.
-            try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                pendingDebts[token][user] += finalXPNTsDebt;
-                emit DebtRecordFailed(token, user, finalXPNTsDebt);
+            // Preferred: burn from user's xPNTs balance with replay protection.
+            // Falls back to recordDebt when user has insufficient balance (e.g. new user).
+            // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
+            try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
+                try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                    pendingDebts[token][user] += finalXPNTsDebt;
+                    emit DebtRecordFailed(token, user, finalXPNTsDebt);
+                }
             }
 
             operators[operator].aPNTsBalance += uint128(refund);
@@ -875,9 +881,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
 
-             try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                 pendingDebts[token][user] += finalXPNTsDebt;
-                 emit DebtRecordFailed(token, user, finalXPNTsDebt);
+             try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
+                 try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
+                     pendingDebts[token][user] += finalXPNTsDebt;
+                     emit DebtRecordFailed(token, user, finalXPNTsDebt);
+                 }
              }
         }
 
@@ -1122,24 +1130,28 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F3: x402 Payment Settlement
     // ====================================
 
-    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
-    function settleX402Payment(
-        address from, address to, address asset, uint256 amount,
-        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
-    ) external nonReentrant returns (bytes32 settlementId) {
+    /// @notice Shared validation and fee logic for both x402 settle paths.
+    function _validateX402AndComputeFee(
+        address asset, uint256 amount, bytes32 nonce
+    ) internal returns (uint256 fee) {
         if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
         x402SettlementNonces[nonce] = true;
 
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
         if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
-        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
-
+        fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
         if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
+    }
 
+    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    function settleX402Payment(
+        address from, address to, address asset, uint256 amount,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external nonReentrant returns (bytes32 settlementId) {
+        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
-
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
         settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
     }
@@ -1149,19 +1161,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
-        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
-        x402SettlementNonces[nonce] = true;
-
-        uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
-        if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
-        uint256 fee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
-
-        if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
-
+        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
-
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
         settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
     }

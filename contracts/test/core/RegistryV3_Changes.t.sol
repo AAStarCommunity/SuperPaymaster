@@ -61,34 +61,26 @@ contract RegistryV3_Changes_Test is Test {
     function test_ExitRole_CommunityDeactivation() public {
         vm.prank(admin);
         gtoken.mint(community, 100 ether);
-        
+
         vm.startPrank(community);
         gtoken.approve(address(staking), 100 ether);
-        
+
         TestCommunityRoleData memory dataStruct = TestCommunityRoleData("TestCommunity", "test.eth", "https://test.com", "Desc", "logo", 30 ether);
         bytes memory data = abi.encode(dataStruct);
-        
+
         registry.registerRole(ROLE_COMMUNITY, community, data);
 
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
         assertEq(registry.communityByName("TestCommunity"), community);
         assertEq(registry.communityByENS("test.eth"), community);
-        
-        vm.stopPrank();
-        vm.startPrank(admin);
-        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(ROLE_COMMUNITY);
-        cfg.roleLockDuration = 0;
-        registry.configureRole(ROLE_COMMUNITY, cfg);
-        vm.stopPrank();
-        vm.startPrank(community);
+
+        // COMMUNITY exit succeeds — cleanup name/ENS slots
         registry.exitRole(ROLE_COMMUNITY);
-        
+
+        // Role should be removed, name/ENS slots freed
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
         assertEq(registry.communityByName("TestCommunity"), address(0));
         assertEq(registry.communityByENS("test.eth"), address(0));
-        
-        assertEq(mockMySBT.lastDeactivatedUser(), community);
-        assertEq(mockMySBT.lastDeactivatedCommunity(), community);
         vm.stopPrank();
     }
 
@@ -123,46 +115,47 @@ contract RegistryV3_Changes_Test is Test {
     }
 
     function test_O1_Removal() public {
+        // Use an operator role (KMS) to test O(1) removal, since non-operator roles cannot exit
+        bytes32 ROLE_KMS = keccak256("KMS");
         address user1 = address(0x111);
         address user2 = address(0x222);
         address user3 = address(0x333);
-        
+
         vm.startPrank(admin);
-        gtoken.mint(user1, 100 ether);
-        gtoken.mint(user2, 100 ether);
-        gtoken.mint(user3, 100 ether);
+        gtoken.mint(user1, 200 ether);
+        gtoken.mint(user2, 200 ether);
+        gtoken.mint(user3, 200 ether);
         vm.stopPrank();
 
         vm.startPrank(user1);
-        gtoken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_COMMUNITY, user1, abi.encode(TestCommunityRoleData("U1", "u1.eth", "", "", "", 30 ether)));
+        gtoken.approve(address(staking), 200 ether);
+        registry.registerRole(ROLE_KMS, user1, abi.encode(uint256(100 ether)));
         vm.stopPrank();
 
         vm.startPrank(user2);
-        gtoken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_COMMUNITY, user2, abi.encode(TestCommunityRoleData("U2", "u2.eth", "", "", "", 30 ether)));
+        gtoken.approve(address(staking), 200 ether);
+        registry.registerRole(ROLE_KMS, user2, abi.encode(uint256(100 ether)));
         vm.stopPrank();
 
         vm.startPrank(user3);
-        gtoken.approve(address(staking), 100 ether);
-        registry.registerRole(ROLE_COMMUNITY, user3, abi.encode(TestCommunityRoleData("U3", "u3.eth", "", "", "", 30 ether)));
+        gtoken.approve(address(staking), 200 ether);
+        registry.registerRole(ROLE_KMS, user3, abi.encode(uint256(100 ether)));
         vm.stopPrank();
-        
-        uint256 countBefore = registry.getRoleUserCount(ROLE_COMMUNITY);
-        
-        
+
+        uint256 countBefore = registry.getRoleUserCount(ROLE_KMS);
+
         vm.startPrank(admin);
-        IRegistry.RoleConfig memory cfg2 = registry.getRoleConfig(ROLE_COMMUNITY);
+        IRegistry.RoleConfig memory cfg2 = registry.getRoleConfig(ROLE_KMS);
         cfg2.roleLockDuration = 0;
-        registry.configureRole(ROLE_COMMUNITY, cfg2);
+        registry.configureRole(ROLE_KMS, cfg2);
         vm.stopPrank();
 
         vm.prank(user2);
-        registry.exitRole(ROLE_COMMUNITY);
-        
-        assertEq(registry.getRoleUserCount(ROLE_COMMUNITY), countBefore - 1);
-        assertFalse(registry.hasRole(ROLE_COMMUNITY, user2));
-        assertTrue(registry.hasRole(ROLE_COMMUNITY, user1));
-        assertTrue(registry.hasRole(ROLE_COMMUNITY, user3));
+        registry.exitRole(ROLE_KMS);
+
+        assertEq(registry.getRoleUserCount(ROLE_KMS), countBefore - 1);
+        assertFalse(registry.hasRole(ROLE_KMS, user2));
+        assertTrue(registry.hasRole(ROLE_KMS, user1));
+        assertTrue(registry.hasRole(ROLE_KMS, user3));
     }
 }

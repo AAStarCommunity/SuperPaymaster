@@ -87,9 +87,18 @@ contract DeployAnvil is Script {
         staking = new GTokenStaking(address(gtoken), deployer, address(registry));
         mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
 
-        // Wire staking and MySBT into Registry (setStaking triggers _syncExitFees)
+        // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
         registry.setMySBT(address(mysbt));
+        // Sync exit fees for ALL operator roles (minStake > 0).
+        // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
+        bytes32[] memory exitFeeRoles = new bytes32[](5);
+        exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
+        exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
+        exitFeeRoles[2] = registry.ROLE_DVT();
+        exitFeeRoles[3] = registry.ROLE_ANODE();
+        exitFeeRoles[4] = registry.ROLE_KMS();
+        registry.syncExitFees(exitFeeRoles);
 
         console.log("=== Step 2: Deploy Foundation Modules ===");
         xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet

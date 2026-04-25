@@ -31,6 +31,7 @@ contract MockRegistry is IRegistry {
 
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
 
     function grantRole(bytes32 role, address account) external {
         roles[role][account] = true;
@@ -40,7 +41,7 @@ contract MockRegistry is IRegistry {
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,0,false,0,"stub",address(0),0); 
+        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0); 
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
@@ -403,17 +404,39 @@ contract SuperPaymasterTest is Test {
     function test_V31_DebtRecording_OnBurnFail() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
-        
+
+        // Zero out user's xPNTs so burnFromWithOpHash fails and falls back to recordDebt.
+        deal(address(apnts), user, 0);
+
         PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_hash");
-        
+
         vm.startPrank(address(entryPoint));
         (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
         vm.stopPrank();
-        
+
         uint256 debt = apnts.getDebt(user);
-        assertGt(debt, 0, "Debt should be recorded");
+        assertGt(debt, 0, "Debt should be recorded when burn fails due to zero balance");
+    }
+
+    function test_V31_BurnSuccess_WhenUserHasBalance() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 1000 ether);
+
+        uint256 balBefore = apnts.balanceOf(user); // 1000 ether from setUp
+        require(balBefore > 0, "Precondition: user needs xPNTs");
+
+        PackedUserOperation memory op = _createOp(user);
+        bytes32 opHash = keccak256("test_burn_hash");
+
+        vm.startPrank(address(entryPoint));
+        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
+        vm.stopPrank();
+
+        assertLt(apnts.balanceOf(user), balBefore, "User xPNTs must decrease after burn");
+        assertEq(apnts.getDebt(user), 0, "No debt should be recorded when burn succeeds");
     }
 
     /*

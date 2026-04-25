@@ -222,7 +222,6 @@
   ├─> [Registry] MYSBT.mintForRole()             ~100k
   ├─> [Registry] 存储roleMetadata                ~25k
   ├─> [Registry] _postRegisterRole()             ~8k
-  |     └─> 更新accountToUser mapping
   └─> [Registry] emit events                     ~5k
 
 总计: ~210k gas
@@ -481,8 +480,7 @@ unchecked {
          ├─> roleMetadata[roleId][user] = roleData  [SSTORE]
          │
          ├─> _postRegisterRole()             [internal]
-         │     ├─> communityByName[name] = user (SSTORE)
-         │     └─> accountToUser[account] = user (SSTORE)
+         │     └─> communityByName[name] = user (SSTORE)
          │
          └─> emit RoleGranted + RoleMetadataUpdated
 ```

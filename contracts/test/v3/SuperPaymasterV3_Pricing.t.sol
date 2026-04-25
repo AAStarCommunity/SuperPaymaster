@@ -93,6 +93,7 @@ contract MockRegistry is IRegistry {
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
     function setReputationSource(address, bool) external {}
+    function markProposalExecuted(uint256) external override {}
     
     // Stubs for other IRegistry methods
     function registerRole(bytes32, address, bytes calldata) external {}
@@ -120,7 +121,6 @@ contract MockRegistry is IRegistry {
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external view returns (bool) { return false; }
-    function roleOwners(bytes32) external view returns (address) { return address(0); }
 }
 
 contract SuperPaymasterV3_Pricing_Test is Test {

@@ -78,8 +78,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Constants (BLS12-381 Math)
     // ====================================
     
-    bytes constant G1_X_BYTES = hex"17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb";
-    bytes constant G1_Y_BYTES = hex"08b3f481e3aaa9a12174adfa9d9e00912180f1482c0bcd3b0ff955a6d051029441c4a4f147cc520556770e0a5c483a27";
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
 
@@ -96,6 +94,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidParameter(string message);
     error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
     error InvalidTarget(address target);
+    error InvalidProposalId();
 
     // ====================================
     // Constructor
@@ -134,7 +133,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
             revert UnauthorizedCaller(msg.sender);
         }
-        if (executedProposals[proposalId] && proposalId != 0) {
+        if (proposalId == 0) revert InvalidProposalId();
+        if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
         
@@ -157,6 +157,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (repUsers.length > 0) {
             REGISTRY.batchUpdateGlobalReputation(proposalId, repUsers, newScores, epoch, proof);
             emit ReputationEpochTriggered(epoch, repUsers.length);
+        } else {
+            // Slash-only proposal: mark proposalId in Registry to prevent cross-path replay
+            // (attacker holding valid proof cannot reuse proposalId via direct Registry call)
+            REGISTRY.markProposalExecuted(proposalId);
         }
 
         // 3. Execute Slash if operator is provided
@@ -164,11 +168,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             _executeSlash(proposalId, operator, slashLevel, proof);
         }
 
-        if (proposalId != 0) {
-            executedProposals[proposalId] = true;
-            if (DVT_VALIDATOR != address(0)) {
-                IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
-            }
+        executedProposals[proposalId] = true;
+        if (DVT_VALIDATOR != address(0)) {
+            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
         }
     }
 
@@ -194,6 +196,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert UnauthorizedCaller(msg.sender);
         }
         if (target == address(0)) revert InvalidTarget(target);
+        if (proposalId == 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
         if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
@@ -308,37 +311,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
 
-    function _negateG1(bytes memory pkG1) internal pure returns (bytes memory) {
-        bytes memory x = new bytes(48);
-        bytes memory y = new bytes(48);
-        for(uint i=0; i<48; i++) {
-            x[i] = pkG1[i];
-            y[i] = pkG1[i+48];
-        }
-        
-        uint256 y_lo;
-        uint256 y_hi;
-        assembly {
-            y_lo := mload(add(y, 48))
-            y_hi := mload(add(y, 32))
-            y_hi := shr(128, y_hi)
-        }
-
-        uint256 new_y_lo;
-        uint256 new_y_hi;
-
-        if (P_LO >= y_lo) {
-            new_y_lo = P_LO - y_lo;
-            new_y_hi = P_HI - y_hi;
-        } else {
-            new_y_lo = (type(uint256).max - y_lo + 1) + P_LO;
-            new_y_hi = P_HI - y_hi - 1;
-        }
-
-        bytes memory new_y = abi.encodePacked(uint128(new_y_hi), new_y_lo);
-        return abi.encodePacked(x, new_y);
-    }
-
     function _countSetBits(uint256 n) internal pure returns (uint256 count) {
         while (n != 0) {
             n &= (n - 1);
@@ -366,6 +338,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function setMinThreshold(uint256 _newThreshold) external onlyOwner {
         if (_newThreshold < 2) revert InvalidParameter("Min threshold too low");
         if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
+        // Invariant: minThreshold must not exceed defaultThreshold
+        if (_newThreshold > defaultThreshold) revert InvalidParameter("minThreshold > defaultThreshold");
         emit ThresholdUpdated(minThreshold, _newThreshold);
         minThreshold = _newThreshold;
     }

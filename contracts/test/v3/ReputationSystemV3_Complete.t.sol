@@ -415,7 +415,7 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS precompile
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 1, proof);
@@ -447,7 +447,7 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 2, proof);
@@ -491,7 +491,7 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
 
         vm.prank(address(repSystem));
         vm.warp(block.timestamp + 8 days);

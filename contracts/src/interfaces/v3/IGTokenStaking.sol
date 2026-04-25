@@ -4,8 +4,10 @@ import "src/interfaces/IVersioned.sol";
 
 /**
  * @title IGTokenStaking
- * @notice GTokenStaking v3 interface with role-based locking
- * @dev Updates v2 interface to use roleId instead of locker addresses
+ * @notice GTokenStaking v4.2 interface — Unified Ticket Model
+ * @dev Single unified flow via lockStakeWithTicket() for all roles:
+ *      stakeAmount=0: ticket-only (transfer to treasury, no lock)
+ *      stakeAmount>0: ticket to treasury + stake locked
  */
 interface IGTokenStaking is IVersioned {
     // ====================================
@@ -30,14 +32,14 @@ interface IGTokenStaking is IVersioned {
      * @notice Lock information for a specific role
      * @param roleId Role that created this lock
      * @param amount Locked stGToken amount
-     * @param entryBurn Amount burned on entry
+     * @param ticketPrice Ticket price paid to treasury on entry (was entryBurn in v3)
      * @param lockedAt Lock timestamp
      * @param metadata Additional role-specific data
      */
     struct RoleLock {
         // Slot 1: Packed
         uint128 amount;
-        uint128 entryBurn;
+        uint128 ticketPrice;
         // Slot 2: Packed
         uint48 lockedAt;
         // 25 bytes left
@@ -53,8 +55,15 @@ interface IGTokenStaking is IVersioned {
         address indexed user,
         bytes32 indexed roleId,
         uint256 amount,
-        uint256 entryBurn,
+        uint256 ticketPrice,
         uint256 timestamp
+    );
+
+    event TicketBurned(
+        address indexed user,
+        bytes32 indexed roleId,
+        uint256 ticketPrice,
+        address indexed payer
     );
 
     event StakeUnlocked(
@@ -64,13 +73,6 @@ interface IGTokenStaking is IVersioned {
         uint256 exitFee,
         uint256 netAmount,
         uint256 timestamp
-    );
-
-    event TokensBurned(
-        address indexed user,
-        bytes32 indexed roleId,
-        uint256 amount,
-        string purpose
     );
 
     event UserSlashed(
@@ -85,20 +87,22 @@ interface IGTokenStaking is IVersioned {
     // ====================================
 
     /**
-     * @notice Lock stake for a specific role (Registry only)
-     * @dev MUST be called only by authorized Registry contract
-     *      Implementation should have onlyRegistry modifier
-     * @param user User whose stake to lock
+     * @notice Unified registration: handle ticket + optional stake for any role
+     * @dev Transfers (stakeAmount + ticketPrice) from payer.
+     *      When stakeAmount=0: ticket-only (no lock created).
+     *      When stakeAmount>0: ticket to treasury + stake locked.
+     * @param user User registering for the role
      * @param roleId Role identifier
-     * @param stakeAmount Amount to stake (if new stake)
-     * @param entryBurn Amount to burn on entry
+     * @param stakeAmount Amount to lock as security deposit
+     * @param ticketPrice Amount to transfer to treasury
+     * @param payer Address providing the tokens
      * @return lockId Unique lock identifier
      */
-    function lockStake(
+    function lockStakeWithTicket(
         address user,
         bytes32 roleId,
         uint256 stakeAmount,
-        uint256 entryBurn,
+        uint256 ticketPrice,
         address payer
     ) external returns (uint256 lockId);
 
@@ -123,7 +127,7 @@ interface IGTokenStaking is IVersioned {
      *      Implementation should have onlyRegistry modifier
      *
      * Why auto-transfer?
-     *   - If we just unlock without transfer, user could call lockStake() again
+     *   - If we just unlock without transfer, user could call lockStakeWithTicket() again
      *   - This would bypass the exitRole() flow and keep role active with no stake
      *   - Auto-transfer ensures user gets tokens immediately, can't re-lock
      *
@@ -159,7 +163,7 @@ interface IGTokenStaking is IVersioned {
     //         This ensures stake is always locked for a specific role
     //         Prevents users from staking without commitment
     //
-    // Internal staking is handled by Registry via lockStake()
+    // Internal staking is handled by Registry via lockStakeWithTicket()
 
     // ====================================
     // SECURITY FIX: Removed user-callable unstake functions
@@ -214,7 +218,7 @@ interface IGTokenStaking is IVersioned {
      * @param user User address
      * @param roleId Role identifier
      * @return amount Locked stGToken amount
-     * @return entryBurn Amount burned on entry
+     * @return ticketPrice Ticket price paid to treasury on entry
      * @return lockedAt Lock timestamp
      * @return roleId_ The role ID
      * @return metadata Additional role-specific data
@@ -222,7 +226,7 @@ interface IGTokenStaking is IVersioned {
     function roleLocks(address user, bytes32 roleId)
         external
         view
-        returns (uint128 amount, uint128 entryBurn, uint48 lockedAt, bytes32 roleId_, bytes memory metadata);
+        returns (uint128 amount, uint128 ticketPrice, uint48 lockedAt, bytes32 roleId_, bytes memory metadata);
 
     // ====================================
     // View Functions - Balances

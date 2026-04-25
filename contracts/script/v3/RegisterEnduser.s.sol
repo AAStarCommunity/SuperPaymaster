@@ -51,7 +51,6 @@ contract RegisterEnduser is Script {
             }
 
             Registry.EndUserRoleData memory data = Registry.EndUserRoleData({
-                account: aaAccounts[i],
                 community: anni,
                 avatarURI: "",
                 ensName: "",

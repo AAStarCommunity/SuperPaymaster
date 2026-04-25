@@ -47,7 +47,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     struct CommunityMembership {
         address community;
         uint256 joinedAt;
-        uint256 lastActiveTime;   // DEPRECATED: Use The Graph to query ActivityRecorded events
         bool isActive;
         string metadata;          // IPFS URI for community data
     }
@@ -114,8 +113,6 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     mapping(uint256 => SBTData) public sbtData;
     mapping(uint256 => CommunityMembership[]) private _m;
     mapping(uint256 => mapping(address => uint256)) public membershipIndex;
-    /// @notice DEPRECATED: Unused since v3.1; kept for storage/ABI stability. Will be removed in next major version.
-    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public weeklyActivity;
     mapping(uint256 => mapping(address => uint256)) public lastActivityTime;
 
     address public immutable GTOKEN;
@@ -226,7 +223,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             userToSBT[user] = tokenId;
 
             // Add community membership
-            _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            _m[tokenId].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tokenId][community] = 0;
 
             // Mint SBT to user
@@ -249,7 +246,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             }
 
             // Add new membership
-            _m[tokenId].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            _m[tokenId].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tokenId][community] = _m[tokenId].length - 1;
             sbtData[tokenId].totalCommunities++;
 
@@ -289,7 +286,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             userToSBT[u] = tid;
 
             // Add community membership
-            _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            _m[tid].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tid][community] = 0;
 
             // Mint SBT to user
@@ -314,7 +311,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
             }
 
             // Add new membership
-            _m[tid].push(CommunityMembership(community, block.timestamp, block.timestamp, true, meta));
+            _m[tid].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tid][community] = _m[tid].length - 1;
             sbtData[tid].totalCommunities++;
 

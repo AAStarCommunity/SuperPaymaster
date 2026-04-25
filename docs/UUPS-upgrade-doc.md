@@ -165,8 +165,8 @@ Slot   Variable                Type                                     Bytes
 13     roleMetadata            mapping(bytes32 => mapping => bytes)     32
 14     communityByName         mapping(string => address)               32
 15     communityByENS          mapping(string => address)               32
-16     accountToUser           mapping(address => address)              32
-17     executedProposals       mapping(uint256 => bool)                 32
+16     accountToUser           REMOVED in feat/remove-account-to-user   —
+17     executedProposals       REMOVED in v5.1 (moved to BLSAggregator) —
 18     userRoles               mapping(address => bytes32[])            32
 19     userRoleCount           mapping(address => uint256)              32
 20     globalReputation        mapping(address => uint256)              32

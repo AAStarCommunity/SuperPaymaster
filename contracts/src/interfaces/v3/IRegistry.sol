@@ -17,21 +17,23 @@ interface IRegistry is IVersioned {
 
     /**
      * @notice Role configuration parameters
-     * @param minStake Minimum stake required for this role
-     * @param entryBurn Amount burned on registration
-     * @param slashThreshold Slash trigger threshold (e.g., error count)
+     * @param minStake Minimum stake required (0 = ticket-only role, >0 = staking role)
+     * @param ticketPrice Ticket price — transferred to treasury on registration (was entryBurn in v3)
+     * @param slashThreshold Slash trigger threshold (ONLY for operator roles)
      * @param slashBase Base slash amount
      * @param slashIncrement Slash increment per violation
      * @param slashMax Maximum slash amount
-     * @param exitFeePercent Exit fee percentage in basis points (100 = 1%)
-     * @param minExitFee Minimum exit fee amount
+     * @param exitFeePercent Exit fee percentage in basis points (ONLY for operator roles)
      * @param isActive Whether this role is currently active
+     * @param minExitFee Minimum exit fee amount (ONLY for operator roles)
      * @param description Role description
+     * @param owner Role owner address
+     * @param roleLockDuration Minimum lock duration before exit (ONLY for operator roles)
      */
     struct RoleConfig {
         uint256 minStake;
-        uint256 entryBurn;
-        
+        uint256 ticketPrice;
+
         // PACKED SLOT 1
         uint32 slashThreshold;
         uint32 slashBase;
@@ -40,7 +42,7 @@ interface IRegistry is IVersioned {
         uint16 exitFeePercent;
         bool isActive;
         // 13 bytes left
-        
+
         uint256 minExitFee;
         string description;
         address owner;
@@ -158,6 +160,11 @@ interface IRegistry is IVersioned {
         bool[] calldata statuses,
         bytes calldata proof
     ) external;
+
+    /**
+     * @notice Mark a BLS proposal as executed (called by BLSAggregator for slash-only proposals)
+     */
+    function markProposalExecuted(uint256 proposalId) external;
 
     /**
      * @notice Authorize or revoke a reputation source

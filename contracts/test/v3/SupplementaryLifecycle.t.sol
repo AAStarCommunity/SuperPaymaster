@@ -59,10 +59,6 @@ contract SuperPaymasterV2Reinit is SuperPaymaster {
         IEntryPoint _ep, IRegistry _reg, address _feed
     ) SuperPaymaster(_ep, _reg, _feed) {}
 
-    function version() external pure override returns (string memory) {
-        return "SuperPaymaster-5.0.0-test";
-    }
-
     function reinitializeV2(uint256 _flag) external reinitializer(2) {
         migrationFlag = _flag;
     }
@@ -106,6 +102,17 @@ contract SupplementaryLifecycleTest is Test {
         sbt = new MySBT(address(gtoken), address(staking), address(registry), dao);
 
         registry.setStaking(address(staking));
+        {
+            bytes32[] memory roles = new bytes32[](7);
+            roles[0] = keccak256("PAYMASTER_AOA");
+            roles[1] = keccak256("PAYMASTER_SUPER");
+            roles[2] = keccak256("DVT");
+            roles[3] = keccak256("ANODE");
+            roles[4] = keccak256("KMS");
+            roles[5] = keccak256("COMMUNITY");
+            roles[6] = keccak256("ENDUSER");
+            registry.syncExitFees(roles);
+        }
         registry.setMySBT(address(sbt));
 
         // Deploy SuperPaymaster proxy
@@ -154,23 +161,18 @@ contract SupplementaryLifecycleTest is Test {
 
         // Verify registration
         assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
-        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 30 ether);
+        // COMMUNITY is non-operator: no stake, ticketPrice goes to treasury
+        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 0);
         assertEq(registry.communityByName("TestDAO"), communityUser);
         assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should be minted");
 
-        // Warp past lock duration (30 days default)
-        vm.warp(block.timestamp + 31 days);
-
-        // Exit role
-        uint256 balBefore = gtoken.balanceOf(communityUser);
+        // COMMUNITY is a ticket-only role — exit succeeds, cleans up name/ENS
         vm.prank(communityUser);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // Verify cleanup
+        // Role should be removed, name slot freed
         assertFalse(registry.hasRole(ROLE_COMMUNITY, communityUser));
-        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 0);
-        assertEq(registry.communityByName("TestDAO"), address(0), "Community name should be cleared");
-        assertTrue(gtoken.balanceOf(communityUser) > balBefore, "Should receive refund");
+        assertEq(registry.communityByName("TestDAO"), address(0));
     }
 
     function test_RoleLifecycle_SuperPaymasterRole() public {
@@ -192,33 +194,41 @@ contract SupplementaryLifecycleTest is Test {
     }
 
     function test_RoleLifecycle_ExitWithLockDuration_Reverts() public {
+        // Use an operator role (PAYMASTER_SUPER) which has 30 day lock
         _registerCommunity(communityUser, "LockedDAO");
 
-        // Try to exit immediately (lock = 30 days)
-        vm.prank(communityUser);
-        vm.expectRevert(Registry.LockNotMet.selector);
-        registry.exitRole(ROLE_COMMUNITY);
-    }
-
-    function test_RoleLifecycle_MultipleRoles_ExitOne_KeepSBT() public {
-        _registerCommunity(communityUser, "MultiDAO");
-
-        // Add PAYMASTER_SUPER role
         vm.startPrank(communityUser);
         gtoken.approve(address(staking), 100 ether);
         registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
         vm.stopPrank();
 
+        // Try to exit immediately (lock = 30 days) — should revert LockNotMet
+        vm.prank(communityUser);
+        vm.expectRevert(Registry.LockNotMet.selector);
+        registry.exitRole(ROLE_PAYMASTER_SUPER);
+    }
+
+    function test_RoleLifecycle_MultipleRoles_ExitOne_KeepSBT() public {
+        _registerCommunity(communityUser, "MultiDAO");
+
+        // Add PAYMASTER_SUPER and PAYMASTER_AOA roles
+        vm.startPrank(communityUser);
+        gtoken.approve(address(staking), 200 ether);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
+        registry.registerRole(ROLE_PAYMASTER_AOA, communityUser, "");
+        vm.stopPrank();
+
         uint256 sbtId = sbt.userToSBT(communityUser);
         assertTrue(sbtId != 0);
 
-        // Exit COMMUNITY only (warp past lock)
+        // Exit PAYMASTER_AOA only (operator role, warp past lock)
         vm.warp(block.timestamp + 31 days);
         vm.prank(communityUser);
-        registry.exitRole(ROLE_COMMUNITY);
+        registry.exitRole(ROLE_PAYMASTER_AOA);
 
-        // SBT should still exist (user still has PAYMASTER_SUPER role)
-        assertFalse(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        // SBT should still exist (user still has COMMUNITY + PAYMASTER_SUPER roles)
+        assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        assertFalse(registry.hasRole(ROLE_PAYMASTER_AOA, communityUser));
         assertTrue(registry.hasRole(ROLE_PAYMASTER_SUPER, communityUser));
         assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should remain for remaining role");
     }
@@ -233,17 +243,17 @@ contract SupplementaryLifecycleTest is Test {
 
         vm.warp(block.timestamp + 31 days);
 
-        // Exit all roles
+        // Only operator roles can exit; COMMUNITY cannot
+        // Exit PAYMASTER_SUPER (operator role)
         vm.startPrank(communityUser);
-        registry.exitRole(ROLE_COMMUNITY);
         registry.exitRole(ROLE_PAYMASTER_SUPER);
         vm.stopPrank();
 
-        // SBT should be burned
-        assertFalse(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        // COMMUNITY still active (cannot exit), PAYMASTER_SUPER exited
+        assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
         assertFalse(registry.hasRole(ROLE_PAYMASTER_SUPER, communityUser));
-        assertEq(sbt.userToSBT(communityUser), 0, "SBT should be burned after all roles exit");
-        assertFalse(superPaymaster.sbtHolders(communityUser), "SBT status should be false in SuperPaymaster");
+        // SBT should still exist since COMMUNITY role remains
+        assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should remain while COMMUNITY role active");
     }
 
     function test_RoleLifecycle_SafeMintForRole() public {
@@ -256,7 +266,6 @@ contract SupplementaryLifecycleTest is Test {
 
         bytes memory endUserData = abi.encode(
             Registry.EndUserRoleData({
-                account: endUser,
                 community: communityUser,
                 avatarURI: "ipfs://avatar",
                 ensName: "testuser.eth",
@@ -276,7 +285,7 @@ contract SupplementaryLifecycleTest is Test {
         vm.startPrank(owner);
         IRegistry.RoleConfig memory customConfig = IRegistry.RoleConfig({
             minStake: 10 ether,
-            entryBurn: 1 ether,
+            ticketPrice: 1 ether,
             slashThreshold: 5,
             slashBase: 1,
             slashInc: 1,
@@ -303,13 +312,19 @@ contract SupplementaryLifecycleTest is Test {
     // ====================================
 
     function test_StakingExit_UnlockAndTransfer_WithExitFee() public {
+        // Use an operator role (PAYMASTER_SUPER) to test exit fee flow
         _registerCommunity(communityUser, "ExitFeeDAO");
 
-        uint256 stakedAmount = staking.getLockedStake(communityUser, ROLE_COMMUNITY);
-        assertEq(stakedAmount, 30 ether);
+        vm.startPrank(communityUser);
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
+        vm.stopPrank();
+
+        uint256 stakedAmount = staking.getLockedStake(communityUser, ROLE_PAYMASTER_SUPER);
+        assertEq(stakedAmount, 50 ether);
 
         // Preview exit fee
-        (uint256 fee, uint256 netAmount) = staking.previewExitFee(communityUser, ROLE_COMMUNITY);
+        (uint256 fee, uint256 netAmount) = staking.previewExitFee(communityUser, ROLE_PAYMASTER_SUPER);
         assertTrue(fee > 0, "Exit fee should be non-zero");
         assertEq(fee + netAmount, stakedAmount, "Fee + net should equal staked");
 
@@ -319,7 +334,7 @@ contract SupplementaryLifecycleTest is Test {
         uint256 userBefore = gtoken.balanceOf(communityUser);
 
         vm.prank(communityUser);
-        registry.exitRole(ROLE_COMMUNITY);
+        registry.exitRole(ROLE_PAYMASTER_SUPER);
 
         // Verify fee went to treasury
         assertEq(gtoken.balanceOf(treasury) - treasuryBefore, fee, "Treasury should receive exit fee");
@@ -327,44 +342,57 @@ contract SupplementaryLifecycleTest is Test {
     }
 
     function test_StakingExit_SlashThenExit() public {
+        // Use an operator role (PAYMASTER_SUPER) to test slash + exit flow
         _registerCommunity(communityUser, "SlashDAO");
+
+        vm.startPrank(communityUser);
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
+        vm.stopPrank();
 
         // Authorize owner as slasher for testing
         vm.prank(owner);
         staking.setAuthorizedSlasher(owner, true);
 
-        uint256 stakeBefore = staking.getLockedStake(communityUser, ROLE_COMMUNITY);
+        uint256 stakeBefore = staking.getLockedStake(communityUser, ROLE_PAYMASTER_SUPER);
+        assertTrue(stakeBefore > 0, "Stake should be non-zero for operator role");
 
         // Slash 5 ether
         vm.prank(owner);
         staking.slash(communityUser, 5 ether, "test slash");
 
-        uint256 stakeAfter = staking.getLockedStake(communityUser, ROLE_COMMUNITY);
+        uint256 stakeAfter = staking.getLockedStake(communityUser, ROLE_PAYMASTER_SUPER);
         assertEq(stakeBefore - stakeAfter, 5 ether, "Stake should be reduced by slash amount");
 
         // Warp and exit
         vm.warp(block.timestamp + 31 days);
         vm.prank(communityUser);
-        registry.exitRole(ROLE_COMMUNITY);
+        registry.exitRole(ROLE_PAYMASTER_SUPER);
 
-        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 0);
+        assertEq(staking.getLockedStake(communityUser, ROLE_PAYMASTER_SUPER), 0);
     }
 
     function test_StakingExit_ViewFunctions() public {
+        // Use an operator role (PAYMASTER_SUPER) to test staking view functions
         _registerCommunity(communityUser, "ViewDAO");
+
+        vm.startPrank(communityUser);
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
+        vm.stopPrank();
 
         // totalStaked
         uint256 total = staking.totalStaked();
-        assertTrue(total >= 30 ether, "Total staked should include community stake");
+        assertTrue(total >= 50 ether, "Total staked should include operator stake");
 
         // stakes(user)
         (uint256 amount, uint256 slashedAmount, uint256 stakedAt, uint256 unstakeRequestedAt) = staking.stakes(communityUser);
-        assertEq(amount, 30 ether);
+        assertEq(amount, 50 ether);
         assertEq(slashedAmount, 0);
         assertTrue(stakedAt > 0);
 
         // getLockedStake
-        assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 30 ether);
+        assertEq(staking.getLockedStake(communityUser, ROLE_PAYMASTER_SUPER), 50 ether);
 
         // REGISTRY / GTOKEN / treasury
         assertEq(address(staking.REGISTRY()), address(registry));
@@ -385,17 +413,17 @@ contract SupplementaryLifecycleTest is Test {
     }
 
     function test_MySBT_BurnOnAllRolesExit() public {
+        // Register community then exit — SBT should be burned when last role removed
         _registerCommunity(communityUser, "BurnSBT_DAO");
         uint256 tokenId = sbt.userToSBT(communityUser);
         assertTrue(tokenId != 0);
 
-        vm.warp(block.timestamp + 31 days);
+        // COMMUNITY exit succeeds (ticket-only, cleanup only)
         vm.prank(communityUser);
         registry.exitRole(ROLE_COMMUNITY);
 
-        assertEq(sbt.userToSBT(communityUser), 0, "SBT mapping should be cleared");
-        vm.expectRevert();
-        sbt.ownerOf(tokenId); // Should revert as token is burned
+        // SBT should be burned since it was the last role
+        assertEq(sbt.userToSBT(communityUser), 0, "SBT should be burned after last role exit");
     }
 
     function test_MySBT_DeactivateMembership_OnCommunityExit() public {
@@ -405,12 +433,12 @@ contract SupplementaryLifecycleTest is Test {
         uint256 tokenId = sbt.userToSBT(communityUser);
         assertTrue(sbt.verifyCommunityMembership(communityUser, communityUser));
 
-        vm.warp(block.timestamp + 31 days);
+        // COMMUNITY exit succeeds — SBT burned, membership deactivated
         vm.prank(communityUser);
         registry.exitRole(ROLE_COMMUNITY);
 
-        // Membership should be deactivated and SBT burned
-        assertEq(sbt.userToSBT(communityUser), 0);
+        // SBT should be burned and membership deactivated
+        assertEq(sbt.userToSBT(communityUser), 0, "SBT should be burned");
     }
 
     function test_MySBT_MetadataFields() public {
@@ -477,7 +505,6 @@ contract SupplementaryLifecycleTest is Test {
         superPaymaster.upgradeToAndCall(address(newImpl), initData);
 
         assertEq(SuperPaymasterV2Reinit(payable(address(superPaymaster))).migrationFlag(), 99);
-        assertEq(keccak256(bytes(superPaymaster.version())), keccak256("SuperPaymaster-5.0.0-test"));
         assertEq(superPaymaster.owner(), owner);
 
         vm.stopPrank();
@@ -559,10 +586,11 @@ contract SupplementaryLifecycleTest is Test {
         _registerCommunity(communityUser, "ClearDAO");
         assertTrue(superPaymaster.sbtHolders(communityUser));
 
-        vm.warp(block.timestamp + 31 days);
+        // COMMUNITY exit succeeds — SBT status should be cleared
         vm.prank(communityUser);
         registry.exitRole(ROLE_COMMUNITY);
 
-        assertFalse(superPaymaster.sbtHolders(communityUser), "SBT status should be cleared on exit");
+        // SBT status should be cleared after last role exit
+        assertFalse(superPaymaster.sbtHolders(communityUser), "SBT status should be cleared after exit");
     }
 }

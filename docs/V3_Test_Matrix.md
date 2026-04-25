@@ -425,11 +425,10 @@
   1. registerRole(
        ROLE_ENDUSER,
        user,
-       abi.encode(user, community, avatarURI, ensName, 0.3 ether)
+       abi.encode(community, avatarURI, ensName, 0.3 ether)
      )
   2. 验证 hasRole[ROLE_ENDUSER][user] = true
-  3. 验证 accountToUser[user] = user
-  4. 验证 SBT 已铸造
+  3. 验证 SBT 已铸造
 预期: EndUser 注册成功
 ```
 

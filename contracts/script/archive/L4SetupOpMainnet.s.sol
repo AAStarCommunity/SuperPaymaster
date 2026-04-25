@@ -272,7 +272,7 @@ contract L4SetupOpMainnet is Script {
                     address roleOwner = registry.getRoleConfig(ROLE_ENDUSER).owner;
                     // Minimal Config if needed
                      IRegistry.RoleConfig memory euConfig = IRegistry.RoleConfig({
-                        minStake: 1 wei, entryBurn: 0, slashThreshold: 0, slashBase: 0, slashInc: 0, slashMax: 0,
+                        minStake: 1 wei, ticketPrice: 0, slashThreshold: 0, slashBase: 0, slashInc: 0, slashMax: 0,
                         exitFeePercent: 0, isActive: true, minExitFee: 0, description: "EndUser Role",
                         owner: DEPLOYER, roleLockDuration: 0
                      });
@@ -294,7 +294,7 @@ contract L4SetupOpMainnet is Script {
                     ISimpleAccount(myAA).execute(address(gToken), 0, abi.encodeCall(gToken.approve, (config.staking, 1 ether)));
                     
                     Registry.EndUserRoleData memory euData = Registry.EndUserRoleData({
-                        account: myAA, community: user, avatarURI: "", ensName: "", stakeAmount: 0.3 ether
+                        community: user, avatarURI: "", ensName: "", stakeAmount: 0.3 ether
                     });
                     registry.registerRole(ROLE_ENDUSER, myAA, abi.encode(euData));
                     console.log(unicode"✅ AA registered as ENDUSER");
