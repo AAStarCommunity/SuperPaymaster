@@ -27,9 +27,12 @@ updates:
     directories:
       - "/"
       - "/packages/*"
+      - "/subgraph"
+      - "/script/gasless-tests"
       - "!/singleton-paymaster/**"
       - "!/contracts/lib/**"
       - "!/lib/**"
+      - "!/standards/**"
     ignore:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-patch", "version-update:semver-minor"]
