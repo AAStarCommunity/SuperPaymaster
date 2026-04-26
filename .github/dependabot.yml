@@ -6,12 +6,17 @@
 # upstream dependencies (OpenZeppelin, Pimlico, eth-infinitism, Chainlink).
 # Their internal npm dependencies should NOT be updated here — they are pinned
 # to specific upstream commits. Only monitor our own root-level dependencies.
+#
+# If Dependabot still opens PRs for vendored submodule package.json files
+# (e.g. singleton-paymaster/lib/**), these are transitive deps of upstream
+# tests/docs tooling that we never install, execute, or bundle. Close them.
 
 version: 2
 updates:
-  # Monitor npm dependencies in the root project ONLY
+  # Monitor npm dependencies in the root project + packages/* workspaces ONLY.
+  # Explicitly exclude vendored submodule paths so transitive deps of their
+  # own test/docs tooling don't generate PR noise here.
   - package-ecosystem: "npm"
-    directory: "/"
     schedule:
       interval: "weekly"
     groups:
@@ -19,9 +24,15 @@ updates:
         patterns:
           - "*"
     open-pull-requests-limit: 1
-    # Exclude git submodule internal directories
     directories:
       - "/"
+      - "/packages/*"
+      - "/subgraph"
+      - "/script/gasless-tests"
+      - "!/singleton-paymaster/**"
+      - "!/contracts/lib/**"
+      - "!/lib/**"
+      - "!/standards/**"
     ignore:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-patch", "version-update:semver-minor"]
