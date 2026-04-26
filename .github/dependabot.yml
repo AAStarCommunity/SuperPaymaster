@@ -23,7 +23,11 @@ updates:
       all-dependencies:
         patterns:
           - "*"
-    open-pull-requests-limit: 1
+    # Limit is shared across the whole npm ecosystem, not per-directory.
+    # We monitor 4 directories (/, /packages/*, /subgraph, /script/gasless-tests),
+    # so a value of 1 lets a single stuck PR block updates for every other dir.
+    # 5 = one slot per directory + 1 buffer for a stale cross-week PR.
+    open-pull-requests-limit: 5
     directories:
       - "/"
       - "/packages/*"
