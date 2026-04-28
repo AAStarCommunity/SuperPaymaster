@@ -130,6 +130,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when Oracle update fails, forcing a realtime fallback (Warning Sign)
      */
     event OracleFallbackTriggered(uint256 timestamp);
+
+    /// @notice P0-15 (J2-BLOCKER-1): observability hook for the silent
+    ///         SIG_FAILURE branches of validatePaymasterUserOp. Reserved for
+    ///         future monitoring integrations — NOT emitted from
+    ///         validatePaymasterUserOp itself, since writing storage during
+    ///         that opcode-restricted phase would violate ERC-7562.
+    event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
     /// @dev Happens when owner withdrew protocolRevenue between validation and postOp, leaving
@@ -817,6 +824,87 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
     }
 
+    /// @notice P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of
+    ///         validatePaymasterUserOp. Bundlers / SDKs / dApps call this
+    ///         off-chain (eth_call) before submitting a UserOperation to
+    ///         distinguish the 8 distinct rejection paths that
+    ///         validatePaymasterUserOp returns as an opaque SIG_FAILURE.
+    /// @dev    Mirrors the main path order; intentionally does NOT mutate
+    ///         storage or emit events (would brick ERC-7562 compliance and
+    ///         is impossible from a `view` anyway). Mirrors STALE_PRICE
+    ///         using the same comparison the main path delegates to
+    ///         EntryPoint via `validUntil` — i.e., a price is stale when
+    ///         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.
+    /// @param userOp  The UserOperation to dry-run.
+    /// @param maxCost Same maxCost EntryPoint will pass to validation.
+    /// @return ok          True if validation would pass.
+    /// @return reasonCode  Zero when ok==true, otherwise one of the
+    ///                     `DRYRUN_*` constants explaining why.
+    function dryRunValidation(PackedUserOperation calldata userOp, uint256 maxCost)
+        external
+        view
+        returns (bool ok, bytes32 reasonCode)
+    {
+        // 1. Extract operator (mirror validatePaymasterUserOp step 1)
+        address operator = _extractOperator(userOp);
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
+
+        // 2. Operator config check
+        if (!config.isConfigured) return (false, DRYRUN_OPERATOR_NOT_CONFIGURED);
+        if (config.isPaused)      return (false, DRYRUN_OPERATOR_PAUSED);
+
+        // 3. Identity check (V5.3 dual-channel: SBT or registered agent)
+        if (!isEligibleForSponsorship(userOp.sender)) {
+            return (false, DRYRUN_USER_NOT_ELIGIBLE);
+        }
+
+        // 4. Per-operator user state: blocklist + rate-limit
+        UserOperatorState memory userState = userOpState[operator][userOp.sender];
+        if (userState.isBlocked) return (false, DRYRUN_USER_BLOCKED);
+        if (config.minTxInterval > 0 && userState.lastTimestamp != 0) {
+            // Mirror the validAfter logic: validation itself does not revert,
+            // but EntryPoint will reject the op until block.timestamp catches
+            // up. For dry-run UX surface this as RATE_LIMITED.
+            if (block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval)) {
+                return (false, DRYRUN_RATE_LIMITED);
+            }
+        }
+
+        // 5. Rate commitment (rug-pull protection): paymasterAndData layout
+        //    [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
+        uint256 maxRate = type(uint256).max;
+        if (userOp.paymasterAndData.length >= 104) {
+            maxRate = abi.decode(
+                userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32],
+                (uint256)
+            );
+        }
+        if (uint256(config.exchangeRate) > maxRate) {
+            return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
+        }
+
+        // 6. Staleness — main path delegates to EntryPoint via validUntil,
+        //    but for off-chain diagnostics we surface it explicitly.
+        //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
+        //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
+        //    here because P0-16 is the dedicated fix for that vector.
+        if (cachedPrice.updatedAt == 0 ||
+            block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold) {
+            return (false, DRYRUN_STALE_PRICE);
+        }
+
+        // 7. Solvency: replicate Validation-phase aPNTs charge with buffer
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
+        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
+        if (uint256(config.aPNTsBalance) < aPNTsAmount) {
+            return (false, DRYRUN_INSUFFICIENT_BALANCE);
+        }
+
+        // All checks pass.
+        return (true, DRYRUN_OK);
+    }
+
     function postOp(
         PostOpMode mode,
         bytes calldata context,
@@ -967,6 +1055,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     // x402 Constants
     uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
+
+    // P0-15: dryRunValidation reason codes (returned to bundlers/UI for diagnostics).
+    // Mirror every silent SIG_FAILURE branch in validatePaymasterUserOp, plus the
+    // staleness check that EntryPoint enforces via validUntil.
+    bytes32 public constant DRYRUN_OK                    = bytes32(0);
+    bytes32 public constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
+    bytes32 public constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
+    bytes32 public constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
+    bytes32 public constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
+    bytes32 public constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
+    bytes32 public constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
+    bytes32 public constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
+    bytes32 public constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
 
     // ====================================
     // V5: Admin Setters
