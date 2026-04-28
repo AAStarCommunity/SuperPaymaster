@@ -119,6 +119,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
     event BLSValidatorUpdated(address indexed oldVal, address indexed newVal);
     event ExitFeeSyncFailed(bytes32 indexed roleId);
+    /// @notice P0-14: Staking pushed a fresh stake snapshot for (user, role)
+    /// @dev    Emitted for off-chain indexers when slash / unlock / topUp
+    ///         operations on the Staking side update Registry's cache.
+    event StakeSyncedFromStaking(address indexed user, bytes32 indexed roleId, uint256 newAmount);
 
     function _initRole(
         bytes32 roleId, uint256 min, uint256 ticketPrice,
@@ -148,6 +152,49 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         address old = address(GTOKEN_STAKING);
         GTOKEN_STAKING = IGTokenStaking(_staking);
         emit StakingContractUpdated(old, _staking);
+    }
+
+    /// @notice Push a fresh stake snapshot from Staking into Registry's
+    ///         per-role cache (`roleStakes[roleId][user]`).
+    /// @dev    P0-14 (H-01): when `GTokenStaking.slashByDVT` or other
+    ///         lock-mutating operations run, Staking is the canonical source
+    ///         of truth for `roleLocks[user][role].amount`. Without this
+    ///         hook the Registry-side cache silently drifts (e.g. a user can
+    ///         `topUpStake` against a stale "1000 GT" cache after Staking
+    ///         already slashed them down to 500 GT, over-counting their
+    ///         backing).
+    ///         Caller MUST be the configured `GTOKEN_STAKING`. We do NOT
+    ///         allow `owner()` here on purpose — the invariant we're
+    ///         restoring is "Registry mirrors Staking", and a privileged
+    ///         manual override would re-introduce the drift this function
+    ///         is meant to eliminate. Owner can still rotate the staking
+    ///         pointer via `setStaking`.
+    /// @param user User whose stake changed.
+    /// @param roleId Role identifier whose lock amount changed.
+    /// @param newAmount Authoritative `roleLocks[user][role].amount` after
+    ///                  the Staking-side mutation.
+    function syncStakeFromStaking(
+        address user,
+        bytes32 roleId,
+        uint256 newAmount
+    ) external {
+        if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
+        roleStakes[roleId][user] = newAmount;
+        emit StakeSyncedFromStaking(user, roleId, newAmount);
+    }
+
+    /// @notice Effective per-role stake, read from the Staking-side source
+    ///         of truth.
+    /// @dev    P0-14: prefer this over reading `roleStakes` directly when
+    ///         consumers need fresh values regardless of whether Staking
+    ///         has called `syncStakeFromStaking` yet for the latest mutation.
+    ///         The cache is best-effort; the on-chain truth is on Staking.
+    /// @param user User to query.
+    /// @param roleId Role identifier.
+    /// @return Locked stake amount currently held by Staking for this role.
+    function getEffectiveStake(address user, bytes32 roleId) external view returns (uint256) {
+        if (address(GTOKEN_STAKING) == address(0)) return roleStakes[roleId][user];
+        return GTOKEN_STAKING.getLockedStake(user, roleId);
     }
 
     function setMySBT(address _mysbt) external onlyOwner {

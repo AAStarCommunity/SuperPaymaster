@@ -60,7 +60,10 @@ contract MockRegistry is IRegistry {
         function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
         function isReputationSource(address) external pure override returns (bool) { return true; }
         function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-        function version() external view override returns (string memory) { return "MockRegistryV3"; }}
+        function version() external view override returns (string memory) { return "MockRegistryV3"; }
+        function syncStakeFromStaking(address, bytes32, uint256) external override {}
+        function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+}
 
 contract MockAggregatorV3 is AggregatorV3Interface {
     int256 public price;
