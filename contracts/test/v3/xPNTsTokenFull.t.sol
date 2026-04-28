@@ -112,9 +112,10 @@ contract xPNTsTokenFullTest is Test {
         assertEq(cn, "Comm");
         assertEq(co, admin);
 
+        // P0-11: within ±20% of initial 1e18
         vm.prank(admin);
-        token.updateExchangeRate(2e18);
-        assertEq(token.exchangeRate(), 2e18);
+        token.updateExchangeRate(1.19e18);
+        assertEq(token.exchangeRate(), 1.19e18);
 
         vm.prank(admin);
         token.transferCommunityOwnership(other);

@@ -62,6 +62,15 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     ///      the future-timestamp guard.
     uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
 
+    /// @notice P0-11: bounds for `setCachedPrice` (ETH/USD, 8 decimals).
+    ///         $100 floor guards the crash-to-zero attack where an owner
+    ///         could set price=1 making every UserOp appear free. $1M ceiling
+    ///         rules out off-by-1e8 typos. ±30% per-tx delta reflects ETH
+    ///         intraday extremes while blocking multi-step manipulation.
+    uint256 public constant CACHED_PRICE_MIN = 100e8;    // $100 / ETH
+    uint256 public constant CACHED_PRICE_MAX = 1_000_000e8; // $1M / ETH
+    uint256 public constant CACHED_PRICE_DELTA_BPS = 3000;  // 30%
+
     /// @notice Price staleness threshold (seconds)
     /// @dev Default to 3600s (1 hour) to cover Mainnet/Testnet heartbeats
     uint256 public priceStalenessThreshold;
@@ -500,9 +509,22 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     ///      A 15-second grace window (TIMESTAMP_GRACE_SECONDS) accommodates the
     ///      ~12 s maximum drift between a keeper's wall-clock and block.timestamp,
     ///      preventing spurious rejections of honest keepers.
+    /// @dev P0-11 (B2-N3 / V4): three guards stack on top of the P0-16
+    ///      future-timestamp check:
+    ///      - absolute MIN/MAX: prevent $0 / typo / crash-to-zero attacks
+    ///      - ±30% per-tx delta (vs current cache): limits blast of a
+    ///        misclick or partially-compromised owner key; skipped when
+    ///        cachedPrice is uninitialised (first push).
     function setCachedPrice(uint256 price, uint48 timestamp) external onlyOwner {
         if (price == 0) revert Paymaster__InvalidOraclePrice();
+        if (price < CACHED_PRICE_MIN || price > CACHED_PRICE_MAX) revert Paymaster__InvalidOraclePrice();
         if (timestamp > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert Paymaster__InvalidOraclePrice();
+        uint256 oldPrice = cachedPrice.price;
+        if (oldPrice != 0) {
+            uint256 lower = oldPrice * (BPS_DENOMINATOR - CACHED_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            uint256 upper = oldPrice * (BPS_DENOMINATOR + CACHED_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            if (price < lower || price > upper) revert Paymaster__InvalidOraclePrice();
+        }
         cachedPrice = PriceCache({ price: uint208(price), updatedAt: timestamp });
         emit PriceUpdated(price, timestamp);
     }

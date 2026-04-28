@@ -369,12 +369,37 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit APNTsTokenUpdated(oldToken, pending);
     }
 
+    /// @notice P0-11: bounds for `setAPNTSPrice`. The unit-of-account scale
+    ///         per D3 — 1 aPNTs anchors AAStar service value at roughly $0.02,
+    ///         so bound the unit slack to a generous but finite range and cap
+    ///         per-update drift to ±10% to limit the blast of a misclick or
+    ///         partially-compromised owner key.
+    uint256 public constant APNTS_PRICE_MIN = 1e15;       // 0.001 ether per aPNTs
+    uint256 public constant APNTS_PRICE_MAX = 1e21;       // 1000 ether per aPNTs
+    uint256 public constant APNTS_PRICE_DELTA_BPS = 1000; // 10%
+
     /**
      * @notice Set the APNTS Price in USD (Owner Only)
+     * @dev P0-11 (B2-N3): pre-fix the only check was `newPrice != 0`. Owner
+     *      could move the unit scale arbitrarily — combined with the lack of
+     *      timelock, a single mis-typed multisig call could distort the cost
+     *      basis for every operator at once. Inline bounds:
+     *      - absolute MIN/MAX: prevents nonsense magnitudes (e.g., off-by-1e18)
+     *      - ±10% per-tx delta vs current price: bounds blast of mis-clicks
+     *      - delta check skipped on first set (oldPrice == 0)
+     *      Three setters across SP / xPNTs / V4 PaymasterBase each have their
+     *      own MIN/MAX/DELTA tuned to the price they hold (different units),
+     *      so the implementations are inline rather than a shared mixin.
      */
     function setAPNTSPrice(uint256 newPrice) external onlyOwner {
         if (newPrice == 0) revert InvalidConfiguration();
+        if (newPrice < APNTS_PRICE_MIN || newPrice > APNTS_PRICE_MAX) revert InvalidConfiguration();
         uint256 oldPrice = aPNTsPriceUSD;
+        if (oldPrice != 0) {
+            uint256 lower = oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            uint256 upper = oldPrice * (BPS_DENOMINATOR + APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            if (newPrice < lower || newPrice > upper) revert InvalidConfiguration();
+        }
         aPNTsPriceUSD = newPrice;
         emit APNTsPriceUpdated(oldPrice, newPrice);
     }
