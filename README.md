@@ -329,7 +329,8 @@ SuperPaymaster/
 
 ## License
 
-Apache 2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+This project is licensed under the [Apache License, Version 2.0](LICENSE).  
+Copyright 2024-present MushroomDAO Contributors. See [NOTICE](./NOTICE) for attribution.
 
 ---
 
@@ -509,4 +510,6 @@ forge test
 
 ## 许可证
 
-Apache 2.0 — 见 [LICENSE](./LICENSE)（英文原版）及 [LICENSE-zh.md](./LICENSE-zh.md)（中文参考译本）。
+本项目使用 [Apache 许可证 2.0 版](LICENSE)（英文原版，具有法律效力）。  
+中文参考译本见 [LICENSE-zh.md](./LICENSE-zh.md)（非官方，不具法律效力）。  
+版权归属见 [NOTICE](./NOTICE)。
