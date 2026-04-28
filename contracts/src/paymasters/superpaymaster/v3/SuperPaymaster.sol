@@ -113,6 +113,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         On-chain monitors can distinguish this from legacy direct-swap
     ///         `APNTsTokenUpdated` events by watching this separate topic.
     event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt);
+    /// @notice P0-10: emitted when an emergency price is queued under the
+    ///         break-glass path (Chainlink is stale + multisig owner approves).
+    event EmergencyPriceQueued(int256 newPrice, uint256 eta);
+    event EmergencyPriceExecuted(int256 newPrice);
+    event EmergencyPriceCancelled(int256 cancelledPrice);
+    event PriceModeChanged(uint8 oldMode, uint8 newMode);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -178,6 +184,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error AmountExceedsUint128();
     error ScoreExceedsUint32();
     error NoPendingDebt();
+    /// @notice P0-10: emergencySetPrice rejected because Chainlink is fresh.
+    error ChainlinkNotStale();
+    /// @notice P0-10: emergency price outside the ±20% band vs current cache.
+    error EmergencyPriceOutOfRange();
+    /// @notice P0-10: executeEmergencyPrice called before timelock elapsed.
+    error EmergencyTimelockNotElapsed();
+    /// @notice P0-10: executeEmergencyPrice called with no queued price.
+    error NoEmergencyPending();
 
     // ====================================
     // Internal Helpers
@@ -291,6 +305,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         semantics in spirit (queue / cancel / execute).
     uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
 
+    // P0-10 — Chainlink break-glass state machine (D8 design)
+    /// @notice 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active).
+    uint8 public priceMode;
+    /// @notice Timestamp at which `emergencySetPrice` was last called; 0 if none queued.
+    uint256 public emergencyQueuedAt;
+    /// @notice Pending emergency price (8 decimals, same scale as Chainlink).
+    int256 public emergencyPendingPrice;
+
+    uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
+    uint256 public constant CHAINLINK_STALE_THRESHOLD = 1 hours;
+    uint256 public constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
+
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
     ///         and `protocolRevenue` are zero (otherwise existing operator
@@ -380,6 +406,100 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     function setXPNTsFactory(address _factory) external onlyOwner {
         xpntsFactory = _factory;
+    }
+
+    // ====================================
+    // P0-10 — Chainlink break-glass (D8)
+    // ====================================
+
+    /// @notice True when Chainlink hasn't updated for at least
+    ///         `CHAINLINK_STALE_THRESHOLD` seconds, OR when the call reverts.
+    /// @dev    Stale = "operationally unusable", not "wrong". A Chainlink
+    ///         revert is treated as the worst-case stale state so the break-
+    ///         glass path opens.
+    function _isChainlinkStale() internal view returns (bool) {
+        try ETH_USD_PRICE_FEED.latestRoundData() returns (
+            uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80
+        ) {
+            if (chainlinkUpdatedAt == 0) return true;
+            return block.timestamp > chainlinkUpdatedAt + CHAINLINK_STALE_THRESHOLD;
+        } catch {
+            return true;
+        }
+    }
+
+    /// @notice Public mirror of `_isChainlinkStale`. Lets off-chain monitors
+    ///         see exactly the same staleness verdict the contract uses,
+    ///         without having to replay the threshold logic.
+    function isChainlinkStale() external view returns (bool) {
+        return _isChainlinkStale();
+    }
+
+    /// @notice Queue an emergency price update. Only honored when Chainlink
+    ///         is stale and the new price stays within ±20% of the last
+    ///         cached price; eligible for execution after a 1-hour timelock.
+    /// @dev    P0-10 (D8): pre-fix the owner break-glass path inside
+    ///         `updatePriceDVT` skipped the deviation check whenever Chainlink
+    ///         was unavailable, leaving a compromised owner free to write
+    ///         any price. The new path enforces:
+    ///           1. Chainlink must actually be stale (otherwise normal
+    ///              `updatePrice` should be used);
+    ///           2. New price within ±20% of `cachedPrice.price`;
+    ///           3. 1-hour timelock so off-chain monitors can flag the queue
+    ///              event before it lands.
+    function emergencySetPrice(int256 newPrice) external onlyOwner {
+        if (newPrice <= 0) revert OracleError();
+        if (!_isChainlinkStale()) revert ChainlinkNotStale();
+
+        int256 ref = cachedPrice.price;
+        if (ref <= 0) revert OracleError();
+
+        // Math.mulDiv is uint-only; do the band check manually with int math.
+        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
+
+        emergencyPendingPrice = newPrice;
+        emergencyQueuedAt = block.timestamp;
+        emit EmergencyPriceQueued(newPrice, block.timestamp + EMERGENCY_TIMELOCK);
+    }
+
+    /// @notice Cancel a queued emergency price. Useful when the multisig
+    ///         realises the queued value is wrong before timelock elapses.
+    function cancelEmergencyPrice() external onlyOwner {
+        if (emergencyQueuedAt == 0) return; // idempotent
+        int256 cancelled = emergencyPendingPrice;
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+        emit EmergencyPriceCancelled(cancelled);
+    }
+
+    /// @notice Apply a previously queued emergency price.
+    /// @dev    Permissionless after the timelock — anyone can land the price,
+    ///         not just the owner. The protective gates already ran inside
+    ///         `emergencySetPrice` (Chainlink stale, ±20% band).
+    function executeEmergencyPrice() external {
+        if (emergencyQueuedAt == 0) revert NoEmergencyPending();
+        if (block.timestamp < emergencyQueuedAt + EMERGENCY_TIMELOCK) {
+            revert EmergencyTimelockNotElapsed();
+        }
+
+        int256 newPrice = emergencyPendingPrice;
+        cachedPrice.price = newPrice;
+        cachedPrice.updatedAt = block.timestamp;
+        cachedPrice.roundId = 0;
+        cachedPrice.decimals = 8;
+
+        if (priceMode != 1) {
+            emit PriceModeChanged(priceMode, 1);
+            priceMode = 1;
+        }
+
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+
+        emit EmergencyPriceExecuted(newPrice);
+        emit PriceUpdated(newPrice, block.timestamp);
     }
 
     /**
@@ -773,11 +893,28 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 roundId: roundId,
                 decimals: oracleDecimals
             });
-            
+
+            // P0-10: Chainlink came back. If we previously flipped into
+            // EMERGENCY mode via the break-glass path, transition back to
+            // CHAINLINK now that fresh data is landing on-chain. Any pending
+            // emergency price is also cleared — once Chainlink is healthy the
+            // queued override is no longer the right answer.
+            if (priceMode != 0) {
+                emit PriceModeChanged(priceMode, 0);
+                priceMode = 0;
+            }
+            if (emergencyQueuedAt != 0) {
+                int256 cancelled = emergencyPendingPrice;
+                emergencyQueuedAt = 0;
+                emergencyPendingPrice = 0;
+                emit EmergencyPriceCancelled(cancelled);
+            }
+
             emit PriceUpdated(price, updatedAt);
         } catch {
-            // Chainlink down: revert to signal need for DVT fallback
-            // Keeper should call updatePriceDVT() with BLS proof
+            // Chainlink down: revert to signal need for DVT fallback or
+            // emergency setPrice. Keeper should call updatePriceDVT() with BLS
+            // proof, or owner can use emergencySetPrice + executeEmergencyPrice.
             revert OracleError();
         }
     }
