@@ -91,8 +91,29 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev Prevents catastrophic losses from code bugs while maintaining flexibility
     uint256 public constant MAX_SINGLE_TX_LIMIT = 5_000 ether; // $100 @ $0.02/aPNTs
 
+    // -----------------------------------------------------------------
+    // P0-8 (B4-H2 / D8): per-spender daily burn cap
+    // -----------------------------------------------------------------
+    // Audit note (B4-H2): even with the $100 single-tx cap, a compromised
+    // facilitator could call burn(victim_i, $100) in rapid sequence and drain
+    // an unbounded number of holders before the community detects + revokes
+    // the spender (P0-7). User decision D8 chose a per-spender daily cap
+    // (not per-user) so that ordinary users have ZERO additional burden:
+    // the cap travels with the spender, not the holder. Communities can
+    // tune the cap via setSpenderDailyCap.
+    struct SpenderRateLimit {
+        uint128 dailyBurnTotal;  // cumulative xPNTs burned by this spender today
+        uint64  windowStart;     // unix timestamp when the current 24h window opened
+        uint64  reserved;        // packing slack for future use
+    }
+    mapping(address => SpenderRateLimit) public spenderRateLimit;
+
+    /// @notice Maximum xPNTs that any non-self spender can burn per rolling 24h window.
+    /// @dev    Default 50_000 ether (~$1000 at $0.02/xPNTs). Community owner can adjust.
+    uint256 public spenderDailyCapTokens;
+
     function version() external pure override returns (string memory) {
-        return "XPNTs-3.0.0-unlimited"; // Removed spending limits, added single-tx cap
+        return "XPNTs-3.1.0-spender-daily-cap"; // P0-8: per-spender daily burn cap
     }
 
     /**
@@ -123,6 +144,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
     event EmergencyDisabledSet(address indexed by);
     event EmergencyDisabledCleared(address indexed by);
+    /// @notice P0-8: emitted when the per-spender daily burn cap is updated.
+    event SpenderDailyCapUpdated(uint256 oldCap, uint256 newCap);
+    /// @notice P0-8: emitted when a spender's daily window rolls over and counter resets.
+    event SpenderRateLimitWindowReset(address indexed spender, uint64 newWindowStart);
 
 
     // ====================================
@@ -144,6 +169,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice P0-7: thrown when a burn-shaped path runs while the community
     ///         has flipped the emergency switch.
     error EmergencyStop();
+    /// @notice P0-8: thrown when a spender's cumulative burn within a rolling
+    ///         24h window would exceed `spenderDailyCapTokens`.
+    error SpenderDailyCapExceeded(address spender, uint256 attempted, uint256 capRemaining);
 
     /// @dev Only factory or community owner can call
     modifier onlyFactoryOrOwner() {
@@ -249,6 +277,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         // Auto-approve the factory
         autoApprovedSpenders[msg.sender] = true;
+
+        // P0-8: default spender daily burn cap = 50_000 ether xPNTs (~$1000 @ $0.02).
+        // Communities can tighten or loosen via setSpenderDailyCap.
+        spenderDailyCapTokens = 50_000 ether;
     }
 
     // ====================================
@@ -499,6 +531,44 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         emit EmergencyDisabledCleared(msg.sender);
     }
 
+    /// @notice P0-8: tune the per-spender daily burn cap.
+    /// @dev    Community-owner only. The cap applies to ANY non-self burn —
+    ///         autoApproved facilitators, manually-approved spenders, etc.
+    ///         A value of 0 effectively disables third-party burn entirely
+    ///         (every burn would revert SpenderDailyCapExceeded).
+    function setSpenderDailyCap(uint256 newCap) external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        uint256 oldCap = spenderDailyCapTokens;
+        spenderDailyCapTokens = newCap;
+        emit SpenderDailyCapUpdated(oldCap, newCap);
+    }
+
+    /// @dev P0-8: rolling 24h window per spender. Resets `dailyBurnTotal`
+    ///      when the previous window has expired, then enforces the cap.
+    ///      Self-burn (msg.sender == from) is NOT routed through here —
+    ///      a holder burning their own balance is unrestricted.
+    function _checkAndConsumeRateLimit(address spender, uint256 amount) internal {
+        SpenderRateLimit storage rl = spenderRateLimit[spender];
+        // Roll the window forward if 24h has elapsed (or no window yet).
+        if (rl.windowStart == 0 || block.timestamp >= uint256(rl.windowStart) + 1 days) {
+            rl.windowStart = uint64(block.timestamp);
+            rl.dailyBurnTotal = 0;
+            emit SpenderRateLimitWindowReset(spender, rl.windowStart);
+        }
+        // Cap check — uint128 sum is safe given MAX_SINGLE_TX_LIMIT = 5_000 ether
+        // and a realistic upper bound on per-day cap (community-tunable).
+        uint256 newTotal = uint256(rl.dailyBurnTotal) + amount;
+        uint256 cap = spenderDailyCapTokens;
+        if (newTotal > cap) {
+            revert SpenderDailyCapExceeded(
+                spender,
+                amount,
+                cap > rl.dailyBurnTotal ? cap - rl.dailyBurnTotal : 0
+            );
+        }
+        rl.dailyBurnTotal = uint128(newTotal);
+    }
+
     function addAutoApprovedSpender(address spender) external onlyFactoryOrOwner {
         if (spender == address(0)) {
             revert InvalidAddress(spender);
@@ -529,6 +599,19 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         _mint(to, amount);
     }
 
+    /// @notice Burn `amount` tokens from `from`. When `msg.sender != from`,
+    ///         allowance must be sufficient AND the spender's per-day burn
+    ///         cap (P0-8) must not be exceeded.
+    /// @dev    Security history:
+    ///         - P0-7 (B4-H1): community emergency switch halts all third-party burns.
+    ///         - P0-8 (B4-H2): spender path now uses canonical _spendAllowance
+    ///           (instead of hand-rolled allowance arithmetic). Combined with
+    ///           the per-spender daily rate limit, this closes the
+    ///           "compromised facilitator drains many holders within
+    ///           MAX_SINGLE_TX_LIMIT bursts" vector documented in T-14.
+    ///         The autoApproved spender semantics are preserved: holders
+    ///         still pay zero approval gas (allowance() returns max), but the
+    ///         spender's cumulative burn is bounded by spenderDailyCapTokens.
     function burn(address from, uint256 amount) external {
         // P0-7: even autoApproved spenders (facilitators, etc.) are halted
         // by the community-level emergency switch. Self-burn (`burn(uint256)`)
@@ -541,13 +624,20 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
 
         if (msg.sender != from) {
+            // P0-8 part 1 (B4-H2 fix): canonical allowance enforcement.
+            // For autoApproved spenders this is a no-op (allowance == max) by
+            // the _spendAllowance override above — preserving zero user burden.
+            // For everyone else, this reverts on insufficient allowance and
+            // decrements the recorded allowance like a standard ERC20.
             uint256 allowed = allowance(from, msg.sender);
-            if (allowed < amount) {
-                revert BurnExceedsAllowance();
-            }
-            if (allowed != type(uint256).max) {
-                _approve(from, msg.sender, allowed - amount);
-            }
+            if (allowed < amount) revert BurnExceedsAllowance();
+            _spendAllowance(from, msg.sender, amount);
+
+            // P0-8 part 2 (D8): per-spender daily burn cap. Applies to ALL
+            // third-party spenders — both autoApproved and explicitly-
+            // approved — so a compromised facilitator cannot iterate
+            // burn(victim_i, $100) across many holders without bound.
+            _checkAndConsumeRateLimit(msg.sender, amount);
         }
         _burn(from, amount);
     }
