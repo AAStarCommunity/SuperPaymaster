@@ -501,6 +501,75 @@ contract SuperPaymasterV5Features_Test is Test {
     }
 
     // ====================================
+    // P0-13: per-(asset, from, nonce) replay-protection
+    // ====================================
+
+    /// @notice The same nonce on different assets must be independent. Pre-V5.4
+    ///         the global nonce mapping let an anonymous attacker pre-burn a
+    ///         victim's nonce by submitting a dummy settlement on a junk asset.
+    function test_Nonce_PerAssetIsolation() public {
+        bytes32 nonce = bytes32(uint256(0xCAFE));
+        address payer = address(0x40);
+        usdc.mint(payer, 100e6);
+        xpnts.mint(payer, 100 ether);
+
+        // Burn nonce on USDC.
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        // Same nonce, same payer, different asset must still be available.
+        vm.prank(operator1);
+        bytes32 sid = paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), 100 ether, nonce);
+        assertTrue(sid != bytes32(0), "same nonce on different asset must succeed");
+    }
+
+    /// @notice Same nonce, same asset, different `from` must also be independent.
+    function test_Nonce_PerPayerIsolation() public {
+        bytes32 nonce = bytes32(uint256(0xBEEF));
+        address payerA = address(0x50);
+        address payerB = address(0x51);
+        usdc.mint(payerA, 100e6);
+        usdc.mint(payerB, 100e6);
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        vm.prank(operator1);
+        bytes32 sid = paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        assertTrue(sid != bytes32(0), "same nonce on different payer must succeed");
+    }
+
+    /// @notice Replay on the exact (asset, from, nonce) triple must still revert.
+    function test_Nonce_TripleReplayBlocked() public {
+        bytes32 nonce = bytes32(uint256(0xDEAD));
+        address payer = address(0x60);
+        usdc.mint(payer, 200e6);
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+    }
+
+    /// @notice The public helper `x402NonceKey` must agree with what the
+    ///         contract writes internally — SDKs depend on this.
+    function test_Nonce_PublicKeyMatchesStorage() public {
+        bytes32 nonce = bytes32(uint256(0xBABE));
+        address payer = address(0x70);
+        usdc.mint(payer, 100e6);
+
+        bytes32 key = paymaster.x402NonceKey(address(usdc), payer, nonce);
+        assertFalse(paymaster.x402SettlementNonces(key), "key should be unused before settle");
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        assertTrue(paymaster.x402SettlementNonces(key), "key should be set after settle");
+    }
+
+    // ====================================
     // V5.3: isEligibleForSponsorship Tests
     // ====================================
 
