@@ -64,7 +64,6 @@ contract MockRegistryStub is IRegistry {
     function setMySBT(address) external {}
     function setSuperPaymaster(address) external {}
     function setBLSAggregator(address) external {}
-    function setBLSValidator(address) external {}
     function setCreditTier(uint256, uint256) external {}
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory) {}
     function getUserRoles(address) external view returns (bytes32[] memory) {}

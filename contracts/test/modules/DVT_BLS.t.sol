@@ -80,12 +80,19 @@ contract DVTBLSTest is Test {
     BLSAggregator bls;
     MockRegistryV3 registry;
     MockSuperPaymaster sp;
-    
+
     address owner = address(1);
     address op = address(2);
-    
+
     uint256 constant THRESHOLD = 7;
-    
+
+    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+        pk.x_a = bytes32(seed);
+        pk.x_b = bytes32(seed + 1);
+        pk.y_a = bytes32(seed + 2);
+        pk.y_b = bytes32(seed + 3);
+    }
+
     function setUp() public {
         vm.startPrank(owner);
         registry = new MockRegistryV3();
@@ -101,43 +108,43 @@ contract DVTBLSTest is Test {
 
         dvt.setBLSAggregator(address(bls));
 
-        // Mock EIP-2537 G1 precompiles so registerBLSPublicKey subgroup validation passes.
-        // vm.mockCall returns raw bytes; the contract reads output via assembly mload so
-        // we must pass raw 96 zero bytes, NOT abi.encode(bytes) which adds offset/length headers.
-        // G1ADD (0x0b): on-curve check → success (raw 96-byte G1 identity = all zeros)
-        vm.mockCall(address(0x0b), "", new bytes(96));
-        // G1MUL (0x0c): subgroup check → raw 96-byte identity (r*P = O means valid subgroup)
-        vm.mockCall(address(0x0c), "", new bytes(96));
-
-        // Add validators
+        // Add validators (10) and register their BLS keys into deterministic slots.
         for(uint i=1; i<=10; i++) {
             address v = address(uint160(i+100)); // 101..110
             dvt.addValidator(v);
-            // BLS key registration — 96-byte uncompressed G1 point (EIP-2537 format).
-            // Identity (all-zero) is now rejected up-front, so seed a non-zero byte
-            // per validator. Precompiles are mocked above to accept any non-identity input.
-            bytes memory pubKey = new bytes(96);
-            pubKey[0] = bytes1(uint8(i));
-            bls.registerBLSPublicKey(v, pubKey);
+            // P0-1: register typed G1 key into slot i. The first 7 keys (slots 1..7)
+            // form the default-threshold quorum used by tests below.
+            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i));
         }
-        
-        // Mock BLS precompiles using raw bytecode injection (vm.etch)
-        // This avoids nested contract compilation errors and reliably mocks return data size.
-        
-        // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
-        // Code: PUSH1 0x80 PUSH1 0x00 RETURN -> 60806000f3
+
+        // Mock BLS precompiles (G1ADD = 0x0b for pkAgg accumulation, G2ADD = 0x0d
+        // for hashToG2 finalize, MapFp/Fp2 for hashToG2 internals, and pairing
+        // 0x0F for the final pairing check).
+        // Each precompile must return data of the exact size BLS.sol expects so
+        // the staticcall returndatasize check passes.
+
+        // 0x0b (G1ADD): returns 128 bytes (0x80) — used by _reconstructPkAgg.
+        vm.etch(address(0x0b), hex"60806000f3");
+
+        // 0x10 (MapFpToG1): returns 128 bytes (0x80)
         vm.etch(address(0x10), hex"60806000f3");
-        
-        // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
-        // Code: PUSH2 0x0100 PUSH1 0x00 RETURN -> 6101006000f3
+
+        // 0x11 (MapFp2ToG2): returns 256 bytes (0x100)
         vm.etch(address(0x11), hex"6101006000f3");
-        
-        // 0x0d (G2ADD): Returns 256 bytes (0x100)
+
+        // 0x0d (G2ADD): returns 256 bytes (0x100)
         vm.etch(address(0x0d), hex"6101006000f3");
 
         vm.stopPrank();
     }
-    
+
+    /// @notice Build a P0-1 compliant proof: only (signerMask, sigG2). pkAgg
+    ///         is reconstructed inside the contract from on-chain keys.
+    function _proofForMask(uint256 signerMask) internal pure returns (bytes memory) {
+        BLS.G2Point memory sig; // zeroed — pairing precompile is mocked
+        return abi.encode(signerMask, abi.encode(sig));
+    }
+
     function test_DVT_ProposalFlow() public {
         vm.startPrank(address(101)); // Validator 1
         uint256 id = dvt.createProposal(op, 1, "Bad Operator");
@@ -150,44 +157,12 @@ contract DVTBLSTest is Test {
         // P0-4: executeWithProof now restricted to BLS aggregator or registered
         // validators. Use Validator 1 to drive the call.
         vm.startPrank(address(101));
-        
-        
-        // ✅ KEY INSIGHT: keccak256(msgG2Bytes) must equal expectedMessageHash
-        // expectedMessageHash = keccak256(abi.encode(proposalId, operator, slashLevel, ...))
-        // So: msgG2Bytes = abi.encode(proposalId, operator, slashLevel, ...)
-        
-        bytes memory msgG2Bytes = abi.encode(
-            id,                     // proposalId = 1
-            op,                     // operator
-            uint8(1),              // slashLevel
-            new address[](0),       // repUsers
-            new uint256[](0),       // newScores  
-            uint256(0),            // epoch
-            block.chainid           // chainid
-        );
-        
-        // Mock BLS pairing moved down to avoid interference
-        // vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
-        
-        bytes32 msgHash = keccak256(msgG2Bytes);
-        console.log("TEST msgHash:"); console.logBytes32(msgHash);
-        
-        BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(msgHash));
-        console.log("TEST Point X_C0_A:"); console.logBytes32(point.x_c0_a);
-        
-        // Re-encode msgG2Bytes with the point we just calculated/logged
-        // This ensures the point passed to verify logic matches what we logged
-        bytes memory msgG2Bytes_Corrected = abi.encode(point);
 
-        bytes memory mockProof = abi.encode(
-            new bytes(128),  // pkG1 (mock, any value)
-            new bytes(256),  // sigG2 (mock, any value)
-            msgG2Bytes_Corrected, // Use the one we verified
-            uint256(0x7F)    // signerMask: 7 signers
-        );
-        
-        // Mock BLS pairing now
+        // Mock BLS pairing as success
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        // 7 signers across slots 1..7 = bits 0..6 set = 0x7F.
+        bytes memory mockProof = _proofForMask(0x7F);
 
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         vm.stopPrank();
@@ -196,7 +171,7 @@ contract DVTBLSTest is Test {
         (,,,bool executed,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
     }
-    
+
     function test_BLS_ManualVerify() public {
         // P0-17: BLSAggregator now calls back into DVTValidator.markProposalExecuted
         // which requires the proposal to exist. Create it first via the legitimate
@@ -204,30 +179,11 @@ contract DVTBLSTest is Test {
         vm.prank(address(101)); // Validator 1
         uint256 id = dvt.createProposal(op, 1, "Bad Operator");
 
-        // ✅ Same strategy: msgG2Bytes = abi.encode of message params
-        bytes memory messageData = abi.encode(
-            id,                     // proposalId (real, created above)
-            op,                     // operator
-            uint8(1),              // slashLevel
-            new address[](0),       // repUsers
-            new uint256[](0),       // newScores
-            uint256(123),          // epoch
-            block.chainid           // chainid
-        );
-
-        bytes32 msgHash = keccak256(messageData);
-        BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(msgHash));
-        bytes memory msgG2Bytes = abi.encode(point);
-
-        // Mock BLS pairing AFTER point calculation
+        // Mock BLS pairing as success — the test focuses on the access control
+        // and proposal lifecycle, not on real pairing arithmetic.
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
-        bytes memory mockProof = abi.encode(
-            new bytes(128),  // pkG1
-            new bytes(256),  // sigG2
-            msgG2Bytes,      // ✅ Will pass hash check
-            uint256(0x7F)    // signerMask
-        );
+        bytes memory mockProof = _proofForMask(0x7F);
 
         vm.prank(address(dvt));
 
@@ -239,7 +195,7 @@ contract DVTBLSTest is Test {
 
         assertTrue(bls.executedProposals(id));
     }
-    
+
     function test_Fail_NotValidator() public {
         vm.prank(address(0x999));
         vm.expectRevert(DVTValidator.NotValidator.selector);
