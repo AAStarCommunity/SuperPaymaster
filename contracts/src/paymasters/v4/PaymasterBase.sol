@@ -597,6 +597,29 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     }
 
     // ====================================
+    // P0-6: Emergency pause controls
+    // ====================================
+
+    /// @notice Halt sponsorship locally — `whenNotPaused` modifier on
+    ///         validatePaymasterUserOp will revert all new userOps.
+    /// @dev    The original code shipped `paused`, `whenNotPaused`, and the
+    ///         Paused/Unpaused events, but no setter — the modifier could
+    ///         never become true, leaving operators with no on-chain stop.
+    ///         Combined with P0-5 (Registry exitRole) this gives V4 paymasters
+    ///         a fast local halt and a coordinated registry-level deactivation.
+    function pause() external onlyOwner {
+        if (paused) return; // idempotent
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        if (!paused) return;
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    // ====================================
     // EntryPoint Management
     // ====================================
     function addStake(uint32 unstakeDelaySec) external payable onlyOwner { entryPoint.addStake{value: msg.value}(unstakeDelaySec); }
