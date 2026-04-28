@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";

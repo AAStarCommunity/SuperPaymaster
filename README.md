@@ -329,7 +329,7 @@ SuperPaymaster/
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
+Apache 2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 
 ---
 
@@ -509,4 +509,4 @@ forge test
 
 ## 许可证
 
-MIT — 见 [LICENSE](./LICENSE)
+Apache 2.0 — 见 [LICENSE](./LICENSE)（英文原版）及 [LICENSE-zh.md](./LICENSE-zh.md)（中文参考译本）。
