@@ -43,13 +43,27 @@ contract DVTValidator is Ownable, IVersioned {
     error AlreadySigned();
     error ProposalExecutedAlready();
     error OnlyBLSAggregator();
+    /// @notice Reverted when an action references a proposalId that has not been
+    ///         created via createProposal. Defense against pre-poison attacks
+    ///         where an adversary tricks the BLS aggregator path into marking
+    ///         an unborn proposalId as executed.
+    error ProposalDoesNotExist();
+    error NotAuthorizedExecutor();
 
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistry(_registry);
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.3.2";
+        return "DVTValidator-0.4.0";
+    }
+
+    /// @notice Restrict to BLS aggregator or registered DVT validators (P0-4)
+    modifier onlyAuthorizedExecutor() {
+        if (msg.sender != BLS_AGGREGATOR && !isValidator[msg.sender]) {
+            revert NotAuthorizedExecutor();
+        }
+        _;
     }
 
     function addValidator(address _v) external onlyOwner {
@@ -63,6 +77,11 @@ contract DVTValidator is Ownable, IVersioned {
         p.operator = operator;
         p.slashLevel = level;
         p.reason = reason;
+        // P0-17: explicit reset — auto-increment id implies executed defaults to
+        // false, but a hostile BLS aggregator path could have pre-set executed
+        // for an unborn id. Resetting here guarantees a freshly created proposal
+        // starts in an executable state.
+        p.executed = false;
         emit ProposalCreated(id, operator, level);
     }
 
@@ -72,7 +91,15 @@ contract DVTValidator is Ownable, IVersioned {
      */
     function markProposalExecuted(uint256 id) external {
         if (msg.sender != BLS_AGGREGATOR) revert OnlyBLSAggregator();
-        proposals[id].executed = true;
+        SlashProposal storage p = proposals[id];
+        // P0-17: even though caller is gated to the BLS aggregator, defense-in-
+        // depth requires the targeted proposal to actually exist. Without this
+        // guard, a forged BLS proof (P0-1) would let the aggregator mark any
+        // future proposalId as executed, permanently DoS'ing it once createProposal
+        // assigns that id (the legitimate executeWithProof would revert on
+        // ProposalExecutedAlready).
+        if (p.operator == address(0)) revert ProposalDoesNotExist();
+        p.executed = true;
         emit ProposalExecuted(id);
     }
 
@@ -89,10 +116,14 @@ contract DVTValidator is Ownable, IVersioned {
         uint256[] calldata newScores,
         uint256 epoch,
         bytes calldata proof
-    ) external {
+    ) external onlyAuthorizedExecutor {
         SlashProposal storage p = proposals[id];
+        // P0-17: reject ids that were never created. An unborn id has
+        // operator == address(0) and would otherwise be silently forwarded to
+        // the aggregator with bogus operator, slashLevel and reason fields.
+        if (p.operator == address(0)) revert ProposalDoesNotExist();
         if (p.executed) revert ProposalExecutedAlready();
-        
+
         IBLSAggregator(BLS_AGGREGATOR).verifyAndExecute(
             id,
             p.operator,
