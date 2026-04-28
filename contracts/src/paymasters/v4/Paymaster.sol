@@ -5,6 +5,7 @@ import { PaymasterBase } from "./PaymasterBase.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
+import { IRegistry } from "../../interfaces/v3/IRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 
@@ -79,13 +80,23 @@ contract Paymaster is PaymasterBase, Initializable {
      *      4. withdrawStake() → withdraw ETH, complete exit
      * @dev Note: Reactivation is controlled by Registry (requires qualification check)
      */
+    /// @notice Exit the PAYMASTER_AOA role on the V3 Registry.
+    /// @dev    P0-5 (B5-H1): the original implementation called
+    ///         `ISuperPaymasterRegistry.deactivate()`, a V2 router method that
+    ///         the deployed V3 Registry does not expose. Every call reverted,
+    ///         so an AOA-mode operator had no on-chain way to leave the role
+    ///         during an incident — they had to drain deposits manually. The
+    ///         V3 equivalent is `exitRole(ROLE_PAYMASTER_AOA)`. Cast at the
+    ///         call site (rather than retyping the immutable `registry` field)
+    ///         keeps the legacy view methods on `ISuperPaymasterRegistry`
+    ///         available for any consumer still on the V2 interface.
     function deactivateFromRegistry() external onlyOwner {
         if (address(registry) == address(0)) {
             revert Paymaster__RegistryNotSet();
         }
 
-        // Call Registry.deactivate()
-        registry.deactivate();
+        IRegistry v3 = IRegistry(address(registry));
+        v3.exitRole(v3.ROLE_PAYMASTER_AOA());
 
         emit DeactivatedFromRegistry(address(this));
     }
@@ -101,7 +112,7 @@ contract Paymaster is PaymasterBase, Initializable {
     /// @notice Get contract version
     /// @return Version string
     function version() external pure override returns (string memory) {
-        return "PMV4-Deposit-4.3.1";
+        return "PMV4-Deposit-4.4.0";
     }
 
     /// @notice Get the Paymaster data offset (version specific)
@@ -157,12 +168,18 @@ contract Paymaster is PaymasterBase, Initializable {
      * @dev Returns false if Registry not set or Paymaster not registered
      * @return True if Paymaster is active in Registry
      */
+    /// @notice Check whether this paymaster currently holds the V3 PAYMASTER_AOA role.
+    /// @dev    P0-5: `isPaymasterActive` is the legacy V2 router check; V3
+    ///         tracks role membership via `hasRole(roleId, address)`. Wrapped
+    ///         in try/catch so callers do not break if the registry pointer
+    ///         is stale or unconfigured.
     function isActiveInRegistry() external view returns (bool) {
         if (address(registry) == address(0)) {
             return false;
         }
 
-        try registry.isPaymasterActive(address(this)) returns (bool active) {
+        IRegistry v3 = IRegistry(address(registry));
+        try v3.hasRole(v3.ROLE_PAYMASTER_AOA(), address(this)) returns (bool active) {
             return active;
         } catch {
             return false;
