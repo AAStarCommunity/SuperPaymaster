@@ -101,6 +101,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when aPNTs token is updated
      */
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    /// @notice P0-9: emitted when an `setAPNTsToken` change is queued. The
+    ///         pending swap can be cancelled by `cancelAPNTsTokenChange` or
+    ///         executed once `eta` has elapsed via `executeAPNTsTokenChange`.
+    event APNTsTokenChangeQueued(address indexed pendingToken, uint256 eta);
+    event APNTsTokenChangeCancelled(address indexed pendingToken);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -244,14 +249,61 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
     }
 
-    /**
-     * @notice Set the APNTS Token address (Owner Only)
-     */
+    /// @notice Window between queueing an `setAPNTsToken` change and being
+    ///         allowed to execute it. Owner can cancel any time during this
+    ///         window. Picked to give all integrators (operators, SDKs,
+    ///         off-chain monitors) at least one weekly review cycle to react.
+    /// @dev    P0-9: was a single instant write; could strand operator
+    ///         deposits permanently if the new token had zero balances. The
+    ///         timelock + cancellation pattern follows OZ TimelockController
+    ///         semantics in spirit (queue / cancel / execute).
+    uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
+
+    /// @notice Pending APNTS_TOKEN swap, address(0) when none queued.
+    address public pendingAPNTsToken;
+    /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
+    uint256 public pendingAPNTsTokenEta;
+
+    /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
+    ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
+    ///         and `protocolRevenue` are zero (otherwise existing operator
+    ///         deposits would be stranded under the new token's accounting).
+    /// @dev    P0-9 (B2-N1): owner can cancel within the window via
+    ///         `cancelAPNTsTokenChange`. Re-queueing a change refreshes the
+    ///         timer (intentional — allows the owner to abort and restart).
     function setAPNTsToken(address newAPNTsToken) external onlyOwner {
         if (newAPNTsToken == address(0)) revert InvalidAddress();
+        pendingAPNTsToken = newAPNTsToken;
+        pendingAPNTsTokenEta = block.timestamp + APNTS_TOKEN_TIMELOCK;
+        emit APNTsTokenChangeQueued(newAPNTsToken, pendingAPNTsTokenEta);
+    }
+
+    /// @notice Abort a queued APNTS_TOKEN swap before it executes.
+    function cancelAPNTsTokenChange() external onlyOwner {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) return; // idempotent
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        emit APNTsTokenChangeCancelled(pending);
+    }
+
+    /// @notice Apply a previously queued APNTS_TOKEN swap.
+    /// @dev    Requires the timelock to have elapsed AND the contract to be
+    ///         drained of operator-tracked balance and protocol revenue —
+    ///         the same balance-zero invariant the audit recommended,
+    ///         enforced at execute-time so operators can decide when to
+    ///         drain rather than blocking the queue itself.
+    function executeAPNTsTokenChange() external {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) revert InvalidConfiguration();
+        if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
+        if (totalTrackedBalance != 0 || protocolRevenue != 0) revert InvalidConfiguration();
+
         address oldToken = APNTS_TOKEN;
-        APNTS_TOKEN = newAPNTsToken;
-        emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+        APNTS_TOKEN = pending;
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        emit APNTsTokenUpdated(oldToken, pending);
     }
 
     /**
