@@ -342,10 +342,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof) external {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
-        
+
         // V3.6 FIX: Prevent Replay & Staleness
         if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
         if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
+        // P0-16 (Codex B-N1): also reject future timestamps. Without this, an
+        // adversarial caller could write `updatedAt = far_future`, satisfying
+        // both "strictly increasing" and "block.timestamp - 2 hours" checks,
+        // freezing the cached price and underflowing the staleness check
+        // downstream (block.timestamp - cachedPrice.updatedAt).
+        if (updatedAt > block.timestamp) revert OracleError();
         
         // 2. BLS proof is verified by BLSAggregator before it calls this function.
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
