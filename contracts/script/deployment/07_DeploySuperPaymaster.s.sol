@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // 07_DeploySuperPaymaster.s.sol
 pragma solidity ^0.8.26;
 
