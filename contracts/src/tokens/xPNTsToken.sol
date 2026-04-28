@@ -48,6 +48,22 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice Pre-authorized spenders (no approve needed)
     mapping(address => bool) public autoApprovedSpenders;
 
+    /// @notice One-shot emergency switch. While true, every burn path that
+    ///         can affect another holder's balance is blocked, including the
+    ///         SuperPaymaster `burnFromWithOpHash` / `recordDebt` paths and
+    ///         the autoApproved-spender `burn(address,uint256)` path. Users
+    ///         can still self-burn their own balance via `burn(uint256)`.
+    /// @dev    P0-7 (B4-H1): the original `emergencyRevokePaymaster` only
+    ///         cleared the `autoApprovedSpenders` flag for the current SP,
+    ///         leaving `burnFromWithOpHash` (gated solely on
+    ///         `msg.sender == SUPERPAYMASTER_ADDRESS`) wide open. A
+    ///         compromised SP could keep draining holder balances at
+    ///         MAX_SINGLE_TX_LIMIT per call until the community redeployed
+    ///         the entire token. The flag-based design lets community owners
+    ///         halt all dangerous paths in one transaction and re-enable
+    ///         after rotating the SP via `setSuperPaymasterAddress`.
+    bool public emergencyDisabled;
+
     /// @notice Ensures a UserOperation hash is only used once for payment.
     mapping(bytes32 => bool) public usedOpHashes;
 
@@ -105,6 +121,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
     event DebtRecorded(address indexed user, uint256 amount);
     event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
+    event EmergencyDisabledSet(address indexed by);
+    event EmergencyDisabledCleared(address indexed by);
 
 
     // ====================================
@@ -123,6 +141,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error MustUseBurnFromWithOpHash();
     error BurnExceedsAllowance();
     error ExchangeRateCannotBeZero();
+    /// @notice P0-7: thrown when a burn-shaped path runs while the community
+    ///         has flipped the emergency switch.
+    error EmergencyStop();
 
     /// @dev Only factory or community owner can call
     modifier onlyFactoryOrOwner() {
@@ -296,11 +317,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @param userOpHash The unique hash of the UserOperation, preventing replays.
      */
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {
+        // P0-7: gate before any state read so a compromised SP can't slip in
+        // between revoke and rotation.
+        if (emergencyDisabled) revert EmergencyStop();
+
         // 1. Identity Check: Only the registered SuperPaymaster can call this.
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
         }
-        
+
         // 2. Replay Protection: Ensure this UserOp hasn't been processed.
         if (usedOpHashes[userOpHash]) {
             revert OperationAlreadyProcessed(userOpHash);
@@ -328,6 +353,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Record user debt (only SuperPaymaster)
      */
     function recordDebt(address user, uint256 amountXPNTs) external {
+        // P0-7: emergency stop applies to debt accrual too — debts get auto-
+        // repaid on next mint, so leaving this open during a compromise
+        // would let the rogue SP create artificial liabilities.
+        if (emergencyDisabled) revert EmergencyStop();
+
         if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
@@ -434,13 +464,39 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Emergency function to revoke SuperPaymaster privileges
      * @dev Allows quick response to compromised or malicious Paymaster
      */
+    /// @notice Halt every burn-shaped path that can touch another holder's
+    ///         balance. Used when the SuperPaymaster (or an autoApproved
+    ///         spender) is suspected of being compromised.
+    /// @dev    P0-7: previously only cleared `autoApprovedSpenders[currentSP]`,
+    ///         which left `burnFromWithOpHash` and `recordDebt` reachable from
+    ///         the compromised SP because those gates check
+    ///         `msg.sender == SUPERPAYMASTER_ADDRESS` directly. Flipping the
+    ///         `emergencyDisabled` flag closes all dangerous paths in one tx.
     function emergencyRevokePaymaster() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+
         address currentSP = SUPERPAYMASTER_ADDRESS;
         if (currentSP != address(0) && autoApprovedSpenders[currentSP]) {
             autoApprovedSpenders[currentSP] = false;
             emit AutoApprovedSpenderRemoved(currentSP);
         }
+
+        if (!emergencyDisabled) {
+            emergencyDisabled = true;
+            emit EmergencyDisabledSet(msg.sender);
+        }
+    }
+
+    /// @notice Clear the emergency switch after the community has rotated
+    ///         the SuperPaymaster (via `setSuperPaymasterAddress`) and is
+    ///         ready to resume normal operation.
+    /// @dev    Recovery flow: `emergencyRevokePaymaster` →
+    ///         `setSuperPaymasterAddress(newSP)` → `unsetEmergencyDisabled`.
+    function unsetEmergencyDisabled() external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        if (!emergencyDisabled) return; // idempotent
+        emergencyDisabled = false;
+        emit EmergencyDisabledCleared(msg.sender);
     }
 
     function addAutoApprovedSpender(address spender) external onlyFactoryOrOwner {
@@ -474,6 +530,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     }
 
     function burn(address from, uint256 amount) external {
+        // P0-7: even autoApproved spenders (facilitators, etc.) are halted
+        // by the community-level emergency switch. Self-burn (`burn(uint256)`)
+        // remains available so users keep custody of their own balance.
+        if (emergencyDisabled && msg.sender != from) revert EmergencyStop();
+
         // SECURITY: The SuperPaymaster is explicitly forbidden from using this function.
         if (msg.sender == SUPERPAYMASTER_ADDRESS) {
             revert MustUseBurnFromWithOpHash();
