@@ -1405,23 +1405,26 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Settle x402 payment via direct transferFrom (xPNTs only)
     /// @dev    Direct path is restricted to xPNTs tokens registered in
-    ///         `xpntsFactory`. Without this gate any ERC20 the payer ever did
-    ///         `approve(facilitator, MAX)` on (e.g. USDC for x402 standard
-    ///         payments) could be drained by a compromised facilitator.
-    ///         xPNTs tokens carry an in-contract firewall + per-tx cap, so
-    ///         the trust model holds even when facilitator keys are bounded.
-    ///         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).
+    ///         `xpntsFactory` AND to facilitators explicitly approved by the
+    ///         community that owns the xPNTs. Without these gates:
+    ///         - any ERC20 the payer ever did `approve(facilitator, MAX)` on
+    ///           (e.g. USDC for x402 standard payments) could be drained by
+    ///           a compromised facilitator (xPNTs carry an in-contract
+    ///           firewall + per-tx cap; arbitrary ERC20s do not);
+    ///         - any single global facilitator compromise would blast across
+    ///           every community's xPNTs.
     /// @dev    settlementId uses abi.encode (not encodePacked), matching the
     ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
     /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
+    /// @dev    P0-12b (D4): enforce community-side `approvedFacilitators`
+    ///         whitelist on the xPNTs token. Community owner toggles via
+    ///         `xPNTsToken.add/removeApprovedFacilitator`. AAStar's default
+    ///         facilitator is NOT auto-approved at deploy — each community
+    ///         decides explicitly.
     /// @dev    Nonce and asset whitelist: _validateX402AndComputeFee writes the
     ///         nonce before the isXPNTs check executes. However, if the call
     ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
     ///         the nonce write — so the nonce is NOT consumed on failure.
-    ///         A caller that supplied a wrong asset may retry with the same nonce
-    ///         value, but must use a valid xPNTs asset on the retry. On a
-    ///         successful call the nonce is durably consumed; replaying the same
-    ///         (asset, from, nonce) triple will revert with NonceAlreadyUsed.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
@@ -1434,6 +1437,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address factory = xpntsFactory;
         if (factory == address(0)) revert InvalidConfiguration();
         if (!IxPNTsFactory(factory).isXPNTs(asset)) revert InvalidXPNTsToken();
+
+        // P0-12b: facilitator must be explicitly approved by THIS community's
+        // xPNTs. `_validateX402AndComputeFee` already established msg.sender
+        // has ROLE_PAYMASTER_SUPER; this per-token whitelist narrows the
+        // trust surface from "any global facilitator" to "this community's
+        // choice". Distinct from `autoApprovedSpenders` (transferFrom
+        // firewall): this gates settle-call invocation, not allowance.
+        if (!IxPNTsToken(asset).approvedFacilitators(msg.sender)) {
+            revert Unauthorized();
+        }
 
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);

@@ -104,6 +104,9 @@ contract MockERC3009Token is ERC20, IERC3009 {
 /// @dev Mock xPNTs-like token (auto-approves SuperPaymaster)
 contract MockDirectToken is ERC20 {
     address public superPaymaster;
+    /// @dev P0-12b: SuperPaymaster.settleX402PaymentDirect now consults this.
+    mapping(address => bool) public approvedFacilitators;
+
     constructor(address _sp) ERC20("xPNTs", "xPNTs") {
         superPaymaster = _sp;
     }
@@ -113,6 +116,10 @@ contract MockDirectToken is ERC20 {
     function allowance(address owner_, address spender) public view override returns (uint256) {
         if (spender == superPaymaster) return type(uint256).max;
         return super.allowance(owner_, spender);
+    }
+
+    function setApprovedFacilitator(address f, bool ok) external {
+        approvedFacilitators[f] = ok;
     }
 }
 
@@ -189,6 +196,9 @@ contract SuperPaymasterV5Features_Test is Test {
         mockFactory = new MockXPNTsFactory();
         mockFactory.setXPNTs(address(xpnts), true);
         paymaster.setXPNTsFactory(address(mockFactory));
+
+        // P0-12b: facilitator (operator1) must be approved by the xPNTs.
+        xpnts.setApprovedFacilitator(operator1, true);
 
         // Update price cache
         vm.warp(block.timestamp + 2 hours);
