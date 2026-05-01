@@ -1419,6 +1419,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @dev    settlementId uses abi.encode (not encodePacked), matching the
     ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
     /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
+    /// @dev    Nonce and asset whitelist: _validateX402AndComputeFee writes the
+    ///         nonce before the isXPNTs check executes. However, if the call
+    ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
+    ///         the nonce write — so the nonce is NOT consumed on failure.
+    ///         A caller that supplied a wrong asset may retry with the same nonce
+    ///         value, but must use a valid xPNTs asset on the retry. On a
+    ///         successful call the nonce is durably consumed; replaying the same
+    ///         (asset, from, nonce) triple will revert with NonceAlreadyUsed.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {

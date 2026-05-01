@@ -183,4 +183,86 @@ contract X402Direct_AssetWhitelistTest is Test {
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
         paymaster.settleX402PaymentDirect(victim, payee, address(usdc), 100e6, bytes32(uint256(4)));
     }
+
+    // -----------------------------------------------------------------------
+    // Nonce consumption behavior
+    // -----------------------------------------------------------------------
+
+    /// @notice Documents nonce behavior when settleX402PaymentDirect reverts
+    ///         with InvalidXPNTsToken.
+    ///
+    /// @dev EVM revert semantics: when settleX402PaymentDirect reverts (for any
+    ///      reason), ALL state changes within that call — including the nonce
+    ///      write in _validateX402AndComputeFee — are rolled back. Therefore
+    ///      the nonce is NOT consumed on an InvalidXPNTsToken failure, and the
+    ///      same (asset, from, nonce) triple may be reused with a corrected call.
+    ///
+    ///      The code comment in _validateX402AndComputeFee ("nonce is consumed
+    ///      before asset whitelist check") describes the *execution order* within
+    ///      the call frame, not the observable persistent result. Because the
+    ///      outer call reverts, the nonce write never lands on-chain.
+    ///
+    ///      Practical implication: a caller that submitted with a non-xPNTs asset
+    ///      by mistake may retry with the same nonce value, but MUST use a valid
+    ///      xPNTs asset on the retry. Retrying with the same wrong asset will
+    ///      keep reverting with InvalidXPNTsToken (not NonceAlreadyUsed).
+    function test_SettleDirect_NonceConsumed_OnAssetWhitelistFailure() public {
+        address victim = address(0xDEFEAA);
+        usdc.mint(victim, 1_000_000e6);
+        vm.prank(victim);
+        usdc.approve(address(paymaster), type(uint256).max);
+
+        bytes32 nonce = bytes32(uint256(999));
+        bytes32 key = paymaster.x402NonceKey(address(usdc), victim, nonce);
+
+        // Pre-condition: nonce is fresh.
+        assertFalse(paymaster.x402SettlementNonces(key), "nonce must start unused");
+
+        // First call: reverts with InvalidXPNTsToken. Because the entire call
+        // reverts, the nonce write in _validateX402AndComputeFee is rolled back.
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), 100e6, nonce);
+
+        // Nonce is still free — the revert cancelled the storage write.
+        assertFalse(paymaster.x402SettlementNonces(key), "nonce must NOT be consumed after revert");
+
+        // Victim's USDC balance is untouched — no transfer occurred.
+        assertEq(usdc.balanceOf(victim), 1_000_000e6, "USDC must not move on failed call");
+
+        // Second call with same nonce and still-wrong asset: reverts again with
+        // InvalidXPNTsToken (not NonceAlreadyUsed) — confirming nonce was free.
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), 100e6, nonce);
+
+        // Nonce remains free after two failed calls.
+        assertFalse(paymaster.x402SettlementNonces(key), "nonce must still be unused after second revert");
+    }
+
+    /// @notice Confirms that nonce IS durably consumed on a successful call,
+    ///         and that a replay with the same nonce is rejected with NonceAlreadyUsed.
+    function test_SettleDirect_NonceConsumed_OnSuccess() public {
+        xPNTsToken token = _deployXPNTsForOperator();
+
+        address user = address(0xFEED2);
+        vm.prank(operator);
+        token.mint(user, 200 ether);
+
+        bytes32 nonce = bytes32(uint256(777));
+        bytes32 key = paymaster.x402NonceKey(address(token), user, nonce);
+
+        assertFalse(paymaster.x402SettlementNonces(key), "nonce must start unused");
+
+        // Successful settlement — nonce is durably consumed.
+        vm.prank(operator);
+        paymaster.settleX402PaymentDirect(user, payee, address(token), 50 ether, nonce);
+
+        assertTrue(paymaster.x402SettlementNonces(key), "nonce must be consumed after successful settle");
+
+        // Replay with the same nonce must revert with NonceAlreadyUsed.
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402PaymentDirect(user, payee, address(token), 50 ether, nonce);
+    }
 }
