@@ -294,4 +294,125 @@ contract DryRunValidationTest is Test {
         (uint128 balAfter,,,,,,,,,) = paymaster.operators(operator);
         assertEq(balBefore, balAfter, "dryRun must not deduct balance");
     }
+
+    // -------------------------------------------------------------------------
+    // Issue 3: bytes32 constant truncation guard
+    // Solidity silently truncates string literals longer than 32 bytes when
+    // cast to bytes32.  Assert the exact encoded value of every DRYRUN_*
+    // constant so CI catches any future rename that would exceed 32 chars.
+    // -------------------------------------------------------------------------
+
+    function test_DryRunReasonCodes_NotTruncated() public view {
+        // DRYRUN_OK must be the zero value (no reason string)
+        assertEq(paymaster.DRYRUN_OK(), bytes32(0),
+            "DRYRUN_OK must be 0");
+
+        // Each string must round-trip through bytes32 cleanly.
+        // The assertion fails if the string is > 32 bytes (Solidity would have
+        // silently truncated it at compile time, producing a wrong constant).
+        assertEq(paymaster.DRYRUN_OPERATOR_NOT_CONFIGURED(),
+            bytes32("OPERATOR_NOT_CONFIGURED"),           // 23 chars — safe
+            "DRYRUN_OPERATOR_NOT_CONFIGURED truncated");
+
+        assertEq(paymaster.DRYRUN_OPERATOR_PAUSED(),
+            bytes32("OPERATOR_PAUSED"),                   // 15 chars — safe
+            "DRYRUN_OPERATOR_PAUSED truncated");
+
+        assertEq(paymaster.DRYRUN_USER_NOT_ELIGIBLE(),
+            bytes32("USER_NOT_ELIGIBLE"),                 // 17 chars — safe
+            "DRYRUN_USER_NOT_ELIGIBLE truncated");
+
+        assertEq(paymaster.DRYRUN_USER_BLOCKED(),
+            bytes32("USER_BLOCKED"),                      // 12 chars — safe
+            "DRYRUN_USER_BLOCKED truncated");
+
+        assertEq(paymaster.DRYRUN_RATE_LIMITED(),
+            bytes32("RATE_LIMITED"),                      // 12 chars — safe
+            "DRYRUN_RATE_LIMITED truncated");
+
+        assertEq(paymaster.DRYRUN_RATE_COMMITMENT_VIOLATED(),
+            bytes32("RATE_COMMITMENT_VIOLATED"),          // 24 chars — safe
+            "DRYRUN_RATE_COMMITMENT_VIOLATED truncated");
+
+        assertEq(paymaster.DRYRUN_INSUFFICIENT_BALANCE(),
+            bytes32("INSUFFICIENT_BALANCE"),              // 20 chars — safe
+            "DRYRUN_INSUFFICIENT_BALANCE truncated");
+
+        assertEq(paymaster.DRYRUN_STALE_PRICE(),
+            bytes32("STALE_PRICE"),                       // 11 chars — safe
+            "DRYRUN_STALE_PRICE truncated");
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue 1 regression: hard-failure takes precedence over RATE_LIMITED
+    // When a user is both rate-limited AND fails a hard check, the function
+    // must return the hard-failure code, not DRYRUN_RATE_LIMITED.
+    // -------------------------------------------------------------------------
+
+    /// @notice Rate-limited user with insufficient balance → hard failure wins
+    function test_DryRun_HardFailure_Wins_Over_RateLimit_InsufficientBalance() public {
+        // Set a rate limit and stamp lastTimestamp via postOp
+        vm.prank(operator);
+        paymaster.setOperatorLimits(uint48(3600));
+
+        PackedUserOperation memory firstOp = _buildUserOp(user, operator, type(uint256).max);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(firstOp, bytes32(uint256(1)), 1000);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1000, 0);
+
+        // User is now rate-limited (lastTimestamp = now, interval = 1h)
+        // Also use a huge maxCost that will fail INSUFFICIENT_BALANCE
+        uint256 huge = 1e17; // same as test_DryRun_InsufficientBalance
+        (bool ok, bytes32 reason) = paymaster.dryRunValidation(firstOp, huge);
+        assertFalse(ok);
+        // Hard failure (INSUFFICIENT_BALANCE) must win over the soft RATE_LIMITED
+        assertEq(reason, paymaster.DRYRUN_INSUFFICIENT_BALANCE(),
+            "hard failure must take precedence over RATE_LIMITED");
+    }
+
+    /// @notice Rate-limited user with stale price → hard failure wins
+    function test_DryRun_HardFailure_Wins_Over_RateLimit_StalePrice() public {
+        // Set a rate limit and stamp lastTimestamp
+        vm.prank(operator);
+        paymaster.setOperatorLimits(uint48(3600));
+
+        PackedUserOperation memory firstOp = _buildUserOp(user, operator, type(uint256).max);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(firstOp, bytes32(uint256(1)), 1000);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1000, 0);
+
+        // User is now rate-limited. Also expire the price cache.
+        // Warp only 30 min (still within the 1h rate-limit window) but past 1h staleness.
+        vm.warp(block.timestamp + 2 hours);
+        // Do NOT call updatePrice() — cache is now stale.
+
+        (bool ok, bytes32 reason) = paymaster.dryRunValidation(firstOp, 1000);
+        assertFalse(ok);
+        // Hard failure (STALE_PRICE) must win over the soft RATE_LIMITED
+        assertEq(reason, paymaster.DRYRUN_STALE_PRICE(),
+            "STALE_PRICE must take precedence over RATE_LIMITED");
+    }
+
+    /// @notice Rate-limited user with rate-commitment violation → hard failure wins
+    function test_DryRun_HardFailure_Wins_Over_RateLimit_RateCommitment() public {
+        // Set a rate limit and stamp lastTimestamp
+        vm.prank(operator);
+        paymaster.setOperatorLimits(uint48(3600));
+
+        // Build an op with a tiny maxRate that will violate rate commitment
+        PackedUserOperation memory firstOp = _buildUserOp(user, operator, type(uint256).max);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(firstOp, bytes32(uint256(1)), 1000);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1000, 0);
+
+        // User is now rate-limited. Build op with maxRate=1 to trigger commitment violation.
+        PackedUserOperation memory badOp = _buildUserOp(user, operator, 1);
+        (bool ok, bytes32 reason) = paymaster.dryRunValidation(badOp, 1000);
+        assertFalse(ok);
+        assertEq(reason, paymaster.DRYRUN_RATE_COMMITMENT_VIOLATED(),
+            "RATE_COMMITMENT_VIOLATED must take precedence over RATE_LIMITED");
+    }
 }
