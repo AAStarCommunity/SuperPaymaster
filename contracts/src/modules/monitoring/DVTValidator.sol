@@ -70,6 +70,10 @@ contract DVTValidator is Ownable, IVersioned {
         isValidator[_v] = true;
     }
 
+    /// @dev Proposal creation is gated by isValidator[msg.sender]. isValidator is
+    ///      managed by addValidator (onlyOwner). For complete security, P0-2 fix
+    ///      (addValidator requires Registry role + GTokenStaking stake check) must
+    ///      also be deployed — without P0-2, owner can add zero-stake validators.
     function createProposal(address operator, uint8 level, string calldata reason) external returns (uint256 id) {
         if (!isValidator[msg.sender]) revert NotValidator();
         id = nextProposalId++;
