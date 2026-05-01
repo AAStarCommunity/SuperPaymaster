@@ -351,7 +351,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // both "strictly increasing" and "block.timestamp - 2 hours" checks,
         // freezing the cached price and underflowing the staleness check
         // downstream (block.timestamp - cachedPrice.updatedAt).
-        if (updatedAt > block.timestamp) revert OracleError();
+        // A 15-second grace window accommodates the ~12 s maximum drift between
+        // a keeper's wall-clock and block.timestamp, preventing spurious
+        // rejections of honest keepers while closing the far-future attack vector.
+        if (updatedAt > block.timestamp + 15) revert OracleError();
         
         // 2. BLS proof is verified by BLSAggregator before it calls this function.
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an

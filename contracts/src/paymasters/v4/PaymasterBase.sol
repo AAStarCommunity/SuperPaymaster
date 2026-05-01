@@ -54,6 +54,14 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Maximum number of supported GasTokens
     uint256 public constant MAX_GAS_TOKENS = 10;
 
+    /// @notice Grace window for keeper-pushed timestamps (seconds).
+    /// @dev Ethereum block.timestamp can lag real wall-clock by up to ~12 s.
+    ///      A keeper that reads its system clock to stamp a price may arrive
+    ///      slightly ahead of the on-chain timestamp.  15 s (> 12 s slot upper
+    ///      bound) prevents spurious rejections without meaningfully weakening
+    ///      the future-timestamp guard.
+    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
+
     /// @notice Price staleness threshold (seconds)
     /// @dev Default to 3600s (1 hour) to cover Mainnet/Testnet heartbeats
     uint256 public priceStalenessThreshold;
@@ -484,9 +492,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     ///      bypasses staleness checks and underflows the postOp staleness
     ///      subtraction in `_postOp`, bricking that path until the cache is
     ///      overwritten with a valid (past) timestamp.
+    ///      A 15-second grace window (TIMESTAMP_GRACE_SECONDS) accommodates the
+    ///      ~12 s maximum drift between a keeper's wall-clock and block.timestamp,
+    ///      preventing spurious rejections of honest keepers.
     function setCachedPrice(uint256 price, uint48 timestamp) external onlyOwner {
         if (price == 0) revert Paymaster__InvalidOraclePrice();
-        if (timestamp > block.timestamp) revert Paymaster__InvalidOraclePrice();
+        if (timestamp > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(price), updatedAt: timestamp });
         emit PriceUpdated(price, timestamp);
     }
