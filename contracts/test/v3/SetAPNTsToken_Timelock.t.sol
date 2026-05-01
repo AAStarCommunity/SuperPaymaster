@@ -121,11 +121,13 @@ contract SetAPNTsToken_TimelockTest is Test {
 
         // Just before the timelock elapses.
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK() - 1);
+        vm.prank(owner);
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
 
     function test_ExecuteAPNTsTokenChange_RevertsWhenNothingPending() public {
+        vm.prank(owner);
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
@@ -139,6 +141,7 @@ contract SetAPNTsToken_TimelockTest is Test {
         paymaster.setAPNTsToken(address(newToken));
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
+        vm.prank(owner);
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
         paymaster.executeAPNTsTokenChange();
     }
@@ -148,7 +151,8 @@ contract SetAPNTsToken_TimelockTest is Test {
         paymaster.setAPNTsToken(address(newToken));
 
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
-        // Balances are zero in this test setup → execute should land.
+        // Only owner can execute after the timelock elapses.
+        vm.prank(owner);
         paymaster.executeAPNTsTokenChange();
 
         assertEq(paymaster.APNTS_TOKEN(), address(newToken));
@@ -156,17 +160,20 @@ contract SetAPNTsToken_TimelockTest is Test {
         assertEq(paymaster.pendingAPNTsTokenEta(), 0);
     }
 
-    function test_ExecuteAPNTsTokenChange_PermissionlessAfterEta() public {
-        // Anyone may execute once the conditions are met; the gate is the eta
-        // and balance invariant, not the caller. This matches OZ
-        // TimelockController semantics.
+    /// @notice Attacker cannot execute even after the timelock has elapsed.
+    ///         executeAPNTsTokenChange is owner-only: unlike OZ TimelockController,
+    ///         token migration requires explicit owner confirmation after the
+    ///         7-day review window — third-party execution is not permitted.
+    function test_ExecuteAPNTsTokenChange_OnlyOwner_AttackerReverts() public {
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
         vm.prank(attacker);
+        vm.expectRevert();
         paymaster.executeAPNTsTokenChange();
-        assertEq(paymaster.APNTS_TOKEN(), address(newToken));
+        // Token must remain unchanged — the attacker's call reverted.
+        assertEq(paymaster.APNTS_TOKEN(), address(initialToken));
     }
 
     // -----------------------------------------------------------------------

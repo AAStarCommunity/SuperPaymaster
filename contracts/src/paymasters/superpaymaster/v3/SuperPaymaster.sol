@@ -293,7 +293,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         the same balance-zero invariant the audit recommended,
     ///         enforced at execute-time so operators can decide when to
     ///         drain rather than blocking the queue itself.
-    function executeAPNTsTokenChange() external {
+    ///
+    ///         Intentionally owner-only: unlike OZ TimelockController's
+    ///         permissionless execute, token migration is sensitive enough
+    ///         to require explicit owner confirmation. The owner can effectively
+    ///         cancel any time before calling this function simply by not
+    ///         calling it, or by calling cancelAPNTsTokenChange() to reset the
+    ///         queue. Third-party execution is not allowed because it would
+    ///         remove the owner's final veto after the timelock expires.
+    function executeAPNTsTokenChange() external onlyOwner {
         address pending = pendingAPNTsToken;
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
