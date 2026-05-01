@@ -80,24 +80,27 @@ contract Paymaster is PaymasterBase, Initializable {
      *      4. withdrawStake() → withdraw ETH, complete exit
      * @dev Note: Reactivation is controlled by Registry (requires qualification check)
      */
-    /// @notice Exit the PAYMASTER_AOA role on the V3 Registry.
-    /// @dev    P0-5 (B5-H1): the original implementation called
-    ///         `ISuperPaymasterRegistry.deactivate()`, a V2 router method that
-    ///         the deployed V3 Registry does not expose. Every call reverted,
-    ///         so an AOA-mode operator had no on-chain way to leave the role
-    ///         during an incident — they had to drain deposits manually. The
-    ///         V3 equivalent is `exitRole(ROLE_PAYMASTER_AOA)`. Cast at the
-    ///         call site (rather than retyping the immutable `registry` field)
-    ///         keeps the legacy view methods on `ISuperPaymasterRegistry`
-    ///         available for any consumer still on the V2 interface.
+    /// @notice Stop this paymaster from accepting new UserOps and signal that
+    ///         the operator must exit the Registry role from their own account.
+    /// @dev    P0-5 (B5-H1 + reviewer CRITICAL): the original implementation
+    ///         called `exitRole(ROLE_PAYMASTER_AOA)` from inside the contract,
+    ///         but ROLE_PAYMASTER_AOA is held by the operator EOA (or later a
+    ///         multisig), not by `address(this)`. Every call reverted silently.
+    ///
+    ///         Correct two-step emergency exit:
+    ///         1. This function: set paused=true so validatePaymasterUserOp
+    ///            rejects new ops immediately (no Registry call needed here).
+    ///         2. Operator EOA / multisig calls registry.exitRole(ROLE_PAYMASTER_AOA)
+    ///            directly — the contract cannot do this because it does not
+    ///            hold the role.
     function deactivateFromRegistry() external onlyOwner {
         if (address(registry) == address(0)) {
             revert Paymaster__RegistryNotSet();
         }
-
-        IRegistry v3 = IRegistry(address(registry));
-        v3.exitRole(v3.ROLE_PAYMASTER_AOA());
-
+        // Halt new UserOps immediately. The operator must separately call
+        // registry.exitRole(ROLE_PAYMASTER_AOA) from the role-holder EOA/multisig.
+        paused = true;
+        emit Paused(msg.sender);
         emit DeactivatedFromRegistry(address(this));
     }
 
@@ -168,18 +171,20 @@ contract Paymaster is PaymasterBase, Initializable {
      * @dev Returns false if Registry not set or Paymaster not registered
      * @return True if Paymaster is active in Registry
      */
-    /// @notice Check whether this paymaster currently holds the V3 PAYMASTER_AOA role.
-    /// @dev    P0-5: `isPaymasterActive` is the legacy V2 router check; V3
-    ///         tracks role membership via `hasRole(roleId, address)`. Wrapped
-    ///         in try/catch so callers do not break if the registry pointer
-    ///         is stale or unconfigured.
+    /// @notice Check whether the operator (owner) currently holds PAYMASTER_AOA
+    ///         in the V3 Registry.
+    /// @dev    P0-5 (reviewer CRITICAL): ROLE_PAYMASTER_AOA is held by the
+    ///         operator EOA / multisig (i.e. owner()), NOT by address(this).
+    ///         The previous implementation queried address(this) which always
+    ///         returned false, making monitoring/UI permanently report inactive.
+    ///         Wrapped in try/catch for registry pointer safety.
     function isActiveInRegistry() external view returns (bool) {
         if (address(registry) == address(0)) {
             return false;
         }
 
         IRegistry v3 = IRegistry(address(registry));
-        try v3.hasRole(v3.ROLE_PAYMASTER_AOA(), address(this)) returns (bool active) {
+        try v3.hasRole(v3.ROLE_PAYMASTER_AOA(), owner()) returns (bool active) {
             return active;
         } catch {
             return false;
