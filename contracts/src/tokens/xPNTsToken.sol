@@ -472,6 +472,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         the compromised SP because those gates check
     ///         `msg.sender == SUPERPAYMASTER_ADDRESS` directly. Flipping the
     ///         `emergencyDisabled` flag closes all dangerous paths in one tx.
+    /// @dev SECURITY: communityOwner SHOULD be a multisig. A compromised EOA
+    ///      communityOwner could call unsetEmergencyDisabled() immediately before
+    ///      emergencyRevokePaymaster(), bypassing the emergency circuit breaker.
+    ///      Deploy with communityOwner = Gnosis Safe or equivalent multisig.
     function emergencyRevokePaymaster() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
 
@@ -492,6 +496,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         ready to resume normal operation.
     /// @dev    Recovery flow: `emergencyRevokePaymaster` →
     ///         `setSuperPaymasterAddress(newSP)` → `unsetEmergencyDisabled`.
+    /// @dev SECURITY: communityOwner SHOULD be a multisig. A compromised EOA
+    ///      communityOwner could call unsetEmergencyDisabled() immediately before
+    ///      emergencyRevokePaymaster(), bypassing the emergency circuit breaker.
+    ///      Deploy with communityOwner = Gnosis Safe or equivalent multisig.
     function unsetEmergencyDisabled() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
         if (!emergencyDisabled) return; // idempotent
