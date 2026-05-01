@@ -74,7 +74,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     // V3.2.1 SECURITY: Enforce max rate in Validation
     uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
-    uint256 public constant RATE_OFFSET = 72; // After Operator (20 bytes)
+    uint256 public constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
@@ -136,6 +136,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         future monitoring integrations — NOT emitted from
     ///         validatePaymasterUserOp itself, since writing storage during
     ///         that opcode-restricted phase would violate ERC-7562.
+    /// @dev Intentionally not emitted in the current implementation. Retained for ABI
+    ///      compatibility and future use: once Stage-2 audit confirms bundler LOG* policy,
+    ///      a UUPS upgrade will wire this into postOp or an off-chain monitoring hook.
+    ///      Integrators must NOT subscribe to this event expecting real-time notifications —
+    ///      use `dryRunValidation()` instead for pre-flight checks.
     event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
