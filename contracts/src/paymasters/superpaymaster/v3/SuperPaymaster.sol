@@ -1368,6 +1368,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address asset, address from, uint256 amount, bytes32 nonce
     ) internal returns (uint256 fee) {
         _requireSuperOperatorRole();
+
+        // Guard against replay of settlements made BEFORE the P0-13 upgrade.
+        // Pre-V5.4 the mapping was keyed by the raw nonce bytes32 value alone;
+        // if that slot is already set the nonce was consumed under the old scheme
+        // and must not be reused under the new triple-key scheme.
+        if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
+
         bytes32 key = x402NonceKey(asset, from, nonce);
         if (x402SettlementNonces[key]) revert NonceAlreadyUsed();
         x402SettlementNonces[key] = true;
