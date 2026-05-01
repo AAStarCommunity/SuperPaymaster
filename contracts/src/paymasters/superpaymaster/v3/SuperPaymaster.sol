@@ -862,19 +862,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return (false, DRYRUN_USER_NOT_ELIGIBLE);
         }
 
-        // 4. Per-operator user state: blocklist + rate-limit
+        // 4. Per-operator user state: blocklist check (hard failure).
+        //    Rate-limit is a soft/temporary failure; it is deferred until after
+        //    all hard checks so that a user who is rate-limited *and* also fails
+        //    a hard check receives the hard failure code rather than a misleading
+        //    "just wait" response.
         UserOperatorState memory userState = userOpState[operator][userOp.sender];
         if (userState.isBlocked) return (false, DRYRUN_USER_BLOCKED);
-        if (config.minTxInterval > 0 && userState.lastTimestamp != 0) {
-            // Mirror the validAfter logic: validation itself does not revert,
-            // but EntryPoint will reject the op until block.timestamp catches
-            // up. For dry-run UX surface this as RATE_LIMITED.
-            if (block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval)) {
-                return (false, DRYRUN_RATE_LIMITED);
-            }
-        }
 
-        // 5. Rate commitment (rug-pull protection): paymasterAndData layout
+        // Capture rate-limit state now; we will return it only if every hard
+        // check below passes (mirroring the "mirror" contract behaviour).
+        bool rateLimited = config.minTxInterval > 0
+            && userState.lastTimestamp != 0
+            && block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval);
+
+        // 5. Rate commitment (rug-pull protection — hard failure): paymasterAndData layout
         //    [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
         uint256 maxRate = type(uint256).max;
         if (userOp.paymasterAndData.length >= 104) {
@@ -887,8 +889,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
         }
 
-        // 6. Staleness — main path delegates to EntryPoint via validUntil,
-        //    but for off-chain diagnostics we surface it explicitly.
+        // 6. Staleness (hard failure) — main path delegates to EntryPoint via
+        //    validUntil, but for off-chain diagnostics we surface it explicitly.
         //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
         //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
         //    here because P0-16 is the dedicated fix for that vector.
@@ -897,12 +899,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return (false, DRYRUN_STALE_PRICE);
         }
 
-        // 7. Solvency: replicate Validation-phase aPNTs charge with buffer
+        // 7. Solvency (hard failure): replicate Validation-phase aPNTs charge with buffer
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
             return (false, DRYRUN_INSUFFICIENT_BALANCE);
+        }
+
+        // 8. Rate-limit (soft/temporary failure): checked last so that hard
+        //    failures take precedence. A user who is rate-limited *and* would
+        //    fail a hard check will get the hard-failure code, not RATE_LIMITED.
+        if (rateLimited) {
+            return (false, DRYRUN_RATE_LIMITED);
         }
 
         // All checks pass.
