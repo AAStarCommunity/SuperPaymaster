@@ -192,6 +192,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error EmergencyTimelockNotElapsed();
     /// @notice P0-10: executeEmergencyPrice called with no queued price.
     error NoEmergencyPending();
+    /// @notice P0-10: emergencySetPrice called after EMERGENCY_EXPIRY elapsed with no Chainlink recovery.
+    error EmergencyExpired();
 
     // ====================================
     // Internal Helpers
@@ -312,10 +314,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public emergencyQueuedAt;
     /// @notice Pending emergency price (8 decimals, same scale as Chainlink).
     int256 public emergencyPendingPrice;
+    /// @notice Timestamp at which EMERGENCY mode was first activated (i.e. first
+    ///         `executeEmergencyPrice` call after a CHAINLINK→EMERGENCY transition).
+    ///         Cleared to 0 on Chainlink recovery. Used to enforce EMERGENCY_EXPIRY.
+    uint256 public emergencyActivatedAt;
 
     uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
     uint256 public constant CHAINLINK_STALE_THRESHOLD = 1 hours;
     uint256 public constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
+    /// @notice Maximum duration for which EMERGENCY mode may remain active.
+    ///         After 7 days without Chainlink recovery the break-glass is
+    ///         considered expired; `emergencySetPrice` will revert to prevent
+    ///         an indefinitely-live manual-override regime.
+    uint256 public constant EMERGENCY_EXPIRY = 7 days;
 
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
@@ -450,6 +461,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function emergencySetPrice(int256 newPrice) external onlyOwner {
         if (newPrice <= 0) revert OracleError();
         if (!_isChainlinkStale()) revert ChainlinkNotStale();
+        // Prevent indefinite EMERGENCY regime: once activated, expires after 7 days.
+        if (emergencyActivatedAt != 0 && block.timestamp > emergencyActivatedAt + EMERGENCY_EXPIRY) {
+            revert EmergencyExpired();
+        }
 
         int256 ref = cachedPrice.price;
         if (ref <= 0) revert OracleError();
@@ -493,6 +508,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (priceMode != 1) {
             emit PriceModeChanged(priceMode, 1);
             priceMode = 1;
+            emergencyActivatedAt = block.timestamp;
         }
 
         emergencyQueuedAt = 0;
@@ -902,6 +918,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             if (priceMode != 0) {
                 emit PriceModeChanged(priceMode, 0);
                 priceMode = 0;
+                emergencyActivatedAt = 0;
             }
             if (emergencyQueuedAt != 0) {
                 int256 cancelled = emergencyPendingPrice;

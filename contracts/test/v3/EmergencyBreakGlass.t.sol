@@ -259,4 +259,88 @@ contract EmergencyBreakGlassTest is Test {
         oracle.setReverts(true);
         assertTrue(paymaster.isChainlinkStale());
     }
+
+    // -----------------------------------------------------------------------
+    // EMERGENCY_EXPIRY: P0-10 reviewer request — prevent indefinite override
+    // -----------------------------------------------------------------------
+
+    function test_EmergencyActivatedAt_SetOnFirstExecute() public {
+        assertEq(paymaster.emergencyActivatedAt(), 0, "should start at 0");
+
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+
+        assertEq(paymaster.emergencyActivatedAt(), block.timestamp, "should record activation time");
+        assertEq(paymaster.priceMode(), 1);
+    }
+
+    function test_EmergencyActivatedAt_NotUpdatedOnSubsequentExecute() public {
+        // First execute — records activationTime.
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+        uint256 firstActivated = paymaster.emergencyActivatedAt();
+
+        // Second queue+execute while still in EMERGENCY mode.
+        vm.warp(block.timestamp + 1 hours);
+        oracle.setUpdatedAt(block.timestamp - 2 hours); // keep stale
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1850e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+
+        // priceMode already == 1, so the branch that sets emergencyActivatedAt
+        // does NOT execute again — the timestamp should stay at first activation.
+        assertEq(paymaster.emergencyActivatedAt(), firstActivated, "activation time must not change on re-execute");
+    }
+
+    function test_EmergencyExpiry_OkWithin7Days() public {
+        // Activate EMERGENCY mode.
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+
+        // Warp to just before 7 days — should still be queueable.
+        vm.warp(block.timestamp + paymaster.EMERGENCY_EXPIRY() - 1);
+        oracle.setUpdatedAt(block.timestamp - 2 hours);
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1910e8); // within ±20% of 1900e8
+        assertEq(paymaster.emergencyPendingPrice(), 1910e8);
+    }
+
+    function test_EmergencyExpiry_RevertsAfter7Days() public {
+        // Activate EMERGENCY mode.
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+
+        // Warp past 7 days expiry.
+        vm.warp(block.timestamp + paymaster.EMERGENCY_EXPIRY() + 1);
+        oracle.setUpdatedAt(block.timestamp - 2 hours);
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.EmergencyExpired.selector);
+        paymaster.emergencySetPrice(1910e8);
+    }
+
+    function test_EmergencyActivatedAt_ClearedOnChainlinkRecovery() public {
+        // Activate EMERGENCY mode.
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+        assertGt(paymaster.emergencyActivatedAt(), 0);
+
+        // Chainlink recovers.
+        oracle.setUpdatedAt(block.timestamp);
+        oracle.setPrice(2050e8);
+        paymaster.updatePrice();
+
+        assertEq(paymaster.emergencyActivatedAt(), 0, "must be cleared on recovery");
+        assertEq(paymaster.priceMode(), 0);
+    }
 }
