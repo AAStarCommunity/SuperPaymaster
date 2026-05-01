@@ -105,16 +105,10 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
     function test_SettleDirect_RevertsForUnapprovedFacilitator() public {
         // operator has PAYMASTER_SUPER role but is NOT in approvedFacilitators
-        // → must revert.
+        // → must revert at facilitator gate before transfer.
         address user = address(0x1234);
         vm.prank(community); // community owner can mint
         token.mint(user, 100 ether);
-
-        // Operator-as-facilitator must also be auto-approved spender so that
-        // transferFrom would succeed if reached. We add it to isolate the
-        // facilitator gate.
-        vm.prank(community);
-        token.addAutoApprovedSpender(operator);
 
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
@@ -130,10 +124,9 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         token.mint(user, 100 ether);
 
         // Community explicitly approves operator as facilitator.
+        // Auto-sync: addApprovedFacilitator also grants autoApprovedSpender.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
-        vm.prank(community);
-        token.addAutoApprovedSpender(operator);
 
         vm.prank(operator);
         bytes32 sid = paymaster.settleX402PaymentDirect(
@@ -157,17 +150,14 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         xPNTsToken tokenB = xPNTsToken(tokenBAddr);
 
         // Approve `operator` only on community A's xPNTs.
+        // Auto-sync also grants autoApprovedSpenders on token A.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
-        vm.prank(community);
-        token.addAutoApprovedSpender(operator);
 
         // Try to use that approval against community B's xPNTs → must fail.
         address user = address(0xDEAD);
         vm.prank(communityB);
         tokenB.mint(user, 100 ether);
-        vm.prank(communityB);
-        tokenB.addAutoApprovedSpender(operator); // even with allowance fine, the gate must catch.
 
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
@@ -224,23 +214,23 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         address user = address(0x1234);
         vm.prank(community);
         token.mint(user, 100 ether);
+        // Auto-sync: addApprovedFacilitator also grants autoApprovedSpender.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
-        vm.prank(community);
-        token.addAutoApprovedSpender(operator);
 
         // Works once.
         vm.prank(operator);
         paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(4)));
         assertTrue(token.approvedFacilitators(operator));
 
-        // Community revokes.
+        // Community revokes — auto-sync clears both mappings.
         vm.prank(community);
         token.removeApprovedFacilitator(operator);
         assertFalse(token.approvedFacilitators(operator));
+        // Auto-sync: autoApprovedSpenders also cleared.
+        assertFalse(token.autoApprovedSpenders(operator));
 
-        // Subsequent settle must revert immediately, even with the same
-        // allowance + autoApproved spender state.
+        // Subsequent settle must revert immediately.
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(5)));
@@ -264,6 +254,31 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         assertFalse(token.approvedFacilitators(owner), "owner should not be auto-approved");
         assertFalse(token.approvedFacilitators(operator), "operator should not be auto-approved");
         assertFalse(token.approvedFacilitators(address(paymaster)), "SP should not be auto-approved");
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-sync: addApprovedFacilitator ↔ autoApprovedSpenders
+    // -----------------------------------------------------------------------
+
+    function test_AddApprovedFacilitator_AutoSyncsSpender() public {
+        assertFalse(token.autoApprovedSpenders(operator), "spender should not be pre-set");
+        vm.prank(community);
+        token.addApprovedFacilitator(operator);
+        // Both mappings must be set atomically.
+        assertTrue(token.approvedFacilitators(operator), "facilitator not set");
+        assertTrue(token.autoApprovedSpenders(operator), "spender not auto-synced");
+    }
+
+    function test_RemoveApprovedFacilitator_AutoClearsSpender() public {
+        vm.prank(community);
+        token.addApprovedFacilitator(operator);
+        assertTrue(token.autoApprovedSpenders(operator));
+
+        vm.prank(community);
+        token.removeApprovedFacilitator(operator);
+        // Both mappings must be cleared atomically.
+        assertFalse(token.approvedFacilitators(operator), "facilitator not cleared");
+        assertFalse(token.autoApprovedSpenders(operator), "spender not auto-cleared");
     }
 
     // Local copy so test can vm.expectEmit it (event lives on the token).
