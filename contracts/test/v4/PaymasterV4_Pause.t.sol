@@ -4,11 +4,22 @@ pragma solidity 0.8.33;
 import "forge-std/Test.sol";
 import "src/paymasters/v4/Paymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+
+contract MockToken is ERC20 {
+    constructor() ERC20("Test", "TST") {}
+    function mint(address to, uint256 amount) external { _mint(to, amount); }
+}
 
 /// @notice Targeted tests for P0-6 — confirm the new pause/unpause setters
 ///         actually toggle the `paused` flag and emit the originally-defined
 ///         events. The original code had the field, the modifier, and the
 ///         events but no setter, so paused could never become true.
+///
+///         Extended per reviewer feedback (fanhousanbu):
+///         - withdraw must be blocked when paused (prevent fund drain)
+///         - depositFor must remain open when paused (adding funds is harmless)
+///         - NatSpec on postOp documents the intentional design
 contract MockEntryPoint {
     function depositTo(address) external payable {}
     function balanceOf(address) external pure returns (uint256) { return 0; }
@@ -32,7 +43,9 @@ contract MockRegistry {
 
 contract PaymasterV4_PauseTest is Test {
     Paymaster paymaster;
+    MockToken token;
     address owner = address(0xABCD);
+    address user  = address(0x1234);
 
     // Mirror events to use vm.expectEmit
     event Paused(address indexed account);
@@ -54,6 +67,18 @@ contract PaymasterV4_PauseTest is Test {
             10 ether,                    // maxGasCostCap
             3600                         // priceStalenessThreshold
         );
+
+        // Register a token and give user a balance for fund-flow tests.
+        token = new MockToken();
+        vm.prank(owner);
+        paymaster.setTokenPrice(address(token), 1e8); // $1.00
+
+        token.mint(user, 1000 ether);
+        vm.prank(user);
+        token.approve(address(paymaster), type(uint256).max);
+
+        vm.prank(user);
+        paymaster.depositFor(user, address(token), 100 ether);
     }
 
     function test_PauseUnpause_DefaultsToFalse() public view {
@@ -109,5 +134,43 @@ contract PaymasterV4_PauseTest is Test {
         vm.prank(owner);
         paymaster.unpause();
         assertFalse(paymaster.paused());
+    }
+
+    // ── Pause semantics: withdraw blocked, depositFor open ──────────────────
+
+    function test_Withdraw_BlockedWhenPaused() public {
+        vm.prank(owner);
+        paymaster.pause();
+
+        vm.prank(user);
+        vm.expectRevert(PaymasterBase.Paymaster__Paused.selector);
+        paymaster.withdraw(address(token), 10 ether);
+    }
+
+    function test_Withdraw_AllowedWhenUnpaused() public {
+        uint256 before = token.balanceOf(user);
+        vm.prank(user);
+        paymaster.withdraw(address(token), 10 ether);
+        assertEq(token.balanceOf(user) - before, 10 ether);
+    }
+
+    function test_DepositFor_AllowedWhenPaused() public {
+        vm.prank(owner);
+        paymaster.pause();
+
+        // depositFor must not revert — adding funds is never dangerous
+        vm.prank(user);
+        paymaster.depositFor(user, address(token), 50 ether);
+        assertEq(paymaster.balances(user, address(token)), 150 ether);
+    }
+
+    function test_Withdraw_RestoredAfterUnpause() public {
+        vm.prank(owner);
+        paymaster.pause();
+        vm.prank(owner);
+        paymaster.unpause();
+
+        vm.prank(user);
+        paymaster.withdraw(address(token), 10 ether); // must not revert
     }
 }

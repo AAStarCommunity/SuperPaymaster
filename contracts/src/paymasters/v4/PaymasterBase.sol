@@ -277,6 +277,11 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     }
 
     /// @notice PostOp handler with refund logic
+    /// @dev Intentionally NOT guarded by whenNotPaused — UserOps that already
+    ///      passed validatePaymasterUserOp must be allowed to settle; blocking
+    ///      postOp would strand the EntryPoint and waste the bundler's gas.
+    ///      Pause semantics: no new ops (validate blocked) + no withdrawals;
+    ///      existing in-flight ops complete normally.
     function postOp(
         PostOpMode mode,
         bytes calldata context,
@@ -569,7 +574,10 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     }
 
     /// @notice Withdraw funds
-    function withdraw(address token, uint256 amount) external nonReentrant {
+    /// @dev whenNotPaused: during a security incident we must prevent fund
+    ///      drain while still allowing new deposits (depositFor is unguarded
+    ///      because adding funds is never dangerous).
+    function withdraw(address token, uint256 amount) external nonReentrant whenNotPaused {
         if (balances[msg.sender][token] < amount) revert Paymaster__InsufficientBalance();
         balances[msg.sender][token] -= amount;
         IERC20(token).safeTransfer(msg.sender, amount);
