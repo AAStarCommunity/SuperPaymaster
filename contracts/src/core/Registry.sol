@@ -80,7 +80,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error InvalidAddr();
     error UnauthorizedSource();
     error LenMismatch();
-    error BLSProofRequired();
     error InsufficientConsensus();
     error InvalidProposalId();
     error ProposalAlreadyExecuted();

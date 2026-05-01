@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
@@ -187,7 +188,7 @@ contract Registry_BlacklistHardeningTest is Test {
 
     function test_UpdateBlacklist_RevertsOnEmptyProof() public {
         vm.prank(address(aggregator));
-        vm.expectRevert(Registry.BLSProofRequired.selector);
+        vm.expectRevert(IRegistry.BLSProofRequired.selector);
         registry.updateOperatorBlacklist(operator, _users(), _statuses(true, true), "");
     }
 
