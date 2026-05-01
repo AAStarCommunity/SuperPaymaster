@@ -588,33 +588,53 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         autoApproved facilitators, manually-approved spenders, etc.
     ///         A value of 0 effectively disables third-party burn entirely
     ///         (every burn would revert SpenderDailyCapExceeded).
+    ///         The cap must not exceed type(uint128).max because
+    ///         `SpenderRateLimit.dailyBurnTotal` is stored as uint128;
+    ///         a larger cap would pass the newTotal > cap check but the
+    ///         downcast `rl.dailyBurnTotal = uint128(newTotal)` would
+    ///         truncate and silently reset the counter to 0.
     function setSpenderDailyCap(uint256 newCap) external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        // Guard: cap must fit in uint128 (storage type of dailyBurnTotal).
+        // A cap > type(uint128).max would pass the `newTotal > cap` check
+        // but the subsequent `uint128(newTotal)` downcast would truncate,
+        // silently resetting the counter to 0 instead of reverting.
+        if (newCap > type(uint128).max) revert SingleTxLimitExceeded();
         uint256 oldCap = spenderDailyCapTokens;
         spenderDailyCapTokens = newCap;
         emit SpenderDailyCapUpdated(oldCap, newCap);
     }
 
-    /// @dev P0-8: rolling 24h window per spender. Resets `dailyBurnTotal`
+    /// @dev P0-8: rolling 24-hour window per spender. Resets `dailyBurnTotal`
     ///      when the previous window has expired, then enforces the cap.
     ///      Self-burn (msg.sender == from) is NOT routed through here —
     ///      a holder burning their own balance is unrestricted.
+    ///
+    ///      Note: the SuperPaymaster `burnFromWithOpHash` path
+    ///      (SUPERPAYMASTER_ADDRESS, gated on `msg.sender == SUPERPAYMASTER_ADDRESS`)
+    ///      bypasses this rate limit entirely — it uses per-opHash replay
+    ///      protection instead. P0-7 `emergencyDisabled` is the backstop for
+    ///      that path: if the SuperPaymaster is compromised,
+    ///      `emergencyRevokePaymaster()` halts `burnFromWithOpHash` in one tx.
+    ///
     /// @dev KNOWN LIMITATION — Sybil bypass: an attacker controlling N approved-spender
-    ///      addresses can collectively drain N × spenderDailyCapTokens per day.
+    ///      addresses can collectively drain N × spenderDailyCapTokens per rolling
+    ///      24-hour window.
     ///      Mitigations:
     ///      1. communityOwner (multisig) should periodically audit autoApprovedSpenders.
     ///      2. P0-7 emergencyRevokePaymaster() serves as the last-resort circuit breaker.
     ///      3. Per-spender cap is a speed bump, not an absolute guarantee.
     function _checkAndConsumeRateLimit(address spender, uint256 amount) internal {
         SpenderRateLimit storage rl = spenderRateLimit[spender];
-        // Roll the window forward if 24h has elapsed (or no window yet).
+        // Roll the rolling 24-hour window forward if 24h has elapsed (or no window yet).
         if (rl.windowStart == 0 || block.timestamp >= uint256(rl.windowStart) + 1 days) {
             rl.windowStart = uint64(block.timestamp);
             rl.dailyBurnTotal = 0;
             emit SpenderRateLimitWindowReset(spender, rl.windowStart);
         }
-        // Cap check — uint128 sum is safe given MAX_SINGLE_TX_LIMIT = 5_000 ether
-        // and a realistic upper bound on per-day cap (community-tunable).
+        // Cap check — uint128 sum is safe: setSpenderDailyCap enforces
+        // newCap <= type(uint128).max, and MAX_SINGLE_TX_LIMIT = 5_000 ether
+        // means a single call cannot push newTotal above uint128.max.
         uint256 newTotal = uint256(rl.dailyBurnTotal) + amount;
         uint256 cap = spenderDailyCapTokens;
         if (newTotal > cap) {
