@@ -395,6 +395,61 @@ contract DryRunValidationTest is Test {
             "STALE_PRICE must take precedence over RATE_LIMITED");
     }
 
+    // -------------------------------------------------------------------------
+    // Issue: paymasterAndData too short → maxRate defaults to type(uint256).max
+    // When the calldata is shorter than 104 bytes (no maxRate field), the function
+    // must not revert and must treat maxRate as unconstrained (type(uint256).max),
+    // which means DRYRUN_RATE_COMMITMENT_VIOLATED is never returned for a short op.
+    // -------------------------------------------------------------------------
+
+    /// @notice Short paymasterAndData (< 104 bytes) defaults maxRate to type(uint256).max
+    ///         and does not revert — the op should pass rate-commitment check.
+    function test_DryRun_MaxRate_DefaultsToMaxUint_WhenDataTooShort() public {
+        // Build a userOp whose paymasterAndData is only 72 bytes (no maxRate field):
+        //   paymaster(20) + gasLimits(32) + operator(20) = 72 bytes < 104
+        bytes memory shortPmData = abi.encodePacked(
+            address(paymaster), // 20 bytes
+            uint256(1000),      // 32 bytes (gasLimits placeholder)
+            operator            // 20 bytes (operator) — total = 72, no maxRate appended
+        );
+        PackedUserOperation memory op;
+        op.sender = user;
+        op.paymasterAndData = shortPmData;
+
+        // Must not revert; rate commitment defaults to type(uint256).max (always passes)
+        (bool ok, bytes32 reason) = paymaster.dryRunValidation(op, 1000);
+        // The only failing reason must NOT be DRYRUN_RATE_COMMITMENT_VIOLATED.
+        // With a healthy cache and sufficient balance this path should succeed entirely.
+        assertTrue(ok, "short paymasterAndData should not fail rate commitment");
+        assertEq(reason, bytes32(0), "reason must be zero on success");
+        assertNotEq(reason, paymaster.DRYRUN_RATE_COMMITMENT_VIOLATED(),
+            "must not trigger rate-commitment check when maxRate field is absent");
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue: updatedAt == 0 (uninitialized price cache) → DRYRUN_STALE_PRICE
+    // A freshly-deployed SuperPaymaster has cachedPrice.updatedAt == 0.
+    // dryRunValidation must detect this as stale and return DRYRUN_STALE_PRICE.
+    // -------------------------------------------------------------------------
+
+    /// @notice Uninitialized price cache (updatedAt == 0) triggers DRYRUN_STALE_PRICE
+    function test_DryRun_StalePrice_WhenUpdatedAtZero() public {
+        // Reset the price cache to an uninitialized state by writing updatedAt = 0
+        // directly via stdstore.  PriceCache is a public struct; we target the
+        // storage slot of the `updatedAt` field.
+        stdstore
+            .target(address(paymaster))
+            .sig("cachedPrice()")
+            .depth(1)           // PriceCache { price, updatedAt } — depth 1 = updatedAt
+            .checked_write(uint256(0));
+
+        PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
+        (bool ok, bytes32 reason) = paymaster.dryRunValidation(op, 1000);
+        assertFalse(ok, "updatedAt==0 must be detected as stale");
+        assertEq(reason, paymaster.DRYRUN_STALE_PRICE(),
+            "must return DRYRUN_STALE_PRICE for uninitialized cache");
+    }
+
     /// @notice Rate-limited user with rate-commitment violation → hard failure wins
     function test_DryRun_HardFailure_Wins_Over_RateLimit_RateCommitment() public {
         // Set a rate limit and stamp lastTimestamp
