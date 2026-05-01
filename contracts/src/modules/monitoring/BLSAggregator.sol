@@ -134,6 +134,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error SlotAlreadyTaken(uint8 slot);
     /// @notice signerMask is zero (no signers selected).
     error EmptySignerMask();
+    /// @notice The supplied G1 point is not on the BLS12-381 G1 curve (G1ADD precompile rejected it),
+    ///         or it is the point at infinity (identity element), which is forbidden to prevent
+    ///         key-cancellation attacks during pkAgg reconstruction.
+    error InvalidBLSKeyNotOnCurve();
+    /// @notice The supplied G1 point is not in the prime-order subgroup of G1 (r*P != infinity).
+    ///         Small-subgroup points contaminate the reconstructed pkAgg and can be used to
+    ///         bias or forge aggregate signatures.
+    error InvalidBLSKeyNotInSubgroup();
 
     // ====================================
     // Constructor
@@ -159,6 +167,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         feed them straight into the G1ADD precompile. The slot encodes
     ///         the validator's bit position in `signerMask` and is fixed at
     ///         registration to make the bitmap → key mapping unambiguous.
+    ///
+    ///         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is
+    ///         called before storing to guarantee (a) the point is on the
+    ///         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.
+    ///         Without (b) an attacker can register a small-subgroup point that
+    ///         contaminates the reconstructed pkAgg used in later pairing checks.
+    ///         The identity point (point at infinity) is also rejected to prevent
+    ///         key-cancellation attacks during aggregation.
     /// @param  validator  validator address (used for events / dedup).
     /// @param  publicKey  uncompressed EIP-2537 G1 point (4×32 bytes).
     /// @param  slot       1-indexed slot in [1..MAX_VALIDATORS]. Must not collide
@@ -170,6 +186,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ) external onlyOwner {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
+
+        // Validate on-curve and prime-order subgroup membership before storing.
+        _validateG1Point(publicKey);
 
         BLSValidatorKey storage existing = _blsKeys[validator];
         // Re-registration of the SAME validator must reuse the prior slot to
@@ -359,6 +378,79 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
     // Internal Functions
     // ====================================
+
+    /// @dev Validate that a G1 point is:
+    ///      1. Not the identity (point at infinity — all-zero coordinates).
+    ///      2. On the BLS12-381 G1 curve — verified via G1ADD precompile (0x0b)
+    ///         by adding the point to the identity. The precompile rejects points
+    ///         not on the curve with a failed staticcall.
+    ///      3. In the prime-order subgroup of G1 — verified via G1MUL precompile
+    ///         (0x0c) by multiplying by the subgroup order r. A point in the
+    ///         main subgroup must satisfy r*P = O (identity). Points in small
+    ///         subgroups would produce a non-zero result.
+    ///
+    ///      EIP-2537 G1ADD input:  256 bytes (two 128-byte G1 points, big-endian).
+    ///      EIP-2537 G1MUL input:  160 bytes (128-byte G1 point + 32-byte scalar).
+    ///      Subgroup order r: 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+    function _validateG1Point(BLS.G1Point calldata pk) internal view {
+        // 1. Reject the identity element (all-zero x and y).
+        //    A registered identity key cancels out any other key's contribution
+        //    during pkAgg reconstruction (e.g. P + O = P) — which is safe by
+        //    itself, but an attacker could exploit the identity to register a
+        //    "ghost" validator slot that passes pairing checks trivially.
+        if (
+            pk.x_a == bytes32(0) && pk.x_b == bytes32(0) &&
+            pk.y_a == bytes32(0) && pk.y_b == bytes32(0)
+        ) {
+            revert InvalidBLSKeyNotOnCurve();
+        }
+
+        // 2. On-curve check via G1ADD(P, O) — add point to the identity.
+        //    The precompile returns the input point unchanged if P is on the
+        //    curve; it reverts (staticcall returns false) if P is not on the
+        //    curve. The G1 identity in uncompressed EIP-2537 format is 128 zero
+        //    bytes, which we encode as the second point in the 256-byte input.
+        {
+            // Input: P (128 bytes) || O (128 bytes of zeros).
+            bytes memory g1AddInput = abi.encodePacked(
+                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
+                bytes32(0), bytes32(0), bytes32(0), bytes32(0)  // O (identity): 128 bytes
+            );
+            (bool onCurve,) = address(0x0b).staticcall(g1AddInput);
+            if (!onCurve) revert InvalidBLSKeyNotOnCurve();
+        }
+
+        // 3. Subgroup check via G1MUL(P, r) — multiply by subgroup order.
+        //    r*P must equal the identity (all zeros) for any P in the prime-order
+        //    subgroup. Points in a small subgroup have order dividing r but not
+        //    equal to r, so r*P_small != O for those points.
+        //    r = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+        {
+            bytes32 r = bytes32(uint256(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001));
+            // Input: P (128 bytes) || r (32-byte scalar).
+            bytes memory g1MulInput = abi.encodePacked(
+                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
+                r                                   // scalar r: 32 bytes
+            );
+            (bool ok, bytes memory result) = address(0x0c).staticcall(g1MulInput);
+            // The precompile call itself must succeed (point is on curve, already
+            // checked above, but defensive).
+            if (!ok) revert InvalidBLSKeyNotInSubgroup();
+            // Result is a 128-byte G1 point. It must equal the identity (all zeros).
+            // We check all four 32-byte words of the returned point.
+            if (result.length != 128) revert InvalidBLSKeyNotInSubgroup();
+            bytes32 r0; bytes32 r1; bytes32 r2; bytes32 r3;
+            assembly {
+                r0 := mload(add(result, 32))
+                r1 := mload(add(result, 64))
+                r2 := mload(add(result, 96))
+                r3 := mload(add(result, 128))
+            }
+            if (r0 != bytes32(0) || r1 != bytes32(0) || r2 != bytes32(0) || r3 != bytes32(0)) {
+                revert InvalidBLSKeyNotInSubgroup();
+            }
+        }
+    }
 
     /// @dev Reconstruct the aggregate public key from `signerMask` by accumulating
     ///      every selected validator's stored G1 point with the EIP-2537 G1ADD

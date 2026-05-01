@@ -78,6 +78,20 @@ contract BLSAggregatorPkAggReconstructTest is Test {
     }
 
     function setUp() public {
+        // Mock EIP-2537 precompiles BEFORE registering keys so that the new
+        // _validateG1Point checks in registerBLSPublicKey pass with stub keys.
+        //
+        // G1ADD (0x0b): returns 128 zero bytes → point appears on-curve.
+        // G1MUL (0x0c): returns 128 zero bytes → r*P == O (in prime-order subgroup).
+        // G2ADD (0x0d): returns 256 zero bytes.
+        // MAP_FP_TO_G1 (0x10): returns 128 zero bytes.
+        // MAP_FP2_TO_G2 (0x11): returns 256 zero bytes.
+        vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
+        vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (r*P = identity ✓)
+        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
+        vm.etch(address(0x10), hex"60806000f3"); // MAP_FP_TO_G1 → 128 bytes
+        vm.etch(address(0x11), hex"6101006000f3"); // MAP_FP2_TO_G2 → 256 bytes
+
         vm.startPrank(owner);
         registry = new MockRegistryReconstruct();
         bls = new BLSAggregator(address(registry), sp, dvt);
@@ -88,15 +102,6 @@ contract BLSAggregatorPkAggReconstructTest is Test {
             bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot);
         }
         vm.stopPrank();
-
-        // Mock BLS precompiles. The pkAgg reconstruction calls G1ADD (0x0b);
-        // hashToG2 uses MAP_FP_TO_G1 (0x10), MAP_FP2_TO_G2 (0x11), and G2ADD
-        // (0x0d). The pairing call lands on 0x0F. We mock returndata sizes
-        // exactly so the staticcall returndatasize check inside BLS.sol passes.
-        vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
-        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
-        vm.etch(address(0x10), hex"60806000f3"); // MAP_FP_TO_G1 → 128 bytes
-        vm.etch(address(0x11), hex"6101006000f3"); // MAP_FP2_TO_G2 → 256 bytes
     }
 
     function _sigBytes() internal pure returns (bytes memory) {
