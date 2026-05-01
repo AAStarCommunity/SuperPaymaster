@@ -438,9 +438,23 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     /**
      * @notice Sets or updates the trusted SuperPaymaster address.
-     * @dev Can only be called by the factory or the community owner.
+     * @dev    Normal mode: factory or communityOwner may call this.
+     *         Emergency mode (`emergencyDisabled == true`): only `communityOwner`
+     *         may call. The factory is blocked because the emergency switch is
+     *         designed to give the community — not the factory — exclusive control
+     *         over recovery. Letting FACTORY rotate the SP during an active
+     *         emergency would allow an entity that may itself be compromised to
+     *         re-introduce a malicious paymaster while the community thinks the
+     *         token is frozen.
      */
-    function setSuperPaymasterAddress(address _spAddress) external onlyFactoryOrOwner {
+    function setSuperPaymasterAddress(address _spAddress) external {
+        if (emergencyDisabled) {
+            // Elevated restriction: only communityOwner during emergency
+            if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        } else {
+            // Normal mode: factory or communityOwner
+            if (msg.sender != FACTORY && msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        }
         if (_spAddress == address(0)) {
             revert InvalidAddress(_spAddress);
         }
