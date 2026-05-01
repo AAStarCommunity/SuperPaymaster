@@ -698,10 +698,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      *         auto-added by the factory — each community decides explicitly.
      *         A facilitator that is not in this set will be rejected by
      *         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.
-     * @dev    Auto-sync: also grants `autoApprovedSpenders` so the facilitator
-     *         can call `transferFrom` without requiring the user to pre-approve.
-     *         This is required for the settle-call flow to succeed. Removal
-     *         via `removeApprovedFacilitator` reverses both grants atomically.
+     * @dev    Role separation: `approvedFacilitators` gates settle-call invocation
+     *         only. The actual `transferFrom` inside `settleX402PaymentDirect` is
+     *         executed by the SuperPaymaster contract (msg.sender = SP), which is
+     *         already in `autoApprovedSpenders` via factory setup. Facilitators do
+     *         NOT need to be in `autoApprovedSpenders` for the settle flow to work.
      * @dev SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).
      *      A compromised single-EOA communityOwner can add arbitrary facilitators,
      *      enabling unauthorized token extraction. This contract cannot enforce
@@ -724,9 +725,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(facilitator);
         }
         approvedFacilitators[facilitator] = true;
-        // Auto-sync: facilitator must also be an autoApprovedSpender to execute
-        // transferFrom during settlement without requiring user pre-approval.
-        autoApprovedSpenders[facilitator] = true;
         emit FacilitatorApproved(facilitator);
     }
 
@@ -734,9 +732,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Revoke a facilitator's authorization (instant, no timelock).
      * @dev    P0-12b: incident-response primitive; community can yank a
      *         compromised facilitator without redeploying or upgrading SP.
-     * @dev    Auto-sync: also clears `autoApprovedSpenders` atomically so the
-     *         revoked facilitator immediately loses both settle-call and
-     *         transferFrom capabilities in a single transaction.
      * @dev SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).
      *      A compromised single-EOA communityOwner can add arbitrary facilitators,
      *      enabling unauthorized token extraction. This contract cannot enforce
@@ -748,8 +743,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(msg.sender);
         }
         approvedFacilitators[facilitator] = false;
-        // Auto-sync: revoke transferFrom capability at the same time.
-        autoApprovedSpenders[facilitator] = false;
         emit FacilitatorRemoved(facilitator);
     }
 

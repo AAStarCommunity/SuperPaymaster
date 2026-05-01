@@ -124,7 +124,10 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         token.mint(user, 100 ether);
 
         // Community explicitly approves operator as facilitator.
-        // Auto-sync: addApprovedFacilitator also grants autoApprovedSpender.
+        // The actual transferFrom inside settleX402PaymentDirect is executed by
+        // the SuperPaymaster contract (msg.sender = SP), which is already in
+        // autoApprovedSpenders via factory setup. The facilitator only needs
+        // to be in approvedFacilitators to pass the invocation gate.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
 
@@ -150,7 +153,6 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         xPNTsToken tokenB = xPNTsToken(tokenBAddr);
 
         // Approve `operator` only on community A's xPNTs.
-        // Auto-sync also grants autoApprovedSpenders on token A.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
 
@@ -214,7 +216,6 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         address user = address(0x1234);
         vm.prank(community);
         token.mint(user, 100 ether);
-        // Auto-sync: addApprovedFacilitator also grants autoApprovedSpender.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
 
@@ -223,14 +224,13 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(4)));
         assertTrue(token.approvedFacilitators(operator));
 
-        // Community revokes — auto-sync clears both mappings.
+        // Community revokes.
         vm.prank(community);
         token.removeApprovedFacilitator(operator);
         assertFalse(token.approvedFacilitators(operator));
-        // Auto-sync: autoApprovedSpenders also cleared.
-        assertFalse(token.autoApprovedSpenders(operator));
 
-        // Subsequent settle must revert immediately.
+        // Subsequent settle must revert immediately, even with the same
+        // allowance + autoApproved spender state.
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
         paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(5)));
@@ -256,29 +256,16 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         assertFalse(token.approvedFacilitators(address(paymaster)), "SP should not be auto-approved");
     }
 
-    // -----------------------------------------------------------------------
-    // Auto-sync: addApprovedFacilitator ↔ autoApprovedSpenders
-    // -----------------------------------------------------------------------
-
-    function test_AddApprovedFacilitator_AutoSyncsSpender() public {
-        assertFalse(token.autoApprovedSpenders(operator), "spender should not be pre-set");
+    /// @notice Confirm facilitators do NOT get autoApprovedSpender — the two
+    ///         mappings are orthogonal. SP is already in autoApprovedSpenders
+    ///         (added by factory); facilitators only need approvedFacilitators.
+    function test_AddApprovedFacilitator_DoesNotGrantAutoSpender() public {
+        assertFalse(token.autoApprovedSpenders(operator));
         vm.prank(community);
         token.addApprovedFacilitator(operator);
-        // Both mappings must be set atomically.
-        assertTrue(token.approvedFacilitators(operator), "facilitator not set");
-        assertTrue(token.autoApprovedSpenders(operator), "spender not auto-synced");
-    }
-
-    function test_RemoveApprovedFacilitator_AutoClearsSpender() public {
-        vm.prank(community);
-        token.addApprovedFacilitator(operator);
-        assertTrue(token.autoApprovedSpenders(operator));
-
-        vm.prank(community);
-        token.removeApprovedFacilitator(operator);
-        // Both mappings must be cleared atomically.
-        assertFalse(token.approvedFacilitators(operator), "facilitator not cleared");
-        assertFalse(token.autoApprovedSpenders(operator), "spender not auto-cleared");
+        assertTrue(token.approvedFacilitators(operator));
+        // autoApprovedSpenders remains false — the two mappings are independent.
+        assertFalse(token.autoApprovedSpenders(operator));
     }
 
     // Local copy so test can vm.expectEmit it (event lives on the token).
