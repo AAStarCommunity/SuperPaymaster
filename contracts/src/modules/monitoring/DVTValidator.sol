@@ -23,6 +23,11 @@ contract DVTValidator is Ownable, IVersioned {
         uint8 slashLevel;
         string reason;
         bool executed;
+        // P0-4 fix: explicit existence flag so that operator==address(0) remains
+        // a valid proposal target. BLSAggregator intentionally supports zero-
+        // operator proposals (it skips slash when operator is zero), so using
+        // operator==address(0) as a non-existence sentinel breaks that path.
+        bool exists;
         // ✅ Removed validators[] and signatures[]
         // Individual signatures collected off-chain via DVT P2P protocol
         // Only aggregated BLS proof submitted on-chain
@@ -81,6 +86,9 @@ contract DVTValidator is Ownable, IVersioned {
         p.operator = operator;
         p.slashLevel = level;
         p.reason = reason;
+        // P0-4 fix: mark the proposal as created so existence checks use p.exists
+        // instead of operator==address(0), allowing zero-operator proposals.
+        p.exists = true;
         // P0-17: explicit reset — auto-increment id implies executed defaults to
         // false, but a hostile BLS aggregator path could have pre-set executed
         // for an unborn id. Resetting here guarantees a freshly created proposal
@@ -102,7 +110,9 @@ contract DVTValidator is Ownable, IVersioned {
         // future proposalId as executed, permanently DoS'ing it once createProposal
         // assigns that id (the legitimate executeWithProof would revert on
         // ProposalExecutedAlready).
-        if (p.operator == address(0)) revert ProposalDoesNotExist();
+        // P0-4 fix: use p.exists instead of operator==address(0) — zero-operator
+        // proposals are valid in BLSAggregator (it skips slash for address(0)).
+        if (!p.exists) revert ProposalDoesNotExist();
         p.executed = true;
         emit ProposalExecuted(id);
     }
@@ -122,10 +132,11 @@ contract DVTValidator is Ownable, IVersioned {
         bytes calldata proof
     ) external onlyAuthorizedExecutor {
         SlashProposal storage p = proposals[id];
-        // P0-17: reject ids that were never created. An unborn id has
-        // operator == address(0) and would otherwise be silently forwarded to
-        // the aggregator with bogus operator, slashLevel and reason fields.
-        if (p.operator == address(0)) revert ProposalDoesNotExist();
+        // P0-17: reject ids that were never created — an unborn id would otherwise
+        // be silently forwarded to the aggregator with bogus fields.
+        // P0-4 fix: use p.exists instead of operator==address(0) — zero-operator
+        // proposals are valid in BLSAggregator (it skips slash for address(0)).
+        if (!p.exists) revert ProposalDoesNotExist();
         if (p.executed) revert ProposalExecutedAlready();
 
         IBLSAggregator(BLS_AGGREGATOR).verifyAndExecute(

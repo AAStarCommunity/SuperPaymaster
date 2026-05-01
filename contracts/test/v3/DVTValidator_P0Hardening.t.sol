@@ -76,7 +76,7 @@ contract DVTValidator_P0HardeningTest is Test {
         vm.prank(blsAggregator);
         dvt.markProposalExecuted(id);
 
-        (,,, bool executed) = dvt.proposals(id);
+        (,,, bool executed,) = dvt.proposals(id);
         assertTrue(executed);
     }
 
@@ -105,7 +105,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
         // Proposal 5 (the one the attacker tried to poison) should still be
         // freshly executable, not already marked.
-        (,,, bool executedFlag) = dvt.proposals(5);
+        (,,, bool executedFlag,) = dvt.proposals(5);
         assertFalse(executedFlag, "proposal 5 must not be pre-poisoned");
     }
 }

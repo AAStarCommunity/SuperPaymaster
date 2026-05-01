@@ -149,7 +149,7 @@ contract DVTBLSTest is Test {
         vm.stopPrank();
 
         // Check proposal was executed
-        (,,,bool executed) = dvt.proposals(id);
+        (,,,bool executed,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
     }
     
