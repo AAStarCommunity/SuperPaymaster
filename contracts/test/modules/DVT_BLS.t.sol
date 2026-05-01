@@ -68,12 +68,20 @@ contract DVTBLSTest is Test {
         
         dvt.setBLSAggregator(address(bls));
         
+        // Mock EIP-2537 G1 precompiles so registerBLSPublicKey subgroup validation passes.
+        // vm.mockCall returns raw bytes; the contract reads output via assembly mload so
+        // we must pass raw 96 zero bytes, NOT abi.encode(bytes) which adds offset/length headers.
+        // G1ADD (0x0b): on-curve check → success (raw 96-byte G1 identity = all zeros)
+        vm.mockCall(address(0x0b), "", new bytes(96));
+        // G1MUL (0x0c): subgroup check → raw 96-byte identity (r*P = O means valid subgroup)
+        vm.mockCall(address(0x0c), "", new bytes(96));
+
         // Add validators
         for(uint i=1; i<=10; i++) {
             address v = address(uint160(i+100)); // 101..110
             dvt.addValidator(v);
-            // BLS key registration (mock 48 bytes)
-            bytes memory pubKey = new bytes(48);
+            // BLS key registration — 96-byte uncompressed G1 point (EIP-2537 format)
+            bytes memory pubKey = new bytes(96);
             bls.registerBLSPublicKey(v, pubKey);
         }
         

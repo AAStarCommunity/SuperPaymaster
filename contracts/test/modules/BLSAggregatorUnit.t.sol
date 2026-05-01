@@ -58,20 +58,43 @@ contract BLSAggregatorUnitTest is Test {
     // registerBLSPublicKey
     // ========================================
 
+    // Helper: mock EIP-2537 precompiles for a valid key (on-curve + in prime-order subgroup).
+    // IMPORTANT: vm.mockCall returns raw bytes (not ABI-encoded). The contract reads
+    // the precompile output directly via assembly mload, so we must return exactly 96
+    // zero bytes — not abi.encode(bytes), which would prepend offset/length headers.
+    function _mockValidKeyPrecompiles() internal {
+        // Mock G1ADD (0x0b): on-curve check → success, returns 96 raw zero bytes (G1 identity)
+        vm.mockCall(address(0x0b), "", new bytes(96));
+        // Mock G1MUL (0x0c): subgroup check → returns 96 raw zero bytes (r*P = O means valid)
+        vm.mockCall(address(0x0c), "", new bytes(96));
+    }
+
     function test_RegisterBLSPublicKey_Success() public {
-        bytes memory pubKey = new bytes(48);
+        bytes memory pubKey = new bytes(96);
         pubKey[0] = 0xAB;
+
+        _mockValidKeyPrecompiles();
 
         vm.prank(owner);
         bls.registerBLSPublicKey(address(0x42), pubKey);
 
         (bytes memory stored, bool active) = bls.blsPublicKeys(address(0x42));
         assertTrue(active, "Key should be active");
-        assertEq(stored.length, 48, "Key length should be 48");
+        assertEq(stored.length, 96, "Key length should be 96");
         assertEq(stored[0], pubKey[0], "Key data should match");
     }
 
     function test_RegisterBLSPublicKey_InvalidLength_Reverts() public {
+        // 48-byte (compressed) key is no longer accepted — must be 96-byte uncompressed
+        bytes memory shortKey = new bytes(48);
+
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.InvalidBLSKey.selector);
+        bls.registerBLSPublicKey(address(0x42), shortKey);
+    }
+
+    function test_RegisterBLSPublicKey_RevertsIfWrongLength() public {
+        // 32-byte key is also rejected
         bytes memory shortKey = new bytes(32);
 
         vm.prank(owner);
@@ -79,8 +102,50 @@ contract BLSAggregatorUnitTest is Test {
         bls.registerBLSPublicKey(address(0x42), shortKey);
     }
 
+    function test_RegisterBLSPublicKey_RevertsIfNotOnCurve() public {
+        bytes memory badKey = new bytes(96);
+        badKey[0] = 0xFF; // Not a valid curve point
+
+        // Mock G1ADD (0x0b) to fail → point not on curve
+        vm.mockCallRevert(address(0x0b), "", "");
+
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.InvalidBLSKey.selector);
+        bls.registerBLSPublicKey(address(0x42), badKey);
+    }
+
+    function test_RegisterBLSPublicKey_RevertsIfSmallSubgroup() public {
+        bytes memory smallGroupKey = new bytes(96);
+        smallGroupKey[0] = 0x01;
+
+        // Mock G1ADD (0x0b): on-curve check succeeds (raw 96-byte identity)
+        vm.mockCall(address(0x0b), "", new bytes(96));
+        // Mock G1MUL (0x0c): returns raw non-zero bytes → r*P != O, point is in a small subgroup
+        bytes memory nonZero = new bytes(96);
+        nonZero[0] = 0x01;
+        vm.mockCall(address(0x0c), "", nonZero);
+
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.BLSKeyNotInSubgroup.selector);
+        bls.registerBLSPublicKey(address(0x42), smallGroupKey);
+    }
+
+    function test_RegisterBLSPublicKey_SuccessWithValidKey() public {
+        bytes memory validKey = new bytes(96);
+        validKey[1] = 0x42;
+
+        _mockValidKeyPrecompiles();
+
+        vm.prank(owner);
+        bls.registerBLSPublicKey(address(0x55), validKey);
+
+        (bytes memory stored, bool active) = bls.blsPublicKeys(address(0x55));
+        assertTrue(active, "Key should be active");
+        assertEq(stored.length, 96, "Stored key should be 96 bytes");
+    }
+
     function test_RegisterBLSPublicKey_OnlyOwner_Reverts() public {
-        bytes memory pubKey = new bytes(48);
+        bytes memory pubKey = new bytes(96);
 
         vm.prank(attacker);
         vm.expectRevert();
@@ -88,10 +153,12 @@ contract BLSAggregatorUnitTest is Test {
     }
 
     function test_RegisterBLSPublicKey_OverwritesExisting() public {
-        bytes memory key1 = new bytes(48);
+        bytes memory key1 = new bytes(96);
         key1[0] = 0x01;
-        bytes memory key2 = new bytes(48);
+        bytes memory key2 = new bytes(96);
         key2[0] = 0x02;
+
+        _mockValidKeyPrecompiles();
 
         vm.startPrank(owner);
         bls.registerBLSPublicKey(address(0x42), key1);

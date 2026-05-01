@@ -28,7 +28,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
 
     struct BLSPublicKey {
-        bytes publicKey;            // 48 bytes compressed G1 point
+        bytes publicKey;            // 96 bytes uncompressed G1 point (x || y, EIP-2537 format)
         bool isActive;
     }
 
@@ -77,9 +77,19 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
     // Constants (BLS12-381 Math)
     // ====================================
-    
+
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+
+    /// @notice BLS12-381 prime subgroup order r (scalar field order)
+    uint256 private constant BLS12_381_R =
+        0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+
+    /// @notice EIP-2537 precompile: G1ADD (on-curve check)
+    address private constant G1ADD_PRECOMPILE = address(0x0b);
+
+    /// @notice EIP-2537 precompile: G1MUL (scalar multiplication)
+    address private constant G1MUL_PRECOMPILE = address(0x0c);
 
     // ====================================
     // Errors
@@ -91,6 +101,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error UnauthorizedCaller(address caller);
     error InvalidAddress(address addr);
     error InvalidBLSKey();
+    /// @dev Emitted when the point fails the prime-order subgroup check.
+    error BLSKeyNotInSubgroup();
     error InvalidParameter(string message);
     error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
     error InvalidTarget(address target);
@@ -116,7 +128,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
 
     function registerBLSPublicKey(address validator, bytes calldata publicKey) external onlyOwner {
-        if (publicKey.length != 48) revert InvalidBLSKey();
+        // 96-byte uncompressed G1 point (x || y, each 48-byte Fp element) required
+        // for EIP-2537 precompile compatibility and subgroup validation.
+        if (publicKey.length != 96) revert InvalidBLSKey();
+        _validateG1Point(publicKey);
         blsPublicKeys[validator] = BLSPublicKey(publicKey, true);
         emit BLSPublicKeyRegistered(validator, publicKey);
     }
@@ -231,6 +246,63 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Internal Functions
     // ====================================
 
+
+    /**
+     * @notice Verify a G1 point is on the BLS12-381 curve and in the prime-order subgroup.
+     * @dev Two-step check using EIP-2537 precompiles:
+     *      1. G1ADD(pk, G1_identity) — precompile reverts if pk is not on the G1 curve.
+     *      2. G1MUL(pk, r) == G1_identity — r*P = O only if P is in the prime-order subgroup.
+     *         Small-subgroup (cofactor) points have r*P != O and could allow signature forgery.
+     *
+     *      NOTE: EIP-2537 precompiles require 96-byte uncompressed G1 points (x || y,
+     *      each 48-byte Fp element, big-endian). This is why registerBLSPublicKey accepts
+     *      96-byte keys (not the 48-byte compressed format).
+     *
+     *      The reviewer suggested precompile 0x12 (MAP_FP_TO_G1) but that is incorrect;
+     *      the correct approach is G1ADD (0x0b) + G1MUL (0x0c) as implemented here.
+     * @param pk 96-byte uncompressed G1 point.
+     */
+    function _validateG1Point(bytes memory pk) internal view {
+        // ── Step 1: on-curve check ───────────────────────────────────────────────
+        // G1ADD input: 192 bytes = 96 (pk) + 96 (G1 identity = all zeros)
+        bytes memory addInput = new bytes(192);
+        assembly ("memory-safe") {
+            let src := add(pk, 32)
+            let dst := add(addInput, 32)
+            mstore(dst,           mload(src))
+            mstore(add(dst, 32),  mload(add(src, 32)))
+            mstore(add(dst, 64),  mload(add(src, 64)))
+            // bytes [96..191] remain zero (G1 identity)
+        }
+        (bool onCurve,) = G1ADD_PRECOMPILE.staticcall(addInput);
+        if (!onCurve) revert InvalidBLSKey();
+
+        // ── Step 2: prime-subgroup check ─────────────────────────────────────────
+        // G1MUL input: 128 bytes = 96 (pk) + 32 (scalar = r)
+        // If P in prime-order subgroup: r * P = O (identity). Otherwise P is unsafe.
+        bytes memory mulInput = new bytes(128);
+        uint256 r = BLS12_381_R;
+        assembly ("memory-safe") {
+            let src := add(pk, 32)
+            let dst := add(mulInput, 32)
+            mstore(dst,           mload(src))
+            mstore(add(dst, 32),  mload(add(src, 32)))
+            mstore(add(dst, 64),  mload(add(src, 64)))
+            mstore(add(dst, 96),  r)
+        }
+        (bool mulOk, bytes memory mulOut) = G1MUL_PRECOMPILE.staticcall(mulInput);
+        if (!mulOk) revert InvalidBLSKey();
+
+        // Result must be the G1 identity (all 96 bytes zero)
+        uint256 a; uint256 b; uint256 c;
+        assembly ("memory-safe") {
+            let ptr := add(mulOut, 32)
+            a := mload(ptr)
+            b := mload(add(ptr, 32))
+            c := mload(add(ptr, 64))
+        }
+        if ((a | b | c) != 0) revert BLSKeyNotInSubgroup();
+    }
 
     /// @dev Compare two G2 points for equality
     function _g2Equal(BLS.G2Point memory a, BLS.G2Point memory b) internal pure returns (bool) {
