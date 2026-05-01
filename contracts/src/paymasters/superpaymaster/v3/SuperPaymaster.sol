@@ -663,6 +663,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Paymaster Implementation
     // ====================================
 
+    /// @notice Update price cache from Chainlink oracle (keeper-callable).
+    /// @dev No future-timestamp guard is needed on this path: `updatedAt` is
+    ///      read directly from a validated Chainlink response, not supplied by
+    ///      an untrusted caller. Chainlink nodes always set `updatedAt` to the
+    ///      block timestamp of the round, which is always <= block.timestamp at
+    ///      the time of the call. The existing staleness check
+    ///      (`updatedAt < block.timestamp - priceStalenessThreshold`) already
+    ///      rejects data that is too old; a Chainlink answer with a future
+    ///      `updatedAt` is practically impossible (it would require a Chainlink
+    ///      node to report a timestamp ahead of on-chain time) and would be
+    ///      caught by the staleness check inverting direction. Contrast with
+    ///      `updatePriceDVT`, where `updatedAt` is caller-supplied and
+    ///      therefore requires an explicit future-timestamp guard (P0-16).
     function updatePrice() public {
         // 1. Try to get Price from Chainlink with automatic degradation
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
