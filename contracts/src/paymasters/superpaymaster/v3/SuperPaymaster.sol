@@ -390,11 +390,24 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      *      Three setters across SP / xPNTs / V4 PaymasterBase each have their
      *      own MIN/MAX/DELTA tuned to the price they hold (different units),
      *      so the implementations are inline rather than a shared mixin.
+     *
+     * @dev Price-path independence: the ±10% delta cap enforced here is
+     *      independent of the break-glass ±20% cap in `emergencySetPrice`.
+     *      The two paths are separate entry points that operate on different
+     *      storage (`aPNTsPriceUSD` vs `cachedPrice`); neither can be called
+     *      through the other, so a caller cannot exploit one path to bypass
+     *      the deviation limit of the other.
      */
     function setAPNTSPrice(uint256 newPrice) external onlyOwner {
         if (newPrice == 0) revert InvalidConfiguration();
         if (newPrice < APNTS_PRICE_MIN || newPrice > APNTS_PRICE_MAX) revert InvalidConfiguration();
         uint256 oldPrice = aPNTsPriceUSD;
+        // Delta skip when aPNTsPriceUSD == 0: relies on initialize() setting a
+        // non-zero initial price (currently 0.02 ether). If a future upgrade
+        // corrupts storage layout and zeroes this slot, the delta guard is
+        // bypassed for the first write after the upgrade, allowing a jump
+        // straight to any value within [APNTS_PRICE_MIN, APNTS_PRICE_MAX].
+        // Mitigation: always verify aPNTsPriceUSD > 0 in post-upgrade checks.
         if (oldPrice != 0) {
             uint256 lower = oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
             uint256 upper = oldPrice * (BPS_DENOMINATOR + APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
