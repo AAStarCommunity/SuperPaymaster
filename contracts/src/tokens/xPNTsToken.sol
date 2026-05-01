@@ -599,6 +599,12 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///      when the previous window has expired, then enforces the cap.
     ///      Self-burn (msg.sender == from) is NOT routed through here —
     ///      a holder burning their own balance is unrestricted.
+    /// @dev KNOWN LIMITATION — Sybil bypass: an attacker controlling N approved-spender
+    ///      addresses can collectively drain N × spenderDailyCapTokens per day.
+    ///      Mitigations:
+    ///      1. communityOwner (multisig) should periodically audit autoApprovedSpenders.
+    ///      2. P0-7 emergencyRevokePaymaster() serves as the last-resort circuit breaker.
+    ///      3. Per-spender cap is a speed bump, not an absolute guarantee.
     function _checkAndConsumeRateLimit(address spender, uint256 amount) internal {
         SpenderRateLimit storage rl = spenderRateLimit[spender];
         // Roll the window forward if 24h has elapsed (or no window yet).
