@@ -151,6 +151,15 @@ contract SetAPNTsToken_TimelockTest is Test {
         paymaster.setAPNTsToken(address(newToken));
 
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+
+        // Expect the dedicated timelock event (distinguishable from legacy APNTsTokenUpdated).
+        vm.expectEmit(true, true, false, true, address(paymaster));
+        emit SuperPaymaster.APNTsTokenChangeExecuted(address(initialToken), address(newToken), block.timestamp);
+
+        // Also expect the backward-compatible event for existing listeners.
+        vm.expectEmit(true, true, false, false, address(paymaster));
+        emit SuperPaymaster.APNTsTokenUpdated(address(initialToken), address(newToken));
+
         // Only owner can execute after the timelock elapses.
         vm.prank(owner);
         paymaster.executeAPNTsTokenChange();

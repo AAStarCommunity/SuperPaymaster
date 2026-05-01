@@ -106,6 +106,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         executed once `eta` has elapsed via `executeAPNTsTokenChange`.
     event APNTsTokenChangeQueued(address indexed pendingToken, uint256 eta);
     event APNTsTokenChangeCancelled(address indexed pendingToken);
+    /// @notice Emitted exclusively by `executeAPNTsTokenChange` (timelock path).
+    ///         On-chain monitors can distinguish this from legacy direct-swap
+    ///         `APNTsTokenUpdated` events by watching this separate topic.
+    event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -260,8 +264,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
 
     /// @notice Pending APNTS_TOKEN swap, address(0) when none queued.
+    /// @dev    Storage slot 18 (verified via `forge inspect SuperPaymaster storage-layout`).
+    ///         Appended after `pendingDebts` (slot 17); no collision with pre-existing slots.
     address public pendingAPNTsToken;
     /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
+    /// @dev    Storage slot 19; shares the same upgrade-append region as `pendingAPNTsToken`.
     uint256 public pendingAPNTsTokenEta;
 
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
@@ -305,12 +312,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address pending = pendingAPNTsToken;
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
+        // `protocolRevenue` accumulates continuously via postOp penalty/burn paths.
+        // Call `withdrawProtocolRevenue()` first to drain it to zero before
+        // executing this change — that is the required prerequisite step.
+        // This guard is intentional: it ensures no protocol-owned funds are
+        // permanently stranded under the old token's accounting after migration.
         if (totalTrackedBalance != 0 || protocolRevenue != 0) revert InvalidConfiguration();
 
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = pending;
         pendingAPNTsToken = address(0);
         pendingAPNTsTokenEta = 0;
+        // Emit the timelock-specific event so monitors can distinguish this
+        // from legacy direct-swap APNTsTokenUpdated events.
+        emit APNTsTokenChangeExecuted(oldToken, pending, block.timestamp);
+        // Also emit the backward-compatible event for existing listeners.
         emit APNTsTokenUpdated(oldToken, pending);
     }
 
