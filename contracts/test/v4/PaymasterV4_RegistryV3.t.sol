@@ -15,10 +15,13 @@ import "src/interfaces/v3/IRegistry.sol";
 ///   from address(this), but the role is held by the operator EOA/multisig
 ///   (owner()), not the contract itself → still always reverted.
 ///
-///   Fix: deactivateFromRegistry() now only sets paused=true (stopping new
-///   UserOps immediately). The operator must separately call
-///   registry.exitRole(ROLE_PAYMASTER_AOA) from their EOA/multisig.
-///   isActiveInRegistry() now queries owner() instead of address(this).
+///   Final fix (user decision): deactivate = listing notification only.
+///   ROLE_PAYMASTER_AOA stays on the operator EOA so the operator can re-
+///   activate later. paused=true is the authoritative "not accepting UserOps"
+///   signal. isActiveInRegistry() requires BOTH !paused AND hasRole(owner).
+///   activateInRegistry() re-lists the paymaster without any exitRole.
+///   Registry stores zero new state — the AOA discovery listing is derived
+///   from existing state: operator role + paymaster paused flag.
 
 contract MockEntryPoint {
     function depositTo(address) external payable {}
@@ -65,7 +68,9 @@ contract PaymasterV4_RegistryV3Test is Test {
     address owner = address(0xABCD);
 
     event Paused(address indexed account);
+    event Unpaused(address indexed account);
     event DeactivatedFromRegistry(address indexed paymaster);
+    event ActivatedInRegistry(address indexed paymaster);
 
     function setUp() public {
         registry = new MockRegistryV3();
@@ -115,39 +120,92 @@ contract PaymasterV4_RegistryV3Test is Test {
         paymaster.deactivateFromRegistry();
     }
 
-    // ── isActiveInRegistry — queries owner(), not address(this) ─────────────
+    // ── isActiveInRegistry — queries !paused AND hasRole(owner) ────────────
 
-    function test_IsActive_TrueWhenOwnerHoldsRole() public {
-        // Role on owner → should return true.
+    function test_IsActive_TrueWhenOwnerHoldsRoleAndNotPaused() public {
         registry.setRole(owner, registry.ROLE_PAYMASTER_AOA(), true);
+        assertFalse(paymaster.paused());
         assertTrue(paymaster.isActiveInRegistry());
     }
 
     function test_IsActive_FalseWhenOwnerLacksRole() public {
-        // No role assigned → false.
+        // No role assigned → false even if not paused.
         assertFalse(paymaster.isActiveInRegistry());
     }
 
     function test_IsActive_FalseWhenContractHoldsRole() public {
         // Role on address(paymaster) — the old (wrong) holder — must NOT affect
-        // the view, because the correct holder is owner().
+        // the view; correct holder is owner().
         registry.setRole(address(paymaster), registry.ROLE_PAYMASTER_AOA(), true);
         assertFalse(paymaster.isActiveInRegistry(),
-            "contract-address role should not influence isActiveInRegistry");
+            "contract-address role must not influence isActiveInRegistry");
+    }
+
+    function test_IsActive_FalseWhenPaused() public {
+        // Operator has role but paymaster is paused → not in active listing.
+        registry.setRole(owner, registry.ROLE_PAYMASTER_AOA(), true);
+        vm.prank(owner);
+        paymaster.deactivateFromRegistry();
+        assertFalse(paymaster.isActiveInRegistry(),
+            "isActiveInRegistry must be false when paused, even if owner has role");
     }
 
     function test_IsActive_FalseAfterOwnerExitsRole() public {
-        // Simulate the operator calling registry.exitRole from their EOA.
+        // Simulate operator calling registry.exitRole from their EOA (full exit,
+        // not just a listing pause). isActiveInRegistry must reflect role loss.
         registry.setRole(owner, registry.ROLE_PAYMASTER_AOA(), true);
         assertTrue(paymaster.isActiveInRegistry());
 
-        // Pre-evaluate role hash before vm.prank to avoid prank being consumed
-        // by the ROLE_PAYMASTER_AOA() staticcall (Forge prank is per-call).
         bytes32 role = registry.ROLE_PAYMASTER_AOA();
         vm.prank(owner);
         registry.exitRole(role);
 
         assertFalse(paymaster.isActiveInRegistry(),
-            "isActiveInRegistry must return false after owner exits the role");
+            "isActiveInRegistry must be false after owner exits the role");
+    }
+
+    // ── activateInRegistry — re-list after deactivate ───────────────────────
+
+    function test_Activate_EmitsAndUnpauses() public {
+        registry.setRole(owner, registry.ROLE_PAYMASTER_AOA(), true);
+        vm.prank(owner);
+        paymaster.deactivateFromRegistry();
+        assertTrue(paymaster.paused());
+        assertFalse(paymaster.isActiveInRegistry());
+
+        vm.expectEmit(true, false, false, false);
+        emit Unpaused(owner);
+        vm.expectEmit(true, false, false, false);
+        emit ActivatedInRegistry(address(paymaster));
+
+        vm.prank(owner);
+        paymaster.activateInRegistry();
+
+        assertFalse(paymaster.paused(), "must be unpaused after activate");
+        assertTrue(paymaster.isActiveInRegistry(), "must be active again after activate");
+    }
+
+    function test_Activate_OnlyOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        paymaster.activateInRegistry();
+    }
+
+    function test_Activate_RoleStaysOnEOA() public {
+        // Core design invariant: deactivate/activate cycle must NOT touch the
+        // registry role — ROLE_PAYMASTER_AOA remains on the operator EOA.
+        registry.setRole(owner, registry.ROLE_PAYMASTER_AOA(), true);
+
+        vm.prank(owner);
+        paymaster.deactivateFromRegistry();
+        // Role still present on EOA after deactivate.
+        assertTrue(registry.roleHolders(owner, registry.ROLE_PAYMASTER_AOA()),
+            "deactivate must not remove ROLE_PAYMASTER_AOA from operator EOA");
+
+        vm.prank(owner);
+        paymaster.activateInRegistry();
+        // Role still present after re-activate.
+        assertTrue(registry.roleHolders(owner, registry.ROLE_PAYMASTER_AOA()),
+            "activate must not modify ROLE_PAYMASTER_AOA");
     }
 }

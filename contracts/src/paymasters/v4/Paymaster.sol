@@ -43,6 +43,10 @@ contract Paymaster is PaymasterBase, Initializable {
     /// @param paymaster Address of the deactivated Paymaster
     event DeactivatedFromRegistry(address indexed paymaster);
 
+    /// @notice Emitted when Paymaster is re-activated in Registry
+    /// @param paymaster Address of the re-activated Paymaster
+    event ActivatedInRegistry(address indexed paymaster);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -80,28 +84,36 @@ contract Paymaster is PaymasterBase, Initializable {
      *      4. withdrawStake() → withdraw ETH, complete exit
      * @dev Note: Reactivation is controlled by Registry (requires qualification check)
      */
-    /// @notice Stop this paymaster from accepting new UserOps and signal that
-    ///         the operator must exit the Registry role from their own account.
-    /// @dev    P0-5 (B5-H1 + reviewer CRITICAL): the original implementation
-    ///         called `exitRole(ROLE_PAYMASTER_AOA)` from inside the contract,
-    ///         but ROLE_PAYMASTER_AOA is held by the operator EOA (or later a
-    ///         multisig), not by `address(this)`. Every call reverted silently.
+    /// @notice Remove this paymaster from the active discovery listing.
+    /// @dev    P0-5 fix: "deactivate" is a listing notification, NOT an exitRole.
+    ///         ROLE_PAYMASTER_AOA stays on the operator EOA at all times so
+    ///         the operator can re-activate later. The contract cannot call
+    ///         exitRole on behalf of the EOA anyway — every such attempt
+    ///         reverted silently in the old implementation.
     ///
-    ///         Correct two-step emergency exit:
-    ///         1. This function: set paused=true so validatePaymasterUserOp
-    ///            rejects new ops immediately (no Registry call needed here).
-    ///         2. Operator EOA / multisig calls registry.exitRole(ROLE_PAYMASTER_AOA)
-    ///            directly — the contract cannot do this because it does not
-    ///            hold the role.
+    ///         Pausing the contract is the authoritative "not accepting UserOps"
+    ///         signal. Discovery consumers check: operator has role AND !paused.
     function deactivateFromRegistry() external onlyOwner {
         if (address(registry) == address(0)) {
             revert Paymaster__RegistryNotSet();
         }
-        // Halt new UserOps immediately. The operator must separately call
-        // registry.exitRole(ROLE_PAYMASTER_AOA) from the role-holder EOA/multisig.
         paused = true;
         emit Paused(msg.sender);
         emit DeactivatedFromRegistry(address(this));
+    }
+
+    /// @notice Re-list this paymaster in the active discovery listing.
+    /// @dev    Counterpart to deactivateFromRegistry(). Sets paused=false so
+    ///         validatePaymasterUserOp accepts new UserOps again and
+    ///         isActiveInRegistry() returns true (assuming owner still holds
+    ///         ROLE_PAYMASTER_AOA in Registry).
+    function activateInRegistry() external onlyOwner {
+        if (address(registry) == address(0)) {
+            revert Paymaster__RegistryNotSet();
+        }
+        paused = false;
+        emit Unpaused(msg.sender);
+        emit ActivatedInRegistry(address(this));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -171,18 +183,15 @@ contract Paymaster is PaymasterBase, Initializable {
      * @dev Returns false if Registry not set or Paymaster not registered
      * @return True if Paymaster is active in Registry
      */
-    /// @notice Check whether the operator (owner) currently holds PAYMASTER_AOA
-    ///         in the V3 Registry.
-    /// @dev    P0-5 (reviewer CRITICAL): ROLE_PAYMASTER_AOA is held by the
-    ///         operator EOA / multisig (i.e. owner()), NOT by address(this).
-    ///         The previous implementation queried address(this) which always
-    ///         returned false, making monitoring/UI permanently report inactive.
-    ///         Wrapped in try/catch for registry pointer safety.
+    /// @notice True iff this paymaster is in the active discovery listing.
+    /// @dev    Two conditions must both hold:
+    ///           1. The operator EOA (owner()) still holds ROLE_PAYMASTER_AOA.
+    ///           2. The paymaster has not been deactivated (paused == false).
+    ///         ROLE_PAYMASTER_AOA is on the operator EOA, NOT on address(this) —
+    ///         querying address(this) (the old bug) always returned false.
     function isActiveInRegistry() external view returns (bool) {
-        if (address(registry) == address(0)) {
-            return false;
-        }
-
+        if (address(registry) == address(0)) return false;
+        if (paused) return false;
         IRegistry v3 = IRegistry(address(registry));
         try v3.hasRole(v3.ROLE_PAYMASTER_AOA(), owner()) returns (bool active) {
             return active;
