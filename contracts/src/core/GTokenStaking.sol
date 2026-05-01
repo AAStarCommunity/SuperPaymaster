@@ -193,10 +193,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
         emit StakeLocked(user, roleId, stakeAmount, 0, lock.lockedAt); // Reuse existing lockedAt
 
-        // P0-14: msg.sender is Registry (onlyRegistry) — it has already
-        // updated its own `roleStakes` cache for this top-up. The sync hook
-        // is harmless here (writes the same value) and gives Staking a
-        // single, consistent contract for "I just mutated a roleLock".
+        // Synchronize the updated stake amount to Registry so that role eligibility
+        // reflects the new total. This keeps the Registry's roleStakes cache
+        // consistent with Staking's internal roleLock, regardless of call ordering.
         _syncRegistry(user, roleId, lock.amount);
     }
 
