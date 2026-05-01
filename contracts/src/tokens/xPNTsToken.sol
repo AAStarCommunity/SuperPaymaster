@@ -64,6 +64,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         after rotating the SP via `setSuperPaymasterAddress`.
     bool public emergencyDisabled;
 
+    /// @notice The SuperPaymaster address that was active when
+    ///         `emergencyRevokePaymaster` was last called.
+    /// @dev    Used by `unsetEmergencyDisabled` to enforce that
+    ///         `setSuperPaymasterAddress` has been called with a *different*
+    ///         address before the emergency flag can be cleared. Prevents
+    ///         re-opening the drain path to the original compromised address.
+    address public emergencyRevokedAddress;
+
     /// @notice Ensures a UserOperation hash is only used once for payment.
     mapping(bytes32 => bool) public usedOpHashes;
 
@@ -144,6 +152,12 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice P0-7: thrown when a burn-shaped path runs while the community
     ///         has flipped the emergency switch.
     error EmergencyStop();
+    /// @notice P0-7 (P2): thrown when `unsetEmergencyDisabled` is called but
+    ///         `setSuperPaymasterAddress` has not been called with a new address
+    ///         since the emergency was declared. Clearing the flag while
+    ///         `SUPERPAYMASTER_ADDRESS` still equals `emergencyRevokedAddress`
+    ///         would immediately re-open the drain path to the compromised SP.
+    error RecoveryNotComplete();
 
     /// @dev Only factory or community owner can call
     modifier onlyFactoryOrOwner() {
@@ -485,6 +499,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             emit AutoApprovedSpenderRemoved(currentSP);
         }
 
+        // Record the compromised address so `unsetEmergencyDisabled` can
+        // verify that address rotation has actually occurred before clearing
+        // the emergency flag (P0-7 P2 review fix).
+        emergencyRevokedAddress = currentSP;
+
         if (!emergencyDisabled) {
             emergencyDisabled = true;
             emit EmergencyDisabledSet(msg.sender);
@@ -496,6 +515,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         ready to resume normal operation.
     /// @dev    Recovery flow: `emergencyRevokePaymaster` →
     ///         `setSuperPaymasterAddress(newSP)` → `unsetEmergencyDisabled`.
+    ///         Calling this function before rotating the SP address reverts
+    ///         with `RecoveryNotComplete` — this prevents the community owner
+    ///         from accidentally re-trusting the compromised address.
     /// @dev SECURITY: communityOwner SHOULD be a multisig. A compromised EOA
     ///      communityOwner could call unsetEmergencyDisabled() immediately before
     ///      emergencyRevokePaymaster(), bypassing the emergency circuit breaker.
@@ -503,6 +525,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     function unsetEmergencyDisabled() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
         if (!emergencyDisabled) return; // idempotent
+
+        // P0-7 (P2 review): Enforce that the SP address has been rotated to a
+        // different (non-compromised) address since `emergencyRevokePaymaster`
+        // was called. If SUPERPAYMASTER_ADDRESS still equals the address that
+        // was revoked, clearing the flag would immediately re-open every burn
+        // path to the compromised SP.
+        if (SUPERPAYMASTER_ADDRESS == emergencyRevokedAddress) revert RecoveryNotComplete();
+
         emergencyDisabled = false;
         emit EmergencyDisabledCleared(msg.sender);
     }
