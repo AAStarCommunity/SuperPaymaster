@@ -144,8 +144,7 @@ docker run -d --name facilitator \
 #### 4.1.2 docker-compose.yml（推荐）
 
 ```yaml
-version: "3.9"
-
+# Note: top-level `version` field is deprecated in Docker Compose v2; omit it to avoid warnings.
 services:
   facilitator:
     image: aastar-facilitator:0.1.0
@@ -682,6 +681,7 @@ use Alchemy's API instead: https://alchemy.com"
 | 项 | 类型 | 备注 |
 | --- | --- | --- |
 | HMAC challenge 注入逻辑 | bug | 当前只在 status=402 注入，实际没有路径返回 402；§8.4 |
+| **`verify.ts` nonce 查询须改为三元组哈希** | **bug（P0-13 后必修）** | P0-13 合并后 `x402SettlementNonces` 的 key 已变为 `keccak256(asset, from, nonce)` 三元组。`verify.ts` 中直接查询 `x402SettlementNonces(nonce)` 的单参数调用将永远返回 `false`（nonce slot 不再写入），导致已结算的 tuple 被允许重放。修复：改用合约暴露的 `x402NonceKey(asset, from, nonce)` helper 生成正确 key 再查询。 |
 | `/metrics` Prometheus exporter | 增强 | 当前只能靠日志做监控 |
 | RPC failover | 增强 | 单 RPC 写死，挂了就 down |
 | Permit2 scheme | 待支持 | `verify.ts` 显式拒绝 |

@@ -436,7 +436,7 @@ node test-x402-permit2-settlement.js     # 历史脚本（V5.3 已弃用 Permit2
 | **P0** | 校正 `X402Client.createPayment` 的 `to` 字段语义 | 当前 `to = params.to` 直签给 payee，但 facilitator-node `verify.ts` L60 期望 `to = SuperPaymaster`。需要明确"SP 业务模式 vs spec 标准"，至少在文档/参数层把这个差异显式表达，且 EIP-712 签名要和 SP 业务对齐。 |
 | **P1** | 一行 helper 让 dApp 完成 x402 settle | 当前 `aastar x402 pay/settle` CLI 是 stub。建议封装：`await aastar.payx402(url, { wallet, max })` 一句话搞定。 |
 | **P1** | HMAC challenge 客户端封装 | `FacilitatorClient` 加 `enableHmac`、自动抓 `X-Challenge`、调 settle 时自动计算 HMAC（见 §6）。 |
-| **P1** | facilitator-node schema 与 x402 v2 spec 对齐 | facilitator-node 用 `{payment, scheme}` 平面字段；SDK `FacilitatorClient.verify/settle` 发的是 `{x402Version:2, paymentPayload, paymentRequirements}`。两者**当前互不兼容**。要么改 facilitator-node 接 v2 spec，要么 SDK 对自家 facilitator 提供专用 client。 |
+| **P0** | facilitator-node schema 与 x402 v2 spec 对齐 | facilitator-node 用 `{payment, scheme}` 平面字段；SDK `FacilitatorClient.verify/settle` 发的是 `{x402Version:2, paymentPayload, paymentRequirements}`。两者**当前互不兼容，SDK 无法完成真实 x402 集成**。要么改 facilitator-node 接 v2 spec，要么 SDK 对自家 facilitator 提供专用 client。升级为 P0：当前状态下任何端到端 x402 流程均无法工作。 |
 | **P2** | 错误归一化 | review.md J4-MINOR-7：`AAStarError.fromViemError` 对 settle revert 的归类不细，"NonceAlreadyUsed/Unauthorized/InsufficientBalance" 都报成 generic message。 |
 | **P2** | 测试覆盖率 | x402 包仅 37 个单元测试（编解码、EIP-712 签名 mock、FacilitatorClient mock）；缺：(a) `x402Fetch` 自动重试集成测试、(b) 真链 settle 走 anvil/forge fixture、(c) HMAC 端到端、(d) Direct path 测试、(e) channel + voucher 重放保护。 |
 | **P2** | CLI `pay` / `settle` 实装 | 接到 X402Client + 钱包 keystore（参考 `enduser` 包钱包加载方式）。 |
