@@ -151,7 +151,7 @@ contract DeployLive is Script {
 
         // Oracle Init
         try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
-            try superPaymaster.updatePriceDVT(price, block.timestamp, "") {
+            try superPaymaster.updatePriceDVT(price, block.timestamp, "", 0) {
                 console.log("  Cache Price Force-Initialized");
             } catch {
                 superPaymaster.updatePrice();

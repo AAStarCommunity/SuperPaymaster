@@ -493,6 +493,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @dev    Permissionless after the timelock — anyone can land the price,
     ///         not just the owner. The protective gates already ran inside
     ///         `emergencySetPrice` (Chainlink stale, ±20% band).
+    /// @dev Permissionless: any address may execute after the 1-hour timelock expires.
+    ///      This mirrors the OZ TimelockController liveness pattern — the ±20% deviation
+    ///      cap limits manipulation even if an untrusted party triggers execution.
     function executeEmergencyPrice() external {
         if (emergencyQueuedAt == 0) revert NoEmergencyPending();
         if (block.timestamp < emergencyQueuedAt + EMERGENCY_TIMELOCK) {
@@ -570,8 +573,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @param price New ETH/USD price (8 decimals)
      * @param updatedAt Timestamp of price update
      * @param proof BLS aggregated proof from DVT validators
+     * @param chainlinkRecovered  0 = Chainlink feed still unavailable (price-only update);
+     *                            1 = Chainlink feed has recovered — clears priceMode to 0
+     *                                and resets emergencyActivatedAt.
      */
-    function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof) external {
+    function updatePriceDVT(
+        int256 price,
+        uint256 updatedAt,
+        bytes calldata proof,
+        uint8 chainlinkRecovered   // 0 = Chainlink not yet recovered; 1 = Chainlink recovered
+    ) external {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
 
@@ -623,7 +634,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             roundId: 0, // DVT doesn't have Chainlink RoundID
             decimals: 8 // DVT normalizes to 8 decimals
         });
-        
+
+        // If Chainlink has been confirmed recovered, exit emergency mode.
+        if (chainlinkRecovered == 1 && priceMode != 0) {
+            emit PriceModeChanged(priceMode, 0);
+            priceMode = 0;
+            emergencyActivatedAt = 0;
+        }
+
         emit PriceUpdated(price, updatedAt);
     }
 

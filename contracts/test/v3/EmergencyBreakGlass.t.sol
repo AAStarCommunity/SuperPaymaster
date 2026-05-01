@@ -343,4 +343,33 @@ contract EmergencyBreakGlassTest is Test {
         assertEq(paymaster.emergencyActivatedAt(), 0, "must be cleared on recovery");
         assertEq(paymaster.priceMode(), 0);
     }
+
+    // -----------------------------------------------------------------------
+    // updatePriceDVT with chainlinkRecovered=1 clears priceMode
+    // -----------------------------------------------------------------------
+
+    function test_UpdatePriceDVT_ChainlinkRecovered_ClearsPriceMode() public {
+        // Step 1: Activate EMERGENCY mode via emergencySetPrice + executeEmergencyPrice.
+        vm.prank(owner);
+        paymaster.emergencySetPrice(1900e8);
+        vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK());
+        paymaster.executeEmergencyPrice();
+        assertEq(paymaster.priceMode(), 1, "should be in EMERGENCY mode");
+        assertGt(paymaster.emergencyActivatedAt(), 0, "emergencyActivatedAt should be set");
+
+        // Step 2: BLS aggregator calls updatePriceDVT with chainlinkRecovered=1.
+        // updatedAt must be strictly greater than the current cachedPrice.updatedAt,
+        // so advance time by one second first.
+        vm.warp(block.timestamp + 1);
+        vm.prank(owner); // owner acts as BLS_AGGREGATOR for simplicity
+        int256 newPrice = 1950e8;
+        uint256 ts = block.timestamp;
+        paymaster.updatePriceDVT(newPrice, ts, "", 1);
+
+        // Step 3: priceMode must be cleared.
+        assertEq(paymaster.priceMode(), 0, "priceMode should be cleared to 0 on Chainlink recovery");
+
+        // Step 4: emergencyActivatedAt must be reset.
+        assertEq(paymaster.emergencyActivatedAt(), 0, "emergencyActivatedAt should be reset to 0");
+    }
 }
