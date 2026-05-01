@@ -38,6 +38,12 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
+    /// @notice Registry-side cache of locked stake amounts per (role, user).
+    /// @dev    Best-effort mirror of `GTokenStaking.roleLocks`. Updated by
+    ///         Staking via `syncStakeFromStaking`; may lag for up to one block
+    ///         after a slash or unstake. SDK/UI code MUST use `getEffectiveStake()`
+    ///         for authoritative reads — reading this mapping directly can return
+    ///         stale values and lead to incorrect eligibility decisions.
     mapping(bytes32 => mapping(address => uint256)) public roleStakes;
     mapping(bytes32 => address[]) public roleMembers;
     mapping(bytes32 => mapping(address => uint256)) public roleMemberIndex;
