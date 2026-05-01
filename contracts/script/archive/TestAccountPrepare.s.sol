@@ -110,7 +110,7 @@ contract TestAccountPrepare is Script {
         address dPNTs = xpntsFactory.getTokenAddress(anni);
         if (dPNTs == address(0)) {
             console.log("Deploying dPNTs for Anni...");
-            dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", communityName, string.concat(communityName, ".eth"), 1e18, address(0));
+            dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", communityName, string.concat(communityName, ".eth"), 1e18, 0, address(0));
         }
         
         superPaymaster.configureOperator(dPNTs, anni, 1e18);

@@ -23,7 +23,7 @@ contract xPNTsEmergencyTest is Test {
         vm.startPrank(factory);
         address implementation = address(new xPNTsToken());
         token = xPNTsToken(implementation.clone());
-        token.initialize("Emergency", "EMG", admin, "TestComm", "test.eth", 1e18);
+        token.initialize("Emergency", "EMG", admin, "TestComm", "test.eth", 1e18, 0);
         vm.stopPrank();
         
         vm.prank(admin);
@@ -57,7 +57,7 @@ contract xPNTsEmergencyTest is Test {
         vm.startPrank(factory);
         address impl2 = address(new xPNTsToken());
         xPNTsToken token2 = xPNTsToken(impl2.clone());
-        token2.initialize("Test2", "T2", admin, "Comm2", "test2.eth", 1e18);
+        token2.initialize("Test2", "T2", admin, "Comm2", "test2.eth", 1e18, 0);
         vm.stopPrank();
         
         // Should not revert, just do nothing

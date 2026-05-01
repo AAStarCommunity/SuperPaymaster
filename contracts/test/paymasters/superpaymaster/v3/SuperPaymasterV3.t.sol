@@ -129,7 +129,7 @@ contract SuperPaymasterTest is Test {
         // Deploy Token
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
-        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
+        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18, 0);
 
         // Deploy Paymaster (UUPS Proxy)
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(

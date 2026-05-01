@@ -39,7 +39,7 @@ contract xPNTsSecurityDeepAuditTest is Test {
         vm.startPrank(factory);
         address implementation = address(new xPNTsToken());
         token = xPNTsToken(implementation.clone());
-        token.initialize("SecurityToken", "ST", admin, "Comm", "ens.eth", 1e18);
+        token.initialize("SecurityToken", "ST", admin, "Comm", "ens.eth", 1e18, 0);
         vm.stopPrank();
         
         vm.prank(admin);
@@ -147,7 +147,7 @@ contract xPNTsSecurityDeepAuditTest is Test {
         // Deploy a new token without setting paymaster
         vm.startPrank(factory);
         xPNTsToken token2 = xPNTsToken(address(new xPNTsToken()).clone());
-        token2.initialize("ST2", "ST2", admin, "Comm", "ens.eth", 1e18);
+        token2.initialize("ST2", "ST2", admin, "Comm", "ens.eth", 1e18, 0);
         vm.stopPrank();
 
         // Attempt to record debt when SP is not configured

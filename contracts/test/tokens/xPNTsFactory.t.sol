@@ -35,7 +35,7 @@ contract xPNTsFactoryTest is Test {
         );
         
         address token = factory.deployxPNTsToken(
-            "Test", "TEST", "TestComm", "test.eth", 1e18, address(0)
+            "Test", "TEST", "TestComm", "test.eth", 1e18, 0, address(0)
         );
         
         assertTrue(token != address(0));
@@ -54,7 +54,7 @@ contract xPNTsFactoryTest is Test {
             abi.encode(true)
         );
         address token2 = factory.deployxPNTsToken(
-            "Test2", "TEST2", "TestComm2", "test2.eth", 1e18, mockPaymaster
+            "Test2", "TEST2", "TestComm2", "test2.eth", 1e18, 0, mockPaymaster
         );
         assertTrue(token2 != address(0));
         assertEq(factory.getDeployedCount(), 2);
@@ -70,7 +70,7 @@ contract xPNTsFactoryTest is Test {
         );
         
         vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.CallerNotCommunity.selector));
-        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, 0, address(0));
     }
     
     function test_Deployment_SwitchModes() public {
@@ -85,7 +85,7 @@ contract xPNTsFactoryTest is Test {
             abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
             abi.encode(true)
         );
-        address t1 = f2.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        address t1 = f2.deployxPNTsToken("T", "T", "C", "C", 1e18, 0, address(0));
         assertTrue(t1 != address(0));
         
         // Set SP later
@@ -100,7 +100,7 @@ contract xPNTsFactoryTest is Test {
             abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, address(5)), 
             abi.encode(true)
         );
-        address t2 = f2.deployxPNTsToken("T2", "T2", "C2", "C2", 1e18, address(0));
+        address t2 = f2.deployxPNTsToken("T2", "T2", "C2", "C2", 1e18, 0, address(0));
         assertTrue(t2 != address(0));
     }
     
@@ -113,10 +113,10 @@ contract xPNTsFactoryTest is Test {
             abi.encode(true)
         );
 
-        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, 0, address(0));
         
         vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.AlreadyDeployed.selector, user));
-        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, address(0));
+        factory.deployxPNTsToken("T", "T", "C", "C", 1e18, 0, address(0));
         vm.stopPrank();
     }
 
@@ -234,7 +234,7 @@ contract xPNTsFactoryTest is Test {
             abi.encode(true)
         );
         
-        address t1 = factory.deployxPNTsToken("A", "A", "A", "A", 1e18, address(0));
+        address t1 = factory.deployxPNTsToken("A", "A", "A", "A", 1e18, 0, address(0));
         
         address[] memory all = factory.getAllTokens();
         assertEq(all.length, 1);

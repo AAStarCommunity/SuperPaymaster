@@ -16,7 +16,7 @@ contract CreditSystemTest is Test {
         vm.startPrank(admin);
         address implementation = address(new xPNTsToken());
         token = xPNTsToken(implementation.clone());
-        token.initialize("xPNTs", "XP", admin, "Test", "test.eth", 1e18);
+        token.initialize("xPNTs", "XP", admin, "Test", "test.eth", 1e18, 0);
         token.setSuperPaymasterAddress(paymaster);
         vm.stopPrank();
     }

@@ -41,7 +41,8 @@ contract xPNTs_EmergencyDisabledTest is Test {
             community,
             "Demo",
             "demo.eth",
-            1e18
+            1e18,
+            0
         );
 
         // Test contract is FACTORY → can call setSuperPaymasterAddress.

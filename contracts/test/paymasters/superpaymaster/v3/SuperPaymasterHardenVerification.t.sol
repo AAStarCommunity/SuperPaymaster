@@ -101,7 +101,7 @@ contract SuperPaymasterHardenVerification is Test {
         registry = new MockRegistry();
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
-        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
+        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18, 0);
         
         // Correctly initialize Mock Price Feed
         MockAggregatorV3 realPriceFeed = new MockAggregatorV3(2000 * 1e8, 8);
@@ -178,7 +178,7 @@ contract SuperPaymasterHardenVerification is Test {
         
         // Now deploy a real one through factory
         vm.startPrank(community);
-        address realToken = factory.deployxPNTsToken("Real", "RL", "Real", "real.eth", 1e18, address(0));
+        address realToken = factory.deployxPNTsToken("Real", "RL", "Real", "real.eth", 1e18, 0, address(0));
         
         // Should succeed
         paymaster.configureOperator(realToken, community, 1e18);

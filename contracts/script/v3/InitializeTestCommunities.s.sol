@@ -79,7 +79,7 @@ contract InitializeTestCommunities is Script {
             registry.registerRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
         }
 
-        address dPNTs = factory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+        address dPNTs = factory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, 0, address(0));
         if (!registry.hasRole(registry.ROLE_PAYMASTER_SUPER(), anni)) {
             registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         }

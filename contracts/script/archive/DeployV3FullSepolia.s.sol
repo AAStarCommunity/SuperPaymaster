@@ -288,7 +288,7 @@ contract DeployV3FullSepolia is Script {
                  // Reuse means we skip deployment of Proxy, but we should check aPNTs
                  if (addr_apnts == address(0)) {
                     // Try low level call for apnts
-                    (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy));
+                    (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, uint256(0), addr_pmV4Proxy));
                     if (s2) {
                         addr_apnts = abi.decode(r2, (address));
                         console.log("Deployed aPNTs via Factory:", addr_apnts);
@@ -304,9 +304,9 @@ contract DeployV3FullSepolia is Script {
                  if (success) {
                      addr_pmV4Proxy = abi.decode(ret, (address));
                      console.log("Deployed PaymasterV4 Proxy:", addr_pmV4Proxy);
-                     
+
                      if (addr_apnts == address(0)) {
-                        (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, addr_pmV4Proxy));
+                        (bool s2, bytes memory r2) = addr_xpntsFactory.call(abi.encodeWithSelector(xPNTsFactory.deployxPNTsToken.selector, "aPNTs", "aPNTs", "Global", "aastar.eth", 1 ether, uint256(0), addr_pmV4Proxy));
                         if (s2) {
                             addr_apnts = abi.decode(r2, (address));
                             console.log("Deployed aPNTs via Factory:", addr_apnts);

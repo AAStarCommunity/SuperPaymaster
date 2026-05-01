@@ -179,7 +179,7 @@ contract DeployLive is Script {
         registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         
         // Step 29: aPNTs
-        address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
+        address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, 0, address(0));
         apnts = xPNTsToken(apntsAddr);
         console.log("  aPNTs Deployed at:", apntsAddr);
         
@@ -243,7 +243,7 @@ contract DeployLive is Script {
 
         // 6d. Deploy PNTs (Mycelium community token — special token name)
         pntsAddr = xpntsFactory.deployxPNTsToken(
-            "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
+            "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, 0, address(0)
         );
         console.log("  PNTs Deployed at:", pntsAddr);
 

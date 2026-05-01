@@ -121,10 +121,11 @@ contract DeployAnvil is Script {
         // Use factory to deploy aPNTs (ensures factory binding consistency)
         xpntsFactory.deployxPNTsToken(
             "AAStar PNTs",
-            "aPNTs", 
+            "aPNTs",
             "GlobalHub",
             "local.eth",
             1e18,
+            0, // initialDailyCap: use default (15_000 ether ≈ $300)
             address(0) // No AOA paymaster
         );
         apnts = xPNTsToken(xpntsFactory.getTokenAddress(deployer));
@@ -185,7 +186,7 @@ contract DeployAnvil is Script {
         vm.stopBroadcast();
         
         vm.startBroadcast(anniPK);
-        address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+        address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, 0, address(0));
         superPaymaster.configureOperator(dPNTs, anni, 1e18);
         
         // 2. Anni 存入 aPNTs -> SuperPaymaster

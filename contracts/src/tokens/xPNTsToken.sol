@@ -117,7 +117,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     mapping(address => SpenderRateLimit) public spenderRateLimit;
 
     /// @notice Maximum xPNTs that any non-self spender can burn per rolling 24h window.
-    /// @dev    Default 50_000 ether (~$1000 at $0.02/xPNTs). Community owner can adjust.
+    /// @dev    Default 15_000 ether (~$300 at $0.02/xPNTs). Community owner can adjust.
     uint256 public spenderDailyCapTokens;
 
     function version() external pure override returns (string memory) {
@@ -264,6 +264,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @param _communityName Display name
      * @param _communityENS ENS name
      * @param _exchangeRate aPNTs exchange rate
+     * @param initialDailyCap  Initial per-spender daily burn cap in tokens (18 decimals).
+     *                         Pass 0 to use the default of 15_000 ether (~$300 at $0.02/xPNT).
+     *                         Small communities should start with the default; high-volume
+     *                         operators can raise it post-deploy via setSpenderDailyCap().
      */
     function initialize(
         string memory name_,
@@ -271,7 +275,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         address _communityOwner,
         string memory _communityName,
         string memory _communityENS,
-        uint256 _exchangeRate
+        uint256 _exchangeRate,
+        uint256 initialDailyCap   // 0 = use default (15_000 ether ≈ $300 @ $0.02/xPNT)
     ) external initializer {
         if (_communityOwner == address(0)) {
             revert InvalidAddress(_communityOwner);
@@ -292,9 +297,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // Auto-approve the factory
         autoApprovedSpenders[msg.sender] = true;
 
-        // P0-8: default spender daily burn cap = 50_000 ether xPNTs (~$1000 @ $0.02).
-        // Communities can tighten or loosen via setSpenderDailyCap.
-        spenderDailyCapTokens = 50_000 ether;
+        // P0-8: per-spender daily burn cap. Default ~$300 @ $0.02/xPNT for small communities.
+        // Communities can adjust post-deploy via setSpenderDailyCap().
+        spenderDailyCapTokens = initialDailyCap > 0 ? initialDailyCap : 15_000 ether;
     }
 
     // ====================================

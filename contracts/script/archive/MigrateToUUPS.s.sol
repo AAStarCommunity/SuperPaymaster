@@ -262,7 +262,7 @@ contract MigrateToUUPS is Script {
 
         // Deploy aPNTs via factory
         address apntsAddr = xpntsFactory.deployxPNTsToken(
-            "AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0)
+            "AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, 0, address(0)
         );
         apnts = xPNTsToken(apntsAddr);
         console.log("  aPNTs deployed:", apntsAddr);

@@ -9,8 +9,8 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 /// @notice T-14: a compromised auto-approved spender (e.g. facilitator) could
 ///         iterate `burn(victim_i, MAX_SINGLE_TX_LIMIT)` across many holders
 ///         and drain unbounded value before the community detects + revokes.
-///         D8 fixes this with a per-spender daily burn cap (default 50_000
-///         ether xPNTs ≈ $1000 @ $0.02/xPNTs). User burden remains 0:
+///         D8 fixes this with a per-spender daily burn cap (default 15_000
+///         ether xPNTs ≈ $300 @ $0.02/xPNTs). User burden remains 0:
 ///         autoApproved spenders still skip allowance gas, but their
 ///         cumulative burn-out is now bounded.
 contract xPNTs_SpenderRateLimitTest is Test {
@@ -30,7 +30,7 @@ contract xPNTs_SpenderRateLimitTest is Test {
         token = xPNTsToken(Clones.clone(address(impl)));
 
         // Test contract becomes FACTORY (msg.sender of initialize).
-        token.initialize("Demo", "dPNTs", community, "Demo", "demo.eth", 1e18);
+        token.initialize("Demo", "dPNTs", community, "Demo", "demo.eth", 1e18, 0);
         token.setSuperPaymasterAddress(paymaster);
 
         // Mint ample balances to the victims.
@@ -47,8 +47,9 @@ contract xPNTs_SpenderRateLimitTest is Test {
     // Default cap & getter
     // ------------------------------------------------------------------
 
-    function test_DefaultDailyCap_Is50kEther() public {
-        assertEq(token.spenderDailyCapTokens(), 50_000 ether, "default cap");
+    function test_DefaultDailyCap_Is15kEther() public {
+        // P0-8 Option A: default changed from 50_000 ether to 15_000 ether (~$300 @ $0.02/xPNT)
+        assertEq(token.spenderDailyCapTokens(), 15_000 ether, "default cap");
     }
 
     // ------------------------------------------------------------------
@@ -203,7 +204,7 @@ contract xPNTs_SpenderRateLimitTest is Test {
     // ------------------------------------------------------------------
 
     function test_AutoApproved_AccumulatesAcrossCalls() public {
-        // Default cap = 50_000 ether. Burn 4_000 ether from each of 3 holders.
+        // Default cap = 15_000 ether. Burn 4_000 ether from each of 3 holders.
         for (uint256 i = 0; i < 3; i++) {
             vm.prank(facilitator);
             address victim = i == 0 ? user : (i == 1 ? user2 : user3);

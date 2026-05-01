@@ -234,7 +234,7 @@ contract DeployV3FullLocal is Script {
             // registry removed
         );
         address proxy = pmFactory.deployPaymaster("v4.2", init);
-        factory.deployxPNTsToken("xPNTs", "xPNTs", "Global", "aastar.eth", 1 ether, proxy);
+        factory.deployxPNTsToken("xPNTs", "xPNTs", "Global", "aastar.eth", 1 ether, 0, proxy);
         vm.stopBroadcast();
 
         // ----------------------------------------

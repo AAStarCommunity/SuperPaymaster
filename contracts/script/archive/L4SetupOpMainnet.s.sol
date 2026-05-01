@@ -225,7 +225,7 @@ contract L4SetupOpMainnet is Script {
                 // A. Ensure Token Exists
                 address myToken = xFactory.getTokenAddress(user);
                 if (myToken == address(0)) {
-                    myToken = xFactory.deployxPNTsToken("PNTs Token", "PNTs", "Mycelium", "mushroom.box", 1e18, address(0));
+                    myToken = xFactory.deployxPNTsToken("PNTs Token", "PNTs", "Mycelium", "mushroom.box", 1e18, 0, address(0));
                     console.log(unicode"✅ Deployed PNTs for Anni:", myToken);
                 }
 

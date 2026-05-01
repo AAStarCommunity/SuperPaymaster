@@ -121,7 +121,7 @@ contract SuperPaymasterPricingV2Test is Test {
         
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
-        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
+        apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18, 0);
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(address(entryPoint)),
             IRegistry(address(registry)),

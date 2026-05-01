@@ -28,7 +28,7 @@ contract xPNTsTokenFullTest is Test {
         vm.startPrank(admin);
         address implementation = address(new xPNTsToken());
         token = xPNTsToken(implementation.clone());
-        token.initialize("Points", "XP", admin, "Comm", "ens.eth", 1e18);
+        token.initialize("Points", "XP", admin, "Comm", "ens.eth", 1e18, 0);
         vm.stopPrank();
         
         vm.prank(admin);

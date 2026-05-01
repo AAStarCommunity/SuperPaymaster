@@ -75,7 +75,7 @@ contract BlacklistSyncTest is Test {
         priceFeed = new MockAggregator();
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
-        apnts.initialize("APNTS", "APNTS", owner, "Comm", "ens", 1e18);
+        apnts.initialize("APNTS", "APNTS", owner, "Comm", "ens", 1e18, 0);
         
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), address(priceFeed), owner, address(apnts), treasury, 3600);
 

@@ -23,6 +23,7 @@ contract Deploy06_1_BPNTs is Script {
             "BreadCommunity",
             "breadcommunity.eth",
             1e18, // 1:1 exchange rate
+            0,    // initialDailyCap: use default (15_000 ether ≈ $300)
             address(0) // No AOA paymaster linked yet
         );
 

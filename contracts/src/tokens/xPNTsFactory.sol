@@ -167,6 +167,8 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param communityName Community display name
      * @param communityENS Community ENS domain
      * @param exchangeRate Exchange rate with aPNTs (18 decimals, e.g., 1e18 = 1:1)
+     * @param initialDailyCap Initial per-spender daily burn cap in tokens (18 decimals).
+     *                        Pass 0 to use the default of 15_000 ether (~$300 at $0.02/xPNT).
      * @param paymasterAOA Paymaster address for AOA mode (optional, use address(0) for AOA+ only)
      * @return token Deployed token address
      */
@@ -176,6 +178,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         string memory communityName,
         string memory communityENS,
         uint256 exchangeRate,
+        uint256 initialDailyCap,
         address paymasterAOA
     ) external returns (address token) {
         if (!IRegistry(REGISTRY).hasRole(keccak256("COMMUNITY"), msg.sender)) {
@@ -195,7 +198,8 @@ contract xPNTsFactory is Ownable, IVersioned {
             msg.sender,
             communityName,
             communityENS,
-            exchangeRate
+            exchangeRate,
+            initialDailyCap
         );
 
         token = newTokenAddress;

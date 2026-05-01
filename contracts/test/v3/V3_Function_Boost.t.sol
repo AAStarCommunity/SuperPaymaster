@@ -41,7 +41,7 @@ contract V3_Function_BoostTest is Test {
 
         address implementation = address(new xPNTsToken());
         aPNTs = xPNTsToken(implementation.clone());
-        aPNTs.initialize("a", "b", owner, "c", "d", 1e18);
+        aPNTs.initialize("a", "b", owner, "c", "d", 1e18, 0);
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(address(0x123)), IRegistry(address(registry)), address(0x123), owner, address(aPNTs), treasury, 3600);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));
