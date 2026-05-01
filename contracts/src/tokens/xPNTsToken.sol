@@ -698,6 +698,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      *         auto-added by the factory — each community decides explicitly.
      *         A facilitator that is not in this set will be rejected by
      *         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.
+     * @dev SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).
+     *      A compromised single-EOA communityOwner can add arbitrary facilitators,
+     *      enabling unauthorized token extraction. This contract cannot enforce
+     *      multisig — the deployment process must ensure communityOwner != EOA.
      * @param facilitator Facilitator address to approve.
      */
     function addApprovedFacilitator(address facilitator) external {
@@ -715,6 +719,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Revoke a facilitator's authorization (instant, no timelock).
      * @dev    P0-12b: incident-response primitive; community can yank a
      *         compromised facilitator without redeploying or upgrading SP.
+     * @dev SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).
+     *      A compromised single-EOA communityOwner can add arbitrary facilitators,
+     *      enabling unauthorized token extraction. This contract cannot enforce
+     *      multisig — the deployment process must ensure communityOwner != EOA.
      * @param facilitator Facilitator address to remove.
      */
     function removeApprovedFacilitator(address facilitator) external {
@@ -793,6 +801,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         exchangeRate = _newRate;
     }
 
+    /// @dev The new owner SHOULD be a multisig. See addApprovedFacilitator for security rationale.
     function transferCommunityOwnership(address newOwner) external {
         if (msg.sender != communityOwner) {
             revert Unauthorized(msg.sender);
