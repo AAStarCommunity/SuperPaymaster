@@ -103,6 +103,16 @@ contract PaymasterV4_RegistryV3Test is Test {
         assertTrue(paymaster.paused(), "contract must be paused after deactivate");
     }
 
+    function test_Deactivate_Idempotent() public {
+        vm.startPrank(owner);
+        paymaster.deactivateFromRegistry();
+        assertTrue(paymaster.paused());
+        // Second call must not revert and must not emit extra events.
+        paymaster.deactivateFromRegistry();
+        assertTrue(paymaster.paused(), "still paused after double deactivate");
+        vm.stopPrank();
+    }
+
     function test_Deactivate_DoesNotCallExitRole() public {
         // The contract must NOT call registry.exitRole — that would revert
         // because address(paymaster) does not hold the role. Verify by
@@ -191,6 +201,18 @@ contract PaymasterV4_RegistryV3Test is Test {
         paymaster.activateInRegistry();
     }
 
+    function test_Activate_Idempotent() public {
+        // Already not paused — calling activate again must not revert.
+        assertFalse(paymaster.paused());
+        vm.prank(owner);
+        paymaster.activateInRegistry();
+        assertFalse(paymaster.paused(), "still active after redundant activate");
+    }
+
+    /// @dev Note: after P0-6 (fix/p0-6-v4-pause) merges, PaymasterBase will gain
+    ///      pause()/unpause() that operate the same paused flag. deactivateFromRegistry
+    ///      and activateInRegistry should then delegate to those rather than setting
+    ///      paused directly, to avoid 4 functions for 2 operations.
     function test_Activate_RoleStaysOnEOA() public {
         // Core design invariant: deactivate/activate cycle must NOT touch the
         // registry role — ROLE_PAYMASTER_AOA remains on the operator EOA.
