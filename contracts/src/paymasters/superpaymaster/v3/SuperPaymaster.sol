@@ -1379,6 +1379,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    /// @dev settlementId uses abi.encode (not encodePacked) to stay consistent with
+    ///      x402NonceKey encoding and to avoid any future collision risk with variable-length
+    ///      types. All fields (address, uint256, bytes32) are fixed-size, so the encoding
+    ///      produces a unique deterministic id per (from, to, asset, amount, nonce) tuple.
     function settleX402Payment(
         address from, address to, address asset, uint256 amount,
         uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
@@ -1387,11 +1391,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     /// @notice Settle x402 payment via direct transferFrom (for xPNTs and pre-approved tokens)
-    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve)
+    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve).
+    ///      settlementId uses abi.encode (not encodePacked) to match x402NonceKey encoding and
+    ///      avoid any future hash-collision risk with variable-length types.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
@@ -1399,7 +1405,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     // ====================================
