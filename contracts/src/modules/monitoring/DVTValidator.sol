@@ -99,6 +99,13 @@ contract DVTValidator is Ownable, IVersioned {
     ///         `Registry.getRoleConfig(ROLE_DVT)` so governance can tune the
     ///         floor via `Registry.configureRole` without redeploying. Initial
     ///         deploy-time floor is 200 ether GToken (10x previous default).
+    /// @dev KNOWN LIMITATION: Stake is validated at registration time only.
+    ///      A validator can exit their GTokenStaking stake after registration
+    ///      without isValidator[v] being cleared. Mitigation:
+    ///      1. Off-chain: operators should periodically call removeValidator()
+    ///         for addresses whose stake has dropped below minStake.
+    ///      2. On-chain enforcement would require a callback from GTokenStaking
+    ///         (out of scope for this fix; tracked as future enhancement).
     function addValidator(address _v) external onlyOwner {
         bytes32 roleDvt = REGISTRY.ROLE_DVT();
 
