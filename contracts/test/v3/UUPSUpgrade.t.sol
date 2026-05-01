@@ -447,8 +447,9 @@ contract UUPSUpgradeTest is Test {
         paymaster.setProtocolFee(500);
         assertEq(paymaster.protocolFeeBPS(), 500);
 
-        paymaster.setAPNTSPrice(0.05 ether);
-        assertEq(paymaster.aPNTsPriceUSD(), 0.05 ether);
+        // P0-11 bounds: ±10% of current 0.02 ether → max 0.022 ether.
+        paymaster.setAPNTSPrice(0.021 ether);
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
 
         paymaster.setBLSAggregator(address(0xCC));
         assertEq(paymaster.BLS_AGGREGATOR(), address(0xCC));
