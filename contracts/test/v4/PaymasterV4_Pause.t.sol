@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "src/paymasters/v4/Paymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Test", "TST") {}
@@ -46,20 +47,22 @@ contract PaymasterV4_PauseTest is Test {
     MockToken token;
     address owner = address(0xABCD);
     address user  = address(0x1234);
+    address ep;   // EntryPoint address — stored so tests can prank it
 
     // Mirror events to use vm.expectEmit
     event Paused(address indexed account);
     event Unpaused(address indexed account);
 
     function setUp() public {
-        MockEntryPoint ep = new MockEntryPoint();
+        MockEntryPoint mockEp = new MockEntryPoint();
+        ep = address(mockEp);
         MockOracle oracle = new MockOracle();
         MockRegistry registry = new MockRegistry();
 
         Paymaster impl = new Paymaster(address(registry));
         paymaster = Paymaster(payable(Clones.clone(address(impl))));
         paymaster.initialize(
-            address(ep),                 // entryPoint
+            ep,                          // entryPoint
             owner,                       // owner
             owner,                       // treasury
             address(oracle),             // priceFeed
@@ -79,6 +82,11 @@ contract PaymasterV4_PauseTest is Test {
 
         vm.prank(user);
         paymaster.depositFor(user, address(token), 100 ether);
+
+        // Seed the price cache so validatePaymasterUserOp does not fail with
+        // Paymaster__PriceNotInitialized before reaching the whenNotPaused guard.
+        vm.prank(owner);
+        paymaster.setCachedPrice(2000e8, uint48(block.timestamp));
     }
 
     function test_PauseUnpause_DefaultsToFalse() public view {
@@ -172,5 +180,51 @@ contract PaymasterV4_PauseTest is Test {
 
         vm.prank(user);
         paymaster.withdraw(address(token), 10 ether); // must not revert
+    }
+
+    // ── validatePaymasterUserOp guarded by whenNotPaused ────────────────────
+
+    /// @notice Builds a minimal PackedUserOperation with the payment token
+    ///         encoded at byte offset 52 (the V4 paymasterData layout:
+    ///         paymaster(20) + validUntil(6) + validAfter(6) + token(20)).
+    function _minimalUserOp(address sender, address payToken)
+        internal
+        pure
+        returns (PackedUserOperation memory op)
+    {
+        op.sender = sender;
+        op.nonce  = 0;
+        op.initCode = hex"";
+        op.callData = hex"";
+        op.accountGasLimits   = bytes32(abi.encodePacked(uint128(100_000), uint128(100_000)));
+        op.preVerificationGas = 21_000;
+        op.gasFees            = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
+        // paymasterAndData: [paymaster addr 20B][validUntil 6B][validAfter 6B][token 20B]
+        // Token starts at offset 52, matching _getPaymasterDataOffset() == 52.
+        op.paymasterAndData = abi.encodePacked(
+            address(0), // paymaster placeholder (unused by inner validation logic)
+            uint48(0),  // validUntil (6 bytes)
+            uint48(0),  // validAfter (6 bytes)
+            payToken    // payment token at offset 52
+        );
+    }
+
+    /// @notice Verify that whenNotPaused actually guards validatePaymasterUserOp.
+    ///         A paused paymaster must refuse new UserOps so operators can halt
+    ///         sponsorship immediately during a security incident.
+    ///         The test calls from the EntryPoint address (satisfying onlyEntryPoint)
+    ///         so that whenNotPaused is the only remaining gate being tested.
+    function test_ValidatePaymasterUserOp_RevertsWhenPaused() public {
+        // Pause the paymaster.
+        vm.prank(owner);
+        paymaster.pause();
+
+        // Build a UserOp that would otherwise be valid (user has enough balance).
+        PackedUserOperation memory op = _minimalUserOp(user, address(token));
+
+        // Must revert with Paymaster__Paused, not slip through to balance checks.
+        vm.prank(ep);
+        vm.expectRevert(PaymasterBase.Paymaster__Paused.selector);
+        paymaster.validatePaymasterUserOp(op, bytes32(0), 0.01 ether);
     }
 }
