@@ -381,7 +381,7 @@ const resp = await fetch('https://facilitator.example.com/settle', {
 
 ```bash
 # 1) SuperPaymaster：起 anvil 并部署（需要切到 fix/p0-wave2-funds-price 才有 P0-13）
-cd /Users/jason/Dev/aastar/SuperPaymaster
+cd $SUPERPAYMASTER_ROOT   # e.g. ~/Dev/aastar/SuperPaymaster
 git checkout fix/p0-wave2-funds-price
 ./deploy-core anvil --force
 ./prepare-test anvil
@@ -397,14 +397,14 @@ cp .env.example .env
 pnpm install && pnpm dev   # 默认 port 3402
 
 # 4) SDK：跑单元测试
-cd /Users/jason/Dev/aastar/aastar-sdk
+cd $AASTAR_SDK_ROOT   # e.g. ~/Dev/aastar/aastar-sdk
 pnpm install
 pnpm --filter @aastar/x402 test
 pnpm --filter @aastar/channel test
 pnpm --filter @aastar/cli test
 
 # 5) 现成的合约级 E2E（Sepolia / anvil 都能跑）
-cd /Users/jason/Dev/aastar/SuperPaymaster/script/gasless-tests
+cd $SUPERPAYMASTER_ROOT/script/gasless-tests
 node test-x402-eip3009-settlement.js     # USDC EIP-3009 path 直发链上
 node test-x402-permit2-settlement.js     # 历史脚本（V5.3 已弃用 Permit2，保留参考）
 
@@ -448,15 +448,12 @@ node test-x402-permit2-settlement.js     # 历史脚本（V5.3 已弃用 Permit2
 ### 9.1 SDK 仓库定位
 
 ```
-$ find /Users/jason/Dev -maxdepth 5 -type d -name "aastar-sdk"
-/Users/jason/Dev/aastar/aastar-sdk          ← 活跃开发，本文档对应
-/Users/jason/Dev/aastar-sdk
-/Users/jason/Dev/jhfnetboy/aastar-launch/aastar-sdk
-/Users/jason/Dev/aastar/aastar-start/packages/aastar-sdk
+$ find $HOME/Dev -maxdepth 5 -type d -name "aastar-sdk"
+$AASTAR_SDK_ROOT          ← 活跃开发，本文档对应（e.g. ~/Dev/aastar/aastar-sdk）
 ... (其他 backup / submodule 副本)
 ```
 
-主仓库：`/Users/jason/Dev/aastar/aastar-sdk` (git, 当前默认 `main` 分支已合并 V5.3 SDK PR #9)。
+主仓库：`$AASTAR_SDK_ROOT` (git, 当前默认 `main` 分支已合并 V5.3 SDK PR #9)。
 
 x402/channel/cli 源代码在 `main` 分支（当前 `feat/paper3-controlled-baseline` 工作树**没有**这些 src，只有 dist）。
 
@@ -465,7 +462,7 @@ x402/channel/cli 源代码在 `main` 分支（当前 `feat/paper3-controlled-bas
 P0-13 (`b478a10`) 在 SuperPaymaster 上加了 `function x402NonceKey(address asset, address from, bytes32 nonce) public pure returns (bytes32)`，并把 `x402SettlementNonces` 的 key 改为三元组。
 
 ```
-$ grep -c "x402NonceKey" /Users/jason/Dev/aastar/SuperPaymaster/abis/SuperPaymaster.json
+$ grep -c "x402NonceKey" $SUPERPAYMASTER_ROOT/abis/SuperPaymaster.json
 0    (NOT in SP repo abi)
 
 $ git show main:packages/core/src/abis/SuperPaymaster.json | grep -c x402NonceKey   # in aastar-sdk
@@ -564,16 +561,16 @@ facilitator-node：**没有任何测试**（package.json 无 `test` 脚本，src
 
 ## 11. 关键路径速查
 
-| 资源 | 绝对路径 |
+| 资源 | 路径（相对于各仓库根目录） |
 |------|----------|
-| SDK 主仓库 | `/Users/jason/Dev/aastar/aastar-sdk` |
-| `@aastar/x402` 源码 | `/Users/jason/Dev/aastar/aastar-sdk/packages/x402/src/` (main 分支) |
-| `@aastar/core x402 actions` | `/Users/jason/Dev/aastar/aastar-sdk/packages/core/src/actions/x402.ts` |
-| `@aastar/cli` x402 命令 | `/Users/jason/Dev/aastar/aastar-sdk/packages/cli/src/commands/x402.ts` |
-| `@aastar/channel` 源码 | `/Users/jason/Dev/aastar/aastar-sdk/packages/channel/src/` |
-| SDK SuperPaymaster ABI | `/Users/jason/Dev/aastar/aastar-sdk/packages/core/src/abis/SuperPaymaster.json` |
-| SP 仓库 ABI 输出 | `/Users/jason/Dev/aastar/SuperPaymaster/abis/` |
-| ABI 同步脚本 | `/Users/jason/Dev/aastar/SuperPaymaster/sync_to_sdk.sh` + `scripts/extract_v3_abis.sh` |
+| SDK 主仓库 | `$AASTAR_SDK_ROOT` (e.g. `~/Dev/aastar/aastar-sdk`) |
+| `@aastar/x402` 源码 | `$AASTAR_SDK_ROOT/packages/x402/src/` (main 分支) |
+| `@aastar/core x402 actions` | `$AASTAR_SDK_ROOT/packages/core/src/actions/x402.ts` |
+| `@aastar/cli` x402 命令 | `$AASTAR_SDK_ROOT/packages/cli/src/commands/x402.ts` |
+| `@aastar/channel` 源码 | `$AASTAR_SDK_ROOT/packages/channel/src/` |
+| SDK SuperPaymaster ABI | `$AASTAR_SDK_ROOT/packages/core/src/abis/SuperPaymaster.json` |
+| SP 仓库 ABI 输出 | `$SUPERPAYMASTER_ROOT/abis/` |
+| ABI 同步脚本 | `$SUPERPAYMASTER_ROOT/sync_to_sdk.sh` + `scripts/extract_v3_abis.sh` |
 | Facilitator-Node 源码 | `/Users/jason/Dev/aastar/SuperPaymaster/packages/x402-facilitator-node/src/` |
 | HMAC middleware | `/Users/jason/Dev/aastar/SuperPaymaster/packages/x402-facilitator-node/src/middleware/hmac-challenge.ts` |
 | SuperPaymaster 合约 | `/Users/jason/Dev/aastar/SuperPaymaster/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol` |

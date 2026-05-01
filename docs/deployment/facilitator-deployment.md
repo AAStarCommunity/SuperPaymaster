@@ -427,12 +427,19 @@ HMAC_SECRET=$(openssl rand -hex 32)
 
 ### 8.2 客户端流程
 
+> **注意（已知 Bug — 见 §8.4）**：`hmacChallengeInjector` 当前只在
+> `res.status === 402` 时注入 `X-Challenge` header，而 facilitator 的
+> `/verify` 端点返回 200/400，**不会**返回 402，因此 `X-Challenge` 实际上
+> 不会出现在 `/verify` 的响应中。下述流程描述的是设计意图；在 §8.4 的 bug
+> 修复落地前，步骤 1 拿到的响应不会包含 `X-Challenge`，客户端无法完成 HMAC
+> 认证，`/settle` 会被拒绝（400）。
+
 ```text
 1) Client → POST /verify
-   ← 200 OK，response header X-Challenge: <ts>:<mac>
-   （注意：当前实现是 res.status === 402 时才注入 X-Challenge，详见已知问题）
+   ← 200 OK（设计意图：response header X-Challenge: <ts>:<mac>）
+   ← 当前实现：X-Challenge 不注入，因中间件仅在 status=402 时触发（见 §8.4）
 
-2) Client 计算
+2) Client 计算（仅在 §8.4 bug 修复后可用）
    payment_body = JSON.stringify(payment_payload)
    client_hmac = HMAC-SHA256(challenge, payment_body)
 
@@ -534,7 +541,7 @@ facilitator 本身**不会自动 failover**。生产建议：
 
 > 验证时间：2026-04-27
 > 主机：darwin 23.5.0，Node v24.12.0，pnpm 10.15.1
-> 工作目录：`/Users/jason/Dev/aastar/SuperPaymaster/packages/x402-facilitator-node`
+> 工作目录：`$SUPERPAYMASTER_ROOT/packages/x402-facilitator-node`
 
 ### 10.1 `pnpm install` —— 通过
 
