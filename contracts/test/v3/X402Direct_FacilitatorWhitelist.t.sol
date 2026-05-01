@@ -201,6 +201,18 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         token.addApprovedFacilitator(address(0));
     }
 
+    /// @notice communityOwner cannot add themselves as facilitator —
+    ///         doing so would let them exploit the auto-approved allowance
+    ///         they administer (conflict of interest / separation of duties).
+    function test_AddApprovedFacilitator_RevertsIfCommunityOwner() public {
+        vm.prank(community);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.Unauthorized.selector, community));
+        token.addApprovedFacilitator(community);
+
+        // Confirm the entry was NOT added to the whitelist.
+        assertFalse(token.approvedFacilitators(community));
+    }
+
     function test_AddApprovedFacilitator_EmitsEvent() public {
         vm.expectEmit(true, false, false, true, address(token));
         emit FacilitatorApproved(operator);

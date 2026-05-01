@@ -702,6 +702,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      *      A compromised single-EOA communityOwner can add arbitrary facilitators,
      *      enabling unauthorized token extraction. This contract cannot enforce
      *      multisig — the deployment process must ensure communityOwner != EOA.
+     * @dev Prevents communityOwner from acting as both administrator and facilitator
+     *      (conflict of interest: an owner-facilitator could exploit the auto-approved
+     *      allowance they administer, bypassing the separation-of-duties guarantee).
      * @param facilitator Facilitator address to approve.
      */
     function addApprovedFacilitator(address facilitator) external {
@@ -710,6 +713,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
         if (facilitator == address(0)) {
             revert InvalidAddress(facilitator);
+        }
+        // Prevents communityOwner from acting as both administrator and facilitator
+        // (conflict of interest)
+        if (facilitator == communityOwner) {
+            revert Unauthorized(facilitator);
         }
         approvedFacilitators[facilitator] = true;
         emit FacilitatorApproved(facilitator);
