@@ -835,6 +835,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         using the same comparison the main path delegates to
     ///         EntryPoint via `validUntil` — i.e., a price is stale when
     ///         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.
+    /// @dev MERGE DEPENDENCY: This function must be deployed together with P0-16
+    ///      (future-timestamp guard on cache writes). Without P0-16, dryRunValidation
+    ///      may return ok=true for a future-timestamp cache, while the actual
+    ///      validatePaymasterUserOp would revert after P0-16 is deployed.
     /// @param userOp  The UserOperation to dry-run.
     /// @param maxCost Same maxCost EntryPoint will pass to validation.
     /// @return ok          True if validation would pass.
