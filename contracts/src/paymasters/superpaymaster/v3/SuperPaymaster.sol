@@ -66,6 +66,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
+    /// @notice Grace window (seconds) for keeper clock skew on `updatedAt` checks.
+    ///         Matches PaymasterBase.TIMESTAMP_GRACE_SECONDS to keep both modes in sync.
+    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
     
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
@@ -354,7 +357,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // A 15-second grace window accommodates the ~12 s maximum drift between
         // a keeper's wall-clock and block.timestamp, preventing spurious
         // rejections of honest keepers while closing the far-future attack vector.
-        if (updatedAt > block.timestamp + 15) revert OracleError();
+        if (updatedAt > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert OracleError();
         
         // 2. BLS proof is verified by BLSAggregator before it calls this function.
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
