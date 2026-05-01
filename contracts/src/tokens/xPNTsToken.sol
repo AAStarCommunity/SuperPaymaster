@@ -783,6 +783,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     uint256 public constant EXCHANGE_RATE_MIN = 1e14;        // 0.0001:1
     uint256 public constant EXCHANGE_RATE_MAX = 1e22;        // 10000:1
     uint256 public constant EXCHANGE_RATE_DELTA_BPS = 2000;  // 20%
+    uint256 private constant BPS_DENOMINATOR = 10_000;
 
     /// @notice Update the xPNTs:aPNTs exchange rate.
     /// @dev P0-11 (B4-M2): pre-fix only checked `_newRate != 0`. Inline
@@ -795,8 +796,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (_newRate < EXCHANGE_RATE_MIN || _newRate > EXCHANGE_RATE_MAX) revert ExchangeRateCannotBeZero();
         uint256 oldRate = exchangeRate;
         if (oldRate != 0) {
-            uint256 lower = oldRate * (10000 - EXCHANGE_RATE_DELTA_BPS) / 10000;
-            uint256 upper = oldRate * (10000 + EXCHANGE_RATE_DELTA_BPS) / 10000;
+            uint256 lower = oldRate * (BPS_DENOMINATOR - EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
+            uint256 upper = oldRate * (BPS_DENOMINATOR + EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
             if (_newRate < lower || _newRate > upper) revert ExchangeRateCannotBeZero();
         }
 
