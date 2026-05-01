@@ -468,6 +468,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         //     hash. Bumping the nonce BEFORE the verify call makes the
         //     committed value match the post-state, so the same proof can
         //     never satisfy this contract twice.
+        /// @dev Nonce is incremented before signature verification (nonce-before-verify design).
+        ///      If verify() reverts, the nonce still advances; the next submission must use
+        ///      blacklistNonce+1. This is intentional: it prevents signature replay by ensuring
+        ///      each BLS proof is single-use regardless of execution outcome.
         uint256 nonce = blacklistNonce + 1;
         blacklistNonce = nonce;
 
