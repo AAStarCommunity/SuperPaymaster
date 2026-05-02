@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Mycelium Protocol 生态上下文
+
+@/Users/jason/Dev/Brood/protocol/MISSION.md
+@/Users/jason/Dev/Brood/orgs/aastar/PROFILE.md
+@/Users/jason/Dev/Brood/orgs/aastar/INTERFACES.md
 
 ## Project Overview
 
