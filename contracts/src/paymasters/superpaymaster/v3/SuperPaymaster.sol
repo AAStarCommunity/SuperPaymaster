@@ -237,7 +237,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // (deployed later via setAPNTsToken which has its own zero-address check)
         APNTS_TOKEN = _apntsToken;
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
-        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
+        uint256 staleness = (_priceStalenessThreshold >= 60 && _priceStalenessThreshold <= 86400)
+            ? _priceStalenessThreshold
+            : 3600;
+        priceStalenessThreshold = staleness;
         // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
         aPNTsPriceUSD = 0.02 ether;
         protocolFeeBPS = 1000;
@@ -437,6 +440,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     function setXPNTsFactory(address _factory) external onlyOwner {
         xpntsFactory = _factory;
+    }
+
+    /**
+     * @notice Set the price staleness threshold (Owner Only)
+     * @dev Bounds: [60, 86400] seconds. 0 would expire all prices instantly;
+     *      values > 1 day would let a stale oracle go undetected.
+     */
+    function setPriceStalenessThreshold(uint256 val) external onlyOwner {
+        if (val < 60 || val > 86400) revert InvalidConfiguration();
+        priceStalenessThreshold = val;
     }
 
     // ====================================

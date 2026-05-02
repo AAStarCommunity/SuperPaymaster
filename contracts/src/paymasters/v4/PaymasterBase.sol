@@ -130,6 +130,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__TokenNotInList();
     error Paymaster__TokenDecimalsTooLarge();
     error Paymaster__InvalidGasCostCap();
+    error Paymaster__InvalidStalenessThreshold();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -648,6 +649,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         maxGasCostCap = _maxGasCostCap;
     }
     function setPriceStalenessThreshold(uint256 _priceStalenessThreshold) external onlyOwner {
+        if (_priceStalenessThreshold < 60 || _priceStalenessThreshold > 86400) revert Paymaster__InvalidStalenessThreshold();
         priceStalenessThreshold = _priceStalenessThreshold;
     }
 
