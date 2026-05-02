@@ -167,6 +167,20 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error NoPendingDebt();
 
     // ====================================
+    // Internal Helpers
+    // ====================================
+
+    /// @dev Reverts with Unauthorized if caller is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRole() internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+    }
+
+    /// @dev Reverts with Unauthorized if `account` is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRoleFor(address account) internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), account)) revert Unauthorized();
+    }
+
+    // ====================================
     // Constructor & Initializer (UUPS)
     // ====================================
 
@@ -226,9 +240,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
+        _requireSuperOperatorRole();
         // BUS-RULE: Must be Community to be Paymaster
          if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert Unauthorized();
@@ -317,7 +329,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
 
     function setOperatorLimits(uint48 _minTxInterval) external {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         operators[msg.sender].minTxInterval = _minTxInterval;
         emit OperatorMinTxIntervalUpdated(msg.sender, _minTxInterval);
     }
@@ -399,17 +411,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
-     * @notice Deposit aPNTs
-     */
-    /**
      * @notice Deposit aPNTs (Legacy Pull Mode)
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRole();
         // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         // Check overflow for uint128
@@ -436,9 +442,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), from)) {
-             revert Unauthorized();
-        }
+        _requireSuperOperatorRoleFor(from);
 
 
         if (value > type(uint128).max) revert AmountExceedsUint128();
@@ -454,20 +458,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
-     * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
-     * @dev Fallback for tokens that don't support ERC1363.
-     *      User must transfer tokens first, then call this.
-     */
-    /**
      * @notice Deposit aPNTs for a specific operator (Secure Push Mode)
      * @param targetOperator The operator to credit the deposit to
      * @param amount Amount of aPNTs
      */
     function depositFor(address targetOperator, uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), targetOperator)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRoleFor(targetOperator);
         // Transfer from sender (must approve first)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         
@@ -1145,7 +1141,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
     function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         if (policies.length > MAX_AGENT_POLICIES) revert InvalidConfiguration();
         delete agentPolicies[msg.sender];
         for (uint256 i = 0; i < policies.length; i++) {
@@ -1253,7 +1249,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function _validateX402AndComputeFee(
         address asset, uint256 amount, bytes32 nonce
     ) internal returns (uint256 fee) {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
         x402SettlementNonces[nonce] = true;
 
