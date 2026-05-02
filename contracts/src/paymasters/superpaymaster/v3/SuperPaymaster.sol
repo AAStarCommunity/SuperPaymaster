@@ -163,6 +163,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
+    event AgentSponsorshipApplied(address indexed operator, address indexed user, uint256 bps);
 
     error Unauthorized();
     error InvalidAddress();
@@ -1326,6 +1327,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 usdScaled = usdAmount / 1e12; // scale to 1e6
         _agentDailySpend[operator][day] += usdScaled;
 
+        emit AgentSponsorshipApplied(operator, agent, bestBPS);
         return discounted;
     }
 
