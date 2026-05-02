@@ -263,14 +263,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         semantics in spirit (queue / cancel / execute).
     uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
 
-    /// @notice Pending APNTS_TOKEN swap, address(0) when none queued.
-    /// @dev    Storage slot 18 (verified via `forge inspect SuperPaymaster storage-layout`).
-    ///         Appended after `pendingDebts` (slot 17); no collision with pre-existing slots.
-    address public pendingAPNTsToken;
-    /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
-    /// @dev    Storage slot 19; shares the same upgrade-append region as `pendingAPNTsToken`.
-    uint256 public pendingAPNTsTokenEta;
-
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
     ///         and `protocolRevenue` are zero (otherwise existing operator
@@ -942,12 +934,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             // Preferred: burn from user's xPNTs balance with replay protection.
             // Falls back to recordDebt when user has insufficient balance (e.g. new user).
             // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                    pendingDebts[token][user] += finalXPNTsDebt;
-                    emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                }
-            }
+            _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
 
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
@@ -956,13 +943,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         } else {
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
-
-             try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                 try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                     pendingDebts[token][user] += finalXPNTsDebt;
-                     emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                 }
-             }
+             _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
         }
 
         // F2: Submit positive feedback to ERC-8004 reputation registry
@@ -983,6 +964,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Fix: Read from offset 52 (standard ERC-4337 v0.7 layout)
         if (userOp.paymasterAndData.length < 72) return address(0);
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
+    }
+
+    /// @dev Try to burn xPNTs debt from user; fall back to recordDebt; fall back to pendingDebts.
+    function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+        try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
+            try IxPNTsToken(token).recordDebt(user, amount) {} catch {
+                pendingDebts[token][user] += amount;
+                emit DebtRecordFailed(token, user, amount);
+            }
+        }
     }
 
     // ====================================
@@ -1031,6 +1022,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F1: Agent Sponsorship Policy
     mapping(address => ISuperPaymaster.AgentSponsorshipPolicy[]) public agentPolicies; // operator => policies
     mapping(address => mapping(uint256 => uint256)) private _agentDailySpend; // operator => day => USD spent
+
+    // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
+    // Slots 27-28 (after _agentDailySpend at slot 26). __gap reduced from 40 to 38.
+    /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
+    address public pendingAPNTsToken;
+    /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
+    uint256 public pendingAPNTsTokenEta;
 
     // V5 Events
     event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -1248,6 +1246,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 48, minus 8 new storage slots (2 addresses + 1 uint256 + 5 mappings)
-    uint256[40] private __gap;
+    // Was 48, minus 8 V5 storage slots (2 addresses + 1 uint256 + 5 mappings) = 40.
+    // Minus 2 P0-9 slots (pendingAPNTsToken + pendingAPNTsTokenEta) = 38.
+    uint256[38] private __gap;
 }
