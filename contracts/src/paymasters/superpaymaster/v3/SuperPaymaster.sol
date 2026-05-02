@@ -1551,11 +1551,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
         bytes32 key = x402NonceKey(asset, from, nonce);
         if (x402SettlementNonces[key]) revert NonceAlreadyUsed();
-        /// @dev Nonce is consumed before asset whitelist check (intentional).
-        ///      Rationale: prevents replay of any call regardless of failure reason.
-        ///      Trade-off: a caller who passes a non-xPNTs asset loses their nonce
-        ///      and must use a fresh nonce to retry. This is acceptable because
-        ///      well-formed SDK clients always validate asset addresses before submitting.
         x402SettlementNonces[key] = true;
 
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
