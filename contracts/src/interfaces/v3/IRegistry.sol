@@ -84,6 +84,9 @@ interface IRegistry is IVersioned {
         string reason
     );
 
+    /// @notice L-04: Emitted when burnSBT fails during exitRole (failure is non-fatal)
+    event SBTBurnFailed(address indexed user, bytes32 indexed roleId);
+
 
     // ====================================
     // Core Functions

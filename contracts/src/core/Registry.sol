@@ -305,7 +305,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (SUPER_PAYMASTER != address(0)) {
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
-            MYSBT.burnSBT(msg.sender);
+            // L-04: wrap in try/catch so a failing burnSBT never reverts exitRole;
+            // emit an event so the failure is observable on-chain.
+            try MYSBT.burnSBT(msg.sender) {} catch {
+                emit SBTBurnFailed(msg.sender, roleId);
+            }
         }
 
         // --- stake unlock (operator roles only) ---
