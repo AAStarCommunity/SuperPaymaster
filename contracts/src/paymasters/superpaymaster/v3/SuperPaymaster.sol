@@ -799,6 +799,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
 
         // 4. Solvency Check
+        // lastTimestamp intentionally NOT updated on sigFailure — rate-limit only counts successful validations.
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0));
         }
@@ -980,6 +981,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
+             // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
+             // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
+             // This branch is a defensive cap; if reached in production it indicates
+             // an EntryPoint invariant violation or an unexpected price swing between
+             // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
 
