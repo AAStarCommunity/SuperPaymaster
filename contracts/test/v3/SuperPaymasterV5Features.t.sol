@@ -501,6 +501,137 @@ contract SuperPaymasterV5Features_Test is Test {
     }
 
     // ====================================
+    // P0-13: per-(asset, from, nonce) replay-protection
+    // ====================================
+
+    /// @notice The same nonce on different assets must be independent. Pre-V5.4
+    ///         the global nonce mapping let an anonymous attacker pre-burn a
+    ///         victim's nonce by submitting a dummy settlement on a junk asset.
+    function test_Nonce_PerAssetIsolation() public {
+        bytes32 nonce = bytes32(uint256(0xCAFE));
+        address payer = address(0x40);
+        usdc.mint(payer, 100e6);
+        xpnts.mint(payer, 100 ether);
+
+        // Burn nonce on USDC.
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        // Same nonce, same payer, different asset must still be available.
+        vm.prank(operator1);
+        bytes32 sid = paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), 100 ether, nonce);
+        assertTrue(sid != bytes32(0), "same nonce on different asset must succeed");
+    }
+
+    /// @notice Same nonce, same asset, different `from` must also be independent.
+    function test_Nonce_PerPayerIsolation() public {
+        bytes32 nonce = bytes32(uint256(0xBEEF));
+        address payerA = address(0x50);
+        address payerB = address(0x51);
+        usdc.mint(payerA, 100e6);
+        usdc.mint(payerB, 100e6);
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        vm.prank(operator1);
+        bytes32 sid = paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        assertTrue(sid != bytes32(0), "same nonce on different payer must succeed");
+    }
+
+    /// @notice Replay on the exact (asset, from, nonce) triple must still revert.
+    function test_Nonce_TripleReplayBlocked() public {
+        bytes32 nonce = bytes32(uint256(0xDEAD));
+        address payer = address(0x60);
+        usdc.mint(payer, 200e6);
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+    }
+
+    /// @notice The public helper `x402NonceKey` must agree with what the
+    ///         contract writes internally — SDKs depend on this.
+    function test_Nonce_PublicKeyMatchesStorage() public {
+        bytes32 nonce = bytes32(uint256(0xBABE));
+        address payer = address(0x70);
+        usdc.mint(payer, 100e6);
+
+        bytes32 key = paymaster.x402NonceKey(address(usdc), payer, nonce);
+        assertFalse(paymaster.x402SettlementNonces(key), "key should be unused before settle");
+
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        assertTrue(paymaster.x402SettlementNonces(key), "key should be set after settle");
+    }
+
+    /// @notice EIP-3009 path and Direct path share the SAME (asset, from, nonce)
+    ///         nonce namespace inside SuperPaymaster. A nonce consumed by
+    ///         settleX402Payment must be rejected by settleX402PaymentDirect and
+    ///         vice-versa.
+    function test_Nonce_CrossPath_EIP3009ThenDirectBlocked() public {
+        bytes32 nonce = bytes32(uint256(0xC0FFEE));
+        address payer = address(0x80);
+        usdc.mint(payer, 200e6);
+
+        // Step 1: consume nonce via EIP-3009 path (USDC).
+        vm.prank(operator1);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        // Step 2: same nonce, same payer, same asset via Direct path must revert.
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402PaymentDirect(payer, payee, address(usdc), 100e6, nonce);
+    }
+
+    /// @notice Inverse cross-path check: Direct consumed nonce must be rejected
+    ///         by the EIP-3009 path for the same (asset, from, nonce) triple.
+    function test_Nonce_CrossPath_DirectThenEIP3009Blocked() public {
+        bytes32 nonce = bytes32(uint256(0xDECAF));
+        address payer = address(0x81);
+        xpnts.mint(payer, 200 ether);
+
+        // Step 1: consume nonce via Direct path (xPNTs).
+        vm.prank(operator1);
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), 100 ether, nonce);
+
+        // Step 2: same nonce, same payer, same asset via EIP-3009 path must revert.
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402Payment(payer, payee, address(xpnts), 100 ether, 0, block.timestamp + 1 hours, nonce, "");
+    }
+
+    /// @notice Pre-upgrade (pre-P0-13) settlements were keyed by the raw nonce
+    ///         bytes32 alone. This test simulates that state by writing the legacy
+    ///         slot directly, then verifying the new code refuses to reuse the nonce.
+    function test_Nonce_LegacyRawNonceReplayBlocked() public {
+        bytes32 nonce = bytes32(uint256(0xABCDEF));
+        address payer = address(0x82);
+        usdc.mint(payer, 100e6);
+
+        // Simulate a pre-P0-13 settlement: write the raw nonce as the mapping key.
+        // This is exactly what the old code wrote: x402SettlementNonces[nonce] = true.
+        stdstore
+            .target(address(paymaster))
+            .sig("x402SettlementNonces(bytes32)")
+            .with_key(nonce)
+            .checked_write(true);
+
+        // Both settle paths must now revert even though the NEW triple-key slot is clear.
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
+        paymaster.settleX402PaymentDirect(payer, payee, address(usdc), 100e6, nonce);
+    }
+
+    // ====================================
     // V5.3: isEligibleForSponsorship Tests
     // ====================================
 

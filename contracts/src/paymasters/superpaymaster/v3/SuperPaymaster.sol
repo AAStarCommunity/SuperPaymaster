@@ -163,6 +163,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
+    event AgentSponsorshipApplied(address indexed operator, address indexed user, uint256 bps);
 
     error Unauthorized();
     error InvalidAddress();
@@ -1149,7 +1150,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // x402 Facilitator Fees
     uint256 public facilitatorFeeBPS; // Default fee (e.g. 30 = 0.3%)
     mapping(address => uint256) public operatorFacilitatorFees; // Per-operator override
-    mapping(bytes32 => bool) public x402SettlementNonces; // Replay prevention
+    /// @notice x402 settlement nonces, keyed by keccak256(asset, from, nonce).
+    /// @dev    P0-13: Pre-V5.4 keyed by `nonce` alone (global namespace), which let
+    ///         an anonymous attacker pre-burn a victim's nonce by submitting a dummy
+    ///         settlement with the same nonce on a different (asset, from) pair.
+    ///         The triple key isolates each payer's nonce space per asset.
+    mapping(bytes32 => bool) public x402SettlementNonces;
     mapping(address => mapping(address => uint256)) public facilitatorEarnings; // operator => asset => amount
 
     // F1: Agent Sponsorship Policy
@@ -1321,6 +1327,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 usdScaled = usdAmount / 1e12; // scale to 1e6
         _agentDailySpend[operator][day] += usdScaled;
 
+        emit AgentSponsorshipApplied(operator, agent, bestBPS);
         return discounted;
     }
 
@@ -1350,13 +1357,29 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F3: x402 Payment Settlement
     // ====================================
 
+    /// @notice Compose the per-(asset, from, nonce) replay-protection key.
+    /// @dev    P0-13: must match exactly what the EIP-3009 / direct callers
+    ///         submit on-chain. Keep this function `pure` so off-chain SDKs can
+    ///         mirror the encoding via the contract ABI.
+    function x402NonceKey(address asset, address from, bytes32 nonce) public pure returns (bytes32) {
+        return keccak256(abi.encode(asset, from, nonce));
+    }
+
     /// @notice Shared validation and fee logic for both x402 settle paths.
     function _validateX402AndComputeFee(
-        address asset, uint256 amount, bytes32 nonce
+        address asset, address from, uint256 amount, bytes32 nonce
     ) internal returns (uint256 fee) {
         _requireSuperOperatorRole();
+
+        // Guard against replay of settlements made BEFORE the P0-13 upgrade.
+        // Pre-V5.4 the mapping was keyed by the raw nonce bytes32 value alone;
+        // if that slot is already set the nonce was consumed under the old scheme
+        // and must not be reused under the new triple-key scheme.
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
-        x402SettlementNonces[nonce] = true;
+
+        bytes32 key = x402NonceKey(asset, from, nonce);
+        if (x402SettlementNonces[key]) revert NonceAlreadyUsed();
+        x402SettlementNonces[key] = true;
 
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
         if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
@@ -1365,27 +1388,33 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    /// @dev settlementId uses abi.encode (not encodePacked) to stay consistent with
+    ///      x402NonceKey encoding and to avoid any future collision risk with variable-length
+    ///      types. All fields (address, uint256, bytes32) are fixed-size, so the encoding
+    ///      produces a unique deterministic id per (from, to, asset, amount, nonce) tuple.
     function settleX402Payment(
         address from, address to, address asset, uint256 amount,
         uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
     ) external nonReentrant returns (bytes32 settlementId) {
-        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
+        uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     /// @notice Settle x402 payment via direct transferFrom (for xPNTs and pre-approved tokens)
-    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve)
+    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve).
+    ///      settlementId uses abi.encode (not encodePacked) to match x402NonceKey encoding and
+    ///      avoid any future hash-collision risk with variable-length types.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
-        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
+        uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     // ====================================
