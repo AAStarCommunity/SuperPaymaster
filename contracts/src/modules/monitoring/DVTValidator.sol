@@ -4,7 +4,16 @@ pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IBLSAggregator.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
+
+/// @notice Local sub-view of Registry exposing the staking pointer. Kept here
+///         (rather than on IRegistry) so existing mocks across the test suite
+///         do not need to implement the GTOKEN_STAKING getter — DVTValidator
+///         simply casts its registry reference to this narrower interface.
+interface IRegistryStakingAware {
+    function GTOKEN_STAKING() external view returns (IGTokenStaking);
+}
 
 /**
  * @title DVTValidator
@@ -54,13 +63,21 @@ contract DVTValidator is Ownable, IVersioned {
     ///         an unborn proposalId as executed.
     error ProposalDoesNotExist();
     error NotAuthorizedExecutor();
+    /// @notice Reverted when addValidator is called for an address that does
+    ///         not hold ROLE_DVT in the Registry.
+    error ValidatorMissingRole();
+    /// @notice Reverted when addValidator is called for an address whose
+    ///         locked stake under ROLE_DVT is below the role's minStake.
+    error ValidatorStakeBelowMinimum(uint256 actual, uint256 required);
+    /// @notice Reverted when the Registry has no staking pointer wired up yet.
+    error StakingNotConfigured();
 
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistry(_registry);
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.4.0";
+        return "DVTValidator-0.5.0";
     }
 
     /// @notice Restrict to BLS aggregator or registered DVT validators (P0-4)
@@ -71,7 +88,38 @@ contract DVTValidator is Ownable, IVersioned {
         _;
     }
 
+    /// @notice Register a new DVT validator after verifying both role and stake.
+    /// @dev    P0-2: Pre-V5.4 this was an unconditional `onlyOwner` write,
+    ///         meaning the owner could grow the quorum with stake-less keys
+    ///         and the entire DVT economic guarantee evaporated. Combined with
+    ///         the BLS forgery (P0-1) it left the consensus layer with no real
+    ///         skin-in-the-game backing.
+    ///
+    ///         The check reads minStake dynamically from
+    ///         `Registry.getRoleConfig(ROLE_DVT)` so governance can tune the
+    ///         floor via `Registry.configureRole` without redeploying. Initial
+    ///         deploy-time floor is 200 ether GToken (10x previous default).
+    /// @dev KNOWN LIMITATION: Stake is validated at registration time only.
+    ///      A validator can exit their GTokenStaking stake after registration
+    ///      without isValidator[v] being cleared. Mitigation:
+    ///      1. Off-chain: operators should periodically call removeValidator()
+    ///         for addresses whose stake has dropped below minStake.
+    ///      2. On-chain enforcement would require a callback from GTokenStaking
+    ///         (out of scope for this fix; tracked as future enhancement).
     function addValidator(address _v) external onlyOwner {
+        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+
+        if (!REGISTRY.hasRole(roleDvt, _v)) revert ValidatorMissingRole();
+
+        IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+
+        IRegistry.RoleConfig memory cfg = REGISTRY.getRoleConfig(roleDvt);
+        (uint128 amount,,,, ) = staking.roleLocks(_v, roleDvt);
+        if (uint256(amount) < cfg.minStake) {
+            revert ValidatorStakeBelowMinimum(uint256(amount), cfg.minStake);
+        }
+
         isValidator[_v] = true;
     }
 

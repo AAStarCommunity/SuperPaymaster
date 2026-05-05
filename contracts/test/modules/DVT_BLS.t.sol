@@ -5,11 +5,29 @@ import "forge-std/Test.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/IVersioned.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
 
 import "src/utils/BLS.sol";
 
+/// @notice Stand-in for GTokenStaking that always reports unlimited stake —
+///         lets the mocked Registry advertise sufficient backing for every
+///         test validator without modelling real stake accounting.
+contract MockStakingPermissive {
+    function roleLocks(address, bytes32 roleId)
+        external
+        pure
+        returns (uint128 amount, uint128 ticketPrice, uint48 lockedAt, bytes32 roleId_, bytes memory metadata)
+    {
+        return (type(uint128).max, 0, 0, roleId, "");
+    }
+}
+
 // Mocks
 contract MockRegistryV3 is IRegistry {
+    address public stakingAddr;
+
+    function setStakingAddr(address s) external { stakingAddr = s; }
+
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
@@ -19,12 +37,15 @@ contract MockRegistryV3 is IRegistry {
     function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
     function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
     function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
-    
+
     // Stubs
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
-    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0); 
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
+        // P0-2: minStake = 0 lets test validators pass the floor without
+        // having to model stake accounting in the mock; the permissive
+        // staking stub still advertises max balance.
+        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0);
     }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
@@ -39,6 +60,12 @@ contract MockRegistryV3 is IRegistry {
     function version() external view override returns (string memory) { return "MockRegistryV3"; }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
     function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    /// @notice Mirrors Registry.GTOKEN_STAKING() so the IRegistryStakingAware
+    ///         cast inside DVTValidator.addValidator can resolve.
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return IGTokenStaking(stakingAddr);
+    }
 }
 
 contract MockSuperPaymaster {
@@ -62,14 +89,18 @@ contract DVTBLSTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         registry = new MockRegistryV3();
+        // P0-2: provide a permissive staking stub so addValidator's stake gate
+        // resolves; minStake on the mock RoleConfig is 0 so any reported
+        // balance passes the floor.
+        registry.setStakingAddr(address(new MockStakingPermissive()));
         sp = new MockSuperPaymaster();
-        
+
         // Circular dependency handling
         dvt = new DVTValidator(address(registry));
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
-        
+
         dvt.setBLSAggregator(address(bls));
-        
+
         // Mock EIP-2537 G1 precompiles so registerBLSPublicKey subgroup validation passes.
         // vm.mockCall returns raw bytes; the contract reads output via assembly mload so
         // we must pass raw 96 zero bytes, NOT abi.encode(bytes) which adds offset/length headers.
