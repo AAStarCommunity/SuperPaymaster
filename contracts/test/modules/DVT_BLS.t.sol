@@ -80,8 +80,11 @@ contract DVTBLSTest is Test {
         for(uint i=1; i<=10; i++) {
             address v = address(uint160(i+100)); // 101..110
             dvt.addValidator(v);
-            // BLS key registration — 96-byte uncompressed G1 point (EIP-2537 format)
+            // BLS key registration — 96-byte uncompressed G1 point (EIP-2537 format).
+            // Identity (all-zero) is now rejected up-front, so seed a non-zero byte
+            // per validator. Precompiles are mocked above to accept any non-identity input.
             bytes memory pubKey = new bytes(96);
+            pubKey[0] = bytes1(uint8(i));
             bls.registerBLSPublicKey(v, pubKey);
         }
         

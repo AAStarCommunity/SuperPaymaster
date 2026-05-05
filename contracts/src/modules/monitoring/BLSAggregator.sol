@@ -263,6 +263,20 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
      * @param pk 96-byte uncompressed G1 point.
      */
     function _validateG1Point(bytes memory pk) internal view {
+        // ── Step 0: explicit identity rejection ──────────────────────────────────
+        // The all-zero (identity) point passes both G1ADD on-curve check (O is on
+        // the curve) and the r*P == O subgroup check (since r * O == O). It is
+        // cryptographically invalid as a public key and must be rejected up-front.
+        // Aligns with fix/p0-1-bls-rewrite (PR #112) hardening.
+        uint256 word0; uint256 word1; uint256 word2;
+        assembly ("memory-safe") {
+            let src := add(pk, 32)
+            word0 := mload(src)
+            word1 := mload(add(src, 32))
+            word2 := mload(add(src, 64))
+        }
+        if ((word0 | word1 | word2) == 0) revert InvalidBLSKey();
+
         // ── Step 1: on-curve check ───────────────────────────────────────────────
         // G1ADD input: 192 bytes = 96 (pk) + 96 (G1 identity = all zeros)
         bytes memory addInput = new bytes(192);

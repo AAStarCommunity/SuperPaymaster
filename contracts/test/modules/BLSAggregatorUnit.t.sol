@@ -102,6 +102,20 @@ contract BLSAggregatorUnitTest is Test {
         bls.registerBLSPublicKey(address(0x42), shortKey);
     }
 
+    function test_RegisterBLSPublicKey_RevertsOnIdentity() public {
+        // All-zero (identity) point passes both G1ADD on-curve and r*P==O subgroup
+        // checks but is cryptographically invalid. Must be rejected up-front.
+        bytes memory zero = new bytes(96);
+
+        // Even if precompiles would "succeed" for the identity, the explicit
+        // pre-check should revert before any precompile call.
+        _mockValidKeyPrecompiles();
+
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.InvalidBLSKey.selector);
+        bls.registerBLSPublicKey(address(0x42), zero);
+    }
+
     function test_RegisterBLSPublicKey_RevertsIfNotOnCurve() public {
         bytes memory badKey = new bytes(96);
         badKey[0] = 0xFF; // Not a valid curve point
