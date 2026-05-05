@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
 import "src/interfaces/v3/IRegistry.sol";
-import "src/mocks/MockBLSValidator.sol";
+import "src/mocks/MockBLSAggregator.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /**
@@ -31,19 +31,20 @@ contract V3_DynamicLevelThresholds_Test is Test {
         // Authorize admin as reputation source
         registry.setReputationSource(admin, true);
 
-        // Mock BLS precompile
-        vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        
-        // Set BLS Validator
-        MockBLSValidator validator = new MockBLSValidator();
-        registry.setBLSValidator(address(validator));
-        
+        // P0-1: Registry now routes BLS verification through the aggregator.
+        // Wire a permissive mock that always returns true so reputation update
+        // tests focus on the threshold/clamp/replay logic instead of BLS math.
+        MockBLSAggregator aggregator = new MockBLSAggregator();
+        registry.setBLSAggregator(address(aggregator));
+
         vm.stopPrank();
     }
-    
-    // Helper to generate dummy proof (7 signers = defaultThreshold)
+
+    // Helper to generate dummy proof matching the new (signerMask, sigG2) ABI
+    // expected by Registry.batchUpdateGlobalReputation post-P0-1.
     function _dummyProof() internal pure returns (bytes memory) {
-        return abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
+        // 7 signers (mask 0x7F) — matches MockBLSAggregator's defaultThreshold.
+        return abi.encode(uint256(0x7F), new bytes(256));
     }
 
     // ====================================

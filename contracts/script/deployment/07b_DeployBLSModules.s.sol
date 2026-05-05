@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/modules/validators/BLSValidator.sol";
+// BLSValidator standalone removed in P0-1 — Registry verifies via BLSAggregator.
 
 contract DeployBLSModules is Script {
     function run(address registryAddr, address spAddr) external {
@@ -21,12 +21,9 @@ contract DeployBLSModules is Script {
         DVTValidator dvt = new DVTValidator(registryAddr);
         dvt.setBLSAggregator(address(aggregator));
 
-        BLSValidator blsValidator = new BLSValidator();
-
         vm.stopBroadcast();
 
         console.log("BLSAggregator deployed to:", address(aggregator));
         console.log("DVTValidator deployed to:", address(dvt));
-        console.log("BLSValidator deployed to:", address(blsValidator));
     }
 }
