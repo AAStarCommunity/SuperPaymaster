@@ -11,7 +11,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
-import "src/mocks/MockBLSValidator.sol";
+import "src/mocks/MockBLSAggregator.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // --- Mocks ---
@@ -134,20 +134,22 @@ contract CoverageSupplementTest is Test {
         vm.warp(block.timestamp + 2 hours);
         paymaster.updatePrice();
 
-        // Set BLS Validator
-        MockBLSValidator validator = new MockBLSValidator();
-        registry.setBLSValidator(address(validator));
+        // P0-1: Registry now verifies BLS via aggregator. Permissive mock
+        // returns true so the rest of this suite isn't blocked on real pairing.
+        MockBLSAggregator aggregator = new MockBLSAggregator();
+        registry.setBLSAggregator(address(aggregator));
 
         vm.stopPrank();
-        
+
         // Fund users
         gtoken.mint(user, 1000 ether);
         gtoken.mint(community, 1000 ether);
         gtoken.mint(operator, 1000 ether);
     }
-    
+
     function _dummyProof() internal pure returns (bytes memory) {
-        return abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
+        // Match the new (signerMask, sigG2) ABI used by Registry post-P0-1.
+        return abi.encode(uint256(0x7F), new bytes(256));
     }
     
     // --- Registry Tests ---

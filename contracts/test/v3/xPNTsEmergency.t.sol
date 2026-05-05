@@ -76,13 +76,55 @@ contract xPNTsEmergencyTest is Test {
     function test_EmergencyRevoke_ThenReset() public {
         vm.prank(admin);
         token.emergencyRevokePaymaster();
-        
+
         address newPaymaster = address(0x999);
         vm.prank(admin);
         token.setSuperPaymasterAddress(newPaymaster);
-        
+
         // New paymaster should be active
         assertTrue(token.autoApprovedSpenders(newPaymaster));
         assertFalse(token.autoApprovedSpenders(paymaster)); // Old still revoked
+    }
+
+    // Test 5: emergencyRevokePaymaster is idempotent when already in emergency state
+    function test_EmergencyRevoke_IdempotentWhenAlreadyEnabled() public {
+        // Record the revokedAddress before any calls
+        address revokedSP = paymaster; // setUp sets SUPERPAYMASTER_ADDRESS = paymaster
+
+        // First call — transitions emergencyDisabled from false → true
+        vm.prank(admin);
+        token.emergencyRevokePaymaster();
+
+        assertTrue(token.emergencyDisabled(), "emergencyDisabled should be true after first call");
+        assertFalse(token.autoApprovedSpenders(revokedSP), "SP should lose auto-approval after first revoke");
+
+        // Second call — must NOT revert; emergencyDisabled stays true
+        vm.prank(admin);
+        token.emergencyRevokePaymaster(); // idempotent: emergencyDisabled already true, skips the flag flip
+
+        assertTrue(token.emergencyDisabled(), "emergencyDisabled must still be true after second call");
+        // The revoked SP's autoApproved status must remain false
+        assertFalse(token.autoApprovedSpenders(revokedSP), "revokedSP must remain un-approved after second call");
+    }
+
+    // Test 6: setSuperPaymasterAddress blocks FACTORY during emergency
+    function test_SetSuperPaymaster_FactoryBlockedDuringEmergency() public {
+        // Trigger emergency
+        vm.prank(admin);
+        token.emergencyRevokePaymaster();
+        assertTrue(token.emergencyDisabled());
+
+        address newSP = address(0x444);
+
+        // FACTORY attempt must revert with Unauthorized during emergency
+        vm.prank(factory);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.Unauthorized.selector, factory));
+        token.setSuperPaymasterAddress(newSP);
+
+        // communityOwner must still succeed during emergency
+        vm.prank(admin);
+        token.setSuperPaymasterAddress(newSP);
+        assertEq(token.SUPERPAYMASTER_ADDRESS(), newSP, "communityOwner should be able to rotate SP during emergency");
+        assertTrue(token.autoApprovedSpenders(newSP), "new SP must be auto-approved");
     }
 }

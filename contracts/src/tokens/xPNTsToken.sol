@@ -48,6 +48,41 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice Pre-authorized spenders (no approve needed)
     mapping(address => bool) public autoApprovedSpenders;
 
+    /// @notice One-shot emergency switch. While true, every burn path that
+    ///         can affect another holder's balance is blocked, including the
+    ///         SuperPaymaster `burnFromWithOpHash` / `recordDebt` paths and
+    ///         the autoApproved-spender `burn(address,uint256)` path. Users
+    ///         can still self-burn their own balance via `burn(uint256)`.
+    /// @dev    P0-7 (B4-H1): the original `emergencyRevokePaymaster` only
+    ///         cleared the `autoApprovedSpenders` flag for the current SP,
+    ///         leaving `burnFromWithOpHash` (gated solely on
+    ///         `msg.sender == SUPERPAYMASTER_ADDRESS`) wide open. A
+    ///         compromised SP could keep draining holder balances at
+    ///         MAX_SINGLE_TX_LIMIT per call until the community redeployed
+    ///         the entire token. The flag-based design lets community owners
+    ///         halt all dangerous paths in one transaction and re-enable
+    ///         after rotating the SP via `setSuperPaymasterAddress`.
+    bool public emergencyDisabled;
+    /// @notice Community-controlled whitelist of x402 facilitators.
+    /// @dev    P0-12b (D4): SuperPaymaster.settleX402PaymentDirect requires
+    ///         `msg.sender` (the facilitator / operator) to be listed here in
+    ///         addition to having `ROLE_PAYMASTER_SUPER`. This lets each
+    ///         community decide which facilitators are trusted with their own
+    ///         users' xPNTs balances, instead of trusting a single global
+    ///         autoApproved spender across all communities. Distinct from
+    ///         `autoApprovedSpenders` (ERC20 transferFrom firewall): this
+    ///         mapping authorizes settle-time invocation, not transfer-time
+    ///         allowance. The two are intentionally orthogonal.
+    mapping(address => bool) public approvedFacilitators;
+
+    /// @notice The SuperPaymaster address that was active when
+    ///         `emergencyRevokePaymaster` was last called.
+    /// @dev    Used by `unsetEmergencyDisabled` to enforce that
+    ///         `setSuperPaymasterAddress` has been called with a *different*
+    ///         address before the emergency flag can be cleared. Prevents
+    ///         re-opening the drain path to the original compromised address.
+    address public emergencyRevokedAddress;
+
     /// @notice Ensures a UserOperation hash is only used once for payment.
     mapping(bytes32 => bool) public usedOpHashes;
 
@@ -75,8 +110,29 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev Prevents catastrophic losses from code bugs while maintaining flexibility
     uint256 public constant MAX_SINGLE_TX_LIMIT = 5_000 ether; // $100 @ $0.02/aPNTs
 
+    // -----------------------------------------------------------------
+    // P0-8 (B4-H2 / D8): per-spender daily burn cap
+    // -----------------------------------------------------------------
+    // Audit note (B4-H2): even with the $100 single-tx cap, a compromised
+    // facilitator could call burn(victim_i, $100) in rapid sequence and drain
+    // an unbounded number of holders before the community detects + revokes
+    // the spender (P0-7). User decision D8 chose a per-spender daily cap
+    // (not per-user) so that ordinary users have ZERO additional burden:
+    // the cap travels with the spender, not the holder. Communities can
+    // tune the cap via setSpenderDailyCap.
+    struct SpenderRateLimit {
+        uint128 dailyBurnTotal;  // cumulative xPNTs burned by this spender today
+        uint64  windowStart;     // unix timestamp when the current 24h window opened
+        uint64  reserved;        // packing slack for future use
+    }
+    mapping(address => SpenderRateLimit) public spenderRateLimit;
+
+    /// @notice Maximum xPNTs that any non-self spender can burn per rolling 24h window.
+    /// @dev    Default 50_000 ether (~$1000 at $0.02/xPNTs). Community owner can adjust.
+    uint256 public spenderDailyCapTokens;
+
     function version() external pure override returns (string memory) {
-        return "XPNTs-3.0.0-unlimited"; // Removed spending limits, added single-tx cap
+        return "XPNTs-3.1.0-spender-daily-cap"; // P0-8: per-spender daily burn cap
     }
 
     /**
@@ -105,6 +161,14 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event SuperPaymasterAddressUpdated(address indexed newSuperPaymaster);
     event DebtRecorded(address indexed user, uint256 amount);
     event DebtRepaid(address indexed user, uint256 amountRepaid, uint256 remainingDebt);
+    event EmergencyDisabledSet(address indexed by);
+    event EmergencyDisabledCleared(address indexed by);
+    /// @notice P0-8: emitted when the per-spender daily burn cap is updated.
+    event SpenderDailyCapUpdated(uint256 oldCap, uint256 newCap);
+    /// @notice P0-8: emitted when a spender's daily window rolls over and counter resets.
+    event SpenderRateLimitWindowReset(address indexed spender, uint64 newWindowStart);
+    event FacilitatorApproved(address indexed facilitator);
+    event FacilitatorRemoved(address indexed facilitator);
 
 
     // ====================================
@@ -123,6 +187,18 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error MustUseBurnFromWithOpHash();
     error BurnExceedsAllowance();
     error ExchangeRateCannotBeZero();
+    /// @notice P0-7: thrown when a burn-shaped path runs while the community
+    ///         has flipped the emergency switch.
+    error EmergencyStop();
+    /// @notice P0-8: thrown when a spender's cumulative burn within a rolling
+    ///         24h window would exceed `spenderDailyCapTokens`.
+    error SpenderDailyCapExceeded(address spender, uint256 attempted, uint256 capRemaining);
+    /// @notice P0-7 (P2): thrown when `unsetEmergencyDisabled` is called but
+    ///         `setSuperPaymasterAddress` has not been called with a new address
+    ///         since the emergency was declared. Clearing the flag while
+    ///         `SUPERPAYMASTER_ADDRESS` still equals `emergencyRevokedAddress`
+    ///         would immediately re-open the drain path to the compromised SP.
+    error RecoveryNotComplete();
 
     /// @dev Only factory or community owner can call
     modifier onlyFactoryOrOwner() {
@@ -228,6 +304,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         // Auto-approve the factory
         autoApprovedSpenders[msg.sender] = true;
+
+        // P0-8: default spender daily burn cap = 50_000 ether xPNTs (~$1000 @ $0.02).
+        // Communities can tighten or loosen via setSpenderDailyCap.
+        spenderDailyCapTokens = 50_000 ether;
     }
 
     // ====================================
@@ -296,11 +376,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @param userOpHash The unique hash of the UserOperation, preventing replays.
      */
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {
+        // P0-7: gate before any state read so a compromised SP can't slip in
+        // between revoke and rotation.
+        if (emergencyDisabled) revert EmergencyStop();
+
         // 1. Identity Check: Only the registered SuperPaymaster can call this.
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
         }
-        
+
         // 2. Replay Protection: Ensure this UserOp hasn't been processed.
         if (usedOpHashes[userOpHash]) {
             revert OperationAlreadyProcessed(userOpHash);
@@ -328,6 +412,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Record user debt (only SuperPaymaster)
      */
     function recordDebt(address user, uint256 amountXPNTs) external {
+        // P0-7: emergency stop applies to debt accrual too — debts get auto-
+        // repaid on next mint, so leaving this open during a compromise
+        // would let the rogue SP create artificial liabilities.
+        if (emergencyDisabled) revert EmergencyStop();
+
         if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) {
             revert Unauthorized(msg.sender);
@@ -394,9 +483,23 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     /**
      * @notice Sets or updates the trusted SuperPaymaster address.
-     * @dev Can only be called by the factory or the community owner.
+     * @dev    Normal mode: factory or communityOwner may call this.
+     *         Emergency mode (`emergencyDisabled == true`): only `communityOwner`
+     *         may call. The factory is blocked because the emergency switch is
+     *         designed to give the community — not the factory — exclusive control
+     *         over recovery. Letting FACTORY rotate the SP during an active
+     *         emergency would allow an entity that may itself be compromised to
+     *         re-introduce a malicious paymaster while the community thinks the
+     *         token is frozen.
      */
-    function setSuperPaymasterAddress(address _spAddress) external onlyFactoryOrOwner {
+    function setSuperPaymasterAddress(address _spAddress) external {
+        if (emergencyDisabled) {
+            // Elevated restriction: only communityOwner during emergency
+            if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        } else {
+            // Normal mode: factory or communityOwner
+            if (msg.sender != FACTORY && msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        }
         if (_spAddress == address(0)) {
             revert InvalidAddress(_spAddress);
         }
@@ -434,13 +537,127 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      * @notice Emergency function to revoke SuperPaymaster privileges
      * @dev Allows quick response to compromised or malicious Paymaster
      */
+    /// @notice Halt every burn-shaped path that can touch another holder's
+    ///         balance. Used when the SuperPaymaster (or an autoApproved
+    ///         spender) is suspected of being compromised.
+    /// @dev    P0-7: previously only cleared `autoApprovedSpenders[currentSP]`,
+    ///         which left `burnFromWithOpHash` and `recordDebt` reachable from
+    ///         the compromised SP because those gates check
+    ///         `msg.sender == SUPERPAYMASTER_ADDRESS` directly. Flipping the
+    ///         `emergencyDisabled` flag closes all dangerous paths in one tx.
+    /// @dev SECURITY: communityOwner SHOULD be a multisig. A compromised EOA
+    ///      communityOwner could call unsetEmergencyDisabled() immediately before
+    ///      emergencyRevokePaymaster(), bypassing the emergency circuit breaker.
+    ///      Deploy with communityOwner = Gnosis Safe or equivalent multisig.
     function emergencyRevokePaymaster() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+
         address currentSP = SUPERPAYMASTER_ADDRESS;
         if (currentSP != address(0) && autoApprovedSpenders[currentSP]) {
             autoApprovedSpenders[currentSP] = false;
             emit AutoApprovedSpenderRemoved(currentSP);
         }
+
+        // Record the compromised address so `unsetEmergencyDisabled` can
+        // verify that address rotation has actually occurred before clearing
+        // the emergency flag (P0-7 P2 review fix).
+        emergencyRevokedAddress = currentSP;
+
+        if (!emergencyDisabled) {
+            emergencyDisabled = true;
+            emit EmergencyDisabledSet(msg.sender);
+        }
+    }
+
+    /// @notice Clear the emergency switch after the community has rotated
+    ///         the SuperPaymaster (via `setSuperPaymasterAddress`) and is
+    ///         ready to resume normal operation.
+    /// @dev    Recovery flow: `emergencyRevokePaymaster` →
+    ///         `setSuperPaymasterAddress(newSP)` → `unsetEmergencyDisabled`.
+    ///         Calling this function before rotating the SP address reverts
+    ///         with `RecoveryNotComplete` — this prevents the community owner
+    ///         from accidentally re-trusting the compromised address.
+    /// @dev SECURITY: communityOwner SHOULD be a multisig. A compromised EOA
+    ///      communityOwner could call unsetEmergencyDisabled() immediately before
+    ///      emergencyRevokePaymaster(), bypassing the emergency circuit breaker.
+    ///      Deploy with communityOwner = Gnosis Safe or equivalent multisig.
+    function unsetEmergencyDisabled() external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        if (!emergencyDisabled) return; // idempotent
+
+        // P0-7 (P2 review): Enforce that the SP address has been rotated to a
+        // different (non-compromised) address since `emergencyRevokePaymaster`
+        // was called. If SUPERPAYMASTER_ADDRESS still equals the address that
+        // was revoked, clearing the flag would immediately re-open every burn
+        // path to the compromised SP.
+        if (SUPERPAYMASTER_ADDRESS == emergencyRevokedAddress) revert RecoveryNotComplete();
+
+        emergencyDisabled = false;
+        emit EmergencyDisabledCleared(msg.sender);
+    }
+
+    /// @notice P0-8: tune the per-spender daily burn cap.
+    /// @dev    Community-owner only. The cap applies to ANY non-self burn —
+    ///         autoApproved facilitators, manually-approved spenders, etc.
+    ///         A value of 0 effectively disables third-party burn entirely
+    ///         (every burn would revert SpenderDailyCapExceeded).
+    ///         The cap must not exceed type(uint128).max because
+    ///         `SpenderRateLimit.dailyBurnTotal` is stored as uint128;
+    ///         a larger cap would pass the newTotal > cap check but the
+    ///         downcast `rl.dailyBurnTotal = uint128(newTotal)` would
+    ///         truncate and silently reset the counter to 0.
+    function setSpenderDailyCap(uint256 newCap) external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        // Guard: cap must fit in uint128 (storage type of dailyBurnTotal).
+        // A cap > type(uint128).max would pass the `newTotal > cap` check
+        // but the subsequent `uint128(newTotal)` downcast would truncate,
+        // silently resetting the counter to 0 instead of reverting.
+        if (newCap > type(uint128).max) revert SingleTxLimitExceeded();
+        uint256 oldCap = spenderDailyCapTokens;
+        spenderDailyCapTokens = newCap;
+        emit SpenderDailyCapUpdated(oldCap, newCap);
+    }
+
+    /// @dev P0-8: rolling 24-hour window per spender. Resets `dailyBurnTotal`
+    ///      when the previous window has expired, then enforces the cap.
+    ///      Self-burn (msg.sender == from) is NOT routed through here —
+    ///      a holder burning their own balance is unrestricted.
+    ///
+    ///      Note: the SuperPaymaster `burnFromWithOpHash` path
+    ///      (SUPERPAYMASTER_ADDRESS, gated on `msg.sender == SUPERPAYMASTER_ADDRESS`)
+    ///      bypasses this rate limit entirely — it uses per-opHash replay
+    ///      protection instead. P0-7 `emergencyDisabled` is the backstop for
+    ///      that path: if the SuperPaymaster is compromised,
+    ///      `emergencyRevokePaymaster()` halts `burnFromWithOpHash` in one tx.
+    ///
+    /// @dev KNOWN LIMITATION — Sybil bypass: an attacker controlling N approved-spender
+    ///      addresses can collectively drain N × spenderDailyCapTokens per rolling
+    ///      24-hour window.
+    ///      Mitigations:
+    ///      1. communityOwner (multisig) should periodically audit autoApprovedSpenders.
+    ///      2. P0-7 emergencyRevokePaymaster() serves as the last-resort circuit breaker.
+    ///      3. Per-spender cap is a speed bump, not an absolute guarantee.
+    function _checkAndConsumeRateLimit(address spender, uint256 amount) internal {
+        SpenderRateLimit storage rl = spenderRateLimit[spender];
+        // Roll the rolling 24-hour window forward if 24h has elapsed (or no window yet).
+        if (rl.windowStart == 0 || block.timestamp >= uint256(rl.windowStart) + 1 days) {
+            rl.windowStart = uint64(block.timestamp);
+            rl.dailyBurnTotal = 0;
+            emit SpenderRateLimitWindowReset(spender, rl.windowStart);
+        }
+        // Cap check — uint128 sum is safe: setSpenderDailyCap enforces
+        // newCap <= type(uint128).max, and MAX_SINGLE_TX_LIMIT = 5_000 ether
+        // means a single call cannot push newTotal above uint128.max.
+        uint256 newTotal = uint256(rl.dailyBurnTotal) + amount;
+        uint256 cap = spenderDailyCapTokens;
+        if (newTotal > cap) {
+            revert SpenderDailyCapExceeded(
+                spender,
+                amount,
+                cap > rl.dailyBurnTotal ? cap - rl.dailyBurnTotal : 0
+            );
+        }
+        rl.dailyBurnTotal = uint128(newTotal);
     }
 
     function addAutoApprovedSpender(address spender) external onlyFactoryOrOwner {
@@ -461,6 +678,41 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         emit AutoApprovedSpenderRemoved(spender);
     }
 
+    /**
+     * @notice Authorize a facilitator to invoke
+     *         `SuperPaymaster.settleX402PaymentDirect` against this xPNTs.
+     * @dev    P0-12b (D4): community-controlled whitelist; only community
+     *         owner can add/remove. AAStar's default facilitator is NOT
+     *         auto-added by the factory — each community decides explicitly.
+     *         A facilitator that is not in this set will be rejected by
+     *         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.
+     * @param facilitator Facilitator address to approve.
+     */
+    function addApprovedFacilitator(address facilitator) external {
+        if (msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        if (facilitator == address(0)) {
+            revert InvalidAddress(facilitator);
+        }
+        approvedFacilitators[facilitator] = true;
+        emit FacilitatorApproved(facilitator);
+    }
+
+    /**
+     * @notice Revoke a facilitator's authorization (instant, no timelock).
+     * @dev    P0-12b: incident-response primitive; community can yank a
+     *         compromised facilitator without redeploying or upgrading SP.
+     * @param facilitator Facilitator address to remove.
+     */
+    function removeApprovedFacilitator(address facilitator) external {
+        if (msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        approvedFacilitators[facilitator] = false;
+        emit FacilitatorRemoved(facilitator);
+    }
+
     // ====================================
     // Minting & Standard Burning
     // ====================================
@@ -473,20 +725,45 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         _mint(to, amount);
     }
 
+    /// @notice Burn `amount` tokens from `from`. When `msg.sender != from`,
+    ///         allowance must be sufficient AND the spender's per-day burn
+    ///         cap (P0-8) must not be exceeded.
+    /// @dev    Security history:
+    ///         - P0-7 (B4-H1): community emergency switch halts all third-party burns.
+    ///         - P0-8 (B4-H2): spender path now uses canonical _spendAllowance
+    ///           (instead of hand-rolled allowance arithmetic). Combined with
+    ///           the per-spender daily rate limit, this closes the
+    ///           "compromised facilitator drains many holders within
+    ///           MAX_SINGLE_TX_LIMIT bursts" vector documented in T-14.
+    ///         The autoApproved spender semantics are preserved: holders
+    ///         still pay zero approval gas (allowance() returns max), but the
+    ///         spender's cumulative burn is bounded by spenderDailyCapTokens.
     function burn(address from, uint256 amount) external {
+        // P0-7: even autoApproved spenders (facilitators, etc.) are halted
+        // by the community-level emergency switch. Self-burn (`burn(uint256)`)
+        // remains available so users keep custody of their own balance.
+        if (emergencyDisabled && msg.sender != from) revert EmergencyStop();
+
         // SECURITY: The SuperPaymaster is explicitly forbidden from using this function.
         if (msg.sender == SUPERPAYMASTER_ADDRESS) {
             revert MustUseBurnFromWithOpHash();
         }
 
         if (msg.sender != from) {
+            // P0-8 part 1 (B4-H2 fix): canonical allowance enforcement.
+            // For autoApproved spenders this is a no-op (allowance == max) by
+            // the _spendAllowance override above — preserving zero user burden.
+            // For everyone else, this reverts on insufficient allowance and
+            // decrements the recorded allowance like a standard ERC20.
             uint256 allowed = allowance(from, msg.sender);
-            if (allowed < amount) {
-                revert BurnExceedsAllowance();
-            }
-            if (allowed != type(uint256).max) {
-                _approve(from, msg.sender, allowed - amount);
-            }
+            if (allowed < amount) revert BurnExceedsAllowance();
+            _spendAllowance(from, msg.sender, amount);
+
+            // P0-8 part 2 (D8): per-spender daily burn cap. Applies to ALL
+            // third-party spenders — both autoApproved and explicitly-
+            // approved — so a compromised facilitator cannot iterate
+            // burn(victim_i, $100) across many holders without bound.
+            _checkAndConsumeRateLimit(msg.sender, amount);
         }
         _burn(from, amount);
     }

@@ -23,7 +23,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/modules/validators/BLSValidator.sol";
+// BLSValidator standalone contract removed in P0-1 — Registry now verifies via BLSAggregator.
 
 // External Interfaces
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
@@ -52,7 +52,6 @@ contract DeployLive is Script {
     ReputationSystem repSystem;
     BLSAggregator aggregator;
     DVTValidator dvt;
-    address blsValidator;
     xPNTsFactory xpntsFactory;
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
@@ -117,8 +116,7 @@ contract DeployLive is Script {
         repSystem = new ReputationSystem(address(registry));
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
         dvt = new DVTValidator(address(registry));
-        
-        blsValidator = address(new BLSValidator());
+
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
 
@@ -139,7 +137,6 @@ contract DeployLive is Script {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        registry.setBLSValidator(blsValidator);
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
@@ -151,7 +148,7 @@ contract DeployLive is Script {
 
         // Oracle Init
         try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
-            try superPaymaster.updatePriceDVT(price, block.timestamp, "") {
+            try superPaymaster.updatePriceDVT(price, block.timestamp, "", 0) {
                 console.log("  Cache Price Force-Initialized");
             } catch {
                 superPaymaster.updatePrice();
@@ -279,7 +276,6 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
         vm.serializeAddress(jsonObj, "dvtValidator", address(dvt));
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
-        vm.serializeAddress(jsonObj, "blsValidator", blsValidator);
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);

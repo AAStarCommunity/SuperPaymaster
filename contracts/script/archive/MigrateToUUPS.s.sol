@@ -224,7 +224,7 @@ contract MigrateToUUPS is Script {
         try AggregatorV3Interface(ETH_USD_FEED).latestRoundData()
             returns (uint80, int256 price, uint256, uint256, uint80)
         {
-            try superPaymaster.updatePriceDVT(price, block.timestamp, "") {
+            try superPaymaster.updatePriceDVT(price, block.timestamp, "", 0) {
                 console.log("  Oracle price force-initialized");
             } catch {
                 superPaymaster.updatePrice();

@@ -41,4 +41,16 @@ interface IxPNTsToken {
      * @return factory Factory contract address
      */
     function FACTORY() external view returns (address factory);
+
+    /**
+     * @notice Check whether a facilitator is authorized by this community to
+     *         settle x402 Direct payments against this xPNTs token.
+     * @dev    P0-12b (D4): community-controlled whitelist. SuperPaymaster
+     *         consults this in `settleX402PaymentDirect` so that a compromised
+     *         or untrusted facilitator with a valid global role still cannot
+     *         touch a community's xPNTs.
+     * @param facilitator Facilitator address to check.
+     * @return True iff this xPNTs has authorized `facilitator`.
+     */
+    function approvedFacilitators(address facilitator) external view returns (bool);
 }

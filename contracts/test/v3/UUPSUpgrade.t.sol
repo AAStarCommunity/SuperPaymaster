@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import "forge-std/StdStorage.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "src/core/Registry.sol";
@@ -75,10 +76,21 @@ contract NonUUPSContract {
 }
 
 contract UUPSUpgradeTest is Test {
+    using stdStorage for StdStorage;
+
     Registry registry;
     SuperPaymaster paymaster;
     MockEntryPointUUPS entryPoint;
     MockPriceFeedUUPS priceFeed;
+
+    /// @dev P0-9: setAPNTsToken now requires a 7-day timelock + balance-zero
+    ///      execute. The UUPS tests below only care that storage survives an
+    ///      implementation swap, not the admin path itself, so we write
+    ///      APNTS_TOKEN directly via stdstore. Coverage of the full
+    ///      queue/cancel/execute flow lives in SetAPNTsToken_Timelock.t.sol.
+    function _writeAPNTsToken(address newToken) internal {
+        stdstore.target(address(paymaster)).sig("APNTS_TOKEN()").checked_write(newToken);
+    }
 
     address owner = address(0xAA);
     address nonOwner = address(0xBB);
@@ -116,7 +128,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.1.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.2.0"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -198,8 +210,10 @@ contract UUPSUpgradeTest is Test {
     function test_SuperPaymaster_UpgradeSuccess() public {
         vm.startPrank(owner);
 
-        // Set some state before upgrade
-        paymaster.setAPNTsToken(address(0x77));
+        // Set some state before upgrade. P0-9: bypass the new timelock by
+        // writing APNTS_TOKEN directly — the test is about UUPS storage
+        // survival, not the admin path.
+        _writeAPNTsToken(address(0x77));
         paymaster.setTreasury(address(0x88));
 
         SuperPaymasterV2 newImpl = new SuperPaymasterV2(
@@ -318,7 +332,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.1.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.2.0"));
 
         vm.stopPrank();
     }
@@ -370,8 +384,8 @@ contract UUPSUpgradeTest is Test {
     function test_SuperPaymaster_DoubleUpgrade_StatePreserved() public {
         vm.startPrank(owner);
 
-        // Set state in V1
-        paymaster.setAPNTsToken(address(0x77));
+        // Set state in V1. P0-9: bypass timelock (see _writeAPNTsToken helper).
+        _writeAPNTsToken(address(0x77));
         paymaster.setTreasury(address(0x88));
 
         // Upgrade V1 → V2
@@ -417,9 +431,15 @@ contract UUPSUpgradeTest is Test {
         );
         paymaster.upgradeToAndCall(address(newImpl), "");
 
-        // Verify admin functions still work after upgrade
+        // Verify admin functions still work after upgrade. P0-9: setAPNTsToken
+        // is now a queue-only path; assert the queue side-effect rather than
+        // an instant write.
         paymaster.setAPNTsToken(address(0x99));
-        assertEq(paymaster.APNTS_TOKEN(), address(0x99));
+        assertEq(paymaster.pendingAPNTsToken(), address(0x99));
+        assertEq(
+            paymaster.pendingAPNTsTokenEta(),
+            block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK()
+        );
 
         paymaster.setTreasury(address(0xAB));
         assertEq(paymaster.treasury(), address(0xAB));
