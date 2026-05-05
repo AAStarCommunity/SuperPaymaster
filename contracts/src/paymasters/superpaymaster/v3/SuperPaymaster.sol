@@ -63,29 +63,26 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return "SuperPaymaster-5.3.0";
     }
 
-    uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
-    int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
-    int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
+    uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
+    int256 internal constant MIN_ETH_USD_PRICE = 100 * 1e8;
+    int256 internal constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
     /// @notice Grace window (seconds) for keeper clock skew on `updatedAt` checks.
     ///         Matches PaymasterBase.TIMESTAMP_GRACE_SECONDS to keep both modes in sync.
     uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
-    
+
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
     PriceCache public cachedPrice; // Make public for easy verification
-    // uint256 public constant PRICE_STALENESS_THRESHOLD = 1 hours; // REMOVED
 
     // V3.2.1 SECURITY: Enforce max rate in Validation
-    uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
-    uint256 public constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
+    uint256 internal constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
+    uint256 internal constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
-    uint256 public constant BPS_DENOMINATOR = 10000;
-    uint256 public constant MAX_PROTOCOL_FEE = 2000; // 20% Hardcap (Security)
-    /// @dev NOTE: Frontends/SDKs must ensure Operator balance is at least 1.1x of maxGasCost
-    /// to satisfy this buffer during Validation phase.
-    uint256 public constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
+    uint256 internal constant BPS_DENOMINATOR = 10000;
+    uint256 internal constant MAX_PROTOCOL_FEE = 2000; // 20% Hardcap (Security)
+    uint256 internal constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
@@ -169,7 +166,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
-    event AgentSponsorshipApplied(address indexed operator, address indexed user, uint256 bps);
+    // AgentSponsorshipApplied removed — _applyAgentSponsorship is V5.1 only (not yet wired)
 
     error Unauthorized();
     error InvalidAddress();
@@ -180,7 +177,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error NoSlashHistory();
     error InsufficientRevenue();
     error InvalidXPNTsToken();
-    error FactoryVerificationFailed();
     error AmountExceedsUint128();
     error ScoreExceedsUint32();
     error NoPendingDebt();
@@ -245,16 +241,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
         aPNTsPriceUSD = 0.02 ether;
         protocolFeeBPS = 1000;
-        // Cache oracle decimals (Chainlink decimals are immutable per feed)
-        if (address(ETH_USD_PRICE_FEED) != address(0) && address(ETH_USD_PRICE_FEED).code.length > 0) {
-            try ETH_USD_PRICE_FEED.decimals() returns (uint8 d) {
-                oracleDecimals = d;
-            } catch {
-                oracleDecimals = 8;
-            }
-        } else {
-            oracleDecimals = 8; // Default for tests or when feed not yet set
-        }
     }
 
     // ====================================
@@ -280,12 +266,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
         // V3.6 SECURITY: Enforce Binding with Factory
         if (xpntsFactory != address(0)) {
-            // Verify that this token actually belongs to the community
-            try IxPNTsFactory(xpntsFactory).getTokenAddress(msg.sender) returns (address validToken) {
-                if (validToken != xPNTsToken) revert InvalidXPNTsToken();
-            } catch {
-                revert FactoryVerificationFailed();
-            }
+            address validToken = IxPNTsFactory(xpntsFactory).getTokenAddress(msg.sender);
+            if (validToken != xPNTsToken) revert InvalidXPNTsToken();
         }
 
         OperatorConfig storage config = operators[msg.sender];
@@ -320,8 +302,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public emergencyActivatedAt;
 
     uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
-    uint256 public constant CHAINLINK_STALE_THRESHOLD = 1 hours;
-    uint256 public constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
+    uint256 internal constant CHAINLINK_STALE_THRESHOLD = 1 hours;
+    uint256 internal constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
     /// @notice Maximum duration for which EMERGENCY mode may remain active.
     ///         After 7 days without Chainlink recovery the break-glass is
     ///         considered expired; `emergencySetPrice` will revert to prevent
@@ -439,12 +421,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
     }
 
-    /// @notice Public mirror of `_isChainlinkStale`. Lets off-chain monitors
-    ///         see exactly the same staleness verdict the contract uses,
-    ///         without having to replay the threshold logic.
-    function isChainlinkStale() external view returns (bool) {
-        return _isChainlinkStale();
-    }
+    function isChainlinkStale() external view returns (bool) { return _isChainlinkStale(); }
 
     /// @notice Queue an emergency price update. Only honored when Chainlink
     ///         is stale and the new price stays within ±20% of the last
@@ -747,7 +724,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ProtocolRevenueWithdrawn(to, amount);
     }
 
-    function getAvailableCredit(address user, address token) public view returns (uint256) {
+    function getAvailableCredit(address user, address token) external view returns (uint256) {
         // Calculate Credit in APNTs
         uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
         
@@ -772,7 +749,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
         // Owner slash: no 30% hardcap (full authority for governance actions)
-        _slash(operator, level, penaltyAmount, reason, "", false);
+        _slash(operator, level, penaltyAmount, reason, false);
     }
 
     /**
@@ -803,14 +780,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // ✅ Store proof hash for audit traceability (永久存储在event中)
         bytes32 proofHash = keccak256(proof);
         
-        _slash(operator, level, penalty, "DVT BLS Slash", proof, true);
+        _slash(operator, level, penalty, "DVT BLS Slash", true);
         
         // ✅ Emit event with proof hash (链上永久可查,DVT保留完整proof 30天供验证)
         emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
     /// @param applyCap If true, enforce 30% slash hardcap (BLS/DVT path). If false, no cap (owner governance).
-    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bytes memory, bool applyCap) internal {
+    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bool applyCap) internal {
         ISuperPaymaster.OperatorConfig storage config = operators[operator];
 
         uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
@@ -871,20 +848,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return slashHistory[operator];
     }
 
-    /**
-     * @notice Get total number of times an operator has been slashed
-     * @param operator Operator address
-     * @return Total slash count
-     */
     function getSlashCount(address operator) external view returns (uint256) {
         return slashHistory[operator].length;
     }
 
-    /**
-     * @notice Get the most recent slash record for an operator
-     * @param operator Operator address
-     * @return Most recent slash record (reverts if no history)
-     */
     function getLatestSlash(address operator) external view returns (ISuperPaymaster.SlashRecord memory) {
         if (slashHistory[operator].length == 0) revert NoSlashHistory();
         return slashHistory[operator][slashHistory[operator].length - 1];
@@ -907,7 +874,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      caught by the staleness check inverting direction. Contrast with
     ///      `updatePriceDVT`, where `updatedAt` is caller-supplied and
     ///      therefore requires an explicit future-timestamp guard (P0-16).
-    function updatePrice() public {
+    function updatePrice() external {
         // 1. Try to get Price from Chainlink with automatic degradation
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
             uint80 roundId,
@@ -925,7 +892,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 price: price,
                 updatedAt: updatedAt,
                 roundId: roundId,
-                decimals: oracleDecimals
+                decimals: 8
             });
 
             // P0-10: Chainlink came back. If we previously flipped into
@@ -953,45 +920,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             revert OracleError();
         }
     }
-    function _calculateAPNTsAmount(uint256 ethAmountWei, bool useRealtime) internal view returns (uint256) {
-        int256 ethUsdPrice;
-        uint256 priceDecimals;
-
-        // Mode 1: PostOp (Realtime Attempt)
-        if (useRealtime) {
-            try ETH_USD_PRICE_FEED.latestRoundData() returns (uint80, int256 p, uint256, uint256, uint80) {
-                // Only use if positive and valid
-                if (p > 0) {
-                    ethUsdPrice = p;
-                    priceDecimals = oracleDecimals;
-                }
-            } catch {
-                // If Oracle fails, fall back to cache below
-            }
-        }
-
-        // Mode 2: Validation or Fallback (Cache)
-        if (ethUsdPrice <= 0) {
-            PriceCache memory cache = cachedPrice;
-            // V3.6 FIX: Remove TIMESTAMP check here to avoid Banned Opcode AA33.
-            // Staleness is enforced via validUntil signal in validatePaymasterUserOp
-            ethUsdPrice = cache.price;
-            priceDecimals = cache.decimals;
-        }
-        
-        // Safety check for both modes
+    function _calculateAPNTsAmount(uint256 ethAmountWei) internal view returns (uint256) {
+        PriceCache memory cache = cachedPrice;
+        int256 ethUsdPrice = cache.price;
         if (ethUsdPrice <= 0) revert OracleError();
-        
-        // Value in USD = ethAmountWei * price / 10^decimals
-        // aPNTs Amount = Value in USD / aPNTsPriceUSD
-        
-        // Calculation:
-        // (ethAmount * price * 10^18) / (10^decimals * aPNTsPriceUSD)
-        
         return Math.mulDiv(
             ethAmountWei * uint256(ethUsdPrice),
             1e18,
-            (10**priceDecimals) * aPNTsPriceUSD,
+            (10**uint256(cache.decimals)) * aPNTsPriceUSD,
             Math.Rounding.Ceil
         );
     }
@@ -1058,7 +994,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
         // Use CACHED price for validation (fast, compliant)
         // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
-        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
 
@@ -1076,20 +1012,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         protocolRevenue += aPNTsAmount;
         config.totalTxSponsored++;
 
-        // 6. Return Context
-        uint256 xPNTsAmount = (aPNTsAmount * uint256(config.exchangeRate)) / 1e18;
-        
-        // Use Empty Context to save gas (PostOp can re-read or we assume optimistic success)
-        // Or if we need PostOp refund, we pass data.
-        // V3.6 FIX: Return validUntil to enforce Staleness Check without opcode
-        // Use Empty Context to save gas (PostOp can re-read or we assume optimistic success)
-        // Or if we need PostOp refund, we pass data.
-        
-        // Ensure validUntil is in the future relative to typical current time? 
-        // No, EntryPoint checks this against block.timestamp.
-        // If cachedPrice is very old, validUntil will be in the past, and EntryPoint will REJECT.
-        
-        return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
+        // 6. Return Context — xPNTsAmount excluded (postOp recomputes from exchangeRate)
+        return (abi.encode(config.xPNTsToken, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
     }
 
     /// @notice P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of
@@ -1168,7 +1092,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
 
         // 7. Solvency (hard failure): replicate Validation-phase aPNTs charge with buffer
-        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
@@ -1195,13 +1119,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (context.length == 0) return;
 
         (
-            address token, 
-            uint256 estimatedXPNTs, 
-            address user, 
-            uint256 initialAPNTs, 
-            bytes32 userOpHash, 
+            address token,
+            address user,
+            uint256 initialAPNTs,
+            bytes32 userOpHash,
             address operator
-        ) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
+        ) = abi.decode(context, (address, address, uint256, bytes32, address));
 
         // V3.6 FIX: Update Rate Limit Timestamp ALWAYS (Defense against Griefing)
         // Even if op reverted, usage counts towards limit to prevent spam.
@@ -1213,7 +1136,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (mode == PostOpMode.postOpReverted) return;
 
         // 1. Calculate Actual Cost in aPNTs (always uses cached price)
-        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost, false);
+        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
 
         // 2. Apply Protocol Fee Markup (e.g. 10%)
         // We want the final deduction to be Actual + 10%.
@@ -1250,12 +1173,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
              _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
-        }
-
-        // F2: Submit positive feedback to ERC-8004 reputation registry
-        // Short-circuit: skip external call if no registry configured
-        if (agentIdentityRegistry != address(0) && isRegisteredAgent(user)) {
-            _submitSponsorshipFeedback(user, actualAPNTsCost);
         }
 
     }
@@ -1308,9 +1225,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit PendingDebtCleared(token, user, amount);
     }
 
-    /// @dev Cached oracle decimals (Chainlink decimals never change per feed contract)
-    uint8 public oracleDecimals;
-
     // ====================================
     // V5 Storage: Agent Sponsorship & x402
     // ====================================
@@ -1351,20 +1265,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error InvalidFee();
 
     // x402 Constants
-    uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
+    uint256 internal constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
 
-    // P0-15: dryRunValidation reason codes (returned to bundlers/UI for diagnostics).
-    // Mirror every silent SIG_FAILURE branch in validatePaymasterUserOp, plus the
-    // staleness check that EntryPoint enforces via validUntil.
-    bytes32 public constant DRYRUN_OK                    = bytes32(0);
-    bytes32 public constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
-    bytes32 public constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
-    bytes32 public constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
-    bytes32 public constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
-    bytes32 public constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
-    bytes32 public constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
-    bytes32 public constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
-    bytes32 public constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
+    // P0-15: dryRunValidation reason codes (internal — SDKs should hardcode bytes32 values).
+    bytes32 internal constant DRYRUN_OK                      = bytes32(0);
+    bytes32 internal constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
+    bytes32 internal constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
+    bytes32 internal constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
+    bytes32 internal constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
+    bytes32 internal constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
+    bytes32 internal constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
+    bytes32 internal constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
+    bytes32 internal constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
 
     // ====================================
     // V5: Admin Setters
@@ -1420,7 +1332,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
     }
 
-    uint256 public constant MAX_AGENT_POLICIES = 10;
+    uint256 internal constant MAX_AGENT_POLICIES = 10;
 
     /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
     function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
@@ -1437,92 +1349,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @notice Get the sponsorship rate for an agent from an operator
     /// @return bps Sponsorship rate in basis points (0 = no sponsorship)
     function getAgentSponsorshipRate(address agent, address operator) external view override returns (uint256 bps) {
-        // Must be a registered agent
         if (!isRegisteredAgent(agent)) return 0;
-
-        (uint256 bestBPS, uint256 dailyCap) = _resolveAgentPolicy(agent, operator);
-        if (bestBPS == 0) return 0;
-
-        // Check daily cap
-        uint256 day = block.timestamp / 1 days;
-        if (dailyCap > 0 && _agentDailySpend[operator][day] >= dailyCap) return 0;
-
-        return bestBPS;
-    }
-
-    /// @dev Shared helper: resolve best matching agent sponsorship policy
-    /// @return bestBPS Best sponsorship rate in BPS (0 = no match)
-    /// @return dailyCap Daily USD cap from the matched policy
-    function _resolveAgentPolicy(address agent, address operator) internal view returns (uint256 bestBPS, uint256 dailyCap) {
-        // Get agent reputation score
-        int128 score;
+        uint256 agentScore;
         address repReg = agentReputationRegistry;
         if (repReg != address(0)) {
             address[] memory empty = new address[](0);
-            try IAgentReputationRegistry(repReg).getSummary(
+            (, int128 avg) = IAgentReputationRegistry(repReg).getSummary(
                 uint256(uint160(agent)), empty, bytes32(0), bytes32(0)
-            ) returns (uint64, int128 avgScore) {
-                score = avgScore;
-            } catch {}
+            );
+            if (avg > 0) agentScore = uint256(int256(avg));
         }
-
-        // Find best matching policy (highest sponsorshipBPS where score >= min)
         ISuperPaymaster.AgentSponsorshipPolicy[] storage policies = agentPolicies[operator];
         for (uint256 i = 0; i < policies.length; i++) {
-            // Guard: skip if minReputationScore overflows int128 (unreachable in practice)
-            if (policies[i].minReputationScore <= uint128(type(int128).max)
-                && score >= int128(policies[i].minReputationScore)
-                && policies[i].sponsorshipBPS > bestBPS) {
-                bestBPS = policies[i].sponsorshipBPS;
-                dailyCap = policies[i].maxDailyUSD;
+            if (agentScore >= policies[i].minReputationScore && policies[i].sponsorshipBPS > bps) {
+                bps = policies[i].sponsorshipBPS;
             }
         }
-    }
-
-    /// @dev Apply agent sponsorship discount and track daily spend (used by _consumeCredit in V5.1)
-    function _applyAgentSponsorship(address agent, address operator, uint256 chargeAPNTs) internal returns (uint256) {
-        if (!isRegisteredAgent(agent)) return chargeAPNTs;
-
-        (uint256 bestBPS, uint256 dailyCap) = _resolveAgentPolicy(agent, operator);
-        if (bestBPS == 0) return chargeAPNTs;
-
-        // Check daily cap
-        uint256 day = block.timestamp / 1 days;
-        if (dailyCap > 0 && _agentDailySpend[operator][day] >= dailyCap) return chargeAPNTs;
-
-        // Apply discount
-        uint256 discounted = chargeAPNTs * (BPS_DENOMINATOR - bestBPS) / BPS_DENOMINATOR;
-
-        // Track daily spend (approximate USD = aPNTs * aPNTsPriceUSD / 1e18, scaled to 1e6)
-        uint256 sponsoredAPNTs = chargeAPNTs - discounted;
-        uint256 usdAmount = (sponsoredAPNTs * aPNTsPriceUSD) / 1e18;
-        uint256 usdScaled = usdAmount / 1e12; // scale to 1e6
-        _agentDailySpend[operator][day] += usdScaled;
-
-        emit AgentSponsorshipApplied(operator, agent, bestBPS);
-        return discounted;
-    }
-
-    // ====================================
-    // F2: Sponsorship Feedback
-    // ====================================
-
-    /// @dev Submit positive feedback to ERC-8004 reputation registry after sponsoring agent gas
-    function _submitSponsorshipFeedback(address agent, uint256 aPNTsBase) internal {
-        address reg = agentReputationRegistry;
-        if (reg == address(0)) return;
-        // Guard: prevent int128 overflow from reverting postOp
-        if (aPNTsBase > uint128(type(int128).max)) return;
-        try IAgentReputationRegistry(reg).giveFeedback(
-            uint256(uint160(agent)),
-            int128(int256(aPNTsBase)),
-            18,
-            bytes32("gas-sponsor"),
-            bytes32("success"),
-            "",
-            "",
-            bytes32(0)
-        ) {} catch {}
     }
 
     // ====================================
