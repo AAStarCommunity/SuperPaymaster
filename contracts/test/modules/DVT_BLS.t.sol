@@ -68,12 +68,23 @@ contract DVTBLSTest is Test {
         
         dvt.setBLSAggregator(address(bls));
         
+        // Mock EIP-2537 G1 precompiles so registerBLSPublicKey subgroup validation passes.
+        // vm.mockCall returns raw bytes; the contract reads output via assembly mload so
+        // we must pass raw 96 zero bytes, NOT abi.encode(bytes) which adds offset/length headers.
+        // G1ADD (0x0b): on-curve check → success (raw 96-byte G1 identity = all zeros)
+        vm.mockCall(address(0x0b), "", new bytes(96));
+        // G1MUL (0x0c): subgroup check → raw 96-byte identity (r*P = O means valid subgroup)
+        vm.mockCall(address(0x0c), "", new bytes(96));
+
         // Add validators
         for(uint i=1; i<=10; i++) {
             address v = address(uint160(i+100)); // 101..110
             dvt.addValidator(v);
-            // BLS key registration (mock 48 bytes)
-            bytes memory pubKey = new bytes(48);
+            // BLS key registration — 96-byte uncompressed G1 point (EIP-2537 format).
+            // Identity (all-zero) is now rejected up-front, so seed a non-zero byte
+            // per validator. Precompiles are mocked above to accept any non-identity input.
+            bytes memory pubKey = new bytes(96);
+            pubKey[0] = bytes1(uint8(i));
             bls.registerBLSPublicKey(v, pubKey);
         }
         
@@ -99,9 +110,13 @@ contract DVTBLSTest is Test {
         uint256 id = dvt.createProposal(op, 1, "Bad Operator");
         assertEq(id, 1);
         vm.stopPrank();
-        
+
         // ✅ Signatures now collected off-chain via DVT P2P protocol
         // Skip on-chain signProposal calls
+
+        // P0-4: executeWithProof now restricted to BLS aggregator or registered
+        // validators. Use Validator 1 to drive the call.
+        vm.startPrank(address(101));
         
         
         // ✅ KEY INSIGHT: keccak256(msgG2Bytes) must equal expectedMessageHash
@@ -142,16 +157,23 @@ contract DVTBLSTest is Test {
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
-        
+        vm.stopPrank();
+
         // Check proposal was executed
-        (,,,bool executed) = dvt.proposals(id);
+        (,,,bool executed,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
     }
     
     function test_BLS_ManualVerify() public {
+        // P0-17: BLSAggregator now calls back into DVTValidator.markProposalExecuted
+        // which requires the proposal to exist. Create it first via the legitimate
+        // validator path so the callback can find a real proposal record.
+        vm.prank(address(101)); // Validator 1
+        uint256 id = dvt.createProposal(op, 1, "Bad Operator");
+
         // ✅ Same strategy: msgG2Bytes = abi.encode of message params
         bytes memory messageData = abi.encode(
-            99,                     // proposalId
+            id,                     // proposalId (real, created above)
             op,                     // operator
             uint8(1),              // slashLevel
             new address[](0),       // repUsers
@@ -159,30 +181,30 @@ contract DVTBLSTest is Test {
             uint256(123),          // epoch
             block.chainid           // chainid
         );
-        
+
         bytes32 msgHash = keccak256(messageData);
         BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(msgHash));
         bytes memory msgG2Bytes = abi.encode(point);
-        
+
         // Mock BLS pairing AFTER point calculation
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
-        
+
         bytes memory mockProof = abi.encode(
             new bytes(128),  // pkG1
             new bytes(256),  // sigG2
             msgG2Bytes,      // ✅ Will pass hash check
             uint256(0x7F)    // signerMask
         );
-        
+
         vm.prank(address(dvt));
 
         bls.verifyAndExecute(
-            99, op, 1,
+            id, op, 1,
             new address[](0), new uint256[](0), 123,
             mockProof
         );
-        
-        assertTrue(bls.executedProposals(99));
+
+        assertTrue(bls.executedProposals(id));
     }
     
     function test_Fail_NotValidator() public {
