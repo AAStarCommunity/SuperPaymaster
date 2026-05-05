@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // 09_MintInitialTokens.s.sol
 pragma solidity ^0.8.26;
 

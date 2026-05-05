@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // 08a_WireUpFactory.s.sol
 pragma solidity ^0.8.26;
 
