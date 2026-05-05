@@ -66,6 +66,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
+    /// @notice Grace window (seconds) for keeper clock skew on `updatedAt` checks.
+    ///         Matches PaymasterBase.TIMESTAMP_GRACE_SECONDS to keep both modes in sync.
+    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
     
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
@@ -366,10 +369,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof) external {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
-        
+
         // V3.6 FIX: Prevent Replay & Staleness
         if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
         if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
+        // P0-16 (Codex B-N1): also reject future timestamps. Without this, an
+        // adversarial caller could write `updatedAt = far_future`, satisfying
+        // both "strictly increasing" and "block.timestamp - 2 hours" checks,
+        // freezing the cached price and underflowing the staleness check
+        // downstream (block.timestamp - cachedPrice.updatedAt).
+        // A 15-second grace window accommodates the ~12 s maximum drift between
+        // a keeper's wall-clock and block.timestamp, preventing spurious
+        // rejections of honest keepers while closing the far-future attack vector.
+        if (updatedAt > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert OracleError();
         
         // 2. BLS proof is verified by BLSAggregator before it calls this function.
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
@@ -659,6 +671,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Paymaster Implementation
     // ====================================
 
+    /// @notice Update price cache from Chainlink oracle (keeper-callable).
+    /// @dev No future-timestamp guard is needed on this path: `updatedAt` is
+    ///      read directly from a validated Chainlink response, not supplied by
+    ///      an untrusted caller. Chainlink nodes always set `updatedAt` to the
+    ///      block timestamp of the round, which is always <= block.timestamp at
+    ///      the time of the call. The existing staleness check
+    ///      (`updatedAt < block.timestamp - priceStalenessThreshold`) already
+    ///      rejects data that is too old; a Chainlink answer with a future
+    ///      `updatedAt` is practically impossible (it would require a Chainlink
+    ///      node to report a timestamp ahead of on-chain time) and would be
+    ///      caught by the staleness check inverting direction. Contrast with
+    ///      `updatePriceDVT`, where `updatedAt` is caller-supplied and
+    ///      therefore requires an explicit future-timestamp guard (P0-16).
     function updatePrice() public {
         // 1. Try to get Price from Chainlink with automatic degradation
         try ETH_USD_PRICE_FEED.latestRoundData() returns (

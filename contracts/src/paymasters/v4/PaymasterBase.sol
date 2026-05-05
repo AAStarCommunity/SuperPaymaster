@@ -54,6 +54,14 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Maximum number of supported GasTokens
     uint256 public constant MAX_GAS_TOKENS = 10;
 
+    /// @notice Grace window for keeper-pushed timestamps (seconds).
+    /// @dev Ethereum block.timestamp can lag real wall-clock by up to ~12 s.
+    ///      A keeper that reads its system clock to stamp a price may arrive
+    ///      slightly ahead of the on-chain timestamp.  15 s (> 12 s slot upper
+    ///      bound) prevents spurious rejections without meaningfully weakening
+    ///      the future-timestamp guard.
+    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
+
     /// @notice Price staleness threshold (seconds)
     /// @dev Default to 3600s (1 hour) to cover Mainnet/Testnet heartbeats
     uint256 public priceStalenessThreshold;
@@ -300,8 +308,17 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             
         // 1. Gas Optimization: Hybrid Cache Strategy
         bool useRealtime = false;
-        // Check staleness (if > threshold, attempt cache refresh + force realtime read)
-        if (block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold) {
+        // Check staleness (if > threshold, attempt cache refresh + force realtime read).
+        // P0-16: defensive — if the cache somehow holds a future timestamp
+        // (write-time guards in setCachedPrice/updatePrice should have rejected
+        // it, but this catches any pre-fix proxy state), treat as stale rather
+        // than letting `block.timestamp - cachedPrice.updatedAt` revert with
+        // arithmetic underflow on every postOp call.
+        if (
+            cachedPrice.updatedAt == 0 ||
+            cachedPrice.updatedAt > block.timestamp ||
+            block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold
+        ) {
              try this.updatePrice() {} catch {}
              useRealtime = true;
         }
@@ -476,8 +493,16 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Direct Cache Update (Operator/Keeper Pushed Price)
     /// @param price ETH/USD price (8 decimals)
     /// @param timestamp Timestamp of the price
+    /// @dev P0-16 (Codex B-N1): reject future timestamps. A future `updatedAt`
+    ///      bypasses staleness checks and underflows the postOp staleness
+    ///      subtraction in `_postOp`, bricking that path until the cache is
+    ///      overwritten with a valid (past) timestamp.
+    ///      A 15-second grace window (TIMESTAMP_GRACE_SECONDS) accommodates the
+    ///      ~12 s maximum drift between a keeper's wall-clock and block.timestamp,
+    ///      preventing spurious rejections of honest keepers.
     function setCachedPrice(uint256 price, uint48 timestamp) external onlyOwner {
         if (price == 0) revert Paymaster__InvalidOraclePrice();
+        if (timestamp > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(price), updatedAt: timestamp });
         emit PriceUpdated(price, timestamp);
     }
