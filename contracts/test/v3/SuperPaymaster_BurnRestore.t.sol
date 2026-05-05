@@ -285,7 +285,6 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         // Craft context with tiny initialAPNTs so finalCharge > initialAPNTs (overflow path)
         bytes memory ctx = abi.encode(
             address(xpnts),  // token
-            uint256(1),      // estimatedXPNTs (tiny → overflow)
             user1,           // user
             uint256(1),      // initialAPNTs (tiny)
             bytes32(uint256(9999)), // userOpHash (unique)
@@ -306,7 +305,6 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         // No xPNTs → burn fails → recordDebt
         bytes memory ctx = abi.encode(
             address(xpnts),
-            uint256(1),
             user1,
             uint256(1),
             bytes32(uint256(8888)),
