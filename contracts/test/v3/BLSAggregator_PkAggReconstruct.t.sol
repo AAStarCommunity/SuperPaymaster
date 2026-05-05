@@ -5,10 +5,32 @@ import "forge-std/Test.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
+
+/// @notice Permissive staking stub — every validator has unlimited stake.
+///         Required by the per-slot real-time stake check inside
+///         BLSAggregator._reconstructPkAgg (P0 follow-up).
+contract MockStakingReconstruct {
+    function roleLocks(address, bytes32 roleId)
+        external
+        pure
+        returns (uint128 amount, uint128 ticketPrice, uint48 lockedAt, bytes32 roleId_, bytes memory metadata)
+    {
+        return (type(uint128).max, 0, 0, roleId, "");
+    }
+}
 
 /// @notice Minimal IRegistry stub — pkAgg reconstruction tests don't need
-///         registry integration, only the constructor handle.
+///         registry integration, only the constructor handle. The
+///         GTOKEN_STAKING() view returns the stub above so the per-slot
+///         stake check resolves with unlimited stake.
 contract MockRegistryReconstruct is IRegistry {
+    address public stakingAddr;
+    function setStakingAddr(address s) external { stakingAddr = s; }
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return IGTokenStaking(stakingAddr);
+    }
+
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
@@ -94,6 +116,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
 
         vm.startPrank(owner);
         registry = new MockRegistryReconstruct();
+        registry.setStakingAddr(address(new MockStakingReconstruct()));
         bls = new BLSAggregator(address(registry), sp, dvt);
 
         // Register 7 validators into slots 1..7 — exactly meets defaultThreshold.

@@ -4,24 +4,46 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
 
 // Mock target contract for testing executeProposal
 contract MockTarget {
     uint256 public lastValue;
     bool public shouldRevert;
-    
+
     function setValue(uint256 value) external {
         if (shouldRevert) revert("MockTarget: revert requested");
         lastValue = value;
     }
-    
+
     function setShouldRevert(bool _shouldRevert) external {
         shouldRevert = _shouldRevert;
     }
 }
 
+/// @notice Permissive staking stub — every validator has unlimited stake. Used
+///         to satisfy the per-slot real-time stake check inside
+///         BLSAggregator._reconstructPkAgg without modelling real stake.
+contract MockStakingForProposal {
+    function roleLocks(address, bytes32 roleId)
+        external
+        pure
+        returns (uint128 amount, uint128 ticketPrice, uint48 lockedAt, bytes32 roleId_, bytes memory metadata)
+    {
+        return (type(uint128).max, 0, 0, roleId, "");
+    }
+}
+
 contract MockRegistryForProposal is IRegistry {
+    address public stakingAddr;
+    function setStakingAddr(address s) external { stakingAddr = s; }
+    /// @notice Mirrors Registry.GTOKEN_STAKING() so BLSAggregator's per-slot
+    ///         real-time stake check inside `_reconstructPkAgg` resolves.
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return IGTokenStaking(stakingAddr);
+    }
+
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
@@ -81,8 +103,28 @@ contract GenericDVTProposalTest is Test {
     }
 
     function setUp() public {
+        // Mock BLS precompiles BEFORE any registerBLSPublicKey call —
+        // _validateG1Point invokes G1ADD (0x0b) and G1MUL (0x0c) at register
+        // time, so the etch must already be in place.
+        // 0x0b (G1ADD): Returns 128 bytes (0x80) — used by _reconstructPkAgg
+        vm.etch(address(0x0b), hex"60806000f3");
+        // 0x0c (G1MUL): Returns 128 bytes of zeros (identity) — required by
+        // _validateG1Point's prime-order subgroup check (r*P == O).
+        vm.etch(address(0x0c), hex"60806000f3");
+        // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
+        vm.etch(address(0x10), hex"60806000f3");
+        // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
+        vm.etch(address(0x11), hex"6101006000f3");
+        // 0x0d (G2ADD): Returns 256 bytes (0x100)
+        vm.etch(address(0x0d), hex"6101006000f3");
+
         vm.startPrank(owner);
         registry = new MockRegistryForProposal();
+        // Wire a permissive staking stub so the real-time per-slot stake check
+        // inside `_reconstructPkAgg` resolves with unlimited stake for every
+        // validator. RoleConfig.minStake on this mock is 0, so any reported
+        // balance passes the floor.
+        registry.setStakingAddr(address(new MockStakingForProposal()));
         target = new MockTarget();
         dvtValidator = new MockDVTValidator();
 
@@ -94,19 +136,6 @@ contract GenericDVTProposalTest is Test {
             address v = address(uint160(uint256(i) + 200));
             bls.registerBLSPublicKey(v, _stubKey(uint256(i)), i);
         }
-
-        // Mock BLS precompiles for Cancun (0.8.33 compatibility).
-        // 0x0b (G1ADD): Returns 128 bytes (0x80) — used by _reconstructPkAgg
-        vm.etch(address(0x0b), hex"60806000f3");
-
-        // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
-        vm.etch(address(0x10), hex"60806000f3");
-
-        // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
-        vm.etch(address(0x11), hex"6101006000f3");
-
-        // 0x0d (G2ADD): Returns 256 bytes (0x100)
-        vm.etch(address(0x0d), hex"6101006000f3");
 
         vm.stopPrank();
     }

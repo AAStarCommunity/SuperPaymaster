@@ -52,6 +52,14 @@ contract DVTValidator is Ownable, IVersioned {
     event ProposalCreated(uint256 indexed id, address indexed operator, uint8 level);
     event ProposalSigned(uint256 indexed id, address indexed validator);
     event ProposalExecuted(uint256 indexed id);
+    /// @notice Emitted when a validator is permissionlessly pruned because they
+    ///         no longer satisfy the role+stake requirements. `hadRole` and
+    ///         `stakeAmount` capture the on-chain reason at prune time so off-
+    ///         chain monitors can attribute the eviction.
+    event ValidatorPruned(address indexed v, bool hadRole, uint256 stakeAmount);
+    /// @notice Emitted when the owner force-removes a validator regardless of
+    ///         their current role/stake state.
+    event ValidatorRemoved(address indexed v);
 
     error NotValidator();
     error AlreadySigned();
@@ -71,13 +79,24 @@ contract DVTValidator is Ownable, IVersioned {
     error ValidatorStakeBelowMinimum(uint256 actual, uint256 required);
     /// @notice Reverted when the Registry has no staking pointer wired up yet.
     error StakingNotConfigured();
+    /// @notice Reverted when an operation references an address that is not
+    ///         currently flagged as a validator (`isValidator[v] == false`).
+    error NotActiveValidator(address v);
+    /// @notice Reverted when an active validator's ROLE_DVT has been revoked
+    ///         in Registry but the local `isValidator` flag is still set —
+    ///         the live-liveness check (P0 follow-up) catches this drift.
+    error ValidatorRoleRevoked(address v);
+    /// @notice Reverted when `pruneValidator` is called for a validator that
+    ///         still satisfies the role + stake requirements; only ineligible
+    ///         validators may be permissionlessly pruned.
+    error ValidatorStillEligible(address v);
 
     constructor(address _registry) Ownable(msg.sender) {
         REGISTRY = IRegistry(_registry);
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.5.0";
+        return "DVTValidator-0.6.0";
     }
 
     /// @notice Restrict to BLS aggregator or registered DVT validators (P0-4)
@@ -123,12 +142,38 @@ contract DVTValidator is Ownable, IVersioned {
         isValidator[_v] = true;
     }
 
-    /// @dev Proposal creation is gated by isValidator[msg.sender]. isValidator is
-    ///      managed by addValidator (onlyOwner). For complete security, P0-2 fix
-    ///      (addValidator requires Registry role + GTokenStaking stake check) must
-    ///      also be deployed — without P0-2, owner can add zero-stake validators.
+    /// @notice Real-time validator liveness gate (P0 follow-up).
+    /// @dev    The legacy `addValidator` only checked role+stake at registration
+    ///         time. After that, exitRole / unlockAndTransfer / slash could leave
+    ///         a validator with zero stake or no ROLE_DVT, but `isValidator[v]`
+    ///         and the BLS slot stayed live — the operator could keep voting in
+    ///         quorums even though their economic backing was gone.
+    ///
+    ///         This helper re-validates against Registry + Staking on every
+    ///         consensus-affecting call. Three independent checks must all hold:
+    ///           1. Local `isValidator[v]` flag still set.
+    ///           2. Registry still grants ROLE_DVT to `v` (covers explicit
+    ///              role revocation outside an exitRole flow).
+    ///           3. Locked GToken stake under ROLE_DVT >= role's `minStake`
+    ///              (covers exitRole, partial unlock, and slash drawdowns).
+    function _requireActiveValidator(address v) internal view {
+        if (!isValidator[v]) revert NotActiveValidator(v);
+        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        if (!REGISTRY.hasRole(roleDvt, v)) revert ValidatorRoleRevoked(v);
+        IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+        IRegistry.RoleConfig memory cfg = REGISTRY.getRoleConfig(roleDvt);
+        (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+        if (uint256(amount) < cfg.minStake) {
+            revert ValidatorStakeBelowMinimum(uint256(amount), cfg.minStake);
+        }
+    }
+
+
     function createProposal(address operator, uint8 level, string calldata reason) external returns (uint256 id) {
-        if (!isValidator[msg.sender]) revert NotValidator();
+        // P0 follow-up: enforce live liveness before allowing a stake-less
+        // ex-validator to mint new proposals.
+        _requireActiveValidator(msg.sender);
         id = nextProposalId++;
         SlashProposal storage p = proposals[id];
         p.operator = operator;
@@ -179,6 +224,16 @@ contract DVTValidator is Ownable, IVersioned {
         uint256 epoch,
         bytes calldata proof
     ) external onlyAuthorizedExecutor {
+        // P0 follow-up: a registered validator that has since exited their
+        // role / withdrawn their stake must not be allowed to drive an
+        // executeWithProof call, even though the modifier `onlyAuthorizedExecutor`
+        // would still treat them as authorized purely on `isValidator[v]`. The
+        // BLS aggregator (BLS_AGGREGATOR) is exempted because its own quorum
+        // verification re-validates each signing slot independently in
+        // BLSAggregator._reconstructPkAgg.
+        if (msg.sender != BLS_AGGREGATOR) {
+            _requireActiveValidator(msg.sender);
+        }
         SlashProposal storage p = proposals[id];
         // P0-17: reject ids that were never created — an unborn id would otherwise
         // be silently forwarded to the aggregator with bogus fields.
@@ -200,5 +255,39 @@ contract DVTValidator is Ownable, IVersioned {
 
     function setBLSAggregator(address _bls) external onlyOwner {
         BLS_AGGREGATOR = _bls;
+    }
+
+    /// @notice Permissionless eviction when a validator no longer meets the
+    ///         role + stake requirements (P0 follow-up).
+    /// @dev    Anyone can call this. The function reverts (`ValidatorStillEligible`)
+    ///         if the validator still has ROLE_DVT AND stake >= minStake — so it
+    ///         only succeeds when there's a genuine drift between the local
+    ///         flag and on-chain reality. This gives off-chain monitors / public-
+    ///         goods bots a way to prune stale validators without waiting for
+    ///         the owner. The BLS slot is NOT freed here; revocation of the BLS
+    ///         key remains an `onlyOwner` action via `BLSAggregator.revokeBLSPublicKey`
+    ///         to keep slot lifecycle decisions privileged.
+    function pruneValidator(address v) external {
+        if (!isValidator[v]) revert NotActiveValidator(v);
+        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        bool hasRole_ = REGISTRY.hasRole(roleDvt, v);
+        IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+        IRegistry.RoleConfig memory cfg = REGISTRY.getRoleConfig(roleDvt);
+        (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+        if (hasRole_ && uint256(amount) >= cfg.minStake) {
+            revert ValidatorStillEligible(v);
+        }
+        isValidator[v] = false;
+        emit ValidatorPruned(v, hasRole_, uint256(amount));
+    }
+
+    /// @notice Owner-only forced removal — used when governance wants to evict
+    ///         a validator regardless of their current role/stake state (e.g.
+    ///         emergency response to an off-chain key compromise).
+    function removeValidator(address v) external onlyOwner {
+        if (!isValidator[v]) revert NotActiveValidator(v);
+        isValidator[v] = false;
+        emit ValidatorRemoved(v);
     }
 }

@@ -94,6 +94,21 @@ contract DVTBLSTest is Test {
     }
 
     function setUp() public {
+        // Mock BLS precompiles BEFORE any registerBLSPublicKey call below —
+        // _validateG1Point invokes G1ADD (0x0b) and G1MUL (0x0c) at register
+        // time, so the etch must already be in place.
+        // 0x0b (G1ADD): returns 128 bytes (0x80) — used by _reconstructPkAgg + on-curve check.
+        vm.etch(address(0x0b), hex"60806000f3");
+        // 0x0c (G1MUL): returns 128 bytes of zeros (identity) so the subgroup
+        // check r*P == O passes for stub keys.
+        vm.etch(address(0x0c), hex"60806000f3");
+        // 0x10 (MapFpToG1): returns 128 bytes (0x80)
+        vm.etch(address(0x10), hex"60806000f3");
+        // 0x11 (MapFp2ToG2): returns 256 bytes (0x100)
+        vm.etch(address(0x11), hex"6101006000f3");
+        // 0x0d (G2ADD): returns 256 bytes (0x100)
+        vm.etch(address(0x0d), hex"6101006000f3");
+
         vm.startPrank(owner);
         registry = new MockRegistryV3();
         // P0-2: provide a permissive staking stub so addValidator's stake gate
@@ -116,24 +131,6 @@ contract DVTBLSTest is Test {
             // form the default-threshold quorum used by tests below.
             bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i));
         }
-
-        // Mock BLS precompiles (G1ADD = 0x0b for pkAgg accumulation, G2ADD = 0x0d
-        // for hashToG2 finalize, MapFp/Fp2 for hashToG2 internals, and pairing
-        // 0x0F for the final pairing check).
-        // Each precompile must return data of the exact size BLS.sol expects so
-        // the staticcall returndatasize check passes.
-
-        // 0x0b (G1ADD): returns 128 bytes (0x80) — used by _reconstructPkAgg.
-        vm.etch(address(0x0b), hex"60806000f3");
-
-        // 0x10 (MapFpToG1): returns 128 bytes (0x80)
-        vm.etch(address(0x10), hex"60806000f3");
-
-        // 0x11 (MapFp2ToG2): returns 256 bytes (0x100)
-        vm.etch(address(0x11), hex"6101006000f3");
-
-        // 0x0d (G2ADD): returns 256 bytes (0x100)
-        vm.etch(address(0x0d), hex"6101006000f3");
 
         vm.stopPrank();
     }
@@ -197,8 +194,14 @@ contract DVTBLSTest is Test {
     }
 
     function test_Fail_NotValidator() public {
+        // P0 follow-up: createProposal now goes through _requireActiveValidator
+        // which reverts NotActiveValidator(v) for unregistered callers — the
+        // old NotValidator() error is no longer reached on this path.
         vm.prank(address(0x999));
-        vm.expectRevert(DVTValidator.NotValidator.selector);
+        vm.expectRevert(abi.encodeWithSelector(
+            DVTValidator.NotActiveValidator.selector,
+            address(0x999)
+        ));
         dvt.createProposal(op, 1, "fail");
     }
 }

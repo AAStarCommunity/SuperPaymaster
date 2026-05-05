@@ -4,8 +4,19 @@ pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistry.sol";
+import "../../interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 import { BLS } from "../../utils/BLS.sol";
+
+/// @notice Local sub-view of Registry used to fetch the staking pointer at
+///         verification time. We cast `REGISTRY` to this narrower interface
+///         rather than baking another constructor arg, so existing deploy
+///         scripts (4 in production + multiple archives) keep their 3-arg
+///         BLSAggregator construction unchanged. Mocks in the test suite
+///         already implement this view (set via `setStakingAddr`).
+interface IRegistryStakingAwareBLS {
+    function GTOKEN_STAKING() external view returns (IGTokenStaking);
+}
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
@@ -88,7 +99,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant MAX_VALIDATORS = 13;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.0.0";
+        return "BLSAggregator-4.1.0";
     }
 
 
@@ -134,6 +145,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error SlotAlreadyTaken(uint8 slot);
     /// @notice signerMask is zero (no signers selected).
     error EmptySignerMask();
+    /// @notice A slot referenced by signerMask resolves to a validator that no
+    ///         longer holds ROLE_DVT in the Registry. P0 follow-up — pkAgg
+    ///         reconstruction must reject ex-validators in real time.
+    error SlotValidatorRoleRevoked(uint8 slot, address v);
+    /// @notice A slot referenced by signerMask resolves to a validator whose
+    ///         locked GToken stake under ROLE_DVT has fallen below `minStake`.
+    ///         Catches partial unlocks and post-slash drawdowns.
+    error SlotValidatorStakeBelowMinimum(uint8 slot, address v, uint256 actual, uint256 required);
+    /// @notice The Registry has no staking pointer wired up yet — the per-slot
+    ///         real-time validation cannot resolve role locks. Mirrors
+    ///         DVTValidator.StakingNotConfigured for symmetry.
+    error StakingNotConfigured();
+    /// @notice `revokeBLSPublicKey` was called for a validator whose key is not
+    ///         currently active. Stricter than the previous idempotent return
+    ///         so misbehavior is loudly surfaced to off-chain operators.
+    error KeyNotActive(address v);
     /// @notice The supplied G1 point is not on the BLS12-381 G1 curve (G1ADD precompile rejected it),
     ///         or it is the point at infinity (identity element), which is forbidden to prevent
     ///         key-cancellation attacks during pkAgg reconstruction.
@@ -208,13 +235,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         emit BLSPublicKeyRegistered(validator, slot);
     }
 
-    /// @notice Revoke a previously registered BLS validator key. Idempotent.
+    /// @notice Revoke a previously registered BLS validator key.
+    /// @dev    P0 follow-up: stricter semantics than the prior idempotent stub.
+    ///         Reverts with `KeyNotActive` if the key is not currently active so
+    ///         off-chain operators get a clear failure signal instead of a
+    ///         silent no-op. The full key bytes are intentionally preserved
+    ///         (only `isActive` is cleared and `validatorAtSlot[slot]` is reset
+    ///         to address(0)) so historical proofs that reference the slot can
+    ///         still be audited via `getBLSPublicKey`. Re-registration of the
+    ///         same validator must use `registerBLSPublicKey` again, which will
+    ///         pass `_validateG1Point` and either reuse or claim a new slot.
     function revokeBLSPublicKey(address validator) external onlyOwner {
         BLSValidatorKey storage existing = _blsKeys[validator];
-        if (!existing.isActive) return;
+        if (!existing.isActive) revert KeyNotActive(validator);
         uint8 slot = existing.index;
-        delete _blsKeys[validator];
-        delete validatorAtSlot[slot];
+        existing.isActive = false;
+        validatorAtSlot[slot] = address(0);
         emit BLSPublicKeyRevoked(validator, slot);
     }
 
@@ -457,6 +493,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      precompile. Reverts if any selected slot is empty/inactive — this is
     ///      the gate that closes P0-1: the caller cannot inject an unrelated
     ///      pkAgg, every contributing key is read straight from on-chain state.
+    ///
+    ///      P0 follow-up — every selected slot is also re-validated in real time:
+    ///        1. `BLSValidatorKey.isActive` must be true (key not revoked).
+    ///        2. The slot's validator must still hold ROLE_DVT in the Registry.
+    ///        3. The slot's validator's locked GToken stake under ROLE_DVT must
+    ///           be >= the role's `minStake` from `Registry.getRoleConfig`.
+    ///      Any one failure reverts the entire aggregation. This closes the
+    ///      attack where a registered validator exits / unstakes / loses their
+    ///      role but keeps voting power because the slot pointer was never
+    ///      cleared. Aggregator owns the trust decision (Registry + Staking) so
+    ///      no callback into DVTValidator is needed — avoids a circular
+    ///      BLSAggregator ↔ DVTValidator dependency.
     function _reconstructPkAgg(uint256 signerMask)
         internal
         view
@@ -469,6 +517,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert SlotOutOfRange(uint8(MAX_VALIDATORS + 1));
         }
 
+        // Resolve role+stake context once for the whole loop. The Registry
+        // pointer is immutable; the staking pointer (and minStake) are read
+        // from Registry per-call so governance can rotate either without
+        // redeploying BLSAggregator.
+        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+        uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;
+
         bool initialized = false;
         for (uint8 slot = 1; slot <= MAX_VALIDATORS; slot++) {
             if ((signerMask >> uint256(slot - 1)) & 1 == 0) continue;
@@ -477,6 +534,16 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (v == address(0)) revert UnknownValidatorSlot(slot);
             BLSValidatorKey storage k = _blsKeys[v];
             if (!k.isActive) revert UnknownValidatorSlot(slot);
+
+            // Real-time liveness — cheap on-chain reads, but they catch every
+            // post-registration drift the original P0-1 fix missed.
+            if (!REGISTRY.hasRole(roleDvt, v)) {
+                revert SlotValidatorRoleRevoked(slot, v);
+            }
+            (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+            if (uint256(amount) < minStake) {
+                revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
+            }
 
             if (!initialized) {
                 pkAgg = k.publicKey;
