@@ -10,7 +10,7 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 ///         iterate `burn(victim_i, MAX_SINGLE_TX_LIMIT)` across many holders
 ///         and drain unbounded value before the community detects + revokes.
 ///         D8 fixes this with a per-spender daily burn cap (default 50_000
-///         ether xPNTs ≈ $1000 @ $0.02/xPNTs). User burden remains 0:
+///         ether xPNTs approx $1000 at $0.02/xPNTs). User burden remains 0:
 ///         autoApproved spenders still skip allowance gas, but their
 ///         cumulative burn-out is now bounded.
 contract xPNTs_SpenderRateLimitTest is Test {

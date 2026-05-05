@@ -56,6 +56,8 @@ contract MockRegistryReconstruct is IRegistry {
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
     function version() external view override returns (string memory) { return "Mock"; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 /**

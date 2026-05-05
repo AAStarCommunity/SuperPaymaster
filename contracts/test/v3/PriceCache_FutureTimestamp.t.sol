@@ -224,6 +224,8 @@ contract MockSPRegistry is IRegistry {
     }
     function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
     function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 /// @notice Minimal oracle mock for SuperPaymaster tests — always returns the
@@ -270,7 +272,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
         paymaster.setBLSAggregator(owner);
 
         // Seed the cache with a valid past timestamp so monotonicity check passes
-        paymaster.updatePriceDVT(2000e8, block.timestamp - 60, "");
+        paymaster.updatePriceDVT(2000e8, block.timestamp - 60, "", 0);
         vm.stopPrank();
     }
 
@@ -284,7 +286,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
 
         vm.expectRevert(SuperPaymaster.OracleError.selector);
         vm.prank(owner);
-        paymaster.updatePriceDVT(2500e8, badTs, "");
+        paymaster.updatePriceDVT(2500e8, badTs, "", 0);
     }
 
     /// @notice A timestamp exactly at the grace boundary must be accepted so
@@ -300,7 +302,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
 
         vm.prank(owner);
         // Should not revert
-        paymaster.updatePriceDVT(closePrice, boundaryTs, "");
+        paymaster.updatePriceDVT(closePrice, boundaryTs, "", 0);
 
         // Confirm the cache was updated
         (, uint256 storedTs,,) = paymaster.cachedPrice();
