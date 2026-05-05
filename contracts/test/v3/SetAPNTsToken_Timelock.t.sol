@@ -160,7 +160,7 @@ contract SetAPNTsToken_TimelockTest is Test {
         vm.expectEmit(true, true, false, false, address(paymaster));
         emit SuperPaymaster.APNTsTokenUpdated(address(initialToken), address(newToken));
 
-        // Only owner can execute after the timelock elapses.
+        // Balances are zero in this test setup → execute should land. Only owner can execute.
         vm.prank(owner);
         paymaster.executeAPNTsTokenChange();
 
@@ -169,20 +169,22 @@ contract SetAPNTsToken_TimelockTest is Test {
         assertEq(paymaster.pendingAPNTsTokenEta(), 0);
     }
 
-    /// @notice Attacker cannot execute even after the timelock has elapsed.
-    ///         executeAPNTsTokenChange is owner-only: unlike OZ TimelockController,
-    ///         token migration requires explicit owner confirmation after the
-    ///         7-day review window — third-party execution is not permitted.
-    function test_ExecuteAPNTsTokenChange_OnlyOwner_AttackerReverts() public {
+    function test_ExecuteAPNTsTokenChange_OnlyOwner() public {
+        // Token swap is a privileged config change; only owner may execute after eta.
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
         vm.prank(attacker);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", attacker)
+        );
         paymaster.executeAPNTsTokenChange();
-        // Token must remain unchanged — the attacker's call reverted.
-        assertEq(paymaster.APNTS_TOKEN(), address(initialToken));
+
+        // Owner can still execute after the attacker bounce.
+        vm.prank(owner);
+        paymaster.executeAPNTsTokenChange();
+        assertEq(paymaster.APNTS_TOKEN(), address(newToken));
     }
 
     // -----------------------------------------------------------------------

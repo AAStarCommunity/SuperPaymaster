@@ -1630,7 +1630,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 48, minus 8 V5 storage slots (2 addresses + 1 uint256 + 5 mappings) = 40.
-    // Minus 2 P0-9 slots (pendingAPNTsToken + pendingAPNTsTokenEta) = 38.
-    uint256[38] private __gap;
+    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34.
+    uint256[34] private __gap;
 }
