@@ -233,4 +233,114 @@ contract xPNTs_SpenderRateLimitTest is Test {
         vm.expectRevert();
         token.burn(user, 1);
     }
+
+    // ------------------------------------------------------------------
+    // cap=0: effectively disables all third-party burns.
+    // ------------------------------------------------------------------
+
+    function test_CapZero_BlocksAllThirdPartyBurns() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(0);
+
+        // autoApproved spender: any non-zero amount reverts immediately.
+        vm.prank(facilitator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                xPNTsToken.SpenderDailyCapExceeded.selector,
+                facilitator,
+                1,
+                0
+            )
+        );
+        token.burn(user, 1);
+
+        // Explicitly approved attacker: also blocked.
+        vm.prank(user);
+        token.approve(attacker, 1_000 ether);
+        vm.prank(attacker);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                xPNTsToken.SpenderDailyCapExceeded.selector,
+                attacker,
+                1,
+                0
+            )
+        );
+        token.burn(user, 1);
+    }
+
+    /// @notice cap=0 does NOT block self-burns — users retain full custody.
+    function test_CapZero_DoesNotBlockSelfBurn() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(0);
+
+        vm.prank(user);
+        token.burn(100_000 ether);
+        assertEq(token.balanceOf(user), 1_000_000 ether - 100_000 ether);
+    }
+
+    // ------------------------------------------------------------------
+    // uint128 overflow guard: setSpenderDailyCap(> type(uint128).max) reverts.
+    // ------------------------------------------------------------------
+
+    function test_SetSpenderDailyCap_RejectsAboveUint128Max() public {
+        uint256 tooLarge = uint256(type(uint128).max) + 1;
+
+        vm.prank(community);
+        vm.expectRevert(xPNTsToken.SingleTxLimitExceeded.selector);
+        token.setSpenderDailyCap(tooLarge);
+
+        // The cap must remain unchanged (setUp initializes to 50_000 ether).
+        assertEq(token.spenderDailyCapTokens(), 50_000 ether, "cap must be unchanged");
+    }
+
+    /// @notice type(uint128).max itself is accepted (boundary must be inclusive).
+    function test_SetSpenderDailyCap_AcceptsUint128Max() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(type(uint128).max);
+        assertEq(token.spenderDailyCapTokens(), type(uint128).max);
+    }
+
+    // ------------------------------------------------------------------
+    // Sybil: N auto-approved spenders each get their own cap window,
+    // so total drain = N × cap per day (KNOWN LIMITATION documented in
+    // contract NatSpec — this test asserts the stated behavior).
+    // ------------------------------------------------------------------
+
+    function test_Sybil_NSpendersCollectivelyDrainNTimesCap() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(1_000 ether);
+
+        address sybil1 = address(0x5B1);
+        address sybil2 = address(0x5B2);
+        address sybil3 = address(0x5B3);
+
+        // Give each sybil address autoApproved status.
+        token.addAutoApprovedSpender(sybil1);
+        token.addAutoApprovedSpender(sybil2);
+        token.addAutoApprovedSpender(sybil3);
+
+        // Each drains up to cap from independent victims.
+        vm.prank(sybil1); token.burn(user,  1_000 ether);
+        vm.prank(sybil2); token.burn(user2, 1_000 ether);
+        vm.prank(sybil3); token.burn(user3, 1_000 ether);
+
+        // All three succeed — each has its own fresh window.
+        assertEq(token.balanceOf(user),  1_000_000 ether - 1_000 ether);
+        assertEq(token.balanceOf(user2), 1_000_000 ether - 1_000 ether);
+        assertEq(token.balanceOf(user3), 1_000_000 ether - 1_000 ether);
+
+        // Each spender's counter sits at the cap — a 4th sybil would need its own key.
+        (uint128 t1,,) = token.spenderRateLimit(sybil1);
+        (uint128 t2,,) = token.spenderRateLimit(sybil2);
+        (uint128 t3,,) = token.spenderRateLimit(sybil3);
+        assertEq(t1, 1_000 ether);
+        assertEq(t2, 1_000 ether);
+        assertEq(t3, 1_000 ether);
+
+        // Sybil 1 is exhausted and cannot burn more.
+        vm.prank(sybil1);
+        vm.expectRevert();
+        token.burn(user2, 1);
+    }
 }
