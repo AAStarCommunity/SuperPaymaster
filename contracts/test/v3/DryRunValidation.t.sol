@@ -96,6 +96,8 @@ contract MockRegistryDR is IRegistry {
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external pure returns (bool) { return false; }
+    function syncStakeFromStaking(address, bytes32, uint256) external {}
+    function getEffectiveStake(address, bytes32) external view returns (uint256) { return 0; }
 }
 
 /// @title DryRunValidation (P0-15) — exhaustive reason-code coverage
