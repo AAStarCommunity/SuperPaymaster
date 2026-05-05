@@ -1403,14 +1403,38 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
-    /// @notice Settle x402 payment via direct transferFrom (for xPNTs and pre-approved tokens)
-    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve).
-    ///      settlementId uses abi.encode (not encodePacked) to match x402NonceKey encoding and
-    ///      avoid any future hash-collision risk with variable-length types.
+    /// @notice Settle x402 payment via direct transferFrom (xPNTs only)
+    /// @dev    Direct path is restricted to xPNTs tokens registered in
+    ///         `xpntsFactory`. Without this gate any ERC20 the payer ever did
+    ///         `approve(facilitator, MAX)` on (e.g. USDC for x402 standard
+    ///         payments) could be drained by a compromised facilitator.
+    ///         xPNTs tokens carry an in-contract firewall + per-tx cap, so
+    ///         the trust model holds even when facilitator keys are bounded.
+    ///         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).
+    /// @dev    settlementId uses abi.encode (not encodePacked), matching the
+    ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
+    /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
+    /// @dev    Nonce and asset whitelist: _validateX402AndComputeFee writes the
+    ///         nonce before the isXPNTs check executes. However, if the call
+    ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
+    ///         the nonce write — so the nonce is NOT consumed on failure.
+    ///         A caller that supplied a wrong asset may retry with the same nonce
+    ///         value, but must use a valid xPNTs asset on the retry. On a
+    ///         successful call the nonce is durably consumed; replaying the same
+    ///         (asset, from, nonce) triple will revert with NonceAlreadyUsed.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
+        // Validate fee/nonce/role first so unauthorized callers cannot probe
+        // the asset whitelist by pre-burning nonces.
         uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
+
+        // P0-12a: Direct settle is xPNTs-only. Reject any asset that is not
+        // a token deployed by the configured xPNTs factory.
+        address factory = xpntsFactory;
+        if (factory == address(0)) revert InvalidConfiguration();
+        if (!IxPNTsFactory(factory).isXPNTs(asset)) revert InvalidXPNTsToken();
+
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);

@@ -116,6 +116,17 @@ contract MockDirectToken is ERC20 {
     }
 }
 
+/// @dev Mock factory for P0-12a — only purpose is to whitelist xPNTs tokens
+///      for `settleX402PaymentDirect`. We avoid pulling in the full
+///      xPNTsFactory + Registry COMMUNITY role wiring to keep this test focused.
+contract MockXPNTsFactory {
+    mapping(address => bool) public isXPNTs;
+    function setXPNTs(address token, bool ok) external { isXPNTs[token] = ok; }
+    function getAPNTsPrice() external pure returns (uint256) { return 0.02 ether; }
+    function getTokenAddress(address) external pure returns (address) { return address(0); }
+    function hasToken(address) external pure returns (bool) { return false; }
+}
+
 // ====================================
 // Test Contract
 // ====================================
@@ -133,6 +144,7 @@ contract SuperPaymasterV5Features_Test is Test {
     MockAgentReputationRegistry public agentRepRegistry;
     MockERC3009Token public usdc;
     MockDirectToken public xpnts;
+    MockXPNTsFactory public mockFactory;
 
     address public owner = address(0x1);
     address public treasury = address(0x2);
@@ -171,6 +183,12 @@ contract SuperPaymasterV5Features_Test is Test {
 
         // Deploy mock xPNTs (auto-approves SuperPaymaster)
         xpnts = new MockDirectToken(address(paymaster));
+
+        // P0-12a: settleX402PaymentDirect now requires asset to be a registered
+        // xPNTs in xpntsFactory. Wire a mock factory and whitelist `xpnts`.
+        mockFactory = new MockXPNTsFactory();
+        mockFactory.setXPNTs(address(xpnts), true);
+        paymaster.setXPNTsFactory(address(mockFactory));
 
         // Update price cache
         vm.warp(block.timestamp + 2 hours);
