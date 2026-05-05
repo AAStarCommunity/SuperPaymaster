@@ -141,13 +141,47 @@ contract xPNTs_EmergencyDisabledTest is Test {
     }
 
     // -----------------------------------------------------------------------
+    // emergencyRevokedAddress is recorded on revoke (P0-7 P2 guard).
+    // -----------------------------------------------------------------------
+
+    function test_EmergencyRevoke_RecordsRevokedAddress() public {
+        assertEq(token.emergencyRevokedAddress(), address(0));
+        vm.prank(community);
+        token.emergencyRevokePaymaster();
+        // The compromised address must be captured so the guard can later
+        // compare it against the current SUPERPAYMASTER_ADDRESS.
+        assertEq(token.emergencyRevokedAddress(), paymaster);
+    }
+
+    // -----------------------------------------------------------------------
     // Recovery path: setSuperPaymasterAddress + unsetEmergencyDisabled.
     // -----------------------------------------------------------------------
 
-    function test_UnsetEmergencyDisabled_ClearsFlag() public {
+    /// @notice P0-7 (P2): clearing the flag WITHOUT rotating the SP address
+    ///         must revert — the old compromised address would still be trusted.
+    function test_UnsetEmergencyDisabled_RevertsIfAddressNotRotated() public {
         vm.prank(community);
         token.emergencyRevokePaymaster();
         assertTrue(token.emergencyDisabled());
+
+        // SUPERPAYMASTER_ADDRESS is still the revoked paymaster — must revert.
+        vm.prank(community);
+        vm.expectRevert(xPNTsToken.RecoveryNotComplete.selector);
+        token.unsetEmergencyDisabled();
+
+        // Flag must remain set after the failed attempt.
+        assertTrue(token.emergencyDisabled());
+    }
+
+    function test_UnsetEmergencyDisabled_ClearsFlag_AfterRotation() public {
+        vm.prank(community);
+        token.emergencyRevokePaymaster();
+        assertTrue(token.emergencyDisabled());
+
+        // Rotate to a new (safe) address first.
+        address newPaymaster = address(0x9999);
+        vm.prank(community);
+        token.setSuperPaymasterAddress(newPaymaster);
 
         vm.prank(community);
         token.unsetEmergencyDisabled();
@@ -168,13 +202,14 @@ contract xPNTs_EmergencyDisabledTest is Test {
         vm.prank(community);
         token.emergencyRevokePaymaster();
         assertTrue(token.emergencyDisabled());
+        assertEq(token.emergencyRevokedAddress(), paymaster);
 
         // 2. Rotate SP to a new address
         address newPaymaster = address(0x9999);
         vm.prank(community);
         token.setSuperPaymasterAddress(newPaymaster);
 
-        // 3. Clear the flag
+        // 3. Clear the flag — succeeds because SUPERPAYMASTER_ADDRESS != emergencyRevokedAddress
         vm.prank(community);
         token.unsetEmergencyDisabled();
         assertFalse(token.emergencyDisabled());
