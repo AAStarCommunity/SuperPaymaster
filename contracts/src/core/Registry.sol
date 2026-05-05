@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
@@ -9,7 +9,6 @@ import "../interfaces/v3/IRegistry.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 import "../interfaces/v3/IMySBT.sol";
 import "../interfaces/ISuperPaymaster.sol";
-import "../interfaces/v3/IBLSValidator.sol";
 import "../interfaces/v3/IBLSAggregator.sol";
 
 
@@ -19,7 +18,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.1.0";
+        return "Registry-5.2.0";
     }
 
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -34,10 +33,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     IMySBT public MYSBT;
     address public SUPER_PAYMASTER;
     address public blsAggregator;
-    IBLSValidator public blsValidator;
+    /// @custom:oz-renamed-from blsValidator
+    /// @dev P0-1: standalone BLSValidator contract was deleted because its
+    ///      pairing equation accepted a caller-supplied pkAgg and could be
+    ///      forged. Storage slot is preserved (UUPS) but the field is unused;
+    ///      every BLS verification path now routes through `blsAggregator`
+    ///      which reconstructs pkAgg from on-chain validator keys.
+    address public __deprecated_blsValidator;
 
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
+    /// @notice Registry-side cache of locked stake amounts per (role, user).
+    /// @dev    Best-effort mirror of `GTokenStaking.roleLocks`. Updated by
+    ///         Staking via `syncStakeFromStaking`; may lag for up to one block
+    ///         after a slash or unstake. SDK/UI code MUST use `getEffectiveStake()`
+    ///         for authoritative reads — reading this mapping directly can return
+    ///         stale values and lead to incorrect eligibility decisions.
     mapping(bytes32 => mapping(address => uint256)) public roleStakes;
     mapping(bytes32 => address[]) public roleMembers;
     mapping(bytes32 => mapping(address => uint256)) public roleMemberIndex;
@@ -117,8 +128,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event MySBTContractUpdated(address indexed oldMySBT, address indexed newMySBT);
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
-    event BLSValidatorUpdated(address indexed oldVal, address indexed newVal);
     event ExitFeeSyncFailed(bytes32 indexed roleId);
+    /// @notice P0-14: Staking pushed a fresh stake snapshot for (user, role)
+    /// @dev    Emitted for off-chain indexers when slash / unlock / topUp
+    ///         operations on the Staking side update Registry's cache.
+    event StakeSyncedFromStaking(address indexed user, bytes32 indexed roleId, uint256 newAmount);
 
     function _initRole(
         bytes32 roleId, uint256 min, uint256 ticketPrice,
@@ -150,6 +164,49 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit StakingContractUpdated(old, _staking);
     }
 
+    /// @notice Push a fresh stake snapshot from Staking into Registry's
+    ///         per-role cache (`roleStakes[roleId][user]`).
+    /// @dev    P0-14 (H-01): when `GTokenStaking.slashByDVT` or other
+    ///         lock-mutating operations run, Staking is the canonical source
+    ///         of truth for `roleLocks[user][role].amount`. Without this
+    ///         hook the Registry-side cache silently drifts (e.g. a user can
+    ///         `topUpStake` against a stale "1000 GT" cache after Staking
+    ///         already slashed them down to 500 GT, over-counting their
+    ///         backing).
+    ///         Caller MUST be the configured `GTOKEN_STAKING`. We do NOT
+    ///         allow `owner()` here on purpose — the invariant we're
+    ///         restoring is "Registry mirrors Staking", and a privileged
+    ///         manual override would re-introduce the drift this function
+    ///         is meant to eliminate. Owner can still rotate the staking
+    ///         pointer via `setStaking`.
+    /// @param user User whose stake changed.
+    /// @param roleId Role identifier whose lock amount changed.
+    /// @param newAmount Authoritative `roleLocks[user][role].amount` after
+    ///                  the Staking-side mutation.
+    function syncStakeFromStaking(
+        address user,
+        bytes32 roleId,
+        uint256 newAmount
+    ) external {
+        if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
+        roleStakes[roleId][user] = newAmount;
+        emit StakeSyncedFromStaking(user, roleId, newAmount);
+    }
+
+    /// @notice Effective per-role stake, read from the Staking-side source
+    ///         of truth.
+    /// @dev    P0-14: prefer this over reading `roleStakes` directly when
+    ///         consumers need fresh values regardless of whether Staking
+    ///         has called `syncStakeFromStaking` yet for the latest mutation.
+    ///         The cache is best-effort; the on-chain truth is on Staking.
+    /// @param user User to query.
+    /// @param roleId Role identifier.
+    /// @return Locked stake amount currently held by Staking for this role.
+    function getEffectiveStake(address user, bytes32 roleId) external view returns (uint256) {
+        if (address(GTOKEN_STAKING) == address(0)) return roleStakes[roleId][user];
+        return GTOKEN_STAKING.getLockedStake(user, roleId);
+    }
+
     function setMySBT(address _mysbt) external onlyOwner {
         address old = address(MYSBT);
         MYSBT = IMySBT(_mysbt);
@@ -168,12 +225,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         address old = blsAggregator;
         blsAggregator = _aggregator;
         emit BLSAggregatorUpdated(old, _aggregator);
-    }
-
-    function setBLSValidator(address _validator) external onlyOwner {
-        address old = address(blsValidator);
-        blsValidator = IBLSValidator(_validator);
-        emit BLSValidatorUpdated(old, _validator);
     }
 
     function _enforceMinStake(uint256 stakeAmount, uint256 minStake) internal pure returns (uint256) {
@@ -252,7 +303,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (SUPER_PAYMASTER != address(0)) {
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
-            MYSBT.burnSBT(msg.sender);
+            // L-04: wrap in try/catch so a failing burnSBT never reverts exitRole;
+            // emit an event so the failure is observable on-chain.
+            try MYSBT.burnSBT(msg.sender) {} catch {
+                emit SBTBurnFailed(msg.sender, roleId);
+            }
         }
 
         // --- stake unlock (operator roles only) ---
@@ -341,24 +396,25 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (users.length > 200) revert BatchTooLarge();
 
         if (proof.length == 0) revert BLSProofRequired();
-        (,,, uint256 signerMask) = abi.decode(proof, (bytes, bytes, bytes, uint256));
-        uint256 signerCount = _countSetBits(signerMask);
-        uint256 threshold = 3;
-        if (blsAggregator != address(0)) {
-            try IBLSAggregator(blsAggregator).defaultThreshold() returns (uint256 t) {
-                threshold = t;
-            } catch {}
-        }
-        if (signerCount < threshold) revert InsufficientConsensus();
-        if (address(blsValidator) == address(0)) revert BLSNotConfigured();
+        if (blsAggregator == address(0)) revert BLSNotConfigured();
         if (proposalId == 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
+
+        // P0-1: route signature verification through BLSAggregator which
+        // reconstructs pkAgg from on-chain validator keys. The proof carries
+        // (signerMask, sigG2) — pkAgg / msgG2 are NOT in the wire format.
+        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
+        uint256 threshold = IBLSAggregator(blsAggregator).defaultThreshold();
+        if (_countSetBits(signerMask) < threshold) revert InsufficientConsensus();
+
         executedProposals[proposalId] = true;
         bytes32 messageHash = keccak256(abi.encode(
             proposalId, address(0), uint8(0),
             users, newScores, epoch, block.chainid
         ));
-        if (!blsValidator.verifyProof(proof, abi.encodePacked(messageHash))) revert BLSFailed();
+        if (!IBLSAggregator(blsAggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
+            revert BLSFailed();
+        }
 
         for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
@@ -380,13 +436,21 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         bool[] calldata statuses,
         bytes calldata proof
     ) external nonReentrant {
+        // NOTE: Caller restriction + mandatory proof + chainid binding are
+        // tightened in P0-3 (B6-C2 + Codex B-N4). This commit only swaps the
+        // deleted `blsValidator` reference for the aggregator path so the
+        // contract compiles without the deleted interface.
         if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
         if (users.length != statuses.length) revert LenMismatch();
         if (SUPER_PAYMASTER == address(0)) revert SPNotSet();
 
-        if (address(blsValidator) != address(0) && proof.length > 0) {
-             bytes memory message = abi.encode(operator, users, statuses);
-             if (!blsValidator.verifyProof(proof, message)) revert BLSFailed();
+        if (blsAggregator != address(0) && proof.length > 0) {
+            (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
+            uint256 threshold = IBLSAggregator(blsAggregator).defaultThreshold();
+            bytes32 messageHash = keccak256(abi.encode(operator, users, statuses));
+            if (!IBLSAggregator(blsAggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
+                revert BLSFailed();
+            }
         }
 
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);

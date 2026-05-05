@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
@@ -64,7 +64,6 @@ contract MockRegistryStub is IRegistry {
     function setMySBT(address) external {}
     function setSuperPaymaster(address) external {}
     function setBLSAggregator(address) external {}
-    function setBLSValidator(address) external {}
     function setCreditTier(uint256, uint256) external {}
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory) {}
     function getUserRoles(address) external view returns (bytes32[] memory) {}
@@ -79,6 +78,8 @@ contract MockRegistryStub is IRegistry {
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external view returns (bool) { return false; }
+    function syncStakeFromStaking(address, bytes32, uint256) external {}
+    function getEffectiveStake(address, bytes32) external view returns (uint256) { return 0; }
 }
 
 contract MockERC20 is ERC20 {

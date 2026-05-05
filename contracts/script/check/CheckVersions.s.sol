@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -51,10 +51,10 @@ contract CheckVersions is Script {
         string memory json = vm.readFile(configPath);
         
         // 定义需要检查的合约列表（按字母顺序）
-        string[13] memory contractKeys = [
+        // P0-1: standalone "blsValidator" entry removed — Registry now verifies via blsAggregator only.
+        string[12] memory contractKeys = [
             "aPNTs",
             "blsAggregator",
-            "blsValidator",
             "dvtValidator",
             "gToken",
             "paymasterFactory",

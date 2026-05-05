@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
@@ -52,6 +52,8 @@ contract MockRegistryV2 is IRegistry {
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 contract MockAggregatorV3Spy is AggregatorV3Interface {
@@ -309,7 +311,7 @@ contract SuperPaymasterPricingV2Test is Test {
         priceFeed.setRevert(true);
         
         vm.prank(owner);
-        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "");
+        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "", 0);
         
         // Restore Chainlink
         priceFeed.setRevert(false);

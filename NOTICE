@@ -6,13 +6,16 @@ This product includes software developed by MushroomDAO
 
 Licensed under the Apache License, Version 2.0.
 See LICENSE file for full terms.
+本产品使用 Apache 许可证 2.0 版，参见 LICENSE 文件（英文原版）及 LICENSE-zh.md（中文参考译本）。
 
-== Attribution ==
+== Attribution / 归属声明 ==
 
 Per Apache 2.0 Section 4(d), derivative works that distribute this software
 must retain this NOTICE file.
+根据 Apache 2.0 第 4(d) 条，分发本软件的衍生作品必须保留本 NOTICE 文件。
 
-== Trademark ==
+== Trademark / 商标 ==
 
 MushroomDAO, Mycelium Protocol, GToken, PNTs, and related names are trademarks
-of MushroomDAO. Forks must rebrand. See TRADEMARK.md for full policy.
+of MushroomDAO. Forks must rebrand. See TRADEMARK.md (English) / TRADEMARK-zh.md (中文).
+MushroomDAO、Mycelium Protocol、GToken、PNTs 及相关名称为 MushroomDAO 的商标。分叉须更名。

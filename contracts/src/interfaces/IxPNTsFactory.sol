@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 /**
  * @title IxPNTsFactory
@@ -26,4 +26,16 @@ interface IxPNTsFactory {
      * @return exists True if token exists
      */
     function hasToken(address community) external view returns (bool exists);
+
+    /**
+     * @notice Check if `token` was deployed via this factory and is therefore
+     *         a trusted xPNTs token (subject to firewall + per-tx caps).
+     * @dev    P0-12a: SuperPaymaster `settleX402PaymentDirect` MUST gate on this
+     *         check so that an attacker cannot drain a victim's standard
+     *         `approve(facilitator, MAX)` on USDC / WETH / etc. via the Direct
+     *         path. Only xPNTs tokens are protected by the autoApproved firewall.
+     * @param token Token address to verify
+     * @return True iff the factory deployed this token (xPNTs).
+     */
+    function isXPNTs(address token) external view returns (bool);
 }

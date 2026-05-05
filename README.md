@@ -329,7 +329,9 @@ SuperPaymaster/
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
+This project is licensed under the [Apache License, Version 2.0](LICENSE).  
+Copyright 2024-present MushroomDAO Contributors.  
+See [NOTICE](./NOTICE) · [TRADEMARK.md](./TRADEMARK.md) · [LICENSE-zh.md](./LICENSE-zh.md) · [TRADEMARK-zh.md](./TRADEMARK-zh.md) for details.
 
 ---
 
@@ -509,4 +511,6 @@ forge test
 
 ## 许可证
 
-MIT — 见 [LICENSE](./LICENSE)
+本项目使用 [Apache 许可证 2.0 版](LICENSE)（英文原版，具有法律效力）。  
+中文参考译本见 [LICENSE-zh.md](./LICENSE-zh.md)（非官方，不具法律效力）。  
+版权归属见 [NOTICE](./NOTICE)。

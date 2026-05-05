@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
@@ -47,6 +47,8 @@ contract MockRegistry is IRegistry {
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
     function version() external pure override returns (string memory) { return "1"; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {
@@ -124,7 +126,7 @@ contract SuperPaymasterHardenVerification is Test {
         
         // Initialize Price Cache
         paymaster.setBLSAggregator(owner);
-        paymaster.updatePriceDVT(2000 * 1e8, block.timestamp, "");
+        paymaster.updatePriceDVT(2000 * 1e8, block.timestamp, "", 0);
 
         registry.grantRole(registry.ROLE_COMMUNITY(), community);
         registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), community);

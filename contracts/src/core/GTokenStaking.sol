@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
@@ -7,6 +7,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
+import "../interfaces/v3/IRegistry.sol";
 
 /**
  * @title GTokenStaking v4.2.0 — Unified Ticket Model
@@ -156,6 +157,14 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             emit StakeLocked(user, roleId, stakeAmount, ticketPrice, block.timestamp);
         }
 
+        // P0-14: Registry already updates `roleStakes[roleId][user]` in
+        // `_firstTimeRegister` before reaching here, but we still push the
+        // canonical amount to keep both sides in lockstep when this is
+        // called from any non-registerRole entry point in the future.
+        if (stakeAmount > 0) {
+            _syncRegistry(user, roleId, roleLocks[user][roleId].amount);
+        }
+
         // Ticket-only path creates no lock → return 0. Only stake locks have meaningful identifiers.
         if (stakeAmount == 0) return 0;
         return uint256(keccak256(abi.encode(user, roleId, block.number, totalStaked)));
@@ -175,7 +184,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         if (lock.amount == 0) revert RoleNotLocked();
 
         GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
-        
+
         uint256 newTotal = totalStaked + stakeAmount;
         if (newTotal > MAX_TOTAL_STAKE) revert TotalStakeExceedsCap();
         lock.amount += uint128(stakeAmount);
@@ -183,6 +192,11 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         totalStaked = newTotal;
 
         emit StakeLocked(user, roleId, stakeAmount, 0, lock.lockedAt); // Reuse existing lockedAt
+
+        // Synchronize the updated stake amount to Registry so that role eligibility
+        // reflects the new total. This keeps the Registry's roleStakes cache
+        // consistent with Staking's internal roleLock, regardless of call ordering.
+        _syncRegistry(user, roleId, lock.amount);
     }
 
     /**
@@ -228,6 +242,13 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         }
         
         emit StakeUnlocked(user, roleId, originalAmount, exitFee, netAmount, block.timestamp);
+
+        // P0-14: lock has been deleted; reflect 0 in Registry's cache.
+        // Registry.exitRole already sets `roleStakes[roleId][user] = 0`
+        // before calling here, but the redundant sync makes the
+        // post-condition explicit and safe under future call-graph changes.
+        _syncRegistry(user, roleId, 0);
+
         return netAmount;
     }
 
@@ -259,7 +280,13 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             // Proportionally reduce role locks (Weighted Distribution)
             bytes32[] storage roles = userActiveRoles[user];
             uint256 totalAmountAcrossLocks = info.amount + slashedAmount; // Amount BEFORE this slash
-            
+
+            // P0-14: snapshot the affected role list BEFORE _cleanupZeroLocks
+            // mutates it, so we can sync each role's post-slash amount to
+            // Registry. Roles are bytes32 — a memory copy is cheap.
+            bytes32[] memory affectedRoles = new bytes32[](roles.length);
+            uint256[] memory postSlashAmounts = new uint256[](roles.length);
+
             if (totalAmountAcrossLocks > 0) {
                 for (uint256 i = 0; i < roles.length; i++) {
                     RoleLock storage lock = roleLocks[user][roles[i]];
@@ -267,6 +294,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
                     uint256 deduct = (uint256(lock.amount) * slashedAmount) / totalAmountAcrossLocks;
                     if (deduct > lock.amount) deduct = lock.amount;
                     lock.amount -= uint128(deduct);
+                    affectedRoles[i] = roles[i];
+                    postSlashAmounts[i] = lock.amount;
                 }
             }
 
@@ -274,6 +303,14 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             _cleanupZeroLocks(user);
 
             GTOKEN.safeTransfer(treasury, slashedAmount);
+
+            // P0-14: push the post-slash per-role amounts to Registry so the
+            // cache mirrors Staking. Done after `safeTransfer` per CEI; if
+            // Registry reverts, slashing already landed (Staking is the
+            // source of truth).
+            for (uint256 i = 0; i < affectedRoles.length; i++) {
+                _syncRegistry(user, affectedRoles[i], postSlashAmounts[i]);
+            }
         }
 
         emit UserSlashed(user, slashedAmount, reason, block.timestamp);
@@ -283,6 +320,17 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ====================================
     // Internal Helpers
     // ====================================
+
+    /// @dev P0-14 (H-01): Push the post-mutation lock amount to Registry so
+    ///      `roleStakes[roleId][user]` mirrors `roleLocks[user][roleId].amount`.
+    ///      Wrapped in `try`/`catch` so a misconfigured / non-conforming
+    ///      Registry implementation cannot brick Staking-side mutations
+    ///      (Staking remains the canonical source of truth and exposes
+    ///      `getLockedStake` / Registry.getEffectiveStake for fresh reads).
+    function _syncRegistry(address user, bytes32 roleId, uint256 newAmount) internal {
+        if (REGISTRY == address(0)) return;
+        try IRegistry(REGISTRY).syncStakeFromStaking(user, roleId, newAmount) {} catch {}
+    }
 
     function _previewExitFee(address /* user */, bytes32 roleId, uint256 amount) internal view returns (uint256 fee, uint256 net) {
         RoleExitConfig memory config = roleExitConfigs[roleId];
@@ -416,20 +464,25 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         string calldata reason
     ) external nonReentrant {
         if (!authorizedSlashers[msg.sender]) revert NotAuthorizedSlasher();
-        
+
         RoleLock storage lock = roleLocks[operator][roleId];
         if (lock.amount < penaltyAmount) revert InsufficientStake();
-        
-        // Deduct from role lock  
+
+        // Deduct from role lock
         lock.amount -= uint128(penaltyAmount);
-        
+
         // H-01 FIX: Deduct from stake and track cumulative slashed
         StakeInfo storage stake = stakes[operator];
         if (stake.amount < penaltyAmount) revert InsufficientStake();
         stake.slashedAmount += penaltyAmount;  // Track cumulative slashed
         stake.amount -= penaltyAmount;         // Reduce actual balance
         totalStaked -= penaltyAmount;
-        
+
+        // Snapshot the post-slash lock amount BEFORE we potentially clean up
+        // the userActiveRoles entry — Registry only cares about the final
+        // per-role amount.
+        uint256 postSlash = lock.amount;
+
         // Cleanup if lock is now zero
         if (lock.amount == 0) {
             _removeUserRole(operator, roleId);
@@ -438,6 +491,13 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         // Transfer to treasury
         GTOKEN.safeTransfer(treasury, penaltyAmount);
         emit UserSlashed(operator, penaltyAmount, reason, block.timestamp);
+
+        // P0-14 (H-01): keep Registry's roleStakes cache in lockstep with
+        // Staking's roleLocks. Without this, an operator can `topUpStake`
+        // against a stale cache after being slashed and silently
+        // over-counts. We `try / catch` so a misconfigured Registry can't
+        // brick slashing — Staking remains the source of truth.
+        _syncRegistry(operator, roleId, postSlash);
     }
 
     /**

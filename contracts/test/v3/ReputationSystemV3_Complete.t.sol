@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/core/Registry.sol";
-import "src/mocks/MockBLSValidator.sol";
+import "src/mocks/MockBLSAggregator.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/ERC721.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -65,10 +65,10 @@ contract ReputationSystem_Complete_Test is Test {
             abi.encode(true)
         );
 
-        // Set BLS Validator
-        MockBLSValidator validator = new MockBLSValidator();
-        registry.setBLSValidator(address(validator));
-        
+        // P0-1: Registry routes BLS verification through the aggregator now.
+        MockBLSAggregator aggregator = new MockBLSAggregator();
+        registry.setBLSAggregator(address(aggregator));
+
         vm.stopPrank();
 
     }
@@ -415,7 +415,8 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS precompile
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
+        // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
+        bytes memory proof = abi.encode(uint256(0x7F), new bytes(256));
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 1, proof);
@@ -447,7 +448,8 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
+        // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
+        bytes memory proof = abi.encode(uint256(0x7F), new bytes(256));
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 2, proof);
@@ -491,7 +493,8 @@ contract ReputationSystem_Complete_Test is Test {
         
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
-        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0x7F));
+        // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
+        bytes memory proof = abi.encode(uint256(0x7F), new bytes(256));
 
         vm.prank(address(repSystem));
         vm.warp(block.timestamp + 8 days);

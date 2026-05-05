@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import { PaymasterBase } from "./PaymasterBase.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ISuperPaymasterRegistry } from "../../interfaces/ISuperPaymasterRegistry.sol";
+import { IRegistry } from "../../interfaces/v3/IRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 
@@ -24,8 +24,8 @@ contract Paymaster is PaymasterBase, Initializable {
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice SuperPaymaster Registry contract (immutable, set at deployment)
-    ISuperPaymasterRegistry public immutable registry;
+    /// @notice V3 Registry contract (immutable, set at deployment via factory)
+    IRegistry public immutable registry;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -42,6 +42,10 @@ contract Paymaster is PaymasterBase, Initializable {
     /// @param paymaster Address of the deactivated Paymaster
     event DeactivatedFromRegistry(address indexed paymaster);
 
+    /// @notice Emitted when Paymaster is re-activated in Registry
+    /// @param paymaster Address of the re-activated Paymaster
+    event ActivatedInRegistry(address indexed paymaster);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -55,7 +59,7 @@ contract Paymaster is PaymasterBase, Initializable {
      */
     constructor(address _registry) {
         if (_registry == address(0)) revert Paymaster__ZeroAddress();
-        registry = ISuperPaymasterRegistry(_registry);
+        registry = IRegistry(_registry);
 
         // Lock the implementation contract to prevent direct initialization
         _disableInitializers();
@@ -65,43 +69,36 @@ contract Paymaster is PaymasterBase, Initializable {
     /*                    REGISTRY MANAGEMENT                     */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /**
-     * @notice Deactivate this Paymaster from Registry
-     * @dev Only owner can call
-     * @dev Deactivate means:
-     *      - Stop accepting new gas payment requests
-     *      - Continue processing existing transactions (settlement)
-     *      - Continue unstake process if initiated
-     * @dev Complete exit flow:
-     *      1. deactivate() → isActive = false
-     *      2. Wait for all transactions to settle
-     *      3. unstake() → unlock stake
-     *      4. withdrawStake() → withdraw ETH, complete exit
-     * @dev Note: Reactivation is controlled by Registry (requires qualification check)
-     */
+    /// @notice Remove this paymaster from the active discovery listing.
+    /// @dev    "deactivate" is a listing notification, NOT an exitRole.
+    ///         ROLE_PAYMASTER_AOA stays on the operator EOA throughout so the
+    ///         operator can re-activate later with activateInRegistry().
+    ///         Pausing the contract is the authoritative "not accepting UserOps"
+    ///         signal; discovery consumers check !paused AND hasRole(owner).
     function deactivateFromRegistry() external onlyOwner {
-        if (address(registry) == address(0)) {
-            revert Paymaster__RegistryNotSet();
-        }
-
-        // Call Registry.deactivate()
-        registry.deactivate();
-
+        if (paused) return; // idempotent
+        paused = true;
+        emit Paused(msg.sender);
         emit DeactivatedFromRegistry(address(this));
+    }
+
+    /// @notice Re-list this paymaster in the active discovery listing.
+    /// @dev    Sets paused=false so validatePaymasterUserOp accepts new UserOps
+    ///         again and isActiveInRegistry() returns true (assuming the owner
+    ///         still holds ROLE_PAYMASTER_AOA in Registry).
+    function activateInRegistry() external onlyOwner {
+        if (!paused) return; // idempotent
+        paused = false;
+        emit Unpaused(msg.sender);
+        emit ActivatedInRegistry(address(this));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       VIEW FUNCTIONS                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /**
-     * @notice Get contract version
-     * @return Version string
-     */
-    /// @notice Get contract version
-    /// @return Version string
     function version() external pure override returns (string memory) {
-        return "PMV4-Deposit-4.3.1";
+        return "PMV4-Deposit-4.5.0";
     }
 
     /// @notice Get the Paymaster data offset (version specific)
@@ -157,12 +154,15 @@ contract Paymaster is PaymasterBase, Initializable {
      * @dev Returns false if Registry not set or Paymaster not registered
      * @return True if Paymaster is active in Registry
      */
+    /// @notice True iff this paymaster is in the active discovery listing.
+    /// @dev    Two conditions must both hold:
+    ///           1. The operator EOA (owner()) still holds ROLE_PAYMASTER_AOA.
+    ///           2. The paymaster has not been deactivated (paused == false).
+    ///         ROLE_PAYMASTER_AOA is on the operator EOA, NOT on address(this) —
+    ///         querying address(this) (the old bug) always returned false.
     function isActiveInRegistry() external view returns (bool) {
-        if (address(registry) == address(0)) {
-            return false;
-        }
-
-        try registry.isPaymasterActive(address(this)) returns (bool active) {
+        if (paused) return false;
+        try registry.hasRole(registry.ROLE_PAYMASTER_AOA(), owner()) returns (bool active) {
             return active;
         } catch {
             return false;

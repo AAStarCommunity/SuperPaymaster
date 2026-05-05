@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import "./xPNTsToken.sol";
@@ -58,6 +58,14 @@ contract xPNTsFactory is Ownable, IVersioned {
 
     /// @notice Mapping: community address => xPNTs token address
     mapping(address => address) public communityToToken;
+
+    /// @notice Whitelist of tokens this factory has deployed.
+    /// @dev    P0-12a: SuperPaymaster.settleX402PaymentDirect must reject any
+    ///         asset that is not registered here, so an attacker cannot drain
+    ///         a victim's standard approve(facilitator, MAX) on USDC / WETH /
+    ///         etc. via the Direct path. xPNTs tokens carry the autoApproved
+    ///         firewall + MAX_SINGLE_TX_LIMIT; arbitrary ERC20s do not.
+    mapping(address => bool) public isXPNTs;
 
     /// @notice Mapping: community address => prediction parameters
     mapping(address => PredictionParams) public predictions;
@@ -215,6 +223,12 @@ contract xPNTsFactory is Ownable, IVersioned {
         // Record deployment
         communityToToken[msg.sender] = token;
         deployedTokens.push(token);
+
+        // P0-12a: register this token as an xPNTs in the factory whitelist so
+        // SuperPaymaster.settleX402PaymentDirect can gate on it. Without this
+        // gate, any ERC20 (e.g. USDC for which the user has done a standard
+        // infinite approve to the facilitator) could be drained via Direct.
+        isXPNTs[token] = true;
 
         emit xPNTsTokenDeployed(msg.sender, token, name, symbol);
     }

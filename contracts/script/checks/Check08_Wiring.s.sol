@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -67,12 +67,11 @@ contract Check08_Wiring is Script {
         require(SuperPaymaster(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
 
         // 5. BLS Infrastructure Check
+        // P0-1: standalone BLSValidator was deleted; only the aggregator is wired now.
         address blsAggregator = stdJson.readAddress(json, ".blsAggregator");
-        address blsValidator = stdJson.readAddress(json, ".blsValidator");
-        
+
         // Note: Registry uses camelCase getters for these public variables
         require(Registry(registry).blsAggregator() == blsAggregator, "Check08: Registry -> BLS Aggregator Failed");
-        require(address(Registry(registry).blsValidator()) == blsValidator, "Check08: Registry -> BLS Validator Failed");
 
         console.log("All Core & BLS Wiring Paths Verified Successfully!");
     }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 /// @notice BLS wrapper.
 /// @author Solady (https://github.com/vectorized/solady/blob/main/src/utils/BLS.sol)

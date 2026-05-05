@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
@@ -41,6 +41,8 @@ contract MockRegistry is IRegistry {
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
     function version() external view override returns (string memory) { return "MockRegistryV3"; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 /**

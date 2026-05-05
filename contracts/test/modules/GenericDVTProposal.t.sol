@@ -1,27 +1,49 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
 
 // Mock target contract for testing executeProposal
 contract MockTarget {
     uint256 public lastValue;
     bool public shouldRevert;
-    
+
     function setValue(uint256 value) external {
         if (shouldRevert) revert("MockTarget: revert requested");
         lastValue = value;
     }
-    
+
     function setShouldRevert(bool _shouldRevert) external {
         shouldRevert = _shouldRevert;
     }
 }
 
+/// @notice Permissive staking stub — every validator has unlimited stake. Used
+///         to satisfy the per-slot real-time stake check inside
+///         BLSAggregator._reconstructPkAgg without modelling real stake.
+contract MockStakingForProposal {
+    function roleLocks(address, bytes32 roleId)
+        external
+        pure
+        returns (uint128 amount, uint128 ticketPrice, uint48 lockedAt, bytes32 roleId_, bytes memory metadata)
+    {
+        return (type(uint128).max, 0, 0, roleId, "");
+    }
+}
+
 contract MockRegistryForProposal is IRegistry {
+    address public stakingAddr;
+    function setStakingAddr(address s) external { stakingAddr = s; }
+    /// @notice Mirrors Registry.GTOKEN_STAKING() so BLSAggregator's per-slot
+    ///         real-time stake check inside `_reconstructPkAgg` resolves.
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return IGTokenStaking(stakingAddr);
+    }
+
     function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
     function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
     function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
@@ -47,6 +69,8 @@ contract MockRegistryForProposal is IRegistry {
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
     function version() external view override returns (string memory) { return "MockRegistryForProposal"; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
 
 // Mock DVT Validator for markProposalExecuted callback
@@ -71,53 +95,57 @@ contract GenericDVTProposalTest is Test {
     address owner = address(1);
     address attacker = address(0x1337);
     
-    function setUp() public {
-        vm.startPrank(owner);
-        registry = new MockRegistryForProposal();
-        target = new MockTarget();
-        dvtValidator = new MockDVTValidator();
-        
-        bls = new BLSAggregator(address(registry), address(0), address(dvtValidator));
+    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+        pk.x_a = bytes32(seed);
+        pk.x_b = bytes32(seed + 1);
+        pk.y_a = bytes32(seed + 2);
+        pk.y_b = bytes32(seed + 3);
+    }
 
-        // Mock BLS precompiles for Cancun (0.8.33 compatibility)
+    function setUp() public {
+        // Mock BLS precompiles BEFORE any registerBLSPublicKey call —
+        // _validateG1Point invokes G1ADD (0x0b) and G1MUL (0x0c) at register
+        // time, so the etch must already be in place.
+        // 0x0b (G1ADD): Returns 128 bytes (0x80) — used by _reconstructPkAgg
+        vm.etch(address(0x0b), hex"60806000f3");
+        // 0x0c (G1MUL): Returns 128 bytes of zeros (identity) — required by
+        // _validateG1Point's prime-order subgroup check (r*P == O).
+        vm.etch(address(0x0c), hex"60806000f3");
         // 0x10 (MapFpToG1): Returns 128 bytes (0x80)
-        // Code: PUSH1 0x80 PUSH1 0x00 RETURN -> 60806000f3
         vm.etch(address(0x10), hex"60806000f3");
-        
         // 0x11 (MapFp2ToG2): Returns 256 bytes (0x100)
-        // Code: PUSH2 0x0100 PUSH1 0x00 RETURN -> 6101006000f3
         vm.etch(address(0x11), hex"6101006000f3");
-        
         // 0x0d (G2ADD): Returns 256 bytes (0x100)
         vm.etch(address(0x0d), hex"6101006000f3");
 
+        vm.startPrank(owner);
+        registry = new MockRegistryForProposal();
+        // Wire a permissive staking stub so the real-time per-slot stake check
+        // inside `_reconstructPkAgg` resolves with unlimited stake for every
+        // validator. RoleConfig.minStake on this mock is 0, so any reported
+        // balance passes the floor.
+        registry.setStakingAddr(address(new MockStakingForProposal()));
+        target = new MockTarget();
+        dvtValidator = new MockDVTValidator();
+
+        bls = new BLSAggregator(address(registry), address(0), address(dvtValidator));
+
+        // P0-1: register validator keys into slots 1..MAX_VALIDATORS so the
+        // aggregator can reconstruct pkAgg from on-chain state.
+        for (uint8 i = 1; i <= 13; i++) {
+            address v = address(uint160(uint256(i) + 200));
+            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), i);
+        }
+
         vm.stopPrank();
     }
-    
 
-    
-    function _createMockProof(uint256 proposalId, address _target, bytes memory callData, uint256 reqThreshold) internal view returns (bytes memory) {
-        // Construct the expected message hash (must match executeProposal logic)
-        bytes32 expectedMessageHash = keccak256(abi.encode(
-            proposalId,
-            _target,
-            keccak256(callData),
-            reqThreshold,
-            block.chainid
-        ));
-        
-        BLS.G2Point memory point = BLS.hashToG2(abi.encodePacked(expectedMessageHash));
-        bytes memory msgG2Bytes = abi.encode(point);
-        
-        // Create signerMask with enough signatures
-        uint256 signerMask = (1 << reqThreshold) - 1; // reqThreshold bits set
-        
-        return abi.encode(
-            new bytes(128),  // pkG1 (mock)
-            new bytes(256),  // sigG2 (mock)
-            msgG2Bytes,
-            signerMask
-        );
+    function _createMockProof(uint256 reqThreshold) internal pure returns (bytes memory) {
+        // P0-1: proof is now (uint256 signerMask, bytes sigG2). pkAgg / msgG2
+        // are derived on-chain from validatorAtSlot / expectedMessageHash.
+        uint256 signerMask = (uint256(1) << reqThreshold) - 1; // reqThreshold low bits set
+        BLS.G2Point memory sig; // zeroed; the pairing precompile is mocked
+        return abi.encode(signerMask, abi.encode(sig));
     }
     
     // ========================================
@@ -129,7 +157,7 @@ contract GenericDVTProposalTest is Test {
         uint256 requiredThreshold = 5;
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (12345));
         
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         
         // Mock BLS pairing
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
@@ -147,7 +175,7 @@ contract GenericDVTProposalTest is Test {
         uint256 requiredThreshold = 3;
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (999));
         
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         vm.prank(owner);
@@ -163,7 +191,7 @@ contract GenericDVTProposalTest is Test {
     function test_ExecuteProposal_Unauthorized_Reverts() public {
         uint256 proposalId = 200;
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, 5);
+        bytes memory proof = _createMockProof(5);
         
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, attacker));
@@ -178,7 +206,7 @@ contract GenericDVTProposalTest is Test {
         uint256 proposalId = 300;
         uint256 requiredThreshold = 2; // Below minThreshold (3)
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         
         vm.prank(address(dvtValidator));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold below minimum"));
@@ -189,7 +217,7 @@ contract GenericDVTProposalTest is Test {
         uint256 proposalId = 301;
         uint256 requiredThreshold = 14; // Above MAX_VALIDATORS (13)
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         
         vm.prank(address(dvtValidator));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold exceeds max"));
@@ -201,7 +229,7 @@ contract GenericDVTProposalTest is Test {
         uint256 requiredThreshold = 3; // Exactly minThreshold
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (333));
         
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         vm.prank(address(dvtValidator));
@@ -215,7 +243,7 @@ contract GenericDVTProposalTest is Test {
         uint256 requiredThreshold = 13; // Exactly MAX_VALIDATORS
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1313));
         
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         vm.prank(address(dvtValidator));
@@ -233,7 +261,7 @@ contract GenericDVTProposalTest is Test {
         uint256 requiredThreshold = 5;
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (111));
         
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         // First execution
@@ -253,7 +281,7 @@ contract GenericDVTProposalTest is Test {
     function test_ExecuteProposal_ZeroTarget_Reverts() public {
         uint256 proposalId = 500;
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
-        bytes memory proof = _createMockProof(proposalId, address(0), callData, 5);
+        bytes memory proof = _createMockProof(5);
         
         vm.prank(address(dvtValidator));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidTarget.selector, address(0)));
@@ -268,7 +296,7 @@ contract GenericDVTProposalTest is Test {
         target.setShouldRevert(true);
         
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (999));
-        bytes memory proof = _createMockProof(proposalId, address(target), callData, requiredThreshold);
+        bytes memory proof = _createMockProof(requiredThreshold);
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         
         vm.prank(address(dvtValidator));

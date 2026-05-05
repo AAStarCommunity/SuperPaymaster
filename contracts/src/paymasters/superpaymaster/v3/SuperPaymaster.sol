@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // AAStar.io contribution with love from 2023
 pragma solidity 0.8.33;
 import "./BasePaymasterUpgradeable.sol";
@@ -66,6 +66,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public constant PRICE_CACHE_DURATION = 300; // 5 minutes
     int256 public constant MIN_ETH_USD_PRICE = 100 * 1e8;
     int256 public constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
+    /// @notice Grace window (seconds) for keeper clock skew on `updatedAt` checks.
+    ///         Matches PaymasterBase.TIMESTAMP_GRACE_SECONDS to keep both modes in sync.
+    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
     
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
@@ -74,7 +77,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     // V3.2.1 SECURITY: Enforce max rate in Validation
     uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
-    uint256 public constant RATE_OFFSET = 72; // After Operator (20 bytes)
+    uint256 public constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
@@ -101,6 +104,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when aPNTs token is updated
      */
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    /// @notice P0-9: emitted when an `setAPNTsToken` change is queued. The
+    ///         pending swap can be cancelled by `cancelAPNTsTokenChange` or
+    ///         executed once `eta` has elapsed via `executeAPNTsTokenChange`.
+    event APNTsTokenChangeQueued(address indexed pendingToken, uint256 eta);
+    event APNTsTokenChangeCancelled(address indexed pendingToken);
+    /// @notice Emitted exclusively by `executeAPNTsTokenChange` (timelock path).
+    ///         On-chain monitors can distinguish this from legacy direct-swap
+    ///         `APNTsTokenUpdated` events by watching this separate topic.
+    event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt);
+    /// @notice P0-10: emitted when an emergency price is queued under the
+    ///         break-glass path (Chainlink is stale + multisig owner approves).
+    event EmergencyPriceQueued(int256 newPrice, uint256 eta);
+    event EmergencyPriceExecuted(int256 newPrice);
+    event EmergencyPriceCancelled(int256 cancelledPrice);
+    event PriceModeChanged(uint8 oldMode, uint8 newMode);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -130,6 +148,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when Oracle update fails, forcing a realtime fallback (Warning Sign)
      */
     event OracleFallbackTriggered(uint256 timestamp);
+
+    /// @notice P0-15 (J2-BLOCKER-1): observability hook for the silent
+    ///         SIG_FAILURE branches of validatePaymasterUserOp. Reserved for
+    ///         future monitoring integrations — NOT emitted from
+    ///         validatePaymasterUserOp itself, since writing storage during
+    ///         that opcode-restricted phase would violate ERC-7562.
+    /// @dev Intentionally not emitted in the current implementation. Retained for ABI
+    ///      compatibility and future use: once Stage-2 audit confirms bundler LOG* policy,
+    ///      a UUPS upgrade will wire this into postOp or an off-chain monitoring hook.
+    ///      Integrators must NOT subscribe to this event expecting real-time notifications —
+    ///      use `dryRunValidation()` instead for pre-flight checks.
+    event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
     /// @dev Happens when owner withdrew protocolRevenue between validation and postOp, leaving
@@ -139,6 +169,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
+    event AgentSponsorshipApplied(address indexed operator, address indexed user, uint256 bps);
 
     error Unauthorized();
     error InvalidAddress();
@@ -153,6 +184,30 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error AmountExceedsUint128();
     error ScoreExceedsUint32();
     error NoPendingDebt();
+    /// @notice P0-10: emergencySetPrice rejected because Chainlink is fresh.
+    error ChainlinkNotStale();
+    /// @notice P0-10: emergency price outside the ±20% band vs current cache.
+    error EmergencyPriceOutOfRange();
+    /// @notice P0-10: executeEmergencyPrice called before timelock elapsed.
+    error EmergencyTimelockNotElapsed();
+    /// @notice P0-10: executeEmergencyPrice called with no queued price.
+    error NoEmergencyPending();
+    /// @notice P0-10: emergencySetPrice called after EMERGENCY_EXPIRY elapsed with no Chainlink recovery.
+    error EmergencyExpired();
+
+    // ====================================
+    // Internal Helpers
+    // ====================================
+
+    /// @dev Reverts with Unauthorized if caller is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRole() internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+    }
+
+    /// @dev Reverts with Unauthorized if `account` is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRoleFor(address account) internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), account)) revert Unauthorized();
+    }
 
     // ====================================
     // Constructor & Initializer (UUPS)
@@ -214,9 +269,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
+        _requireSuperOperatorRole();
         // BUS-RULE: Must be Community to be Paymaster
          if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert Unauthorized();
@@ -244,14 +297,94 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
     }
 
-    /**
-     * @notice Set the APNTS Token address (Owner Only)
-     */
+    /// @notice Window between queueing an `setAPNTsToken` change and being
+    ///         allowed to execute it. Owner can cancel any time during this
+    ///         window. Picked to give all integrators (operators, SDKs,
+    ///         off-chain monitors) at least one weekly review cycle to react.
+    /// @dev    P0-9: was a single instant write; could strand operator
+    ///         deposits permanently if the new token had zero balances. The
+    ///         timelock + cancellation pattern follows OZ TimelockController
+    ///         semantics in spirit (queue / cancel / execute).
+    uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
+
+    // P0-10 — Chainlink break-glass state machine (D8 design)
+    /// @notice 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active).
+    uint8 public priceMode;
+    /// @notice Timestamp at which `emergencySetPrice` was last called; 0 if none queued.
+    uint256 public emergencyQueuedAt;
+    /// @notice Pending emergency price (8 decimals, same scale as Chainlink).
+    int256 public emergencyPendingPrice;
+    /// @notice Timestamp at which EMERGENCY mode was first activated (i.e. first
+    ///         `executeEmergencyPrice` call after a CHAINLINK→EMERGENCY transition).
+    ///         Cleared to 0 on Chainlink recovery. Used to enforce EMERGENCY_EXPIRY.
+    uint256 public emergencyActivatedAt;
+
+    uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
+    uint256 public constant CHAINLINK_STALE_THRESHOLD = 1 hours;
+    uint256 public constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
+    /// @notice Maximum duration for which EMERGENCY mode may remain active.
+    ///         After 7 days without Chainlink recovery the break-glass is
+    ///         considered expired; `emergencySetPrice` will revert to prevent
+    ///         an indefinitely-live manual-override regime.
+    uint256 public constant EMERGENCY_EXPIRY = 7 days;
+
+    /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
+    ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
+    ///         and `protocolRevenue` are zero (otherwise existing operator
+    ///         deposits would be stranded under the new token's accounting).
+    /// @dev    P0-9 (B2-N1): owner can cancel within the window via
+    ///         `cancelAPNTsTokenChange`. Re-queueing a change refreshes the
+    ///         timer (intentional — allows the owner to abort and restart).
     function setAPNTsToken(address newAPNTsToken) external onlyOwner {
         if (newAPNTsToken == address(0)) revert InvalidAddress();
+        pendingAPNTsToken = newAPNTsToken;
+        pendingAPNTsTokenEta = block.timestamp + APNTS_TOKEN_TIMELOCK;
+        emit APNTsTokenChangeQueued(newAPNTsToken, pendingAPNTsTokenEta);
+    }
+
+    /// @notice Abort a queued APNTS_TOKEN swap before it executes.
+    function cancelAPNTsTokenChange() external onlyOwner {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) return; // idempotent
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        emit APNTsTokenChangeCancelled(pending);
+    }
+
+    /// @notice Apply a previously queued APNTS_TOKEN swap.
+    /// @dev    Requires the timelock to have elapsed AND the contract to be
+    ///         drained of operator-tracked balance and protocol revenue —
+    ///         the same balance-zero invariant the audit recommended,
+    ///         enforced at execute-time so operators can decide when to
+    ///         drain rather than blocking the queue itself.
+    ///
+    ///         Intentionally owner-only: unlike OZ TimelockController's
+    ///         permissionless execute, token migration is sensitive enough
+    ///         to require explicit owner confirmation. The owner can effectively
+    ///         cancel any time before calling this function simply by not
+    ///         calling it, or by calling cancelAPNTsTokenChange() to reset the
+    ///         queue. Third-party execution is not allowed because it would
+    ///         remove the owner's final veto after the timelock expires.
+    function executeAPNTsTokenChange() external onlyOwner {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) revert InvalidConfiguration();
+        if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
+        // `protocolRevenue` accumulates continuously via postOp penalty/burn paths.
+        // Call `withdrawProtocolRevenue()` first to drain it to zero before
+        // executing this change — that is the required prerequisite step.
+        // This guard is intentional: it ensures no protocol-owned funds are
+        // permanently stranded under the old token's accounting after migration.
+        if (totalTrackedBalance != 0 || protocolRevenue != 0) revert InvalidConfiguration();
+
         address oldToken = APNTS_TOKEN;
-        APNTS_TOKEN = newAPNTsToken;
-        emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+        APNTS_TOKEN = pending;
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        // Emit the timelock-specific event so monitors can distinguish this
+        // from legacy direct-swap APNTsTokenUpdated events.
+        emit APNTsTokenChangeExecuted(oldToken, pending, block.timestamp);
+        // Also emit the backward-compatible event for existing listeners.
+        emit APNTsTokenUpdated(oldToken, pending);
     }
 
     /**
@@ -286,6 +419,108 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         xpntsFactory = _factory;
     }
 
+    // ====================================
+    // P0-10 — Chainlink break-glass (D8)
+    // ====================================
+
+    /// @notice True when Chainlink hasn't updated for at least
+    ///         `CHAINLINK_STALE_THRESHOLD` seconds, OR when the call reverts.
+    /// @dev    Stale = "operationally unusable", not "wrong". A Chainlink
+    ///         revert is treated as the worst-case stale state so the break-
+    ///         glass path opens.
+    function _isChainlinkStale() internal view returns (bool) {
+        try ETH_USD_PRICE_FEED.latestRoundData() returns (
+            uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80
+        ) {
+            if (chainlinkUpdatedAt == 0) return true;
+            return block.timestamp > chainlinkUpdatedAt + CHAINLINK_STALE_THRESHOLD;
+        } catch {
+            return true;
+        }
+    }
+
+    /// @notice Public mirror of `_isChainlinkStale`. Lets off-chain monitors
+    ///         see exactly the same staleness verdict the contract uses,
+    ///         without having to replay the threshold logic.
+    function isChainlinkStale() external view returns (bool) {
+        return _isChainlinkStale();
+    }
+
+    /// @notice Queue an emergency price update. Only honored when Chainlink
+    ///         is stale and the new price stays within ±20% of the last
+    ///         cached price; eligible for execution after a 1-hour timelock.
+    /// @dev    P0-10 (D8): pre-fix the owner break-glass path inside
+    ///         `updatePriceDVT` skipped the deviation check whenever Chainlink
+    ///         was unavailable, leaving a compromised owner free to write
+    ///         any price. The new path enforces:
+    ///           1. Chainlink must actually be stale (otherwise normal
+    ///              `updatePrice` should be used);
+    ///           2. New price within ±20% of `cachedPrice.price`;
+    ///           3. 1-hour timelock so off-chain monitors can flag the queue
+    ///              event before it lands.
+    function emergencySetPrice(int256 newPrice) external onlyOwner {
+        if (newPrice <= 0) revert OracleError();
+        if (!_isChainlinkStale()) revert ChainlinkNotStale();
+        // Prevent indefinite EMERGENCY regime: once activated, expires after 7 days.
+        if (emergencyActivatedAt != 0 && block.timestamp > emergencyActivatedAt + EMERGENCY_EXPIRY) {
+            revert EmergencyExpired();
+        }
+
+        int256 ref = cachedPrice.price;
+        if (ref <= 0) revert OracleError();
+
+        // Math.mulDiv is uint-only; do the band check manually with int math.
+        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
+
+        emergencyPendingPrice = newPrice;
+        emergencyQueuedAt = block.timestamp;
+        emit EmergencyPriceQueued(newPrice, block.timestamp + EMERGENCY_TIMELOCK);
+    }
+
+    /// @notice Cancel a queued emergency price. Useful when the multisig
+    ///         realises the queued value is wrong before timelock elapses.
+    function cancelEmergencyPrice() external onlyOwner {
+        if (emergencyQueuedAt == 0) return; // idempotent
+        int256 cancelled = emergencyPendingPrice;
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+        emit EmergencyPriceCancelled(cancelled);
+    }
+
+    /// @notice Apply a previously queued emergency price.
+    /// @dev    Permissionless after the timelock — anyone can land the price,
+    ///         not just the owner. The protective gates already ran inside
+    ///         `emergencySetPrice` (Chainlink stale, ±20% band).
+    /// @dev Permissionless: any address may execute after the 1-hour timelock expires.
+    ///      This mirrors the OZ TimelockController liveness pattern — the ±20% deviation
+    ///      cap limits manipulation even if an untrusted party triggers execution.
+    function executeEmergencyPrice() external {
+        if (emergencyQueuedAt == 0) revert NoEmergencyPending();
+        if (block.timestamp < emergencyQueuedAt + EMERGENCY_TIMELOCK) {
+            revert EmergencyTimelockNotElapsed();
+        }
+
+        int256 newPrice = emergencyPendingPrice;
+        cachedPrice.price = newPrice;
+        cachedPrice.updatedAt = block.timestamp;
+        cachedPrice.roundId = 0;
+        cachedPrice.decimals = 8;
+
+        if (priceMode != 1) {
+            emit PriceModeChanged(priceMode, 1);
+            priceMode = 1;
+            emergencyActivatedAt = block.timestamp;
+        }
+
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+
+        emit EmergencyPriceExecuted(newPrice);
+        emit PriceUpdated(newPrice, block.timestamp);
+    }
+
     /**
      * @notice Pause/Unpause an operator (Owner Only)
      * @dev Used for security emergency stops
@@ -305,7 +540,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
 
     function setOperatorLimits(uint48 _minTxInterval) external {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         operators[msg.sender].minTxInterval = _minTxInterval;
         emit OperatorMinTxIntervalUpdated(msg.sender, _minTxInterval);
     }
@@ -338,14 +573,31 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @param price New ETH/USD price (8 decimals)
      * @param updatedAt Timestamp of price update
      * @param proof BLS aggregated proof from DVT validators
+     * @param chainlinkRecovered  0 = Chainlink feed still unavailable (price-only update);
+     *                            1 = Chainlink feed has recovered — clears priceMode to 0
+     *                                and resets emergencyActivatedAt.
      */
-    function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof) external {
+    function updatePriceDVT(
+        int256 price,
+        uint256 updatedAt,
+        bytes calldata proof,
+        uint8 chainlinkRecovered   // 0 = Chainlink not yet recovered; 1 = Chainlink recovered
+    ) external {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
-        
+
         // V3.6 FIX: Prevent Replay & Staleness
         if (updatedAt <= cachedPrice.updatedAt) revert OracleError(); // Must be strictly increasing
         if (updatedAt < block.timestamp - 2 hours) revert OracleError(); // Must be recent
+        // P0-16 (Codex B-N1): also reject future timestamps. Without this, an
+        // adversarial caller could write `updatedAt = far_future`, satisfying
+        // both "strictly increasing" and "block.timestamp - 2 hours" checks,
+        // freezing the cached price and underflowing the staleness check
+        // downstream (block.timestamp - cachedPrice.updatedAt).
+        // A 15-second grace window accommodates the ~12 s maximum drift between
+        // a keeper's wall-clock and block.timestamp, preventing spurious
+        // rejections of honest keepers while closing the far-future attack vector.
+        if (updatedAt > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert OracleError();
         
         // 2. BLS proof is verified by BLSAggregator before it calls this function.
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
@@ -382,22 +634,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             roundId: 0, // DVT doesn't have Chainlink RoundID
             decimals: 8 // DVT normalizes to 8 decimals
         });
-        
+
+        // If Chainlink has been confirmed recovered, exit emergency mode.
+        if (chainlinkRecovered == 1 && priceMode != 0) {
+            emit PriceModeChanged(priceMode, 0);
+            priceMode = 0;
+            emergencyActivatedAt = 0;
+        }
+
         emit PriceUpdated(price, updatedAt);
     }
 
-    /**
-     * @notice Deposit aPNTs
-     */
     /**
      * @notice Deposit aPNTs (Legacy Pull Mode)
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRole();
         // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         // Check overflow for uint128
@@ -424,9 +677,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), from)) {
-             revert Unauthorized();
-        }
+        _requireSuperOperatorRoleFor(from);
 
 
         if (value > type(uint128).max) revert AmountExceedsUint128();
@@ -442,20 +693,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
-     * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
-     * @dev Fallback for tokens that don't support ERC1363.
-     *      User must transfer tokens first, then call this.
-     */
-    /**
      * @notice Deposit aPNTs for a specific operator (Secure Push Mode)
      * @param targetOperator The operator to credit the deposit to
      * @param amount Amount of aPNTs
      */
     function depositFor(address targetOperator, uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), targetOperator)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRoleFor(targetOperator);
         // Transfer from sender (must approve first)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         
@@ -651,6 +894,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Paymaster Implementation
     // ====================================
 
+    /// @notice Update price cache from Chainlink oracle (keeper-callable).
+    /// @dev No future-timestamp guard is needed on this path: `updatedAt` is
+    ///      read directly from a validated Chainlink response, not supplied by
+    ///      an untrusted caller. Chainlink nodes always set `updatedAt` to the
+    ///      block timestamp of the round, which is always <= block.timestamp at
+    ///      the time of the call. The existing staleness check
+    ///      (`updatedAt < block.timestamp - priceStalenessThreshold`) already
+    ///      rejects data that is too old; a Chainlink answer with a future
+    ///      `updatedAt` is practically impossible (it would require a Chainlink
+    ///      node to report a timestamp ahead of on-chain time) and would be
+    ///      caught by the staleness check inverting direction. Contrast with
+    ///      `updatePriceDVT`, where `updatedAt` is caller-supplied and
+    ///      therefore requires an explicit future-timestamp guard (P0-16).
     function updatePrice() public {
         // 1. Try to get Price from Chainlink with automatic degradation
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
@@ -671,11 +927,29 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 roundId: roundId,
                 decimals: oracleDecimals
             });
-            
+
+            // P0-10: Chainlink came back. If we previously flipped into
+            // EMERGENCY mode via the break-glass path, transition back to
+            // CHAINLINK now that fresh data is landing on-chain. Any pending
+            // emergency price is also cleared — once Chainlink is healthy the
+            // queued override is no longer the right answer.
+            if (priceMode != 0) {
+                emit PriceModeChanged(priceMode, 0);
+                priceMode = 0;
+                emergencyActivatedAt = 0;
+            }
+            if (emergencyQueuedAt != 0) {
+                int256 cancelled = emergencyPendingPrice;
+                emergencyQueuedAt = 0;
+                emergencyPendingPrice = 0;
+                emit EmergencyPriceCancelled(cancelled);
+            }
+
             emit PriceUpdated(price, updatedAt);
         } catch {
-            // Chainlink down: revert to signal need for DVT fallback
-            // Keeper should call updatePriceDVT() with BLS proof
+            // Chainlink down: revert to signal need for DVT fallback or
+            // emergency setPrice. Keeper should call updatePriceDVT() with BLS
+            // proof, or owner can use emergencySetPrice + executeEmergencyPrice.
             revert OracleError();
         }
     }
@@ -791,6 +1065,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
 
         // 4. Solvency Check
+        // lastTimestamp intentionally NOT updated on sigFailure — rate-limit only counts successful validations.
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0));
         }
@@ -815,6 +1090,100 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // If cachedPrice is very old, validUntil will be in the past, and EntryPoint will REJECT.
         
         return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
+    }
+
+    /// @notice P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of
+    ///         validatePaymasterUserOp. Bundlers / SDKs / dApps call this
+    ///         off-chain (eth_call) before submitting a UserOperation to
+    ///         distinguish the 8 distinct rejection paths that
+    ///         validatePaymasterUserOp returns as an opaque SIG_FAILURE.
+    /// @dev    Mirrors the main path order; intentionally does NOT mutate
+    ///         storage or emit events (would brick ERC-7562 compliance and
+    ///         is impossible from a `view` anyway). Mirrors STALE_PRICE
+    ///         using the same comparison the main path delegates to
+    ///         EntryPoint via `validUntil` — i.e., a price is stale when
+    ///         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.
+    /// @dev MERGE DEPENDENCY: This function must be deployed together with P0-16
+    ///      (future-timestamp guard on cache writes). Without P0-16, dryRunValidation
+    ///      may return ok=true for a future-timestamp cache, while the actual
+    ///      validatePaymasterUserOp would revert after P0-16 is deployed.
+    /// @param userOp  The UserOperation to dry-run.
+    /// @param maxCost Same maxCost EntryPoint will pass to validation.
+    /// @return ok          True if validation would pass.
+    /// @return reasonCode  Zero when ok==true, otherwise one of the
+    ///                     `DRYRUN_*` constants explaining why.
+    function dryRunValidation(PackedUserOperation calldata userOp, uint256 maxCost)
+        external
+        view
+        returns (bool ok, bytes32 reasonCode)
+    {
+        // 1. Extract operator (mirror validatePaymasterUserOp step 1)
+        address operator = _extractOperator(userOp);
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
+
+        // 2. Operator config check
+        if (!config.isConfigured) return (false, DRYRUN_OPERATOR_NOT_CONFIGURED);
+        if (config.isPaused)      return (false, DRYRUN_OPERATOR_PAUSED);
+
+        // 3. Identity check (V5.3 dual-channel: SBT or registered agent)
+        if (!isEligibleForSponsorship(userOp.sender)) {
+            return (false, DRYRUN_USER_NOT_ELIGIBLE);
+        }
+
+        // 4. Per-operator user state: blocklist check (hard failure).
+        //    Rate-limit is a soft/temporary failure; it is deferred until after
+        //    all hard checks so that a user who is rate-limited *and* also fails
+        //    a hard check receives the hard failure code rather than a misleading
+        //    "just wait" response.
+        UserOperatorState memory userState = userOpState[operator][userOp.sender];
+        if (userState.isBlocked) return (false, DRYRUN_USER_BLOCKED);
+
+        // Capture rate-limit state now; we will return it only if every hard
+        // check below passes (mirroring the "mirror" contract behaviour).
+        bool rateLimited = config.minTxInterval > 0
+            && userState.lastTimestamp != 0
+            && block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval);
+
+        // 5. Rate commitment (rug-pull protection — hard failure): paymasterAndData layout
+        //    [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
+        uint256 maxRate = type(uint256).max;
+        if (userOp.paymasterAndData.length >= 104) {
+            maxRate = abi.decode(
+                userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32],
+                (uint256)
+            );
+        }
+        if (uint256(config.exchangeRate) > maxRate) {
+            return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
+        }
+
+        // 6. Staleness (hard failure) — main path delegates to EntryPoint via
+        //    validUntil, but for off-chain diagnostics we surface it explicitly.
+        //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
+        //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
+        //    here because P0-16 is the dedicated fix for that vector.
+        if (cachedPrice.updatedAt == 0 ||
+            block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold) {
+            return (false, DRYRUN_STALE_PRICE);
+        }
+
+        // 7. Solvency (hard failure): replicate Validation-phase aPNTs charge with buffer
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
+        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
+        if (uint256(config.aPNTsBalance) < aPNTsAmount) {
+            return (false, DRYRUN_INSUFFICIENT_BALANCE);
+        }
+
+        // 8. Rate-limit (soft/temporary failure): checked last so that hard
+        //    failures take precedence. A user who is rate-limited *and* would
+        //    fail a hard check will get the hard-failure code, not RATE_LIMITED.
+        if (rateLimited) {
+            return (false, DRYRUN_RATE_LIMITED);
+        }
+
+        // All checks pass.
+        return (true, DRYRUN_OK);
     }
 
     function postOp(
@@ -866,27 +1235,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             // Preferred: burn from user's xPNTs balance with replay protection.
             // Falls back to recordDebt when user has insufficient balance (e.g. new user).
             // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                    pendingDebts[token][user] += finalXPNTsDebt;
-                    emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                }
-            }
+            _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
 
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
 
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
+             // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
+             // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
+             // This branch is a defensive cap; if reached in production it indicates
+             // an EntryPoint invariant violation or an unexpected price swing between
+             // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
-
-             try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                 try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                     pendingDebts[token][user] += finalXPNTsDebt;
-                     emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                 }
-             }
+             _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
         }
 
         // F2: Submit positive feedback to ERC-8004 reputation registry
@@ -907,6 +1270,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Fix: Read from offset 52 (standard ERC-4337 v0.7 layout)
         if (userOp.paymasterAndData.length < 72) return address(0);
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
+    }
+
+    /// @dev Try to burn xPNTs debt from user; fall back to recordDebt; fall back to pendingDebts.
+    function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+        try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
+            try IxPNTsToken(token).recordDebt(user, amount) {} catch {
+                pendingDebts[token][user] += amount;
+                emit DebtRecordFailed(token, user, amount);
+            }
+        }
     }
 
     // ====================================
@@ -949,12 +1322,24 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // x402 Facilitator Fees
     uint256 public facilitatorFeeBPS; // Default fee (e.g. 30 = 0.3%)
     mapping(address => uint256) public operatorFacilitatorFees; // Per-operator override
-    mapping(bytes32 => bool) public x402SettlementNonces; // Replay prevention
+    /// @notice x402 settlement nonces, keyed by keccak256(asset, from, nonce).
+    /// @dev    P0-13: Pre-V5.4 keyed by `nonce` alone (global namespace), which let
+    ///         an anonymous attacker pre-burn a victim's nonce by submitting a dummy
+    ///         settlement with the same nonce on a different (asset, from) pair.
+    ///         The triple key isolates each payer's nonce space per asset.
+    mapping(bytes32 => bool) public x402SettlementNonces;
     mapping(address => mapping(address => uint256)) public facilitatorEarnings; // operator => asset => amount
 
     // F1: Agent Sponsorship Policy
     mapping(address => ISuperPaymaster.AgentSponsorshipPolicy[]) public agentPolicies; // operator => policies
     mapping(address => mapping(uint256 => uint256)) private _agentDailySpend; // operator => day => USD spent
+
+    // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
+    // Slots 27-28 (after _agentDailySpend at slot 26). __gap reduced from 40 to 38.
+    /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
+    address public pendingAPNTsToken;
+    /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
+    uint256 public pendingAPNTsTokenEta;
 
     // V5 Events
     event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -967,6 +1352,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     // x402 Constants
     uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
+
+    // P0-15: dryRunValidation reason codes (returned to bundlers/UI for diagnostics).
+    // Mirror every silent SIG_FAILURE branch in validatePaymasterUserOp, plus the
+    // staleness check that EntryPoint enforces via validUntil.
+    bytes32 public constant DRYRUN_OK                    = bytes32(0);
+    bytes32 public constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
+    bytes32 public constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
+    bytes32 public constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
+    bytes32 public constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
+    bytes32 public constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
+    bytes32 public constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
+    bytes32 public constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
+    bytes32 public constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
 
     // ====================================
     // V5: Admin Setters
@@ -1026,7 +1424,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
     function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         if (policies.length > MAX_AGENT_POLICIES) revert InvalidConfiguration();
         delete agentPolicies[msg.sender];
         for (uint256 i = 0; i < policies.length; i++) {
@@ -1101,6 +1499,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 usdScaled = usdAmount / 1e12; // scale to 1e6
         _agentDailySpend[operator][day] += usdScaled;
 
+        emit AgentSponsorshipApplied(operator, agent, bestBPS);
         return discounted;
     }
 
@@ -1130,13 +1529,29 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F3: x402 Payment Settlement
     // ====================================
 
+    /// @notice Compose the per-(asset, from, nonce) replay-protection key.
+    /// @dev    P0-13: must match exactly what the EIP-3009 / direct callers
+    ///         submit on-chain. Keep this function `pure` so off-chain SDKs can
+    ///         mirror the encoding via the contract ABI.
+    function x402NonceKey(address asset, address from, bytes32 nonce) public pure returns (bytes32) {
+        return keccak256(abi.encode(asset, from, nonce));
+    }
+
     /// @notice Shared validation and fee logic for both x402 settle paths.
     function _validateX402AndComputeFee(
-        address asset, uint256 amount, bytes32 nonce
+        address asset, address from, uint256 amount, bytes32 nonce
     ) internal returns (uint256 fee) {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
+
+        // Guard against replay of settlements made BEFORE the P0-13 upgrade.
+        // Pre-V5.4 the mapping was keyed by the raw nonce bytes32 value alone;
+        // if that slot is already set the nonce was consumed under the old scheme
+        // and must not be reused under the new triple-key scheme.
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
-        x402SettlementNonces[nonce] = true;
+
+        bytes32 key = x402NonceKey(asset, from, nonce);
+        if (x402SettlementNonces[key]) revert NonceAlreadyUsed();
+        x402SettlementNonces[key] = true;
 
         uint256 effectiveFeeBPS = operatorFacilitatorFees[msg.sender];
         if (effectiveFeeBPS == 0) effectiveFeeBPS = facilitatorFeeBPS;
@@ -1145,33 +1560,76 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+    /// @dev settlementId uses abi.encode (not encodePacked) to stay consistent with
+    ///      x402NonceKey encoding and to avoid any future collision risk with variable-length
+    ///      types. All fields (address, uint256, bytes32) are fixed-size, so the encoding
+    ///      produces a unique deterministic id per (from, to, asset, amount, nonce) tuple.
     function settleX402Payment(
         address from, address to, address asset, uint256 amount,
         uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
     ) external nonReentrant returns (bytes32 settlementId) {
-        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
+        uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
-    /// @notice Settle x402 payment via direct transferFrom (for xPNTs and pre-approved tokens)
-    /// @dev Requires payer to have approved SuperPaymaster (xPNTs auto-approve, others need manual approve)
+    /// @notice Settle x402 payment via direct transferFrom (xPNTs only)
+    /// @dev    Direct path is restricted to xPNTs tokens registered in
+    ///         `xpntsFactory` AND to facilitators explicitly approved by the
+    ///         community that owns the xPNTs. Without these gates:
+    ///         - any ERC20 the payer ever did `approve(facilitator, MAX)` on
+    ///           (e.g. USDC for x402 standard payments) could be drained by
+    ///           a compromised facilitator (xPNTs carry an in-contract
+    ///           firewall + per-tx cap; arbitrary ERC20s do not);
+    ///         - any single global facilitator compromise would blast across
+    ///           every community's xPNTs.
+    /// @dev    settlementId uses abi.encode (not encodePacked), matching the
+    ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
+    /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
+    /// @dev    P0-12b (D4): enforce community-side `approvedFacilitators`
+    ///         whitelist on the xPNTs token. Community owner toggles via
+    ///         `xPNTsToken.add/removeApprovedFacilitator`. AAStar's default
+    ///         facilitator is NOT auto-approved at deploy — each community
+    ///         decides explicitly.
+    /// @dev    Nonce and asset whitelist: _validateX402AndComputeFee writes the
+    ///         nonce before the isXPNTs check executes. However, if the call
+    ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
+    ///         the nonce write — so the nonce is NOT consumed on failure.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
-        uint256 fee = _validateX402AndComputeFee(asset, amount, nonce);
+        // Validate fee/nonce/role first so unauthorized callers cannot probe
+        // the asset whitelist by pre-burning nonces.
+        uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
+
+        // P0-12a: Direct settle is xPNTs-only. Reject any asset that is not
+        // a token deployed by the configured xPNTs factory.
+        address factory = xpntsFactory;
+        if (factory == address(0)) revert InvalidConfiguration();
+        if (!IxPNTsFactory(factory).isXPNTs(asset)) revert InvalidXPNTsToken();
+
+        // P0-12b: facilitator must be explicitly approved by THIS community's
+        // xPNTs. `_validateX402AndComputeFee` already established msg.sender
+        // has ROLE_PAYMASTER_SUPER; this per-token whitelist narrows the
+        // trust surface from "any global facilitator" to "this community's
+        // choice". Distinct from `autoApprovedSpenders` (transferFrom
+        // firewall): this gates settle-call invocation, not allowance.
+        if (!IxPNTsToken(asset).approvedFacilitators(msg.sender)) {
+            revert Unauthorized();
+        }
+
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encodePacked(from, to, asset, amount, nonce));
+        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     // ====================================
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 48, minus 8 new storage slots (2 addresses + 1 uint256 + 5 mappings)
-    uint256[40] private __gap;
+    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34.
+    uint256[34] private __gap;
 }

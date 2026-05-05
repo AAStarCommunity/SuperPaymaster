@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -23,7 +23,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/mocks/MockBLSValidator.sol";
+// MockBLSValidator removed in P0-1 — Registry verifies via BLSAggregator only.
 
 // External Interfaces
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
@@ -57,7 +57,6 @@ contract DeployAnvil is Script {
     ReputationSystem repSystem;
     BLSAggregator aggregator;
     DVTValidator dvt;
-    MockBLSValidator blsValidator;
     xPNTsFactory xpntsFactory;
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
@@ -142,7 +141,6 @@ contract DeployAnvil is Script {
         repSystem = new ReputationSystem(address(registry));
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
         dvt = new DVTValidator(address(registry));
-        blsValidator = new MockBLSValidator();
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
         accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
@@ -210,7 +208,6 @@ contract DeployAnvil is Script {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        registry.setBLSValidator(address(blsValidator));
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         
@@ -249,7 +246,6 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
         vm.serializeAddress(jsonObj, "dvtValidator", address(dvt));
         vm.serializeAddress(jsonObj, "blsAggregator", address(aggregator));
-        vm.serializeAddress(jsonObj, "blsValidator", address(blsValidator));
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));

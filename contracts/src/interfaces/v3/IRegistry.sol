@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 import "src/interfaces/IVersioned.sol";
 
@@ -83,6 +83,9 @@ interface IRegistry is IVersioned {
         uint256 amount,
         string reason
     );
+
+    /// @notice L-04: Emitted when burnSBT fails during exitRole (failure is non-fatal)
+    event SBTBurnFailed(address indexed user, bytes32 indexed roleId);
 
 
     // ====================================
@@ -226,5 +229,19 @@ interface IRegistry is IVersioned {
     function ROLE_COMMUNITY() external view returns (bytes32);
     function ROLE_ENDUSER() external view returns (bytes32);
 
+    /**
+     * @notice Push a fresh stake snapshot from Staking into Registry's
+     *         per-role cache.
+     * @dev    P0-14: only callable by the configured GTOKEN_STAKING. Used
+     *         by `slashByDVT` / `unlockAndTransfer` / topUp paths so that
+     *         Registry never drifts from Staking (INV-12).
+     */
+    function syncStakeFromStaking(address user, bytes32 roleId, uint256 newAmount) external;
 
+    /**
+     * @notice Effective stake read directly from Staking (source of truth).
+     * @dev    P0-14: consumers that cannot tolerate any drift should use
+     *         this rather than reading `roleStakes` directly.
+     */
+    function getEffectiveStake(address user, bytes32 roleId) external view returns (uint256);
 }

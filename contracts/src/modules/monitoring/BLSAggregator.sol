@@ -4,8 +4,19 @@ pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "../../interfaces/v3/IRegistry.sol";
+import "../../interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 import { BLS } from "../../utils/BLS.sol";
+
+/// @notice Local sub-view of Registry used to fetch the staking pointer at
+///         verification time. We cast `REGISTRY` to this narrower interface
+///         rather than baking another constructor arg, so existing deploy
+///         scripts (4 in production + multiple archives) keep their 3-arg
+///         BLSAggregator construction unchanged. Mocks in the test suite
+///         already implement this view (set via `setStakingAddr`).
+interface IRegistryStakingAwareBLS {
+    function GTOKEN_STAKING() external view returns (IGTokenStaking);
+}
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
@@ -20,6 +31,25 @@ interface IDVTValidator {
  * @title BLSAggregator
  * @notice BLS signature aggregation and verification for DVT slash consensus (V3)
  * @dev Aggregates signatures and updates global reputation in Registry V3.
+ *
+ *      P0-1 (B6-C1a): pkAgg is no longer accepted from the caller. Pre-fix
+ *      `verify(message, signerMask, pkAgg, sig)` accepted any caller-supplied
+ *      pkAgg, and the pairing equation `e(pk_agg, H(m)) == e(g1, sig)` is
+ *      mathematically satisfiable for any chosen pair (sig, pkAgg). This
+ *      allowed an anonymous attacker to forge BLS proofs against any operator
+ *      and trigger slash / blacklist / reputation actions. The fix:
+ *      1. Public keys are stored as typed `BLS.G1Point` (uncompressed, 128
+ *         bytes) along with a 1-indexed validator slot in `[1..MAX_VALIDATORS]`.
+ *      2. The aggregator reconstructs `pkAgg` itself from the on-chain
+ *         `blsPublicKeys` selected by `signerMask` using the EIP-2537
+ *         `BLS12_G1ADD` precompile.
+ *      3. The proof payload no longer contains a public key field; it is
+ *         strictly `abi.encode(signerMask, sigG2)` (msgG2 is also derived
+ *         on-chain via `BLS.hashToG2(expectedMessageHash)`).
+ *
+ *      Companion fix: `BLSValidator.sol` and `IBLSValidator.sol` are deleted
+ *      because the same forgery surface existed there. All callers (Registry,
+ *      ReputationSystem, DVTValidator) are routed through this aggregator.
  */
 contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
@@ -27,13 +57,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Structs
     // ====================================
 
-    struct BLSPublicKey {
-        bytes publicKey;            // 48 bytes compressed G1 point
+    /// @notice Stored BLS validator key. Format is uncompressed EIP-2537 G1
+    ///         (4 × 32 = 128 bytes) so the key can be fed directly to the
+    ///         G1ADD precompile during `_reconstructPkAgg` without a costly
+    ///         decompression step.
+    struct BLSValidatorKey {
+        BLS.G1Point publicKey;
+        uint8 index;       // 1-indexed slot in [1..MAX_VALIDATORS]; 0 = unregistered
         bool isActive;
     }
 
     struct AggregatedSignature {
-        bytes aggregatedSig;        // 96 bytes G2
+        bytes aggregatedSig;        // 256 bytes G2
         address[] signers;
         bytes32 messageHash;
         uint256 timestamp;
@@ -48,7 +83,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     address public SUPERPAYMASTER;
     address public DVT_VALIDATOR;
 
-    mapping(address => BLSPublicKey) public blsPublicKeys;
+    /// @notice Validator → registered key. `isActive` doubles as registration flag.
+    mapping(address => BLSValidatorKey) internal _blsKeys;
+
+    /// @notice 1-indexed slot → validator address. signerMask bit `i` (0-indexed)
+    ///         corresponds to validator at slot `i+1`.
+    mapping(uint8 => address) public validatorAtSlot;
+
     mapping(uint256 => AggregatedSignature) public aggregatedSignatures;
     mapping(uint256 => bool) public executedProposals;
     mapping(uint256 => uint256) public proposalNonces;
@@ -58,7 +99,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant MAX_VALIDATORS = 13;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-3.2.1";
+        return "BLSAggregator-4.1.0";
     }
 
 
@@ -67,7 +108,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
 
-    event BLSPublicKeyRegistered(address indexed validator, bytes publicKey);
+    event BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot);
+    event BLSPublicKeyRevoked(address indexed validator, uint8 indexed slot);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
@@ -77,7 +119,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
     // Constants (BLS12-381 Math)
     // ====================================
-    
+
     uint256 constant P_HI = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant P_LO = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
 
@@ -95,6 +137,38 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
     error InvalidTarget(address target);
     error InvalidProposalId();
+    /// @notice signerMask references a slot whose validator key is not registered/active.
+    error UnknownValidatorSlot(uint8 slot);
+    /// @notice signerMask references a slot index outside [1..MAX_VALIDATORS].
+    error SlotOutOfRange(uint8 slot);
+    /// @notice The provided slot is already bound to another validator.
+    error SlotAlreadyTaken(uint8 slot);
+    /// @notice signerMask is zero (no signers selected).
+    error EmptySignerMask();
+    /// @notice A slot referenced by signerMask resolves to a validator that no
+    ///         longer holds ROLE_DVT in the Registry. P0 follow-up — pkAgg
+    ///         reconstruction must reject ex-validators in real time.
+    error SlotValidatorRoleRevoked(uint8 slot, address v);
+    /// @notice A slot referenced by signerMask resolves to a validator whose
+    ///         locked GToken stake under ROLE_DVT has fallen below `minStake`.
+    ///         Catches partial unlocks and post-slash drawdowns.
+    error SlotValidatorStakeBelowMinimum(uint8 slot, address v, uint256 actual, uint256 required);
+    /// @notice The Registry has no staking pointer wired up yet — the per-slot
+    ///         real-time validation cannot resolve role locks. Mirrors
+    ///         DVTValidator.StakingNotConfigured for symmetry.
+    error StakingNotConfigured();
+    /// @notice `revokeBLSPublicKey` was called for a validator whose key is not
+    ///         currently active. Stricter than the previous idempotent return
+    ///         so misbehavior is loudly surfaced to off-chain operators.
+    error KeyNotActive(address v);
+    /// @notice The supplied G1 point is not on the BLS12-381 G1 curve (G1ADD precompile rejected it),
+    ///         or it is the point at infinity (identity element), which is forbidden to prevent
+    ///         key-cancellation attacks during pkAgg reconstruction.
+    error InvalidBLSKeyNotOnCurve();
+    /// @notice The supplied G1 point is not in the prime-order subgroup of G1 (r*P != infinity).
+    ///         Small-subgroup points contaminate the reconstructed pkAgg and can be used to
+    ///         bias or forge aggregate signatures.
+    error InvalidBLSKeyNotInSubgroup();
 
     // ====================================
     // Constructor
@@ -115,10 +189,121 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Core Functions
     // ====================================
 
-    function registerBLSPublicKey(address validator, bytes calldata publicKey) external onlyOwner {
-        if (publicKey.length != 48) revert InvalidBLSKey();
-        blsPublicKeys[validator] = BLSPublicKey(publicKey, true);
-        emit BLSPublicKeyRegistered(validator, publicKey);
+    /// @notice Register a BLS validator's public key into a deterministic slot.
+    /// @dev    P0-1: keys are stored uncompressed so `_reconstructPkAgg` can
+    ///         feed them straight into the G1ADD precompile. The slot encodes
+    ///         the validator's bit position in `signerMask` and is fixed at
+    ///         registration to make the bitmap → key mapping unambiguous.
+    ///
+    ///         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is
+    ///         called before storing to guarantee (a) the point is on the
+    ///         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.
+    ///         Without (b) an attacker can register a small-subgroup point that
+    ///         contaminates the reconstructed pkAgg used in later pairing checks.
+    ///         The identity point (point at infinity) is also rejected to prevent
+    ///         key-cancellation attacks during aggregation.
+    /// @param  validator  validator address (used for events / dedup).
+    /// @param  publicKey  uncompressed EIP-2537 G1 point (4×32 bytes).
+    /// @param  slot       1-indexed slot in [1..MAX_VALIDATORS]. Must not collide
+    ///                    with another validator's already-bound slot.
+    function registerBLSPublicKey(
+        address validator,
+        BLS.G1Point calldata publicKey,
+        uint8 slot
+    ) external onlyOwner {
+        if (validator == address(0)) revert InvalidAddress(address(0));
+        if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
+
+        // Validate on-curve and prime-order subgroup membership before storing.
+        _validateG1Point(publicKey);
+
+        BLSValidatorKey storage existing = _blsKeys[validator];
+        // Re-registration of the SAME validator must reuse the prior slot to
+        // avoid leaving a dangling slot pointer for an already-active mask bit.
+        if (existing.isActive && existing.index != slot) revert SlotAlreadyTaken(slot);
+
+        // The slot must either be free, or currently occupied by this same validator.
+        address current = validatorAtSlot[slot];
+        if (current != address(0) && current != validator) revert SlotAlreadyTaken(slot);
+
+        _blsKeys[validator] = BLSValidatorKey({
+            publicKey: publicKey,
+            index: slot,
+            isActive: true
+        });
+        validatorAtSlot[slot] = validator;
+        emit BLSPublicKeyRegistered(validator, slot);
+    }
+
+    /// @notice Revoke a previously registered BLS validator key.
+    /// @dev    P0 follow-up: stricter semantics than the prior idempotent stub.
+    ///         Reverts with `KeyNotActive` if the key is not currently active so
+    ///         off-chain operators get a clear failure signal instead of a
+    ///         silent no-op. The full key bytes are intentionally preserved
+    ///         (only `isActive` is cleared and `validatorAtSlot[slot]` is reset
+    ///         to address(0)) so historical proofs that reference the slot can
+    ///         still be audited via `getBLSPublicKey`. Re-registration of the
+    ///         same validator must use `registerBLSPublicKey` again, which will
+    ///         pass `_validateG1Point` and either reuse or claim a new slot.
+    function revokeBLSPublicKey(address validator) external onlyOwner {
+        BLSValidatorKey storage existing = _blsKeys[validator];
+        if (!existing.isActive) revert KeyNotActive(validator);
+        uint8 slot = existing.index;
+        existing.isActive = false;
+        validatorAtSlot[slot] = address(0);
+        emit BLSPublicKeyRevoked(validator, slot);
+    }
+
+    /// @notice View accessor returning the stored G1 public key + slot for a validator.
+    function getBLSPublicKey(address validator)
+        external
+        view
+        returns (BLS.G1Point memory publicKey, uint8 slot, bool isActive)
+    {
+        BLSValidatorKey memory k = _blsKeys[validator];
+        return (k.publicKey, k.index, k.isActive);
+    }
+
+    /// @notice External BLS pairing verification used by Registry / ReputationSystem.
+    /// @dev    P0-1: callers cannot supply pkAgg or msgG2 anymore. Both are
+    ///         derived deterministically — pkAgg from `signerMask` against the
+    ///         on-chain validator set, msgG2 from `expectedMessageHash`. Returns
+    ///         true iff the pairing equation holds and at least
+    ///         `requiredThreshold` distinct on-chain validators are selected.
+    /// @param  expectedMessageHash The exact hash the signers committed to.
+    /// @param  signerMask Bitmask of signing validator slots (bit i = slot i+1).
+    /// @param  requiredThreshold Caller's minimum signer count requirement.
+    /// @param  sigBytes abi.encode(BLS.G2Point) of the aggregated G2 signature.
+    function verify(
+        bytes32 expectedMessageHash,
+        uint256 signerMask,
+        uint256 requiredThreshold,
+        bytes calldata sigBytes
+    ) external view returns (bool) {
+        if (signerMask == 0) revert EmptySignerMask();
+        if (requiredThreshold < minThreshold) {
+            revert InvalidParameter("Threshold below minimum");
+        }
+        if (requiredThreshold > MAX_VALIDATORS) {
+            revert InvalidParameter("Threshold exceeds max");
+        }
+
+        (BLS.G1Point memory pkAgg, uint256 signerCount) = _reconstructPkAgg(signerMask);
+        if (signerCount < requiredThreshold) {
+            revert InvalidSignatureCount(signerCount, requiredThreshold);
+        }
+
+        BLS.G2Point memory sig = abi.decode(sigBytes, (BLS.G2Point));
+        BLS.G2Point memory msgG2 = BLS.hashToG2(abi.encodePacked(expectedMessageHash));
+
+        BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
+        BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
+        g1s[0] = _getG1Generator();
+        g2s[0] = sig;
+        g1s[1] = _negateG1Point(pkAgg);
+        g2s[1] = msgG2;
+
+        return BLS.pairing(g1s, g2s);
     }
 
     function verifyAndExecute(
@@ -137,9 +322,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
-        
-        // ✅ 1. Construct expected message binding to specific action
-        // This ensures the BLS signature actually authorizes THIS specific proposal/slash
+
+        // 1. Construct expected message binding to specific action.
+        // The signed message MUST commit to chainid to prevent cross-chain replay.
         bytes32 expectedMessageHash = keccak256(abi.encode(
             proposalId,
             operator,
@@ -147,13 +332,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             repUsers,
             newScores,
             epoch,
-            block.chainid  // Prevent cross-chain replay
+            block.chainid
         ));
-        
-        // ✅ 2. Verify BLS Signatures and message binding
-        _checkSignatures(proposalId, proof, expectedMessageHash, defaultThreshold);
 
-        // 2. Update Global Reputation in Registry
+        // 2. Verify BLS pairing using on-chain reconstructed pkAgg (P0-1).
+        _checkSignatures(proof, expectedMessageHash, defaultThreshold);
+
+        // 3. Update Global Reputation in Registry
         if (repUsers.length > 0) {
             REGISTRY.batchUpdateGlobalReputation(proposalId, repUsers, newScores, epoch, proof);
             emit ReputationEpochTriggered(epoch, repUsers.length);
@@ -163,7 +348,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             REGISTRY.markProposalExecuted(proposalId);
         }
 
-        // 3. Execute Slash if operator is provided
+        // 4. Execute Slash if operator is provided
         if (operator != address(0)) {
             _executeSlash(proposalId, operator, slashLevel, proof);
         }
@@ -182,7 +367,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
      * @param target Target contract to call
      * @param callData Encoded function call (abi.encodeCall)
      * @param requiredThreshold Required number of signatures (must be >= minThreshold)
-     * @param proof BLS aggregated signature proof
+     * @param proof BLS aggregated signature proof: abi.encode(uint256 signerMask, bytes sigG2)
      */
     function executeProposal(
         uint256 proposalId,
@@ -200,30 +385,29 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
         if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
-        
-        // 2. Construct Generic Message Hash (includes requiredThreshold)
-        // This binds the signature to this specific proposal, target, callData, AND threshold
+
+        // 2. Construct Generic Message Hash (includes requiredThreshold + chainid)
         bytes32 expectedMessageHash = keccak256(abi.encode(
             proposalId,
             target,
-            keccak256(callData),  // Hash callData to save gas
-            requiredThreshold,     // Include threshold in signed message
-            block.chainid         // Prevent cross-chain replay
+            keccak256(callData),
+            requiredThreshold,
+            block.chainid
         ));
-        
+
         // 3. Verify BLS Signatures with custom threshold
-        _checkSignatures(proposalId, proof, expectedMessageHash, requiredThreshold);
-        
+        _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+
         // 4. Execute Call
         (bool success, bytes memory returnData) = target.call(callData);
         if (!success) revert ProposalExecutionFailed(proposalId, returnData);
-        
+
         // 5. Mark as Executed
         executedProposals[proposalId] = true;
         if (DVT_VALIDATOR != address(0)) {
             IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
         }
-        
+
         emit ProposalExecuted(proposalId, target, keccak256(callData));
     }
 
@@ -231,56 +415,175 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Internal Functions
     // ====================================
 
+    /// @dev Validate that a G1 point is:
+    ///      1. Not the identity (point at infinity — all-zero coordinates).
+    ///      2. On the BLS12-381 G1 curve — verified via G1ADD precompile (0x0b)
+    ///         by adding the point to the identity. The precompile rejects points
+    ///         not on the curve with a failed staticcall.
+    ///      3. In the prime-order subgroup of G1 — verified via G1MUL precompile
+    ///         (0x0c) by multiplying by the subgroup order r. A point in the
+    ///         main subgroup must satisfy r*P = O (identity). Points in small
+    ///         subgroups would produce a non-zero result.
+    ///
+    ///      EIP-2537 G1ADD input:  256 bytes (two 128-byte G1 points, big-endian).
+    ///      EIP-2537 G1MUL input:  160 bytes (128-byte G1 point + 32-byte scalar).
+    ///      Subgroup order r: 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+    function _validateG1Point(BLS.G1Point calldata pk) internal view {
+        // 1. Reject the identity element (all-zero x and y).
+        //    A registered identity key cancels out any other key's contribution
+        //    during pkAgg reconstruction (e.g. P + O = P) — which is safe by
+        //    itself, but an attacker could exploit the identity to register a
+        //    "ghost" validator slot that passes pairing checks trivially.
+        if (
+            pk.x_a == bytes32(0) && pk.x_b == bytes32(0) &&
+            pk.y_a == bytes32(0) && pk.y_b == bytes32(0)
+        ) {
+            revert InvalidBLSKeyNotOnCurve();
+        }
 
-    /// @dev Compare two G2 points for equality
-    function _g2Equal(BLS.G2Point memory a, BLS.G2Point memory b) internal pure returns (bool) {
-        return a.x_c0_a == b.x_c0_a && a.x_c0_b == b.x_c0_b &&
-               a.x_c1_a == b.x_c1_a && a.x_c1_b == b.x_c1_b &&
-               a.y_c0_a == b.y_c0_a && a.y_c0_b == b.y_c0_b &&
-               a.y_c1_a == b.y_c1_a && a.y_c1_b == b.y_c1_b;
+        // 2. On-curve check via G1ADD(P, O) — add point to the identity.
+        //    The precompile returns the input point unchanged if P is on the
+        //    curve; it reverts (staticcall returns false) if P is not on the
+        //    curve. The G1 identity in uncompressed EIP-2537 format is 128 zero
+        //    bytes, which we encode as the second point in the 256-byte input.
+        {
+            // Input: P (128 bytes) || O (128 bytes of zeros).
+            bytes memory g1AddInput = abi.encodePacked(
+                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
+                bytes32(0), bytes32(0), bytes32(0), bytes32(0)  // O (identity): 128 bytes
+            );
+            (bool onCurve,) = address(0x0b).staticcall(g1AddInput);
+            if (!onCurve) revert InvalidBLSKeyNotOnCurve();
+        }
+
+        // 3. Subgroup check via G1MUL(P, r) — multiply by subgroup order.
+        //    r*P must equal the identity (all zeros) for any P in the prime-order
+        //    subgroup. Points in a small subgroup have order dividing r but not
+        //    equal to r, so r*P_small != O for those points.
+        //    r = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+        {
+            bytes32 r = bytes32(uint256(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001));
+            // Input: P (128 bytes) || r (32-byte scalar).
+            bytes memory g1MulInput = abi.encodePacked(
+                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
+                r                                   // scalar r: 32 bytes
+            );
+            (bool ok, bytes memory result) = address(0x0c).staticcall(g1MulInput);
+            // The precompile call itself must succeed (point is on curve, already
+            // checked above, but defensive).
+            if (!ok) revert InvalidBLSKeyNotInSubgroup();
+            // Result is a 128-byte G1 point. It must equal the identity (all zeros).
+            // We check all four 32-byte words of the returned point.
+            if (result.length != 128) revert InvalidBLSKeyNotInSubgroup();
+            bytes32 r0; bytes32 r1; bytes32 r2; bytes32 r3;
+            assembly {
+                r0 := mload(add(result, 32))
+                r1 := mload(add(result, 64))
+                r2 := mload(add(result, 96))
+                r3 := mload(add(result, 128))
+            }
+            if (r0 != bytes32(0) || r1 != bytes32(0) || r2 != bytes32(0) || r3 != bytes32(0)) {
+                revert InvalidBLSKeyNotInSubgroup();
+            }
+        }
     }
 
-    function _checkSignatures(uint256 proposalId, bytes calldata proof, bytes32 expectedMessageHash, uint256 requiredThreshold) internal view {
-        (bytes memory pkG1Bytes, bytes memory sigG2Bytes, bytes memory msgG2Bytes, uint256 signerMask) 
-            = abi.decode(proof, (bytes, bytes, bytes, uint256));
-        
-        // ✅ Verify proof signs the expected message 
-        // Note: Hash comparison is handled by BLS pairing (e(G1, Sig) == e(PK, msgG2))
-        // where msgG2 MUST match the expectedMessageHash for binding to valid.
-        // We rely on honest behavior of this function to construct valid G1/G2 points.
-        // But crucially, we must ensure msgG2 IS the hash of expectedMessageHash.
-        
-        // However, BLSValidator logic is: verifyProof(proof, message)
-        // BLSValidator checks: hashToG2(message) == providedMsgG2
-        
-        // Here in Aggregator, we decode msgG2 directly.
-        // To be safe, we should re-derive msgG2 from expectedMessageHash and compare.
-        
-        BLS.G2Point memory derivedMsgG2 = BLS.hashToG2(abi.encodePacked(expectedMessageHash));
-        BLS.G2Point memory providedMsgG2 = abi.decode(msgG2Bytes, (BLS.G2Point));
-        
-        if (!_g2Equal(derivedMsgG2, providedMsgG2)) revert SignatureVerificationFailed();
-        
-        uint256 count = _countSetBits(signerMask);
+    /// @dev Reconstruct the aggregate public key from `signerMask` by accumulating
+    ///      every selected validator's stored G1 point with the EIP-2537 G1ADD
+    ///      precompile. Reverts if any selected slot is empty/inactive — this is
+    ///      the gate that closes P0-1: the caller cannot inject an unrelated
+    ///      pkAgg, every contributing key is read straight from on-chain state.
+    ///
+    ///      P0 follow-up — every selected slot is also re-validated in real time:
+    ///        1. `BLSValidatorKey.isActive` must be true (key not revoked).
+    ///        2. The slot's validator must still hold ROLE_DVT in the Registry.
+    ///        3. The slot's validator's locked GToken stake under ROLE_DVT must
+    ///           be >= the role's `minStake` from `Registry.getRoleConfig`.
+    ///      Any one failure reverts the entire aggregation. This closes the
+    ///      attack where a registered validator exits / unstakes / loses their
+    ///      role but keeps voting power because the slot pointer was never
+    ///      cleared. Aggregator owns the trust decision (Registry + Staking) so
+    ///      no callback into DVTValidator is needed — avoids a circular
+    ///      BLSAggregator ↔ DVTValidator dependency.
+    function _reconstructPkAgg(uint256 signerMask)
+        internal
+        view
+        returns (BLS.G1Point memory pkAgg, uint256 count)
+    {
+        // Reject mask bits beyond MAX_VALIDATORS to prevent silent truncation —
+        // a clever attacker could otherwise pad with high-order bits hoping the
+        // contract ignored them.
+        if (signerMask >> uint256(MAX_VALIDATORS) != 0) {
+            revert SlotOutOfRange(uint8(MAX_VALIDATORS + 1));
+        }
+
+        // Resolve role+stake context once for the whole loop. The Registry
+        // pointer is immutable; the staking pointer (and minStake) are read
+        // from Registry per-call so governance can rotate either without
+        // redeploying BLSAggregator.
+        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+        uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;
+
+        bool initialized = false;
+        for (uint8 slot = 1; slot <= MAX_VALIDATORS; slot++) {
+            if ((signerMask >> uint256(slot - 1)) & 1 == 0) continue;
+
+            address v = validatorAtSlot[slot];
+            if (v == address(0)) revert UnknownValidatorSlot(slot);
+            BLSValidatorKey storage k = _blsKeys[v];
+            if (!k.isActive) revert UnknownValidatorSlot(slot);
+
+            // Real-time liveness — cheap on-chain reads, but they catch every
+            // post-registration drift the original P0-1 fix missed.
+            if (!REGISTRY.hasRole(roleDvt, v)) {
+                revert SlotValidatorRoleRevoked(slot, v);
+            }
+            (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+            if (uint256(amount) < minStake) {
+                revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
+            }
+
+            if (!initialized) {
+                pkAgg = k.publicKey;
+                initialized = true;
+            } else {
+                pkAgg = BLS.add(pkAgg, k.publicKey);
+            }
+            count += 1;
+        }
+
+        if (!initialized) revert EmptySignerMask();
+    }
+
+    function _checkSignatures(
+        bytes calldata proof,
+        bytes32 expectedMessageHash,
+        uint256 requiredThreshold
+    ) internal view {
+        // P0-1: proof = abi.encode(uint256 signerMask, bytes sigG2). pkG1 and
+        // msgG2 are NEVER read from the proof — they're reconstructed/derived
+        // on-chain so a forged proof cannot satisfy the pairing.
+        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
+
+        if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
+        if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
+
+        (BLS.G1Point memory pkAgg, uint256 count) = _reconstructPkAgg(signerMask);
         if (count < requiredThreshold) revert InvalidSignatureCount(count, requiredThreshold);
 
-        // ✅ Use BLS.pairing() instead of direct precompile call
-        BLS.G1Point memory pk = abi.decode(pkG1Bytes, (BLS.G1Point));
         BLS.G2Point memory sig = abi.decode(sigG2Bytes, (BLS.G2Point));
-        BLS.G2Point memory msgG2 = abi.decode(msgG2Bytes, (BLS.G2Point));
-        
-        // Pairing Check: e(G1_GEN, Sig) == e(PK, msgG2)
+        BLS.G2Point memory msgG2 = BLS.hashToG2(abi.encodePacked(expectedMessageHash));
+
         BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
         BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
-        
         g1s[0] = _getG1Generator();
         g2s[0] = sig;
-        g1s[1] = _negateG1Point(pk);
+        g1s[1] = _negateG1Point(pkAgg);
         g2s[1] = msgG2;
-        
-        if (!BLS.pairing(g1s, g2s)) {
-            revert SignatureVerificationFailed();
-        }
+
+        if (!BLS.pairing(g1s, g2s)) revert SignatureVerificationFailed();
     }
 
     // @dev Negates a G1 point (for pairing check)
@@ -288,11 +591,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // P - Y in BLS12-381 field
         uint256 p_hi_local = 0x1a0111ea397fe69a4b1ba7b6434bacd7;
         uint256 p_lo_local = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
-        
+
         uint256 ya = uint256(p.y_a);
         uint256 yb = uint256(p.y_b);
         if (ya == 0 && yb == 0) return p;
-        
+
         unchecked {
             uint256 res_b = p_lo_local - yb;
             uint256 borrow = (yb > p_lo_local) ? 1 : 0;
@@ -302,7 +605,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
         return p;
     }
-    
+
     /// @dev Returns BLS12-381 G1 generator point
     function _getG1Generator() internal pure returns (BLS.G1Point memory p) {
         p.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
@@ -320,7 +623,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     function _executeSlash(uint256 proposalId, address operator, uint8 level, bytes calldata proof) internal {
         ISuperPaymasterSlash.SlashLevel sLevel = ISuperPaymasterSlash.SlashLevel(level);
-        // ✅ Pass full proof for audit traceability (hash will be stored in SuperPaymaster)
         ISuperPaymasterSlash(SUPERPAYMASTER).executeSlashWithBLS(operator, sLevel, proof);
         emit SlashExecuted(proposalId, operator, level);
     }

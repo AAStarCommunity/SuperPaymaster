@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
@@ -118,12 +118,20 @@ contract SuperPaymaster_Admin_Test is Test {
     // ====================================
 
     function test_SetAPNTsToken() public {
+        // P0-9: setAPNTsToken now queues the change with a 7-day timelock and
+        // requires totalTrackedBalance == 0 + protocolRevenue == 0 at execute
+        // time. Full lifecycle is covered in SetAPNTsToken_Timelock.t.sol;
+        // here we only assert the queue side-effects (live token unchanged,
+        // pendingAPNTsToken set, eta set).
         address newToken = address(0x777);
-        
+        address before = paymaster.APNTS_TOKEN();
+
         vm.prank(owner);
         paymaster.setAPNTsToken(newToken);
-        
-        assertEq(paymaster.APNTS_TOKEN(), newToken);
+
+        assertEq(paymaster.APNTS_TOKEN(), before, "live token must be unchanged before execute");
+        assertEq(paymaster.pendingAPNTsToken(), newToken);
+        assertEq(paymaster.pendingAPNTsTokenEta(), block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
     }
 
     function test_SetAPNTsToken_OnlyOwner() public {

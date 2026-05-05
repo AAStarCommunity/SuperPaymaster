@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
@@ -24,7 +24,7 @@ contract VerifyLiveDeployment is Script {
     address constant ADDR_APNTS = 0x7A56b5B9f4aC457B5d080468Dd002222D1Df4c50;
     address constant ADDR_REP = 0xAeDbd253FE3E483A9000D6e419c5C22417f2f244;
     address constant ADDR_BLS_AGG = 0xB4635b6656CA0584D3A7B1e79B6AE09ca304542E;
-    address constant ADDR_BLS_VAL = 0x08c3e8e52203F6d90ec3cDBDD9d80E00b8d81EC5;
+    // P0-1: standalone BLSValidator deleted; address kept here for legacy reference only.
     address constant ADDR_DVT = 0x5eEa6DE4FC4CCACf436f9cd91FE1095e8Ec8D240;
     address constant ADDR_XPNTS_FACTORY = 0x0F815454ea941224dE582554D1DeF4B67ffBE38c;
     address constant ADDR_PM_V4_IMPL = 0x4E3b8183b790d25e2f44b2711D7b1e1E560c28b3;
@@ -47,9 +47,7 @@ contract VerifyLiveDeployment is Script {
         require(Registry(ADDR_REGISTRY).isReputationSource(ADDR_REP) == true, "Reputation Source mismatch");
         
         require(Registry(ADDR_REGISTRY).blsAggregator() == ADDR_BLS_AGG, "BLS Aggregator mismatch");
-        
-        // FIXED: Cast interface to address
-        require(address(Registry(ADDR_REGISTRY).blsValidator()) == ADDR_BLS_VAL, "BLS Validator mismatch");
+        // P0-1: standalone BLSValidator was deleted; aggregator alone owns BLS verification now.
         
         // Check xPNTsFactory wiring
         try SuperPaymaster(payable(ADDR_SP)).xpntsFactory() returns (address f) {
