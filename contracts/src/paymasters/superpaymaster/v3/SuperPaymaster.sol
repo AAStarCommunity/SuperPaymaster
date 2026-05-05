@@ -104,6 +104,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when aPNTs token is updated
      */
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
+    /// @notice P0-9: emitted when an `setAPNTsToken` change is queued. The
+    ///         pending swap can be cancelled by `cancelAPNTsTokenChange` or
+    ///         executed once `eta` has elapsed via `executeAPNTsTokenChange`.
+    event APNTsTokenChangeQueued(address indexed pendingToken, uint256 eta);
+    event APNTsTokenChangeCancelled(address indexed pendingToken);
+    /// @notice Emitted exclusively by `executeAPNTsTokenChange` (timelock path).
+    ///         On-chain monitors can distinguish this from legacy direct-swap
+    ///         `APNTsTokenUpdated` events by watching this separate topic.
+    event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -271,14 +280,73 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
     }
 
-    /**
-     * @notice Set the APNTS Token address (Owner Only)
-     */
+    /// @notice Window between queueing an `setAPNTsToken` change and being
+    ///         allowed to execute it. Owner can cancel any time during this
+    ///         window. Picked to give all integrators (operators, SDKs,
+    ///         off-chain monitors) at least one weekly review cycle to react.
+    /// @dev    P0-9: was a single instant write; could strand operator
+    ///         deposits permanently if the new token had zero balances. The
+    ///         timelock + cancellation pattern follows OZ TimelockController
+    ///         semantics in spirit (queue / cancel / execute).
+    uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
+
+    /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
+    ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
+    ///         and `protocolRevenue` are zero (otherwise existing operator
+    ///         deposits would be stranded under the new token's accounting).
+    /// @dev    P0-9 (B2-N1): owner can cancel within the window via
+    ///         `cancelAPNTsTokenChange`. Re-queueing a change refreshes the
+    ///         timer (intentional — allows the owner to abort and restart).
     function setAPNTsToken(address newAPNTsToken) external onlyOwner {
         if (newAPNTsToken == address(0)) revert InvalidAddress();
+        pendingAPNTsToken = newAPNTsToken;
+        pendingAPNTsTokenEta = block.timestamp + APNTS_TOKEN_TIMELOCK;
+        emit APNTsTokenChangeQueued(newAPNTsToken, pendingAPNTsTokenEta);
+    }
+
+    /// @notice Abort a queued APNTS_TOKEN swap before it executes.
+    function cancelAPNTsTokenChange() external onlyOwner {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) return; // idempotent
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        emit APNTsTokenChangeCancelled(pending);
+    }
+
+    /// @notice Apply a previously queued APNTS_TOKEN swap.
+    /// @dev    Requires the timelock to have elapsed AND the contract to be
+    ///         drained of operator-tracked balance and protocol revenue —
+    ///         the same balance-zero invariant the audit recommended,
+    ///         enforced at execute-time so operators can decide when to
+    ///         drain rather than blocking the queue itself.
+    ///
+    ///         Intentionally owner-only: unlike OZ TimelockController's
+    ///         permissionless execute, token migration is sensitive enough
+    ///         to require explicit owner confirmation. The owner can effectively
+    ///         cancel any time before calling this function simply by not
+    ///         calling it, or by calling cancelAPNTsTokenChange() to reset the
+    ///         queue. Third-party execution is not allowed because it would
+    ///         remove the owner's final veto after the timelock expires.
+    function executeAPNTsTokenChange() external onlyOwner {
+        address pending = pendingAPNTsToken;
+        if (pending == address(0)) revert InvalidConfiguration();
+        if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
+        // `protocolRevenue` accumulates continuously via postOp penalty/burn paths.
+        // Call `withdrawProtocolRevenue()` first to drain it to zero before
+        // executing this change — that is the required prerequisite step.
+        // This guard is intentional: it ensures no protocol-owned funds are
+        // permanently stranded under the old token's accounting after migration.
+        if (totalTrackedBalance != 0 || protocolRevenue != 0) revert InvalidConfiguration();
+
         address oldToken = APNTS_TOKEN;
-        APNTS_TOKEN = newAPNTsToken;
-        emit APNTsTokenUpdated(oldToken, newAPNTsToken);
+        APNTS_TOKEN = pending;
+        pendingAPNTsToken = address(0);
+        pendingAPNTsTokenEta = 0;
+        // Emit the timelock-specific event so monitors can distinguish this
+        // from legacy direct-swap APNTsTokenUpdated events.
+        emit APNTsTokenChangeExecuted(oldToken, pending, block.timestamp);
+        // Also emit the backward-compatible event for existing listeners.
+        emit APNTsTokenUpdated(oldToken, pending);
     }
 
     /**
@@ -994,12 +1062,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             // Preferred: burn from user's xPNTs balance with replay protection.
             // Falls back to recordDebt when user has insufficient balance (e.g. new user).
             // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                    pendingDebts[token][user] += finalXPNTsDebt;
-                    emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                }
-            }
+            _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
 
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
@@ -1013,13 +1076,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
-
-             try IxPNTsToken(token).burnFromWithOpHash(user, finalXPNTsDebt, userOpHash) {} catch {
-                 try IxPNTsToken(token).recordDebt(user, finalXPNTsDebt) {} catch {
-                     pendingDebts[token][user] += finalXPNTsDebt;
-                     emit DebtRecordFailed(token, user, finalXPNTsDebt);
-                 }
-             }
+             _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
         }
 
         // F2: Submit positive feedback to ERC-8004 reputation registry
@@ -1040,6 +1097,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Fix: Read from offset 52 (standard ERC-4337 v0.7 layout)
         if (userOp.paymasterAndData.length < 72) return address(0);
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
+    }
+
+    /// @dev Try to burn xPNTs debt from user; fall back to recordDebt; fall back to pendingDebts.
+    function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+        try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
+            try IxPNTsToken(token).recordDebt(user, amount) {} catch {
+                pendingDebts[token][user] += amount;
+                emit DebtRecordFailed(token, user, amount);
+            }
+        }
     }
 
     // ====================================
@@ -1088,6 +1155,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // F1: Agent Sponsorship Policy
     mapping(address => ISuperPaymaster.AgentSponsorshipPolicy[]) public agentPolicies; // operator => policies
     mapping(address => mapping(uint256 => uint256)) private _agentDailySpend; // operator => day => USD spent
+
+    // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
+    // Slots 27-28 (after _agentDailySpend at slot 26). __gap reduced from 40 to 38.
+    /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
+    address public pendingAPNTsToken;
+    /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
+    uint256 public pendingAPNTsTokenEta;
 
     // V5 Events
     event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -1318,6 +1392,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 48, minus 8 new storage slots (2 addresses + 1 uint256 + 5 mappings)
-    uint256[40] private __gap;
+    // Was 48, minus 8 V5 storage slots (2 addresses + 1 uint256 + 5 mappings) = 40.
+    // Minus 2 P0-9 slots (pendingAPNTsToken + pendingAPNTsTokenEta) = 38.
+    uint256[38] private __gap;
 }
