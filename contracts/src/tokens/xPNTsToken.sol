@@ -63,6 +63,17 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         halt all dangerous paths in one transaction and re-enable
     ///         after rotating the SP via `setSuperPaymasterAddress`.
     bool public emergencyDisabled;
+    /// @notice Community-controlled whitelist of x402 facilitators.
+    /// @dev    P0-12b (D4): SuperPaymaster.settleX402PaymentDirect requires
+    ///         `msg.sender` (the facilitator / operator) to be listed here in
+    ///         addition to having `ROLE_PAYMASTER_SUPER`. This lets each
+    ///         community decide which facilitators are trusted with their own
+    ///         users' xPNTs balances, instead of trusting a single global
+    ///         autoApproved spender across all communities. Distinct from
+    ///         `autoApprovedSpenders` (ERC20 transferFrom firewall): this
+    ///         mapping authorizes settle-time invocation, not transfer-time
+    ///         allowance. The two are intentionally orthogonal.
+    mapping(address => bool) public approvedFacilitators;
 
     /// @notice The SuperPaymaster address that was active when
     ///         `emergencyRevokePaymaster` was last called.
@@ -156,6 +167,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event SpenderDailyCapUpdated(uint256 oldCap, uint256 newCap);
     /// @notice P0-8: emitted when a spender's daily window rolls over and counter resets.
     event SpenderRateLimitWindowReset(address indexed spender, uint64 newWindowStart);
+    event FacilitatorApproved(address indexed facilitator);
+    event FacilitatorRemoved(address indexed facilitator);
 
 
     // ====================================
@@ -663,6 +676,41 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         autoApprovedSpenders[spender] = false;
         emit AutoApprovedSpenderRemoved(spender);
+    }
+
+    /**
+     * @notice Authorize a facilitator to invoke
+     *         `SuperPaymaster.settleX402PaymentDirect` against this xPNTs.
+     * @dev    P0-12b (D4): community-controlled whitelist; only community
+     *         owner can add/remove. AAStar's default facilitator is NOT
+     *         auto-added by the factory — each community decides explicitly.
+     *         A facilitator that is not in this set will be rejected by
+     *         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.
+     * @param facilitator Facilitator address to approve.
+     */
+    function addApprovedFacilitator(address facilitator) external {
+        if (msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        if (facilitator == address(0)) {
+            revert InvalidAddress(facilitator);
+        }
+        approvedFacilitators[facilitator] = true;
+        emit FacilitatorApproved(facilitator);
+    }
+
+    /**
+     * @notice Revoke a facilitator's authorization (instant, no timelock).
+     * @dev    P0-12b: incident-response primitive; community can yank a
+     *         compromised facilitator without redeploying or upgrading SP.
+     * @param facilitator Facilitator address to remove.
+     */
+    function removeApprovedFacilitator(address facilitator) external {
+        if (msg.sender != communityOwner) {
+            revert Unauthorized(msg.sender);
+        }
+        approvedFacilitators[facilitator] = false;
+        emit FacilitatorRemoved(facilitator);
     }
 
     // ====================================

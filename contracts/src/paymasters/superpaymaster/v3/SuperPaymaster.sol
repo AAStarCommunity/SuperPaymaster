@@ -113,6 +113,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         On-chain monitors can distinguish this from legacy direct-swap
     ///         `APNTsTokenUpdated` events by watching this separate topic.
     event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt);
+    /// @notice P0-10: emitted when an emergency price is queued under the
+    ///         break-glass path (Chainlink is stale + multisig owner approves).
+    event EmergencyPriceQueued(int256 newPrice, uint256 eta);
+    event EmergencyPriceExecuted(int256 newPrice);
+    event EmergencyPriceCancelled(int256 cancelledPrice);
+    event PriceModeChanged(uint8 oldMode, uint8 newMode);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
@@ -178,6 +184,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error AmountExceedsUint128();
     error ScoreExceedsUint32();
     error NoPendingDebt();
+    /// @notice P0-10: emergencySetPrice rejected because Chainlink is fresh.
+    error ChainlinkNotStale();
+    /// @notice P0-10: emergency price outside the ±20% band vs current cache.
+    error EmergencyPriceOutOfRange();
+    /// @notice P0-10: executeEmergencyPrice called before timelock elapsed.
+    error EmergencyTimelockNotElapsed();
+    /// @notice P0-10: executeEmergencyPrice called with no queued price.
+    error NoEmergencyPending();
+    /// @notice P0-10: emergencySetPrice called after EMERGENCY_EXPIRY elapsed with no Chainlink recovery.
+    error EmergencyExpired();
 
     // ====================================
     // Internal Helpers
@@ -291,6 +307,27 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         semantics in spirit (queue / cancel / execute).
     uint256 public constant APNTS_TOKEN_TIMELOCK = 7 days;
 
+    // P0-10 — Chainlink break-glass state machine (D8 design)
+    /// @notice 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active).
+    uint8 public priceMode;
+    /// @notice Timestamp at which `emergencySetPrice` was last called; 0 if none queued.
+    uint256 public emergencyQueuedAt;
+    /// @notice Pending emergency price (8 decimals, same scale as Chainlink).
+    int256 public emergencyPendingPrice;
+    /// @notice Timestamp at which EMERGENCY mode was first activated (i.e. first
+    ///         `executeEmergencyPrice` call after a CHAINLINK→EMERGENCY transition).
+    ///         Cleared to 0 on Chainlink recovery. Used to enforce EMERGENCY_EXPIRY.
+    uint256 public emergencyActivatedAt;
+
+    uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
+    uint256 public constant CHAINLINK_STALE_THRESHOLD = 1 hours;
+    uint256 public constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
+    /// @notice Maximum duration for which EMERGENCY mode may remain active.
+    ///         After 7 days without Chainlink recovery the break-glass is
+    ///         considered expired; `emergencySetPrice` will revert to prevent
+    ///         an indefinitely-live manual-override regime.
+    uint256 public constant EMERGENCY_EXPIRY = 7 days;
+
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
     ///         and `protocolRevenue` are zero (otherwise existing operator
@@ -382,6 +419,108 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         xpntsFactory = _factory;
     }
 
+    // ====================================
+    // P0-10 — Chainlink break-glass (D8)
+    // ====================================
+
+    /// @notice True when Chainlink hasn't updated for at least
+    ///         `CHAINLINK_STALE_THRESHOLD` seconds, OR when the call reverts.
+    /// @dev    Stale = "operationally unusable", not "wrong". A Chainlink
+    ///         revert is treated as the worst-case stale state so the break-
+    ///         glass path opens.
+    function _isChainlinkStale() internal view returns (bool) {
+        try ETH_USD_PRICE_FEED.latestRoundData() returns (
+            uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80
+        ) {
+            if (chainlinkUpdatedAt == 0) return true;
+            return block.timestamp > chainlinkUpdatedAt + CHAINLINK_STALE_THRESHOLD;
+        } catch {
+            return true;
+        }
+    }
+
+    /// @notice Public mirror of `_isChainlinkStale`. Lets off-chain monitors
+    ///         see exactly the same staleness verdict the contract uses,
+    ///         without having to replay the threshold logic.
+    function isChainlinkStale() external view returns (bool) {
+        return _isChainlinkStale();
+    }
+
+    /// @notice Queue an emergency price update. Only honored when Chainlink
+    ///         is stale and the new price stays within ±20% of the last
+    ///         cached price; eligible for execution after a 1-hour timelock.
+    /// @dev    P0-10 (D8): pre-fix the owner break-glass path inside
+    ///         `updatePriceDVT` skipped the deviation check whenever Chainlink
+    ///         was unavailable, leaving a compromised owner free to write
+    ///         any price. The new path enforces:
+    ///           1. Chainlink must actually be stale (otherwise normal
+    ///              `updatePrice` should be used);
+    ///           2. New price within ±20% of `cachedPrice.price`;
+    ///           3. 1-hour timelock so off-chain monitors can flag the queue
+    ///              event before it lands.
+    function emergencySetPrice(int256 newPrice) external onlyOwner {
+        if (newPrice <= 0) revert OracleError();
+        if (!_isChainlinkStale()) revert ChainlinkNotStale();
+        // Prevent indefinite EMERGENCY regime: once activated, expires after 7 days.
+        if (emergencyActivatedAt != 0 && block.timestamp > emergencyActivatedAt + EMERGENCY_EXPIRY) {
+            revert EmergencyExpired();
+        }
+
+        int256 ref = cachedPrice.price;
+        if (ref <= 0) revert OracleError();
+
+        // Math.mulDiv is uint-only; do the band check manually with int math.
+        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
+
+        emergencyPendingPrice = newPrice;
+        emergencyQueuedAt = block.timestamp;
+        emit EmergencyPriceQueued(newPrice, block.timestamp + EMERGENCY_TIMELOCK);
+    }
+
+    /// @notice Cancel a queued emergency price. Useful when the multisig
+    ///         realises the queued value is wrong before timelock elapses.
+    function cancelEmergencyPrice() external onlyOwner {
+        if (emergencyQueuedAt == 0) return; // idempotent
+        int256 cancelled = emergencyPendingPrice;
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+        emit EmergencyPriceCancelled(cancelled);
+    }
+
+    /// @notice Apply a previously queued emergency price.
+    /// @dev    Permissionless after the timelock — anyone can land the price,
+    ///         not just the owner. The protective gates already ran inside
+    ///         `emergencySetPrice` (Chainlink stale, ±20% band).
+    /// @dev Permissionless: any address may execute after the 1-hour timelock expires.
+    ///      This mirrors the OZ TimelockController liveness pattern — the ±20% deviation
+    ///      cap limits manipulation even if an untrusted party triggers execution.
+    function executeEmergencyPrice() external {
+        if (emergencyQueuedAt == 0) revert NoEmergencyPending();
+        if (block.timestamp < emergencyQueuedAt + EMERGENCY_TIMELOCK) {
+            revert EmergencyTimelockNotElapsed();
+        }
+
+        int256 newPrice = emergencyPendingPrice;
+        cachedPrice.price = newPrice;
+        cachedPrice.updatedAt = block.timestamp;
+        cachedPrice.roundId = 0;
+        cachedPrice.decimals = 8;
+
+        if (priceMode != 1) {
+            emit PriceModeChanged(priceMode, 1);
+            priceMode = 1;
+            emergencyActivatedAt = block.timestamp;
+        }
+
+        emergencyQueuedAt = 0;
+        emergencyPendingPrice = 0;
+
+        emit EmergencyPriceExecuted(newPrice);
+        emit PriceUpdated(newPrice, block.timestamp);
+    }
+
     /**
      * @notice Pause/Unpause an operator (Owner Only)
      * @dev Used for security emergency stops
@@ -434,8 +573,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @param price New ETH/USD price (8 decimals)
      * @param updatedAt Timestamp of price update
      * @param proof BLS aggregated proof from DVT validators
+     * @param chainlinkRecovered  0 = Chainlink feed still unavailable (price-only update);
+     *                            1 = Chainlink feed has recovered — clears priceMode to 0
+     *                                and resets emergencyActivatedAt.
      */
-    function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof) external {
+    function updatePriceDVT(
+        int256 price,
+        uint256 updatedAt,
+        bytes calldata proof,
+        uint8 chainlinkRecovered   // 0 = Chainlink not yet recovered; 1 = Chainlink recovered
+    ) external {
         // 1. Verify caller authority
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
 
@@ -487,7 +634,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             roundId: 0, // DVT doesn't have Chainlink RoundID
             decimals: 8 // DVT normalizes to 8 decimals
         });
-        
+
+        // If Chainlink has been confirmed recovered, exit emergency mode.
+        if (chainlinkRecovered == 1 && priceMode != 0) {
+            emit PriceModeChanged(priceMode, 0);
+            priceMode = 0;
+            emergencyActivatedAt = 0;
+        }
+
         emit PriceUpdated(price, updatedAt);
     }
 
@@ -773,11 +927,29 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 roundId: roundId,
                 decimals: oracleDecimals
             });
-            
+
+            // P0-10: Chainlink came back. If we previously flipped into
+            // EMERGENCY mode via the break-glass path, transition back to
+            // CHAINLINK now that fresh data is landing on-chain. Any pending
+            // emergency price is also cleared — once Chainlink is healthy the
+            // queued override is no longer the right answer.
+            if (priceMode != 0) {
+                emit PriceModeChanged(priceMode, 0);
+                priceMode = 0;
+                emergencyActivatedAt = 0;
+            }
+            if (emergencyQueuedAt != 0) {
+                int256 cancelled = emergencyPendingPrice;
+                emergencyQueuedAt = 0;
+                emergencyPendingPrice = 0;
+                emit EmergencyPriceCancelled(cancelled);
+            }
+
             emit PriceUpdated(price, updatedAt);
         } catch {
-            // Chainlink down: revert to signal need for DVT fallback
-            // Keeper should call updatePriceDVT() with BLS proof
+            // Chainlink down: revert to signal need for DVT fallback or
+            // emergency setPrice. Keeper should call updatePriceDVT() with BLS
+            // proof, or owner can use emergencySetPrice + executeEmergencyPrice.
             revert OracleError();
         }
     }
@@ -1405,23 +1577,26 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Settle x402 payment via direct transferFrom (xPNTs only)
     /// @dev    Direct path is restricted to xPNTs tokens registered in
-    ///         `xpntsFactory`. Without this gate any ERC20 the payer ever did
-    ///         `approve(facilitator, MAX)` on (e.g. USDC for x402 standard
-    ///         payments) could be drained by a compromised facilitator.
-    ///         xPNTs tokens carry an in-contract firewall + per-tx cap, so
-    ///         the trust model holds even when facilitator keys are bounded.
-    ///         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).
+    ///         `xpntsFactory` AND to facilitators explicitly approved by the
+    ///         community that owns the xPNTs. Without these gates:
+    ///         - any ERC20 the payer ever did `approve(facilitator, MAX)` on
+    ///           (e.g. USDC for x402 standard payments) could be drained by
+    ///           a compromised facilitator (xPNTs carry an in-contract
+    ///           firewall + per-tx cap; arbitrary ERC20s do not);
+    ///         - any single global facilitator compromise would blast across
+    ///           every community's xPNTs.
     /// @dev    settlementId uses abi.encode (not encodePacked), matching the
     ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
     /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
+    /// @dev    P0-12b (D4): enforce community-side `approvedFacilitators`
+    ///         whitelist on the xPNTs token. Community owner toggles via
+    ///         `xPNTsToken.add/removeApprovedFacilitator`. AAStar's default
+    ///         facilitator is NOT auto-approved at deploy — each community
+    ///         decides explicitly.
     /// @dev    Nonce and asset whitelist: _validateX402AndComputeFee writes the
     ///         nonce before the isXPNTs check executes. However, if the call
     ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
     ///         the nonce write — so the nonce is NOT consumed on failure.
-    ///         A caller that supplied a wrong asset may retry with the same nonce
-    ///         value, but must use a valid xPNTs asset on the retry. On a
-    ///         successful call the nonce is durably consumed; replaying the same
-    ///         (asset, from, nonce) triple will revert with NonceAlreadyUsed.
     function settleX402PaymentDirect(
         address from, address to, address asset, uint256 amount, bytes32 nonce
     ) external nonReentrant returns (bytes32 settlementId) {
@@ -1435,6 +1610,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (factory == address(0)) revert InvalidConfiguration();
         if (!IxPNTsFactory(factory).isXPNTs(asset)) revert InvalidXPNTsToken();
 
+        // P0-12b: facilitator must be explicitly approved by THIS community's
+        // xPNTs. `_validateX402AndComputeFee` already established msg.sender
+        // has ROLE_PAYMASTER_SUPER; this per-token whitelist narrows the
+        // trust surface from "any global facilitator" to "this community's
+        // choice". Distinct from `autoApprovedSpenders` (transferFrom
+        // firewall): this gates settle-call invocation, not allowance.
+        if (!IxPNTsToken(asset).approvedFacilitators(msg.sender)) {
+            revert Unauthorized();
+        }
+
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
@@ -1445,7 +1630,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 48, minus 8 V5 storage slots (2 addresses + 1 uint256 + 5 mappings) = 40.
-    // Minus 2 P0-9 slots (pendingAPNTsToken + pendingAPNTsTokenEta) = 38.
-    uint256[38] private __gap;
+    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34.
+    uint256[34] private __gap;
 }

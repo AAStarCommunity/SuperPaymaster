@@ -101,6 +101,10 @@ contract X402Direct_AssetWhitelistTest is Test {
         // Add operator (the facilitator) to autoApprovedSpenders so transferFrom passes
         vm.prank(operator); // operator is the communityOwner of this token
         token.addAutoApprovedSpender(operator);
+
+        // P0-12b: also approve operator as a facilitator for x402 Direct settle.
+        vm.prank(operator);
+        token.addApprovedFacilitator(operator);
     }
 
     // -----------------------------------------------------------------------

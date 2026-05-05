@@ -311,7 +311,7 @@ contract SuperPaymasterPricingV2Test is Test {
         priceFeed.setRevert(true);
         
         vm.prank(owner);
-        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "");
+        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "", 0);
         
         // Restore Chainlink
         priceFeed.setRevert(false);
