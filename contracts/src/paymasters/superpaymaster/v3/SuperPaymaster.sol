@@ -74,7 +74,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     // V3.2.1 SECURITY: Enforce max rate in Validation
     uint256 public constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
-    uint256 public constant RATE_OFFSET = 72; // After Operator (20 bytes)
+    uint256 public constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
@@ -130,6 +130,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Emitted when Oracle update fails, forcing a realtime fallback (Warning Sign)
      */
     event OracleFallbackTriggered(uint256 timestamp);
+
+    /// @notice P0-15 (J2-BLOCKER-1): observability hook for the silent
+    ///         SIG_FAILURE branches of validatePaymasterUserOp. Reserved for
+    ///         future monitoring integrations — NOT emitted from
+    ///         validatePaymasterUserOp itself, since writing storage during
+    ///         that opcode-restricted phase would violate ERC-7562.
+    /// @dev Intentionally not emitted in the current implementation. Retained for ABI
+    ///      compatibility and future use: once Stage-2 audit confirms bundler LOG* policy,
+    ///      a UUPS upgrade will wire this into postOp or an off-chain monitoring hook.
+    ///      Integrators must NOT subscribe to this event expecting real-time notifications —
+    ///      use `dryRunValidation()` instead for pre-flight checks.
+    event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
     /// @dev Happens when owner withdrew protocolRevenue between validation and postOp, leaving
@@ -153,6 +165,20 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error AmountExceedsUint128();
     error ScoreExceedsUint32();
     error NoPendingDebt();
+
+    // ====================================
+    // Internal Helpers
+    // ====================================
+
+    /// @dev Reverts with Unauthorized if caller is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRole() internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+    }
+
+    /// @dev Reverts with Unauthorized if `account` is not a registered ROLE_PAYMASTER_SUPER member
+    function _requireSuperOperatorRoleFor(address account) internal view {
+        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), account)) revert Unauthorized();
+    }
 
     // ====================================
     // Constructor & Initializer (UUPS)
@@ -214,9 +240,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
+        _requireSuperOperatorRole();
         // BUS-RULE: Must be Community to be Paymaster
          if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
             revert Unauthorized();
@@ -305,7 +329,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
 
     function setOperatorLimits(uint48 _minTxInterval) external {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         operators[msg.sender].minTxInterval = _minTxInterval;
         emit OperatorMinTxIntervalUpdated(msg.sender, _minTxInterval);
     }
@@ -387,17 +411,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
-     * @notice Deposit aPNTs
-     */
-    /**
      * @notice Deposit aPNTs (Legacy Pull Mode)
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
     function deposit(uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRole();
         // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         // Check overflow for uint128
@@ -424,9 +442,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (msg.sender != APNTS_TOKEN) revert Unauthorized();
 
         // Ensure operator is registered
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), from)) {
-             revert Unauthorized();
-        }
+        _requireSuperOperatorRoleFor(from);
 
 
         if (value > type(uint128).max) revert AmountExceedsUint128();
@@ -442,20 +458,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
-     * @notice Notify contract of a direct transfer (Ad-hoc Push Mode)
-     * @dev Fallback for tokens that don't support ERC1363.
-     *      User must transfer tokens first, then call this.
-     */
-    /**
      * @notice Deposit aPNTs for a specific operator (Secure Push Mode)
      * @param targetOperator The operator to credit the deposit to
      * @param amount Amount of aPNTs
      */
     function depositFor(address targetOperator, uint256 amount) external nonReentrant {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), targetOperator)) {
-            revert Unauthorized();
-        }
-        
+        _requireSuperOperatorRoleFor(targetOperator);
         // Transfer from sender (must approve first)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
         
@@ -791,6 +799,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
 
         // 4. Solvency Check
+        // lastTimestamp intentionally NOT updated on sigFailure — rate-limit only counts successful validations.
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0));
         }
@@ -815,6 +824,100 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // If cachedPrice is very old, validUntil will be in the past, and EntryPoint will REJECT.
         
         return (abi.encode(config.xPNTsToken, xPNTsAmount, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
+    }
+
+    /// @notice P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of
+    ///         validatePaymasterUserOp. Bundlers / SDKs / dApps call this
+    ///         off-chain (eth_call) before submitting a UserOperation to
+    ///         distinguish the 8 distinct rejection paths that
+    ///         validatePaymasterUserOp returns as an opaque SIG_FAILURE.
+    /// @dev    Mirrors the main path order; intentionally does NOT mutate
+    ///         storage or emit events (would brick ERC-7562 compliance and
+    ///         is impossible from a `view` anyway). Mirrors STALE_PRICE
+    ///         using the same comparison the main path delegates to
+    ///         EntryPoint via `validUntil` — i.e., a price is stale when
+    ///         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.
+    /// @dev MERGE DEPENDENCY: This function must be deployed together with P0-16
+    ///      (future-timestamp guard on cache writes). Without P0-16, dryRunValidation
+    ///      may return ok=true for a future-timestamp cache, while the actual
+    ///      validatePaymasterUserOp would revert after P0-16 is deployed.
+    /// @param userOp  The UserOperation to dry-run.
+    /// @param maxCost Same maxCost EntryPoint will pass to validation.
+    /// @return ok          True if validation would pass.
+    /// @return reasonCode  Zero when ok==true, otherwise one of the
+    ///                     `DRYRUN_*` constants explaining why.
+    function dryRunValidation(PackedUserOperation calldata userOp, uint256 maxCost)
+        external
+        view
+        returns (bool ok, bytes32 reasonCode)
+    {
+        // 1. Extract operator (mirror validatePaymasterUserOp step 1)
+        address operator = _extractOperator(userOp);
+        ISuperPaymaster.OperatorConfig storage config = operators[operator];
+
+        // 2. Operator config check
+        if (!config.isConfigured) return (false, DRYRUN_OPERATOR_NOT_CONFIGURED);
+        if (config.isPaused)      return (false, DRYRUN_OPERATOR_PAUSED);
+
+        // 3. Identity check (V5.3 dual-channel: SBT or registered agent)
+        if (!isEligibleForSponsorship(userOp.sender)) {
+            return (false, DRYRUN_USER_NOT_ELIGIBLE);
+        }
+
+        // 4. Per-operator user state: blocklist check (hard failure).
+        //    Rate-limit is a soft/temporary failure; it is deferred until after
+        //    all hard checks so that a user who is rate-limited *and* also fails
+        //    a hard check receives the hard failure code rather than a misleading
+        //    "just wait" response.
+        UserOperatorState memory userState = userOpState[operator][userOp.sender];
+        if (userState.isBlocked) return (false, DRYRUN_USER_BLOCKED);
+
+        // Capture rate-limit state now; we will return it only if every hard
+        // check below passes (mirroring the "mirror" contract behaviour).
+        bool rateLimited = config.minTxInterval > 0
+            && userState.lastTimestamp != 0
+            && block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval);
+
+        // 5. Rate commitment (rug-pull protection — hard failure): paymasterAndData layout
+        //    [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
+        uint256 maxRate = type(uint256).max;
+        if (userOp.paymasterAndData.length >= 104) {
+            maxRate = abi.decode(
+                userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32],
+                (uint256)
+            );
+        }
+        if (uint256(config.exchangeRate) > maxRate) {
+            return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
+        }
+
+        // 6. Staleness (hard failure) — main path delegates to EntryPoint via
+        //    validUntil, but for off-chain diagnostics we surface it explicitly.
+        //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
+        //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
+        //    here because P0-16 is the dedicated fix for that vector.
+        if (cachedPrice.updatedAt == 0 ||
+            block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold) {
+            return (false, DRYRUN_STALE_PRICE);
+        }
+
+        // 7. Solvency (hard failure): replicate Validation-phase aPNTs charge with buffer
+        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost, false);
+        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
+        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
+        if (uint256(config.aPNTsBalance) < aPNTsAmount) {
+            return (false, DRYRUN_INSUFFICIENT_BALANCE);
+        }
+
+        // 8. Rate-limit (soft/temporary failure): checked last so that hard
+        //    failures take precedence. A user who is rate-limited *and* would
+        //    fail a hard check will get the hard-failure code, not RATE_LIMITED.
+        if (rateLimited) {
+            return (false, DRYRUN_RATE_LIMITED);
+        }
+
+        // All checks pass.
+        return (true, DRYRUN_OK);
     }
 
     function postOp(
@@ -878,6 +981,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
             emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
         } else {
+             // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
+             // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
+             // This branch is a defensive cap; if reached in production it indicates
+             // an EntryPoint invariant violation or an unexpected price swing between
+             // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
              uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
 
@@ -968,6 +1076,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // x402 Constants
     uint256 public constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
 
+    // P0-15: dryRunValidation reason codes (returned to bundlers/UI for diagnostics).
+    // Mirror every silent SIG_FAILURE branch in validatePaymasterUserOp, plus the
+    // staleness check that EntryPoint enforces via validUntil.
+    bytes32 public constant DRYRUN_OK                    = bytes32(0);
+    bytes32 public constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
+    bytes32 public constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
+    bytes32 public constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
+    bytes32 public constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
+    bytes32 public constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
+    bytes32 public constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
+    bytes32 public constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
+    bytes32 public constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
+
     // ====================================
     // V5: Admin Setters
     // ====================================
@@ -1026,7 +1147,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
     function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         if (policies.length > MAX_AGENT_POLICIES) revert InvalidConfiguration();
         delete agentPolicies[msg.sender];
         for (uint256 i = 0; i < policies.length; i++) {
@@ -1134,7 +1255,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function _validateX402AndComputeFee(
         address asset, uint256 amount, bytes32 nonce
     ) internal returns (uint256 fee) {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        _requireSuperOperatorRole();
         if (x402SettlementNonces[nonce]) revert NonceAlreadyUsed();
         x402SettlementNonces[nonce] = true;
 
