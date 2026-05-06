@@ -385,7 +385,9 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
             ethUsdPrice = _price;
             updatedAt = _updatedAt;
-            if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
+            // P1-34 (MEDIUM): guard stale realtime price — mirrors the cached-path staleness check.
+            if (updatedAt == 0 || updatedAt > block.timestamp ||
+                block.timestamp - updatedAt > priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
         } else {
             // Validation: Get Cached Price
             PriceCache memory cache = cachedPrice;
