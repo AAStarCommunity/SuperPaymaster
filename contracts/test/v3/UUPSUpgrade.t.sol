@@ -128,7 +128,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.2.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.3.0"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -332,7 +332,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.2.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.3.0"));
 
         vm.stopPrank();
     }
@@ -447,8 +447,9 @@ contract UUPSUpgradeTest is Test {
         paymaster.setProtocolFee(500);
         assertEq(paymaster.protocolFeeBPS(), 500);
 
-        paymaster.setAPNTSPrice(0.05 ether);
-        assertEq(paymaster.aPNTsPriceUSD(), 0.05 ether);
+        // P0-11 bounds: ±10% of current 0.02 ether → max 0.022 ether.
+        paymaster.setAPNTSPrice(0.021 ether);
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
 
         paymaster.setBLSAggregator(address(0xCC));
         assertEq(paymaster.BLS_AGGREGATOR(), address(0xCC));

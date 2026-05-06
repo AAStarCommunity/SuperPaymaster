@@ -141,16 +141,18 @@ contract SuperPaymaster_Admin_Test is Test {
     }
 
     function test_SetAPNTSPrice() public {
+        // P0-11: price must stay within ±10% of current (init = 0.02 ether).
+        // 0.021 ether is 5% above — within the allowed window.
         vm.prank(owner);
-        paymaster.setAPNTSPrice(100 * 1e18);
-        
-        assertEq(paymaster.aPNTsPriceUSD(), 100 * 1e18);
+        paymaster.setAPNTSPrice(0.021 ether);
+
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
     }
 
     function test_SetAPNTSPrice_OnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        paymaster.setAPNTSPrice(100 * 1e18);
+        paymaster.setAPNTSPrice(0.021 ether);
     }
 
     function test_SetProtocolFee() public {

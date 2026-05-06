@@ -305,7 +305,7 @@ contract EmergencyBreakGlassTest is Test {
         paymaster.executeEmergencyPrice();
 
         // Warp to just before 7 days — should still be queueable.
-        vm.warp(block.timestamp + paymaster.EMERGENCY_EXPIRY() - 1);
+        vm.warp(block.timestamp + 7 days - 1);
         oracle.setUpdatedAt(block.timestamp - 2 hours);
         vm.prank(owner);
         paymaster.emergencySetPrice(1910e8); // within ±20% of 1900e8
@@ -320,7 +320,7 @@ contract EmergencyBreakGlassTest is Test {
         paymaster.executeEmergencyPrice();
 
         // Warp past 7 days expiry.
-        vm.warp(block.timestamp + paymaster.EMERGENCY_EXPIRY() + 1);
+        vm.warp(block.timestamp + 7 days + 1);
         oracle.setUpdatedAt(block.timestamp - 2 hours);
         vm.prank(owner);
         vm.expectRevert(SuperPaymaster.EmergencyExpired.selector);

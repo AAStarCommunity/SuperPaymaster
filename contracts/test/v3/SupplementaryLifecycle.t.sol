@@ -12,6 +12,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/ISuperPaymaster.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import "src/mocks/MockBLSAggregator.sol";
 
 // ============================================
 // Mocks
@@ -76,6 +77,7 @@ contract SupplementaryLifecycleTest is Test {
     MockEntryPointSL entryPoint;
     MockPriceFeedSL priceFeed;
     SuperPaymaster superPaymaster;
+    MockBLSAggregator blsAggregator;
 
     address owner = address(0xAA);
     address dao = address(0xAA); // same as owner for test convenience
@@ -126,6 +128,11 @@ contract SupplementaryLifecycleTest is Test {
             3600
         );
         registry.setSuperPaymaster(address(superPaymaster));
+
+        // P0-3: blacklist endpoint requires msg.sender == blsAggregator.
+        // Wire a permissive mock so other lifecycle tests can drive it.
+        blsAggregator = new MockBLSAggregator();
+        registry.setBLSAggregator(address(blsAggregator));
 
         // Fund test accounts
         gtoken.mint(communityUser, 10_000 ether);
@@ -531,8 +538,10 @@ contract SupplementaryLifecycleTest is Test {
         statuses[0] = true;
         statuses[1] = true;
 
-        vm.prank(owner);
-        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+        // P0-3: caller must be the wired BLS aggregator + proof must be non-empty.
+        bytes memory proof = abi.encode(uint256(0x7F), new bytes(256));
+        vm.prank(address(blsAggregator));
+        registry.updateOperatorBlacklist(communityUser, users, statuses, proof);
 
         // Verify blocked status in SuperPaymaster
         (,bool isBlocked0) = superPaymaster.userOpState(communityUser, users[0]);
@@ -543,8 +552,8 @@ contract SupplementaryLifecycleTest is Test {
         // Unblock
         statuses[0] = false;
         statuses[1] = false;
-        vm.prank(owner);
-        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+        vm.prank(address(blsAggregator));
+        registry.updateOperatorBlacklist(communityUser, users, statuses, proof);
 
         (,isBlocked0) = superPaymaster.userOpState(communityUser, users[0]);
         (,isBlocked1) = superPaymaster.userOpState(communityUser, users[1]);
