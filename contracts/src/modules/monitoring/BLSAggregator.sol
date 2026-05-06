@@ -638,11 +638,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
 
     function setSuperPaymaster(address _sp) external onlyOwner {
+        if (_sp == address(0)) revert InvalidParameter("Zero address");
         emit SuperPaymasterUpdated(SUPERPAYMASTER, _sp);
         SUPERPAYMASTER = _sp;
     }
 
     function setDVTValidator(address _dv) external onlyOwner {
+        if (_dv == address(0)) revert InvalidParameter("Zero address");
         emit DVTValidatorUpdated(DVT_VALIDATOR, _dv);
         DVT_VALIDATOR = _dv;
     }
