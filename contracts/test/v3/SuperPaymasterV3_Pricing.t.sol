@@ -319,4 +319,44 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         (uint128 balFinal,,,,,,,,,) = paymaster.operators(operator1);
         assertEq(balFinal, balAfterVal + 65000000, "Should refund unused gas cost + buffer part");
     }
+
+    function test_UpdatePriceDVT_OnlyOwnerOrBLSAggregator() public {
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(user1);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        paymaster.updatePriceDVT(2100e8, block.timestamp, "", 0);
+    }
+
+    function test_UpdatePriceDVT_BLSAggregatorCanUpdateFourParamPath() public {
+        address blsAggregator = address(0xB1A5);
+
+        vm.prank(owner);
+        paymaster.setBLSAggregator(blsAggregator);
+
+        vm.warp(block.timestamp + 1);
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(2100e8, block.timestamp, "proof", 0);
+
+        (int256 price, uint256 updatedAt,, uint8 decimals) = paymaster.cachedPrice();
+        assertEq(price, 2100e8);
+        assertEq(updatedAt, block.timestamp);
+        assertEq(decimals, 8);
+    }
+
+    function test_UpdatePriceDVT_OwnerPathRevertsWhenChainlinkDeviationTooLarge() public {
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.OracleError.selector);
+        paymaster.updatePriceDVT(2500e8, block.timestamp, "", 0);
+    }
+
+    function test_UpdatePriceDVT_RevertsForFutureTimestampBeyondGrace() public {
+        uint256 grace = paymaster.TIMESTAMP_GRACE_SECONDS();
+
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.OracleError.selector);
+        paymaster.updatePriceDVT(2100e8, block.timestamp + grace + 1, "", 0);
+    }
 }

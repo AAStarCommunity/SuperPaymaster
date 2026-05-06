@@ -254,6 +254,17 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         assertFalse(token.approvedFacilitators(address(paymaster)), "SP should not be auto-approved");
     }
 
+    function test_RemoveApprovedFacilitator_EmitsEvent() public {
+        vm.prank(community);
+        token.addApprovedFacilitator(operator);
+
+        vm.expectEmit(true, false, false, true, address(token));
+        emit FacilitatorRemoved(operator);
+        vm.prank(community);
+        token.removeApprovedFacilitator(operator);
+    }
+
     // Local copy so test can vm.expectEmit it (event lives on the token).
     event FacilitatorApproved(address indexed facilitator);
+    event FacilitatorRemoved(address indexed facilitator);
 }

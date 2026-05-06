@@ -173,4 +173,68 @@ contract RegistryTest is Test {
         assertFalse(registry.hasRole(ROLE_ENDUSER, user));
         vm.stopPrank();
     }
+
+    function test_Blacklist_UpdateOperatorBlacklist_ForwardsBlockAndUnblock() public {
+        MockBlacklistPaymasterForRegistry mockPaymaster = new MockBlacklistPaymasterForRegistry();
+
+        vm.prank(owner);
+        registry.setSuperPaymaster(address(mockPaymaster));
+
+        address[] memory users = new address[](1);
+        users[0] = user;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+
+        vm.prank(owner);
+        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+
+        assertEq(mockPaymaster.lastOperator(), communityUser);
+        assertEq(mockPaymaster.lastUser(), user);
+        assertTrue(mockPaymaster.lastStatus());
+        assertEq(mockPaymaster.callCount(), 1);
+
+        statuses[0] = false;
+        vm.prank(owner);
+        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+
+        assertFalse(mockPaymaster.lastStatus());
+        assertEq(mockPaymaster.callCount(), 2);
+    }
+
+    function test_Blacklist_LenMismatchReverts() public {
+        address[] memory users = new address[](1);
+        users[0] = user;
+        bool[] memory statuses = new bool[](2);
+        statuses[0] = true;
+        statuses[1] = false;
+
+        vm.prank(owner);
+        vm.expectRevert(Registry.LenMismatch.selector);
+        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+    }
+
+    function test_Blacklist_RevertsWhenSuperPaymasterUnset() public {
+        address[] memory users = new address[](1);
+        users[0] = user;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+
+        vm.prank(owner);
+        vm.expectRevert(Registry.SPNotSet.selector);
+        registry.updateOperatorBlacklist(communityUser, users, statuses, "");
+    }
+}
+
+contract MockBlacklistPaymasterForRegistry {
+    address public lastOperator;
+    address public lastUser;
+    bool public lastStatus;
+    uint256 public callCount;
+
+    function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external {
+        lastOperator = operator;
+        lastUser = users[0];
+        lastStatus = statuses[0];
+        callCount++;
+    }
 }

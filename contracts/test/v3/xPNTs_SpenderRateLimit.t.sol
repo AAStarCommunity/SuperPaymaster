@@ -301,6 +301,32 @@ contract xPNTs_SpenderRateLimitTest is Test {
         assertEq(token.spenderDailyCapTokens(), type(uint128).max);
     }
 
+    function test_RateLimit_Uint128MaxCap_AllowsExactBoundaryAndBlocksOneWeiMore() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(type(uint128).max);
+
+        token.mint(user, type(uint128).max);
+
+        vm.prank(facilitator);
+        token.burn(user, type(uint128).max);
+
+        (uint128 dailyTotal,,) = token.spenderRateLimit(facilitator);
+        assertEq(dailyTotal, type(uint128).max, "daily total should store exact uint128 max");
+
+        token.mint(user2, 1);
+
+        vm.prank(facilitator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                xPNTsToken.SpenderDailyCapExceeded.selector,
+                facilitator,
+                1,
+                0
+            )
+        );
+        token.burn(user2, 1);
+    }
+
     // ------------------------------------------------------------------
     // Sybil: N auto-approved spenders each get their own cap window,
     // so total drain = N × cap per day (KNOWN LIMITATION documented in
