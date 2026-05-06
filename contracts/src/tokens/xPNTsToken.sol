@@ -795,10 +795,34 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     // ... (rest of the original functions: updateExchangeRate, transferCommunityOwnership, getMetadata, etc.) ...
     
+    /// @notice P0-11: bounds for `updateExchangeRate`. The xPNTs:aPNTs rate
+    ///         is conceptually anchored to community service value, but
+    ///         deploys vary widely. Allow 4 orders of magnitude on either
+    ///         side of the 1:1 default and cap per-update drift to ±20%
+    ///         (looser than SP's ±10% because per-community rates legitimately
+    ///         move more than the protocol unit scale).
+    uint256 public constant EXCHANGE_RATE_MIN = 1e14;        // 0.0001:1
+    uint256 public constant EXCHANGE_RATE_MAX = 1e22;        // 10000:1
+    uint256 public constant EXCHANGE_RATE_DELTA_BPS = 2000;  // 20%
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+
+    /// @notice Update the xPNTs:aPNTs exchange rate.
+    /// @dev P0-11 (B4-M2): pre-fix only checked `_newRate != 0`. Inline
+    ///      bounds (absolute MIN/MAX + ±20% per-tx drift) bound the blast of
+    ///      a misclick or compromised factory/owner. Delta check skipped on
+    ///      the first set (the constructor default of 1e18 means oldRate is
+    ///      already non-zero in practice; the guard is for robustness).
     function updateExchangeRate(uint256 _newRate) external onlyFactoryOrOwner {
         if (_newRate == 0) revert ExchangeRateCannotBeZero();
+        if (_newRate < EXCHANGE_RATE_MIN || _newRate > EXCHANGE_RATE_MAX) revert ExchangeRateCannotBeZero();
+        uint256 oldRate = exchangeRate;
+        if (oldRate != 0) {
+            uint256 lower = oldRate * (BPS_DENOMINATOR - EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
+            uint256 upper = oldRate * (BPS_DENOMINATOR + EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
+            if (_newRate < lower || _newRate > upper) revert ExchangeRateCannotBeZero();
+        }
 
-        emit ExchangeRateUpdated(exchangeRate, _newRate);
+        emit ExchangeRateUpdated(oldRate, _newRate);
         exchangeRate = _newRate;
     }
 

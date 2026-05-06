@@ -151,8 +151,9 @@ contract V3_Function_BoostTest is Test {
 
     function test_Paymaster_AdminSetters() public {
         vm.startPrank(owner);
-        paymaster.setAPNTSPrice(0.03 ether);
-        assertEq(paymaster.aPNTsPriceUSD(), 0.03 ether);
+        // P0-11: within ±10% of initial 0.02 ether
+        paymaster.setAPNTSPrice(0.021 ether);
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
 
         paymaster.setTreasury(address(0x999));
         assertEq(paymaster.treasury(), address(0x999));

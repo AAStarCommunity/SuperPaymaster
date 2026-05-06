@@ -56,9 +56,9 @@ contract PriceCache_FutureTimestampTest is Test {
         );
     }
 
-    /// @notice Timestamps strictly beyond the 15-second grace window are rejected.
+    /// @notice setCachedPrice (admin path) rejects any future timestamp — no grace period.
     function test_SetCachedPrice_RejectsFutureTimestamp() public {
-        uint48 future = uint48(block.timestamp + paymaster.TIMESTAMP_GRACE_SECONDS() + 1);
+        uint48 future = uint48(block.timestamp + 1);
         vm.expectRevert(PaymasterBase.Paymaster__InvalidOraclePrice.selector);
         vm.prank(owner);
         paymaster.setCachedPrice(2000e8, future);
@@ -80,22 +80,18 @@ contract PriceCache_FutureTimestampTest is Test {
         assertEq(ts, uint48(block.timestamp - 60));
     }
 
-    /// @notice A keeper whose wall-clock is up to TIMESTAMP_GRACE_SECONDS ahead of
-    ///         block.timestamp must not be spuriously rejected. This covers the
-    ///         ~12 s maximum drift between keeper system time and on-chain time.
-    function test_SetCachedPrice_AcceptsTimestampWithinGrace() public {
-        uint256 grace = paymaster.TIMESTAMP_GRACE_SECONDS();
-        // Timestamp exactly at the grace boundary is accepted.
-        vm.prank(owner);
-        paymaster.setCachedPrice(2000e8, uint48(block.timestamp + grace));
-        (, uint48 ts) = paymaster.cachedPrice();
-        assertEq(ts, uint48(block.timestamp + grace));
-
-        // One second past the boundary is rejected.
-        uint48 justOver = uint48(block.timestamp + grace + 1);
+    /// @notice setCachedPrice has no grace period (admin function, no clock skew).
+    ///         Even block.timestamp + 1 must be rejected.
+    function test_SetCachedPrice_RejectsAnyFutureTimestamp() public {
+        // +1 second is rejected
         vm.expectRevert(PaymasterBase.Paymaster__InvalidOraclePrice.selector);
         vm.prank(owner);
-        paymaster.setCachedPrice(2000e8, justOver);
+        paymaster.setCachedPrice(2000e8, uint48(block.timestamp + 1));
+
+        // +15 seconds (former "grace" period) is also rejected
+        vm.expectRevert(PaymasterBase.Paymaster__InvalidOraclePrice.selector);
+        vm.prank(owner);
+        paymaster.setCachedPrice(2000e8, uint48(block.timestamp + 15));
     }
 
     function test_SetCachedPrice_RejectsZeroPrice() public {
@@ -281,7 +277,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
     ///         Without this guard, a malicious or buggy keeper could freeze the
     ///         staleness check or cause arithmetic underflow in postOp readers.
     function test_UpdatePriceDVT_RejectsFutureTimestamp() public {
-        uint256 grace = paymaster.TIMESTAMP_GRACE_SECONDS();
+        uint256 grace = 15; // TIMESTAMP_GRACE_SECONDS (internal constant)
         uint256 badTs = block.timestamp + grace + 1;
 
         vm.expectRevert(SuperPaymaster.OracleError.selector);
@@ -294,7 +290,7 @@ contract SuperPaymaster_FutureTimestampTest is Test {
     ///         Uses price within ±20% of the oracle ($2000) to pass the Chainlink
     ///         deviation guard that also runs in updatePriceDVT.
     function test_UpdatePriceDVT_AcceptsTimestampAtGraceBoundary() public {
-        uint256 grace = paymaster.TIMESTAMP_GRACE_SECONDS();
+        uint256 grace = 15; // TIMESTAMP_GRACE_SECONDS (internal constant)
         uint256 boundaryTs = block.timestamp + grace;
 
         // $2100 is +5% from oracle $2000 — within the ±20% deviation limit
