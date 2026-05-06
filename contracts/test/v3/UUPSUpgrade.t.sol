@@ -197,7 +197,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_SuperPaymaster_InitialState() public view {
         assertEq(paymaster.owner(), owner);
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.3.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.3.1"));
         assertEq(paymaster.APNTS_TOKEN(), mockAPNTs);
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.priceStalenessThreshold(), 3600);
@@ -346,7 +346,7 @@ contract UUPSUpgradeTest is Test {
         paymaster.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.3.0"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.3.1"));
 
         vm.stopPrank();
     }
@@ -451,7 +451,9 @@ contract UUPSUpgradeTest is Test {
         paymaster.setAPNTSPrice(0.021 ether);
         assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
 
-        paymaster.setBLSAggregator(address(0xCC));
+        paymaster.queueBLSAggregator(address(0xCC));
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
         assertEq(paymaster.BLS_AGGREGATOR(), address(0xCC));
 
         // Deposit still works

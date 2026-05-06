@@ -274,8 +274,11 @@ contract SuperPaymasterTest is Test {
         
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
-        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator); 
+        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
         assertEq(repMinor, 80);
+
+        // P0-14: advance past 24h cooldown before second slash
+        vm.warp(block.timestamp + 24 hours + 1);
 
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");

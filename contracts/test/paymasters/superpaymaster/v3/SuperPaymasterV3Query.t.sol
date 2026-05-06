@@ -94,7 +94,9 @@ contract SuperPaymasterQueryTest is Test {
             3600
         );
 
-        paymaster.setBLSAggregator(blsAggregator);
+        paymaster.queueBLSAggregator(blsAggregator);
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
 
         // Deploy mock factory and register token for owner (P1-4 fix)
         mockFactory = new MockXPNTsFactory();

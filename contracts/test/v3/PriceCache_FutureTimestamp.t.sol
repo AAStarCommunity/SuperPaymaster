@@ -265,7 +265,9 @@ contract SuperPaymaster_FutureTimestampTest is Test {
         );
 
         // Allow owner to call updatePriceDVT (owner is also BLS_AGGREGATOR for tests)
-        paymaster.setBLSAggregator(owner);
+        paymaster.queueBLSAggregator(owner);
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
 
         // Seed the cache with a valid past timestamp so monotonicity check passes
         paymaster.updatePriceDVT(2000e8, block.timestamp - 60, "", 0);

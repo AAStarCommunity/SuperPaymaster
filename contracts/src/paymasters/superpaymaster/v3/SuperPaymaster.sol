@@ -60,7 +60,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.3.0";
+        return "SuperPaymaster-5.3.1";
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -785,8 +785,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @dev Reduces reputation and optionally pauses operator
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        // Owner slash: no 30% hardcap (full authority for governance actions)
-        _slash(operator, level, penaltyAmount, reason, false);
+        // P0-14: 30% cap + 24h cooldown — prevents owner from draining operator in a single tx.
+        if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
+        _slashCd[operator] = uint48(block.timestamp) + 24 hours;
+        _slash(operator, level, penaltyAmount, reason, true);
     }
 
     /**
@@ -870,11 +872,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ReputationUpdated(operator, config.reputation);
     }
 
-    function setBLSAggregator(address _bls) external onlyOwner {
+    // P0-3: 24h timelock on BLSAggregator replacement — prevents instant governance takeover.
+    function queueBLSAggregator(address _bls) external onlyOwner {
         if (_bls == address(0)) revert InvalidAddress();
-        address oldAggregator = BLS_AGGREGATOR;
-        BLS_AGGREGATOR = _bls;
-        emit BLSAggregatorUpdated(oldAggregator, _bls);
+        pendingBLSAgg = _bls;
+        pendingBLSAggEta = uint48(block.timestamp + 24 hours);
+        emit BLSAggregatorQueued(_bls, pendingBLSAggEta);
+    }
+
+    function applyBLSAggregator() external onlyOwner {
+        address p = pendingBLSAgg;
+        if (p == address(0)) revert InvalidConfiguration();
+        if (uint48(block.timestamp) < pendingBLSAggEta) revert InvalidConfiguration();
+        address old = BLS_AGGREGATOR;
+        BLS_AGGREGATOR = p;
+        pendingBLSAgg = address(0);
+        pendingBLSAggEta = 0;
+        emit BLSAggregatorUpdated(old, p);
     }
 
     // ====================================
@@ -1287,6 +1301,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
     uint256 public pendingAPNTsTokenEta;
 
+    // P0-14: per-operator slash cooldown (24h between owner slashes of same operator).
+    mapping(address => uint48) private _slashCd;
+
+    // P0-3: BLSAggregator 24h timelock (packed into 1 slot: address 20B + uint48 6B).
+    address public pendingBLSAgg;
+    uint48 public pendingBLSAggEta;
+
     // V5 Events
     event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
     event AgentRegistriesUpdated(address identityRegistry, address reputationRegistry);
@@ -1295,6 +1316,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // V5 Errors
     error NonceAlreadyUsed();
     error InvalidFee();
+    // P0-14
+    error SlashCooldown();
+    // P0-3
+    event BLSAggregatorQueued(address indexed pending, uint48 eta);
 
     // x402 Constants
     uint256 internal constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
@@ -1477,6 +1502,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // 50 reserved; current usage: 16 (slots 0-15 used by non-mapping vars above __gap).
-    uint256[34] private __gap;
+    // 50 reserved; current usage: 18 (slots 0-17: 16 original + _slashCd + pendingBLSAgg/Eta packed).
+    uint256[32] private __gap;
 }

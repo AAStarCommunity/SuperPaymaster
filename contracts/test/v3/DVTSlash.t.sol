@@ -56,7 +56,9 @@ contract DVTSlashTest is Test {
             3600
         );
 
-        paymaster.setBLSAggregator(dvtAggregator);
+        paymaster.queueBLSAggregator(dvtAggregator);
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
         staking.setAuthorizedSlasher(dvtAggregator, true);
         
         // Initialize reputation
