@@ -27,9 +27,22 @@ jobs:
 
       - name: Check EIP-170 Contract Sizes
         run: |
-          REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
+          SIZES=$(forge build --sizes 2>&1)
+
+          REGISTRY_SIZE=$(echo "$SIZES" | grep "^| Registry " | awk '{gsub(/,/,""); print $4}')
           echo "Registry runtime size: ${REGISTRY_SIZE}B"
-          if [ "$REGISTRY_SIZE" -gt 24576 ]; then
-            echo "::error::Registry exceeds EIP-170 limit (24576B)"
+          if [ -n "$REGISTRY_SIZE" ] && [ "$REGISTRY_SIZE" -gt 24576 ]; then
+            echo "::error::Registry exceeds EIP-170 limit (24576B): ${REGISTRY_SIZE}B"
             exit 1
+          fi
+
+          SP_SIZE=$(echo "$SIZES" | grep "^| SuperPaymaster " | head -1 | awk '{gsub(/,/,""); print $4}')
+          echo "SuperPaymaster runtime size: ${SP_SIZE}B"
+          if [ -n "$SP_SIZE" ] && [ "$SP_SIZE" -gt 24576 ]; then
+            echo "::error::SuperPaymaster exceeds EIP-170 limit (24576B): ${SP_SIZE}B"
+            exit 1
+          fi
+          # Soft-cap warning at 24500 to catch growth before it becomes a block
+          if [ -n "$SP_SIZE" ] && [ "$SP_SIZE" -gt 24500 ]; then
+            echo "::warning::SuperPaymaster is within 76B of EIP-170 limit (${SP_SIZE}/24576). Budget carefully."
           fi
