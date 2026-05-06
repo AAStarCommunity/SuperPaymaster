@@ -296,6 +296,14 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         } else if (roleId == ROLE_ENDUSER) {
             delete roleMetadata[roleId][msg.sender];
             delete roleSBTTokenIds[roleId][msg.sender];
+        } else if (roleId == ROLE_DVT || roleId == ROLE_ANODE || roleId == ROLE_KMS) {
+            // P1-32: clear operator role state so slots can be re-registered after exit.
+            // roleMetadata holds encoded stake/config bytes written at registration;
+            // roleSBTTokenIds holds the SBT minted for the operator.  Neither is
+            // useful after exit and leaving them set wastes storage and could
+            // mislead off-chain indexers that scan these mappings for active members.
+            delete roleMetadata[roleId][msg.sender];
+            delete roleSBTTokenIds[roleId][msg.sender];
         }
 
         if (userRoleCount[msg.sender] == 0) {
