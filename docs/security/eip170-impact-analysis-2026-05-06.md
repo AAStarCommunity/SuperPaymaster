@@ -250,3 +250,120 @@ The following constants were made `internal` and are no longer ABI-readable. SDK
 3. **Context ABI encoding affects only depth-1 callers**: The EntryPoint calls `postOp` with the raw `context` bytes — no one in the ERC-4337 standard decodes it except the paymaster itself. Context format changes are safe from a protocol perspective but break any tooling that traces calldata.
 
 4. **Size monitoring must be part of CI, not a post-hoc check**: The EIP-170 overflow was not caught until PRs were blocked. Automating this check prevents future surprises.
+
+---
+
+## 7. View Function Removal & SDK Migration Guide
+
+*(Added 2026-05-06 — second round of EIP-170 optimization)*
+
+Four additional view functions were removed from the on-chain ABI to free ~230 bytes for the pending P0 PRs (#110/#113/#114). These were all pure aggregation functions computable off-chain.
+
+### 7.1 Functions Removed
+
+| Function | Size saved | Replacement |
+|----------|-----------|-------------|
+| `isChainlinkStale() → bool` | ~60B | Read `cachedPrice().updatedAt` + `priceStalenessThreshold` |
+| `getAvailableCredit(user, token) → uint256` | ~80B | Off-chain formula (see below) |
+| `getSlashHistory(operator) → SlashRecord[]` | ~50B | `getSlashCount` + loop via `getSlashRecord` |
+| `getLatestSlash(operator) → SlashRecord` | ~40B | `getSlashRecord(operator, count - 1)` |
+
+**New function added** (solves Solidity mapping tuple limitation):
+
+```solidity
+function getSlashRecord(address operator, uint256 index)
+    external view returns (ISuperPaymaster.SlashRecord memory)
+```
+
+Cost: ~30B — net headroom gained: ~200B.
+
+### 7.2 SDK Migration Code Samples
+
+#### `isChainlinkStale()` → off-chain
+
+```typescript
+// Before (reverts after upgrade):
+const stale = await paymaster.isChainlinkStale();
+
+// After:
+const [, updatedAt] = await paymaster.cachedPrice();
+const threshold = await paymaster.priceStalenessThreshold();
+const nowSec = BigInt(Math.floor(Date.now() / 1000));
+const isStale = updatedAt < nowSec - threshold;
+```
+
+#### `getAvailableCredit(user, token)` → off-chain
+
+```typescript
+// Before (reverts after upgrade):
+const credit = await paymaster.getAvailableCredit(user, token);
+
+// After (compose from two public reads):
+// Note: creditLimit is not on SuperPaymaster; it lives in Registry.
+const debtAPNTs = await paymaster.pendingDebts(token, user);
+// If Registry exposes getCreditLimit:
+const creditLimit = await registry.getCreditLimit(user);
+const available = creditLimit > debtAPNTs ? creditLimit - debtAPNTs : 0n;
+```
+
+#### `getSlashHistory(operator)` → paginated via `getSlashRecord`
+
+```typescript
+// Before (reverts after upgrade):
+const history = await paymaster.getSlashHistory(operator);
+
+// After:
+async function getSlashHistory(paymaster, operator) {
+  const count = await paymaster.getSlashCount(operator);
+  return Promise.all(
+    Array.from({ length: Number(count) }, (_, i) =>
+      paymaster.getSlashRecord(operator, BigInt(i))
+    )
+  );
+}
+```
+
+#### `getLatestSlash(operator)` → index access
+
+```typescript
+// Before (reverts after upgrade):
+const latest = await paymaster.getLatestSlash(operator);
+
+// After:
+const count = await paymaster.getSlashCount(operator);
+if (count === 0n) throw new Error("no slash history");
+const latest = await paymaster.getSlashRecord(operator, count - 1n);
+```
+
+### 7.3 Off-chain Indexing (Recommended for slash history)
+
+For dashboard/analytics use-cases that need full slash history, prefer event indexing over polling:
+
+```graphql
+# The Graph query (subgraph/schema.graphql OperatorSlashed entity)
+{
+  operatorSlasheds(
+    where: { operator: "0x..." }
+    orderBy: blockTimestamp
+    orderDirection: desc
+    first: 100
+  ) {
+    amount
+    level
+    blockTimestamp
+    transactionHash
+  }
+}
+```
+
+On-chain `slashHistory` storage is the source of truth for individual record reads; The Graph is preferred for aggregation/historical queries because it avoids N sequential RPC calls.
+
+### 7.4 ABI Update Required
+
+The SDK's ABI JSON must be regenerated from the updated contract. The new ABI:
+- **Removes**: `isChainlinkStale`, `getAvailableCredit`, `getSlashHistory`, `getLatestSlash`
+- **Adds**: `getSlashRecord(address,uint256)` returning `SlashRecord` struct
+- **Adds**: `emergencySetPrice`, `cancelEmergencyPrice`, `executeEmergencyPrice` (P0-10)
+- **Updates**: `updatePriceDVT` — new 4th param `uint8 chainlinkRecovered`
+
+Run `forge build && ./scripts/extract-abis.sh` after pulling the latest contracts branch.

@@ -82,10 +82,7 @@ interface ISuperPaymaster is IVersioned {
      */
     function withdraw(uint256 amount) external;
 
-    /**
-     * @notice Get operator credit limit for a user
-     */
-    function getAvailableCredit(address user, address token) external view returns (uint256);
+    // getAvailableCredit removed from interface — computed off-chain by SDK.
 
     /**
      * @notice Slash operator via BLS consensus

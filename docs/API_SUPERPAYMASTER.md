@@ -1,10 +1,25 @@
 # SuperPaymaster API Reference
 
-**Version**: `SuperPaymaster-5.3.0`
+**Version**: `SuperPaymaster-5.3.0` (updated 2026-05-06 — EIP-170 view-function removal)
 
 > This document covers the full public API as of v5.3.0, including V3/V4 baseline
 > functions and all V5.x additions (agent-native gas sponsorship, x402 settlement,
 > ERC-8004 dual-channel eligibility, and agent sponsorship policies).
+
+> ⚠️ **SDK MAINTAINER — MANDATORY READ** (2026-05-06)
+>
+> Four view functions were removed from the on-chain ABI as part of the EIP-170
+> bytecode compliance fix. Any SDK or off-chain tooling that calls these functions
+> will receive a revert after the next deployment:
+>
+> | Removed Function | Migration Path |
+> |-----------------|----------------|
+> | `isChainlinkStale()` | Read `cachedPrice().updatedAt` and `priceStalenessThreshold`; compare off-chain |
+> | `getAvailableCredit(user, token)` | Compute off-chain: `registry.getCreditLimit(user) - pendingDebts[token][user]` |
+> | `getSlashHistory(operator)` → `SlashRecord[]` | Use `getSlashCount(operator)` + `getSlashRecord(operator, index)` in a loop; or index `OperatorSlashed` events via The Graph |
+> | `getLatestSlash(operator)` → `SlashRecord` | `paymaster.getSlashRecord(operator, paymaster.getSlashCount(operator) - 1)` |
+>
+> See [Section 7 of the EIP-170 Impact Analysis](security/eip170-impact-analysis-2026-05-06.md#7-view-function-removal--sdk-migration-guide) for full migration code samples.
 
 ---
 
@@ -134,7 +149,7 @@ SuperPaymaster uses UUPS upgradeable storage (OZ v5.0.2 pattern):
 | 15 | `protocolRevenue` | |
 | 16 | `pendingDebts` mapping | |
 | 17 | `priceStalenessThreshold` | |
-| 18 | `oracleDecimals` | |
+| ~~18~~ | ~~`oracleDecimals`~~ | **removed** — Chainlink ETH/USD always returns 8; hardcoded |
 | **V5 additions (8 new slots):** | | |
 | 19 | `agentIdentityRegistry` | ERC-8004 agent NFT registry |
 | 20 | `agentReputationRegistry` | ERC-8004 reputation registry |
@@ -224,7 +239,9 @@ function validatePaymasterUserOp(
 4. Require `!isBlocked` and enforce `minTxInterval` via `validAfter`
 5. Enforce `maxRate` commitment if provided at offset 72
 6. Optimistic aPNTs deduction with 10% fee + 10% validation buffer
-7. Returns context `(xPNTsToken, xPNTsAmount, sender, aPNTsAmount, userOpHash, operator)` and `validUntil = cachedPrice.updatedAt + priceStalenessThreshold`
+7. Returns context `(xPNTsToken, user, initialAPNTs, userOpHash, operator)` (**5-field**; `xPNTsAmount` removed in EIP-170 fix) and `validUntil = cachedPrice.updatedAt + priceStalenessThreshold`
+
+> **⚠️ SDK BREAKING CHANGE**: Context encoding changed from 6-field to 5-field — `xPNTsAmount` (index 1) was removed. Any off-chain decoder reading EntryPoint calldata must update field offsets.
 
 ---
 
@@ -507,7 +524,8 @@ Update price via BLS/DVT consensus (Chainlink fallback path).
 function updatePriceDVT(
     int256 price,
     uint256 updatedAt,
-    bytes calldata proof
+    bytes calldata proof,
+    uint8 chainlinkRecovered   // 1 = Chainlink recovered, clears EMERGENCY mode
 ) external
 ```
 
@@ -519,7 +537,43 @@ function updatePriceDVT(
 - Price must be within `[MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]`
 - If Chainlink is live and recent, rejects prices deviating >20% from Chainlink
 
+**`chainlinkRecovered`:** Pass `1` when BLS aggregator detects Chainlink has recovered after an EMERGENCY mode period. This clears `priceMode` back to `0` (CHAINLINK) and resets `emergencyActivatedAt`.
+
 **Events:** `PriceUpdated(price, updatedAt)`
+
+---
+
+### emergencySetPrice *(P0-10 break-glass — owner only)*
+
+Queue an emergency price when Chainlink is stale. Price must be within ±20% of the last cached price. Initiates a 1-hour timelock before it can be applied.
+
+```solidity
+function emergencySetPrice(int256 price) external onlyOwner
+```
+
+**Errors:** `ChainlinkNotStale`, `EmergencyPriceOutOfRange`, `OracleError`, `EmergencyExpired`
+
+---
+
+### cancelEmergencyPrice *(P0-10 break-glass — owner only)*
+
+Cancel a queued emergency price before it is applied.
+
+```solidity
+function cancelEmergencyPrice() external onlyOwner
+```
+
+---
+
+### executeEmergencyPrice *(P0-10 break-glass — permissionless after timelock)*
+
+Apply the queued emergency price after the 1-hour timelock elapses.
+
+```solidity
+function executeEmergencyPrice() external
+```
+
+**Errors:** `NoEmergencyPending`, `EmergencyTimelockNotElapsed`
 
 ---
 
@@ -592,13 +646,23 @@ function executeSlashWithBLS(
 
 ---
 
-### getSlashHistory
+### ~~getSlashHistory~~ — **REMOVED** (EIP-170 fix, 2026-05-06)
 
-```solidity
-function getSlashHistory(address operator)
-    external view
-    returns (ISuperPaymaster.SlashRecord[] memory)
-```
+> ❌ This function has been removed from the on-chain ABI. Calls will revert.
+>
+> **Migration**: Use `getSlashCount(operator)` to get the count, then iterate via
+> `getSlashRecord(operator, index)`. For historical queries, index `OperatorSlashed`
+> events off-chain via The Graph or `eth_getLogs`.
+>
+> ```typescript
+> // SDK migration example
+> const count = await paymaster.getSlashCount(operator);
+> const records = await Promise.all(
+>   Array.from({ length: Number(count) }, (_, i) =>
+>     paymaster.getSlashRecord(operator, i)
+>   )
+> );
+> ```
 
 ---
 
@@ -610,15 +674,42 @@ function getSlashCount(address operator) external view returns (uint256)
 
 ---
 
-### getLatestSlash
+### getSlashRecord *(new — replaces getSlashHistory + getLatestSlash)*
+
+Access a specific slash record by index. Solidity's auto-generated `slashHistory` mapping getter returns a tuple; this wrapper returns the fully typed `SlashRecord` struct.
 
 ```solidity
-function getLatestSlash(address operator)
-    external view
-    returns (ISuperPaymaster.SlashRecord memory)
+function getSlashRecord(
+    address operator,
+    uint256 index
+) external view returns (ISuperPaymaster.SlashRecord memory)
 ```
 
-**Errors:** `NoSlashHistory`
+**Errors:** `IndexOutOfBounds` if `index >= getSlashCount(operator)`
+
+**Usage patterns:**
+
+```typescript
+// Get latest slash
+const count = await paymaster.getSlashCount(operator);
+if (count > 0n) {
+  const latest = await paymaster.getSlashRecord(operator, count - 1n);
+}
+
+// Iterate all slashes
+for (let i = 0n; i < count; i++) {
+  const record = await paymaster.getSlashRecord(operator, i);
+  // record.level, record.amount, record.reputationLoss, record.reason, record.timestamp
+}
+```
+
+---
+
+### ~~getLatestSlash~~ — **REMOVED** (EIP-170 fix, 2026-05-06)
+
+> ❌ This function has been removed from the on-chain ABI. Calls will revert.
+>
+> **Migration**: `paymaster.getSlashRecord(operator, paymaster.getSlashCount(operator) - 1n)`
 
 ---
 
@@ -652,16 +743,32 @@ function clearPendingDebt(address token, address user) external onlyOwner
 
 ## View Functions
 
-### getAvailableCredit
+### ~~isChainlinkStale()~~ — **REMOVED** (EIP-170 fix, 2026-05-06)
 
-Get remaining credit for a user under a specific xPNTs token (aPNTs units).
+> ❌ This function has been removed from the on-chain ABI. Calls will revert.
+>
+> **Migration**: Compute staleness off-chain using two public storage reads:
+>
+> ```typescript
+> const [, updatedAt] = await paymaster.cachedPrice();
+> const staleness = await paymaster.priceStalenessThreshold();
+> const isStale = updatedAt < BigInt(Math.floor(Date.now() / 1000)) - staleness;
+> ```
 
-```solidity
-function getAvailableCredit(address user, address token)
-    external view returns (uint256)
-```
+---
 
-**Logic:** `REGISTRY.getCreditLimit(user) - debtInAPNTs` (floored at 0)
+### ~~getAvailableCredit~~ — **REMOVED** (EIP-170 fix, 2026-05-06)
+
+> ❌ This function has been removed from the on-chain ABI. Calls will revert.
+>
+> **Migration**: Compute off-chain from two public reads (credit limit is per-user in Registry,
+> debt is in `pendingDebts`):
+>
+> ```typescript
+> const creditLimitAPNTs = await registry.getCreditLimit(user); // from Registry
+> const debtAPNTs = await paymaster.pendingDebts(token, user);
+> const available = creditLimitAPNTs > debtAPNTs ? creditLimitAPNTs - debtAPNTs : 0n;
+> ```
 
 ---
 

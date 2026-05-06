@@ -101,42 +101,38 @@ contract SuperPaymasterQueryTest is Test {
     }
 
     // ====================================
-    // getSlashHistory() Tests
+    // getSlashHistory() — REMOVED from ABI.
+    // Use OperatorSlashed events (The Graph / eth_getLogs) off-chain.
+    // Individual records accessible via slashHistory(operator, index).
     // ====================================
 
-    function test_GetSlashHistory_Empty() public {
-        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
-        assertEq(history.length, 0, "Should have no history initially");
+    function test_SlashHistory_EmptyInitially() public {
+        assertEq(paymaster.getSlashCount(operator), 0, "no history initially");
     }
 
-    function test_GetSlashHistory_AfterSlash() public {
-        // Execute a slash
+    function test_SlashHistory_AfterSlash_CountAndRecord() public {
         vm.prank(blsAggregator);
-        paymaster.executeSlashWithBLS(
-            operator,
-            ISuperPaymaster.SlashLevel.WARNING,
-            abi.encode("test")
-        );
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("test"));
 
-        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
-        assertEq(history.length, 1, "Should have 1 record");
-        assertEq(uint8(history[0].level), uint8(ISuperPaymaster.SlashLevel.WARNING));
+        assertEq(paymaster.getSlashCount(operator), 1);
+        ISuperPaymaster.SlashRecord memory r = paymaster.getSlashRecord(operator, 0);
+        assertEq(uint8(r.level), uint8(ISuperPaymaster.SlashLevel.WARNING));
     }
 
-    function test_GetSlashHistory_MultipleSlashes() public {
+    function test_SlashHistory_MultipleSlashes_CountAndOrder() public {
         vm.startPrank(blsAggregator);
-        
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
-        
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR,   abi.encode("2"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR,   abi.encode("3"));
         vm.stopPrank();
 
-        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
-        assertEq(history.length, 3, "Should have 3 records");
-        assertEq(uint8(history[0].level), uint8(ISuperPaymaster.SlashLevel.WARNING));
-        assertEq(uint8(history[1].level), uint8(ISuperPaymaster.SlashLevel.MINOR));
-        assertEq(uint8(history[2].level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
+        assertEq(paymaster.getSlashCount(operator), 3);
+        ISuperPaymaster.SlashRecord memory r0 = paymaster.getSlashRecord(operator, 0);
+        ISuperPaymaster.SlashRecord memory r1 = paymaster.getSlashRecord(operator, 1);
+        ISuperPaymaster.SlashRecord memory r2 = paymaster.getSlashRecord(operator, 2);
+        assertEq(uint8(r0.level), uint8(ISuperPaymaster.SlashLevel.WARNING));
+        assertEq(uint8(r1.level), uint8(ISuperPaymaster.SlashLevel.MINOR));
+        assertEq(uint8(r2.level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
     }
 
     // ====================================
@@ -149,35 +145,27 @@ contract SuperPaymasterQueryTest is Test {
 
     function test_GetSlashCount_AfterSlashes() public {
         vm.startPrank(blsAggregator);
-        
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
         assertEq(paymaster.getSlashCount(operator), 1);
-        
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
         assertEq(paymaster.getSlashCount(operator), 2);
-        
         vm.stopPrank();
     }
 
     // ====================================
-    // getLatestSlash() Tests
+    // getLatestSlash() — REMOVED from ABI.
+    // Read last record via slashHistory(operator, getSlashCount(operator) - 1).
     // ====================================
 
-    function test_GetLatestSlash_NoHistory() public {
-        vm.expectRevert(SuperPaymaster.NoSlashHistory.selector);
-        paymaster.getLatestSlash(operator);
-    }
-
-    function test_GetLatestSlash_ReturnsLatest() public {
+    function test_LatestSlash_ViaIndexAccess() public {
         vm.startPrank(blsAggregator);
-        
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
-        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
-        
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR,   abi.encode("2"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR,   abi.encode("3"));
         vm.stopPrank();
 
-        ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator);
+        uint256 count = paymaster.getSlashCount(operator);
+        ISuperPaymaster.SlashRecord memory latest = paymaster.getSlashRecord(operator, count - 1);
         assertEq(uint8(latest.level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
         assertEq(latest.reputationLoss, 50);
     }
@@ -190,18 +178,16 @@ contract SuperPaymasterQueryTest is Test {
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("test"));
 
-        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getSlashRecord(operator, 0);
         assertEq(record.amount, 0, "WARNING should not deduct balance");
         assertEq(record.reputationLoss, 10);
     }
 
     function test_MINOR_10PercentDeduction() public {
-        // This test would need operator to have aPNTs balance
-        // Skipping actual balance test, just verify record structure
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("test"));
 
-        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getSlashRecord(operator, 0);
         assertEq(record.reputationLoss, 20);
         assertEq(uint8(record.level), uint8(ISuperPaymaster.SlashLevel.MINOR));
     }
@@ -210,7 +196,7 @@ contract SuperPaymasterQueryTest is Test {
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("test"));
 
-        ISuperPaymaster.SlashRecord memory record = paymaster.getLatestSlash(operator);
+        ISuperPaymaster.SlashRecord memory record = paymaster.getSlashRecord(operator, 0);
         assertEq(record.reputationLoss, 50);
         assertEq(uint8(record.level), uint8(ISuperPaymaster.SlashLevel.MAJOR));
     }

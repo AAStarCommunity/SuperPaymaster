@@ -334,53 +334,41 @@ contract SuperPaymaster_Admin_Test is Test {
     // View Functions Tests
     // ====================================
 
-    function test_GetSlashHistory() public {
+    // getSlashHistory() removed — use slashHistory(operator, index) per-element.
+    function test_GetSlashHistory_ViaIndexAccess() public {
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "First slash"
-        );
-        
-        ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator1);
-        assertEq(history.length, 1);
-        assertEq(history[0].amount, 10 ether);
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "First slash");
+
+        assertEq(paymaster.getSlashCount(operator1), 1);
+        ISuperPaymaster.SlashRecord memory r = paymaster.getSlashRecord(operator1, 0);
+        assertEq(r.amount, 10 ether);
     }
 
     function test_GetSlashCount() public {
         assertEq(paymaster.getSlashCount(operator1), 0);
-        
+
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Test"
-        );
-        
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Test");
+
         assertEq(paymaster.getSlashCount(operator1), 1);
     }
 
-    function test_GetLatestSlash() public {
+    // getLatestSlash() removed — read via slashHistory(operator, count-1).
+    function test_GetLatestSlash_ViaIndexAccess() public {
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Latest slash"
-        );
-        
-        ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator1);
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Latest slash");
+
+        uint256 count = paymaster.getSlashCount(operator1);
+        ISuperPaymaster.SlashRecord memory latest = paymaster.getSlashRecord(operator1, count - 1);
         assertEq(latest.amount, 10 ether);
         assertEq(latest.reason, "Latest slash");
     }

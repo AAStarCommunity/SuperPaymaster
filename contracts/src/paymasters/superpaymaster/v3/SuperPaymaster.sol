@@ -421,7 +421,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
     }
 
-    function isChainlinkStale() external view returns (bool) { return _isChainlinkStale(); }
+    // isChainlinkStale() removed — SDK reads cachedPrice.updatedAt + priceStalenessThreshold directly.
 
     /// @notice Queue an emergency price update. Only honored when Chainlink
     ///         is stale and the new price stays within ±20% of the last
@@ -724,20 +724,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ProtocolRevenueWithdrawn(to, amount);
     }
 
-    function getAvailableCredit(address user, address token) external view returns (uint256) {
-        // Calculate Credit in APNTs
-        uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
-        
-        // Get Debt from Token (in xPNTs)
-        uint256 currentDebtXPNTs = IxPNTsToken(token).getDebt(user);
-        
-        // Convert Debt to APNTs for comparison
-        // xPNTs = aPNTs * Rate / 1e18 => aPNTs = xPNTs * 1e18 / Rate
-        uint256 rate = IxPNTsToken(token).exchangeRate();
-        uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / rate;
-
-        return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
-    }
+    // getAvailableCredit() removed — SDK computes off-chain:
+    //   creditLimit = registry.getCreditLimit(user)
+    //   debtXPNTs   = xPNTs.getDebt(user)
+    //   debtAPNTs   = debtXPNTs * 1e18 / xPNTs.exchangeRate()
+    //   available   = creditLimit > debtAPNTs ? creditLimit - debtAPNTs : 0
 
     // ====================================
     // Reputation & Slash Management (Restored)
@@ -840,21 +831,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit BLSAggregatorUpdated(oldAggregator, _bls);
     }
 
-    // ====================================
-    // Slash Query Interfaces
-    // ====================================
-
-    function getSlashHistory(address operator) external view returns (ISuperPaymaster.SlashRecord[] memory) {
-        return slashHistory[operator];
-    }
+    // getSlashHistory / getLatestSlash removed — index OperatorSlashed events via The Graph.
+    // Use getSlashCount + getSlashRecord for programmatic access to individual records.
 
     function getSlashCount(address operator) external view returns (uint256) {
         return slashHistory[operator].length;
     }
 
-    function getLatestSlash(address operator) external view returns (ISuperPaymaster.SlashRecord memory) {
-        if (slashHistory[operator].length == 0) revert NoSlashHistory();
-        return slashHistory[operator][slashHistory[operator].length - 1];
+    function getSlashRecord(address operator, uint256 index) external view returns (ISuperPaymaster.SlashRecord memory) {
+        return slashHistory[operator][index];
     }
 
     // ====================================

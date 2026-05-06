@@ -243,21 +243,32 @@ contract EmergencyBreakGlassTest is Test {
     }
 
     // -----------------------------------------------------------------------
-    // isChainlinkStale view mirror
+    // Chainlink staleness — computed off-chain (isChainlinkStale() removed)
+    // isChainlinkStale() was removed from ABI; SDK reads cachedPrice.updatedAt
+    // and priceStalenessThreshold directly.  The helper below replicates the
+    // on-chain logic for test verification purposes.
     // -----------------------------------------------------------------------
 
+    function _chainlinkStale() internal view returns (bool) {
+        try oracle.latestRoundData() returns (uint80, int256, uint256, uint256 updatedAt, uint80) {
+            return updatedAt < block.timestamp - paymaster.priceStalenessThreshold();
+        } catch {
+            return true;
+        }
+    }
+
     function test_IsChainlinkStale_TrueWhenOldUpdatedAt() public view {
-        assertTrue(paymaster.isChainlinkStale());
+        assertTrue(_chainlinkStale());
     }
 
     function test_IsChainlinkStale_FalseWhenFresh() public {
         oracle.setUpdatedAt(block.timestamp);
-        assertFalse(paymaster.isChainlinkStale());
+        assertFalse(_chainlinkStale());
     }
 
     function test_IsChainlinkStale_TrueWhenOracleReverts() public {
         oracle.setReverts(true);
-        assertTrue(paymaster.isChainlinkStale());
+        assertTrue(_chainlinkStale());
     }
 
     // -----------------------------------------------------------------------
