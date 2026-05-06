@@ -60,6 +60,8 @@ contract DVTValidator is Ownable, IVersioned {
     /// @notice Emitted when the owner force-removes a validator regardless of
     ///         their current role/stake state.
     event ValidatorRemoved(address indexed v);
+    /// @notice Emitted when the BLS aggregator address is updated by the owner.
+    event BLSAggregatorUpdated(address indexed oldAddr, address indexed newAddr);
 
     error NotValidator();
     error AlreadySigned();
@@ -254,6 +256,7 @@ contract DVTValidator is Ownable, IVersioned {
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {
+        emit BLSAggregatorUpdated(BLS_AGGREGATOR, _bls);
         BLS_AGGREGATOR = _bls;
     }
 

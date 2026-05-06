@@ -115,6 +115,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
     event BLSVerificationStatus(uint256 indexed proposalId, bool success);
     event ProposalExecuted(uint256 indexed proposalId, address indexed target, bytes32 callDataHash);
+    /// @notice Emitted when the SuperPaymaster address is updated by the owner.
+    event SuperPaymasterUpdated(address indexed oldAddr, address indexed newAddr);
+    /// @notice Emitted when the DVTValidator address is updated by the owner.
+    event DVTValidatorUpdated(address indexed oldAddr, address indexed newAddr);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -179,7 +183,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         address _superPaymaster,
         address _dvtValidator
     ) Ownable(msg.sender) {
-        if (_registry == address(0)) revert InvalidAddress(address(0));
+        if (_registry == address(0)) revert InvalidAddress(_registry);
+        if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
+        if (_dvtValidator == address(0)) revert InvalidAddress(_dvtValidator);
         REGISTRY = IRegistry(_registry);
         SUPERPAYMASTER = _superPaymaster;
         DVT_VALIDATOR = _dvtValidator;
@@ -631,8 +637,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Admin Functions
     // ====================================
 
-    function setSuperPaymaster(address _sp) external onlyOwner { SUPERPAYMASTER = _sp; }
-    function setDVTValidator(address _dv) external onlyOwner { DVT_VALIDATOR = _dv; }
+    function setSuperPaymaster(address _sp) external onlyOwner {
+        emit SuperPaymasterUpdated(SUPERPAYMASTER, _sp);
+        SUPERPAYMASTER = _sp;
+    }
+
+    function setDVTValidator(address _dv) external onlyOwner {
+        emit DVTValidatorUpdated(DVT_VALIDATOR, _dv);
+        DVT_VALIDATOR = _dv;
+    }
 
     /**
      * @notice Set minimum consensus threshold (global floor)

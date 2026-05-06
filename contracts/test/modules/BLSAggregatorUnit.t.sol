@@ -267,6 +267,18 @@ contract BLSAggregatorUnitTest is Test {
         new BLSAggregator(address(0), sp, dvt);
     }
 
+    /// @notice B6-N3: constructor must reject zero _superPaymaster
+    function test_Constructor_ZeroSuperPaymaster_Reverts() public {
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidAddress.selector, address(0)));
+        new BLSAggregator(address(registry), address(0), dvt);
+    }
+
+    /// @notice B6-N3: constructor must reject zero _dvtValidator
+    function test_Constructor_ZeroDVTValidator_Reverts() public {
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidAddress.selector, address(0)));
+        new BLSAggregator(address(registry), sp, address(0));
+    }
+
     function test_Constructor_InitialState() public view {
         assertEq(bls.SUPERPAYMASTER(), sp);
         assertEq(bls.DVT_VALIDATOR(), dvt);
