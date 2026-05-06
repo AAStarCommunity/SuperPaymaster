@@ -9,6 +9,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 
 // --- Mocks ---
@@ -69,6 +70,7 @@ contract SuperPaymaster_SecurityTest is Test {
     MockEntryPointSec entryPoint;
     MockERC20Sec token;
     MockAggregatorV3Sec oracle;
+    MockXPNTsFactory mockFactory;
 
     address owner = address(1);
     address operator; // Changed to be derived from operatorKey
@@ -108,9 +110,16 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // 4. Configure Operator (Deposit & Setup)
         token.transfer(operator, 100 ether);
-        
+
         vm.prank(owner);
         paymaster.setAPNTsToken(address(token));
+
+        // Deploy mock factory and register operator token (P1-4 fix, must be owner)
+        vm.startPrank(owner);
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        vm.stopPrank();
+        mockFactory.setToken(operator, address(token));
 
         vm.startPrank(operator);
         token.approve(address(paymaster), 100 ether);

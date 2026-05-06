@@ -12,6 +12,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 // Reusing Mocks from SuperPaymasterV3.t.sol logic but localized for clarity
 contract MockRegistryV2 is IRegistry {
@@ -105,7 +106,8 @@ contract SuperPaymasterPricingV2Test is Test {
     MockRegistryV2 registry;
     MockAggregatorV3Spy priceFeed;
     MockEntryPointV2 entryPoint;
-    
+    MockXPNTsFactory mockFactory;
+
     address owner = address(1);
     address operator = vm.addr(0xBEEF);
     address user = address(3);
@@ -139,6 +141,11 @@ contract SuperPaymasterPricingV2Test is Test {
         registry.grantRole(keccak256("PAYMASTER_SUPER"), operator);
         registry.grantRole(keccak256("COMMUNITY"), operator);
         registry.grantRole(keccak256("ENDUSER"), user);
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator, address(apnts));
 
         // Fund Operator & Config
         apnts.mint(operator, 100000 ether);

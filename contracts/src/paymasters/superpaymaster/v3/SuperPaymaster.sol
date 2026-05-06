@@ -166,8 +166,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event DebtRecordFailed(address indexed token, address indexed user, uint256 amount);
     event PendingDebtRetried(address indexed token, address indexed user, uint256 amount);
     event PendingDebtCleared(address indexed token, address indexed user, uint256 amount);
-    // AgentSponsorshipApplied removed — _applyAgentSponsorship is V5.1 only (not yet wired)
-
     error Unauthorized();
     error InvalidAddress();
     error InvalidConfiguration();
@@ -264,11 +262,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             revert InvalidConfiguration();
         }
 
-        // V3.6 SECURITY: Enforce Binding with Factory
-        if (xpntsFactory != address(0)) {
-            address validToken = IxPNTsFactory(xpntsFactory).getTokenAddress(msg.sender);
-            if (validToken != xPNTsToken) revert InvalidXPNTsToken();
-        }
+        // P1-4: Factory binding is always required — configuring an arbitrary ERC20
+        // before the factory is set would bypass the community token validation.
+        address factory = xpntsFactory;
+        if (factory == address(0)) revert InvalidConfiguration();
+        address validToken = IxPNTsFactory(factory).getTokenAddress(msg.sender);
+        if (validToken != xPNTsToken) revert InvalidXPNTsToken();
 
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
@@ -1244,7 +1243,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @notice Retry recording a pending debt that failed during postOp
     /// @param token The xPNTs token address
     /// @param user The user address
-    function retryPendingDebt(address token, address user) external nonReentrant {
+    function retryPendingDebt(address token, address user) external onlyOwner nonReentrant {
         uint256 amount = pendingDebts[token][user];
         if (amount == 0) revert NoPendingDebt();
         delete pendingDebts[token][user];
@@ -1282,12 +1281,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(bytes32 => bool) public x402SettlementNonces;
     mapping(address => mapping(address => uint256)) public facilitatorEarnings; // operator => asset => amount
 
-    // F1: Agent Sponsorship Policy
-    mapping(address => ISuperPaymaster.AgentSponsorshipPolicy[]) public agentPolicies; // operator => policies
-    mapping(address => mapping(uint256 => uint256)) private _agentDailySpend; // operator => day => USD spent
-
     // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
-    // Slots 27-28 (after _agentDailySpend at slot 26). __gap reduced from 40 to 38.
     /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
     address public pendingAPNTsToken;
     /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
@@ -1341,6 +1335,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         operatorFacilitatorFees[operator] = _fee;
     }
 
+    /// @notice P1-39: Returns the effective facilitator fee for an operator.
+    /// @dev Per-operator override takes precedence over the global default.
+    function getEffectiveFacilitatorFee(address operator) external view returns (uint256) {
+        uint256 override_ = operatorFacilitatorFees[operator];
+        return override_ != 0 ? override_ : facilitatorFeeBPS;
+    }
+
     /// @notice Withdraw accumulated facilitator earnings
     function withdrawFacilitatorEarnings(address asset) external nonReentrant {
         uint256 amount = facilitatorEarnings[msg.sender][asset];
@@ -1367,41 +1368,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return bal > 0;
         } catch {
             return false;
-        }
-    }
-
-    uint256 internal constant MAX_AGENT_POLICIES = 10;
-
-    /// @notice Set agent sponsorship policies for an operator (sorted by minReputationScore desc)
-    function setAgentPolicies(ISuperPaymaster.AgentSponsorshipPolicy[] calldata policies) external override {
-        _requireSuperOperatorRole();
-        if (policies.length > MAX_AGENT_POLICIES) revert InvalidConfiguration();
-        delete agentPolicies[msg.sender];
-        for (uint256 i = 0; i < policies.length; i++) {
-            if (policies[i].sponsorshipBPS > BPS_DENOMINATOR) revert InvalidConfiguration();
-            agentPolicies[msg.sender].push(policies[i]);
-        }
-        emit AgentPoliciesUpdated(msg.sender, policies.length);
-    }
-
-    /// @notice Get the sponsorship rate for an agent from an operator
-    /// @return bps Sponsorship rate in basis points (0 = no sponsorship)
-    function getAgentSponsorshipRate(address agent, address operator) external view override returns (uint256 bps) {
-        if (!isRegisteredAgent(agent)) return 0;
-        uint256 agentScore;
-        address repReg = agentReputationRegistry;
-        if (repReg != address(0)) {
-            address[] memory empty = new address[](0);
-            (, int128 avg) = IAgentReputationRegistry(repReg).getSummary(
-                uint256(uint160(agent)), empty, bytes32(0), bytes32(0)
-            );
-            if (avg > 0) agentScore = uint256(int256(avg));
-        }
-        ISuperPaymaster.AgentSponsorshipPolicy[] storage policies = agentPolicies[operator];
-        for (uint256 i = 0; i < policies.length; i++) {
-            if (agentScore >= policies[i].minReputationScore && policies[i].sponsorshipBPS > bps) {
-                bps = policies[i].sponsorshipBPS;
-            }
         }
     }
 
@@ -1511,6 +1477,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34.
-    uint256[34] private __gap;
+    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34; +2 from F1 policy deletion = 36.
+    uint256[36] private __gap;
 }

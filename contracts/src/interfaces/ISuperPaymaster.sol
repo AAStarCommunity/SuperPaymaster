@@ -39,13 +39,6 @@ interface ISuperPaymaster is IVersioned {
         SlashLevel level;
     }
 
-    // V5: Agent Sponsorship Policy (tiered sponsorship for ERC-8004 agents)
-    struct AgentSponsorshipPolicy {
-        uint128 minReputationScore;
-        uint64  sponsorshipBPS;   // 10000 = 100%
-        uint64  maxDailyUSD;      // USD * 1e6
-    }
-
     // ============ Events ============
 
     event OperatorDeposited(address indexed operator, uint256 amount);
@@ -56,8 +49,7 @@ interface ISuperPaymaster is IVersioned {
     event ReputationUpdated(address indexed operator, uint256 newScore);
     // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
 
-    // V5: Agent Sponsorship & x402 Events
-    event AgentPoliciesUpdated(address indexed operator, uint256 policyCount);
+    // V5: x402 Events
     event X402PaymentSettled(address indexed from, address indexed to, address asset, uint256 amount, uint256 fee, bytes32 nonce);
 
     // ============ Functions ============
@@ -111,10 +103,6 @@ interface ISuperPaymaster is IVersioned {
     function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
     function updateSBTStatus(address user, bool status) external;
-
-    // V5: Agent Sponsorship Policy
-    function setAgentPolicies(AgentSponsorshipPolicy[] calldata policies) external;
-    function getAgentSponsorshipRate(address agent, address operator) external view returns (uint256 bps);
 
     // V5.3: Dual-channel eligibility
     function isEligibleForSponsorship(address user) external view returns (bool);

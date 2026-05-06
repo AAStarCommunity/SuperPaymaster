@@ -6,6 +6,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
@@ -14,7 +15,8 @@ contract SuperPaymasterRefundTest is Test {
     Registry registry;
     MockERC20 aPNTs;
     MockERC20 xPNTs;
-    
+    MockXPNTsFactory mockFactory;
+
     address owner = address(1);
     address operator = address(2);
     address user = address(3);
@@ -47,8 +49,13 @@ contract SuperPaymasterRefundTest is Test {
             abi.encode(1000000 ether) // High limit
         );
         
+        // Deploy mock factory and register operator token (must be called as owner)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
         vm.stopPrank();
-        
+
+        mockFactory.setToken(operator, address(xPNTs));
+
         // Setup Operator
         vm.startPrank(operator);
         aPNTs.mint(operator, 1000000 ether); // 1M tokens

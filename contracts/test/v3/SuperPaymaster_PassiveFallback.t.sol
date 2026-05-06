@@ -8,6 +8,7 @@ import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 // --- Minimal Mocks ---
 
@@ -99,6 +100,7 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
     MockFailingPriceFeed priceFeed;
     MockEntryPointV3 entryPoint;
     MockXPNTsToken xpnts;
+    MockXPNTsFactory mockFactory;
     
     event OracleFallbackTriggered(uint256 timestamp);
     
@@ -123,7 +125,12 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
         
         // Setup initial cache
         paymaster.updatePrice();
-        
+
+        // Deploy mock factory and register operator token (owner = address(this))
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(address(this), address(xpnts));
+
         // Setup Operator Config (Required for refund/debt logic)
         // Must be PAYMASTER_SUPER role. RegistryStub always returns true.
         // We need to configure operator to set exchangeRate etc.
