@@ -83,18 +83,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         re-opening the drain path to the original compromised address.
     address public emergencyRevokedAddress;
 
-    /// @notice Community-controlled whitelist of x402 facilitators.
-    /// @dev    P0-12b (D4): SuperPaymaster.settleX402PaymentDirect requires
-    ///         `msg.sender` (the facilitator / operator) to be listed here in
-    ///         addition to having `ROLE_PAYMASTER_SUPER`. This lets each
-    ///         community decide which facilitators are trusted with their own
-    ///         users' xPNTs balances, instead of trusting a single global
-    ///         autoApproved spender across all communities. Distinct from
-    ///         `autoApprovedSpenders` (ERC20 transferFrom firewall): this
-    ///         mapping authorizes settle-time invocation, not transfer-time
-    ///         allowance. The two are intentionally orthogonal.
-    mapping(address => bool) public approvedFacilitators;
-
     /// @notice Ensures a UserOperation hash is only used once for payment.
     mapping(bytes32 => bool) public usedOpHashes;
 
