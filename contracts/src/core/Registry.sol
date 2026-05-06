@@ -18,7 +18,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.2.0";
+        return "Registry-5.3.0";
     }
 
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -80,7 +80,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     error InvalidAddr();
     error UnauthorizedSource();
     error LenMismatch();
-    error BLSProofRequired();
     error InsufficientConsensus();
     error InvalidProposalId();
     error ProposalAlreadyExecuted();
@@ -430,27 +429,63 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
+    /// @notice Apply a DVT-consensus blacklist update to a SuperPaymaster operator.
+    /// @dev    P0-3 (B6-C2 + Codex B-N4) hardening — anonymous-callable + replay
+    ///         vectors closed:
+    ///         (1) Caller is restricted to the wired `blsAggregator`. Pre-fix
+    ///             any address registered as `isReputationSource` could call
+    ///             this — a much wider trust surface than DVT consensus.
+    ///         (2) `proof.length == 0` is rejected. Pre-fix the BLS check was
+    ///             skipped entirely when `blsValidator == address(0)` OR when
+    ///             the caller passed an empty proof.
+    ///         (3) The signed message hash now binds `block.chainid` and a
+    ///             monotonic `blacklistNonce` so a legitimate proof from one
+    ///             chain or a previous call cannot be replayed on this chain.
+    ///         The proof wire format matches every other aggregator-routed
+    ///         path: `abi.encode(uint256 signerMask, bytes sigG2)`.
     function updateOperatorBlacklist(
         address operator,
         address[] calldata users,
         bool[] calldata statuses,
         bytes calldata proof
     ) external nonReentrant {
-        // NOTE: Caller restriction + mandatory proof + chainid binding are
-        // tightened in P0-3 (B6-C2 + Codex B-N4). This commit only swaps the
-        // deleted `blsValidator` reference for the aggregator path so the
-        // contract compiles without the deleted interface.
-        if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
+        // (1) Only the wired BLS aggregator may invoke. Reading the slot once
+        //     also doubles as a `blsAggregator != address(0)` check — if the
+        //     wiring is incomplete, msg.sender cannot equal address(0) (the
+        //     EVM forbids it for external calls), so the strict-equality check
+        //     fails closed.
+        address aggregator = blsAggregator;
+        if (msg.sender != aggregator) revert UnauthorizedSource();
+
         if (users.length != statuses.length) revert LenMismatch();
         if (SUPER_PAYMASTER == address(0)) revert SPNotSet();
 
-        if (blsAggregator != address(0) && proof.length > 0) {
-            (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
-            uint256 threshold = IBLSAggregator(blsAggregator).defaultThreshold();
-            bytes32 messageHash = keccak256(abi.encode(operator, users, statuses));
-            if (!IBLSAggregator(blsAggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
-                revert BLSFailed();
-            }
+        // (2) Proof is mandatory — no soft skip.
+        if (proof.length == 0) revert BLSProofRequired();
+
+        // (3) Bind chainid + per-Registry monotonic nonce into the message
+        //     hash. Bumping the nonce BEFORE the verify call makes the
+        //     committed value match the post-state, so the same proof can
+        //     never satisfy this contract twice.
+        /// @dev Nonce is incremented before signature verification (nonce-before-verify design).
+        ///      If verify() reverts, the nonce still advances; the next submission must use
+        ///      blacklistNonce+1. This is intentional: it prevents signature replay by ensuring
+        ///      each BLS proof is single-use regardless of execution outcome.
+        uint256 nonce = blacklistNonce + 1;
+        blacklistNonce = nonce;
+
+        bytes32 messageHash = keccak256(abi.encode(
+            block.chainid,
+            nonce,
+            operator,
+            users,
+            statuses
+        ));
+
+        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
+        uint256 threshold = IBLSAggregator(aggregator).defaultThreshold();
+        if (!IBLSAggregator(aggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
+            revert BLSFailed();
         }
 
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
@@ -567,5 +602,15 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    uint256[50] private __gap;
+    /// @notice Monotonic nonce committed into every blacklist BLS message hash.
+    /// @dev    P0-3 (Codex B-N4): without a per-Registry monotonic counter, a
+    ///         legitimate proof issued for one (operator, users, statuses) tuple
+    ///         could be replayed verbatim against the same tuple on the same
+    ///         chain. Bumping `blacklistNonce` inside `updateOperatorBlacklist`
+    ///         breaks the replay window — every successful call advances the
+    ///         counter so the next message hash is fresh.
+    uint256 public blacklistNonce;
+
+    /// @dev __gap reduced from 50 to 49 to make room for `blacklistNonce`.
+    uint256[49] private __gap;
 }

@@ -53,6 +53,13 @@ interface IRegistry is IVersioned {
 
 
     // ====================================
+    // Errors
+    // ====================================
+
+    /// @notice BLS proof is required to update the operator blacklist.
+    error BLSProofRequired();
+
+    // ====================================
     // Events
     event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
     event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);

@@ -13,6 +13,7 @@ import "../../src/tokens/MySBT.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import "../../src/mocks/MockBLSAggregator.sol";
 
 contract MockAggregator is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -51,12 +52,21 @@ contract BlacklistSyncTest is Test {
     MySBT mysbt;
     MockEntryPoint entryPoint;
     MockAggregator priceFeed;
+    MockBLSAggregator mockAggregator;
 
     address owner = address(1);
-    address dvtNode = address(2); // Trusted Reputation Source
+    address dvtNode = address(2); // Legacy: kept for now, no longer privileged for blacklist
     address operator = address(3);
     address maliciousUser = address(4);
     address treasury = address(5);
+
+    /// @dev P0-3: caller must be the wired BLS aggregator.
+    function _aggregator() internal view returns (address) { return address(mockAggregator); }
+
+    /// @dev Build a non-empty proof matching the aggregator's expected ABI.
+    function _proof() internal pure returns (bytes memory) {
+        return abi.encode(uint256(0x7F), new bytes(256));
+    }
 
     function setUp() public {
         vm.warp(block.timestamp + 1 days);
@@ -83,7 +93,14 @@ contract BlacklistSyncTest is Test {
         registry.setSuperPaymaster(address(paymaster));
         apnts.setSuperPaymasterAddress(address(paymaster));
 
-        // 4. Setup Roles
+        // 4. Wire a permissive mock BLS aggregator. P0-3 restricts the
+        //    blacklist endpoint to msg.sender == blsAggregator, so we route
+        //    every test call through this address.
+        mockAggregator = new MockBLSAggregator();
+        registry.setBLSAggregator(address(mockAggregator));
+
+        // 5. Setup Roles (kept for backward-compat with other suites; no
+        //    longer required for blacklist auth post-P0-3).
         registry.setReputationSource(dvtNode, true);
         
         // Register Operator (Community + Paymaster)
@@ -126,8 +143,8 @@ contract BlacklistSyncTest is Test {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
         
-        vm.prank(dvtNode);
-        registry.updateOperatorBlacklist(operator, users, statuses, ""); // Empty proof for now (Mock BLS validator)
+        vm.prank(_aggregator());
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
 
         // 3. Verify Blocked in Paymaster
         // 3. Verify Blocked in Paymaster
@@ -160,17 +177,17 @@ contract BlacklistSyncTest is Test {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
         
-        vm.prank(dvtNode);
-        registry.updateOperatorBlacklist(operator, users, statuses, "");
-        
-        
+        vm.prank(_aggregator());
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
+
+
         (, bool blocked1) = paymaster.userOpState(operator, maliciousUser);
         assertTrue(blocked1);
 
         // Unblock
         statuses[0] = false;
-        vm.prank(dvtNode);
-        registry.updateOperatorBlacklist(operator, users, statuses, "");
+        vm.prank(_aggregator());
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
         
         
         (, bool blocked2) = paymaster.userOpState(operator, maliciousUser);
@@ -184,15 +201,25 @@ contract BlacklistSyncTest is Test {
     }
 
     function test_Revert_UnauthorizedSource() public {
-        address hacker = address(0xdead);
+        // Anonymous-ish caller (still happens to be a reputation source under
+        // pre-P0-3 code; under the new caller gate ANY non-aggregator address
+        // must revert).
         address[] memory users = new address[](1);
         users[0] = maliciousUser;
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
 
+        // Try the legacy reputation-source caller — must now revert because
+        // P0-3 narrowed the gate to `msg.sender == blsAggregator` only.
+        vm.prank(dvtNode);
+        vm.expectRevert(Registry.UnauthorizedSource.selector);
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
+
+        // And an arbitrary attacker also reverts.
+        address hacker = address(0xdead);
         vm.prank(hacker);
         vm.expectRevert(Registry.UnauthorizedSource.selector);
-        registry.updateOperatorBlacklist(operator, users, statuses, "");
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
     }
 
     function _createOp(address sender) internal view returns (PackedUserOperation memory) {
