@@ -68,7 +68,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     int256 internal constant MAX_ETH_USD_PRICE = 100_000 * 1e8;
     /// @notice Grace window (seconds) for keeper clock skew on `updatedAt` checks.
     ///         Matches PaymasterBase.TIMESTAMP_GRACE_SECONDS to keep both modes in sync.
-    uint256 public constant TIMESTAMP_GRACE_SECONDS = 15;
+    uint256 internal constant TIMESTAMP_GRACE_SECONDS = 15;
 
     uint256 public aPNTsPriceUSD = 0.02 ether; // $0.02 (18 decimals)
 
@@ -308,7 +308,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         After 7 days without Chainlink recovery the break-glass is
     ///         considered expired; `emergencySetPrice` will revert to prevent
     ///         an indefinitely-live manual-override regime.
-    uint256 public constant EMERGENCY_EXPIRY = 7 days;
+    uint256 internal constant EMERGENCY_EXPIRY = 7 days;
 
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`

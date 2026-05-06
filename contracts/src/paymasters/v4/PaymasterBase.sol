@@ -519,7 +519,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     function setCachedPrice(uint256 price, uint48 timestamp) external onlyOwner {
         if (price == 0) revert Paymaster__InvalidOraclePrice();
         if (price < CACHED_PRICE_MIN || price > CACHED_PRICE_MAX) revert Paymaster__InvalidOraclePrice();
-        if (timestamp > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert Paymaster__InvalidOraclePrice();
+        if (timestamp > block.timestamp) revert Paymaster__InvalidOraclePrice(); // admin: no grace period
         uint256 oldPrice = cachedPrice.price;
         if (oldPrice != 0) {
             uint256 lower = oldPrice * (BPS_DENOMINATOR - CACHED_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
