@@ -156,7 +156,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     );
     event PriceUpdated(uint256 price, uint256 updatedAt);
     event StalenessThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
-    event PriceUpdateFailed(bytes reason);
+    event PriceUpdateFailed(); // no payload: avoid expensive bytes alloc in gas-critical postOp path
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                         CONSTANTS                          */
@@ -331,7 +331,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             cachedPrice.updatedAt > block.timestamp ||
             block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold
         ) {
-             try this.updatePrice() {} catch (bytes memory reason) { emit PriceUpdateFailed(reason); }
+             try this.updatePrice() {} catch { emit PriceUpdateFailed(); }
              useRealtime = true;
         }
 
