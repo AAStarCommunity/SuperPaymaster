@@ -33,8 +33,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     IMySBT public MYSBT;
     address public SUPER_PAYMASTER;
     address public blsAggregator;
-    /// @custom:oz-renamed-from blsValidator
-    /// @dev P0-1: standalone BLSValidator contract was deleted because its
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     /// @notice Registry-side cache of locked stake amounts per (role, user).
