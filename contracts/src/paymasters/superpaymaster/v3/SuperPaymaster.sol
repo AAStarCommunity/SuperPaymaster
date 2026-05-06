@@ -1354,10 +1354,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address repReg = agentReputationRegistry;
         if (repReg != address(0)) {
             address[] memory empty = new address[](0);
-            (, int128 avg) = IAgentReputationRegistry(repReg).getSummary(
+            try IAgentReputationRegistry(repReg).getSummary(
                 uint256(uint160(agent)), empty, bytes32(0), bytes32(0)
-            );
-            if (avg > 0) agentScore = uint256(int256(avg));
+            ) returns (uint64, int128 avg) {
+                if (avg > 0) agentScore = uint256(int256(avg));
+            } catch {}
         }
         ISuperPaymaster.AgentSponsorshipPolicy[] storage policies = agentPolicies[operator];
         for (uint256 i = 0; i < policies.length; i++) {

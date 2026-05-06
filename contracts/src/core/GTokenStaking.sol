@@ -329,7 +329,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     ///      `getLockedStake` / Registry.getEffectiveStake for fresh reads).
     function _syncRegistry(address user, bytes32 roleId, uint256 newAmount) internal {
         if (REGISTRY == address(0)) return;
-        try IRegistry(REGISTRY).syncStakeFromStaking(user, roleId, newAmount) {} catch {}
+        try IRegistry(REGISTRY).syncStakeFromStaking(user, roleId, newAmount) {} catch (bytes memory reason) {
+            emit SyncFailed(REGISTRY, reason);
+        }
     }
 
     function _previewExitFee(address /* user */, bytes32 roleId, uint256 amount) internal view returns (uint256 fee, uint256 net) {
