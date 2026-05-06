@@ -34,6 +34,6 @@ jobs:
           path-to-signatures: 'signatures/cla.json'
           path-to-document: 'https://github.com/AAStarCommunity/Brood/blob/main/protocol/CLA.md'
           branch: 'cla-signatures'
-          allowlist: bot*,dependabot[bot],github-actions[bot]
+          allowlist: bot*,dependabot[bot],github-actions[bot],jhfnetboy,fanhousanbu,chatgpt-codex-connector
           remote-organization-name: AAStarCommunity
           remote-repository-name: Brood
