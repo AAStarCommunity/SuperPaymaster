@@ -213,7 +213,6 @@ contract SuperPaymasterHardenVerification is Test {
         // Simulate EntryPoint calling postOp
         bytes memory context = abi.encode(
             address(mal),
-            1 ether,
             address(0xabc),
             1 ether,
             bytes32(0),

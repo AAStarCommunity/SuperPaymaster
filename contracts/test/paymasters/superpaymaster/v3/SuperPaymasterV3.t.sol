@@ -361,11 +361,11 @@ contract SuperPaymasterTest is Test {
         vm.stopPrank();
 
         assertEq(uint160(validationData), 0, "Validation should pass via Credit");
-        (address token, uint256 xAmount, address u, uint256 aAmount, bytes32 h, address opAddr) = abi.decode(context, (address, uint256, address, uint256, bytes32, address));
+        (address token, address u, uint256 aAmount, bytes32 h, address opAddr) = abi.decode(context, (address, address, uint256, bytes32, address));
         assertEq(token, address(apnts));
         assertEq(opAddr, operator);
         assertEq(u, user);
-        assertGt(xAmount, 0);
+        assertGt(aAmount, 0);
     }
 
     function _createOp(address sender) internal view returns (PackedUserOperation memory) {
