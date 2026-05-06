@@ -237,10 +237,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // (deployed later via setAPNTsToken which has its own zero-address check)
         APNTS_TOKEN = _apntsToken;
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
-        uint256 staleness = (_priceStalenessThreshold >= 60 && _priceStalenessThreshold <= 86400)
-            ? _priceStalenessThreshold
-            : 3600;
-        priceStalenessThreshold = staleness;
+        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
         // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
         aPNTsPriceUSD = 0.02 ether;
         protocolFeeBPS = 1000;
@@ -377,9 +374,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         so bound the unit slack to a generous but finite range and cap
     ///         per-update drift to ±10% to limit the blast of a misclick or
     ///         partially-compromised owner key.
-    uint256 public constant APNTS_PRICE_MIN = 1e15;       // 0.001 ether per aPNTs
-    uint256 public constant APNTS_PRICE_MAX = 1e21;       // 1000 ether per aPNTs
-    uint256 public constant APNTS_PRICE_DELTA_BPS = 1000; // 10%
+    uint256 internal constant APNTS_PRICE_MIN = 1e15;       // 0.001 ether per aPNTs
+    uint256 internal constant APNTS_PRICE_MAX = 1e21;       // 1000 ether per aPNTs
+    uint256 internal constant APNTS_PRICE_DELTA_BPS = 1000; // 10%
 
     /**
      * @notice Set the APNTS Price in USD (Owner Only)
@@ -402,18 +399,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      *      the deviation limit of the other.
      */
     function setAPNTSPrice(uint256 newPrice) external onlyOwner {
-        if (newPrice == 0) revert InvalidConfiguration();
+        // APNTS_PRICE_MIN > 0, so this also rejects newPrice == 0.
         if (newPrice < APNTS_PRICE_MIN || newPrice > APNTS_PRICE_MAX) revert InvalidConfiguration();
         uint256 oldPrice = aPNTsPriceUSD;
-        // Delta skip when aPNTsPriceUSD == 0: relies on initialize() setting a
-        // non-zero initial price (currently 0.02 ether). If a future upgrade
-        // corrupts storage layout and zeroes this slot, the delta guard is
-        // bypassed for the first write after the upgrade, allowing a jump
-        // straight to any value within [APNTS_PRICE_MIN, APNTS_PRICE_MAX].
+        // Delta guard skipped when oldPrice == 0 (first write after deploy/upgrade).
         // Mitigation: always verify aPNTsPriceUSD > 0 in post-upgrade checks.
         if (oldPrice != 0) {
-            uint256 lower = oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
-            uint256 upper = oldPrice * (BPS_DENOMINATOR + APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            uint256 lower;
+            uint256 upper;
+            unchecked {
+                lower = oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+                upper = oldPrice * (BPS_DENOMINATOR + APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+            }
             if (newPrice < lower || newPrice > upper) revert InvalidConfiguration();
         }
         aPNTsPriceUSD = newPrice;
@@ -440,16 +437,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     function setXPNTsFactory(address _factory) external onlyOwner {
         xpntsFactory = _factory;
-    }
-
-    /**
-     * @notice Set the price staleness threshold (Owner Only)
-     * @dev Bounds: [60, 86400] seconds. 0 would expire all prices instantly;
-     *      values > 1 day would let a stale oracle go undetected.
-     */
-    function setPriceStalenessThreshold(uint256 val) external onlyOwner {
-        if (val < 60 || val > 86400) revert InvalidConfiguration();
-        priceStalenessThreshold = val;
     }
 
     // ====================================
