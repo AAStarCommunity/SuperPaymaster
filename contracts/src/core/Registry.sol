@@ -35,12 +35,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     address public blsAggregator;
     /// @custom:oz-renamed-from blsValidator
     /// @dev P0-1: standalone BLSValidator contract was deleted because its
-    ///      pairing equation accepted a caller-supplied pkAgg and could be
-    ///      forged. Storage slot is preserved (UUPS) but the field is unused;
-    ///      every BLS verification path now routes through `blsAggregator`
-    ///      which reconstructs pkAgg from on-chain validator keys.
-    address public __deprecated_blsValidator;
-
     mapping(bytes32 => RoleConfig) public roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     /// @notice Registry-side cache of locked stake amounts per (role, user).
@@ -611,6 +605,5 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ///         counter so the next message hash is fresh.
     uint256 public blacklistNonce;
 
-    /// @dev __gap reduced from 50 to 49 to make room for `blacklistNonce`.
-    uint256[49] private __gap;
+    uint256[50] private __gap;
 }
