@@ -494,9 +494,9 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = ethUsdPriceFeed.latestRoundData();
         if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
-        if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
+        if (updatedAt == 0 || updatedAt > block.timestamp) revert Paymaster__InvalidOraclePrice();
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
-        if (block.timestamp > priceStalenessThreshold && updatedAt < block.timestamp - priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
+        if (block.timestamp - updatedAt > priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }
