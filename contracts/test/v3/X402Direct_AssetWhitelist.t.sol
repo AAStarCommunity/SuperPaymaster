@@ -51,6 +51,7 @@ contract X402Direct_AssetWhitelistTest is Test {
 
     address owner = address(0xA11CE);
     address operator = address(0xB0B);
+    address community = address(0xC0FFEE); // separate communityOwner (P0-12b: cannot self-add)
     address payee = address(0xCAFE);
 
     bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
@@ -82,28 +83,27 @@ contract X402Direct_AssetWhitelistTest is Test {
         vm.warp(block.timestamp + 2 hours);
         paymaster.updatePrice();
 
-        // Operator gets PAYMASTER_SUPER + COMMUNITY roles (so it can act as facilitator)
+        // Operator gets PAYMASTER_SUPER role (acts as facilitator that calls settle).
+        // Community gets COMMUNITY role (deploys xPNTs and owns it).
+        // P0-12b: communityOwner cannot self-add as facilitator → separate addresses.
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
             .with_key(ROLE_PAYMASTER_SUPER).with_key(operator).checked_write(true);
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
-            .with_key(ROLE_COMMUNITY).with_key(operator).checked_write(true);
+            .with_key(ROLE_COMMUNITY).with_key(community).checked_write(true);
 
         vm.stopPrank();
     }
 
-    /// @dev Have `operator` deploy an xPNTs via the factory (registers it in
-    ///      the isXPNTs whitelist) and mint balance + auto-approve facilitator.
+    /// @dev `community` deploys an xPNTs via the factory (becomes communityOwner),
+    ///      then approves `operator` as facilitator. P0-12b prevents self-add,
+    ///      so the two addresses must be distinct.
     function _deployXPNTsForOperator() internal returns (xPNTsToken token) {
-        vm.prank(operator);
+        vm.prank(community);
         address tokenAddr = factory.deployxPNTsToken("OpPNTs", "oPNTs", "OpCommunity", "op.eth", 1 ether, address(0));
         token = xPNTsToken(tokenAddr);
 
-        // Add operator (the facilitator) to autoApprovedSpenders so transferFrom passes
-        vm.prank(operator); // operator is the communityOwner of this token
-        token.addAutoApprovedSpender(operator);
-
-        // P0-12b: also approve operator as a facilitator for x402 Direct settle.
-        vm.prank(operator);
+        // P0-12b: communityOwner approves operator as facilitator.
+        vm.prank(community);
         token.addApprovedFacilitator(operator);
     }
 
@@ -146,7 +146,7 @@ contract X402Direct_AssetWhitelistTest is Test {
         xPNTsToken token = _deployXPNTsForOperator();
 
         address user = address(0xFEED);
-        vm.prank(operator); // mint via communityOwner
+        vm.prank(community); // mint via communityOwner
         token.mint(user, 100 ether);
 
         vm.prank(operator);
@@ -250,7 +250,7 @@ contract X402Direct_AssetWhitelistTest is Test {
         xPNTsToken token = _deployXPNTsForOperator();
 
         address user = address(0xFEED2);
-        vm.prank(operator);
+        vm.prank(community);
         token.mint(user, 200 ether);
 
         bytes32 nonce = bytes32(uint256(777));

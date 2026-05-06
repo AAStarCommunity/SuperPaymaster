@@ -1427,6 +1427,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///           firewall + per-tx cap; arbitrary ERC20s do not);
     ///         - any single global facilitator compromise would blast across
     ///           every community's xPNTs.
+    ///         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).
     /// @dev    settlementId uses abi.encode (not encodePacked), matching the
     ///         x402NonceKey encoding to avoid hash-collision with variable-length types.
     /// @dev    P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.
