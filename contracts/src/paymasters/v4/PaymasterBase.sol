@@ -381,7 +381,10 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         
         if (useRealtime) {
             // PostOp: Get Realtime Price
-            (, ethUsdPrice,, updatedAt,) = ethUsdPriceFeed.latestRoundData();
+            (uint80 roundId, int256 _price,, uint256 _updatedAt, uint80 answeredInRound) = ethUsdPriceFeed.latestRoundData();
+            if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
+            ethUsdPrice = _price;
+            updatedAt = _updatedAt;
             if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
         } else {
             // Validation: Get Cached Price
@@ -474,12 +477,6 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         return Math.mulDiv(partA, 10 ** tDecimals, denominator);
     }
 
-    /// @notice External wrapper for try/catch in postOp (Legacy)
-    function getRealtimeTokenCost(uint256 gasCost, address token) external view returns (uint256) {
-        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData(); 
-        return _calculateTokenCost(gasCost, token, true);
-    }
-
     /// @notice External wrapper that respects the Realtime Flag (New Optimization)
     function calculateCost(uint256 gasCost, address token, bool useRealtime) external view returns (uint256) {
         if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData();
@@ -492,7 +489,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Update cached price from Oracle (Keeper only)
     function updatePrice() external {
-        (, int256 price,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = ethUsdPriceFeed.latestRoundData();
+        if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
         if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
