@@ -218,26 +218,58 @@ Current state after all fixes:
 
 ### 5.4 Constant table for integrators
 
-The following constants were made `internal` and are no longer ABI-readable. SDK and off-chain tools must use these hardcoded values:
+The following constants were made `internal` and are no longer ABI-readable. SDK and off-chain tools must hardcode these values.
 
-| Constant | Value |
-|----------|-------|
-| `DRYRUN_PAYMASTER_NOT_REGISTERED` | `keccak256("DRYRUN_PAYMASTER_NOT_REGISTERED")[:32]` |
-| `DRYRUN_OPERATOR_PAUSED` | `keccak256("DRYRUN_OPERATOR_PAUSED")[:32]` |
-| `DRYRUN_INSUFFICIENT_BALANCE` | `keccak256("DRYRUN_INSUFFICIENT_BALANCE")[:32]` |
-| `DRYRUN_INVALID_XPNTS_TOKEN` | `keccak256("DRYRUN_INVALID_XPNTS_TOKEN")[:32]` |
-| `DRYRUN_XPNTS_BURN_FAILED` | `keccak256("DRYRUN_XPNTS_BURN_FAILED")[:32]` |
-| `DRYRUN_SUCCESS` | `keccak256("DRYRUN_SUCCESS")[:32]` |
-| `PRICE_CACHE_DURATION` | `300` (seconds) |
-| `PAYMASTER_DATA_OFFSET` | `52` |
-| `RATE_OFFSET` | `72` |
-| `BPS_DENOMINATOR` | `10000` |
-| `MAX_PROTOCOL_FEE` | `2000` (20%) |
-| `VALIDATION_BUFFER_BPS` | `1000` (10%) |
-| `CHAINLINK_STALE_THRESHOLD` | `3600` (1 hour) |
-| `EMERGENCY_PRICE_DEVIATION_BPS` | `2000` (20%) |
+> **Implementation note**: DRYRUN_* constants are `bytes32(string)` — ASCII left-aligned, right-padded with zeros. They are **NOT** keccak256 hashes.
 
-> **Note**: The actual `bytes32` values for DRYRUN_* constants should be obtained by running `forge test --match-test test_DryRun -vvvv` and reading the logged values from `DryRunValidation.t.sol`.
+#### DRYRUN_* reason codes (returned by `dryRunValidation`)
+
+| Constant | bytes32 hex value | String |
+|----------|-------------------|--------|
+| `DRYRUN_OK` | `0x0000000000000000000000000000000000000000000000000000000000000000` | (zero = success) |
+| `DRYRUN_OPERATOR_NOT_CONFIGURED` | `0x4f50455241544f525f4e4f545f434f4e46494755524544000000000000000000` | `"OPERATOR_NOT_CONFIGURED"` |
+| `DRYRUN_OPERATOR_PAUSED` | `0x4f50455241544f525f5041555345440000000000000000000000000000000000` | `"OPERATOR_PAUSED"` |
+| `DRYRUN_USER_NOT_ELIGIBLE` | `0x555345525f4e4f545f454c494749424c45000000000000000000000000000000` | `"USER_NOT_ELIGIBLE"` |
+| `DRYRUN_USER_BLOCKED` | `0x555345525f424c4f434b45440000000000000000000000000000000000000000` | `"USER_BLOCKED"` |
+| `DRYRUN_RATE_LIMITED` | `0x524154455f4c494d495445440000000000000000000000000000000000000000` | `"RATE_LIMITED"` |
+| `DRYRUN_RATE_COMMITMENT_VIOLATED` | `0x524154455f434f4d4d49544d454e545f56494f4c415445440000000000000000` | `"RATE_COMMITMENT_VIOLATED"` |
+| `DRYRUN_INSUFFICIENT_BALANCE` | `0x494e53554646494349454e545f42414c414e4345000000000000000000000000` | `"INSUFFICIENT_BALANCE"` |
+| `DRYRUN_STALE_PRICE` | `0x5354414c455f5052494345000000000000000000000000000000000000000000` | `"STALE_PRICE"` |
+
+**SDK usage pattern:**
+
+```typescript
+const DRYRUN_CODES = {
+  OK:                      "0x0000000000000000000000000000000000000000000000000000000000000000",
+  OPERATOR_NOT_CONFIGURED: "0x4f50455241544f525f4e4f545f434f4e46494755524544000000000000000000",
+  OPERATOR_PAUSED:         "0x4f50455241544f525f5041555345440000000000000000000000000000000000",
+  USER_NOT_ELIGIBLE:       "0x555345525f4e4f545f454c494749424c45000000000000000000000000000000",
+  USER_BLOCKED:            "0x555345525f424c4f434b45440000000000000000000000000000000000000000",
+  RATE_LIMITED:            "0x524154455f4c494d495445440000000000000000000000000000000000000000",
+  RATE_COMMITMENT_VIOLATED:"0x524154455f434f4d4d49544d454e545f56494f4c415445440000000000000000",
+  INSUFFICIENT_BALANCE:    "0x494e53554646494349454e545f42414c414e4345000000000000000000000000",
+  STALE_PRICE:             "0x5354414c455f5052494345000000000000000000000000000000000000000000",
+} as const;
+
+const [canSponsor, reasonCode] = await paymaster.dryRunValidation(operator, user, 0n, 0n);
+if (!canSponsor) {
+  const reason = Object.entries(DRYRUN_CODES).find(([, v]) => v === reasonCode)?.[0] ?? "UNKNOWN";
+  console.error(`Sponsorship denied: ${reason}`);
+}
+```
+
+#### Numeric constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `PRICE_CACHE_DURATION` | `300` | seconds; price cache TTL reference |
+| `PAYMASTER_DATA_OFFSET` | `52` | operator address byte offset in paymasterAndData |
+| `RATE_OFFSET` | `72` | maxRate byte offset in paymasterAndData |
+| `BPS_DENOMINATOR` | `10000` | basis points denominator |
+| `MAX_PROTOCOL_FEE` | `2000` | 20% hardcap on protocolFeeBPS |
+| `VALIDATION_BUFFER_BPS` | `1000` | 10% safety buffer during validation |
+| `MIN_ETH_USD_PRICE` | `100 * 1e8` | minimum valid Chainlink price |
+| `MAX_ETH_USD_PRICE` | `100_000 * 1e8` | maximum valid Chainlink price |
 
 ---
 
@@ -245,11 +277,24 @@ The following constants were made `internal` and are no longer ABI-readable. SDK
 
 1. **Public constants are expensive**: Each `public constant` generates a getter function (~50 bytes). For a contract with 16 public constants, that's ~800 bytes of pure getter overhead. Prefer `internal` for constants that are only needed for logic, not external consumption.
 
-2. **try/catch has non-trivial size cost**: Each try/catch adds ~30-100 bytes. Use it only for genuinely fault-isolated external calls. Internal calls and trusted external calls (same deployer) can use direct calls.
+2. **try/catch has non-trivial size cost**: Each try/catch adds ~30-100 bytes. Use it only for genuinely fault-isolated external calls. Internal calls and trusted external calls (same deployer) can use direct calls. Example: `configureOperator` now uses direct call to `xpntsFactory.getTokenAddress(msg.sender)` — if the factory reverts, the raw error bubbles up. SDK must handle generic reverts in addition to `InvalidXPNTsToken`.
 
 3. **Context ABI encoding affects only depth-1 callers**: The EntryPoint calls `postOp` with the raw `context` bytes — no one in the ERC-4337 standard decodes it except the paymaster itself. Context format changes are safe from a protocol perspective but break any tooling that traces calldata.
 
 4. **Size monitoring must be part of CI, not a post-hoc check**: The EIP-170 overflow was not caught until PRs were blocked. Automating this check prevents future surprises.
+
+   **Current CI gate** (`.github/workflows/test.yml`): Hard fail if `SuperPaymaster` runtime > 24,576B; soft warning if > 24,500B.
+
+   **Current sizes on security/audit-2026-04-25** (after view-function removals):
+
+   | Metric | Value | EIP limit | Margin |
+   |--------|-------|-----------|--------|
+   | Runtime size | 23,641 B | 24,576 B | **935 B** |
+   | Init code size | 24,342 B | 49,152 B (EIP-3860) | 24,810 B |
+
+   PR #118 (fix/eip170-hotfix, pre-view-removal) had **39 B** runtime margin. The view-function removals on the security branch recovered **896 additional bytes**.
+
+5. **`oracleDecimals` hardcoded to 8**: Chainlink ETH/USD feeds on all supported chains use 8 decimals; the storage variable was removed. If the protocol ever deploys a price feed with different decimals (e.g., a custom feed), the `initialize()` function must be updated to validate `ETH_USD_PRICE_FEED.decimals() == 8` and revert otherwise. This check was not added during the EIP-170 fix (would add ~50B) — the constraint is documented here as a deployment checklist item.
 
 ---
 

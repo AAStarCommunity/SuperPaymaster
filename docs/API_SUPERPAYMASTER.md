@@ -201,18 +201,68 @@ const paymasterAndData = concat([
 
 ## Constants
 
+> All constants are now `internal` (EIP-170 fix). ABI getters no longer exist — SDK must hardcode values below.
+
+### Numeric constants
+
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `PRICE_CACHE_DURATION` | 300 | seconds; price cache TTL reference |
+| `PRICE_CACHE_DURATION` | `300` | seconds; price cache TTL reference |
 | `MIN_ETH_USD_PRICE` | `100 * 1e8` | minimum valid Chainlink price |
 | `MAX_ETH_USD_PRICE` | `100_000 * 1e8` | maximum valid Chainlink price |
-| `PAYMASTER_DATA_OFFSET` | 52 | operator address byte offset in paymasterAndData |
-| `RATE_OFFSET` | 72 | maxRate byte offset in paymasterAndData |
-| `BPS_DENOMINATOR` | 10000 | basis points denominator |
-| `MAX_PROTOCOL_FEE` | 2000 | 20% hardcap on protocolFeeBPS |
-| `VALIDATION_BUFFER_BPS` | 1000 | 10% safety buffer applied during validation |
-| `MAX_FACILITATOR_FEE` | 500 | 5% hardcap on x402 facilitator fees |
-| `MAX_AGENT_POLICIES` | 10 | max sponsorship policies per operator |
+| `PAYMASTER_DATA_OFFSET` | `52` | operator address byte offset in paymasterAndData |
+| `RATE_OFFSET` | `72` | maxRate byte offset in paymasterAndData |
+| `BPS_DENOMINATOR` | `10000` | basis points denominator |
+| `MAX_PROTOCOL_FEE` | `2000` | 20% hardcap on protocolFeeBPS |
+| `VALIDATION_BUFFER_BPS` | `1000` | 10% safety buffer applied during validation |
+| `MAX_FACILITATOR_FEE` | `500` | 5% hardcap on x402 facilitator fees |
+| `MAX_AGENT_POLICIES` | `10` | max sponsorship policies per operator |
+
+### DRYRUN_* reason codes (returned by `dryRunValidation`)
+
+Format: `bytes32(string)` — ASCII left-aligned, right-padded with zeros. **NOT** keccak256.
+
+| Constant | bytes32 hex | String |
+|----------|------------|--------|
+| `DRYRUN_OK` | `0x0000...0000` | success (zero value) |
+| `DRYRUN_OPERATOR_NOT_CONFIGURED` | `0x4f50455241544f525f4e4f545f434f4e46494755524544000000000000000000` | `"OPERATOR_NOT_CONFIGURED"` |
+| `DRYRUN_OPERATOR_PAUSED` | `0x4f50455241544f525f5041555345440000000000000000000000000000000000` | `"OPERATOR_PAUSED"` |
+| `DRYRUN_USER_NOT_ELIGIBLE` | `0x555345525f4e4f545f454c494749424c45000000000000000000000000000000` | `"USER_NOT_ELIGIBLE"` |
+| `DRYRUN_USER_BLOCKED` | `0x555345525f424c4f434b45440000000000000000000000000000000000000000` | `"USER_BLOCKED"` |
+| `DRYRUN_RATE_LIMITED` | `0x524154455f4c494d495445440000000000000000000000000000000000000000` | `"RATE_LIMITED"` |
+| `DRYRUN_RATE_COMMITMENT_VIOLATED` | `0x524154455f434f4d4d49544d454e545f56494f4c415445440000000000000000` | `"RATE_COMMITMENT_VIOLATED"` |
+| `DRYRUN_INSUFFICIENT_BALANCE` | `0x494e53554646494349454e545f42414c414e4345000000000000000000000000` | `"INSUFFICIENT_BALANCE"` |
+| `DRYRUN_STALE_PRICE` | `0x5354414c455f5052494345000000000000000000000000000000000000000000` | `"STALE_PRICE"` |
+
+**SDK copy-paste block:**
+
+```typescript
+export const DRYRUN_CODES = {
+  OK:                       "0x0000000000000000000000000000000000000000000000000000000000000000",
+  OPERATOR_NOT_CONFIGURED:  "0x4f50455241544f525f4e4f545f434f4e46494755524544000000000000000000",
+  OPERATOR_PAUSED:          "0x4f50455241544f525f5041555345440000000000000000000000000000000000",
+  USER_NOT_ELIGIBLE:        "0x555345525f4e4f545f454c494749424c45000000000000000000000000000000",
+  USER_BLOCKED:             "0x555345525f424c4f434b45440000000000000000000000000000000000000000",
+  RATE_LIMITED:             "0x524154455f4c494d495445440000000000000000000000000000000000000000",
+  RATE_COMMITMENT_VIOLATED: "0x524154455f434f4d4d49544d454e545f56494f4c415445440000000000000000",
+  INSUFFICIENT_BALANCE:     "0x494e53554646494349454e545f42414c414e4345000000000000000000000000",
+  STALE_PRICE:              "0x5354414c455f5052494345000000000000000000000000000000000000000000",
+} as const satisfies Record<string, `0x${string}`>;
+```
+
+### configureOperator — error handling note
+
+`configureOperator` no longer wraps the factory call in try/catch (EIP-170 fix). If `xpntsFactory.getTokenAddress(operator)` reverts, the raw error propagates. SDK should catch both named errors AND generic reverts:
+
+```typescript
+try {
+  await paymaster.configureOperator(xPNTsToken, treasury, exchangeRate);
+} catch (e) {
+  // May be: InvalidXPNTsToken, Unauthorized, or raw factory revert
+  const msg = decodeRevertReason(e) ?? "factory verification failed";
+  throw new Error(`configureOperator failed: ${msg}`);
+}
+```
 
 ---
 
