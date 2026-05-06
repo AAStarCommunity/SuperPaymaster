@@ -76,6 +76,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
     error CloseTimeoutNotElapsed();
     error SettlementExceedsDeposit();
     error NonDecreasingSettlement();
+    error SelfChannel();
 
     // ====================================
     // Events
@@ -168,6 +169,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
         if (deposit == 0) revert InvalidAmount();
         if (payee == address(0)) revert InvalidAmount();
         if (token == address(0)) revert InvalidAmount();
+        if (payee == msg.sender) revert SelfChannel(); // B4-N8: prevent self-payment channel
 
         channelId = _computeChannelId(msg.sender, payee, token, salt, authorizedSigner);
 
@@ -252,6 +254,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
         Channel storage ch = _channels[channelId];
 
         if (msg.sender != ch.payer) revert OnlyPayer();
+        if (ch.closeRequestedAt != 0) return; // B4-N6: already requested, noop to prevent timer reset
 
         ch.closeRequestedAt = uint64(block.timestamp);
 
