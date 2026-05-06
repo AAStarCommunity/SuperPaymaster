@@ -1281,6 +1281,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(bytes32 => bool) public x402SettlementNonces;
     mapping(address => mapping(address => uint256)) public facilitatorEarnings; // operator => asset => amount
 
+    // DEPRECATED: F1 agent-policy storage — preserved as slot placeholders for UUPS upgrade safety.
+    // These variables are intentionally empty and must never be removed or reordered.
+    // See docs/security/2026-04-25-v51-agent-policy-removed.md for business context.
+    mapping(address => mapping(bytes32 => uint256)) private __deprecated_agentPolicies;
+    mapping(address => mapping(uint256 => uint256)) private __deprecated_agentDailySpend;
+
     // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
     /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
     address public pendingAPNTsToken;
@@ -1477,6 +1483,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34; +2 from F1 policy deletion = 36.
-    uint256[36] private __gap;
+    // Was 50, minus 8 V5 storage + 2 P0-9 + 6 P0-10 storage slots = 34.
+    // F1 policy slots kept as __deprecated_* placeholders — slot count unchanged.
+    uint256[34] private __gap;
 }
