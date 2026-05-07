@@ -130,6 +130,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
                 Rule memory r = communityRules[community][rId];
                 
                 // If rule not found, use a subset of default if it's the first rule
+                // P1-26 resolved: fallback uses defaultRule (configurable), not a hardcoded score
                 if (r.baseScore == 0 && j == 0) {
                     r = defaultRule;
                 }
@@ -181,6 +182,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         
         // Derive a non-zero proposalId from (user, epoch) — unique per sync call since
         // epoch is monotonically increasing per user in Registry.
+        // P1-27 resolved: security delegated to REGISTRY.batchUpdateGlobalReputation BLS proof verification
         uint256 proposalId = uint256(keccak256(abi.encode(user, epoch)));
         REGISTRY.batchUpdateGlobalReputation(proposalId, users, scores, epoch, proof);
         emit ReputationComputed(user, score);
