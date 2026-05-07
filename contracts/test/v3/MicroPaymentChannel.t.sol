@@ -469,4 +469,32 @@ contract MicroPaymentChannelTest is Test {
         // Payer refunded 700
         assertEq(token.balanceOf(payer), 1_000_000e18 - 1000e18 + 700e18, "payer refund");
     }
+
+    // ====================================
+    // Tests: voucher replay protection via closedChannels
+    // ====================================
+
+    function testReopenAfterCloseReverts() public {
+        bytes32 salt = bytes32(uint256(42));
+
+        // Open channel and capture channelId
+        vm.startPrank(payer);
+        token.approve(address(channel), 1000e18);
+        bytes32 channelId = channel.openChannel(payee, address(token), 1000e18, salt, address(0));
+        vm.stopPrank();
+
+        bytes memory sig = _signVoucher(PAYER_KEY, channelId, 500e18);
+        vm.prank(payee);
+        channel.closeChannel(channelId, 500e18, sig);
+
+        // closedChannels[channelId] must be true
+        assertTrue(channel.closedChannels(channelId), "channel should be marked closed");
+
+        // Attempt to reopen with the same salt should revert
+        vm.startPrank(payer);
+        token.approve(address(channel), 1000e18);
+        vm.expectRevert(MicroPaymentChannel.ChannelAlreadyClosed.selector);
+        channel.openChannel(payee, address(token), 1000e18, salt, address(0));
+        vm.stopPrank();
+    }
 }

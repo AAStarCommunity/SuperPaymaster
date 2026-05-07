@@ -52,6 +52,10 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
     /// @dev channelId => Channel
     mapping(bytes32 => Channel) private _channels;
 
+    /// @dev Tracks channelIds that have been finalized. Persists after struct deletion
+    ///      to block voucher replay via same-salt channel reopening (B4-N5 fix).
+    mapping(bytes32 => bool) public closedChannels;
+
     // ====================================
     // Types
     // ====================================
@@ -73,6 +77,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
     // ====================================
 
     error ChannelAlreadyExists();
+    error ChannelAlreadyClosed();
     error ChannelNotFound();
     error ChannelFinalized();
     error OnlyPayer();
@@ -190,6 +195,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         channelId = _computeChannelId(msg.sender, payee, token, salt, authorizedSigner);
 
         if (_channels[channelId].payer != address(0)) revert ChannelAlreadyExists();
+        if (closedChannels[channelId]) revert ChannelAlreadyClosed();
 
         _channels[channelId] = Channel({
             payer: msg.sender,
@@ -319,6 +325,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         }
 
         emit ChannelClosed(channelId, ch.settled, refund);
+        closedChannels[channelId] = true;
         delete _channels[channelId];
     }
 
@@ -347,6 +354,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         }
 
         emit ChannelWithdrawn(channelId, refund);
+        closedChannels[channelId] = true;
         delete _channels[channelId];
     }
 
