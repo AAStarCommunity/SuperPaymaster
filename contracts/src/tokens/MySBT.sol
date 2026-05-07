@@ -101,6 +101,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     event MinLockAmountUpdated(uint256 oldAmount, uint256 newAmount, uint256 timestamp);
     event MintFeeUpdated(uint256 oldFee, uint256 newFee, uint256 timestamp);
     event DAOMultisigUpdated(address indexed oldDAO, address indexed newDAO, uint256 timestamp);
+    event BaseURIUpdated(string newBaseURI, uint256 timestamp);
 
     // ====================================
     // State Variables
@@ -461,6 +462,11 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     // NFT binding functions removed for contract size optimization (v2.4.5-optimized)
 
+    /// @notice Record on-chain activity for a user in the caller's community.
+    /// @dev Caller must be a community registered via Registry (_isValid check).
+    ///      Communities call this directly — Registry is NOT the caller.
+    ///      Rate-limited to once per MIN_INT seconds per (user, community) pair.
+    /// @param u User whose SBT activity timestamp is updated.
     function recordActivity(address u) external whenNotPaused {
         require(_isValid(msg.sender));
         uint256 tid = userToSBT[u];
@@ -508,6 +514,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     function setBaseURI(string calldata baseURI) external onlyDAO {
         _baseTokenURI = baseURI;
+        emit BaseURIUpdated(baseURI, block.timestamp);
     }
 
     function _baseURI() internal view override returns (string memory) {
