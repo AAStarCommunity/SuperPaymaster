@@ -308,9 +308,9 @@ contract MicroPaymentChannelTest is Test {
         vm.prank(payee);
         channel.closeChannel(channelId, 600e18, sig2);
 
+        // Channel struct is deleted after finalization (B4-N5 fix); getChannel returns zero struct
         MicroPaymentChannel.Channel memory ch = channel.getChannel(channelId);
-        assertTrue(ch.finalized, "channel should be finalized");
-        assertEq(ch.settled, 600e18, "final settled mismatch");
+        assertEq(ch.payer, address(0), "channel struct should be deleted after close");
 
         // Payee received 600 total, payer refunded 400
         assertEq(token.balanceOf(payee), 600e18, "payee final balance");
@@ -325,10 +325,10 @@ contract MicroPaymentChannelTest is Test {
         vm.prank(payee);
         channel.closeChannel(channelId, 0, "");
 
-        // Try to settle after finalized
+        // Try to settle after close — struct is deleted so payer == address(0) → ChannelNotFound
         bytes memory sig = _signVoucher(PAYER_KEY, channelId, 100e18);
         vm.prank(payee);
-        vm.expectRevert(MicroPaymentChannel.ChannelFinalized.selector);
+        vm.expectRevert(MicroPaymentChannel.ChannelNotFound.selector);
         channel.settleChannel(channelId, 100e18, sig);
     }
 
@@ -359,8 +359,9 @@ contract MicroPaymentChannelTest is Test {
         vm.prank(payer);
         channel.withdrawChannel(channelId);
 
+        // Channel struct is deleted after finalization (B4-N5 fix)
         ch = channel.getChannel(channelId);
-        assertTrue(ch.finalized, "channel should be finalized after withdraw");
+        assertEq(ch.payer, address(0), "channel struct should be deleted after withdraw");
 
         // Refund = 1000 - 200 = 800
         uint128 expectedRefund = 800e18;
@@ -420,7 +421,7 @@ contract MicroPaymentChannelTest is Test {
     // ====================================
 
     function testVersion() public view {
-        assertEq(channel.version(), "MicroPaymentChannel-1.0.1");
+        assertEq(channel.version(), "MicroPaymentChannel-1.2.0");
     }
 
     // ====================================
@@ -461,11 +462,39 @@ contract MicroPaymentChannelTest is Test {
         vm.prank(payee);
         channel.closeChannel(channelId, 300e18, "");
 
+        // Channel struct is deleted after finalization (B4-N5 fix)
         MicroPaymentChannel.Channel memory ch = channel.getChannel(channelId);
-        assertTrue(ch.finalized, "should be finalized");
-        assertEq(ch.settled, 300e18, "settled unchanged");
+        assertEq(ch.payer, address(0), "channel struct should be deleted after close");
 
         // Payer refunded 700
         assertEq(token.balanceOf(payer), 1_000_000e18 - 1000e18 + 700e18, "payer refund");
+    }
+
+    // ====================================
+    // Tests: voucher replay protection via closedChannels
+    // ====================================
+
+    function testReopenAfterCloseReverts() public {
+        bytes32 salt = bytes32(uint256(42));
+
+        // Open channel and capture channelId
+        vm.startPrank(payer);
+        token.approve(address(channel), 1000e18);
+        bytes32 channelId = channel.openChannel(payee, address(token), 1000e18, salt, address(0));
+        vm.stopPrank();
+
+        bytes memory sig = _signVoucher(PAYER_KEY, channelId, 500e18);
+        vm.prank(payee);
+        channel.closeChannel(channelId, 500e18, sig);
+
+        // closedChannels[channelId] must be true
+        assertTrue(channel.closedChannels(channelId), "channel should be marked closed");
+
+        // Attempt to reopen with the same salt should revert
+        vm.startPrank(payer);
+        token.approve(address(channel), 1000e18);
+        vm.expectRevert(MicroPaymentChannel.ChannelAlreadyClosed.selector);
+        channel.openChannel(payee, address(token), 1000e18, salt, address(0));
+        vm.stopPrank();
     }
 }
