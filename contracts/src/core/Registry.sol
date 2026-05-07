@@ -537,6 +537,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             CommunityRoleData memory data = abi.decode(roleData, (CommunityRoleData));
             if (bytes(data.name).length == 0) revert InvalidParam();
             if (communityByName[data.name] != address(0)) revert InvalidParam();
+            if (bytes(data.ensName).length > 0 && communityByENS[data.ensName] != address(0)) revert InvalidParam();
             stakeAmount = data.stakeAmount;
             sbtData = abi.encode(user, "");
             communityByName[data.name] = user;
