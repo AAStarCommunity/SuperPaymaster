@@ -1161,6 +1161,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
         //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
         //    here because P0-16 is the dedicated fix for that vector.
+        //    P1-3 resolved: explicit rejection codes exposed via dryRunValidation (P0-18, #102)
         if (cachedPrice.updatedAt == 0 ||
             block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold) {
             return (false, DRYRUN_STALE_PRICE);
