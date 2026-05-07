@@ -1250,9 +1250,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @dev Try to burn xPNTs debt from user; fall back to recordDebtWithOpHash (P1-17 idempotent);
     ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
-    ///      recordDebtWithOpHash is preferred over recordDebt so that an EntryPoint
-    ///      invariant violation or future retry path cannot record the same debt twice.
+    ///
+    ///      P1-17 cross-path double-charge fix (complete):
+    ///      _settledDebtOps[opHash] is set at the TOP of this function, before any
+    ///      external call.  Because storage writes inside a try/catch block are NOT
+    ///      reverted when the inner call reverts, this write persists even on failure.
+    ///      Any retry of the same opHash exits early, preventing:
+    ///       (a) burn-success → recordDebt-fallback double-charge
+    ///       (b) recordDebt-success → pendingDebts-fallback double-charge
+    ///      xPNTs-level cross-checks (usedOpHashes ↔ usedDebtHashes) provide
+    ///      defence-in-depth at the token contract.
     function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+        // SP-level idempotency gate: mark before any external call so the write
+        // survives even if all downstream calls revert.
+        if (_settledDebtOps[opHash]) return;
+        _settledDebtOps[opHash] = true;
+
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
             try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
                 pendingDebts[token][user] += amount;
@@ -1529,6 +1542,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // 50 reserved; current usage: 18 (slots 0-17: 16 original + _slashCd + pendingBLSAgg/Eta packed).
-    uint256[32] private __gap;
+    /// @notice P1-17: SP-level guard — once a (token, opHash) pair has entered
+    ///         _recordXPNTsDebt, no retry can re-enter regardless of which path
+    ///         (burn, recordDebt, pendingDebts) the first call took.  Closes the
+    ///         pendingDebts fallback double-charge scenario that xPNTs-level
+    ///         cross-checks alone cannot prevent.
+    mapping(bytes32 => bool) internal _settledDebtOps;
+
+    // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps = 21.
+    uint256[31] private __gap;
 }

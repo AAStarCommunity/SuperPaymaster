@@ -394,8 +394,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(msg.sender);
         }
 
-        // 2. Replay Protection: Ensure this UserOp hasn't been processed.
-        if (usedOpHashes[userOpHash]) {
+        // 2. Replay Protection: Ensure this UserOp hasn't been processed via EITHER path.
+        // P1-17 cross-path: if the debt-recording fallback already settled this opHash
+        // (usedDebtHashes), block the burn to prevent charging the user twice.
+        if (usedOpHashes[userOpHash] || usedDebtHashes[userOpHash]) {
             revert OperationAlreadyProcessed(userOpHash);
         }
 
@@ -455,8 +457,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) revert Unauthorized(msg.sender);
         if (amountXPNTs > MAX_SINGLE_TX_LIMIT) revert SingleTxLimitExceeded();
-        // P1-17: replay guard — reject duplicate debt for the same UserOp
-        if (usedDebtHashes[opHash]) revert DebtAlreadyRecorded(opHash);
+        // P1-17 cross-path: check BOTH hash maps so that a prior successful burn
+        // (usedOpHashes set) blocks debt recording, and a prior debt record
+        // (usedDebtHashes set) blocks a duplicate entry — regardless of which path
+        // the first settlement used.
+        if (usedOpHashes[opHash] || usedDebtHashes[opHash]) revert DebtAlreadyRecorded(opHash);
         usedDebtHashes[opHash] = true;
         debts[user] += amountXPNTs;
         emit DebtRecorded(user, amountXPNTs);

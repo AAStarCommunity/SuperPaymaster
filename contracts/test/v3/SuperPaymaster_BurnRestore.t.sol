@@ -335,4 +335,51 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         assertEq(xpnts.burnSuccesses(), 0, "Burn must fail when no balance");
         assertEq(xpnts.recordDebtCalls(), 1, "recordDebt must be called as fallback");
     }
+
+    // ── Test 7: Cross-path — burn succeeds, same opHash postOp called again ──
+    // P1-17: _settledDebtOps SP-level guard must prevent the second postOp from
+    // falling through to recordDebtWithOpHash after burnFromWithOpHash rejects.
+
+    function test_CrossPath_BurnSucceeds_SecondPostOpIdempotent() public {
+        xpnts.mint(user1, 1_000 ether);
+
+        bytes32 opHash = bytes32(uint256(9999));
+        bytes memory ctx = abi.encode(address(xpnts), user1, MAX_COST, opHash, operator1);
+
+        // First postOp: burn succeeds
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        assertEq(xpnts.burnSuccesses(), 1, "First call must burn");
+        assertEq(xpnts.recordDebtCalls(), 0, "No debt on first call");
+
+        // Second postOp (same ctx/opHash): SP-level _settledDebtOps returns early
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        // Counts must not increase — idempotent
+        assertEq(xpnts.burnSuccesses(), 1, "Burn count must not increase on replay");
+        assertEq(xpnts.recordDebtCalls(), 0, "Debt count must stay 0 on replay");
+    }
+
+    // ── Test 8: Cross-path — debt recorded, same opHash would double-charge ──
+    // P1-17: after recordDebtWithOpHash succeeds (no balance), a second postOp
+    // must not record debt or burn again.
+
+    function test_CrossPath_DebtRecorded_SecondPostOpIdempotent() public {
+        // No xPNTs: burn fails → recordDebtWithOpHash records debt
+        bytes32 opHash = bytes32(uint256(7777));
+        bytes memory ctx = abi.encode(address(xpnts), user1, MAX_COST, opHash, operator1);
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        assertEq(xpnts.recordDebtCalls(), 1, "First call must record debt");
+
+        // Now give user balance — second postOp must still be a no-op
+        xpnts.mint(user1, 1_000 ether);
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        // SP-level guard fires — no burn, no additional debt
+        assertEq(xpnts.burnSuccesses(), 0, "Must not burn on replay");
+        assertEq(xpnts.recordDebtCalls(), 1, "Debt count must stay 1 on replay");
+    }
 }
