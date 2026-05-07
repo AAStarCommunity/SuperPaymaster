@@ -155,6 +155,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 protocolRevenue
     );
     event PriceUpdated(uint256 price, uint256 updatedAt);
+    event StalenessThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+    event PriceUpdateFailed(); // no payload: avoid expensive bytes alloc in gas-critical postOp path
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                         CONSTANTS                          */
@@ -329,7 +331,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
             cachedPrice.updatedAt > block.timestamp ||
             block.timestamp - cachedPrice.updatedAt > priceStalenessThreshold
         ) {
-             try this.updatePrice() {} catch {}
+             try this.updatePrice() {} catch { emit PriceUpdateFailed(); }
              useRealtime = true;
         }
 
@@ -472,12 +474,6 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         uint256 denominator = tokenPriceUSD * BPS_DENOMINATOR * (10 ** (10 + ethDecimals));
 
         return Math.mulDiv(partA, 10 ** tDecimals, denominator);
-    }
-
-    /// @notice External wrapper for try/catch in postOp (Legacy)
-    function getRealtimeTokenCost(uint256 gasCost, address token) external view returns (uint256) {
-        if (msg.sender != address(this)) revert Paymaster__InvalidPaymasterData(); 
-        return _calculateTokenCost(gasCost, token, true);
     }
 
     /// @notice External wrapper that respects the Realtime Flag (New Optimization)
@@ -650,6 +646,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     }
     function setPriceStalenessThreshold(uint256 _priceStalenessThreshold) external onlyOwner {
         if (_priceStalenessThreshold < 60 || _priceStalenessThreshold > 86400) revert Paymaster__InvalidStalenessThreshold();
+        emit StalenessThresholdUpdated(priceStalenessThreshold, _priceStalenessThreshold);
         priceStalenessThreshold = _priceStalenessThreshold;
     }
 
