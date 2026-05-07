@@ -918,11 +918,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             int256 price,
             uint256,
             uint256 updatedAt,
-            uint80
+            uint80 answeredInRound
         ) {
             // Chainlink success: validate and update
             if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
             if (updatedAt < block.timestamp - priceStalenessThreshold) revert OracleError();
+            if (answeredInRound < roundId) revert OracleError();
 
             // 2. Update Cache
             cachedPrice = PriceCache({
