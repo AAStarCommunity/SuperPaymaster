@@ -383,8 +383,13 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         
         if (useRealtime) {
             // PostOp: Get Realtime Price
-            (, ethUsdPrice,, updatedAt,) = ethUsdPriceFeed.latestRoundData();
-            if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
+            (uint80 roundId, int256 _price,, uint256 _updatedAt, uint80 answeredInRound) = ethUsdPriceFeed.latestRoundData();
+            if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
+            ethUsdPrice = _price;
+            updatedAt = _updatedAt;
+            // P1-34 (MEDIUM): guard stale realtime price — mirrors the cached-path staleness check.
+            if (updatedAt == 0 || updatedAt > block.timestamp ||
+                block.timestamp - updatedAt > priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
         } else {
             // Validation: Get Cached Price
             PriceCache memory cache = cachedPrice;
@@ -488,11 +493,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Update cached price from Oracle (Keeper only)
     function updatePrice() external {
-        (, int256 price,, uint256 updatedAt,) = ethUsdPriceFeed.latestRoundData();
+        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = ethUsdPriceFeed.latestRoundData();
+        if (answeredInRound < roundId) revert Paymaster__InvalidOraclePrice();
         if (price <= 0) revert Paymaster__InvalidOraclePrice();
-        if (updatedAt == 0) revert Paymaster__InvalidOraclePrice();
+        if (updatedAt == 0 || updatedAt > block.timestamp) revert Paymaster__InvalidOraclePrice();
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert Paymaster__InvalidOraclePrice();
-        if (block.timestamp > priceStalenessThreshold && updatedAt < block.timestamp - priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
+        if (block.timestamp - updatedAt > priceStalenessThreshold) revert Paymaster__InvalidOraclePrice();
         cachedPrice = PriceCache({ price: uint208(uint256(price)), updatedAt: uint48(updatedAt) });
         emit PriceUpdated(uint256(price), updatedAt);
     }

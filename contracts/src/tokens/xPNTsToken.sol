@@ -562,10 +562,16 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     /**
      * @notice Allow community owner to cut off Factory's management power
-     * @dev Once renounced, FACTORY can no longer call restricted functions (mint, updateExchangeRate, etc.)
+     * @dev Once renounced, FACTORY can no longer call restricted functions (mint, updateExchangeRate, etc.).
+     *      B4-N2: also revokes the old factory's autoApprovedSpender privilege so a renounced or
+     *      compromised factory address can no longer burn tokens via the autoApproved path.
      */
     function renounceFactory() external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        address oldFactory = FACTORY;
+        if (oldFactory != address(0) && autoApprovedSpenders[oldFactory]) {
+            autoApprovedSpenders[oldFactory] = false;
+        }
         FACTORY = address(0);
     }
 
