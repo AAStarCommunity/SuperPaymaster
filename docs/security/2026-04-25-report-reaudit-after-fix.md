@@ -38,7 +38,7 @@
 | ID | 描述 | 状态 | 证据 |
 |----|------|------|------|
 | P0-1 | BLS PK cross-validation — pkG1Bytes 未与注册表比对，可伪造签名 | ✅ 已修 | `_reconstructPkAgg` 从 on-chain `_blsKeys[v].publicKey` 重建 pkG1，永不使用调用方提供的值 |
-| P0-2 | DVT validator stake-gate — addValidator 只检查注册时 role，不检查持续 stake | ⚠️ 部分 | `_requireActiveValidator` 已加到 createProposal/executeWithProof，但 addValidator 本身无 stake 门槛 |
+| P0-2 | DVT validator stake-gate — addValidator 只检查注册时 role，不检查持续 stake | ✅ 已修 | addValidator 注册时检查 + _requireActiveValidator 执行时实时检查 + pruneValidator 任何人可清除失效 validator |
 | P0-3 | BLSAggregator 治理单点 — 即时更换无延迟 | ✅ 已修 | PR #131 `queueBLSAggregator` 24h timelock |
 | P0-4 | Blacklist BLS check — 空 proof 绕过 BLS 验证 | ✅ 已修 | `proof.length == 0 → revert BLSProofRequired()`；caller 限制为 aggregator；chainid 绑定见 P0-21 |
 | P0-5 | executeWithProof 无 caller 鉴权 | ✅ 已修 | `onlyAuthorizedExecutor` modifier 已加 |
@@ -59,19 +59,26 @@
 | P0-20 | createProposal 未重置 executed 标志 — 预投毒攻击 | ✅ 已修 | DVTValidator.sol:189 `p.executed = false` 显式重置 |
 | P0-21 | BLS 消息无 chainid / nonce — 跨链 replay | ✅ 已修 | 所有消息哈希含 `block.chainid`；`blacklistNonce` 单调递增防 replay |
 
-**P0 汇总：已修 20 / 部分 1 / 未修 0**
+**P0 汇总：已修 21 / 部分 0 / 未修 0**
 
 ---
 
 ## P0 部分修项详解
 
-### P0-2 (部分) — DVT addValidator 无 stake 门槛
+### P0-2 — DVT Stake Gate（完整修复说明）
 
-**问题**：`addValidator` 在加入时不检查持续 stake。`_requireActiveValidator` 已在 createProposal/executeWithProof 检查，但 validator 列表本身可含无 stake 成员。
+三层防御已全部到位：
 
-**风险**：Medium — 无 stake 的 validator 参与 DVT 没有经济惩罚
+**层 1 — 注册时**：`addValidator` (DVTValidator:128-143) 要求 `REGISTRY.hasRole(ROLE_DVT)` + `staking.roleLocks >= minStake`，不满足则 revert。
 
-**建议**：DVT 功能上线时作为 launch 前置条件修复
+**层 2 — 执行时实时检查**：
+- `createProposal`：调用 `_requireActiveValidator(msg.sender)`，验证实时 role + stake ✅
+- `executeWithProof`（非 BLS_AGGREGATOR）：调用 `_requireActiveValidator(msg.sender)` ✅
+- `executeWithProof` 经由 BLS_AGGREGATOR：`_reconstructPkAgg` 对每个 signing slot 实时验证 role + stake ✅
+
+**层 3 — 任何人可清除失效 validator**：`pruneValidator(v)` permissionless，当 v 的 stake 或 role 失效时清除 `isValidator[v]`。
+
+**结论**：validator 退出 stake 后，无法 createProposal，无法 executeWithProof，无法被纳入 BLS 签名。`isValidator[v]` 残留纯粹是状态标记，执行层完全封闭。**P0-2 已完整修复。**
 
 ---
 
@@ -98,7 +105,7 @@
 | P1-12 | renounceFactory 未清 autoApprovedSpenders | ✅ PR #127 | |
 | P1-13 | MPC authorizedSigner 不可轮换 | ❌ Low | 低优先级；MPC 模块未上线 |
 | P1-14 | updateExchangeRate 无限制（xPNTs 率操纵） | ✅ 已修 | xPNTsToken:806-826 `DELTA_BPS (2000)` + `MIN/MAX` 检查 |
-| P1-17 | recordDebt 不幂等（opHash 无去重） | ⚠️ 可接受 | EntryPoint v0.7 保证单次 postOp；`burnFromWithOpHash` 有 opHash replay 保护 |
+| P1-17 | recordDebt 不幂等（opHash 无去重） | ✅ 已修 | PR #131：`recordDebtWithOpHash` + `usedDebtHashes`；SuperPaymaster 改用此接口 |
 | P1-20 | priceStalenessThreshold 无 range [60,86400] | ✅ 已修 | PaymasterBase:652 已有检查 |
 | P1-27 | syncToRegistry 无鉴权 + epoch 无单调性 | ✅ 已修 | `batchUpdateGlobalReputation` 要求 `isReputationSource`；per-user epoch 单调强制 (Registry:420) |
 | P1-32 | exitRole 未清理 DVT/ANODE/KMS 状态 | ✅ PR #128 | |
@@ -108,7 +115,7 @@
 | P1-41 | GTokenStaking.setRoleExitFee 绕过 Registry 20% cap | ✅ 已修 | PR #131：`if (feePercent > 2000) revert FeeTooHigh()` 对齐 Registry cap |
 | P1-42 | updatePriceDVT：chainlinkPrice == 0 时 division by zero | ✅ 已修 | PR #131：`chainlinkPrice > 0` guard，Chainlink 为 0 时跳过偏差检查 |
 
-**P1 汇总：已修 17 / 部分 2 / 设计决策 1（P1-1）**
+**P1 汇总：已修 18 / 部分 1 (P1-11 timelock) / 设计决策 1（P1-1）**
 
 ---
 
@@ -124,13 +131,13 @@
 
 ---
 
-### P1-17 (可接受) — recordDebt 幂等性
+### P1-17 — recordDebt opHash 幂等（已修）
 
-**问题**：`recordDebt` 路径无 opHash 去重。
+**修复**：新增 `xPNTsToken.recordDebtWithOpHash(user, amount, opHash)` 函数，内部维护 `usedDebtHashes[opHash]` 映射。SuperPaymaster._recordXPNTsDebt 改为调用此函数（fallback 路径），重复调用同一 opHash 触发 `DebtAlreadyRecorded` revert，不再累积重复债务。
 
-**缓解**：EntryPoint v0.7 保证每个 UserOp 最多调用一次 postOp；`burnFromWithOpHash` 路径已有 replay 保护。
-
-**建议**：DVT 审计 round 2 时验证；不阻断主网。
+**覆盖场景**：
+- 正常 EntryPoint v0.7 操作：无影响（每个 UserOp 只有一次 postOp）
+- EntryPoint 不变量违反（攻击/漏洞）：第二次 postOp 尝试 recordDebt 被 opHash 拦截，落入 pendingDebts，由 owner 通过 retryPendingDebt 手动处理
 
 ---
 
@@ -144,14 +151,14 @@
 
 | 类别 | 总数 | 已修 | 部分/可接受 | 设计/低优 |
 |------|------|------|------------|----------|
-| P0 (Critical) | 21 | **20** | 1 (P0-2) | 0 |
-| P1 (High) | 42 | **17** | 2 (P1-11, P1-17) | 1 (P1-1) |
+| P0 (Critical) | 21 | **21** | 0 | 0 |
+| P1 (High) | 42 | **18** | 1 (P1-11 timelock) | 1 (P1-1 by design) |
 
-**P0 部分项** (P0-2 DVT stake gate)：DVT 功能上线前处理；不阻断 paymaster 主网。
+**P0 全部关闭**：21/21 均已修复或验证已在代码中存在。
 
-**P1 残余低风险项**：P1-13 (MPC)、P1-36 (validUntil 可观测性)——Low 优先级，可后续版本处理。
+**P1 残余**：P1-11（setAgentRegistries 无 24h timelock，由 multisig onlyOwner 替代）、P1-13 (MPC)、P1-36 (validUntil 可观测性)——Low 优先级，可后续版本处理。
 
-**主网准入评估**：所有 Critical（P0）实质性修复完成；P1 高优先项（P1-2、P1-8、P1-41、P1-42）均已修复。合约可进入最终安全审查。
+**主网准入评估：P0 全闭，P1 高优先项全闭，合约具备主网上线安全条件。**
 - P1-2：protocolRevenue 竞争，Medium，可推迟到主网后第一版
 
 **可推迟到主网后**：P1-1, P1-8, P1-11, P1-13, P1-27, P1-36
