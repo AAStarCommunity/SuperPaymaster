@@ -127,6 +127,8 @@ contract xPNTsFactory is Ownable, IVersioned {
         uint256 newPrice
     );
 
+    event SuperPaymasterAddressUpdated(address indexed oldAddr, address indexed newAddr);
+
     // ====================================
     // Errors
     // ====================================
@@ -197,6 +199,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         if (communityToToken[msg.sender] != address(0)) {
             revert AlreadyDeployed(msg.sender);
         }
+        if (exchangeRate == 0) revert InvalidParameters();
 
         // Deploy new xPNTs token proxy using clone pattern
         address newTokenAddress = implementation.clone();
@@ -280,6 +283,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         string memory industry,
         uint256 safetyFactor
     ) external {
+        if (avgDailyTx > 1_000_000) revert InvalidParameters();
         address community = msg.sender;
 
         uint256 multiplier = industryMultipliers[industry];
@@ -314,6 +318,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         uint256 customMultiplier,
         uint256 safetyFactor
     ) external {
+        if (avgDailyTx > 1_000_000) revert InvalidParameters();
         address community = msg.sender;
 
         if (customMultiplier == 0) {
@@ -345,6 +350,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      */
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
         if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
+        emit SuperPaymasterAddressUpdated(SUPERPAYMASTER, _superPaymaster);
         SUPERPAYMASTER = _superPaymaster;
     }
 
