@@ -319,6 +319,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         }
 
         emit ChannelClosed(channelId, ch.settled, refund);
+        delete _channels[channelId];
     }
 
     /**
@@ -346,6 +347,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         }
 
         emit ChannelWithdrawn(channelId, refund);
+        delete _channels[channelId];
     }
 
     /**
@@ -376,7 +378,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
      * @return Version identifier.
      */
     function version() external pure returns (string memory) {
-        return "MicroPaymentChannel-1.0.1";
+        return "MicroPaymentChannel-1.2.0";
     }
 
     // ====================================
