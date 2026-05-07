@@ -449,6 +449,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         bool[] calldata statuses,
         bytes calldata proof
     ) external nonReentrant {
+        if (operator == address(0)) revert InvalidParam();
+
         // (1) Only the wired BLS aggregator may invoke. Reading the slot once
         //     also doubles as a `blsAggregator != address(0)` check — if the
         //     wiring is incomplete, msg.sender cannot equal address(0) (the
