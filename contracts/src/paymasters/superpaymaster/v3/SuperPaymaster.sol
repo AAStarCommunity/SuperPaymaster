@@ -253,6 +253,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @param _opTreasury Address to receive payments
      * @param exchangeRate Rate (1e18 = 1:1)
      */
+    /// @dev Registers msg.sender as an operator with the given xPNTs token; reverts if token not issued by the wired factory.
     function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
         // Must be registered in Registry
         _requireSuperOperatorRole();
@@ -665,6 +666,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @notice Deposit aPNTs (Legacy Pull Mode)
      * @dev Only works if APNTS_TOKEN allows transferFrom (e.g. old token or whitelisted)
      */
+    /// @notice Deposit xPNTs tokens from msg.sender into their own operator balance.
     function deposit(uint256 amount) external nonReentrant {
         _requireSuperOperatorRole();
         // This might revert if Token blocks transferFrom (Secure Token)
@@ -713,6 +715,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @param targetOperator The operator to credit the deposit to
      * @param amount Amount of aPNTs
      */
+    /// @notice Deposit xPNTs tokens on behalf of a specific operator address.
     function depositFor(address targetOperator, uint256 amount) external nonReentrant {
         _requireSuperOperatorRoleFor(targetOperator);
         // Transfer from sender (must approve first)
