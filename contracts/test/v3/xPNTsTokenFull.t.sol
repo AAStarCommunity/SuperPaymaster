@@ -50,7 +50,6 @@ contract xPNTsTokenFullTest is Test {
 
     // 2. Pre-Authorization & Firewall
     function test_AllowanceOverride_AutoApproved() public {
-        address other = address(uint160(0x444));
         vm.prank(admin);
         token.addAutoApprovedSpender(other);
         
