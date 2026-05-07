@@ -18,7 +18,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.1";
+        return "Registry-5.3.2";
     }
 
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -119,7 +119,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event MySBTContractUpdated(address indexed oldMySBT, address indexed newMySBT);
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
-    event ExitFeeSyncFailed(bytes32 indexed roleId);
+    event ExitFeeSyncFailed(bytes32 indexed roleId, address indexed staking);
     /// @notice P0-14: Staking pushed a fresh stake snapshot for (user, role)
     /// @dev    Emitted for off-chain indexers when slash / unlock / topUp
     ///         operations on the Staking side update Registry's cache.
@@ -150,7 +150,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
             try GTOKEN_STAKING.setRoleExitFee(roleId, cfg.exitFeePercent, cfg.minExitFee) {} catch {
-                emit ExitFeeSyncFailed(roleId);
+                emit ExitFeeSyncFailed(roleId, address(GTOKEN_STAKING));
             }
         }
     }
