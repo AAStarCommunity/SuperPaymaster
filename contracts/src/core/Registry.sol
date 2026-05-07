@@ -18,7 +18,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.0";
+        return "Registry-5.3.2";
     }
 
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
@@ -119,7 +119,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event MySBTContractUpdated(address indexed oldMySBT, address indexed newMySBT);
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
-    event ExitFeeSyncFailed(bytes32 indexed roleId);
+    event ExitFeeSyncFailed(bytes32 indexed roleId, address indexed staking);
     /// @notice P0-14: Staking pushed a fresh stake snapshot for (user, role)
     /// @dev    Emitted for off-chain indexers when slash / unlock / topUp
     ///         operations on the Staking side update Registry's cache.
@@ -139,19 +139,52 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function syncExitFees(bytes32[] calldata roles) external onlyOwner {
         for (uint256 i = 0; i < roles.length; ) {
-            RoleConfig memory cfg = roleConfigs[roles[i]];
-            if (cfg.isActive) {
-                try GTOKEN_STAKING.setRoleExitFee(roles[i], cfg.exitFeePercent, cfg.minExitFee) {} catch {
-                    emit ExitFeeSyncFailed(roles[i]);
-                }
-            }
+            _syncExitFeeForRole(roles[i]);
             unchecked { ++i; }
         }
     }
 
+    /// @dev Push exit fee config for a single role to GTOKEN_STAKING.
+    ///      Silently skips inactive roles; emits ExitFeeSyncFailed on call failure.
+    function _syncExitFeeForRole(bytes32 roleId) internal {
+        RoleConfig memory cfg = roleConfigs[roleId];
+        if (cfg.isActive) {
+            try GTOKEN_STAKING.setRoleExitFee(roleId, cfg.exitFeePercent, cfg.minExitFee) {} catch {
+                emit ExitFeeSyncFailed(roleId, address(GTOKEN_STAKING));
+            }
+        }
+    }
+
+    /// @dev Sync exit fees for all 7 known roles to the current GTOKEN_STAKING.
+    ///      Called automatically after setStaking() so the new staking contract
+    ///      is never left with stale (zero) exit fees.
+    ///      Intentional design: individual role sync failures are non-blocking —
+    ///      they emit ExitFeeSyncFailed but do not revert setStaking(). The staking
+    ///      pointer is always updated atomically; any failed roles can be retried
+    ///      via the public syncExitFees() call. This matches the existing
+    ///      syncExitFees() behaviour and avoids bricking setStaking() when a new
+    ///      staking contract is not yet fully configured.
+    ///      Note: this list must be updated if new roles are added in future.
+    function _syncAllExitFees() internal {
+        _syncExitFeeForRole(ROLE_PAYMASTER_AOA);
+        _syncExitFeeForRole(ROLE_PAYMASTER_SUPER);
+        _syncExitFeeForRole(ROLE_DVT);
+        _syncExitFeeForRole(ROLE_ANODE);
+        _syncExitFeeForRole(ROLE_KMS);
+        _syncExitFeeForRole(ROLE_COMMUNITY);
+        _syncExitFeeForRole(ROLE_ENDUSER);
+    }
+
+    /// @notice Update the GTokenStaking contract pointer.
+    /// @dev    P1-28 (B1-N1): after rotating to a new staking contract, all role
+    ///         exit fees are automatically pushed so the new contract is never left
+    ///         with stale (zero) fees. A zero-address is rejected to prevent
+    ///         bricking syncStakeFromStaking and exitRole.
     function setStaking(address _staking) external onlyOwner {
+        if (_staking == address(0)) revert InvalidParam();
         address old = address(GTOKEN_STAKING);
         GTOKEN_STAKING = IGTokenStaking(_staking);
+        _syncAllExitFees();
         emit StakingContractUpdated(old, _staking);
     }
 
