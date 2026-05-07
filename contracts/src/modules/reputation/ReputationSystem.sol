@@ -190,7 +190,10 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         // Derive a non-zero proposalId from (user, epoch) — unique per sync call since
         // epoch is monotonically increasing per user in Registry.
         // P1-27 resolved: security delegated to REGISTRY.batchUpdateGlobalReputation BLS proof verification
-        uint256 proposalId = uint256(keccak256(abi.encode(user, epoch)));
+        // P1-23: "RS" domain prefix prevents namespace collision with BLSAggregator proposalIds.
+        // BLSAggregator uses externally-provided uint256 IDs (sequential or off-chain hashed without
+        // this prefix), so ReputationSystem IDs are guaranteed distinguishable in Registry storage.
+        uint256 proposalId = uint256(keccak256(abi.encode("RS", user, epoch)));
         REGISTRY.batchUpdateGlobalReputation(proposalId, users, scores, epoch, proof);
         emit ReputationComputed(user, score);
     }
