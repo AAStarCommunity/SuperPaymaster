@@ -108,7 +108,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
     /// @notice Maximum allowed single transaction amount (anti-bug safeguard)
     /// @dev Prevents catastrophic losses from code bugs while maintaining flexibility
-    uint256 public constant MAX_SINGLE_TX_LIMIT = 5_000 ether; // $100 @ $0.02/aPNTs
+    uint256 public maxSingleTxLimit = 5_000 ether;
+    uint256 public constant MAX_SINGLE_TX_LIMIT_CAP = 50_000 ether; // $1000 safety ceiling
 
     // -----------------------------------------------------------------
     // P0-8 (B4-H2 / D8): per-spender daily burn cap
@@ -139,7 +140,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     mapping(bytes32 => bool) public usedDebtHashes;
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-3.1.0-spender-daily-cap"; // P0-8: per-spender daily burn cap
+        return "XPNTs-3.2.0-max-tx-configurable"; // P1-16: maxSingleTxLimit owner-configurable
     }
 
     /**
@@ -176,6 +177,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event SpenderRateLimitWindowReset(address indexed spender, uint64 newWindowStart);
     event FacilitatorApproved(address indexed facilitator);
     event FacilitatorRemoved(address indexed facilitator);
+    /// @notice P1-16: emitted when the owner-configurable single-tx limit is updated.
+    event MaxSingleTxLimitUpdated(uint256 oldLimit, uint256 newLimit);
 
 
     // ====================================
@@ -210,6 +213,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///         `SUPERPAYMASTER_ADDRESS` still equals `emergencyRevokedAddress`
     ///         would immediately re-open the drain path to the compromised SP.
     error RecoveryNotComplete();
+    /// @notice P1-16: thrown when `setMaxSingleTxLimit` receives an out-of-range value.
+    error InvalidParam();
 
     /// @dev Only factory or community owner can call
     modifier onlyFactoryOrOwner() {
@@ -319,6 +324,9 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // P0-8: default spender daily burn cap = 50_000 ether xPNTs (~$1000 @ $0.02).
         // Communities can tighten or loosen via setSpenderDailyCap.
         spenderDailyCapTokens = 50_000 ether;
+
+        // P1-16: initialize configurable single-tx limit (clone-safe; storage default = 0).
+        maxSingleTxLimit = 5_000 ether;
     }
 
     // ====================================
@@ -359,7 +367,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             }
 
             // Single transaction limit (anti-bug safeguard)
-            if (value > MAX_SINGLE_TX_LIMIT) {
+            if (value > maxSingleTxLimit) {
                 revert SingleTxLimitExceeded();
             }
         }
@@ -407,7 +415,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         usedOpHashes[userOpHash] = true;
 
         // 4. Single transaction limit (anti-bug safeguard)
-        if (amount > MAX_SINGLE_TX_LIMIT) {
+        if (amount > maxSingleTxLimit) {
             revert SingleTxLimitExceeded();
         }
 
@@ -436,7 +444,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         }
 
         // Single transaction limit (anti-bug safeguard)
-        if (amountXPNTs > MAX_SINGLE_TX_LIMIT) {
+        if (amountXPNTs > maxSingleTxLimit) {
             revert SingleTxLimitExceeded();
         }
 
@@ -458,7 +466,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (emergencyDisabled) revert EmergencyStop();
         if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) revert Unauthorized(msg.sender);
-        if (amountXPNTs > MAX_SINGLE_TX_LIMIT) revert SingleTxLimitExceeded();
+        if (amountXPNTs > maxSingleTxLimit) revert SingleTxLimitExceeded();
         // P1-17 cross-path: check BOTH hash maps so that a prior successful burn
         // (usedOpHashes set) blocks debt recording, and a prior debt record
         // (usedDebtHashes set) blocks a duplicate entry — regardless of which path
@@ -638,6 +646,17 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         emergencyDisabled = false;
         emit EmergencyDisabledCleared(msg.sender);
+    }
+
+    /// @notice P1-16: update the owner-configurable single-tx limit.
+    /// @dev    communityOwner only. `newLimit` must be > 0 and <= MAX_SINGLE_TX_LIMIT_CAP
+    ///         to prevent a misconfigured or compromised owner from setting an
+    ///         unbounded limit that negates the single-tx anti-bug safeguard.
+    function setMaxSingleTxLimit(uint256 newLimit) external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        if (newLimit == 0 || newLimit > MAX_SINGLE_TX_LIMIT_CAP) revert InvalidParam();
+        emit MaxSingleTxLimitUpdated(maxSingleTxLimit, newLimit);
+        maxSingleTxLimit = newLimit;
     }
 
     /// @notice P0-8: tune the per-spender daily burn cap.
