@@ -231,6 +231,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
+    /// @notice Register the caller for a given role by staking the required GToken amount.
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         if (user == address(0)) revert InvalidParam();
         if (msg.sender != user) revert Unauthorized();
@@ -262,6 +263,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.ticketPrice, block.timestamp);
     }
 
+    /// @notice Exit the caller's current role, unstaking tokens after the lock period.
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
 
@@ -328,6 +330,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit RoleExited(roleId, msg.sender, exitFee, block.timestamp);
     }
 
+    /// @notice Mint an SBT for a user as part of role registration.
     function safeMintForRole(bytes32 roleId, address user, bytes calldata data) external nonReentrant returns (uint256 tokenId) {
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
@@ -365,6 +368,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         GTOKEN_STAKING.lockStakeWithTicket(user, roleId, stakeAmount, ticketPrice, sponsor);
     }
 
+    /// @notice Configure role parameters (stake requirements, fees, limits) for the caller's role.
     function configureRole(bytes32 roleId, RoleConfig calldata config) external nonReentrant {
         address currentOwner = roleConfigs[roleId].owner;
         if (currentOwner == address(0)) {
