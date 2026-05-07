@@ -1340,7 +1340,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /// @notice Set ERC-8004 agent registries (Owner only)
+    /// @dev ERC-7562 constraint: _identity is called via balanceOf(sender) inside
+    ///      validatePaymasterUserOp. The contract MUST be ERC-7562 compliant:
+    ///      (1) no banned opcodes (TIMESTAMP, NUMBER, BLOCKHASH, ORIGIN, etc.),
+    ///      (2) balanceOf() reads only sender-associated storage slots.
+    ///      Standard ERC-721 implementations satisfy both requirements.
+    ///      Non-compliant registries cause bundlers to reject all agent-sponsored
+    ///      UserOps. Pass address(0) to disable agent sponsorship (SBT-only mode).
     function setAgentRegistries(address _identity, address _reputation) external onlyOwner {
+        if (_identity != address(0) && _identity.code.length == 0) revert InvalidAddress();
+        if (_reputation != address(0) && _reputation.code.length == 0) revert InvalidAddress();
         agentIdentityRegistry = _identity;
         agentReputationRegistry = _reputation;
         emit AgentRegistriesUpdated(_identity, _reputation);
@@ -1386,6 +1395,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /// @notice Check if an address is a registered ERC-8004 agent
+    /// @dev Called inside validatePaymasterUserOp. ERC-7562 §3.2 permits this
+    ///      external call because balanceOf(account) reads only
+    ///      sender-associated storage (_balances[account]), satisfying the
+    ///      "associated storage" rule for standard ERC-721 registries.
+    ///      try/catch ensures a non-compliant or self-destructed registry
+    ///      degrades gracefully (returns false) rather than bricking validation.
     function isRegisteredAgent(address account) public view returns (bool) {
         address reg = agentIdentityRegistry;
         if (reg == address(0)) return false;

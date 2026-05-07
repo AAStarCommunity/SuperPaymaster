@@ -266,14 +266,27 @@ contract SuperPaymasterV5Features_Test is Test {
     // We test the registry setter and verify it's wired correctly.
 
     function test_SetAgentRegistries() public {
-        address newId = address(0xAA);
-        address newRep = address(0xBB);
+        // Must be contracts (not EOAs) — code.length guard
+        MockAgentIdentityRegistry newId = new MockAgentIdentityRegistry();
+        MockAgentReputationRegistry newRep = new MockAgentReputationRegistry();
 
         vm.prank(owner);
-        paymaster.setAgentRegistries(newId, newRep);
+        paymaster.setAgentRegistries(address(newId), address(newRep));
 
-        assertEq(paymaster.agentIdentityRegistry(), newId);
-        assertEq(paymaster.agentReputationRegistry(), newRep);
+        assertEq(paymaster.agentIdentityRegistry(), address(newId));
+        assertEq(paymaster.agentReputationRegistry(), address(newRep));
+    }
+
+    function test_SetAgentRegistries_ZeroDisablesAgentMode() public {
+        vm.prank(owner);
+        paymaster.setAgentRegistries(address(0), address(0));
+        assertEq(paymaster.agentIdentityRegistry(), address(0));
+    }
+
+    function test_SetAgentRegistries_RejectsEOA() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidAddress.selector));
+        paymaster.setAgentRegistries(address(0xAA), address(0));
     }
 
     function test_SetAgentRegistries_OnlyOwner() public {
