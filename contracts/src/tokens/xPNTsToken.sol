@@ -96,6 +96,12 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev xPNTs amount = aPNTs amount * exchangeRate / 1e18
     uint256 public exchangeRate;
 
+    /// @notice P1-14: timestamp of the last `updateExchangeRate` call.
+    ///         0 means the rate has never been updated since initialization.
+    ///         Used with `EXCHANGE_RATE_COOLDOWN` to enforce a minimum gap
+    ///         between sequential rate updates.
+    uint256 public exchangeRateUpdatedAt;
+
     // --- Added for Clone Compatibility ---
     string private _tokenName;
     string private _tokenSymbol;
@@ -140,7 +146,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     mapping(bytes32 => bool) public usedDebtHashes;
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-3.2.0-max-tx-configurable"; // P1-16: maxSingleTxLimit owner-configurable
+        return "XPNTs-3.3.0"; // P1-16: maxSingleTxLimit configurable + P1-14: 1h cooldown
     }
 
     /**
@@ -199,8 +205,13 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error MustUseBurnFromWithOpHash();
     error BurnExceedsAllowance();
     error ExchangeRateCannotBeZero();
+    /// @notice P0-11: thrown when the new rate is outside [EXCHANGE_RATE_MIN, EXCHANGE_RATE_MAX].
     error ExchangeRateOutOfRange(uint256 rate, uint256 min, uint256 max);
+    /// @notice P0-11: thrown when the per-call drift exceeds EXCHANGE_RATE_DELTA_BPS.
     error ExchangeRateDeltaTooLarge(uint256 newRate, uint256 oldRate, uint256 maxDeltaBPS);
+    /// @notice P1-14: thrown when `updateExchangeRate` is called before the
+    ///         1-hour cooldown since the last update has elapsed.
+    error ExchangeRateCooldownActive();
     /// @notice P0-7: thrown when a burn-shaped path runs while the community
     ///         has flipped the emergency switch.
     error EmergencyStop();
@@ -869,6 +880,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     uint256 public constant EXCHANGE_RATE_MAX = 1e22;        // 10000:1
     uint256 public constant EXCHANGE_RATE_DELTA_BPS = 2000;  // 20%
     uint256 private constant BPS_DENOMINATOR = 10_000;
+    /// @notice P1-14: minimum time between consecutive `updateExchangeRate` calls.
+    ///         Prevents rapid sequential updates that compound the +/-20% delta
+    ///         cap and move the rate far from its starting value within a short
+    ///         window. A 1-hour cooldown limits drift to ~20% per hour.
+    uint256 public constant EXCHANGE_RATE_COOLDOWN = 1 hours;
 
     /// @notice Update the xPNTs:aPNTs exchange rate.
     /// @dev P0-11 (B4-M2): pre-fix only checked `_newRate != 0`. Inline
@@ -879,6 +895,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     function updateExchangeRate(uint256 _newRate) external onlyFactoryOrOwner {
         if (_newRate == 0) revert ExchangeRateCannotBeZero();
         if (_newRate < EXCHANGE_RATE_MIN || _newRate > EXCHANGE_RATE_MAX) revert ExchangeRateOutOfRange(_newRate, EXCHANGE_RATE_MIN, EXCHANGE_RATE_MAX);
+        // P1-14: enforce cooldown between updates to prevent rapid compounding of the delta cap.
+        if (exchangeRateUpdatedAt != 0 && block.timestamp < exchangeRateUpdatedAt + EXCHANGE_RATE_COOLDOWN) {
+            revert ExchangeRateCooldownActive();
+        }
         uint256 oldRate = exchangeRate;
         if (oldRate != 0) {
             uint256 lower = oldRate * (BPS_DENOMINATOR - EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
@@ -888,6 +908,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         emit ExchangeRateUpdated(oldRate, _newRate);
         exchangeRate = _newRate;
+        exchangeRateUpdatedAt = block.timestamp;
     }
 
     /// @dev The new owner SHOULD be a multisig. See addApprovedFacilitator for security rationale.
