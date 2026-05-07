@@ -48,7 +48,7 @@ contract MicroPaymentChannelTest is Test {
         authorizedSigner = vm.addr(SIGNER_KEY);
         badSigner = vm.addr(BAD_KEY);
 
-        channel = new MicroPaymentChannel();
+        channel = new MicroPaymentChannel(address(this));
         token = new MockERC20("Test USDC", "USDC");
 
         // Mint tokens to payer
@@ -420,7 +420,7 @@ contract MicroPaymentChannelTest is Test {
     // ====================================
 
     function testVersion() public view {
-        assertEq(channel.version(), "MicroPaymentChannel-1.0.0");
+        assertEq(channel.version(), "MicroPaymentChannel-1.0.1");
     }
 
     // ====================================

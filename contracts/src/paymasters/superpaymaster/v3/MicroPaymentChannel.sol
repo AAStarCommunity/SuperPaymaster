@@ -7,6 +7,7 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /**
  * @title MicroPaymentChannel
@@ -21,22 +22,35 @@ import { ReentrancyGuard } from "@openzeppelin-v5.0.2/contracts/utils/Reentrancy
  *        vouchers on behalf of the payer.
  *      - channelId is bound to (contract address, chainId) to prevent
  *        cross-chain and cross-contract replay attacks.
- *      - CLOSE_TIMEOUT gives the payee a window to submit final vouchers
+ *      - closeTimeout gives the payee a window to submit final vouchers
  *        before the payer can unilaterally withdraw remaining funds.
  */
-contract MicroPaymentChannel is EIP712, ReentrancyGuard {
+contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     // ====================================
     // Constants
     // ====================================
 
-    /// @notice Dispute window after a close request before the payer can withdraw.
-    uint64 public constant CLOSE_TIMEOUT = 900; // 15 minutes
+    /// @notice Minimum allowed closeTimeout (5 minutes).
+    uint64 public constant MIN_CLOSE_TIMEOUT = 300;
+    /// @notice Maximum allowed closeTimeout (24 hours).
+    uint64 public constant MAX_CLOSE_TIMEOUT = 86400;
 
     /// @dev EIP-712 type hash for voucher signatures.
     bytes32 public constant VOUCHER_TYPEHASH =
         keccak256("Voucher(bytes32 channelId,uint128 cumulativeAmount)");
+
+    // ====================================
+    // Storage
+    // ====================================
+
+    /// @notice Dispute window (in seconds) after a close request before the payer can withdraw.
+    ///         Owner-configurable between MIN_CLOSE_TIMEOUT and MAX_CLOSE_TIMEOUT.
+    uint64 public closeTimeout = 900; // 15 minutes default
+
+    /// @dev channelId => Channel
+    mapping(bytes32 => Channel) private _channels;
 
     // ====================================
     // Types
@@ -55,13 +69,6 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
     }
 
     // ====================================
-    // Storage
-    // ====================================
-
-    /// @dev channelId => Channel
-    mapping(bytes32 => Channel) private _channels;
-
-    // ====================================
     // Errors
     // ====================================
 
@@ -77,6 +84,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
     error SettlementExceedsDeposit();
     error NonDecreasingSettlement();
     error SelfChannel();
+    error InvalidParameter(string reason);
 
     // ====================================
     // Events
@@ -118,6 +126,8 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
         uint128 refund
     );
 
+    event CloseTimeoutUpdated(uint64 oldTimeout, uint64 newTimeout);
+
     // ====================================
     // Modifiers
     // ====================================
@@ -129,6 +139,12 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
         if (ch.finalized) revert ChannelFinalized();
         _;
     }
+
+    // ====================================
+    // Constructor
+    // ====================================
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     // ====================================
     // EIP-712 Configuration
@@ -244,7 +260,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
 
     /**
      * @notice Request channel closure. Starts the dispute window.
-     * @dev Only the payer can call. The payee has CLOSE_TIMEOUT seconds
+     * @dev Only the payer can call. The payee has closeTimeout seconds
      *      to submit any remaining vouchers before the payer can withdraw.
      * @param channelId Channel identifier.
      */
@@ -318,7 +334,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
 
         if (msg.sender != ch.payer) revert OnlyPayer();
         if (ch.closeRequestedAt == 0) revert CloseNotRequested();
-        if (block.timestamp <= uint256(ch.closeRequestedAt) + CLOSE_TIMEOUT) {
+        if (block.timestamp <= uint256(ch.closeRequestedAt) + closeTimeout) {
             revert CloseTimeoutNotElapsed();
         }
 
@@ -330,6 +346,20 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
         }
 
         emit ChannelWithdrawn(channelId, refund);
+    }
+
+    /**
+     * @notice Update the dispute window duration.
+     * @dev Only the owner can call. The new value must be within
+     *      [MIN_CLOSE_TIMEOUT, MAX_CLOSE_TIMEOUT].
+     * @param _timeout New timeout in seconds.
+     */
+    function setCloseTimeout(uint64 _timeout) external onlyOwner {
+        if (_timeout < MIN_CLOSE_TIMEOUT || _timeout > MAX_CLOSE_TIMEOUT) {
+            revert InvalidParameter("closeTimeout out of range");
+        }
+        emit CloseTimeoutUpdated(closeTimeout, _timeout);
+        closeTimeout = _timeout;
     }
 
     /**
@@ -346,7 +376,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard {
      * @return Version identifier.
      */
     function version() external pure returns (string memory) {
-        return "MicroPaymentChannel-1.0.0";
+        return "MicroPaymentChannel-1.0.1";
     }
 
     // ====================================
