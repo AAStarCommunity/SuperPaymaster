@@ -1194,6 +1194,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Defense: If postOp previously failed, validation already charged - avoid double charging
         if (mode == PostOpMode.postOpReverted) return;
 
+        // P1-17 postOp-level idempotency guard: set BEFORE all accounting so that
+        // a replay (EntryPoint bug / malicious bundler) cannot double-refund the
+        // operator or double-deduct protocolRevenue.  Written here rather than
+        // inside _recordXPNTsDebt so it covers the full accounting block
+        // (operator.aPNTsBalance += refund, protocolRevenue -= refund) not just
+        // the xPNTs debt recording.  Storage write survives if inner try/catch
+        // catches a revert; if postOp itself reverts the write is also reverted,
+        // so a legitimate retry is not blocked.
+        if (_settledDebtOps[userOpHash]) return;
+        _settledDebtOps[userOpHash] = true;
+
         // 1. Calculate Actual Cost in aPNTs (always uses cached price)
         uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
 
@@ -1250,22 +1261,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @dev Try to burn xPNTs debt from user; fall back to recordDebtWithOpHash (P1-17 idempotent);
     ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
-    ///
-    ///      P1-17 cross-path double-charge fix (complete):
-    ///      _settledDebtOps[opHash] is set at the TOP of this function, before any
-    ///      external call.  Because storage writes inside a try/catch block are NOT
-    ///      reverted when the inner call reverts, this write persists even on failure.
-    ///      Any retry of the same opHash exits early, preventing:
-    ///       (a) burn-success → recordDebt-fallback double-charge
-    ///       (b) recordDebt-success → pendingDebts-fallback double-charge
-    ///      xPNTs-level cross-checks (usedOpHashes ↔ usedDebtHashes) provide
-    ///      defence-in-depth at the token contract.
+    ///      Idempotency is guaranteed by the postOp-level _settledDebtOps guard which
+    ///      runs before this function is called.  xPNTs cross-hash checks
+    ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
     function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
-        // SP-level idempotency gate: mark before any external call so the write
-        // survives even if all downstream calls revert.
-        if (_settledDebtOps[opHash]) return;
-        _settledDebtOps[opHash] = true;
-
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
             try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
                 pendingDebts[token][user] += amount;
