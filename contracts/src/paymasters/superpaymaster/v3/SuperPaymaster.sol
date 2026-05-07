@@ -155,11 +155,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         future monitoring integrations — NOT emitted from
     ///         validatePaymasterUserOp itself, since writing storage during
     ///         that opcode-restricted phase would violate ERC-7562.
-    /// @dev Intentionally not emitted in the current implementation. Retained for ABI
-    ///      compatibility and future use: once Stage-2 audit confirms bundler LOG* policy,
-    ///      a UUPS upgrade will wire this into postOp or an off-chain monitoring hook.
-    ///      Integrators must NOT subscribe to this event expecting real-time notifications —
-    ///      use `dryRunValidation()` instead for pre-flight checks.
+    /// @dev Not emitted during validatePaymasterUserOp (ERC-7562 prohibits LOG* opcodes
+    ///      in that phase). Off-chain monitoring should use `dryRunValidation()` for
+    ///      pre-flight checks; this event is reserved for a future postOp observability hook.
     event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);
     event ProtocolRevenueWithdrawn(address indexed to, uint256 amount);
     /// @notice Emitted when postOp refund is clamped to protocolRevenue (operator gets under-refunded).
@@ -621,7 +619,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Trusting msg.sender == BLS_AGGREGATOR is sufficient; owner path is an
         // emergency break-glass bypass (intentional, acknowledged risk: Chainlink ±20%
         // deviation guard below provides the secondary protection when BLS is bypassed).
-        // proof parameter is kept for ABI compatibility and future on-chain verification.
+        // proof is verified off-chain by BLSAggregator before it calls this function.
+        // Not re-verified on-chain; msg.sender == BLS_AGGREGATOR is the trust anchor.tion.
         
         // 3. Validate price bounds
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
@@ -816,7 +815,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     function executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes calldata proof) external override {
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
         
-        // Logical penalty (Warning=0, Minor=10%, Major=Full & Pause)
+        // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
+        // Major is further capped at 30% inside _slash (applyCap=true).
         uint256 penalty = 0;
         if (level == ISuperPaymaster.SlashLevel.MINOR) {
             penalty = operators[operator].aPNTsBalance / 10;
