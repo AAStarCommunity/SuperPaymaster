@@ -127,7 +127,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event OperatorUnpaused(address indexed operator);
     event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
     event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
-    
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event XPNTsFactoryUpdated(address indexed oldFactory, address indexed newFactory);
+
     /**
      * @notice Emitted when slash is executed with BLS proof
      * @param operator Operator address
@@ -433,10 +435,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert InvalidAddress();
+        emit TreasuryUpdated(treasury, _treasury);
         treasury = _treasury;
     }
 
     function setXPNTsFactory(address _factory) external onlyOwner {
+        emit XPNTsFactoryUpdated(xpntsFactory, _factory);
         xpntsFactory = _factory;
     }
 
