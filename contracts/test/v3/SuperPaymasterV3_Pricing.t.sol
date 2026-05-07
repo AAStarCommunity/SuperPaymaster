@@ -10,6 +10,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 // --- Mocks ---
 
@@ -126,7 +127,7 @@ contract MockRegistry is IRegistry {
 
 contract SuperPaymasterV3_Pricing_Test is Test {
     using stdStorage for StdStorage;
-    
+
     SuperPaymaster public paymaster;
     MockRegistry public registry;
     MockGTokenV3 public gtoken;
@@ -134,7 +135,8 @@ contract SuperPaymasterV3_Pricing_Test is Test {
     MockPriceFeedV3 public priceFeed;
     MockAPNTsV3 public apnts;
     MockXPNTsTokenV3 public xpntsToken;
-    
+    MockXPNTsFactory public mockFactory;
+
     address public owner = address(0x1);
     address public treasury = address(0x2);
     address public operator1 = address(0x3);
@@ -181,7 +183,12 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         // 3. Fund Operator
         apnts.mint(operator1, 10000 ether);
-        
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator1, address(xpntsToken));
+
         vm.stopPrank(); // End Owner Prank
         
         // 4. Mock Registry Update (SBT check) - Must be called by Registry

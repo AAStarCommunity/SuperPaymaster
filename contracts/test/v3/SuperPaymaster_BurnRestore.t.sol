@@ -9,6 +9,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
     BurnMockPriceFeed public priceFeed;
     BurnMockAPNTs public apnts;
     TrackingXPNTs public xpnts;
+    MockXPNTsFactory public mockFactory;
 
     address public owner     = address(0x1);
     address public treasury  = address(0x2);
@@ -156,6 +158,11 @@ contract SuperPaymaster_BurnRestore_Test is Test {
 
         registry.setRole(ROLE_PAYMASTER_SUPER, operator1, true);
         registry.setRole(ROLE_COMMUNITY, operator1, true);
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator1, address(xpnts));
 
         apnts.mint(operator1, 10_000 ether);
         vm.stopPrank();

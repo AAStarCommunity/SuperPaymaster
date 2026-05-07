@@ -8,6 +8,7 @@ import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 /**
  * @title Mock EntryPoint
@@ -46,14 +47,15 @@ contract MockAPNTs is ERC20 {
  */
 contract SuperPaymaster_Admin_Test is Test {
     using stdStorage for StdStorage;
-    
+
     SuperPaymaster public paymaster;
     Registry public registry;
     GToken public gtoken;
     MockEntryPoint public entryPoint;
     MockPriceFeed public priceFeed;
     MockAPNTs public apnts;
-    
+    MockXPNTsFactory public mockFactory;
+
     address public owner = address(0x1);
     address public treasury = address(0x2);
     address public operator1 = address(0x3);
@@ -97,9 +99,15 @@ contract SuperPaymaster_Admin_Test is Test {
             .checked_write(true);
         
         apnts.mint(operator1, 10000 ether);
-        
+
+        // Deploy mock factory and register operator1's token (P1-4 fix)
+        // test_ConfigureOperator_Success uses address(0x555) as token
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator1, address(0x555));
+
         vm.stopPrank();
-        
+
         vm.prank(operator1);
         apnts.approve(address(paymaster), type(uint256).max);
     }

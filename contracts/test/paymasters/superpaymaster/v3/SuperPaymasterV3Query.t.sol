@@ -9,6 +9,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 contract MockGToken is ERC20 {
     constructor() ERC20("GToken", "GT") {
@@ -68,6 +69,7 @@ contract SuperPaymasterQueryTest is Test {
     MockEntryPoint entryPoint;
     MockAggregator priceOracle;
     MockRegistry registry;
+    MockXPNTsFactory mockFactory;
 
     address owner = address(1);
     address treasury = address(2);
@@ -93,6 +95,11 @@ contract SuperPaymasterQueryTest is Test {
         );
 
         paymaster.setBLSAggregator(blsAggregator);
+
+        // Deploy mock factory and register token for owner (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(owner, address(gtoken));
 
         // Setup operator
         paymaster.configureOperator(address(gtoken), treasury, 1 ether);

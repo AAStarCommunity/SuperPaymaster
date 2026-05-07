@@ -12,6 +12,7 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 // Mock Contracts
 // Mock Contracts
@@ -108,7 +109,8 @@ contract SuperPaymasterTest is Test {
     MockRegistry registry;
     MockAggregatorV3 priceFeed;
     MockEntryPoint entryPoint;
-    
+    MockXPNTsFactory mockFactory;
+
     address owner = address(1);
     uint256 operatorPk = 0xA11CE;
     address operator = vm.addr(0xA11CE);
@@ -147,7 +149,13 @@ contract SuperPaymasterTest is Test {
 
         // Setup Token Whitelist (CRITICAL FIX)
         apnts.setSuperPaymasterAddress(address(paymaster));
-        
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator, address(apnts));
+
+
         // Fix: Update Price Cache (Warp to prevent underflow allowed check)
         vm.warp(block.timestamp + 2 hours);
         paymaster.updatePrice();

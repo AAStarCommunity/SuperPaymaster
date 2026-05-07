@@ -14,6 +14,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import "../../src/mocks/MockBLSAggregator.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 contract MockAggregator is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -53,6 +54,7 @@ contract BlacklistSyncTest is Test {
     MockEntryPoint entryPoint;
     MockAggregator priceFeed;
     MockBLSAggregator mockAggregator;
+    MockXPNTsFactory mockFactory;
 
     address owner = address(1);
     address dvtNode = address(2); // Legacy: kept for now, no longer privileged for blacklist
@@ -102,17 +104,23 @@ contract BlacklistSyncTest is Test {
         // 5. Setup Roles (kept for backward-compat with other suites; no
         //    longer required for blacklist auth post-P0-3).
         registry.setReputationSource(dvtNode, true);
-        
+
+        // Deploy mock factory and wire it (owner context)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+
         // Register Operator (Community + Paymaster)
         gtoken.mint(operator, 10000 ether);
         vm.stopPrank();
-        
+
+        mockFactory.setToken(operator, address(apnts));
+
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10000 ether);
         Registry.CommunityRoleData memory commData = Registry.CommunityRoleData("OpComm", "op.eth", "", "", "", 100 ether);
         registry.registerRole(registry.ROLE_COMMUNITY(), operator, abi.encode(commData));
         registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(100 ether)));
-        
+
         // Configure Operator
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         paymaster.updatePrice();

@@ -11,6 +11,7 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "./MockSBT.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 contract V3_Function_BoostTest is Test {
     using Clones for address;
@@ -20,6 +21,7 @@ contract V3_Function_BoostTest is Test {
     SuperPaymaster paymaster;
     xPNTsToken aPNTs;
     MockSBT mockSBT;
+    MockXPNTsFactory mockFactory;
 
     address owner = address(this);
     address user = address(0x2);
@@ -45,6 +47,12 @@ contract V3_Function_BoostTest is Test {
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(address(0x123)), IRegistry(address(registry)), address(0x123), owner, address(aPNTs), treasury, 3600);
         
         aPNTs.setSuperPaymasterAddress(address(paymaster));
+
+        // Deploy mock factory and register manager's token (P1-4 fix)
+        // owner = address(this), so no prank needed for setXPNTsFactory
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(manager, address(aPNTs));
     }
 
     // --- Registry Function Boost ---

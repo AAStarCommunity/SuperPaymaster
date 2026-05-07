@@ -11,6 +11,7 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 // --- Mocks (mirror SuperPaymasterV3_Pricing.t.sol) ---
 
@@ -114,6 +115,7 @@ contract DryRunValidationTest is Test {
     MockPriceFeedDR public priceFeed;
     MockAPNTsDR public apnts;
     MockXPNTsDR public xpnts;
+    MockXPNTsFactory public mockFactory;
 
     address public owner    = address(0x1);
     address public treasury = address(0x2);
@@ -145,6 +147,11 @@ contract DryRunValidationTest is Test {
         // Grant roles to operator
         registry.setRole(registry.ROLE_PAYMASTER_SUPER(), operator, true);
         registry.setRole(registry.ROLE_COMMUNITY(), operator, true);
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator, address(xpnts));
 
         apnts.mint(operator, 10_000 ether);
         vm.stopPrank();

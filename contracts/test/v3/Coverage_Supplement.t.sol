@@ -13,6 +13,7 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import "src/mocks/MockBLSAggregator.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 // --- Mocks ---
 
@@ -81,13 +82,14 @@ contract CoverageSupplementTest is Test {
     Registry registry;
     GTokenStaking staking;
     SuperPaymaster paymaster;
-    
+
     MockGToken gtoken;
     MockSBT sbt;
     MockEntryPoint entryPoint;
     MockOracle oracle;
     MockXPNTs xpnts;
-    
+    MockXPNTsFactory mockFactory;
+
     address owner = address(1);
     address treasury = address(2);
     address user = address(0x100);
@@ -138,6 +140,11 @@ contract CoverageSupplementTest is Test {
         // returns true so the rest of this suite isn't blocked on real pairing.
         MockBLSAggregator aggregator = new MockBLSAggregator();
         registry.setBLSAggregator(address(aggregator));
+
+        // Deploy mock factory and register operator token (P1-4 fix)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+        mockFactory.setToken(operator, address(xpnts));
 
         vm.stopPrank();
 

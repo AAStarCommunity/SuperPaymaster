@@ -15,6 +15,7 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
 
 contract MockOracle is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -83,6 +84,7 @@ contract Registry_BlacklistHardeningTest is Test {
     MockOracle priceFeed;
 
     MockBLSAggregator aggregator;
+    MockXPNTsFactory mockFactory;
 
     address owner = address(0x1);
     address operator = address(0x300);
@@ -117,10 +119,17 @@ contract Registry_BlacklistHardeningTest is Test {
         aggregator = new MockBLSAggregator();
         registry.setBLSAggregator(address(aggregator));
 
+        // Deploy mock factory and wire it into the paymaster (owner context)
+        mockFactory = new MockXPNTsFactory();
+        paymaster.setXPNTsFactory(address(mockFactory));
+
         // Spin up an operator with COMMUNITY + PAYMASTER_SUPER + a configured
         // entry inside SuperPaymaster so updateBlockedStatus has a target.
         gtoken.mint(operator, 10_000 ether);
         vm.stopPrank();
+
+        // Register operator's token in the mock factory (no auth required)
+        mockFactory.setToken(operator, address(apnts));
 
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10_000 ether);
