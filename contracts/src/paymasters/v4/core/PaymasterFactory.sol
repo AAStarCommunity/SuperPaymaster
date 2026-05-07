@@ -90,6 +90,9 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error InvalidImplementation(address implementation);
     error VersionAlreadyExists(string _version);
     error PaymasterNotFound(address paymaster);
+    error InvalidInitData();
+    error InitFailed(bytes returnData);
+    error OwnerMismatch(address expected, address actual);
 
     // ====================================
     // Internal Helpers
@@ -97,14 +100,15 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
     /// @dev Initialize a newly deployed paymaster and verify owner is set correctly
     function _initAndVerify(address paymaster, address operator, bytes memory initData) internal {
-        if (initData.length == 0) revert("initData required for secure deployment");
+        if (initData.length < 4) revert InvalidInitData();
         (bool success, bytes memory returnData) = paymaster.call(initData);
-        require(success, string(abi.encodePacked("Init failed: ", returnData)));
+        if (!success) revert InitFailed(returnData);
         (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
             abi.encodeWithSignature("owner()")
         );
-        require(ownerSuccess && abi.decode(ownerData, (address)) == operator,
-                "Owner not set correctly");
+        if (!ownerSuccess) revert InitFailed(ownerData);
+        address actualOwner = abi.decode(ownerData, (address));
+        if (actualOwner != operator) revert OwnerMismatch(operator, actualOwner);
     }
 
     // ====================================
