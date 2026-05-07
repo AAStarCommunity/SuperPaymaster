@@ -178,13 +178,13 @@ contract PriceSetter_ExchangeRate_Test is Test {
 
     function test_UpdateExchangeRate_RejectsBelowMin() public {
         vm.prank(admin);
-        vm.expectRevert(xPNTsToken.ExchangeRateCannotBeZero.selector);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.ExchangeRateOutOfRange.selector, MIN - 1, MIN, MAX));
         token.updateExchangeRate(MIN - 1);
     }
 
     function test_UpdateExchangeRate_RejectsAboveMax() public {
         vm.prank(admin);
-        vm.expectRevert(xPNTsToken.ExchangeRateCannotBeZero.selector);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.ExchangeRateOutOfRange.selector, MAX + 1, MIN, MAX));
         token.updateExchangeRate(MAX + 1);
     }
 
@@ -208,7 +208,7 @@ contract PriceSetter_ExchangeRate_Test is Test {
         // 21% above base
         uint256 tooHigh = base * 12100 / 10000;
         vm.prank(admin);
-        vm.expectRevert(xPNTsToken.ExchangeRateCannotBeZero.selector);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.ExchangeRateDeltaTooLarge.selector, tooHigh, base, uint256(2000)));
         token.updateExchangeRate(tooHigh);
     }
 
@@ -217,7 +217,7 @@ contract PriceSetter_ExchangeRate_Test is Test {
         // 21% below base
         uint256 tooLow = base * 7900 / 10000;
         vm.prank(admin);
-        vm.expectRevert(xPNTsToken.ExchangeRateCannotBeZero.selector);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.ExchangeRateDeltaTooLarge.selector, tooLow, base, uint256(2000)));
         token.updateExchangeRate(tooLow);
     }
 
