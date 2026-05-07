@@ -458,6 +458,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (msg.sender != aggregator) revert UnauthorizedSource();
 
         if (users.length != statuses.length) revert LenMismatch();
+        if (users.length > 200) revert BatchTooLarge();
         if (SUPER_PAYMASTER == address(0)) revert SPNotSet();
 
         // (2) Proof is mandatory — no soft skip.
