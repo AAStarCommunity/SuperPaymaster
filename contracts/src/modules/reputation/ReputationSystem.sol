@@ -94,8 +94,8 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         address community = msg.sender; 
         // Verify msg.sender has the COMMUNITY role (multi-tenant: each community manages its own rules)
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) && owner() != msg.sender) revert NotAuthorized();
+        if (base > 10_000 || bonus > 10_000 || max > 100_000) revert InvalidInput();
 
-        
         if (communityRules[community][ruleId].baseScore == 0 && base > 0) {
             communityActiveRules[community].push(ruleId);
         }
