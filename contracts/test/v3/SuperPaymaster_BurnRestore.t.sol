@@ -73,6 +73,17 @@ contract TrackingXPNTs is ERC20 {
         if (shouldRecordDebtFail) revert("RecordDebtFailed");
         recordDebtCalls++;
     }
+
+    // P1-17: SuperPaymaster now calls recordDebtWithOpHash (opHash-protected) instead
+    // of recordDebt. The mock increments the same counter so existing test assertions
+    // ("recordDebt must be called as fallback") continue to verify fallback behavior.
+    mapping(bytes32 => bool) public usedDebtHashes;
+    function recordDebtWithOpHash(address, uint256, bytes32 opHash) external {
+        if (shouldRecordDebtFail) revert("RecordDebtFailed");
+        require(!usedDebtHashes[opHash], "DebtAlreadyRecorded");
+        usedDebtHashes[opHash] = true;
+        recordDebtCalls++;
+    }
 }
 
 contract BurnMockRegistry is IRegistry {

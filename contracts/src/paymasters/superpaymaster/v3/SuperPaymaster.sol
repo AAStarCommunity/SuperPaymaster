@@ -1248,10 +1248,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
-    /// @dev Try to burn xPNTs debt from user; fall back to recordDebt; fall back to pendingDebts.
+    /// @dev Try to burn xPNTs debt from user; fall back to recordDebtWithOpHash (P1-17 idempotent);
+    ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
+    ///      recordDebtWithOpHash is preferred over recordDebt so that an EntryPoint
+    ///      invariant violation or future retry path cannot record the same debt twice.
     function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
-            try IxPNTsToken(token).recordDebt(user, amount) {} catch {
+            try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
                 pendingDebts[token][user] += amount;
                 emit DebtRecordFailed(token, user, amount);
             }

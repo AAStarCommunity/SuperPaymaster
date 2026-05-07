@@ -21,6 +21,15 @@ interface IxPNTsToken {
     function recordDebt(address user, uint256 amountXPNTs) external;
 
     /**
+     * @notice Record user debt with opHash replay protection (P1-17)
+     * @dev Preferred over recordDebt; reverts if the same opHash was already processed
+     * @param user User address
+     * @param amountXPNTs Debt amount in xPNTs
+     * @param opHash UserOperation hash — used as replay guard key
+     */
+    function recordDebtWithOpHash(address user, uint256 amountXPNTs, bytes32 opHash) external;
+
+    /**
      * @notice Get user debt amount
      * @param user User address
      * @return debt Debt amount in xPNTs
