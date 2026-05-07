@@ -462,6 +462,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     function isChainlinkStale() external view returns (bool) { return _isChainlinkStale(); }
 
+    /// @notice Returns the timestamp after which the cached price is considered stale.
+    /// @dev Returns 0 if price has never been updated. Use to check freshness off-chain.
+    function priceValidUntil() external view returns (uint48) {
+        if (cachedPrice.updatedAt == 0) return 0;
+        return uint48(cachedPrice.updatedAt + priceStalenessThreshold);
+    }
+
     /// @notice Queue an emergency price update. Only honored when Chainlink
     ///         is stale and the new price stays within ±20% of the last
     ///         cached price; eligible for execution after a 1-hour timelock.
