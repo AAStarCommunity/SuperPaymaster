@@ -158,6 +158,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     /// @dev Sync exit fees for all 7 known roles to the current GTOKEN_STAKING.
     ///      Called automatically after setStaking() so the new staking contract
     ///      is never left with stale (zero) exit fees.
+    ///      Intentional design: individual role sync failures are non-blocking —
+    ///      they emit ExitFeeSyncFailed but do not revert setStaking(). The staking
+    ///      pointer is always updated atomically; any failed roles can be retried
+    ///      via the public syncExitFees() call. This matches the existing
+    ///      syncExitFees() behaviour and avoids bricking setStaking() when a new
+    ///      staking contract is not yet fully configured.
+    ///      Note: this list must be updated if new roles are added in future.
     function _syncAllExitFees() internal {
         _syncExitFeeForRole(ROLE_PAYMASTER_AOA);
         _syncExitFeeForRole(ROLE_PAYMASTER_SUPER);
