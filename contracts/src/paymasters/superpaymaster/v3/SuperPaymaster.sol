@@ -1070,7 +1070,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         config.aPNTsBalance -= uint128(aPNTsAmount); // Safe cast due to check above
         config.totalSpent += aPNTsAmount;
         protocolRevenue += aPNTsAmount;
-        config.totalTxSponsored++;
+        // P1-6 / B2-N15: totalTxSponsored moved to postOp (see below) to prevent
+        // simulation inflation via simulateValidation.
 
         // 6. Return Context — xPNTsAmount excluded (postOp recomputes from exchangeRate)
         return (abi.encode(config.xPNTsToken, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
@@ -1205,6 +1206,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // so a legitimate retry is not blocked.
         if (_settledDebtOps[userOpHash]) return;
         _settledDebtOps[userOpHash] = true;
+
+        // P1-6 / B2-N15: Increment here (after idempotency guard) so both
+        // simulateValidation inflation AND postOp replay are prevented.
+        operators[operator].totalTxSponsored++;
 
         // 1. Calculate Actual Cost in aPNTs (always uses cached price)
         uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
