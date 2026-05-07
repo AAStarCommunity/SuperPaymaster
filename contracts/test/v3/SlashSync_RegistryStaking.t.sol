@@ -61,7 +61,9 @@ contract SlashSync_RegistryStakingTest is Test {
             treasury,
             3600
         );
-        paymaster.setBLSAggregator(dvtAggregator);
+        paymaster.queueBLSAggregator(dvtAggregator);
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
         staking.setAuthorizedSlasher(dvtAggregator, true);
         paymaster.updateReputation(operator, 100);
         paymaster.updateReputation(otherOperator, 100);

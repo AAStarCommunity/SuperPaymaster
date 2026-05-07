@@ -80,7 +80,7 @@ contract MockRegistryDR is IRegistry {
     function setStaking(address) external {}
     function setMySBT(address) external {}
     function setSuperPaymaster(address) external {}
-    function setBLSAggregator(address) external {}
+    function queueBLSAggregator(address) external {}
     function setBLSValidator(address) external {}
     function setCreditTier(uint256, uint256) external {}
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory) {}

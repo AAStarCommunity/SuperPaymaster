@@ -60,7 +60,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.3.0";
+        return "SuperPaymaster-5.3.1";
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -83,6 +83,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 internal constant BPS_DENOMINATOR = 10000;
     uint256 internal constant MAX_PROTOCOL_FEE = 2000; // 20% Hardcap (Security)
     uint256 internal constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
+    /// @notice Minimum protocolRevenue that must remain after any withdrawal.
+    ///         Prevents draining the buffer needed for in-flight postOp refunds.
+    ///         Sized to cover ~10 concurrent ops at 0.01 aPNTs each (conservative).
+    uint256 internal constant PROTOCOL_REVENUE_BUFFER = 0.1 ether;
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
@@ -628,12 +632,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             uint80, int256 chainlinkPrice, uint256, uint256 chainlinkUpdatedAt, uint80
         ) {
             // Only check deviation if Chainlink data is recent (within 2 hours)
-            if (block.timestamp - chainlinkUpdatedAt < 2 hours) {
-                int256 deviation = price > chainlinkPrice 
+            // P1-42: guard chainlinkPrice <= 0 to prevent div-by-zero
+            if (chainlinkPrice > 0 && block.timestamp - chainlinkUpdatedAt < 2 hours) {
+                int256 deviation = price > chainlinkPrice
                     ? (price - chainlinkPrice) * 100 / chainlinkPrice
                     : (chainlinkPrice - price) * 100 / chainlinkPrice;
-                
-                // Revert if deviation exceeds 20%
                 if (deviation > 20) revert OracleError();
             }
         } catch {
@@ -751,13 +754,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function withdrawProtocolRevenue(address to, uint256 amount) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
-        if (amount > protocolRevenue) revert InsufficientRevenue();
-        
+        // P1-2: leave PROTOCOL_REVENUE_BUFFER unwithdrawable to absorb in-flight postOp refunds.
+        // Without this, an owner withdrawal between validate and postOp drains the pool,
+        // causing ProtocolRevenueUnderflow and reducing the operator's refund.
+        uint256 available = protocolRevenue > PROTOCOL_REVENUE_BUFFER
+            ? protocolRevenue - PROTOCOL_REVENUE_BUFFER
+            : 0;
+        if (amount > available) revert InsufficientRevenue();
+
         protocolRevenue -= amount;
-        // Fix: Reduce tracked balance
         totalTrackedBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(to, amount);
-        
+
         emit ProtocolRevenueWithdrawn(to, amount);
     }
 
@@ -785,8 +793,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      * @dev Reduces reputation and optionally pauses operator
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        // Owner slash: no 30% hardcap (full authority for governance actions)
-        _slash(operator, level, penaltyAmount, reason, false);
+        // P0-14: 30% cap + 24h cooldown — prevents owner from draining operator in a single tx.
+        if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
+        _slashCd[operator] = uint48(block.timestamp) + 24 hours;
+        _slash(operator, level, penaltyAmount, reason, true);
     }
 
     /**
@@ -870,11 +880,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ReputationUpdated(operator, config.reputation);
     }
 
-    function setBLSAggregator(address _bls) external onlyOwner {
+    // P0-3: 24h timelock on BLSAggregator replacement — prevents instant governance takeover.
+    function queueBLSAggregator(address _bls) external onlyOwner {
         if (_bls == address(0)) revert InvalidAddress();
-        address oldAggregator = BLS_AGGREGATOR;
-        BLS_AGGREGATOR = _bls;
-        emit BLSAggregatorUpdated(oldAggregator, _bls);
+        pendingBLSAgg = _bls;
+        pendingBLSAggEta = uint48(block.timestamp + 24 hours);
+        emit BLSAggregatorQueued(_bls, pendingBLSAggEta);
+    }
+
+    function applyBLSAggregator() external onlyOwner {
+        address p = pendingBLSAgg;
+        if (p == address(0)) revert InvalidConfiguration();
+        if (uint48(block.timestamp) < pendingBLSAggEta) revert InvalidConfiguration();
+        address old = BLS_AGGREGATOR;
+        BLS_AGGREGATOR = p;
+        pendingBLSAgg = address(0);
+        pendingBLSAggEta = 0;
+        emit BLSAggregatorUpdated(old, p);
     }
 
     // ====================================
@@ -1173,6 +1195,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Defense: If postOp previously failed, validation already charged - avoid double charging
         if (mode == PostOpMode.postOpReverted) return;
 
+        // P1-17 postOp-level idempotency guard: set BEFORE all accounting so that
+        // a replay (EntryPoint bug / malicious bundler) cannot double-refund the
+        // operator or double-deduct protocolRevenue.  Written here rather than
+        // inside _recordXPNTsDebt so it covers the full accounting block
+        // (operator.aPNTsBalance += refund, protocolRevenue -= refund) not just
+        // the xPNTs debt recording.  Storage write survives if inner try/catch
+        // catches a revert; if postOp itself reverts the write is also reverted,
+        // so a legitimate retry is not blocked.
+        if (_settledDebtOps[userOpHash]) return;
+        _settledDebtOps[userOpHash] = true;
+
         // 1. Calculate Actual Cost in aPNTs (always uses cached price)
         uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
 
@@ -1227,10 +1260,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
-    /// @dev Try to burn xPNTs debt from user; fall back to recordDebt; fall back to pendingDebts.
+    /// @dev Try to burn xPNTs debt from user; fall back to recordDebtWithOpHash (P1-17 idempotent);
+    ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
+    ///      Idempotency is guaranteed by the postOp-level _settledDebtOps guard which
+    ///      runs before this function is called.  xPNTs cross-hash checks
+    ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
     function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
-            try IxPNTsToken(token).recordDebt(user, amount) {} catch {
+            try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
                 pendingDebts[token][user] += amount;
                 emit DebtRecordFailed(token, user, amount);
             }
@@ -1288,6 +1325,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     /// @notice Earliest timestamp at which `executeAPNTsTokenChange` may run.
     uint256 public pendingAPNTsTokenEta;
 
+    // P0-14: per-operator slash cooldown (24h between owner slashes of same operator).
+    mapping(address => uint48) private _slashCd;
+
+    // P0-3: BLSAggregator 24h timelock (packed into 1 slot: address 20B + uint48 6B).
+    address public pendingBLSAgg;
+    uint48 public pendingBLSAggEta;
+
     // V5 Events
     event FacilitatorFeeUpdated(uint256 oldFee, uint256 newFee);
     event AgentRegistriesUpdated(address identityRegistry, address reputationRegistry);
@@ -1296,6 +1340,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // V5 Errors
     error NonceAlreadyUsed();
     error InvalidFee();
+    // P0-14
+    error SlashCooldown();
+    // P0-3
+    event BLSAggregatorQueued(address indexed pending, uint48 eta);
 
     // x402 Constants
     uint256 internal constant MAX_FACILITATOR_FEE = 500; // 5% hardcap
@@ -1316,7 +1364,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /// @notice Set ERC-8004 agent registries (Owner only)
+    /// @dev ERC-7562 constraint: _identity is called via isRegisteredAgent(sender) inside
+    ///      validatePaymasterUserOp. The contract MUST be ERC-7562 compliant:
+    ///      (1) no banned opcodes (TIMESTAMP, NUMBER, BLOCKHASH, ORIGIN, etc.),
+    ///      (2) isRegisteredAgent() reads only sender-associated storage slots.
+    ///      Requires IAgentIdentityRegistry.isRegisteredAgent() — generic ERC-721s
+    ///      are NOT accepted since any NFT holder would qualify as an agent.
+    ///      Non-compliant registries cause bundlers to reject all agent-sponsored
+    ///      UserOps. Pass address(0) to disable agent sponsorship (SBT-only mode).
     function setAgentRegistries(address _identity, address _reputation) external onlyOwner {
+        if (_identity != address(0) && _identity.code.length == 0) revert InvalidAddress();
+        if (_reputation != address(0) && _reputation.code.length == 0) revert InvalidAddress();
         agentIdentityRegistry = _identity;
         agentReputationRegistry = _reputation;
         emit AgentRegistriesUpdated(_identity, _reputation);
@@ -1362,11 +1420,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /// @notice Check if an address is a registered ERC-8004 agent
+    /// @dev Called inside validatePaymasterUserOp. ERC-7562 §3.2 permits this
+    ///      external call because isRegisteredAgent(account) reads only
+    ///      sender-associated storage, satisfying the "associated storage" rule.
+    ///      Using the dedicated isRegisteredAgent() rather than generic balanceOf()
+    ///      ensures only ERC-8004 compliant registries qualify — not arbitrary ERC-721s.
+    ///      try/catch degrades gracefully if the registry is self-destructed or buggy.
     function isRegisteredAgent(address account) public view returns (bool) {
         address reg = agentIdentityRegistry;
         if (reg == address(0)) return false;
-        try IAgentIdentityRegistry(reg).balanceOf(account) returns (uint256 bal) {
-            return bal > 0;
+        try IAgentIdentityRegistry(reg).isRegisteredAgent(account) returns (bool registered) {
+            return registered;
         } catch {
             return false;
         }
@@ -1478,6 +1542,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Storage Gap (UUPS upgrade safety)
     // ====================================
 
-    // 50 reserved; current usage: 16 (slots 0-15 used by non-mapping vars above __gap).
-    uint256[34] private __gap;
+    /// @notice P1-17: SP-level guard — once a (token, opHash) pair has entered
+    ///         _recordXPNTsDebt, no retry can re-enter regardless of which path
+    ///         (burn, recordDebt, pendingDebts) the first call took.  Closes the
+    ///         pendingDebts fallback double-charge scenario that xPNTs-level
+    ///         cross-checks alone cannot prevent.
+    mapping(bytes32 => bool) internal _settledDebtOps;
+
+    // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps = 21.
+    uint256[31] private __gap;
 }

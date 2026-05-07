@@ -274,8 +274,11 @@ contract SuperPaymasterTest is Test {
         
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
-        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator); 
+        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
         assertEq(repMinor, 80);
+
+        // P0-14: advance past 24h cooldown before second slash
+        vm.warp(block.timestamp + 24 hours + 1);
 
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");
@@ -333,11 +336,20 @@ contract SuperPaymasterTest is Test {
         
         vm.stopPrank();
         
-        // 4. Withdraw Revenue
+        // 4. Withdraw Revenue — must leave PROTOCOL_REVENUE_BUFFER (0.1 ether) in place
         vm.startPrank(owner);
+        uint256 buffer = 0.1 ether;
+        uint256 withdrawable = revenue > buffer ? revenue - buffer : 0;
         uint256 treasuryBalBefore = apnts.balanceOf(treasury);
-        paymaster.withdrawProtocolRevenue(treasury, revenue);
-        assertEq(apnts.balanceOf(treasury), treasuryBalBefore + revenue);
+        if (withdrawable > 0) {
+            paymaster.withdrawProtocolRevenue(treasury, withdrawable);
+            assertEq(apnts.balanceOf(treasury), treasuryBalBefore + withdrawable);
+        }
+        // Verify buffer prevents full drain
+        if (revenue > buffer) {
+            vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientRevenue.selector));
+            paymaster.withdrawProtocolRevenue(treasury, revenue);
+        }
         vm.stopPrank();
     }
 

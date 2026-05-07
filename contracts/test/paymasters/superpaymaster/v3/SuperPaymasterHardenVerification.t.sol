@@ -125,7 +125,9 @@ contract SuperPaymasterHardenVerification is Test {
         paymaster.setXPNTsFactory(address(factory));
         
         // Initialize Price Cache
-        paymaster.setBLSAggregator(owner);
+        paymaster.queueBLSAggregator(owner);
+        vm.warp(block.timestamp + 24 hours + 1);
+        paymaster.applyBLSAggregator();
         paymaster.updatePriceDVT(2000 * 1e8, block.timestamp, "", 0);
 
         registry.grantRole(registry.ROLE_COMMUNITY(), community);

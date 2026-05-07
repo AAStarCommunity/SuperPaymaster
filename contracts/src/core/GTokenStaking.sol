@@ -31,6 +31,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     error NotAuthorizedSlasher();
     error InsufficientStake();
     error TotalStakeExceedsCap();
+    /// @notice Thrown when feePercent exceeds 20% (2000 BPS) — mirrors Registry.configureRole cap
+    error FeeTooHigh();
 
     // ...
 
@@ -420,6 +422,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
 
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
         if (msg.sender != REGISTRY && msg.sender != owner()) revert Unauthorized();
+        // P1-41: mirror Registry.configureRole 20% cap to prevent owner setting ruinous exit fees
+        if (feePercent > 2000) revert FeeTooHigh();
         RoleExitConfig storage config = roleExitConfigs[roleId];
         config.feePercent = feePercent;
         config.minFee = minFee;

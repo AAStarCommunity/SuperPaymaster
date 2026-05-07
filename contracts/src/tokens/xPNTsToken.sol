@@ -131,6 +131,13 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev    Default 50_000 ether (~$1000 at $0.02/xPNTs). Community owner can adjust.
     uint256 public spenderDailyCapTokens;
 
+    /// @notice P1-17: opHash replay guard for the recordDebt fallback path.
+    ///         Prevents double-debt when the burnFromWithOpHash path fails
+    ///         (e.g. insufficient balance) and recordDebtWithOpHash is called
+    ///         more than once for the same UserOp — which can happen if the
+    ///         EntryPoint invariant is violated or a future code path retries.
+    mapping(bytes32 => bool) public usedDebtHashes;
+
     function version() external pure override returns (string memory) {
         return "XPNTs-3.1.0-spender-daily-cap"; // P0-8: per-spender daily burn cap
     }
@@ -178,6 +185,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error Unauthorized(address caller);
     error InvalidAddress(address addr);
     error OperationAlreadyProcessed(bytes32 userOpHash);
+    /// @notice P1-17: thrown by recordDebtWithOpHash when the opHash was already processed
+    error DebtAlreadyRecorded(bytes32 opHash);
     error UnauthorizedRecipient();
     error SingleTxLimitExceeded();
     error SuperPaymasterNotConfigured();
@@ -385,8 +394,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(msg.sender);
         }
 
-        // 2. Replay Protection: Ensure this UserOp hasn't been processed.
-        if (usedOpHashes[userOpHash]) {
+        // 2. Replay Protection: Ensure this UserOp hasn't been processed via EITHER path.
+        // P1-17 cross-path: if the debt-recording fallback already settled this opHash
+        // (usedDebtHashes), block the burn to prevent charging the user twice.
+        if (usedOpHashes[userOpHash] || usedDebtHashes[userOpHash]) {
             revert OperationAlreadyProcessed(userOpHash);
         }
 
@@ -427,6 +438,31 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert SingleTxLimitExceeded();
         }
 
+        debts[user] += amountXPNTs;
+        emit DebtRecorded(user, amountXPNTs);
+    }
+
+    /**
+     * @notice Record user debt with opHash replay protection (P1-17).
+     * @dev    Preferred over recordDebt when the UserOp hash is available.
+     *         Ensures that if postOp is somehow invoked twice for the same
+     *         UserOp (EntryPoint invariant violation), the second call reverts
+     *         rather than doubling the user's debt. The burnFromWithOpHash path
+     *         already carries opHash replay protection via usedOpHashes; this
+     *         function closes the same gap for the balance-insufficient fallback.
+     *         SuperPaymaster._recordXPNTsDebt calls this instead of recordDebt.
+     */
+    function recordDebtWithOpHash(address user, uint256 amountXPNTs, bytes32 opHash) external {
+        if (emergencyDisabled) revert EmergencyStop();
+        if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
+        if (msg.sender != SUPERPAYMASTER_ADDRESS) revert Unauthorized(msg.sender);
+        if (amountXPNTs > MAX_SINGLE_TX_LIMIT) revert SingleTxLimitExceeded();
+        // P1-17 cross-path: check BOTH hash maps so that a prior successful burn
+        // (usedOpHashes set) blocks debt recording, and a prior debt record
+        // (usedDebtHashes set) blocks a duplicate entry — regardless of which path
+        // the first settlement used.
+        if (usedOpHashes[opHash] || usedDebtHashes[opHash]) revert DebtAlreadyRecorded(opHash);
+        usedDebtHashes[opHash] = true;
         debts[user] += amountXPNTs;
         emit DebtRecorded(user, amountXPNTs);
     }

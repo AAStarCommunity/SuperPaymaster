@@ -37,14 +37,18 @@ contract MockAPNTsV5 is ERC20 {
 }
 
 contract MockAgentIdentityRegistry is IAgentIdentityRegistry {
-    mapping(address => uint256) private _balances;
+    mapping(address => bool) private _agents;
 
     function setAgent(address agent, bool isAgent) external {
-        _balances[agent] = isAgent ? 1 : 0;
+        _agents[agent] = isAgent;
+    }
+
+    function isRegisteredAgent(address account) external view override returns (bool) {
+        return _agents[account];
     }
 
     function balanceOf(address owner) external view override returns (uint256) {
-        return _balances[owner];
+        return _agents[owner] ? 1 : 0;
     }
 
     function ownerOf(uint256) external pure override returns (address) {
@@ -266,14 +270,27 @@ contract SuperPaymasterV5Features_Test is Test {
     // We test the registry setter and verify it's wired correctly.
 
     function test_SetAgentRegistries() public {
-        address newId = address(0xAA);
-        address newRep = address(0xBB);
+        // Must be contracts (not EOAs) — code.length guard
+        MockAgentIdentityRegistry newId = new MockAgentIdentityRegistry();
+        MockAgentReputationRegistry newRep = new MockAgentReputationRegistry();
 
         vm.prank(owner);
-        paymaster.setAgentRegistries(newId, newRep);
+        paymaster.setAgentRegistries(address(newId), address(newRep));
 
-        assertEq(paymaster.agentIdentityRegistry(), newId);
-        assertEq(paymaster.agentReputationRegistry(), newRep);
+        assertEq(paymaster.agentIdentityRegistry(), address(newId));
+        assertEq(paymaster.agentReputationRegistry(), address(newRep));
+    }
+
+    function test_SetAgentRegistries_ZeroDisablesAgentMode() public {
+        vm.prank(owner);
+        paymaster.setAgentRegistries(address(0), address(0));
+        assertEq(paymaster.agentIdentityRegistry(), address(0));
+    }
+
+    function test_SetAgentRegistries_RejectsEOA() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidAddress.selector));
+        paymaster.setAgentRegistries(address(0xAA), address(0));
     }
 
     function test_SetAgentRegistries_OnlyOwner() public {
@@ -592,6 +609,6 @@ contract SuperPaymasterV5Features_Test is Test {
     // The cache integration is tested implicitly via validatePaymasterUserOp.
 
     function test_Version() public {
-        assertEq(paymaster.version(), "SuperPaymaster-5.3.0");
+        assertEq(paymaster.version(), "SuperPaymaster-5.3.1");
     }
 }
