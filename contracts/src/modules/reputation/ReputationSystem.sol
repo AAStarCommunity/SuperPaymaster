@@ -48,6 +48,8 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     error MaxBoostedReached();
     error DoesNotHoldNFT();
     error InvalidCollection();
+    error InvalidAddress();
+    error InvalidInput();
 
     event RuleUpdated(address indexed community, bytes32 indexed ruleId, uint256 base, uint256 bonus);
     event EntropyFactorUpdated(address indexed community, uint256 factor);
@@ -103,6 +105,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     }
 
     function setNFTBoost(address collection, uint256 boost) external onlyOwner {
+        if (collection == address(0)) revert InvalidAddress();
         if (nftCollectionBoost[collection] == 0) {
             if (boostedCollections.length >= MAX_BOOSTED_COLLECTIONS) revert MaxBoostedReached();
             boostedCollections.push(collection);
@@ -121,6 +124,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         bytes32[][] memory ruleIds, 
         uint256[][] memory activities
     ) public view returns (uint256 totalScore) {
+        if (ruleIds.length != communities.length || activities.length != communities.length) revert InvalidInput();
         for (uint i = 0; i < communities.length; i++) {
             address community = communities[i];
             uint256 communityScore = 0;
