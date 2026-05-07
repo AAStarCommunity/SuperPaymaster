@@ -76,6 +76,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     /**
      * @notice Set specific community reputation score (called by DVT/Trusted Source)
      * @dev Allows off-chain calculation results to be stored on-chain for specific communities.
+     *      Authorized callers: contract owner OR addresses whitelisted via Registry.isReputationSource().
      */
     function setCommunityReputation(address community, address user, uint256 score) external {
         // Reuse Registry's reputation source whitelist for access control
@@ -163,7 +164,9 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     }
 
     /**
-     * @notice Trigger Registry update
+     * @notice Sync computed reputation score to the Registry for the given user.
+     * @dev Computes score via computeScore then calls Registry.batchUpdateGlobalReputation.
+     *      The proposalId is derived deterministically from (user, epoch) to ensure uniqueness.
      */
     function syncToRegistry(
         address user, 
