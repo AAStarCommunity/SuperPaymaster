@@ -128,7 +128,7 @@ contract GenericDVTProposalTest is Test {
         target = new MockTarget();
         dvtValidator = new MockDVTValidator();
 
-        bls = new BLSAggregator(address(registry), address(0), address(dvtValidator));
+        bls = new BLSAggregator(address(registry), address(999), address(dvtValidator));
 
         // P0-1: register validator keys into slots 1..MAX_VALIDATORS so the
         // aggregator can reconstruct pkAgg from on-chain state.
