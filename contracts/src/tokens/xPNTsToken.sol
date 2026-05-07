@@ -196,6 +196,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     error MustUseBurnFromWithOpHash();
     error BurnExceedsAllowance();
     error ExchangeRateCannotBeZero();
+    error ExchangeRateOutOfRange(uint256 rate, uint256 min, uint256 max);
+    error ExchangeRateDeltaTooLarge(uint256 newRate, uint256 oldRate, uint256 maxDeltaBPS);
     /// @notice P0-7: thrown when a burn-shaped path runs while the community
     ///         has flipped the emergency switch.
     error EmergencyStop();
@@ -857,12 +859,12 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     ///      already non-zero in practice; the guard is for robustness).
     function updateExchangeRate(uint256 _newRate) external onlyFactoryOrOwner {
         if (_newRate == 0) revert ExchangeRateCannotBeZero();
-        if (_newRate < EXCHANGE_RATE_MIN || _newRate > EXCHANGE_RATE_MAX) revert ExchangeRateCannotBeZero();
+        if (_newRate < EXCHANGE_RATE_MIN || _newRate > EXCHANGE_RATE_MAX) revert ExchangeRateOutOfRange(_newRate, EXCHANGE_RATE_MIN, EXCHANGE_RATE_MAX);
         uint256 oldRate = exchangeRate;
         if (oldRate != 0) {
             uint256 lower = oldRate * (BPS_DENOMINATOR - EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
             uint256 upper = oldRate * (BPS_DENOMINATOR + EXCHANGE_RATE_DELTA_BPS) / BPS_DENOMINATOR;
-            if (_newRate < lower || _newRate > upper) revert ExchangeRateCannotBeZero();
+            if (_newRate < lower || _newRate > upper) revert ExchangeRateDeltaTooLarge(_newRate, oldRate, EXCHANGE_RATE_DELTA_BPS);
         }
 
         emit ExchangeRateUpdated(oldRate, _newRate);
