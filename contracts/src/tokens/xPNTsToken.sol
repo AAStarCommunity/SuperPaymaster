@@ -702,6 +702,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         rl.dailyBurnTotal = uint128(newTotal);
     }
 
+    /// @notice Add an address (e.g. SuperPaymaster) that can spend tokens without explicit approval.
     function addAutoApprovedSpender(address spender) external onlyFactoryOrOwner {
         if (spender == address(0)) {
             revert InvalidAddress(spender);
