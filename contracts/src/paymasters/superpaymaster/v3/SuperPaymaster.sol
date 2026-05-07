@@ -83,6 +83,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 internal constant BPS_DENOMINATOR = 10000;
     uint256 internal constant MAX_PROTOCOL_FEE = 2000; // 20% Hardcap (Security)
     uint256 internal constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
+    /// @notice Minimum protocolRevenue that must remain after any withdrawal.
+    ///         Prevents draining the buffer needed for in-flight postOp refunds.
+    ///         Sized to cover ~10 concurrent ops at 0.01 aPNTs each (conservative).
+    uint256 internal constant PROTOCOL_REVENUE_BUFFER = 0.1 ether;
 
     address public BLS_AGGREGATOR; // Trusted Aggregator for DVT Slash
 
@@ -750,13 +754,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function withdrawProtocolRevenue(address to, uint256 amount) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
-        if (amount > protocolRevenue) revert InsufficientRevenue();
-        
+        // P1-2: leave PROTOCOL_REVENUE_BUFFER unwithdrawable to absorb in-flight postOp refunds.
+        // Without this, an owner withdrawal between validate and postOp drains the pool,
+        // causing ProtocolRevenueUnderflow and reducing the operator's refund.
+        uint256 available = protocolRevenue > PROTOCOL_REVENUE_BUFFER
+            ? protocolRevenue - PROTOCOL_REVENUE_BUFFER
+            : 0;
+        if (amount > available) revert InsufficientRevenue();
+
         protocolRevenue -= amount;
-        // Fix: Reduce tracked balance
         totalTrackedBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(to, amount);
-        
+
         emit ProtocolRevenueWithdrawn(to, amount);
     }
 
@@ -1339,11 +1348,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /// @notice Set ERC-8004 agent registries (Owner only)
-    /// @dev ERC-7562 constraint: _identity is called via balanceOf(sender) inside
+    /// @dev ERC-7562 constraint: _identity is called via isRegisteredAgent(sender) inside
     ///      validatePaymasterUserOp. The contract MUST be ERC-7562 compliant:
     ///      (1) no banned opcodes (TIMESTAMP, NUMBER, BLOCKHASH, ORIGIN, etc.),
-    ///      (2) balanceOf() reads only sender-associated storage slots.
-    ///      Standard ERC-721 implementations satisfy both requirements.
+    ///      (2) isRegisteredAgent() reads only sender-associated storage slots.
+    ///      Requires IAgentIdentityRegistry.isRegisteredAgent() — generic ERC-721s
+    ///      are NOT accepted since any NFT holder would qualify as an agent.
     ///      Non-compliant registries cause bundlers to reject all agent-sponsored
     ///      UserOps. Pass address(0) to disable agent sponsorship (SBT-only mode).
     function setAgentRegistries(address _identity, address _reputation) external onlyOwner {
@@ -1395,16 +1405,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Check if an address is a registered ERC-8004 agent
     /// @dev Called inside validatePaymasterUserOp. ERC-7562 §3.2 permits this
-    ///      external call because balanceOf(account) reads only
-    ///      sender-associated storage (_balances[account]), satisfying the
-    ///      "associated storage" rule for standard ERC-721 registries.
-    ///      try/catch ensures a non-compliant or self-destructed registry
-    ///      degrades gracefully (returns false) rather than bricking validation.
+    ///      external call because isRegisteredAgent(account) reads only
+    ///      sender-associated storage, satisfying the "associated storage" rule.
+    ///      Using the dedicated isRegisteredAgent() rather than generic balanceOf()
+    ///      ensures only ERC-8004 compliant registries qualify — not arbitrary ERC-721s.
+    ///      try/catch degrades gracefully if the registry is self-destructed or buggy.
     function isRegisteredAgent(address account) public view returns (bool) {
         address reg = agentIdentityRegistry;
         if (reg == address(0)) return false;
-        try IAgentIdentityRegistry(reg).balanceOf(account) returns (uint256 bal) {
-            return bal > 0;
+        try IAgentIdentityRegistry(reg).isRegisteredAgent(account) returns (bool registered) {
+            return registered;
         } catch {
             return false;
         }

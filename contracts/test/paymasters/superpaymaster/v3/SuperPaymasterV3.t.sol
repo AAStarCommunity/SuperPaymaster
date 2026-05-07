@@ -336,11 +336,20 @@ contract SuperPaymasterTest is Test {
         
         vm.stopPrank();
         
-        // 4. Withdraw Revenue
+        // 4. Withdraw Revenue — must leave PROTOCOL_REVENUE_BUFFER (0.1 ether) in place
         vm.startPrank(owner);
+        uint256 buffer = 0.1 ether;
+        uint256 withdrawable = revenue > buffer ? revenue - buffer : 0;
         uint256 treasuryBalBefore = apnts.balanceOf(treasury);
-        paymaster.withdrawProtocolRevenue(treasury, revenue);
-        assertEq(apnts.balanceOf(treasury), treasuryBalBefore + revenue);
+        if (withdrawable > 0) {
+            paymaster.withdrawProtocolRevenue(treasury, withdrawable);
+            assertEq(apnts.balanceOf(treasury), treasuryBalBefore + withdrawable);
+        }
+        // Verify buffer prevents full drain
+        if (revenue > buffer) {
+            vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientRevenue.selector));
+            paymaster.withdrawProtocolRevenue(treasury, revenue);
+        }
         vm.stopPrank();
     }
 

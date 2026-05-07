@@ -37,14 +37,18 @@ contract MockAPNTsV5 is ERC20 {
 }
 
 contract MockAgentIdentityRegistry is IAgentIdentityRegistry {
-    mapping(address => uint256) private _balances;
+    mapping(address => bool) private _agents;
 
     function setAgent(address agent, bool isAgent) external {
-        _balances[agent] = isAgent ? 1 : 0;
+        _agents[agent] = isAgent;
+    }
+
+    function isRegisteredAgent(address account) external view override returns (bool) {
+        return _agents[account];
     }
 
     function balanceOf(address owner) external view override returns (uint256) {
-        return _balances[owner];
+        return _agents[owner] ? 1 : 0;
     }
 
     function ownerOf(uint256) external pure override returns (address) {
