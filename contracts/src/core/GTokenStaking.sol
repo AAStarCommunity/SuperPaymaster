@@ -418,11 +418,16 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // Admin Functions
     // ====================================
 
+    event RoleExitFeeUpdated(bytes32 indexed roleId, uint256 feePercent, uint256 minFee);
+    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event SlasherAuthorizationUpdated(address indexed slasher, bool authorized);
+
     function setRoleExitFee(bytes32 roleId, uint256 feePercent, uint256 minFee) external {
         if (msg.sender != REGISTRY && msg.sender != owner()) revert Unauthorized();
         RoleExitConfig storage config = roleExitConfigs[roleId];
         config.feePercent = feePercent;
         config.minFee = minFee;
+        emit RoleExitFeeUpdated(roleId, feePercent, minFee);
     }
 
     /**
@@ -431,11 +436,13 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
      */
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert InvalidAddress();
+        emit TreasuryUpdated(treasury, _treasury);
         treasury = _treasury;
     }
 
     function setAuthorizedSlasher(address slasher, bool authorized) external onlyOwner {
         authorizedSlashers[slasher] = authorized;
+        emit SlasherAuthorizationUpdated(slasher, authorized);
     }
 
     // ====================================
