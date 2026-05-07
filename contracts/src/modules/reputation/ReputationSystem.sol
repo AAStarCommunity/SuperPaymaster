@@ -48,6 +48,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     error MaxBoostedReached();
     error DoesNotHoldNFT();
     error InvalidCollection();
+    error InvalidParam();
 
     event RuleUpdated(address indexed community, bytes32 indexed ruleId, uint256 base, uint256 bonus);
     event EntropyFactorUpdated(address indexed community, uint256 factor);
@@ -89,11 +90,14 @@ contract ReputationSystem is Ownable, IReputationCalculator {
      * @dev Restricted to the owner of the community role in the Registry.
      */
     function setRule(bytes32 ruleId, uint256 base, uint256 bonus, uint256 max, string calldata desc) external {
-        address community = msg.sender; 
+        address community = msg.sender;
         // Verify msg.sender has the COMMUNITY role (multi-tenant: each community manages its own rules)
         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) && owner() != msg.sender) revert NotAuthorized();
 
-        
+        // Upper bounds prevent unbounded score inflation and arithmetic overflow in computeScore.
+        // base/bonus capped at 10_000 points per rule; max capped at 100_000 (max cumulative bonus).
+        if (base > 10_000 || bonus > 10_000 || max > 100_000) revert InvalidParam();
+
         if (communityRules[community][ruleId].baseScore == 0 && base > 0) {
             communityActiveRules[community].push(ruleId);
         }
