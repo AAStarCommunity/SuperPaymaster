@@ -106,7 +106,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         (bool ownerSuccess, bytes memory ownerData) = paymaster.staticcall(
             abi.encodeWithSignature("owner()")
         );
-        if (!ownerSuccess) revert InitFailed(ownerData);
+        if (!ownerSuccess || ownerData.length < 32) revert InitFailed(ownerData);
         address actualOwner = abi.decode(ownerData, (address));
         if (actualOwner != operator) revert OwnerMismatch(operator, actualOwner);
     }
