@@ -201,11 +201,15 @@ contract xPNTsFactoryTest is Test {
         vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidAddress.selector, address(0)));
         factory.setSuperPaymasterAddress(address(0));
         
-        // updateAPNTsPrice
-        factory.updateAPNTsPrice(1 ether);
-        assertEq(factory.getAPNTsPrice(), 1 ether);
+        // updateAPNTsPrice — initial price is 0.02 ether, ±30% delta
+        factory.updateAPNTsPrice(0.025 ether); // within +30% of 0.02
+        assertEq(factory.getAPNTsPrice(), 0.025 ether);
+        // Zero reverts (below MIN)
         vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidPrice.selector));
         factory.updateAPNTsPrice(0);
+        // Large jump (> +30%) reverts
+        vm.expectRevert(abi.encodeWithSelector(xPNTsFactory.InvalidPrice.selector));
+        factory.updateAPNTsPrice(1 ether);
         
         // setIndustryMultiplier
         factory.setIndustryMultiplier("Custom", 5 ether);

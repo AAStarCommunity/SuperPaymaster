@@ -90,6 +90,11 @@ contract xPNTsFactory is Ownable, IVersioned {
     /// @notice Minimum suggested amount: 100 aPNTs
     uint256 public constant MIN_SUGGESTED_AMOUNT = 100 ether;
 
+    // P0-12: price bounds for updateAPNTsPrice (18-decimal, $0.001–$100 USD)
+    uint256 public constant APNTS_PRICE_MIN = 0.001 ether;
+    uint256 public constant APNTS_PRICE_MAX = 100 ether;
+    uint256 public constant APNTS_PRICE_DELTA_BPS = 3000; // ±30% per update
+
 
 
     function version() external pure override returns (string memory) {
@@ -348,12 +353,16 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @dev Price is updated off-chain periodically for dynamic pricing
      * @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
      */
+    /// @dev P0-12: absolute bounds + ±30% per-tx delta to prevent price manipulation.
     function updateAPNTsPrice(uint256 newPrice) external onlyOwner {
-        if (newPrice == 0) revert InvalidPrice();
-
+        if (newPrice < APNTS_PRICE_MIN || newPrice > APNTS_PRICE_MAX) revert InvalidPrice();
         uint256 oldPrice = aPNTsPriceUSD;
+        if (oldPrice != 0) {
+            uint256 lower = oldPrice * (10000 - APNTS_PRICE_DELTA_BPS) / 10000;
+            uint256 upper = oldPrice * (10000 + APNTS_PRICE_DELTA_BPS) / 10000;
+            if (newPrice < lower || newPrice > upper) revert InvalidPrice();
+        }
         aPNTsPriceUSD = newPrice;
-
         emit APNTsPriceUpdated(oldPrice, newPrice);
     }
 

@@ -628,12 +628,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             uint80, int256 chainlinkPrice, uint256, uint256 chainlinkUpdatedAt, uint80
         ) {
             // Only check deviation if Chainlink data is recent (within 2 hours)
-            if (block.timestamp - chainlinkUpdatedAt < 2 hours) {
-                int256 deviation = price > chainlinkPrice 
+            // P1-42: guard chainlinkPrice <= 0 to prevent div-by-zero
+            if (chainlinkPrice > 0 && block.timestamp - chainlinkUpdatedAt < 2 hours) {
+                int256 deviation = price > chainlinkPrice
                     ? (price - chainlinkPrice) * 100 / chainlinkPrice
                     : (chainlinkPrice - price) * 100 / chainlinkPrice;
-                
-                // Revert if deviation exceeds 20%
                 if (deviation > 20) revert OracleError();
             }
         } catch {
