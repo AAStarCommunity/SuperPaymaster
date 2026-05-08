@@ -98,7 +98,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-2.2.0-clone-optimized";
+        return "xPNTsFactory-2.3.0-clone-optimized";
     }
 
     // ====================================
@@ -129,6 +129,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
     event SuperPaymasterAddressUpdated(address indexed oldAddr, address indexed newAddr);
     event SuperPaymasterPropagationFailed(address indexed token, address indexed newSP);
+    event SuperPaymasterPropagated(address indexed token, address indexed newSP);
 
     // ====================================
     // Errors
@@ -349,16 +350,32 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
      * @param _superPaymaster The address of the deployed SuperPaymaster contract.
      */
-    /// @dev M-8: propagate new SP to all deployed tokens (best-effort; failures emit event).
+    /// @dev M-8: stores new SP address; use propagateSuperPaymaster() to push to deployed tokens.
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
         if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
         emit SuperPaymasterAddressUpdated(SUPERPAYMASTER, _superPaymaster);
         SUPERPAYMASTER = _superPaymaster;
+    }
 
+    /**
+     * @notice Propagate current SUPERPAYMASTER address to a batch of deployed tokens.
+     * @dev Best-effort: failures emit SuperPaymasterPropagationFailed without reverting.
+     *      Call repeatedly with increasing `start` to handle large deployedTokens arrays
+     *      and to retry previously failed tokens.
+     * @param start  Index in deployedTokens to start from (inclusive).
+     * @param limit  Maximum number of tokens to process in this call.
+     */
+    function propagateSuperPaymaster(uint256 start, uint256 limit) external onlyOwner {
+        address sp = SUPERPAYMASTER;
         address[] memory tokens = deployedTokens;
-        for (uint256 i = 0; i < tokens.length; ) {
-            try xPNTsToken(tokens[i]).setSuperPaymasterAddress(_superPaymaster) {}
-            catch { emit SuperPaymasterPropagationFailed(tokens[i], _superPaymaster); }
+        uint256 end = start + limit;
+        if (end > tokens.length) end = tokens.length;
+        for (uint256 i = start; i < end; ) {
+            try xPNTsToken(tokens[i]).setSuperPaymasterAddress(sp) {
+                emit SuperPaymasterPropagated(tokens[i], sp);
+            } catch {
+                emit SuperPaymasterPropagationFailed(tokens[i], sp);
+            }
             unchecked { ++i; }
         }
     }
