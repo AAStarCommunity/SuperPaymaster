@@ -98,7 +98,7 @@ contract xPNTsFactory is Ownable, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-2.1.0-clone-optimized";
+        return "xPNTsFactory-2.2.0-clone-optimized";
     }
 
     // ====================================
@@ -128,6 +128,7 @@ contract xPNTsFactory is Ownable, IVersioned {
     );
 
     event SuperPaymasterAddressUpdated(address indexed oldAddr, address indexed newAddr);
+    event SuperPaymasterPropagationFailed(address indexed token, address indexed newSP);
 
     // ====================================
     // Errors
@@ -348,10 +349,18 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
      * @param _superPaymaster The address of the deployed SuperPaymaster contract.
      */
+    /// @dev M-8: propagate new SP to all deployed tokens (best-effort; failures emit event).
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
         if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
         emit SuperPaymasterAddressUpdated(SUPERPAYMASTER, _superPaymaster);
         SUPERPAYMASTER = _superPaymaster;
+
+        address[] memory tokens = deployedTokens;
+        for (uint256 i = 0; i < tokens.length; ) {
+            try xPNTsToken(tokens[i]).setSuperPaymasterAddress(_superPaymaster) {}
+            catch { emit SuperPaymasterPropagationFailed(tokens[i], _superPaymaster); }
+            unchecked { ++i; }
+        }
     }
 
     /**
