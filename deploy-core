@@ -58,7 +58,12 @@ SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
 # Prepare Forge flags
 FORGE_FLAGS="--rpc-url $RPC_URL --broadcast --slow -vv"
-if [ "$ENV" != "anvil" ]; then
+if [ "$ENV" == "anvil" ]; then
+    # Bypass EIP-170 size-limit interactive prompt on Anvil (size limits are advisory,
+    # not enforced by Anvil's EVM). Without this flag, forge 1.4+ will request terminal
+    # confirmation when a contract exceeds 24576 bytes, causing CI/non-TTY failures.
+    FORGE_FLAGS="$FORGE_FLAGS --disable-code-size-limit"
+else
     FORGE_FLAGS="$FORGE_FLAGS --timeout 300"
 fi
 
@@ -89,7 +94,9 @@ else
      else
         # Anvil default (0xf39... id 0)
         echo "🔧 Using Anvil Default Account"
-        FORGE_FLAGS="$FORGE_FLAGS --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" 
+        FORGE_FLAGS="$FORGE_FLAGS --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        # Export the corresponding address so VerifyV3_1_1 can resolve DEPLOYER_ADDRESS
+        export DEPLOYER_ADDRESS="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
      fi
 fi
 
