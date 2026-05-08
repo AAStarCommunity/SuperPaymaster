@@ -71,16 +71,16 @@ contract RegistryV3_Changes_Test is Test {
         registry.registerRole(ROLE_COMMUNITY, community, data);
 
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.getCommunityByName("TestCommunity"), community);
-        assertEq(registry.getCommunityByENS("test.eth"), community);
 
         // COMMUNITY exit succeeds — cleanup name/ENS slots
         registry.exitRole(ROLE_COMMUNITY);
 
         // Role should be removed, name/ENS slots freed
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.getCommunityByName("TestCommunity"), address(0));
-        assertEq(registry.getCommunityByENS("test.eth"), address(0));
+        // Verify name/ENS slots cleared: re-registering with the same name must succeed (would revert if slot not freed)
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_COMMUNITY, community, data);
+        assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
         vm.stopPrank();
     }
 

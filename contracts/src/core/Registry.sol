@@ -21,7 +21,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.2";
+        return "Registry-5.3.3";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -120,7 +120,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, ticketPrice, thresh, base, inc, max, exitFeePercent, true, minExitFee, "", roleOwner, lockDuration);
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
-            try GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee) {} catch {}
+            address(GTOKEN_STAKING).call(abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee)));
         }
     }
 
@@ -134,9 +134,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     function _syncExitFeeForRole(bytes32 roleId) internal {
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
-            try GTOKEN_STAKING.setRoleExitFee(roleId, cfg.exitFeePercent, cfg.minExitFee) {} catch {
-                emit ExitFeeSyncFailed(roleId, address(GTOKEN_STAKING));
-            }
+            address(GTOKEN_STAKING).call(
+                abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, cfg.exitFeePercent, cfg.minExitFee))
+            );
         }
     }
 
@@ -169,7 +169,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) external {
         if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
         roleStakes[roleId][user] = newAmount;
-        emit StakeSyncedFromStaking(user, roleId, newAmount);
     }
 
     /// @notice Effective per-role stake from Staking source of truth (P0-14).
@@ -273,9 +272,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
             // L-04: non-fatal burnSBT — failure emits SBTBurnFailed.
-            try MYSBT.burnSBT(msg.sender) {} catch {
-                emit SBTBurnFailed(msg.sender, roleId);
-            }
+            (bool _burnOk,) = address(MYSBT).call(abi.encodeCall(IMySBT.burnSBT, (msg.sender)));
+            if (!_burnOk) emit SBTBurnFailed(msg.sender, roleId);
         }
 
         uint256 exitFee;
@@ -356,7 +354,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
         address agg = blsAggregator;
         uint256 threshold = IBLSAggregator(agg).defaultThreshold();
-        if (_countSetBits(signerMask) < threshold) revert InsufficientConsensus();
+        uint256 _m = signerMask; uint256 _bits; while (_m != 0) { _m &= (_m - 1); _bits++; }
+        if (_bits < threshold) revert InsufficientConsensus();
         if (!IBLSAggregator(agg).verify(messageHash, signerMask, threshold, sigG2Bytes)) revert BLSFailed();
     }
 
@@ -387,7 +386,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 unchecked { ++i; }
                 continue;
             }
-            uint256 clamped = _clampReputation(globalReputation[user], newScores[i], 100);
+            uint256 _old = globalReputation[user]; uint256 _new = newScores[i];
+            uint256 clamped = (_new > _old)
+                ? ((_new - _old > 100) ? _old + 100 : _new)
+                : ((_old > _new && _old - _new > 100) ? _old - 100 : _new);
             globalReputation[user] = clamped;
             lastReputationEpoch[user] = epoch;
             emit GlobalReputationUpdated(user, clamped, epoch);
@@ -483,11 +485,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) { return userRoles[user]; }
-    function getRoleMembers(bytes32 roleId) external view returns (address[] memory) { return roleMembers[roleId]; }
     function getRoleUserCount(bytes32 roleId) external view returns (uint256) { return roleMembers[roleId].length; }
     function getRoleStake(bytes32 roleId, address user) external view returns (uint256) { return roleStakes[roleId][user]; }
-    function getCommunityByName(string calldata name) external view returns (address) { return communityByName[name]; }
-    function getCommunityByENS(string calldata ensName) external view returns (address) { return communityByENS[ensName]; }
 
     function _removeFromRoleMembers(bytes32 roleId, address user) internal {
         uint256 indexPlusOne = roleMemberIndex[roleId][user];
@@ -514,19 +513,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 break;
             }
         }
-    }
-
-    function _clampReputation(uint256 oldScore, uint256 newScore, uint256 maxChange) internal pure returns (uint256) {
-        if (newScore > oldScore) {
-            if (newScore - oldScore > maxChange) return oldScore + maxChange;
-        } else if (oldScore > newScore) {
-            if (oldScore - newScore > maxChange) return oldScore - maxChange;
-        }
-        return newScore;
-    }
-
-    function _countSetBits(uint256 n) internal pure returns (uint256 count) {
-        while (n != 0) { n &= (n - 1); count++; }
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

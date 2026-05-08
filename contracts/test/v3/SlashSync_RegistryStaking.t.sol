@@ -112,14 +112,15 @@ contract SlashSync_RegistryStakingTest is Test {
         assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 40 ether, "Registry must mirror");
     }
 
-    function test_SlashByDVT_EmitsSyncEvent() public {
+    function test_SlashByDVT_SyncsRegistryCache() public {
         _registerOperatorWithStake(operator, 50 ether);
-
-        vm.expectEmit(true, true, false, true, address(registry));
-        emit StakeSyncedFromStaking(operator, ROLE_PAYMASTER_SUPER, 40 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 50 ether);
 
         vm.prank(dvtAggregator);
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 10 ether, "rule break");
+
+        // Registry cache must be updated via syncStakeFromStaking hook.
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 40 ether, "Cache must mirror Staking");
     }
 
     // -----------------------------------------------------------------------
