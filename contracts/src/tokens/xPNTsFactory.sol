@@ -350,11 +350,18 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
      * @param _superPaymaster The address of the deployed SuperPaymaster contract.
      */
-    /// @dev M-8: stores new SP address; use propagateSuperPaymaster() to push to deployed tokens.
+    /// @dev M-8: propagates new SP to all deployed tokens inline (best-effort; failures emit event). Use propagateSuperPaymaster() for batch retry.
     function setSuperPaymasterAddress(address _superPaymaster) external onlyOwner {
         if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
         emit SuperPaymasterAddressUpdated(SUPERPAYMASTER, _superPaymaster);
         SUPERPAYMASTER = _superPaymaster;
+
+        address[] memory tokens = deployedTokens;
+        for (uint256 i = 0; i < tokens.length; ) {
+            try xPNTsToken(tokens[i]).setSuperPaymasterAddress(_superPaymaster) {}
+            catch { emit SuperPaymasterPropagationFailed(tokens[i], _superPaymaster); }
+            unchecked { ++i; }
+        }
     }
 
     /**
