@@ -16,10 +16,6 @@ import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 contract MockRegistrySec {
     mapping(bytes32 => mapping(address => bool)) public roles;
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_PAYMASTER_AOA() external pure returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
 
 
     function hasRole(bytes32 role, address account) external view returns (bool) {
@@ -105,8 +101,8 @@ contract SuperPaymaster_SecurityTest is Test {
         paymaster.updatePrice();
 
         // 3. Grant roles
-        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), operator);
-        registry.grantRole(registry.ROLE_COMMUNITY(), operator);
+        registry.grantRole(keccak256("PAYMASTER_SUPER"), operator);
+        registry.grantRole(keccak256("COMMUNITY"), operator);
 
         // 4. Configure Operator (Deposit & Setup)
         token.transfer(operator, 100 ether);

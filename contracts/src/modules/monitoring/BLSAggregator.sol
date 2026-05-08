@@ -3,10 +3,10 @@
 pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
-import "../../interfaces/v3/IRegistry.sol";
-import "../../interfaces/v3/IGTokenStaking.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
-import { BLS } from "../../utils/BLS.sol";
+import { BLS } from "src/utils/BLS.sol";
 
 /// @notice Local sub-view of Registry used to fetch the staking pointer at
 ///         verification time. We cast `REGISTRY` to this narrower interface
@@ -527,7 +527,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // pointer is immutable; the staking pointer (and minStake) are read
         // from Registry per-call so governance can rotate either without
         // redeploying BLSAggregator.
-        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        bytes32 roleDvt = keccak256("DVT");
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
         uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;

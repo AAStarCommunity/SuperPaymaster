@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
@@ -77,13 +78,10 @@ contract DVTSlashTest is Test {
             Registry.CommunityRoleData({
                 name: "OpComm",
                 ensName: "",
-                website: "",
-                description: "",
-                logoURI: "",
                 stakeAmount: 30 ether
             })
         );
-        registry.registerRole(registry.ROLE_COMMUNITY(), operator, commData);
+        registry.registerRole(keccak256("COMMUNITY"), operator, commData);
 
         bytes memory roleData = abi.encode(uint256(50 ether));
         registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);

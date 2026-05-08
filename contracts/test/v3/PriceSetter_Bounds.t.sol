@@ -40,7 +40,6 @@ contract MockAPNTsBounds is ERC20 {
 }
 
 contract MockRegistryBounds {
-    function ROLE_PAYMASTER_AOA() external pure returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
 }
 

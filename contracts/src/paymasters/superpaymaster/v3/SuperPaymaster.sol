@@ -7,7 +7,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "../../../interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "../../../interfaces/IxPNTsToken.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
@@ -199,12 +199,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @dev Reverts with Unauthorized if caller is not a registered ROLE_PAYMASTER_SUPER member
     function _requireSuperOperatorRole() internal view {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), msg.sender)) revert Unauthorized();
+        if (!REGISTRY.hasRole(keccak256("PAYMASTER_SUPER"), msg.sender)) revert Unauthorized();
     }
 
     /// @dev Reverts with Unauthorized if `account` is not a registered ROLE_PAYMASTER_SUPER member
     function _requireSuperOperatorRoleFor(address account) internal view {
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_PAYMASTER_SUPER(), account)) revert Unauthorized();
+        if (!REGISTRY.hasRole(keccak256("PAYMASTER_SUPER"), account)) revert Unauthorized();
     }
 
     // ====================================
@@ -260,7 +260,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Must be registered in Registry
         _requireSuperOperatorRole();
         // BUS-RULE: Must be Community to be Paymaster
-         if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender)) {
+         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert Unauthorized();
         }
         if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {

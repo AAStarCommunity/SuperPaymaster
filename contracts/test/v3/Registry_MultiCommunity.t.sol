@@ -65,7 +65,7 @@ contract RegistryMultiCommunityTest is Test {
 
         // Prepare community data
         bytes memory communityData = abi.encode(
-            Registry.CommunityRoleData(name, "", "", "", "", 30 ether)
+            Registry.CommunityRoleData(name, "", 30 ether)
         );
 
         // Register community
@@ -82,7 +82,7 @@ contract RegistryMultiCommunityTest is Test {
         
         // Prepare user data
         bytes memory userData = abi.encode(
-            Registry.EndUserRoleData(community, "", "", 1 ether)
+            Registry.EndUserRoleData(community, 1 ether)
         );
         
         // Join community
@@ -183,7 +183,7 @@ contract RegistryMultiCommunityTest is Test {
         _registerCommunity(communityA, "CommunityA");
         
         // Prepare second registration data
-        bytes memory communityData = abi.encode(Registry.CommunityRoleData("CommunityA_Duplicate", "", "", "", "", 30 ether));
+        bytes memory communityData = abi.encode(Registry.CommunityRoleData("CommunityA_Duplicate", "", 30 ether));
         
         // Second registration should revert (strictly non-idempotent for non-ENDUSER)
         vm.startPrank(communityA);

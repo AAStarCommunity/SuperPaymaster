@@ -13,13 +13,6 @@ import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 
 contract MockRegistry is IRegistry {
     using Clones for address;
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
-    function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return bytes32(0); }
-    function ROLE_KMS() external pure override returns (bytes32) { return bytes32(0); }
-    function ROLE_DVT() external pure override returns (bytes32) { return bytes32(0); }
-    function ROLE_ANODE() external pure override returns (bytes32) { return bytes32(0); }
     
     mapping(bytes32 => mapping(address => bool)) public roles;
 
@@ -130,8 +123,8 @@ contract SuperPaymasterHardenVerification is Test {
         paymaster.applyBLSAggregator();
         paymaster.updatePriceDVT(2000 * 1e8, block.timestamp, "", 0);
 
-        registry.grantRole(registry.ROLE_COMMUNITY(), community);
-        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), community);
+        registry.grantRole(keccak256("COMMUNITY"), community);
+        registry.grantRole(keccak256("PAYMASTER_SUPER"), community);
         
         vm.stopPrank();
     }

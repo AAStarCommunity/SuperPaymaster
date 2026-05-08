@@ -34,7 +34,6 @@ contract MockOracleOK {
 }
 
 contract MockRegistry {
-    function ROLE_PAYMASTER_AOA() external pure returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
 }
 
@@ -195,13 +194,6 @@ contract MockSPRegistry is IRegistry {
     }
     function grantRole(bytes32 role, address account) external { roles[role][account] = true; }
 
-    function ROLE_PAYMASTER_SUPER() external pure override returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA()   external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS()             external pure override returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_DVT()             external pure override returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_ANODE()           external pure override returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_COMMUNITY()       external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER()         external pure override returns (bytes32) { return keccak256("ENDUSER"); }
 
     function version() external pure override returns (string memory) { return "MockSPRegistry-1.0"; }
     function registerRole(bytes32, address, bytes calldata) external override {}

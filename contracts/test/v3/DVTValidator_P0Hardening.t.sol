@@ -33,13 +33,6 @@ contract MockRegistryDVT is IRegistry {
         return RoleConfig(dvtMinStake, 0, 0, 0, 0, 0, 0, true, 0, "", address(0), 0);
     }
 
-    function ROLE_DVT() external pure override returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_PAYMASTER_SUPER() external pure override returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_ANODE() external pure override returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
 
     // Inert overrides
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
@@ -99,7 +92,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
         // Make validator1 eligible: holds DVT role + has enough stake.
         registry.setIsDvt(validator1, true);
-        staking.setStake(validator1, registry.ROLE_DVT(), MIN_STAKE);
+        staking.setStake(validator1, keccak256("DVT"), MIN_STAKE);
 
         dvt.addValidator(validator1);
     }
@@ -111,7 +104,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_AddValidator_RevertsIfNotDVTRole() public {
         address candidate = address(0xC1);
         // role flag false by default
-        staking.setStake(candidate, registry.ROLE_DVT(), MIN_STAKE);
+        staking.setStake(candidate, keccak256("DVT"), MIN_STAKE);
         vm.expectRevert(DVTValidator.ValidatorMissingRole.selector);
         dvt.addValidator(candidate);
     }
@@ -119,7 +112,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_AddValidator_RevertsIfStakeBelowMinStake() public {
         address candidate = address(0xC2);
         registry.setIsDvt(candidate, true);
-        staking.setStake(candidate, registry.ROLE_DVT(), MIN_STAKE - 1);
+        staking.setStake(candidate, keccak256("DVT"), MIN_STAKE - 1);
         vm.expectRevert(abi.encodeWithSelector(
             DVTValidator.ValidatorStakeBelowMinimum.selector,
             MIN_STAKE - 1,
@@ -131,7 +124,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_AddValidator_AcceptsRoleAndStake() public {
         address candidate = address(0xC3);
         registry.setIsDvt(candidate, true);
-        staking.setStake(candidate, registry.ROLE_DVT(), MIN_STAKE);
+        staking.setStake(candidate, keccak256("DVT"), MIN_STAKE);
         dvt.addValidator(candidate);
         assertTrue(dvt.isValidator(candidate));
     }
@@ -139,7 +132,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_AddValidator_TracksUpdatedMinStake() public {
         address candidate = address(0xC4);
         registry.setIsDvt(candidate, true);
-        staking.setStake(candidate, registry.ROLE_DVT(), 500 ether);
+        staking.setStake(candidate, keccak256("DVT"), 500 ether);
         registry.setMinStake(1000 ether);
         vm.expectRevert(abi.encodeWithSelector(
             DVTValidator.ValidatorStakeBelowMinimum.selector,

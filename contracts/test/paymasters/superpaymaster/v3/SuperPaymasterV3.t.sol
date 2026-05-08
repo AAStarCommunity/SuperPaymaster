@@ -17,13 +17,6 @@ import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 // Mock Contracts
 // Mock Contracts
 contract MockRegistry is IRegistry {
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external view override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS() external view override returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_COMMUNITY() external view override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external view override returns (bytes32) { return keccak256("ENDUSER"); }
     mapping(bytes32 => mapping(address => bool)) public roles;
 
     function hasRole(bytes32 role, address account) external view override returns (bool) {
@@ -125,7 +118,7 @@ contract SuperPaymasterTest is Test {
         
         entryPoint = new MockEntryPoint();
         registry = new MockRegistry();
-        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), operator);
+        registry.grantRole(keccak256("PAYMASTER_SUPER"), operator);
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
         
@@ -161,7 +154,7 @@ contract SuperPaymasterTest is Test {
         paymaster.updatePrice();
 
         // Grant Roles
-        registry.grantRole(registry.ROLE_PAYMASTER_SUPER(), operator);
+        registry.grantRole(keccak256("PAYMASTER_SUPER"), operator);
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
 

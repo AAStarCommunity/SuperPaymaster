@@ -9,19 +9,12 @@ import "src/tokens/GToken.sol";
  * @title Mock Registry for MySBT Testing
  */
 contract MockRegistry is IRegistry {
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external view override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS() external view override returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     
     function setRole(bytes32 role, address account, bool value) external {
         hasRole[role][account] = value;
     }
 
-    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
 
     // Stubs
     function configureRole(bytes32, RoleConfig calldata) external override {}

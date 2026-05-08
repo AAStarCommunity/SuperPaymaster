@@ -36,9 +36,9 @@ contract V3_Function_BoostTest is Test {
         registry.setStaking(address(staking));
         
         vm.startPrank(owner);
-        staking.setRoleExitFee(registry.ROLE_KMS(), 1000, 5 ether);
-        staking.setRoleExitFee(registry.ROLE_COMMUNITY(), 500, 1 ether);
-        staking.setRoleExitFee(registry.ROLE_ENDUSER(), 1000, 0.05 ether);
+        staking.setRoleExitFee(keccak256("KMS"), 1000, 5 ether);
+        staking.setRoleExitFee(keccak256("COMMUNITY"), 500, 1 ether);
+        staking.setRoleExitFee(keccak256("ENDUSER"), 1000, 0.05 ether);
         vm.stopPrank();
 
         address implementation = address(new xPNTsToken());
@@ -59,11 +59,11 @@ contract V3_Function_BoostTest is Test {
 
     function test_Registry_AdminSetters() public {
         vm.startPrank(owner);
-        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(registry.ROLE_COMMUNITY());
+        IRegistry.RoleConfig memory cfg = registry.getRoleConfig(keccak256("COMMUNITY"));
         cfg.owner = manager;
-        registry.configureRole(registry.ROLE_COMMUNITY(), cfg);
+        registry.configureRole(keccak256("COMMUNITY"), cfg);
         vm.stopPrank();
-        assertEq(registry.getRoleConfig(registry.ROLE_COMMUNITY()).owner, manager);
+        assertEq(registry.getRoleConfig(keccak256("COMMUNITY")).owner, manager);
 
         // setRegistry (on Staking side via Registry call if exists or direct)
         // Note: Registry doesn't have setStakingRegistry usually, handled in setup
@@ -86,11 +86,11 @@ contract V3_Function_BoostTest is Test {
     }
 
     function test_Registry_HistoryAndMembers() public {
-        bytes32 commRole = registry.ROLE_COMMUNITY();
-        bytes32 kmsRole = registry.ROLE_KMS();
+        bytes32 commRole = keccak256("COMMUNITY");
+        bytes32 kmsRole = keccak256("KMS");
 
         // 1. Setup Community
-        bytes memory commData = abi.encode(Registry.CommunityRoleData("CommA","a","b","c","d", 30 ether));
+        bytes memory commData = abi.encode(Registry.CommunityRoleData("CommA","a", 30 ether));
         gToken.mint(manager, 200 ether);
 
         vm.startPrank(manager);
@@ -134,7 +134,7 @@ contract V3_Function_BoostTest is Test {
 
     function test_Staking_Getters() public {
         // 1. Setup tokens
-        bytes32 commRole = registry.ROLE_COMMUNITY();
+        bytes32 commRole = keccak256("COMMUNITY");
         
         gToken.mint(user, 100 ether);
         vm.prank(user);
@@ -172,10 +172,10 @@ contract V3_Function_BoostTest is Test {
     }
 
     function test_Paymaster_OperatorPausing() public {
-        bytes32 commRole = registry.ROLE_COMMUNITY();
+        bytes32 commRole = keccak256("COMMUNITY");
         
         // 1. Register manager as operator via Registry
-        bytes memory data = abi.encode(Registry.CommunityRoleData("a","b","c","d","e", 30 ether));
+        bytes memory data = abi.encode(Registry.CommunityRoleData("a","b", 30 ether));
         gToken.mint(manager, 100 ether);
         
         vm.startPrank(manager);
@@ -184,7 +184,7 @@ contract V3_Function_BoostTest is Test {
 
         // 1.5 Register as SuperPaymaster
         bytes memory opData = abi.encode(uint256(50 ether));
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), manager, opData);
+        registry.registerRole(keccak256("PAYMASTER_SUPER"), manager, opData);
 
         // 2. Configure in Paymaster
         paymaster.configureOperator(address(aPNTs), treasury, 1e18);

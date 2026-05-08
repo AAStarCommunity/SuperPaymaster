@@ -61,7 +61,7 @@ contract ReputationSystem_Complete_Test is Test {
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)
         vm.mockCall(
             address(registry),
-            abi.encodeWithSelector(registry.hasRole.selector, registry.ROLE_COMMUNITY(), community1),
+            abi.encodeWithSelector(registry.hasRole.selector, keccak256("COMMUNITY"), community1),
             abi.encode(true)
         );
 

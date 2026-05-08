@@ -128,7 +128,7 @@ contract DVTValidator is Ownable, IVersioned {
     ///      2. On-chain enforcement would require a callback from GTokenStaking
     ///         (out of scope for this fix; tracked as future enhancement).
     function addValidator(address _v) external onlyOwner {
-        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        bytes32 roleDvt = keccak256("DVT");
 
         if (!REGISTRY.hasRole(roleDvt, _v)) revert ValidatorMissingRole();
 
@@ -160,7 +160,7 @@ contract DVTValidator is Ownable, IVersioned {
     ///              (covers exitRole, partial unlock, and slash drawdowns).
     function _requireActiveValidator(address v) internal view {
         if (!isValidator[v]) revert NotActiveValidator(v);
-        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        bytes32 roleDvt = keccak256("DVT");
         if (!REGISTRY.hasRole(roleDvt, v)) revert ValidatorRoleRevoked(v);
         IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
@@ -272,7 +272,7 @@ contract DVTValidator is Ownable, IVersioned {
     ///         to keep slot lifecycle decisions privileged.
     function pruneValidator(address v) external {
         if (!isValidator[v]) revert NotActiveValidator(v);
-        bytes32 roleDvt = REGISTRY.ROLE_DVT();
+        bytes32 roleDvt = keccak256("DVT");
         bool hasRole_ = REGISTRY.hasRole(roleDvt, v);
         IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();

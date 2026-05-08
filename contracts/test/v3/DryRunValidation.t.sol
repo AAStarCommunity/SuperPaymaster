@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
@@ -89,13 +90,6 @@ contract MockRegistryDR is IRegistry {
     function getRoleUserCount(bytes32) external pure returns (uint256) { return 0; }
 
     function version() external pure returns (string memory) { return "Mock"; }
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external pure returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_KMS() external pure returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external pure returns (bool) { return false; }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
     function getEffectiveStake(address, bytes32) external view returns (uint256) { return 0; }
@@ -145,8 +139,8 @@ contract DryRunValidationTest is Test {
         paymaster.updatePrice();
 
         // Grant roles to operator
-        registry.setRole(registry.ROLE_PAYMASTER_SUPER(), operator, true);
-        registry.setRole(registry.ROLE_COMMUNITY(), operator, true);
+        registry.setRole(keccak256("PAYMASTER_SUPER"), operator, true);
+        registry.setRole(keccak256("COMMUNITY"), operator, true);
 
         // Deploy mock factory and register operator token (P1-4 fix)
         mockFactory = new MockXPNTsFactory();

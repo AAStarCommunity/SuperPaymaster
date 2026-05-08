@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
@@ -209,7 +210,7 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(community);
         gtoken.approve(address(staking), 100 ether);
         
-        bytes memory data = abi.encode(Registry.CommunityRoleData("Comm1", "e1", "w1", "d1", "l1", 10 ether));
+        bytes memory data = abi.encode(Registry.CommunityRoleData("Comm1", "e1", 10 ether));
         registry.registerRole(ROLE_COMMUNITY, community, data);
         
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
@@ -225,7 +226,7 @@ contract CoverageSupplementTest is Test {
         gtoken.mint(community, 100 ether); // Extra funds for burning
         gtoken.approve(address(staking), 100 ether);
         
-        bytes memory userData = abi.encode(Registry.EndUserRoleData(community, "Av", "Ens", 1 ether));
+        bytes memory userData = abi.encode(Registry.EndUserRoleData(community, 1 ether));
         
         registry.safeMintForRole(ROLE_ENDUSER, user, userData);
         
@@ -236,7 +237,7 @@ contract CoverageSupplementTest is Test {
     function test_Registry_NamingCollisions() public {
         vm.startPrank(community);
         gtoken.approve(address(staking), 100 ether);
-        bytes memory data = abi.encode(Registry.CommunityRoleData("UniqueName", "", "", "", "", 10 ether));
+        bytes memory data = abi.encode(Registry.CommunityRoleData("UniqueName", "", 10 ether));
         registry.registerRole(ROLE_COMMUNITY, community, data);
         vm.stopPrank();
         
@@ -250,7 +251,7 @@ contract CoverageSupplementTest is Test {
         registry.registerRole(ROLE_COMMUNITY, comm2, data);
         
         // Try empty name
-        bytes memory emptyData = abi.encode(Registry.CommunityRoleData("", "", "", "", "", 10 ether));
+        bytes memory emptyData = abi.encode(Registry.CommunityRoleData("", "", 10 ether));
         vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Name required"));
         registry.registerRole(ROLE_COMMUNITY, comm2, emptyData);
         vm.stopPrank();
@@ -260,7 +261,7 @@ contract CoverageSupplementTest is Test {
         vm.startPrank(user);
         gtoken.approve(address(staking), 100 ether);
         // Point to non-existent community
-        bytes memory data = abi.encode(Registry.EndUserRoleData(address(0xDead), "", "", 1 ether));
+        bytes memory data = abi.encode(Registry.EndUserRoleData(address(0xDead), 1 ether));
         
         vm.expectRevert(abi.encodeWithSelector(Registry.InvalidParam.selector, "Invalid community"));
         registry.registerRole(ROLE_ENDUSER, user, data);
@@ -294,16 +295,16 @@ contract CoverageSupplementTest is Test {
         IRegistry.RoleConfig memory kmsConfig = IRegistry.RoleConfig(10 ether, 1 ether, 10, 2, 1, 10, 2000, true, 1 ether, "KMS", owner, 0);
         vm.stopPrank();
         vm.startPrank(owner);
-        registry.configureRole(registry.ROLE_KMS(), kmsConfig);
+        registry.configureRole(keccak256("KMS"), kmsConfig);
         vm.stopPrank();
         
         vm.startPrank(user);
         bytes memory data = abi.encode(uint256(10 ether));
-        registry.registerRole(registry.ROLE_KMS(), user, data);
+        registry.registerRole(keccak256("KMS"), user, data);
         
         // Exit
         uint256 balBefore = gtoken.balanceOf(user);
-        bytes32 kmsRole = registry.ROLE_KMS();
+        bytes32 kmsRole = keccak256("KMS");
         vm.stopPrank();
         vm.startPrank(owner);
         IRegistry.RoleConfig memory kmsCfg = registry.getRoleConfig(kmsRole);
@@ -389,10 +390,10 @@ contract CoverageSupplementTest is Test {
         // Register Operator
         vm.startPrank(operator);
         gtoken.approve(address(staking), 100 ether);
-        bytes memory opData = abi.encode(Registry.CommunityRoleData("Op", "", "", "", "", 10 ether));
+        bytes memory opData = abi.encode(Registry.CommunityRoleData("Op", "", 10 ether));
         registry.registerRole(ROLE_COMMUNITY, operator, opData);
         // Also register as SuperPaymaster
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(50 ether)));
+        registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(50 ether)));
         vm.stopPrank();
         
         // Sync SBT Status for Operator
@@ -418,7 +419,7 @@ contract CoverageSupplementTest is Test {
         // Register User in Registry
         vm.startPrank(user);
         gtoken.approve(address(staking), 100 ether);
-        bytes memory uData = abi.encode(Registry.EndUserRoleData(operator, "", "", 1 ether));
+        bytes memory uData = abi.encode(Registry.EndUserRoleData(operator, 1 ether));
         registry.registerRole(ROLE_ENDUSER, user, uData);
         vm.stopPrank();
         
@@ -496,7 +497,7 @@ contract CoverageSupplementTest is Test {
         // Setup Operator
         gtoken.approve(address(staking), 100 ether);
         // Step 1: Register as Community
-        registry.registerRole(ROLE_COMMUNITY, operator, abi.encode(Registry.CommunityRoleData("Op2", "", "", "", "", 10 ether)));
+        registry.registerRole(ROLE_COMMUNITY, operator, abi.encode(Registry.CommunityRoleData("Op2", "", 10 ether)));
         // Step 2: Register as Paymaster Super
         registry.registerRole(ROLE_PAYMASTER_SUPER, operator, "");
         vm.startPrank(operator);

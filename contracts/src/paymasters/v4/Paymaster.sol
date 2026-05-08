@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import { PaymasterBase } from "./PaymasterBase.sol";
 import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IRegistry } from "../../interfaces/v3/IRegistry.sol";
+import { IRegistry } from "src/interfaces/v3/IRegistry.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Initializable } from "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 
@@ -162,7 +162,7 @@ contract Paymaster is PaymasterBase, Initializable {
     ///         querying address(this) (the old bug) always returned false.
     function isActiveInRegistry() external view returns (bool) {
         if (paused) return false;
-        try registry.hasRole(registry.ROLE_PAYMASTER_AOA(), owner()) returns (bool active) {
+        try registry.hasRole(keccak256("PAYMASTER_AOA"), owner()) returns (bool active) {
             return active;
         } catch {
             return false;

@@ -153,9 +153,6 @@ contract SupplementaryLifecycleTest is Test {
             Registry.CommunityRoleData({
                 name: name,
                 ensName: string.concat(name, ".eth"),
-                website: "https://test.com",
-                description: "Test Community",
-                logoURI: "ipfs://logo",
                 stakeAmount: 30 ether
             })
         );
@@ -170,7 +167,7 @@ contract SupplementaryLifecycleTest is Test {
         assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
         // COMMUNITY is non-operator: no stake, ticketPrice goes to treasury
         assertEq(staking.getLockedStake(communityUser, ROLE_COMMUNITY), 0);
-        assertEq(registry.communityByName("TestDAO"), communityUser);
+        assertEq(registry.getCommunityByName("TestDAO"), communityUser);
         assertTrue(sbt.userToSBT(communityUser) != 0, "SBT should be minted");
 
         // COMMUNITY is a ticket-only role — exit succeeds, cleans up name/ENS
@@ -179,7 +176,7 @@ contract SupplementaryLifecycleTest is Test {
 
         // Role should be removed, name slot freed
         assertFalse(registry.hasRole(ROLE_COMMUNITY, communityUser));
-        assertEq(registry.communityByName("TestDAO"), address(0));
+        assertEq(registry.getCommunityByName("TestDAO"), address(0));
     }
 
     function test_RoleLifecycle_SuperPaymasterRole() public {
@@ -274,8 +271,6 @@ contract SupplementaryLifecycleTest is Test {
         bytes memory endUserData = abi.encode(
             Registry.EndUserRoleData({
                 community: communityUser,
-                avatarURI: "ipfs://avatar",
-                ensName: "testuser.eth",
                 stakeAmount: 0
             })
         );

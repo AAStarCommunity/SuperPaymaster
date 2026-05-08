@@ -95,8 +95,6 @@ contract RegistryTest is Test {
         bytes memory roleData = abi.encode(
             Registry.EndUserRoleData({
                 community: communityUser,
-                avatarURI: "ipfs://avatar",
-                ensName: "user.eth",
                 stakeAmount: 0
             })
         );
@@ -144,9 +142,6 @@ contract RegistryTest is Test {
             Registry.CommunityRoleData({
                 name: "MyDAO",
                 ensName: "mydao.eth",
-                website: "https://dao.com",
-                description: "Best DAO",
-                logoURI: "ipfs://logo",
                 stakeAmount: 0 // non-operator: no stake
             })
         );
