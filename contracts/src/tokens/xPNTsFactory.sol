@@ -366,15 +366,20 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param limit  Maximum number of tokens to process in this call.
      */
     function propagateSuperPaymaster(uint256 start, uint256 limit) external onlyOwner {
+        uint256 len = deployedTokens.length;
+        if (start >= len) return;
+        // Safe: remaining = len - start (no underflow since start < len),
+        //       count <= remaining, end = start + count <= len (no overflow).
+        uint256 remaining = len - start;
+        uint256 count = limit < remaining ? limit : remaining;
+        uint256 end = start + count;
         address sp = SUPERPAYMASTER;
-        address[] memory tokens = deployedTokens;
-        uint256 end = start + limit;
-        if (end > tokens.length) end = tokens.length;
         for (uint256 i = start; i < end; ) {
-            try xPNTsToken(tokens[i]).setSuperPaymasterAddress(sp) {
-                emit SuperPaymasterPropagated(tokens[i], sp);
+            address token = deployedTokens[i];
+            try xPNTsToken(token).setSuperPaymasterAddress(sp) {
+                emit SuperPaymasterPropagated(token, sp);
             } catch {
-                emit SuperPaymasterPropagationFailed(tokens[i], sp);
+                emit SuperPaymasterPropagationFailed(token, sp);
             }
             unchecked { ++i; }
         }
