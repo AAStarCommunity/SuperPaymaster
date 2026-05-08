@@ -474,16 +474,482 @@ contract MySBT_Simplified_Test is Test {
 
     function test_MultipleUsers() public {
         bytes memory roleData = abi.encode(community1);
-        
+
         vm.prank(address(mockRegistry));
         (uint256 tokenId1,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
-        
+
         vm.prank(address(mockRegistry));
         (uint256 tokenId2,) = mysbt.mintForRole(user2, ROLE_ENDUSER, roleData);
-        
+
         assertEq(tokenId1, 1);
         assertEq(tokenId2, 2);
         assertEq(mysbt.ownerOf(tokenId1), user1);
         assertEq(mysbt.ownerOf(tokenId2), user2);
+    }
+
+    // ====================================
+    // B1: recordActivity() branch coverage
+    // ====================================
+
+    /// @notice B1a: recordActivity when membership is active — should succeed
+    function test_RecordActivity_ActiveMembership() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        vm.prank(community1);
+        mysbt.recordActivity(user1);
+
+        // Confirm lastActivityTime updated
+        assertGt(mysbt.lastActivityTime(tokenId, community1), 0);
+    }
+
+    /// @notice B1b: recordActivity when membership is inactive — should still update if membership record exists
+    ///         The current code only checks membership index/community, not isActive flag.
+    ///         This test documents the actual behavior.
+    function test_RecordActivity_InactiveMembership_StillRecords() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        // Deactivate membership
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1);
+
+        // Membership record still exists at index 0, so recordActivity should still work
+        vm.prank(community1);
+        mysbt.recordActivity(user1);
+
+        assertGt(mysbt.lastActivityTime(tokenId, community1), 0);
+    }
+
+    /// @notice B1c: recordActivity rate-limiting — second call within MIN_INT must revert
+    function test_RecordActivity_RateLimit_Revert() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        vm.prank(community1);
+        mysbt.recordActivity(user1);
+
+        // Call again immediately — should revert due to MIN_INT rate limit
+        vm.prank(community1);
+        vm.expectRevert();
+        mysbt.recordActivity(user1);
+    }
+
+    /// @notice B1d: recordActivity rate-limiting — call after MIN_INT should succeed
+    function test_RecordActivity_AfterMinInterval_Succeeds() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        vm.prank(community1);
+        mysbt.recordActivity(user1);
+
+        // Warp past MIN_INT (5 minutes)
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.prank(community1);
+        mysbt.recordActivity(user1); // Should succeed
+    }
+
+    /// @notice B1e: recordActivity for user with no SBT — should revert
+    function test_RecordActivity_NoSBT_Revert() public {
+        vm.prank(community1);
+        vm.expectRevert();
+        mysbt.recordActivity(user1);
+    }
+
+    /// @notice B1f: recordActivity by non-registered community — should revert
+    function test_RecordActivity_InvalidCommunity_Revert() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        // community2 is registered but user1 is not a member of community2
+        address fakeCommunity = address(0x999);
+        vm.prank(fakeCommunity);
+        vm.expectRevert();
+        mysbt.recordActivity(user1);
+    }
+
+    // ====================================
+    // B2: burnSBT with multiple memberships
+    // ====================================
+
+    /// @notice B2: burnSBT with 3 memberships — all must be deactivated and SBT burned
+    function test_BurnSBT_MultipleMemberships_AllCleaned() public {
+        address community3 = address(0x8);
+        mockRegistry.setRole(ROLE_COMMUNITY, community3, true);
+
+        // Mint SBT with 3 memberships
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, rd1);
+
+        bytes memory rd2 = abi.encode(community2);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rd2);
+
+        bytes memory rd3 = abi.encode(community3);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rd3);
+
+        // Confirm 3 memberships
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems.length, 3);
+
+        // Burn SBT
+        vm.prank(address(mockRegistry));
+        mysbt.burnSBT(user1);
+
+        // SBT burned: userToSBT cleared
+        assertEq(mysbt.userToSBT(user1), 0);
+
+        // Token no longer exists
+        vm.expectRevert();
+        mysbt.ownerOf(tokenId);
+    }
+
+    /// @notice B2b: burnSBT with mix of active and inactive memberships
+    function test_BurnSBT_MixedMemberships_OnlyActiveDeactivated() public {
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, rd1);
+
+        bytes memory rd2 = abi.encode(community2);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rd2);
+
+        // Leave community1 before burn
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1);
+
+        // community1 already inactive, community2 still active
+        vm.prank(address(mockRegistry));
+        mysbt.burnSBT(user1); // Must not revert even with inactive membership
+
+        assertEq(mysbt.userToSBT(user1), 0);
+    }
+
+    // ====================================
+    // B3: leaveCommunity then rejoin
+    // ====================================
+
+    /// @notice B3a: mintForRole after leaveCommunity should reactivate existing membership
+    function test_LeaveThenRejoin_MintForRole_Reactivates() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        // Leave
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1);
+        assertFalse(mysbt.verifyCommunityMembership(user1, community1));
+
+        // Rejoin via mintForRole
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId2, bool isNewMint) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        assertEq(tokenId, tokenId2);
+        assertFalse(isNewMint); // Not a new SBT
+        assertTrue(mysbt.verifyCommunityMembership(user1, community1)); // Reactivated
+    }
+
+    /// @notice B3b: airdropMint after leaveCommunity should reactivate and update joinedAt
+    function test_LeaveThenRejoin_AirdropMint_Reactivates() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.airdropMint(user1, ROLE_ENDUSER, roleData);
+
+        // Leave
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1);
+        assertFalse(mysbt.verifyCommunityMembership(user1, community1));
+
+        // Warp time
+        vm.warp(block.timestamp + 1 days);
+
+        // Rejoin via airdropMint
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId2, bool isNew) = mysbt.airdropMint(user1, ROLE_ENDUSER, roleData);
+
+        assertEq(tokenId, tokenId2);
+        assertFalse(isNew);
+        assertTrue(mysbt.verifyCommunityMembership(user1, community1)); // Reactivated
+    }
+
+    /// @notice B3c: airdropMint for already active membership returns early (no duplicate)
+    function test_AirdropMint_AlreadyActiveMembership_ReturnsEarly() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.airdropMint(user1, ROLE_ENDUSER, roleData);
+
+        // Call again without leaving — should return early (already active)
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId2, bool isNew) = mysbt.airdropMint(user1, ROLE_ENDUSER, roleData);
+
+        assertEq(tokenId, tokenId2);
+        assertFalse(isNew);
+
+        // Still only one membership record
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems.length, 1);
+    }
+
+    // ====================================
+    // B4: mintForRole MAX_MEMBERSHIPS boundary
+    // ====================================
+
+    /// @notice B4a: exactly 50 memberships should succeed (MAX_MEMBERSHIPS boundary)
+    function test_MintForRole_MaxMemberships_ExactlyFifty_OK() public {
+        // Mint initial SBT with community1
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, rd1);
+
+        // Add 49 more communities (total = 50)
+        for (uint256 i = 1; i < 50; i++) {
+            address comm = address(uint160(0x1000 + i));
+            mockRegistry.setRole(ROLE_COMMUNITY, comm, true);
+            bytes memory rd = abi.encode(comm);
+            vm.prank(address(mockRegistry));
+            mysbt.mintForRole(user1, ROLE_ENDUSER, rd);
+        }
+
+        // Exactly 50 memberships
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems.length, 50);
+        assertEq(mems.length, mysbt.MAX_MEMBERSHIPS());
+    }
+
+    /// @notice B4b: 51st mintForRole must revert with TooManyMemberships
+    function test_MintForRole_MaxMemberships_51st_Revert() public {
+        // Mint SBT with first community
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rd1);
+
+        // Add 49 more = 50 total
+        for (uint256 i = 1; i < 50; i++) {
+            address comm = address(uint160(0x1000 + i));
+            mockRegistry.setRole(ROLE_COMMUNITY, comm, true);
+            bytes memory rd = abi.encode(comm);
+            vm.prank(address(mockRegistry));
+            mysbt.mintForRole(user1, ROLE_ENDUSER, rd);
+        }
+
+        // 51st must revert
+        address extraComm = address(uint160(0x2000));
+        mockRegistry.setRole(ROLE_COMMUNITY, extraComm, true);
+        bytes memory rdExtra = abi.encode(extraComm);
+        vm.prank(address(mockRegistry));
+        vm.expectRevert(MySBT.TooManyMemberships.selector);
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rdExtra);
+    }
+
+    // ====================================
+    // B5: airdropMint MAX_MEMBERSHIPS boundary
+    // ====================================
+
+    /// @notice B5a: exactly 50 memberships via airdropMint should succeed
+    function test_AirdropMint_MaxMemberships_ExactlyFifty_OK() public {
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.airdropMint(user1, ROLE_ENDUSER, rd1);
+
+        for (uint256 i = 1; i < 50; i++) {
+            address comm = address(uint160(0x3000 + i));
+            mockRegistry.setRole(ROLE_COMMUNITY, comm, true);
+            bytes memory rd = abi.encode(comm);
+            vm.prank(address(mockRegistry));
+            mysbt.airdropMint(user1, ROLE_ENDUSER, rd);
+        }
+
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems.length, 50);
+    }
+
+    /// @notice B5b: 51st airdropMint must revert with TooManyMemberships
+    function test_AirdropMint_MaxMemberships_51st_Revert() public {
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.airdropMint(user1, ROLE_ENDUSER, rd1);
+
+        for (uint256 i = 1; i < 50; i++) {
+            address comm = address(uint160(0x3000 + i));
+            mockRegistry.setRole(ROLE_COMMUNITY, comm, true);
+            bytes memory rd = abi.encode(comm);
+            vm.prank(address(mockRegistry));
+            mysbt.airdropMint(user1, ROLE_ENDUSER, rd);
+        }
+
+        address extraComm = address(uint160(0x4000));
+        mockRegistry.setRole(ROLE_COMMUNITY, extraComm, true);
+        bytes memory rdExtra = abi.encode(extraComm);
+        vm.prank(address(mockRegistry));
+        vm.expectRevert(MySBT.TooManyMemberships.selector);
+        mysbt.airdropMint(user1, ROLE_ENDUSER, rdExtra);
+    }
+
+    // ====================================
+    // B6: Custom error / revert paths
+    // ====================================
+
+    /// @notice B6a: onlyDAO modifier — setMinLockAmount with zero reverts
+    function test_SetMinLockAmount_ZeroReverts() public {
+        vm.prank(admin);
+        vm.expectRevert(); // require(a != 0)
+        mysbt.setMinLockAmount(0);
+    }
+
+    /// @notice B6b: setDAOMultisig with zero address reverts
+    function test_SetDAOMultisig_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert();
+        mysbt.setDAOMultisig(address(0));
+    }
+
+    /// @notice B6c: onlyRegistry — deactivateMembership by non-registry reverts
+    function test_DeactivateMembership_NonRegistry_Reverts() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        vm.prank(user1);
+        vm.expectRevert("Only Registry");
+        mysbt.deactivateMembership(user1, community1);
+    }
+
+    /// @notice B6d: onlyRegistry — deactivateAllMemberships by non-registry reverts
+    function test_DeactivateAllMemberships_NonRegistry_Reverts() public {
+        vm.prank(user1);
+        vm.expectRevert("Only Registry");
+        mysbt.deactivateAllMemberships(user1);
+    }
+
+    /// @notice B6e: burnSBT for non-existent SBT reverts
+    function test_BurnSBT_NotFound_Reverts() public {
+        vm.prank(address(mockRegistry));
+        vm.expectRevert();
+        mysbt.burnSBT(user2); // user2 has no SBT
+    }
+
+    /// @notice B6f: getCommunityMembership for invalid index reverts
+    function test_GetCommunityMembership_InvalidIndex_Reverts() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        // community2 was never added — index defaults to 0 but community mismatch
+        vm.expectRevert();
+        mysbt.getCommunityMembership(tokenId, community2);
+    }
+
+    /// @notice B6g: mintForRole with invalid user address reverts
+    function test_MintForRole_ZeroUser_Reverts() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        vm.expectRevert("Invalid user");
+        mysbt.mintForRole(address(0), ROLE_ENDUSER, roleData);
+    }
+
+    /// @notice B6h: airdropMint with invalid user address reverts
+    function test_AirdropMint_ZeroUser_Reverts() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        vm.expectRevert("Invalid user");
+        mysbt.airdropMint(address(0), ROLE_ENDUSER, roleData);
+    }
+
+    /// @notice B6i: burnSBT only callable by Registry
+    function test_BurnSBT_NonRegistry_Reverts() public {
+        bytes memory roleData = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        vm.prank(user1);
+        vm.expectRevert("Only Registry");
+        mysbt.burnSBT(user1);
+    }
+
+    /// @notice B6j: deactivateAllMemberships on user with no SBT should not revert (early return)
+    function test_DeactivateAllMemberships_NoSBT_NoRevert() public {
+        vm.prank(address(mockRegistry));
+        mysbt.deactivateAllMemberships(user2); // No SBT — should silently return
+    }
+
+    /// @notice B6k: leaveCommunity for user with no SBT should silently return
+    function test_LeaveCommunity_NoSBT_NoRevert() public {
+        vm.prank(user1);
+        mysbt.leaveCommunity(community1); // user1 has no SBT — silent return
+    }
+
+    /// @notice B6l: setBaseURI via DAO
+    function test_SetBaseURI_DAO() public {
+        vm.prank(admin);
+        mysbt.setBaseURI("https://api.example.com/sbt/");
+        // No direct getter but we verify it doesn't revert
+    }
+
+    /// @notice B6m: setBaseURI by non-DAO reverts
+    function test_SetBaseURI_NonDAO_Reverts() public {
+        vm.prank(user1);
+        vm.expectRevert("Only DAO");
+        mysbt.setBaseURI("https://evil.com/");
+    }
+
+    // ====================================
+    // B7: deactivateAllMemberships coverage
+    // ====================================
+
+    /// @notice B7a: deactivateAllMemberships deactivates all active memberships
+    function test_DeactivateAllMemberships_MultipleCommunities() public {
+        bytes memory rd1 = abi.encode(community1);
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, rd1);
+
+        bytes memory rd2 = abi.encode(community2);
+        vm.prank(address(mockRegistry));
+        mysbt.mintForRole(user1, ROLE_ENDUSER, rd2);
+
+        // Both active
+        assertTrue(mysbt.verifyCommunityMembership(user1, community1));
+        assertTrue(mysbt.verifyCommunityMembership(user1, community2));
+
+        vm.prank(address(mockRegistry));
+        mysbt.deactivateAllMemberships(user1);
+
+        assertFalse(mysbt.verifyCommunityMembership(user1, community1));
+        assertFalse(mysbt.verifyCommunityMembership(user1, community2));
+    }
+
+    // ====================================
+    // B8: _decodeRoleData with metadata string
+    // ====================================
+
+    /// @notice B8: mintForRole with full roleData (community + metadata)
+    function test_MintForRole_WithMetadata_Succeeds() public {
+        bytes memory roleData = abi.encode(community1, "ipfs://QmTest123");
+
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId, bool isNew) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+
+        assertTrue(isNew);
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems[0].metadata, "ipfs://QmTest123");
+    }
+
+    /// @notice B8b: airdropMint with full roleData including metadata
+    function test_AirdropMint_WithMetadata_Succeeds() public {
+        bytes memory roleData = abi.encode(community1, "ipfs://QmAirdrop456");
+
+        vm.prank(address(mockRegistry));
+        (uint256 tokenId, bool isNew) = mysbt.airdropMint(user1, ROLE_ENDUSER, roleData);
+
+        assertTrue(isNew);
+        MySBT.CommunityMembership[] memory mems = mysbt.getMemberships(tokenId);
+        assertEq(mems[0].metadata, "ipfs://QmAirdrop456");
     }
 }
