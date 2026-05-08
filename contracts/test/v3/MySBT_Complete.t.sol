@@ -119,7 +119,7 @@ contract MySBT_Simplified_Test is Test {
         bytes memory roleData = abi.encode(community1);
         
         vm.prank(user1);
-        vm.expectRevert("Only Registry");
+        vm.expectRevert(MySBT.OnlyRegistry.selector);
         mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
     }
 
@@ -127,7 +127,7 @@ contract MySBT_Simplified_Test is Test {
         bytes memory roleData = abi.encode(community1);
         
         vm.prank(address(mockRegistry));
-        vm.expectRevert("Invalid user");
+        vm.expectRevert(MySBT.InvalidUser.selector);
         mysbt.mintForRole(address(0), ROLE_ENDUSER, roleData);
     }
 
@@ -248,7 +248,7 @@ contract MySBT_Simplified_Test is Test {
         mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
         
         vm.prank(user1);
-        vm.expectRevert("Only Registry");
+        vm.expectRevert(MySBT.OnlyRegistry.selector);
         mysbt.deactivateMembership(user1, community1);
     }
 
@@ -350,7 +350,7 @@ contract MySBT_Simplified_Test is Test {
 
     function test_SetMinLockAmount_OnlyDAO() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.setMinLockAmount(5 ether);
     }
 
@@ -363,7 +363,7 @@ contract MySBT_Simplified_Test is Test {
 
     function test_SetMintFee_OnlyDAO() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.setMintFee(0.5 ether);
     }
 
@@ -378,7 +378,7 @@ contract MySBT_Simplified_Test is Test {
 
     function test_SetReputationCalculator_OnlyDAO() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.setReputationCalculator(address(0x999));
     }
 
@@ -393,7 +393,7 @@ contract MySBT_Simplified_Test is Test {
 
     function test_SetDAOMultisig_OnlyDAO() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.setDAOMultisig(address(0x777));
     }
 
@@ -406,7 +406,7 @@ contract MySBT_Simplified_Test is Test {
 
     function test_Pause_OnlyDAO() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.pause();
     }
 
@@ -424,7 +424,7 @@ contract MySBT_Simplified_Test is Test {
         mysbt.pause();
         
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.unpause();
     }
 
@@ -443,7 +443,7 @@ contract MySBT_Simplified_Test is Test {
     // ====================================
 
     function test_Version() public {
-        assertEq(mysbt.version(), "MySBT-3.1.3");
+        assertEq(mysbt.version(), "MySBT-3.2.0");
     }
 
 
