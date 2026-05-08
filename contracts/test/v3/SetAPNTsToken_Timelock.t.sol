@@ -204,4 +204,88 @@ contract SetAPNTsToken_TimelockTest is Test {
         assertEq(paymaster.pendingAPNTsToken(), address(anotherToken));
         assertGt(paymaster.pendingAPNTsTokenEta(), firstEta, "eta must shift forward");
     }
+
+    // -----------------------------------------------------------------------
+    // H-4 fix: protocolRevenue == 0 deadlock replaced by buffer-aware check
+    //
+    // Background:
+    //   withdrawProtocolRevenue() always keeps PROTOCOL_REVENUE_BUFFER (0.1 ether)
+    //   unwithdrawable. Once the protocol accumulates ≥ buffer it can never drain
+    //   protocolRevenue to exactly 0, so the old `!= 0` guard permanently blocked
+    //   executeAPNTsTokenChange().  The fix relaxes the guard to `> BUFFER`.
+    // -----------------------------------------------------------------------
+
+    /// @notice H-4: migration blocked when protocolRevenue strictly exceeds buffer
+    function test_H4_ExecuteBlocked_WhenProtocolRevenue_AboveBuffer() public {
+        uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
+        // Seed protocolRevenue above the buffer
+        stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer + 1);
+
+        vm.prank(owner);
+        paymaster.setAPNTsToken(address(newToken));
+        vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        paymaster.executeAPNTsTokenChange();
+    }
+
+    /// @notice H-4: migration succeeds when protocolRevenue is exactly at the buffer
+    function test_H4_ExecuteSucceeds_WhenProtocolRevenue_AtBuffer() public {
+        uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
+        // Seed protocolRevenue to exactly the buffer (maximum non-withdrawable amount)
+        stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer);
+
+        vm.prank(owner);
+        paymaster.setAPNTsToken(address(newToken));
+        vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+
+        // totalTrackedBalance is 0, protocolRevenue == buffer → should succeed
+        vm.prank(owner);
+        paymaster.executeAPNTsTokenChange();
+
+        assertEq(paymaster.APNTS_TOKEN(), address(newToken), "token must have migrated");
+    }
+
+    /// @notice H-4: migration succeeds when protocolRevenue is below the buffer
+    function test_H4_ExecuteSucceeds_WhenProtocolRevenue_BelowBuffer() public {
+        uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
+        // Seed protocolRevenue below the buffer
+        stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer / 2);
+
+        vm.prank(owner);
+        paymaster.setAPNTsToken(address(newToken));
+        vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+
+        vm.prank(owner);
+        paymaster.executeAPNTsTokenChange();
+
+        assertEq(paymaster.APNTS_TOKEN(), address(newToken), "token must have migrated");
+    }
+
+    /// @notice H-4: demonstrate the deadlock scenario — once accumulated protocolRevenue
+    ///         reaches the buffer, withdrawProtocolRevenue can drain to exactly the buffer
+    ///         but no further; migration must therefore succeed at that point.
+    function test_H4_BufferDeadlockNotPossible_AfterWithdraw() public {
+        uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
+        // Simulate a scenario where protocolRevenue == 2 * buffer (common after operation)
+        stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(2 * buffer);
+        // totalTrackedBalance must also reflect this; seed it consistently
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(2 * buffer);
+
+        // After withdrawProtocolRevenue drains the withdrawable portion, both
+        // totalTrackedBalance and protocolRevenue drop to exactly buffer.
+        // The H-4 fix ensures execute succeeds at that point.
+        stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer);
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(uint256(0));
+
+        vm.prank(owner);
+        paymaster.setAPNTsToken(address(newToken));
+        vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+
+        vm.prank(owner);
+        paymaster.executeAPNTsTokenChange(); // must NOT revert
+
+        assertEq(paymaster.APNTS_TOKEN(), address(newToken));
+    }
 }

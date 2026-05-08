@@ -356,11 +356,17 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
         // `protocolRevenue` accumulates continuously via postOp penalty/burn paths.
-        // Call `withdrawProtocolRevenue()` first to drain it to zero before
-        // executing this change — that is the required prerequisite step.
-        // This guard is intentional: it ensures no protocol-owned funds are
-        // permanently stranded under the old token's accounting after migration.
-        if (totalTrackedBalance != 0 || protocolRevenue != 0) revert InvalidConfiguration();
+        // Call `withdrawProtocolRevenue()` first to reduce it to at most
+        // PROTOCOL_REVENUE_BUFFER before executing this migration.
+        // The buffer (0.1 ether) is intentionally unwithdrawable by design —
+        // it absorbs in-flight postOp refunds and can never reach zero once
+        // the protocol has operated. Requiring `protocolRevenue == 0` would
+        // therefore permanently block all token migrations (H-4).
+        // Instead we require `protocolRevenue <= PROTOCOL_REVENUE_BUFFER`:
+        // any amount above the buffer can be withdrawn first, leaving only
+        // the safety buffer behind — sufficient to ensure no operator funds
+        // are stranded under the old token's accounting.
+        if (totalTrackedBalance != 0 || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
 
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = pending;
