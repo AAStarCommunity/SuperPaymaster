@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/GToken.sol";
@@ -81,13 +82,10 @@ contract SlashSync_RegistryStakingTest is Test {
             Registry.CommunityRoleData({
                 name: string(abi.encodePacked("OpComm-", op)),
                 ensName: "",
-                website: "",
-                description: "",
-                logoURI: "",
                 stakeAmount: 30 ether
             })
         );
-        registry.registerRole(registry.ROLE_COMMUNITY(), op, commData);
+        registry.registerRole(keccak256("COMMUNITY"), op, commData);
 
         bytes memory roleData = abi.encode(paymasterStake);
         registry.registerRole(ROLE_PAYMASTER_SUPER, op, roleData);
@@ -102,7 +100,7 @@ contract SlashSync_RegistryStakingTest is Test {
         _registerOperatorWithStake(operator, 50 ether);
 
         // Pre-state: both views agree.
-        assertEq(registry.roleStakes(ROLE_PAYMASTER_SUPER, operator), 50 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 50 ether);
         assertEq(staking.getLockedStake(operator, ROLE_PAYMASTER_SUPER), 50 ether);
 
         // Slash 10 GT.
@@ -111,17 +109,18 @@ contract SlashSync_RegistryStakingTest is Test {
 
         // Post-state: both views must agree on 40 GT (no drift).
         assertEq(staking.getLockedStake(operator, ROLE_PAYMASTER_SUPER), 40 ether, "Staking truth");
-        assertEq(registry.roleStakes(ROLE_PAYMASTER_SUPER, operator), 40 ether, "Registry must mirror");
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 40 ether, "Registry must mirror");
     }
 
-    function test_SlashByDVT_EmitsSyncEvent() public {
+    function test_SlashByDVT_SyncsRegistryCache() public {
         _registerOperatorWithStake(operator, 50 ether);
-
-        vm.expectEmit(true, true, false, true, address(registry));
-        emit StakeSyncedFromStaking(operator, ROLE_PAYMASTER_SUPER, 40 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 50 ether);
 
         vm.prank(dvtAggregator);
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 10 ether, "rule break");
+
+        // Registry cache must be updated via syncStakeFromStaking hook.
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 40 ether, "Cache must mirror Staking");
     }
 
     // -----------------------------------------------------------------------
@@ -142,7 +141,7 @@ contract SlashSync_RegistryStakingTest is Test {
         // Staking can.
         vm.prank(address(staking));
         registry.syncStakeFromStaking(operator, ROLE_PAYMASTER_SUPER, 42 ether);
-        assertEq(registry.roleStakes(ROLE_PAYMASTER_SUPER, operator), 42 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 42 ether);
     }
 
     // -----------------------------------------------------------------------
@@ -182,7 +181,7 @@ contract SlashSync_RegistryStakingTest is Test {
     function test_LockStakeWithTicket_MirrorsRegistry() public {
         _registerOperatorWithStake(operator, 80 ether);
         assertEq(staking.getLockedStake(operator, ROLE_PAYMASTER_SUPER), 80 ether);
-        assertEq(registry.roleStakes(ROLE_PAYMASTER_SUPER, operator), 80 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 80 ether);
     }
 
     // -----------------------------------------------------------------------
@@ -222,7 +221,7 @@ contract SlashSync_RegistryStakingTest is Test {
 
     function _assertInvariant(address user, bytes32 role, uint256 expected) internal view {
         uint256 stakingView = staking.getLockedStake(user, role);
-        uint256 registryView = registry.roleStakes(role, user);
+        uint256 registryView = registry.getRoleStake(role, user);
         uint256 effective = registry.getEffectiveStake(user, role);
         assertEq(stakingView, expected, "Staking mismatch");
         assertEq(registryView, expected, "Registry cache mismatch");

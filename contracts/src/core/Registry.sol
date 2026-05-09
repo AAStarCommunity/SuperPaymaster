@@ -5,7 +5,7 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "../interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "../interfaces/v3/IGTokenStaking.sol";
 import "../interfaces/v3/IMySBT.sol";
 import "../interfaces/ISuperPaymaster.sol";
@@ -14,49 +14,39 @@ import "../interfaces/v3/IBLSAggregator.sol";
 
 contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
 
-    struct CommunityRoleData { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
-    struct EndUserRoleData { address community; string avatarURI; string ensName; uint256 stakeAmount; }
+    // Role identifiers — imported as file-level constants from IRegistry.sol.
+    // Use ROLE_COMMUNITY / ROLE_ENDUSER / etc. directly anywhere in this contract.
+
+    struct CommunityRoleData { string name; string ensName; uint256 stakeAmount; }
+    struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.2";
+        return "Registry-5.3.3";
     }
-
-    bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
-    bytes32 public constant ROLE_ENDUSER = keccak256("ENDUSER");
-    bytes32 public constant ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
-    bytes32 public constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
-    bytes32 public constant ROLE_DVT = keccak256("DVT");
-    bytes32 public constant ROLE_ANODE = keccak256("ANODE");
-    bytes32 public constant ROLE_KMS = keccak256("KMS");
 
     IGTokenStaking public GTOKEN_STAKING;
     IMySBT public MYSBT;
     address public SUPER_PAYMASTER;
     address public blsAggregator;
-    mapping(bytes32 => RoleConfig) public roleConfigs;
+    mapping(bytes32 => RoleConfig) internal roleConfigs;
     mapping(bytes32 => mapping(address => bool)) public hasRole;
-    /// @notice Registry-side cache of locked stake amounts per (role, user).
-    /// @dev    Best-effort mirror of `GTokenStaking.roleLocks`. Updated by
-    ///         Staking via `syncStakeFromStaking`; may lag for up to one block
-    ///         after a slash or unstake. SDK/UI code MUST use `getEffectiveStake()`
-    ///         for authoritative reads — reading this mapping directly can return
-    ///         stale values and lead to incorrect eligibility decisions.
-    mapping(bytes32 => mapping(address => uint256)) public roleStakes;
-    mapping(bytes32 => address[]) public roleMembers;
-    mapping(bytes32 => mapping(address => uint256)) public roleMemberIndex;
-    mapping(bytes32 => mapping(address => uint256)) public roleSBTTokenIds;
-    mapping(bytes32 => mapping(address => bytes)) public roleMetadata;
+    /// @notice Best-effort cache of locked stake amounts; use `getEffectiveStake()` for authoritative reads.
+    mapping(bytes32 => mapping(address => uint256)) internal roleStakes;
+    mapping(bytes32 => address[]) internal roleMembers;
+    mapping(bytes32 => mapping(address => uint256)) internal roleMemberIndex;
+    mapping(bytes32 => mapping(address => uint256)) internal roleSBTTokenIds;
+    mapping(bytes32 => mapping(address => bytes)) internal roleMetadata;
 
-    mapping(string => address) public communityByName;
-    mapping(string => address) public communityByENS;
-    mapping(address => bytes32[]) public userRoles;
-    mapping(address => uint256) public userRoleCount;
+    mapping(string => address) internal communityByName;
+    mapping(string => address) internal communityByENS;
+    mapping(address => bytes32[]) internal userRoles;
+    mapping(address => uint256) internal userRoleCount;
 
     mapping(address => uint256) public globalReputation;
-    mapping(address => uint256) public lastReputationEpoch;
+    mapping(address => uint256) internal lastReputationEpoch;
     mapping(uint256 => uint256) public creditTierConfig;
     mapping(address => bool) public isReputationSource;
-    mapping(uint256 => bool) public executedProposals;
+    mapping(uint256 => bool) internal executedProposals;
 
     uint256[] public levelThresholds;
 
@@ -120,9 +110,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
     event ExitFeeSyncFailed(bytes32 indexed roleId, address indexed staking);
-    /// @notice P0-14: Staking pushed a fresh stake snapshot for (user, role)
-    /// @dev    Emitted for off-chain indexers when slash / unlock / topUp
-    ///         operations on the Staking side update Registry's cache.
     event StakeSyncedFromStaking(address indexed user, bytes32 indexed roleId, uint256 newAmount);
 
     function _initRole(
@@ -133,7 +120,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, ticketPrice, thresh, base, inc, max, exitFeePercent, true, minExitFee, "", roleOwner, lockDuration);
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
-            try GTOKEN_STAKING.setRoleExitFee(roleId, exitFeePercent, minExitFee) {} catch {}
+            address(GTOKEN_STAKING).call(abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee)));
         }
     }
 
@@ -144,27 +131,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    /// @dev Push exit fee config for a single role to GTOKEN_STAKING.
-    ///      Silently skips inactive roles; emits ExitFeeSyncFailed on call failure.
     function _syncExitFeeForRole(bytes32 roleId) internal {
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
-            try GTOKEN_STAKING.setRoleExitFee(roleId, cfg.exitFeePercent, cfg.minExitFee) {} catch {
-                emit ExitFeeSyncFailed(roleId, address(GTOKEN_STAKING));
-            }
+            address(GTOKEN_STAKING).call(
+                abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, cfg.exitFeePercent, cfg.minExitFee))
+            );
         }
     }
 
-    /// @dev Sync exit fees for all 7 known roles to the current GTOKEN_STAKING.
-    ///      Called automatically after setStaking() so the new staking contract
-    ///      is never left with stale (zero) exit fees.
-    ///      Intentional design: individual role sync failures are non-blocking —
-    ///      they emit ExitFeeSyncFailed but do not revert setStaking(). The staking
-    ///      pointer is always updated atomically; any failed roles can be retried
-    ///      via the public syncExitFees() call. This matches the existing
-    ///      syncExitFees() behaviour and avoids bricking setStaking() when a new
-    ///      staking contract is not yet fully configured.
-    ///      Note: this list must be updated if new roles are added in future.
+    // Sync exit fees for all 7 known roles. Called after setStaking().
     function _syncAllExitFees() internal {
         _syncExitFeeForRole(ROLE_PAYMASTER_AOA);
         _syncExitFeeForRole(ROLE_PAYMASTER_SUPER);
@@ -175,11 +151,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         _syncExitFeeForRole(ROLE_ENDUSER);
     }
 
-    /// @notice Update the GTokenStaking contract pointer.
-    /// @dev    P1-28 (B1-N1): after rotating to a new staking contract, all role
-    ///         exit fees are automatically pushed so the new contract is never left
-    ///         with stale (zero) fees. A zero-address is rejected to prevent
-    ///         bricking syncStakeFromStaking and exitRole.
+    /// @notice Update the GTokenStaking contract pointer. Auto-syncs all exit fees.
     function setStaking(address _staking) external onlyOwner {
         if (_staking == address(0)) revert InvalidParam();
         address old = address(GTOKEN_STAKING);
@@ -188,25 +160,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit StakingContractUpdated(old, _staking);
     }
 
-    /// @notice Push a fresh stake snapshot from Staking into Registry's
-    ///         per-role cache (`roleStakes[roleId][user]`).
-    /// @dev    P0-14 (H-01): when `GTokenStaking.slashByDVT` or other
-    ///         lock-mutating operations run, Staking is the canonical source
-    ///         of truth for `roleLocks[user][role].amount`. Without this
-    ///         hook the Registry-side cache silently drifts (e.g. a user can
-    ///         `topUpStake` against a stale "1000 GT" cache after Staking
-    ///         already slashed them down to 500 GT, over-counting their
-    ///         backing).
-    ///         Caller MUST be the configured `GTOKEN_STAKING`. We do NOT
-    ///         allow `owner()` here on purpose — the invariant we're
-    ///         restoring is "Registry mirrors Staking", and a privileged
-    ///         manual override would re-introduce the drift this function
-    ///         is meant to eliminate. Owner can still rotate the staking
-    ///         pointer via `setStaking`.
-    /// @param user User whose stake changed.
-    /// @param roleId Role identifier whose lock amount changed.
-    /// @param newAmount Authoritative `roleLocks[user][role].amount` after
-    ///                  the Staking-side mutation.
+    /// @notice Push a fresh stake snapshot from Staking into Registry's per-role cache.
+    /// @dev    Only callable by GTOKEN_STAKING (P0-14).
     function syncStakeFromStaking(
         address user,
         bytes32 roleId,
@@ -214,18 +169,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) external {
         if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
         roleStakes[roleId][user] = newAmount;
-        emit StakeSyncedFromStaking(user, roleId, newAmount);
     }
 
-    /// @notice Effective per-role stake, read from the Staking-side source
-    ///         of truth.
-    /// @dev    P0-14: prefer this over reading `roleStakes` directly when
-    ///         consumers need fresh values regardless of whether Staking
-    ///         has called `syncStakeFromStaking` yet for the latest mutation.
-    ///         The cache is best-effort; the on-chain truth is on Staking.
-    /// @param user User to query.
-    /// @param roleId Role identifier.
-    /// @return Locked stake amount currently held by Staking for this role.
+    /// @notice Effective per-role stake from Staking source of truth (P0-14).
     function getEffectiveStake(address user, bytes32 roleId) external view returns (uint256) {
         if (address(GTOKEN_STAKING) == address(0)) return roleStakes[roleId][user];
         return GTOKEN_STAKING.getLockedStake(user, roleId);
@@ -264,7 +210,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    /// @notice Register the caller for a given role by staking the required GToken amount.
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         if (user == address(0)) revert InvalidParam();
         if (msg.sender != user) revert Unauthorized();
@@ -296,13 +241,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit RoleRegistered(roleId, user, alreadyHasRole ? 0 : config.ticketPrice, block.timestamp);
     }
 
-    /// @notice Exit the caller's current role, unstaking tokens after the lock period.
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
 
         bool hasStake = roleStakes[roleId][msg.sender] > 0;
 
-        // --- common state cleanup (both staked and ticket-only roles) ---
         hasRole[roleId][msg.sender] = false;
         _removeFromRoleMembers(roleId, msg.sender);
         if (userRoleCount[msg.sender] > 0) {
@@ -310,25 +253,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
         _removeFromUserRoles(msg.sender, roleId);
 
-        // Clean up community name/ENS slots so they can be re-registered
-        if (roleId == ROLE_COMMUNITY) {
-            bytes memory meta = roleMetadata[roleId][msg.sender];
-            if (meta.length > 0) {
-                CommunityRoleData memory data = abi.decode(meta, (CommunityRoleData));
-                delete communityByName[data.name];
-                if (bytes(data.ensName).length > 0) delete communityByENS[data.ensName];
+        if (roleId != ROLE_PAYMASTER_AOA && roleId != ROLE_PAYMASTER_SUPER) {
+            if (roleId == ROLE_COMMUNITY) {
+                bytes memory meta = roleMetadata[roleId][msg.sender];
+                if (meta.length > 0) {
+                    CommunityRoleData memory data = abi.decode(meta, (CommunityRoleData));
+                    delete communityByName[data.name];
+                    if (bytes(data.ensName).length > 0) delete communityByENS[data.ensName];
+                }
             }
-            delete roleMetadata[roleId][msg.sender];
-            delete roleSBTTokenIds[roleId][msg.sender];
-        } else if (roleId == ROLE_ENDUSER) {
-            delete roleMetadata[roleId][msg.sender];
-            delete roleSBTTokenIds[roleId][msg.sender];
-        } else if (roleId == ROLE_DVT || roleId == ROLE_ANODE || roleId == ROLE_KMS) {
-            // P1-32: clear operator role state so slots can be re-registered after exit.
-            // roleMetadata holds encoded stake/config bytes written at registration;
-            // roleSBTTokenIds holds the SBT minted for the operator.  Neither is
-            // useful after exit and leaving them set wastes storage and could
-            // mislead off-chain indexers that scan these mappings for active members.
+            // P1-32: clear slots so user can re-register after exit.
             delete roleMetadata[roleId][msg.sender];
             delete roleSBTTokenIds[roleId][msg.sender];
         }
@@ -337,14 +271,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (SUPER_PAYMASTER != address(0)) {
                 ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
             }
-            // L-04: wrap in try/catch so a failing burnSBT never reverts exitRole;
-            // emit an event so the failure is observable on-chain.
-            try MYSBT.burnSBT(msg.sender) {} catch {
-                emit SBTBurnFailed(msg.sender, roleId);
-            }
+            // L-04: non-fatal burnSBT — failure emits SBTBurnFailed.
+            (bool _burnOk,) = address(MYSBT).call(abi.encodeCall(IMySBT.burnSBT, (msg.sender)));
+            if (!_burnOk) emit SBTBurnFailed(msg.sender, roleId);
         }
 
-        // --- stake unlock (operator roles only) ---
         uint256 exitFee;
         if (hasStake) {
             uint256 lockDuration = roleConfigs[roleId].roleLockDuration;
@@ -363,7 +294,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit RoleExited(roleId, msg.sender, exitFee, block.timestamp);
     }
 
-    /// @notice Mint an SBT for a user as part of role registration.
     function safeMintForRole(bytes32 roleId, address user, bytes calldata data) external nonReentrant returns (uint256 tokenId) {
         RoleConfig memory config = roleConfigs[roleId];
         if (!config.isActive) revert RoleNotConfigured(roleId, config.isActive);
@@ -401,7 +331,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         GTOKEN_STAKING.lockStakeWithTicket(user, roleId, stakeAmount, ticketPrice, sponsor);
     }
 
-    /// @notice Configure role parameters (stake requirements, fees, limits) for the caller's role.
     function configureRole(bytes32 roleId, RoleConfig calldata config) external nonReentrant {
         address currentOwner = roleConfigs[roleId].owner;
         if (currentOwner == address(0)) {
@@ -420,6 +349,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event CreditTierUpdated(uint256 level, uint256 creditLimit);
     event ReputationSourceUpdated(address indexed source, bool isActive);
 
+    /// @dev Shared BLS decode + threshold check + verify helper.
+    function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
+        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
+        address agg = blsAggregator;
+        uint256 threshold = IBLSAggregator(agg).defaultThreshold();
+        uint256 _m = signerMask; uint256 _bits; while (_m != 0) { _m &= (_m - 1); _bits++; }
+        if (_bits < threshold) revert InsufficientConsensus();
+        if (!IBLSAggregator(agg).verify(messageHash, signerMask, threshold, sigG2Bytes)) revert BLSFailed();
+    }
+
     function batchUpdateGlobalReputation(
         uint256 proposalId,
         address[] calldata users,
@@ -430,27 +369,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (!isReputationSource[msg.sender]) revert UnauthorizedSource();
         if (users.length != newScores.length) revert LenMismatch();
         if (users.length > 200) revert BatchTooLarge();
-
         if (proof.length == 0) revert BLSProofRequired();
         if (blsAggregator == address(0)) revert BLSNotConfigured();
         if (proposalId == 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
 
-        // P0-1: route signature verification through BLSAggregator which
-        // reconstructs pkAgg from on-chain validator keys. The proof carries
-        // (signerMask, sigG2) — pkAgg / msgG2 are NOT in the wire format.
-        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
-        uint256 threshold = IBLSAggregator(blsAggregator).defaultThreshold();
-        if (_countSetBits(signerMask) < threshold) revert InsufficientConsensus();
-
         executedProposals[proposalId] = true;
-        bytes32 messageHash = keccak256(abi.encode(
+        _verifyBLS(proof, keccak256(abi.encode(
             proposalId, address(0), uint8(0),
             users, newScores, epoch, block.chainid
-        ));
-        if (!IBLSAggregator(blsAggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
-            revert BLSFailed();
-        }
+        )));
 
         for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
@@ -458,7 +386,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
                 unchecked { ++i; }
                 continue;
             }
-            uint256 clamped = _clampReputation(globalReputation[user], newScores[i], 100);
+            uint256 _old = globalReputation[user]; uint256 _new = newScores[i];
+            uint256 clamped = (_new > _old)
+                ? ((_new - _old > 100) ? _old + 100 : _new)
+                : ((_old > _new && _old - _new > 100) ? _old - 100 : _new);
             globalReputation[user] = clamped;
             lastReputationEpoch[user] = epoch;
             emit GlobalReputationUpdated(user, clamped, epoch);
@@ -466,20 +397,6 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    /// @notice Apply a DVT-consensus blacklist update to a SuperPaymaster operator.
-    /// @dev    P0-3 (B6-C2 + Codex B-N4) hardening — anonymous-callable + replay
-    ///         vectors closed:
-    ///         (1) Caller is restricted to the wired `blsAggregator`. Pre-fix
-    ///             any address registered as `isReputationSource` could call
-    ///             this — a much wider trust surface than DVT consensus.
-    ///         (2) `proof.length == 0` is rejected. Pre-fix the BLS check was
-    ///             skipped entirely when `blsValidator == address(0)` OR when
-    ///             the caller passed an empty proof.
-    ///         (3) The signed message hash now binds `block.chainid` and a
-    ///             monotonic `blacklistNonce` so a legitimate proof from one
-    ///             chain or a previous call cannot be replayed on this chain.
-    ///         The proof wire format matches every other aggregator-routed
-    ///         path: `abi.encode(uint256 signerMask, bytes sigG2)`.
     function updateOperatorBlacklist(
         address operator,
         address[] calldata users,
@@ -487,52 +404,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         bytes calldata proof
     ) external nonReentrant {
         if (operator == address(0)) revert InvalidParam();
-
-        // (1) Only the wired BLS aggregator may invoke. Reading the slot once
-        //     also doubles as a `blsAggregator != address(0)` check — if the
-        //     wiring is incomplete, msg.sender cannot equal address(0) (the
-        //     EVM forbids it for external calls), so the strict-equality check
-        //     fails closed.
-        address aggregator = blsAggregator;
-        if (msg.sender != aggregator) revert UnauthorizedSource();
-
+        if (msg.sender != blsAggregator) revert UnauthorizedSource();
         if (users.length != statuses.length) revert LenMismatch();
         if (users.length > 200) revert BatchTooLarge();
         if (SUPER_PAYMASTER == address(0)) revert SPNotSet();
-
-        // (2) Proof is mandatory — no soft skip.
         if (proof.length == 0) revert BLSProofRequired();
 
-        // (3) Bind chainid + per-Registry monotonic nonce into the message
-        //     hash. Bumping the nonce BEFORE the verify call makes the
-        //     committed value match the post-state, so the same proof can
-        //     never satisfy this contract twice.
-        /// @dev Nonce is incremented before signature verification (nonce-before-verify design).
-        ///      If verify() reverts, the nonce still advances; the next submission must use
-        ///      blacklistNonce+1. This is intentional: it prevents signature replay by ensuring
-        ///      each BLS proof is single-use regardless of execution outcome.
         uint256 nonce = blacklistNonce + 1;
         blacklistNonce = nonce;
 
-        bytes32 messageHash = keccak256(abi.encode(
-            block.chainid,
-            nonce,
-            operator,
-            users,
-            statuses
-        ));
-
-        (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
-        uint256 threshold = IBLSAggregator(aggregator).defaultThreshold();
-        if (!IBLSAggregator(aggregator).verify(messageHash, signerMask, threshold, sigG2Bytes)) {
-            revert BLSFailed();
-        }
+        _verifyBLS(proof, keccak256(abi.encode(
+            block.chainid, nonce, operator, users, statuses
+        )));
 
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
     }
 
-    /// @notice Mark a proposal as executed in Registry (called by BLSAggregator for slash-only proposals
-    ///         where repUsers.length == 0, preventing cross-path replay attacks).
     function markProposalExecuted(uint256 proposalId) external {
         if (msg.sender != blsAggregator) revert UnauthorizedSource();
         if (proposalId == 0) revert InvalidProposalId();
@@ -598,8 +485,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function getRoleConfig(bytes32 roleId) external view returns (RoleConfig memory) { return roleConfigs[roleId]; }
     function getUserRoles(address user) external view returns (bytes32[] memory) { return userRoles[user]; }
-    function getRoleMembers(bytes32 roleId) external view returns (address[] memory) { return roleMembers[roleId]; }
     function getRoleUserCount(bytes32 roleId) external view returns (uint256) { return roleMembers[roleId].length; }
+    function getRoleStake(bytes32 roleId, address user) external view returns (uint256) { return roleStakes[roleId][user]; }
+    function getCommunityByName(string calldata name) external view returns (address) { return communityByName[name]; }
+    function getCommunityByENS(string calldata ensName) external view returns (address) { return communityByENS[ensName]; }
 
     function _removeFromRoleMembers(bytes32 roleId, address user) internal {
         uint256 indexPlusOne = roleMemberIndex[roleId][user];
@@ -628,28 +517,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    function _clampReputation(uint256 oldScore, uint256 newScore, uint256 maxChange) internal pure returns (uint256) {
-        if (newScore > oldScore) {
-            if (newScore - oldScore > maxChange) return oldScore + maxChange;
-        } else if (oldScore > newScore) {
-            if (oldScore - newScore > maxChange) return oldScore - maxChange;
-        }
-        return newScore;
-    }
-
-    function _countSetBits(uint256 n) internal pure returns (uint256 count) {
-        while (n != 0) { n &= (n - 1); count++; }
-    }
-
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    /// @notice Monotonic nonce committed into every blacklist BLS message hash.
-    /// @dev    P0-3 (Codex B-N4): without a per-Registry monotonic counter, a
-    ///         legitimate proof issued for one (operator, users, statuses) tuple
-    ///         could be replayed verbatim against the same tuple on the same
-    ///         chain. Bumping `blacklistNonce` inside `updateOperatorBlacklist`
-    ///         breaks the replay window — every successful call advances the
-    ///         counter so the next message hash is fresh.
+    /// @notice Monotonic nonce for blacklist BLS proofs (P0-3 replay protection).
     uint256 public blacklistNonce;
 
     uint256[50] private __gap;

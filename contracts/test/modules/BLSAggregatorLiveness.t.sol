@@ -56,13 +56,6 @@ contract MockRegistryToggleableBLS is IRegistry {
     }
 
     // --- IRegistry stubs ---
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
-    function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}

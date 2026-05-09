@@ -3,7 +3,7 @@
 pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC721/IERC721.sol";
-import "../../interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "../../interfaces/v3/IReputationCalculator.sol";
 import "src/interfaces/IVersioned.sol";
 
@@ -94,7 +94,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     function setRule(bytes32 ruleId, uint256 base, uint256 bonus, uint256 max, string calldata desc) external {
         address community = msg.sender; 
         // Verify msg.sender has the COMMUNITY role (multi-tenant: each community manages its own rules)
-        if (!REGISTRY.hasRole(REGISTRY.ROLE_COMMUNITY(), msg.sender) && owner() != msg.sender) revert NotAuthorized();
+        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender) && owner() != msg.sender) revert NotAuthorized();
         if (base > 10_000 || bonus > 10_000 || max > 100_000) revert InvalidInput();
 
         if (communityRules[community][ruleId].baseScore == 0 && base > 0) {

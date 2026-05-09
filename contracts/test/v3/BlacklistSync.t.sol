@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../../src/core/Registry.sol";
+import "../../src/interfaces/v3/IRegistry.sol";
 import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "../../src/tokens/xPNTsToken.sol";
 import "../../src/tokens/GToken.sol";
@@ -117,9 +118,9 @@ contract BlacklistSyncTest is Test {
 
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10000 ether);
-        Registry.CommunityRoleData memory commData = Registry.CommunityRoleData("OpComm", "op.eth", "", "", "", 100 ether);
-        registry.registerRole(registry.ROLE_COMMUNITY(), operator, abi.encode(commData));
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(100 ether)));
+        Registry.CommunityRoleData memory commData = Registry.CommunityRoleData("OpComm", "op.eth", 100 ether);
+        registry.registerRole(keccak256("COMMUNITY"), operator, abi.encode(commData));
+        registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(100 ether)));
 
         // Configure Operator
         paymaster.configureOperator(address(apnts), treasury, 1e18);

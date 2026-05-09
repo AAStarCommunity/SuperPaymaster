@@ -61,27 +61,8 @@ contract VerifyLiveDeployment is Script {
         uint256 count = Registry(ADDR_REGISTRY).getRoleUserCount(ROLE_COMMUNITY);
         console.log("Total Communities:", count);
         
-        address[] memory communities = Registry(ADDR_REGISTRY).getRoleMembers(ROLE_COMMUNITY);
-        
-        for(uint i=0; i<communities.length; i++) {
-            address commAddr = communities[i];
-            console.log("------------------------------------------------");
-            console.log("Community Address:", commAddr);
-            
-            // Get Metadata (Skipped to avoid memory panic)
-            // bytes memory meta = Registry(ADDR_REGISTRY).roleMetadata(ROLE_COMMUNITY, commAddr);
-            
-            // Check Roles
-            bool isSuper = Registry(ADDR_REGISTRY).hasRole(ROLE_PAYMASTER_SUPER, commAddr);
-            console.log("Is SuperPaymaster Operator:", isSuper);
-            
-            bool isAOA = Registry(ADDR_REGISTRY).hasRole(keccak256("PAYMASTER_AOA"), commAddr);
-            console.log("Is AOA Paymaster Operator:", isAOA);
-            
-            // Check if they deployed a V4 Paymaster (via Factory mapping?)
-            // PaymasterFactory doesn't have a public mapping "getPaymasterByOperator" in interface?
-            // checking factory code...
-        }
+        // Note: getRoleMembers removed from Registry (EIP-170 size reduction). Use getRoleUserCount only.
+        require(count > 0, "No communities registered");
         console.log("------------------------------------------------");
 
         // 3. Check aPNTs

@@ -2,6 +2,16 @@
 pragma solidity 0.8.33;
 import "src/interfaces/IVersioned.sol";
 
+// Role identifiers — file-level constants so any file importing IRegistry.sol
+// can use them without a contract call (compute keccak256 at compile time).
+bytes32 constant ROLE_COMMUNITY       = keccak256("COMMUNITY");
+bytes32 constant ROLE_ENDUSER         = keccak256("ENDUSER");
+bytes32 constant ROLE_PAYMASTER_AOA   = keccak256("PAYMASTER_AOA");
+bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+bytes32 constant ROLE_DVT             = keccak256("DVT");
+bytes32 constant ROLE_ANODE           = keccak256("ANODE");
+bytes32 constant ROLE_KMS             = keccak256("KMS");
+
 /**
  * @title IRegistry
  * @notice Registry v3 interface with unified registerRole API
@@ -193,6 +203,7 @@ interface IRegistry is IVersioned {
      */
     function getCreditLimit(address user) external view returns (uint256);
     
+
     // ====================================
     // View Functions
     // ====================================
@@ -228,13 +239,6 @@ interface IRegistry is IVersioned {
      */
     function getRoleUserCount(bytes32 roleId) external view returns (uint256);
 
-    function ROLE_PAYMASTER_SUPER() external view returns (bytes32);
-    function ROLE_PAYMASTER_AOA() external view returns (bytes32);
-    function ROLE_KMS() external view returns (bytes32);
-    function ROLE_DVT() external view returns (bytes32);
-    function ROLE_ANODE() external view returns (bytes32);
-    function ROLE_COMMUNITY() external view returns (bytes32);
-    function ROLE_ENDUSER() external view returns (bytes32);
 
     /**
      * @notice Push a fresh stake snapshot from Staking into Registry's

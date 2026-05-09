@@ -10,9 +10,6 @@ contract DebugTest is Test {
         Registry.CommunityRoleData memory data = Registry.CommunityRoleData({
             name: "TestDAO",
             ensName: "",
-            website: "",
-            description: "",
-            logoURI: "",
             stakeAmount: 30 ether
         });
         

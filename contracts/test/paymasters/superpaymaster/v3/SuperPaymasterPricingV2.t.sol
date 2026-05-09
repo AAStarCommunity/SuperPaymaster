@@ -16,13 +16,6 @@ import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
 
 // Reusing Mocks from SuperPaymasterV3.t.sol logic but localized for clarity
 contract MockRegistryV2 is IRegistry {
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external pure override returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_KMS() external pure override returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_COMMUNITY() external pure override returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_ENDUSER() external pure override returns (bytes32) { return keccak256("ENDUSER"); }
     
     mapping(bytes32 => mapping(address => bool)) public roles;
     

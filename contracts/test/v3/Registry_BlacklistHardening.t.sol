@@ -133,9 +133,9 @@ contract Registry_BlacklistHardeningTest is Test {
 
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10_000 ether);
-        Registry.CommunityRoleData memory cd = Registry.CommunityRoleData("Op", "op.eth", "", "", "", 100 ether);
-        registry.registerRole(registry.ROLE_COMMUNITY(), operator, abi.encode(cd));
-        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), operator, abi.encode(uint256(100 ether)));
+        Registry.CommunityRoleData memory cd = Registry.CommunityRoleData("Op", "op.eth", 100 ether);
+        registry.registerRole(keccak256("COMMUNITY"), operator, abi.encode(cd));
+        registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(100 ether)));
         paymaster.configureOperator(address(apnts), treasury, 1e18);
         vm.stopPrank();
     }

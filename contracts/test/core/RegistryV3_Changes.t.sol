@@ -45,7 +45,7 @@ contract RegistryV3_Changes_Test is Test {
     bytes32 constant ROLE_COMMUNITY = keccak256("COMMUNITY");
 
     // Copy struct from Registry to ensure encoding match
-    struct TestCommunityRoleData { string name; string ensName; string website; string description; string logoURI; uint256 stakeAmount; }
+    struct TestCommunityRoleData { string name; string ensName; uint256 stakeAmount; }
     
     function setUp() public {
         vm.startPrank(admin);
@@ -65,22 +65,22 @@ contract RegistryV3_Changes_Test is Test {
         vm.startPrank(community);
         gtoken.approve(address(staking), 100 ether);
 
-        TestCommunityRoleData memory dataStruct = TestCommunityRoleData("TestCommunity", "test.eth", "https://test.com", "Desc", "logo", 30 ether);
+        TestCommunityRoleData memory dataStruct = TestCommunityRoleData("TestCommunity", "test.eth", 30 ether);
         bytes memory data = abi.encode(dataStruct);
 
         registry.registerRole(ROLE_COMMUNITY, community, data);
 
         assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.communityByName("TestCommunity"), community);
-        assertEq(registry.communityByENS("test.eth"), community);
+        assertEq(registry.getCommunityByName("TestCommunity"), community);
+        assertEq(registry.getCommunityByENS("test.eth"), community);
 
         // COMMUNITY exit succeeds — cleanup name/ENS slots
         registry.exitRole(ROLE_COMMUNITY);
 
         // Role should be removed, name/ENS slots freed
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
-        assertEq(registry.communityByName("TestCommunity"), address(0));
-        assertEq(registry.communityByENS("test.eth"), address(0));
+        assertEq(registry.getCommunityByName("TestCommunity"), address(0));
+        assertEq(registry.getCommunityByENS("test.eth"), address(0));
         vm.stopPrank();
     }
 
