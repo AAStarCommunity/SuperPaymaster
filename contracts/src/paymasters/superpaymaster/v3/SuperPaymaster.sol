@@ -316,8 +316,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /// @notice Queue a new APNTS_TOKEN. Cannot take effect until
     ///         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`
-    ///         and `protocolRevenue` are zero (otherwise existing operator
-    ///         deposits would be stranded under the new token's accounting).
+    ///         and `protocolRevenue` are within PROTOCOL_REVENUE_BUFFER (otherwise
+    ///         existing operator deposits would be stranded under the new token's
+    ///         accounting).
     /// @dev    P0-9 (B2-N1): owner can cancel within the window via
     ///         `cancelAPNTsTokenChange`. Re-queueing a change refreshes the
     ///         timer (intentional — allows the owner to abort and restart).
@@ -355,18 +356,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address pending = pendingAPNTsToken;
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
-        // `protocolRevenue` accumulates continuously via postOp penalty/burn paths.
-        // Call `withdrawProtocolRevenue()` first to reduce it to at most
-        // PROTOCOL_REVENUE_BUFFER before executing this migration.
-        // The buffer (0.1 ether) is intentionally unwithdrawable by design —
-        // it absorbs in-flight postOp refunds and can never reach zero once
-        // the protocol has operated. Requiring `protocolRevenue == 0` would
-        // therefore permanently block all token migrations (H-4).
-        // Instead we require `protocolRevenue <= PROTOCOL_REVENUE_BUFFER`:
-        // any amount above the buffer can be withdrawn first, leaving only
-        // the safety buffer behind — sufficient to ensure no operator funds
-        // are stranded under the old token's accounting.
-        if (totalTrackedBalance != 0 || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
+        // Both `totalTrackedBalance` and `protocolRevenue` use the same buffer
+        // threshold (PROTOCOL_REVENUE_BUFFER = 0.1 ether).
+        //
+        // `protocolRevenue` can never reach exactly 0 once the protocol has
+        // operated — `withdrawProtocolRevenue()` intentionally leaves the buffer
+        // unwithdrawable to absorb in-flight postOp refunds (H-4 fix).
+        //
+        // `totalTrackedBalance` mirrors the same floor: when `withdrawProtocolRevenue`
+        // drains revenue down to the buffer it also subtracts from
+        // `totalTrackedBalance` (line 787). After all operators withdraw their
+        // aPNTs and owner drains revenue to the buffer, `totalTrackedBalance`
+        // equals PROTOCOL_REVENUE_BUFFER — never 0. Requiring `== 0` would
+        // permanently block token migration (same deadlock as H-4 but for the
+        // tracked-balance side).
+        if (totalTrackedBalance > PROTOCOL_REVENUE_BUFFER || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
 
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = pending;

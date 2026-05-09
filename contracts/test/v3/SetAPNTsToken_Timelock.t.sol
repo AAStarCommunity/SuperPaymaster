@@ -133,9 +133,11 @@ contract SetAPNTsToken_TimelockTest is Test {
     }
 
     function test_ExecuteAPNTsTokenChange_RevertsWhenBalancesNonZero() public {
-        // Use stdstore to seed a non-zero totalTrackedBalance; mirrors what
-        // would happen in production after any operator deposit.
-        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(uint256(1));
+        // Seed totalTrackedBalance above PROTOCOL_REVENUE_BUFFER (0.1 ether).
+        // The new condition allows values ≤ buffer (which represents the
+        // permanently-resident floor after all operators withdraw and revenue
+        // is drained to the buffer). Values above the buffer must still revert.
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(0.1 ether + 1);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
