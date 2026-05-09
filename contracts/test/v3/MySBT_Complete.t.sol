@@ -33,7 +33,7 @@ contract MockRegistry is IRegistry {
     function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
     function isReputationSource(address) external pure override returns (bool) { return true; }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "MockRegistryV3"; }
+    function version() external view returns (string memory) { return "MockRegistryV3"; }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
     function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
 }
@@ -818,14 +818,14 @@ contract MySBT_Simplified_Test is Test {
         mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
 
         vm.prank(user1);
-        vm.expectRevert("Only Registry");
+        vm.expectRevert(MySBT.OnlyRegistry.selector);
         mysbt.deactivateMembership(user1, community1);
     }
 
     /// @notice B6d: onlyRegistry — deactivateAllMemberships by non-registry reverts
     function test_DeactivateAllMemberships_NonRegistry_Reverts() public {
         vm.prank(user1);
-        vm.expectRevert("Only Registry");
+        vm.expectRevert(MySBT.OnlyRegistry.selector);
         mysbt.deactivateAllMemberships(user1);
     }
 
@@ -851,7 +851,7 @@ contract MySBT_Simplified_Test is Test {
     function test_MintForRole_ZeroUser_Reverts() public {
         bytes memory roleData = abi.encode(community1);
         vm.prank(address(mockRegistry));
-        vm.expectRevert("Invalid user");
+        vm.expectRevert(MySBT.InvalidUser.selector);
         mysbt.mintForRole(address(0), ROLE_ENDUSER, roleData);
     }
 
@@ -859,7 +859,7 @@ contract MySBT_Simplified_Test is Test {
     function test_AirdropMint_ZeroUser_Reverts() public {
         bytes memory roleData = abi.encode(community1);
         vm.prank(address(mockRegistry));
-        vm.expectRevert("Invalid user");
+        vm.expectRevert(MySBT.InvalidUser.selector);
         mysbt.airdropMint(address(0), ROLE_ENDUSER, roleData);
     }
 
@@ -870,7 +870,7 @@ contract MySBT_Simplified_Test is Test {
         mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
 
         vm.prank(user1);
-        vm.expectRevert("Only Registry");
+        vm.expectRevert(MySBT.OnlyRegistry.selector);
         mysbt.burnSBT(user1);
     }
 
@@ -896,7 +896,7 @@ contract MySBT_Simplified_Test is Test {
     /// @notice B6m: setBaseURI by non-DAO reverts
     function test_SetBaseURI_NonDAO_Reverts() public {
         vm.prank(user1);
-        vm.expectRevert("Only DAO");
+        vm.expectRevert(MySBT.OnlyDAO.selector);
         mysbt.setBaseURI("https://evil.com/");
     }
 

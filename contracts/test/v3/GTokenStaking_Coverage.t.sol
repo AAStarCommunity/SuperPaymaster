@@ -82,9 +82,6 @@ contract GTokenStaking_Coverage is Test {
             Registry.CommunityRoleData({
                 name: communityName,
                 ensName: "",
-                website: "",
-                description: "",
-                logoURI: "",
                 stakeAmount: 30 ether
             })
         );
@@ -505,7 +502,7 @@ contract GTokenStaking_Coverage is Test {
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 20 ether, "dvt slash");
 
         assertEq(staking.getLockedStake(operator, ROLE_PAYMASTER_SUPER), 30 ether);
-        assertEq(registry.roleStakes(ROLE_PAYMASTER_SUPER, operator), 30 ether);
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 30 ether);
     }
 
     /// @notice C8b: slashByDVT to zero — removes role from userActiveRoles
