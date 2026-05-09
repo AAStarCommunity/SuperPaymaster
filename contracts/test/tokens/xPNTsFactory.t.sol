@@ -233,15 +233,55 @@ contract xPNTsFactoryTest is Test {
         vm.prank(user);
         // Mock role for view test
         vm.mockCall(
-            mockRegistry, 
-            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user), 
+            mockRegistry,
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user),
             abi.encode(true)
         );
-        
+
         address t1 = factory.deployxPNTsToken("A", "A", "A", "A", 1e18, address(0));
-        
+
         address[] memory all = factory.getAllTokens();
         assertEq(all.length, 1);
         assertEq(all[0], t1);
+    }
+
+    function test_PropagateSuperPaymaster() public {
+        // Deploy two tokens
+        vm.mockCall(
+            mockRegistry,
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, user),
+            abi.encode(true)
+        );
+        vm.prank(user);
+        address t1 = factory.deployxPNTsToken("P1", "P1", "C1", "C1", 1e18, address(0));
+        vm.mockCall(
+            mockRegistry,
+            abi.encodeWithSelector(bytes4(keccak256("hasRole(bytes32,address)")), ROLE_COMMUNITY, address(5)),
+            abi.encode(true)
+        );
+        vm.prank(address(5));
+        address t2 = factory.deployxPNTsToken("P2", "P2", "C2", "C2", 1e18, address(0));
+
+        address newSP = address(0xBEEF);
+
+        vm.startPrank(owner);
+        // setSuperPaymasterAddress only stores; tokens still have old SP
+        factory.setSuperPaymasterAddress(newSP);
+        assertEq(factory.SUPERPAYMASTER(), newSP);
+        // Tokens not yet updated
+        assertNotEq(xPNTsToken(t1).SUPERPAYMASTER_ADDRESS(), newSP);
+
+        // Propagate batch [0, 2)
+        factory.propagateSuperPaymaster(0, 2);
+        vm.stopPrank();
+
+        assertEq(xPNTsToken(t1).SUPERPAYMASTER_ADDRESS(), newSP);
+        assertEq(xPNTsToken(t2).SUPERPAYMASTER_ADDRESS(), newSP);
+    }
+
+    function test_PropagateSuperPaymaster_AccessControl() public {
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
+        factory.propagateSuperPaymaster(0, 10);
     }
 }
