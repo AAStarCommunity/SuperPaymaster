@@ -6,6 +6,10 @@ import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "src/interfaces/IVersioned.sol";
 
+interface IRegistryRoleCheck {
+    function hasRole(bytes32 roleId, address user) external view returns (bool);
+}
+
 /**
  * @title PaymasterFactory
  * @notice Factory contract for deploying Paymaster instances using EIP-1167 Minimal Proxy
@@ -54,6 +58,9 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Total number of deployed Paymasters
     uint256 public totalDeployed;
 
+    /// @notice Optional Registry for role gating (zero = open deployment)
+    address public registry;
+
     // ====================================
     // Events
     // ====================================
@@ -93,6 +100,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error InvalidInitData();
     error InitFailed(bytes returnData);
     error OwnerMismatch(address expected, address actual);
+    error CallerNotRegistered();
 
     // ====================================
     // Internal Helpers
@@ -117,6 +125,11 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
     constructor() Ownable(msg.sender) {}
 
+    /// @notice Set optional Registry for role gating (owner only; zero address disables gating)
+    function setRegistry(address _registry) external onlyOwner {
+        registry = _registry;
+    }
+
     // ====================================
     // Core Functions
     // ====================================
@@ -132,6 +145,14 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         bytes memory initData
     ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
+
+        // M-7: Registry role gate (enforced only when registry is configured)
+        if (registry != address(0)) {
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+            if (!IRegistryRoleCheck(registry).hasRole(ROLE_PAYMASTER_AOA, operator)) {
+                revert CallerNotRegistered();
+            }
+        }
 
         // Check if operator already has a Paymaster
         if (paymasterByOperator[operator] != address(0)) {
@@ -172,6 +193,13 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         bytes memory initData
     ) external nonReentrant returns (address paymaster) {
         address operator = msg.sender;
+
+        if (registry != address(0)) {
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+            if (!IRegistryRoleCheck(registry).hasRole(ROLE_PAYMASTER_AOA, operator)) {
+                revert CallerNotRegistered();
+            }
+        }
 
         if (paymasterByOperator[operator] != address(0)) {
             revert OperatorAlreadyHasPaymaster(operator);

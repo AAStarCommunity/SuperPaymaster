@@ -290,14 +290,31 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             uint256[] memory postSlashAmounts = new uint256[](roles.length);
 
             if (totalAmountAcrossLocks > 0) {
+                uint256 totalDeducted;
                 for (uint256 i = 0; i < roles.length; i++) {
                     RoleLock storage lock = roleLocks[user][roles[i]];
                     // deduction = (lock.amount * slashedAmount) / totalAmountAcrossLocks
                     uint256 deduct = (uint256(lock.amount) * slashedAmount) / totalAmountAcrossLocks;
                     if (deduct > lock.amount) deduct = lock.amount;
                     lock.amount -= uint128(deduct);
+                    totalDeducted += deduct;
                     affectedRoles[i] = roles[i];
                     postSlashAmounts[i] = lock.amount;
+                }
+                // H-2: distribute floor-division dust back-to-front across
+                // non-zero locks so sum(roleLocks) stays consistent with info.amount.
+                // A single-lock assignment silently loses dust when that lock's
+                // remaining balance is smaller than dust; the loop handles that by
+                // spreading it across multiple locks until exhausted.
+                uint256 dust = slashedAmount - totalDeducted;
+                for (uint256 j = roles.length; j > 0 && dust > 0; j--) {
+                    RoleLock storage dLock = roleLocks[user][roles[j - 1]];
+                    if (dLock.amount > 0) {
+                        uint256 take = dust <= dLock.amount ? dust : dLock.amount;
+                        dLock.amount -= uint128(take);
+                        postSlashAmounts[j - 1] = dLock.amount;
+                        dust -= take;
+                    }
                 }
             }
 

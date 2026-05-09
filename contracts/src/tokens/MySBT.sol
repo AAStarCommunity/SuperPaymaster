@@ -148,6 +148,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     error InvalidIndex();
     error CommunityMismatch();
     error ActivityTooSoon();
+    error InactiveMembership();
     error InvalidAmount();
     error NonTransferable();
 
@@ -497,6 +498,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         if (tid == 0) revert SBTNotFound();
         uint256 idx = membershipIndex[tid][msg.sender];
         if (idx >= _m[tid].length || _m[tid][idx].community != msg.sender) revert CommunityMismatch();
+        if (!_m[tid][idx].isActive) revert InactiveMembership();
         uint256 last = lastActivityTime[tid][msg.sender];
         if (last != 0 && block.timestamp < last + MIN_INT) revert ActivityTooSoon();
         lastActivityTime[tid][msg.sender] = block.timestamp;

@@ -208,6 +208,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         if (_treasury == address(0)) revert Paymaster__ZeroAddress();
         if (_ethUsdPriceFeed == address(0)) revert Paymaster__ZeroAddress();
         if (_serviceFeeRate > MAX_SERVICE_FEE) revert Paymaster__InvalidServiceFee();
+        if (_maxGasCostCap == 0 || _maxGasCostCap > 100 ether) revert Paymaster__InvalidGasCostCap();
 
         entryPoint = IEntryPoint(_entryPoint);
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
