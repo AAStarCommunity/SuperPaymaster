@@ -487,6 +487,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     function getUserRoles(address user) external view returns (bytes32[] memory) { return userRoles[user]; }
     function getRoleUserCount(bytes32 roleId) external view returns (uint256) { return roleMembers[roleId].length; }
     function getRoleStake(bytes32 roleId, address user) external view returns (uint256) { return roleStakes[roleId][user]; }
+    function getCommunityByName(string calldata name) external view returns (address) { return communityByName[name]; }
+    function getCommunityByENS(string calldata ensName) external view returns (address) { return communityByENS[ensName]; }
 
     function _removeFromRoleMembers(bytes32 roleId, address user) internal {
         uint256 indexPlusOne = roleMemberIndex[roleId][user];
