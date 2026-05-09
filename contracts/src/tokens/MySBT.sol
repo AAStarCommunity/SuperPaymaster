@@ -149,6 +149,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     error CommunityMismatch();
     error ActivityTooSoon();
     error InactiveMembership();
+    error RoleNotHeld();
     error InvalidAmount();
     error NonTransferable();
 
@@ -499,6 +500,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         uint256 idx = membershipIndex[tid][msg.sender];
         if (idx >= _m[tid].length || _m[tid][idx].community != msg.sender) revert CommunityMismatch();
         if (!_m[tid][idx].isActive) revert InactiveMembership();
+        // M-2A: block phantom activity if user already exited ROLE_ENDUSER in Registry
+        if (!IRegistry(REGISTRY).hasRole(ROLE_ENDUSER, u)) revert RoleNotHeld();
         uint256 last = lastActivityTime[tid][msg.sender];
         if (last != 0 && block.timestamp < last + MIN_INT) revert ActivityTooSoon();
         lastActivityTime[tid][msg.sender] = block.timestamp;
