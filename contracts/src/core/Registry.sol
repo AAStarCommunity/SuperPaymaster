@@ -109,8 +109,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event MySBTContractUpdated(address indexed oldMySBT, address indexed newMySBT);
     event SuperPaymasterUpdated(address indexed oldSP, address indexed newSP);
     event BLSAggregatorUpdated(address indexed oldAgg, address indexed newAgg);
-    event ExitFeeSyncFailed(bytes32 indexed roleId, address indexed staking);
-    event StakeSyncedFromStaking(address indexed user, bytes32 indexed roleId, uint256 newAmount);
+    /// @notice Emitted when a low-level sync call to an external contract fails.
+    /// @dev Replaces the former ExitFeeSyncFailed and StakeSyncedFromStaking events
+    ///      with a single lightweight signal: target = staking address for exit-fee
+    ///      sync failures; role identifies which role was affected.
+    event SyncFailed(address indexed target, bytes32 indexed role);
 
     function _initRole(
         bytes32 roleId, uint256 min, uint256 ticketPrice,
@@ -124,19 +127,29 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
-    function syncExitFees(bytes32[] calldata roles) external onlyOwner {
-        for (uint256 i = 0; i < roles.length; ) {
-            _syncExitFeeForRole(roles[i]);
-            unchecked { ++i; }
-        }
-    }
-
     function _syncExitFeeForRole(bytes32 roleId) internal {
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
             address(GTOKEN_STAKING).call(
                 abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, cfg.exitFeePercent, cfg.minExitFee))
             );
+        }
+    }
+
+    /// @notice Admin-triggered batch sync. Emits SyncFailed for any role whose
+    ///         call to staking reverts — indexers watch this topic for alerting.
+    function syncExitFees(bytes32[] calldata roles) external onlyOwner {
+        address stk = address(GTOKEN_STAKING);
+        for (uint256 i = 0; i < roles.length; ) {
+            bytes32 r = roles[i];
+            RoleConfig storage cfg = roleConfigs[r];
+            if (cfg.isActive) {
+                (bool ok,) = stk.call(
+                    abi.encodeCall(IGTokenStaking.setRoleExitFee, (r, cfg.exitFeePercent, cfg.minExitFee))
+                );
+                if (!ok) emit SyncFailed(stk, r);
+            }
+            unchecked { ++i; }
         }
     }
 
