@@ -180,28 +180,24 @@ contract PaymasterBase_Coverage_Test is Test {
     // ─── E1: initialize with maxGasCostCap == 0 ───────────────────────────────
 
     /**
-     * @notice E1: H-5 documents that initialize() with maxGasCostCap == 0 does NOT
-     * revert — the zero cap is stored as-is, allowing every op to pass the
-     * `maxCost > maxGasCostCap` check (0 > 0 is false, so cappedMaxCost == maxCost).
-     * This test documents the current (permissive) behavior.
+     * @notice E1: H-5 fix — initialize() with maxGasCostCap == 0 must revert.
+     * PaymasterBase.initialize now validates `_maxGasCostCap != 0 && <= 100 ether`,
+     * preventing a zero cap that would silently bypass the gas cost ceiling check.
      */
-    function test_E1_Initialize_ZeroMaxGasCostCap_DoesNotRevert() public {
+    function test_E1_Initialize_ZeroMaxGasCostCap_Reverts() public {
         Paymaster impl2 = new Paymaster(address(registry));
         Paymaster pm2 = Paymaster(payable(Clones.clone(address(impl2))));
 
-        // H-5: should not revert — this documents the gap; a future fix would
-        // add `if (_maxGasCostCap == 0) revert Paymaster__InvalidGasCostCap()`.
+        vm.expectRevert(PaymasterBase.Paymaster__InvalidGasCostCap.selector);
         pm2.initialize(
             address(entryPoint),
             owner,
             treasury,
             address(oracle),
             SERVICE_FEE,
-            0,    // maxGasCostCap == 0
+            0,    // maxGasCostCap == 0 → must revert (H-5 fixed)
             3600
         );
-
-        assertEq(pm2.maxGasCostCap(), 0, "maxGasCostCap stored as 0 (H-5: no validation on init)");
     }
 
     // ─── E2: postOp postOpReverted path ───────────────────────────────────────
