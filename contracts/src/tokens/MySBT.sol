@@ -134,10 +134,32 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     uint256 constant ACT_WIN = 4;
     uint256 constant MIN_INT = 5 minutes;
 
-    // error E() removed — was unused legacy from v2
+    // ====================================
+    // Custom Errors
+    // ====================================
+
+    error OnlyDAO();
+    error OnlyRegistry();
+    error InvalidUser();
+    error InvalidAddress();
+    error SBTNotFound();
+    error InvalidCommunity();
+    error TooManyMemberships();
+    error InvalidIndex();
+    error CommunityMismatch();
+    error ActivityTooSoon();
+    error InvalidAmount();
+    error NonTransferable();
+
+    // ====================================
+    // Constants
+    // ====================================
+
+    /// @notice Maximum number of community memberships per SBT (gas cap for burnSBT loop).
+    uint256 public constant MAX_MEMBERSHIPS = 50;
 
     modifier onlyDAO() {
-        require(msg.sender == daoMultisig, "Only DAO");
+        if (msg.sender != daoMultisig) revert OnlyDAO();
         _;
     }
 
@@ -146,7 +168,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
      * @dev Prevents communities from bypassing Registry
      */
     modifier onlyRegistry() {
-        require(msg.sender == REGISTRY, "Only Registry");
+        if (msg.sender != REGISTRY) revert OnlyRegistry();
         _;
     }
 
@@ -156,7 +178,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         address _r,
         address _d
     ) ERC721("Mycelium Soul Bound Token", "MySBT") {
-        require(_g != address(0) && _s != address(0) && _r != address(0) && _d != address(0));
+        if (_g == address(0) || _s == address(0) || _r == address(0) || _d == address(0)) revert InvalidAddress();
         GTOKEN = _g;
         GTOKEN_STAKING = _s;
         REGISTRY = _r;
@@ -168,7 +190,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     // ====================================
 
     function version() external pure override returns (string memory) {
-        return "MySBT-3.1.3";
+        return "MySBT-3.2.0";
     }
 
     // ====================================
@@ -210,7 +232,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         onlyRegistry
         returns (uint256 tokenId, bool isNewMint)
     {
-        require(user != address(0), "Invalid user");
+        if (user == address(0)) revert InvalidUser();
 
         tokenId = userToSBT[user];
         (address community, string memory meta) = _decodeRoleData(roleData);
@@ -246,7 +268,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
                 return (tokenId, false);
             }
 
-            // Add new membership
+            // Add new membership (M-3: cap at MAX_MEMBERSHIPS to bound burnSBT loop gas)
+            if (_m[tokenId].length >= MAX_MEMBERSHIPS) revert TooManyMemberships();
             _m[tokenId].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tokenId][community] = _m[tokenId].length - 1;
             sbtData[tokenId].totalCommunities++;
@@ -273,7 +296,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         onlyRegistry
         returns (uint256 tid, bool isNew)
     {
-        require(u != address(0), "Invalid user");
+        if (u == address(0)) revert InvalidUser();
 
         tid = userToSBT[u];
         (address community, string memory meta) = _decodeRoleData(roleData);
@@ -311,7 +334,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
                 return (tid, false);
             }
 
-            // Add new membership
+            // Add new membership (M-3: cap at MAX_MEMBERSHIPS to bound burnSBT loop gas)
+            if (_m[tid].length >= MAX_MEMBERSHIPS) revert TooManyMemberships();
             _m[tid].push(CommunityMembership(community, block.timestamp, true, meta));
             membershipIndex[tid][community] = _m[tid].length - 1;
             sbtData[tid].totalCommunities++;
@@ -322,7 +346,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
 
     function burnSBT(address u) external whenNotPaused nonReentrant onlyRegistry {
         uint256 tid = userToSBT[u];
-        require(tid != 0 && ownerOf(tid) == u);
+        if (tid == 0 || ownerOf(tid) != u) revert SBTNotFound();
 
         CommunityMembership[] storage mems = _m[tid];
         for (uint256 i = 0; i < mems.length; i++) {
@@ -428,9 +452,9 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         returns (CommunityMembership memory mem)
     {
         uint256 idx = membershipIndex[tid][comm];
-        require(idx < _m[tid].length);
+        if (idx >= _m[tid].length) revert InvalidIndex();
         mem = _m[tid][idx];
-        require(mem.community == comm);
+        if (mem.community != comm) revert CommunityMismatch();
     }
 
     /**
@@ -468,13 +492,13 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     ///      Rate-limited to once per MIN_INT seconds per (user, community) pair.
     /// @param u User whose SBT activity timestamp is updated.
     function recordActivity(address u) external whenNotPaused {
-        require(_isValid(msg.sender));
+        if (!_isValid(msg.sender)) revert InvalidCommunity();
         uint256 tid = userToSBT[u];
-        require(tid != 0);
+        if (tid == 0) revert SBTNotFound();
         uint256 idx = membershipIndex[tid][msg.sender];
-        require(idx < _m[tid].length && _m[tid][idx].community == msg.sender);
+        if (idx >= _m[tid].length || _m[tid][idx].community != msg.sender) revert CommunityMismatch();
         uint256 last = lastActivityTime[tid][msg.sender];
-        require(last == 0 || block.timestamp >= last + MIN_INT);
+        if (last != 0 && block.timestamp < last + MIN_INT) revert ActivityTooSoon();
         lastActivityTime[tid][msg.sender] = block.timestamp;
         emit ActivityRecorded(tid, msg.sender, block.timestamp / 1 weeks, block.timestamp);
     }
@@ -493,7 +517,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     }
 
     function setMinLockAmount(uint256 a) external onlyDAO {
-        require(a != 0);
+        if (a == 0) revert InvalidAmount();
         uint256 old = minLockAmount;
         minLockAmount = a;
         emit MinLockAmountUpdated(old, a, block.timestamp);
@@ -506,7 +530,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     }
 
     function setDAOMultisig(address d) external onlyDAO {
-        require(d != address(0));
+        if (d == address(0)) revert InvalidAddress();
         address old = daoMultisig;
         daoMultisig = d;
         emit DAOMultisigUpdated(old, d, block.timestamp);
@@ -555,7 +579,7 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         returns (address)
     {
         address from = _ownerOf(tid);
-        require(from == address(0) || to == address(0));
+        if (from != address(0) && to != address(0)) revert NonTransferable();
         return super._update(to, tid, auth);
     }
 }
