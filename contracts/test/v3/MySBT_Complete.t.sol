@@ -73,7 +73,11 @@ contract MySBT_Simplified_Test is Test {
         // Register communities in mock registry
         mockRegistry.setRole(ROLE_COMMUNITY, community1, true);
         mockRegistry.setRole(ROLE_COMMUNITY, community2, true);
-        
+
+        // M-2A: recordActivity now requires ROLE_ENDUSER in Registry
+        mockRegistry.setRole(ROLE_ENDUSER, user1, true);
+        mockRegistry.setRole(ROLE_ENDUSER, user2, true);
+
         vm.stopPrank();
     }
 
@@ -504,23 +508,22 @@ contract MySBT_Simplified_Test is Test {
         assertGt(mysbt.lastActivityTime(tokenId, community1), 0);
     }
 
-    /// @notice B1b: recordActivity when membership is inactive — should still update if membership record exists
-    ///         The current code only checks membership index/community, not isActive flag.
-    ///         This test documents the actual behavior.
-    function test_RecordActivity_InactiveMembership_StillRecords() public {
+    /// @notice B1b: recordActivity when membership is inactive — must revert with InactiveMembership.
+    ///         #167 added an isActive guard; leaveCommunity sets isActive=false so any
+    ///         subsequent recordActivity by that community is blocked.
+    function test_RecordActivity_InactiveMembership_Reverts() public {
         bytes memory roleData = abi.encode(community1);
         vm.prank(address(mockRegistry));
-        (uint256 tokenId,) = mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
+        mysbt.mintForRole(user1, ROLE_ENDUSER, roleData);
 
         // Deactivate membership
         vm.prank(user1);
         mysbt.leaveCommunity(community1);
 
-        // Membership record still exists at index 0, so recordActivity should still work
+        // isActive is now false — must revert
         vm.prank(community1);
+        vm.expectRevert(MySBT.InactiveMembership.selector);
         mysbt.recordActivity(user1);
-
-        assertGt(mysbt.lastActivityTime(tokenId, community1), 0);
     }
 
     /// @notice B1c: recordActivity rate-limiting — second call within MIN_INT must revert
