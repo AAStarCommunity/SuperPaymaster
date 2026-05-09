@@ -178,6 +178,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
     function setMySBT(address _mysbt) external onlyOwner {
+        if (_mysbt == address(0) || _mysbt.code.length == 0) revert InvalidAddr();
         address old = address(MYSBT);
         MYSBT = IMySBT(_mysbt);
         emit MySBTContractUpdated(old, _mysbt);

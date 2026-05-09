@@ -234,6 +234,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address _protocolTreasury,
         uint256 _priceStalenessThreshold
     ) external initializer {
+        if (_owner == address(0)) revert InvalidConfiguration();
         __BasePaymaster_init(_owner);
         // Note: _apntsToken can be address(0) during staged deployment
         // (deployed later via setAPNTsToken which has its own zero-address check)
@@ -266,6 +267,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
             revert InvalidConfiguration();
         }
+        if (exchangeRate > type(uint96).max) revert InvalidConfiguration();
 
         // P1-4: Factory binding is always required — configuring an arbitrary ERC20
         // before the factory is set would bypass the community token validation.
