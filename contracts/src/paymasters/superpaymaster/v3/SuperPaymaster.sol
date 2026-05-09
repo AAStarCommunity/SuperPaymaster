@@ -173,6 +173,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error Unauthorized();
     error InvalidAddress();
     error InvalidConfiguration();
+    error InvalidOwner();
+    error ExchangeRateOverflow();
     error InsufficientBalance(uint256 available, uint256 required);
     error DepositNotVerified();
     error OracleError();
@@ -234,6 +236,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address _protocolTreasury,
         uint256 _priceStalenessThreshold
     ) external initializer {
+        // M-5 FIX: Reject zero owner to prevent permanently unowned proxy
+        if (_owner == address(0)) revert InvalidOwner();
         __BasePaymaster_init(_owner);
         // Note: _apntsToken can be address(0) during staged deployment
         // (deployed later via setAPNTsToken which has its own zero-address check)
@@ -274,6 +278,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address validToken = IxPNTsFactory(factory).getTokenAddress(msg.sender);
         if (validToken != xPNTsToken) revert InvalidXPNTsToken();
 
+        // M-4 FIX: Guard uint96 overflow — silent truncation corrupts pricing
+        if (exchangeRate > type(uint96).max) revert ExchangeRateOverflow();
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
         config.treasury = _opTreasury;

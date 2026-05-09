@@ -134,6 +134,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
     uint256 constant ACT_WIN = 4;
     uint256 constant MIN_INT = 5 minutes;
 
+    error InactiveMembership();
+
     // error E() removed — was unused legacy from v2
 
     modifier onlyDAO() {
@@ -473,6 +475,8 @@ contract MySBT is ERC721, ReentrancyGuard, Pausable, IVersioned {
         require(tid != 0);
         uint256 idx = membershipIndex[tid][msg.sender];
         require(idx < _m[tid].length && _m[tid][idx].community == msg.sender);
+        // M-1 FIX: Reject activity recording for deactivated memberships
+        if (!_m[tid][idx].isActive) revert InactiveMembership();
         uint256 last = lastActivityTime[tid][msg.sender];
         require(last == 0 || block.timestamp >= last + MIN_INT);
         lastActivityTime[tid][msg.sender] = block.timestamp;

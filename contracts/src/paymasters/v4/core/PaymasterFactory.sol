@@ -5,6 +5,7 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "src/interfaces/IVersioned.sol";
+import "src/interfaces/v3/IRegistry.sol";
 
 /**
  * @title PaymasterFactory
@@ -54,6 +55,9 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Total number of deployed Paymasters
     uint256 public totalDeployed;
 
+    /// @notice Registry for role-based access checks (optional; set via setRegistry)
+    IRegistry public registry;
+
     // ====================================
     // Events
     // ====================================
@@ -76,6 +80,8 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         string newVersion
     );
 
+    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+
     event ImplementationAdded(
         string indexed _version,
         address indexed implementation
@@ -93,6 +99,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error InvalidInitData();
     error InitFailed(bytes returnData);
     error OwnerMismatch(address expected, address actual);
+    error NotRegisteredCommunity();
 
     // ====================================
     // Internal Helpers
@@ -133,6 +140,13 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
+        // M-7 FIX: Require operator to hold ROLE_COMMUNITY in Registry before deploying
+        IRegistry reg = registry;
+        if (address(reg) != address(0)) {
+            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+        }
+
         // Check if operator already has a Paymaster
         if (paymasterByOperator[operator] != address(0)) {
             revert OperatorAlreadyHasPaymaster(operator);
@@ -172,6 +186,13 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         bytes memory initData
     ) external nonReentrant returns (address paymaster) {
         address operator = msg.sender;
+
+        // M-7 FIX: Require operator to hold ROLE_COMMUNITY in Registry before deploying
+        IRegistry reg = registry;
+        if (address(reg) != address(0)) {
+            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+        }
 
         if (paymasterByOperator[operator] != address(0)) {
             revert OperatorAlreadyHasPaymaster(operator);
@@ -218,6 +239,16 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     // ====================================
     // Admin Functions
     // ====================================
+
+    /**
+     * @notice Set or update the Registry used for ROLE_COMMUNITY checks
+     * @param _registry New registry address (address(0) disables the check)
+     */
+    function setRegistry(address _registry) external onlyOwner {
+        address old = address(registry);
+        registry = IRegistry(_registry);
+        emit RegistryUpdated(old, _registry);
+    }
 
     /**
      * @notice Add new implementation version
