@@ -356,21 +356,20 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         address pending = pendingAPNTsToken;
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
-        // Both `totalTrackedBalance` and `protocolRevenue` use the same buffer
-        // threshold (PROTOCOL_REVENUE_BUFFER = 0.1 ether).
+        // Safe-to-migrate invariant: no operator funds stranded under old token.
         //
-        // `protocolRevenue` can never reach exactly 0 once the protocol has
-        // operated — `withdrawProtocolRevenue()` intentionally leaves the buffer
-        // unwithdrawable to absorb in-flight postOp refunds (H-4 fix).
+        // totalTrackedBalance = sum(all operator aPNTs balances) + protocolRevenue.
+        // When every operator has fully withdrawn, the difference
+        // (totalTrackedBalance - protocolRevenue) reaches 0, i.e.
+        // totalTrackedBalance == protocolRevenue.  Requiring this equality
+        // ensures no operator balance remains stranded under the old token's
+        // accounting before we switch to a new token.
         //
-        // `totalTrackedBalance` mirrors the same floor: when `withdrawProtocolRevenue`
-        // drains revenue down to the buffer it also subtracts from
-        // `totalTrackedBalance` (line 787). After all operators withdraw their
-        // aPNTs and owner drains revenue to the buffer, `totalTrackedBalance`
-        // equals PROTOCOL_REVENUE_BUFFER — never 0. Requiring `== 0` would
-        // permanently block token migration (same deadlock as H-4 but for the
-        // tracked-balance side).
-        if (totalTrackedBalance > PROTOCOL_REVENUE_BUFFER || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
+        // protocolRevenue can never reach 0 once the protocol has operated
+        // (withdrawProtocolRevenue() leaves PROTOCOL_REVENUE_BUFFER unwithdrawable
+        // to absorb in-flight postOp refunds — H-4 fix).  So we only require
+        // protocolRevenue <= PROTOCOL_REVENUE_BUFFER (i.e. fully drained to buffer).
+        if (totalTrackedBalance != protocolRevenue || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
 
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = pending;
