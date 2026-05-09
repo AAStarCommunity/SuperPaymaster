@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.23;
+pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -128,13 +128,6 @@ contract CovMockRegistry is IRegistry {
     function getRoleUserCount(bytes32) external view returns (uint256) { return 0; }
 
     function version() external pure returns (string memory) { return "MockCov"; }
-    function ROLE_PAYMASTER_SUPER() external pure returns (bytes32) { return keccak256("PAYMASTER_SUPER"); }
-    function ROLE_PAYMASTER_AOA() external pure returns (bytes32) { return keccak256("PAYMASTER_AOA"); }
-    function ROLE_COMMUNITY() external pure returns (bytes32) { return keccak256("COMMUNITY"); }
-    function ROLE_DVT() external pure returns (bytes32) { return keccak256("DVT"); }
-    function ROLE_KMS() external pure returns (bytes32) { return keccak256("KMS"); }
-    function ROLE_ANODE() external pure returns (bytes32) { return keccak256("ANODE"); }
-    function ROLE_ENDUSER() external pure returns (bytes32) { return keccak256("ENDUSER"); }
     function isReputationSource(address) external view returns (bool) { return false; }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
     function getEffectiveStake(address, bytes32) external view returns (uint256) { return 0; }
