@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import "forge-std/StdStorage.sol";
 import "src/core/GTokenStaking.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
@@ -17,6 +18,8 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
  *      and access-control error paths.
  */
 contract GTokenStaking_Coverage is Test {
+    using stdStorage for StdStorage;
+
     GTokenStaking staking;
     Registry registry;
     GToken gtoken;
@@ -268,10 +271,10 @@ contract GTokenStaking_Coverage is Test {
         // Register operator with normal stake first
         _registerCommunityAndPaymaster(operator, 50 ether);
 
-        // Force totalStaked to MAX_TOTAL_STAKE - 1 wei using vm.store (slot 7)
+        // Force totalStaked to MAX_TOTAL_STAKE - 1 wei using stdstore (layout-safe)
         // so any topUp (even 1 ether) will push it over the cap
         uint256 almostCap = staking.MAX_TOTAL_STAKE() - 1;
-        vm.store(address(staking), bytes32(uint256(7)), bytes32(almostCap));
+        stdstore.target(address(staking)).sig("totalStaked()").checked_write(almostCap);
         assertEq(staking.totalStaked(), almostCap, "totalStaked forced near cap");
 
         // Approve top-up tokens
