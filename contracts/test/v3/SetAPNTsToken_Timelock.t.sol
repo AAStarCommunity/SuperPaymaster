@@ -133,9 +133,11 @@ contract SetAPNTsToken_TimelockTest is Test {
     }
 
     function test_ExecuteAPNTsTokenChange_RevertsWhenBalancesNonZero() public {
-        // Use stdstore to seed a non-zero totalTrackedBalance; mirrors what
-        // would happen in production after any operator deposit.
-        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(uint256(1));
+        // Seed totalTrackedBalance above PROTOCOL_REVENUE_BUFFER (0.1 ether).
+        // The new condition allows values ≤ buffer (which represents the
+        // permanently-resident floor after all operators withdraw and revenue
+        // is drained to the buffer). Values above the buffer must still revert.
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(0.1 ether + 1);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
@@ -218,8 +220,11 @@ contract SetAPNTsToken_TimelockTest is Test {
     /// @notice H-4: migration blocked when protocolRevenue strictly exceeds buffer
     function test_H4_ExecuteBlocked_WhenProtocolRevenue_AboveBuffer() public {
         uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
-        // Seed protocolRevenue above the buffer
+        // Seed consistent state: no operator funds, protocolRevenue above buffer.
+        // totalTrackedBalance == protocolRevenue satisfies the no-stranded-funds check,
+        // but protocolRevenue > buffer still blocks execution.
         stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer + 1);
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(buffer + 1);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
@@ -233,14 +238,15 @@ contract SetAPNTsToken_TimelockTest is Test {
     /// @notice H-4: migration succeeds when protocolRevenue is exactly at the buffer
     function test_H4_ExecuteSucceeds_WhenProtocolRevenue_AtBuffer() public {
         uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
-        // Seed protocolRevenue to exactly the buffer (maximum non-withdrawable amount)
+        // Seed consistent state: all operators withdrawn, protocolRevenue drained to buffer.
+        // totalTrackedBalance == protocolRevenue == buffer satisfies both guards.
         stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer);
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(buffer);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
 
-        // totalTrackedBalance is 0, protocolRevenue == buffer → should succeed
         vm.prank(owner);
         paymaster.executeAPNTsTokenChange();
 
@@ -250,8 +256,9 @@ contract SetAPNTsToken_TimelockTest is Test {
     /// @notice H-4: migration succeeds when protocolRevenue is below the buffer
     function test_H4_ExecuteSucceeds_WhenProtocolRevenue_BelowBuffer() public {
         uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
-        // Seed protocolRevenue below the buffer
+        // Seed consistent state: no operator funds, protocolRevenue below buffer.
         stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer / 2);
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(buffer / 2);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
@@ -268,16 +275,15 @@ contract SetAPNTsToken_TimelockTest is Test {
     ///         but no further; migration must therefore succeed at that point.
     function test_H4_BufferDeadlockNotPossible_AfterWithdraw() public {
         uint256 buffer = 0.1 ether; // PROTOCOL_REVENUE_BUFFER
-        // Simulate a scenario where protocolRevenue == 2 * buffer (common after operation)
+        // Simulate: no operator funds, protocolRevenue == 2*buffer before withdrawal.
         stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(2 * buffer);
-        // totalTrackedBalance must also reflect this; seed it consistently
         stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(2 * buffer);
 
-        // After withdrawProtocolRevenue drains the withdrawable portion, both
-        // totalTrackedBalance and protocolRevenue drop to exactly buffer.
-        // The H-4 fix ensures execute succeeds at that point.
+        // Simulate withdrawProtocolRevenue() draining the withdrawable portion (buffer).
+        // Both totalTrackedBalance and protocolRevenue decrease by the same amount,
+        // so they remain equal after the withdrawal.
         stdstore.target(address(paymaster)).sig("protocolRevenue()").checked_write(buffer);
-        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(uint256(0));
+        stdstore.target(address(paymaster)).sig("totalTrackedBalance()").checked_write(buffer);
 
         vm.prank(owner);
         paymaster.setAPNTsToken(address(newToken));
