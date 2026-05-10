@@ -5,7 +5,10 @@ import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "src/interfaces/IVersioned.sol";
-import "src/interfaces/v3/IRegistry.sol";
+
+interface IRegistryRoleCheck {
+    function hasRole(bytes32 roleId, address user) external view returns (bool);
+}
 
 /**
  * @title PaymasterFactory
@@ -56,7 +59,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     uint256 public totalDeployed;
 
     /// @notice Optional Registry for role gating (zero = open deployment)
-    IRegistry public registry;
+    address public registry;
 
     // ====================================
     // Events
@@ -85,8 +88,6 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         address indexed implementation
     );
 
-    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
-
     // ====================================
     // Errors
     // ====================================
@@ -99,7 +100,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error InvalidInitData();
     error InitFailed(bytes returnData);
     error OwnerMismatch(address expected, address actual);
-    error NotRegisteredCommunity();
+    error CallerNotRegistered();
 
     // ====================================
     // Internal Helpers
@@ -126,9 +127,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Set optional Registry for role gating (owner only; zero address disables gating)
     function setRegistry(address _registry) external onlyOwner {
-        address old = address(registry);
-        registry = IRegistry(_registry);
-        emit RegistryUpdated(old, _registry);
+        registry = _registry;
     }
 
     // ====================================
@@ -147,11 +146,12 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
-        // M-7: Require ROLE_COMMUNITY in Registry (enforced only when registry is configured)
-        IRegistry reg = registry;
-        if (address(reg) != address(0)) {
-            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-            if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+        // M-7: Registry role gate (enforced only when registry is configured)
+        if (registry != address(0)) {
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+            if (!IRegistryRoleCheck(registry).hasRole(ROLE_PAYMASTER_AOA, operator)) {
+                revert CallerNotRegistered();
+            }
         }
 
         // Check if operator already has a Paymaster
@@ -194,11 +194,11 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     ) external nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
-        // M-7: Require ROLE_COMMUNITY in Registry (enforced only when registry is configured)
-        IRegistry reg = registry;
-        if (address(reg) != address(0)) {
-            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
-            if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+        if (registry != address(0)) {
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
+            if (!IRegistryRoleCheck(registry).hasRole(ROLE_PAYMASTER_AOA, operator)) {
+                revert CallerNotRegistered();
+            }
         }
 
         if (paymasterByOperator[operator] != address(0)) {
