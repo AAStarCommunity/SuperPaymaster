@@ -100,6 +100,8 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     error InitFailed(bytes returnData);
     error OwnerMismatch(address expected, address actual);
     error NotRegisteredCommunity();
+    /// @notice Thrown when caller holds ROLE_COMMUNITY but lacks ROLE_PAYMASTER_AOA.
+    error NotRegisteredPaymasterAOA();
 
     // ====================================
     // Internal Helpers
@@ -158,7 +160,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
             bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
             bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
-            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredCommunity();
+            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredPaymasterAOA();
         }
 
         // Check if operator already has a Paymaster
@@ -207,7 +209,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
             bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
             bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
-            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredCommunity();
+            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredPaymasterAOA();
         }
 
         if (paymasterByOperator[operator] != address(0)) {

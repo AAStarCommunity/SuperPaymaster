@@ -267,7 +267,7 @@ contract M7_PaymasterFactoryRoleCheckTest is Test {
         // ROLE_PAYMASTER_AOA intentionally NOT granted
         bytes memory initData = _buildInitData(communityNoAoa);
         vm.prank(communityNoAoa);
-        vm.expectRevert(PaymasterFactory.NotRegisteredCommunity.selector);
+        vm.expectRevert(PaymasterFactory.NotRegisteredPaymasterAOA.selector);
         factory.deployPaymaster("v1.0", initData);
     }
 
