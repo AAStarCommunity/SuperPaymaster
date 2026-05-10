@@ -11,7 +11,9 @@
 # 5. Reputation & Credit: D1, D2
 # 6. Pricing & Fees: E1, E2
 # 7. Staking & Slash: F1, F2
-# 8. Legacy gasless: test-case-1/2/3
+# 8. V5.3 Agent Economy: G1, G2, G3
+# 9. DVT / BLS / Reputation Infrastructure: H1, H2
+# 10. Legacy gasless: test-case-1/2/3
 #
 # Each test failure does NOT abort the run; summary printed at end.
 ###############################################################################
@@ -119,6 +121,7 @@ echo "================================================================"
 echo "  Phase 3: Negative / Boundary Cases"
 echo "================================================================"
 
+sleep 5  # Let RPC recover after B2 heavy deposit/withdraw TXs
 run_test "C1: SuperPaymaster Negative" "node $SCRIPT_DIR/test-group-C1-gasless-negative.js"
 run_test "C2: PaymasterV4 Negative"    "node $SCRIPT_DIR/test-group-C2-paymasterv4-negative.js"
 
@@ -142,6 +145,7 @@ echo "  Phase 5: Pricing & Fees"
 echo "================================================================"
 
 run_test "E1: Pricing & Oracle"  "node $SCRIPT_DIR/test-group-E1-pricing-oracle.js"
+sleep 5  # Let RPC recover between pricing tests
 run_test "E2: Protocol Fees"     "node $SCRIPT_DIR/test-group-E2-protocol-fees.js"
 
 # ─────────────────────────────────────────────────────────────
@@ -168,15 +172,29 @@ run_test "G2: Agent Identity Sponsorship (ERC-8004)"  "node $SCRIPT_DIR/test-gro
 run_test "G3: Credit Tier Escalation"                "node $SCRIPT_DIR/test-group-G3-credit-tier-escalation.js"
 
 # ─────────────────────────────────────────────────────────────
-# Phase 8: Legacy Gasless Transfer Tests
+# Phase 8: DVT / BLS / Reputation Infrastructure
 # ─────────────────────────────────────────────────────────────
 echo ""
 echo "================================================================"
-echo "  Phase 8: Legacy Gasless Transfer Tests"
+echo "  Phase 8: DVT / BLS / Reputation Infrastructure"
 echo "================================================================"
 
+run_test "H1: DVT & BLS Aggregator Queries"                    "node $SCRIPT_DIR/test-group-H1-dvt-bls-queries.js"
+run_test "H2: ReputationSystem Community Scoring & BLS Sync"   "node $SCRIPT_DIR/test-group-H2-reputation-sync.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 9: Legacy Gasless Transfer Tests
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 9: Legacy Gasless Transfer Tests"
+echo "================================================================"
+
+sleep 15  # Extended pause to let RPC rate limit window reset after heavy test groups
 run_test "Gasless: PaymasterV4"            "node $SCRIPT_DIR/test-case-1-paymasterv4.js"
+sleep 5
 run_test "Gasless: SuperPaymaster xPNTs1"  "node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
+sleep 5
 run_test "Gasless: SuperPaymaster xPNTs2"  "node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
 
 # ─────────────────────────────────────────────────────────────

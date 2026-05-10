@@ -60,14 +60,15 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(3, 'setProtocolFee(2001) -> expect revert');
   try {
-    const maxFee = await sp.MAX_PROTOCOL_FEE();
-    printKeyValue('MAX_PROTOCOL_FEE', maxFee.toString());
+    // MAX_PROTOCOL_FEE = 2000 (internal constant in SuperPaymaster, no public getter)
+    const maxFee = 2000n;
+    printKeyValue('MAX_PROTOCOL_FEE (hardcoded)', maxFee.toString());
     await expectRevert(
       () => sp.setProtocolFee(maxFee + 1n),
       'setProtocolFee exceeding max'
     );
   } catch (e) {
-    printError(`MAX_PROTOCOL_FEE: ${e.message.substring(0, 80)}`);
+    printError(`MAX_PROTOCOL_FEE check: ${e.message.substring(0, 80)}`);
   }
 
   // ──────────────────────────────────────────

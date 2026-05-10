@@ -27,8 +27,9 @@ contract Check09_TestAccounts is Script {
         address gToken = stdJson.readAddress(json, ".gToken");
         address pmFactory = stdJson.readAddress(json, ".paymasterFactory");
         
-        // Anvil account #1 (matches TestAccountPrepare.s.sol and DeployAnvil.s.sol)
-        address anni = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
+        // Resolve Anni from env (fall back to Anvil account #1 for local dev)
+        uint256 anniPK = vm.envOr("PRIVATE_KEY_ANNI", uint256(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d));
+        address anni = vm.addr(anniPK);
         
         console.log("=== Phase 2 Verification: Test Accounts (Anni) ===");
 

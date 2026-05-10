@@ -11,7 +11,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, retryView,
 } = require('./test-helpers');
 
 async function main() {
@@ -32,7 +32,7 @@ async function main() {
   printStep(1, 'getSlashCount');
   let deployerSlashCount = 0n;
   try {
-    deployerSlashCount = await sp.getSlashCount(deployerAddr);
+    deployerSlashCount = await retryView(() => sp.getSlashCount(deployerAddr), 'getSlashCount(deployer)');
     printKeyValue('Deployer slash count', deployerSlashCount.toString());
     assertGte(deployerSlashCount, 0n, 'Deployer slash count >= 0');
   } catch (e) {
@@ -81,16 +81,27 @@ async function main() {
     const repBefore = op.reputation;
     printKeyValue('Reputation before', repBefore.toString());
 
-    try {
-      await sendTxSafe(sp, 'slashOperator',
-        [deployerAddr, SLASH_LEVEL.WARNING, 0, "E2E test warning slash"],
-        'slashOperator(WARNING, 0)'
-      );
+    // Check 24h cooldown: if last slash was within 24h, skip (SlashCooldown guard)
+    const history = await sp.getSlashHistory(deployerAddr);
+    const SLASH_COOLDOWN = 86400n; // 24 hours in seconds
+    const nowSec = BigInt(Math.floor(Date.now() / 1000));
+    const lastSlashTs = history.length > 0 ? BigInt(history[history.length - 1].timestamp) : 0n;
+    const cooldownEnds = lastSlashTs + SLASH_COOLDOWN;
+    if (lastSlashTs > 0n && nowSec < cooldownEnds) {
+      const remaining = Number(cooldownEnds - nowSec);
+      printSkip(`Slash cooldown active — ${Math.floor(remaining / 3600)}h ${Math.floor((remaining % 3600) / 60)}m remaining (resets at ${new Date(Number(cooldownEnds) * 1000).toISOString()})`);
+    } else {
+      try {
+        await sendTxSafe(sp, 'slashOperator',
+          [deployerAddr, SLASH_LEVEL.WARNING, 0, "E2E test warning slash"],
+          'slashOperator(WARNING, 0)'
+        );
 
-      const newCount = await sp.getSlashCount(deployerAddr);
-      assertEqual(newCount, deployerSlashCount + 1n, 'Slash count incremented');
-    } catch (e) {
-      printError(`slashOperator: ${e.message.substring(0, 80)}`);
+        const newCount = await sp.getSlashCount(deployerAddr);
+        assertEqual(newCount, deployerSlashCount + 1n, 'Slash count incremented');
+      } catch (e) {
+        printError(`slashOperator: ${e.message.substring(0, 80)}`);
+      }
     }
   }
 

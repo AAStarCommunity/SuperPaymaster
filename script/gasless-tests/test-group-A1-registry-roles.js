@@ -143,11 +143,11 @@ async function main() {
   }
 
   try {
-    const members = await registry.getRoleMembers(ROLES.COMMUNITY);
-    printKeyValue('COMMUNITY members count', members.length);
-    assertGte(members.length, 1, 'At least 1 COMMUNITY member');
+    const memberCount = await registry.getRoleUserCount(ROLES.COMMUNITY);
+    printKeyValue('COMMUNITY members count', memberCount.toString());
+    assertGte(memberCount, 1n, 'At least 1 COMMUNITY member');
   } catch (e) {
-    printError(`getRoleMembers failed: ${e.message.substring(0, 80)}`);
+    printError(`getRoleUserCount failed: ${e.message.substring(0, 80)}`);
   }
 
   const allPassed = printSummary('A1: Registry Roles');
