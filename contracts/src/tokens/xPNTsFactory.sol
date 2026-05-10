@@ -386,34 +386,6 @@ contract xPNTsFactory is Ownable, IVersioned {
     }
 
     /**
-     * @notice Propagate current SUPERPAYMASTER address to a batch of deployed tokens.
-     * @dev Best-effort: failures emit SuperPaymasterPropagationFailed without reverting.
-     *      Call repeatedly with increasing `start` to handle large deployedTokens arrays
-     *      and to retry previously failed tokens.
-     * @param start  Index in deployedTokens to start from (inclusive).
-     * @param limit  Maximum number of tokens to process in this call.
-     */
-    function propagateSuperPaymaster(uint256 start, uint256 limit) external onlyOwner {
-        uint256 len = deployedTokens.length;
-        if (start >= len) return;
-        // Safe: remaining = len - start (no underflow since start < len),
-        //       count <= remaining, end = start + count <= len (no overflow).
-        uint256 remaining = len - start;
-        uint256 count = limit < remaining ? limit : remaining;
-        uint256 end = start + count;
-        address sp = SUPERPAYMASTER;
-        for (uint256 i = start; i < end; ) {
-            address token = deployedTokens[i];
-            try xPNTsToken(token).setSuperPaymasterAddress(sp) {
-                emit SuperPaymasterPropagated(token, sp);
-            } catch {
-                emit SuperPaymasterPropagationFailed(token, sp);
-            }
-            unchecked { ++i; }
-        }
-    }
-
-    /**
      * @notice Update aPNTs USD price (only owner)
      * @dev Price is updated off-chain periodically for dynamic pricing
      * @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
