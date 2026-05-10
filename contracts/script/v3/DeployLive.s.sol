@@ -114,8 +114,8 @@ contract DeployLive is Script {
 
         console.log("=== Step 3: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
         dvt = new DVTValidator(address(registry));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
 
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
