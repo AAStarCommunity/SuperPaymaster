@@ -139,8 +139,9 @@ contract DeployAnvil is Script {
 
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
+        // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
         dvt = new DVTValidator(address(registry));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
         accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));

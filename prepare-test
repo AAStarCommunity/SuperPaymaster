@@ -32,6 +32,10 @@ export ENV="$ENV"
 
 # Determine Signer (same logic as deploy-core)
 FORGE_FLAGS="--rpc-url $RPC_URL --broadcast --slow --timeout 300 -vv"
+if [ "$ENV" == "anvil" ]; then
+    # Bypass EIP-170 size-limit interactive prompt on Anvil (same reason as deploy-core)
+    FORGE_FLAGS="$FORGE_FLAGS --disable-code-size-limit"
+fi
 if [ -n "$DEPLOYER_ACCOUNT" ]; then
     FORGE_FLAGS="$FORGE_FLAGS --account $DEPLOYER_ACCOUNT"
 elif [ -n "$PRIVATE_KEY" ]; then
