@@ -3,11 +3,6 @@
 # SuperPaymaster Full Regression Suite (Modular Orchestrator)
 # 1. deploy-core: Phase 1 (Core Infra + Audit)
 # 2. prepare-test: Phase 1.5 (Test Account Prep + Audit)
-#
-# IMPORTANT: Anvil must be started with --disable-code-size-limit because
-# Registry.sol exceeds the EIP-170 24576-byte limit on the current branch.
-# Example:
-#   anvil --accounts 10 --balance 1000 --gas-limit 30000000 --disable-code-size-limit
 # ==============================================================================
 
 ENV="anvil"

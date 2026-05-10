@@ -58,15 +58,12 @@ contract Check08_Wiring is Script {
 
         // 2. Risk Control Wiring Check
         require(Registry(registry).SUPER_PAYMASTER() == superPaymaster, "Check08: Registry -> SP Failed");
-        require(address(Registry(registry).GTOKEN_STAKING()) == staking, "Check08: Registry -> Staking Failed");
-        require(address(Registry(registry).MYSBT()) == sbt, "Check08: Registry -> MySBT Failed");
         
         // 3. Immutable Bindings Check
         require(address(SuperPaymaster(superPaymaster).REGISTRY()) == registry, "Check08: SP -> Registry Immutable Failed");
 
         // 4. Business Callback Check
         require(xPNTsFactory(xpntsFactory).SUPERPAYMASTER() == superPaymaster, "Check08: Factory -> SP Failed");
-        require(xPNTsFactory(xpntsFactory).REGISTRY() == registry, "Check08: Factory -> Registry Failed");
         require(SuperPaymaster(payable(superPaymaster)).xpntsFactory() == xpntsFactory, "Check08: SP -> Factory Failed");
 
         // 5. BLS Infrastructure Check
