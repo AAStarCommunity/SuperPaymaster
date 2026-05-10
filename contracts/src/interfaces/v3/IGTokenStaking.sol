@@ -82,6 +82,9 @@ interface IGTokenStaking is IVersioned {
         uint256 timestamp
     );
 
+    /// @notice Emitted when a Registry sync call reverts so failures are observable off-chain.
+    event SyncFailed(address indexed registry, bytes reason);
+
     // ====================================
     // Core Functions - Role-based Locking
     // ====================================
