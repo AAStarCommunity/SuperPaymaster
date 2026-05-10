@@ -231,8 +231,10 @@ contract M7_PaymasterFactoryRoleCheckTest is Test {
         factory = new PaymasterFactory();
         reg     = new MockRegistryForFactory();
 
-        // Grant COMMUNITY role to COMMUNITY address
+        // Grant COMMUNITY and PAYMASTER_AOA roles to COMMUNITY address
+        // (PAYMASTER_AOA is required so isActiveInRegistry() returns true post-deploy)
         reg.setRole(ROLE_COMMUNITY, COMMUNITY, true);
+        reg.setRole(keccak256("PAYMASTER_AOA"), COMMUNITY, true);
 
         // Wire registry into factory
         factory.setRegistry(address(reg));
@@ -253,6 +255,18 @@ contract M7_PaymasterFactoryRoleCheckTest is Test {
     function test_M7_DeployRevertsWithoutCommunityRole() public {
         bytes memory initData = _buildInitData(STRANGER);
         vm.prank(STRANGER);
+        vm.expectRevert(PaymasterFactory.NotRegisteredCommunity.selector);
+        factory.deployPaymaster("v1.0", initData);
+    }
+
+    /// @notice Caller with ROLE_COMMUNITY but missing ROLE_PAYMASTER_AOA reverts —
+    ///         an immediately-inactive paymaster would be deployed otherwise.
+    function test_M7_DeployRevertsWithCommunityButNoAOARole() public {
+        address communityNoAoa = address(0xCC2);
+        reg.setRole(ROLE_COMMUNITY, communityNoAoa, true);
+        // ROLE_PAYMASTER_AOA intentionally NOT granted
+        bytes memory initData = _buildInitData(communityNoAoa);
+        vm.prank(communityNoAoa);
         vm.expectRevert(PaymasterFactory.NotRegisteredCommunity.selector);
         factory.deployPaymaster("v1.0", initData);
     }

@@ -147,11 +147,18 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     ) public nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
-        // M-7: Require ROLE_COMMUNITY in Registry (enforced only when registry is configured)
+        // M-7: Require ROLE_COMMUNITY and ROLE_PAYMASTER_AOA in Registry.
+        // Both checks enforced only when registry is configured.
+        // ROLE_COMMUNITY: operator is a registered community.
+        // ROLE_PAYMASTER_AOA: operator is authorized for AOA paymaster mode —
+        //   isActiveInRegistry() checks this role on the owner, so a deploy
+        //   without it produces an immediately-inactive paymaster.
         IRegistry reg = registry;
         if (address(reg) != address(0)) {
             bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredCommunity();
         }
 
         // Check if operator already has a Paymaster
@@ -194,11 +201,13 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     ) external nonReentrant returns (address paymaster) {
         address operator = msg.sender;
 
-        // M-7: Require ROLE_COMMUNITY in Registry (enforced only when registry is configured)
+        // M-7: Require ROLE_COMMUNITY and ROLE_PAYMASTER_AOA (mirrors deployPaymaster check)
         IRegistry reg = registry;
         if (address(reg) != address(0)) {
             bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
+            if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredCommunity();
         }
 
         if (paymasterByOperator[operator] != address(0)) {
