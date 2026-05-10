@@ -168,9 +168,6 @@ contract DeployLive is Script {
         Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
             name: "AAStar",
             ensName: "aastar.eth",
-            website: "https://aastar.io",
-            description: "Empower Community, Unleash Humanity\xF0\x9F\x8D\x84",
-            logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
             stakeAmount: 30 ether
         });
         registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
@@ -219,9 +216,6 @@ contract DeployLive is Script {
         Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
             name: "Mycelium Community",
             ensName: "mushroom.box",
-            website: "https://mushroom.box",
-            description: "Protocols and Networks",
-            logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
             stakeAmount: 30 ether
         });
         registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
