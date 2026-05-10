@@ -24,7 +24,7 @@ contract RegisterEnduser is Script {
         address superPaymasterAddr = stdJson.readAddress(json, ".superPaymaster");
 
         Registry registry = Registry(registryAddr);
-        bytes32 roleEnduser = ROLE_ENDUSER;
+        bytes32 roleEnduser = registry.ROLE_ENDUSER();
 
         // AA accounts from environment
         address aaA = vm.envAddress("TEST_AA_ACCOUNT_ADDRESS_A");
