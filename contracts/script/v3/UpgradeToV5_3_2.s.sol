@@ -95,11 +95,25 @@ contract UpgradeToV5_3_2 is Script {
         vm.writeJson(srcHash,                  configPath, ".srcHash");
         vm.writeJson(updateTime,               configPath, ".updateTime");
 
+        // vm.writeJson does not append a trailing newline; ensure POSIX-compliant
+        // file-end (avoids `git diff`/editor noise and keeps the file friendly to
+        // line-oriented tools that expect newline-terminated text).
+        _ensureTrailingNewline(configPath);
+
         console.log("  Config patched:", configPath);
         console.log("    spImpl     =", newImpl);
         console.log("    srcHash    =", srcHash);
         console.log("    updateTime =", updateTime);
 
         console.log("=== Upgrade successful! ===");
+    }
+
+    /// @dev Reads the file and appends `\n` only if the last byte isn't already
+    ///      a newline. Idempotent — safe to call any number of times.
+    function _ensureTrailingNewline(string memory path) internal {
+        bytes memory content = bytes(vm.readFile(path));
+        if (content.length == 0) return;
+        if (content[content.length - 1] == 0x0a) return;
+        vm.writeFile(path, string.concat(string(content), "\n"));
     }
 }
