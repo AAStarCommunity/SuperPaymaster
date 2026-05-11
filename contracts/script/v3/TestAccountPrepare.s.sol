@@ -22,17 +22,19 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  *      Idempotent: each step is guarded by an existence/balance check.
  */
 contract TestAccountPrepare is Script {
-    // Anvil account #1 private key and address
-    uint256 constant ANNI_PK   = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
-    address constant ANNI_ADDR = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
-
-    // Deployer (Anvil account #0)
-    uint256 constant DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    // Anvil fallback keys (used when env vars are not set)
+    uint256 constant ANVIL_ANNI_PK     = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+    uint256 constant ANVIL_DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     function run() external {
         string memory network   = vm.envOr("ENV", string("anvil"));
         string memory cfgPath   = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory json      = vm.readFile(cfgPath);
+
+        // Resolve keys from env (fall back to Anvil constants for local dev)
+        uint256 deployerPK = vm.envOr("PRIVATE_KEY", ANVIL_DEPLOYER_PK);
+        uint256 anniPK     = vm.envOr("PRIVATE_KEY_ANNI", ANVIL_ANNI_PK);
+        address anniAddr   = vm.addr(anniPK);
 
         // Load deployed contract addresses
         Registry       registry      = Registry(stdJson.readAddress(json, ".registry"));
@@ -47,35 +49,35 @@ contract TestAccountPrepare is Script {
         // -----------------------------------------------------------------------
         // Phase 2.1: Deployer top-ups Anni's GT balance so she can stake
         // -----------------------------------------------------------------------
-        vm.startBroadcast(DEPLOYER_PK);
-        if (gtoken.balanceOf(ANNI_ADDR) < 150 ether) {
+        vm.startBroadcast(deployerPK);
+        if (gtoken.balanceOf(anniAddr) < 150 ether) {
             console.log("[Phase 2.1] Minting GT for Anni...");
-            gtoken.mint(ANNI_ADDR, 200 ether);
+            gtoken.mint(anniAddr, 200 ether);
         }
         vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
         // Phase 2.2: Anni registers PAYMASTER_AOA and deploys her V4 proxy
         // -----------------------------------------------------------------------
-        vm.startBroadcast(ANNI_PK);
+        vm.startBroadcast(anniPK);
 
         // Register ROLE_PAYMASTER_AOA if Anni doesn't have it yet
-        if (!registry.hasRole(registry.ROLE_PAYMASTER_AOA(), ANNI_ADDR)) {
+        if (!registry.hasRole(ROLE_PAYMASTER_AOA, anniAddr)) {
             console.log("[Phase 2.2] Registering Anni as PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
-            registry.registerRole(registry.ROLE_PAYMASTER_AOA(), ANNI_ADDR, "");
+            registry.registerRole(ROLE_PAYMASTER_AOA, anniAddr, "");
         }
 
         // Deploy Anni's V4 paymaster proxy if not yet deployed
-        address pmProxyAnni = pmFactory.getPaymasterByOperator(ANNI_ADDR);
+        address pmProxyAnni = pmFactory.getPaymasterByOperator(anniAddr);
         if (pmProxyAnni == address(0)) {
             console.log("[Phase 2.2] Deploying Anni's AOA Paymaster (V4)...");
-            address dPNTs = xpntsFactory.getTokenAddress(ANNI_ADDR);
+            address dPNTs = xpntsFactory.getTokenAddress(anniAddr);
             bytes memory initData = abi.encodeWithSignature(
                 "initialize(address,address,address,address,uint256,uint256,uint256)",
                 entryPointAddr,
-                ANNI_ADDR,  // owner
-                ANNI_ADDR,  // treasury
+                anniAddr,   // owner
+                anniAddr,   // treasury
                 priceFeedAddr,
                 100,        // serviceFeeRate (1%)
                 1 ether,    // maxGasCostCap
@@ -94,7 +96,7 @@ contract TestAccountPrepare is Script {
         // -----------------------------------------------------------------------
         // Phase 2.3: Deployer deposits ETH into EntryPoint for Anni's paymaster
         // -----------------------------------------------------------------------
-        vm.startBroadcast(DEPLOYER_PK);
+        vm.startBroadcast(deployerPK);
         if (IEntryPoint(entryPointAddr).balanceOf(pmProxyAnni) < 0.05 ether) {
             console.log("[Phase 2.3] Depositing 0.05 ETH to EntryPoint for Anni PM...");
             IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxyAnni);
@@ -102,7 +104,7 @@ contract TestAccountPrepare is Script {
         vm.stopBroadcast();
 
         console.log("\n--- Phase 2: Test Preparation Complete ---");
-        console.log("  Anni address:   ", ANNI_ADDR);
+        console.log("  Anni address:   ", anniAddr);
         console.log("  Anni PM proxy:  ", pmProxyAnni);
     }
 }

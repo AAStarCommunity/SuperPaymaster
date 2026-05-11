@@ -125,79 +125,23 @@ async function main() {
   // Step 4: setAgentPolicies — define tiered BPS rates
   // ──────────────────────────────────────────
   printStep(4, 'setAgentPolicies — operator defines tiered sponsorship');
-  // Three tiers:
-  //   Tier A: rep >= 0   → 50% sponsorship (5000 BPS), daily cap $10
-  //   Tier B: rep >= 100 → 75% sponsorship (7500 BPS), daily cap $50
-  //   Tier C: rep >= 500 → 90% sponsorship (9000 BPS), daily cap $200
-  const policies = [
-    { minReputationScore: 0n,   sponsorshipBPS: 5000n, maxDailyUSD: 10_000_000n  }, // $10
-    { minReputationScore: 100n, sponsorshipBPS: 7500n, maxDailyUSD: 50_000_000n  }, // $50
-    { minReputationScore: 500n, sponsorshipBPS: 9000n, maxDailyUSD: 200_000_000n }, // $200
-  ];
-
-  let policiesSet = false;
-  try {
-    // Check deployer is configured operator first
-    const op = await sp.operators(deployerAddr);
-    if (!op.isConfigured) {
-      printInfo('Deployer is not a configured operator — skipping setAgentPolicies (run B1 first)');
-      printSkip('setAgentPolicies skipped: operator not configured');
-    } else {
-      await sendTxSafe(
-        sp, 'setAgentPolicies',
-        [policies.map(p => [p.minReputationScore, p.sponsorshipBPS, p.maxDailyUSD])],
-        'setAgentPolicies(3 tiers)'
-      );
-      policiesSet = true;
-      printSuccess('Agent policies set with 3 tiers');
-    }
-  } catch (e) {
-    printError(`setAgentPolicies: ${e.message.substring(0, 100)}`);
-  }
+  // NOTE: setAgentPolicies, agentPolicies, and getAgentSponsorshipRate are V5.3
+  // feature-branch additions not yet merged into SuperPaymaster-5.3.1 (main branch).
+  // These steps are skipped until the V5.4+ upgrade lands.
+  printSkip('setAgentPolicies not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
 
   // ──────────────────────────────────────────
   // Step 5: Read agentPolicies back from storage
   // ──────────────────────────────────────────
   printStep(5, 'Read agentPolicies from storage');
-  if (!policiesSet) {
-    printSkip('skipped — policies were not set in step 4');
-  } else {
-    try {
-      for (let i = 0; i < policies.length; i++) {
-        const stored = await sp.agentPolicies(deployerAddr, i);
-        printKeyValue(
-          `Policy[${i}]`,
-          `minRep=${stored.minReputationScore} bps=${stored.sponsorshipBPS} dailyCap=$${Number(stored.maxDailyUSD) / 1e6}`
-        );
-        assertEqual(stored.minReputationScore, policies[i].minReputationScore, `Policy[${i}].minReputationScore`);
-        assertEqual(stored.sponsorshipBPS, policies[i].sponsorshipBPS, `Policy[${i}].sponsorshipBPS`);
-        assertEqual(stored.maxDailyUSD, policies[i].maxDailyUSD, `Policy[${i}].maxDailyUSD`);
-      }
-      printSuccess('All 3 agent policies correctly stored');
-    } catch (e) {
-      printError(`agentPolicies read: ${e.message.substring(0, 100)}`);
-    }
-  }
+  printSkip('agentPolicies not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
 
   // ──────────────────────────────────────────
   // Step 6: getAgentSponsorshipRate
   // ──────────────────────────────────────────
   printStep(6, 'getAgentSponsorshipRate — BPS for agent at current reputation');
-  try {
-    // Use deployer as both agent and operator to simulate the lookup
-    const bps = await sp.getAgentSponsorshipRate(deployerAddr, deployerAddr);
-    printKeyValue('Sponsorship rate (BPS)', bps.toString());
-    printKeyValue('Effective discount', `${Number(bps) / 100}%`);
-
-    if (policiesSet) {
-      // With rep=0 and tier A being minRep=0, should return tier A or better
-      assertGte(bps, 5000n, 'Sponsorship BPS >= 5000 (tier A minimum)');
-      printSuccess(`getAgentSponsorshipRate returned ${bps} BPS`);
-    } else {
-      printSuccess(`getAgentSponsorshipRate returned ${bps} BPS (no policies set → 0 BPS expected)`);
-    }
-  } catch (e) {
-    printError(`getAgentSponsorshipRate: ${e.message.substring(0, 100)}`);
+  printSkip('getAgentSponsorshipRate not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
+  if (false) { // dead branch — kept for reference
   }
 
   // ──────────────────────────────────────────

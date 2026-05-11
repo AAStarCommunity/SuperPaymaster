@@ -70,7 +70,8 @@ async function main() {
   // Step 4: setAPNTSPrice cycle
   // ──────────────────────────────────────────
   printStep(4, 'setAPNTSPrice (set -> verify -> restore)');
-  const testPrice = ethers.parseEther('0.03');
+  // Use 5% above current price (within the 10% APNTS_PRICE_DELTA_BPS guard)
+  const testPrice = originalPrice > 0n ? originalPrice * 105n / 100n : ethers.parseEther('0.021');
   try {
     // Set new price
     await sendTxSafe(sp, 'setAPNTSPrice', [testPrice], 'setAPNTSPrice(0.03)');

@@ -76,7 +76,7 @@ contract DeployLive is Script {
     function run() external {
         // Use the configured account from CLI (--account or --private-key)
         vm.startBroadcast();
-        
+
         console.log("Deployer:", deployer);
 
         console.log("=== Step 1: Deploy Foundation (Scheme B - UUPS Proxy) ===");
@@ -98,35 +98,51 @@ contract DeployLive is Script {
         // Sync exit fees for ALL operator roles (minStake > 0).
         // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
         bytes32[] memory exitFeeRoles = new bytes32[](5);
-        exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
-        exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
-        exitFeeRoles[2] = registry.ROLE_DVT();
-        exitFeeRoles[3] = registry.ROLE_ANODE();
-        exitFeeRoles[4] = registry.ROLE_KMS();
+        exitFeeRoles[0] = ROLE_PAYMASTER_AOA;
+        exitFeeRoles[1] = ROLE_PAYMASTER_SUPER;
+        exitFeeRoles[2] = ROLE_DVT;
+        exitFeeRoles[3] = ROLE_ANODE;
+        exitFeeRoles[4] = ROLE_KMS;
         registry.syncExitFees(exitFeeRoles);
 
-        console.log("=== Step 2: Deploy Core (UUPS Proxy) ===");
-        xpntsFactory = new xPNTsFactory(address(0), address(registry));
+        // CRITICAL: Must register COMMUNITY and deploy aPNTs BEFORE SuperPaymaster
+        // so aPNTs address can be passed to initialize() — avoids 7-day setAPNTsToken timelock.
+        console.log("=== Step 2: Pre-register AAStar COMMUNITY + Deploy aPNTs ===");
+        gtoken.mint(deployer, 2000 ether);
+        gtoken.approve(address(staking), 2000 ether);
+        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
+            name: "AAStar",
+            ensName: "aastar.eth",
+            stakeAmount: 30 ether
+        });
+        registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
+
+        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet
+        address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
+        apnts = xPNTsToken(apntsAddr);
+        console.log("  aPNTs Deployed at:", apntsAddr);
+
+        console.log("=== Step 3: Deploy SuperPaymaster (UUPS Proxy) ===");
         SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
-        bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(0), deployer, 4200));
+        bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
         superPaymaster = SuperPaymaster(payable(address(spProxy)));
 
-        console.log("=== Step 3: Deploy Modules ===");
+        console.log("=== Step 4: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
         dvt = new DVTValidator(address(registry));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
 
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
 
-        console.log("=== Step 4: The Grand Wiring ===");
+        console.log("=== Step 5: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 5: Role Orchestration (Jason / AAStar) ===");
+        console.log("=== Step 6: Role Orchestration (Jason / AAStar) ===");
         _orchestrateRolesJason();
 
-        console.log("=== Step 6: Mycelium Community (Anni) ===");
+        console.log("=== Step 7: Mycelium Community (Anni) ===");
         _setupMyceliumCommunity();
 
         vm.stopBroadcast();
@@ -142,7 +158,10 @@ contract DeployLive is Script {
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
-        
+        // Wire aPNTs (deployed before SP in Step 2, so SP address must be set retroactively).
+        // setSuperPaymasterAddress also sets autoApprovedSpenders[SP] = true.
+        apnts.setSuperPaymasterAddress(address(superPaymaster));
+
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
 
@@ -161,30 +180,10 @@ contract DeployLive is Script {
     }
 
     function _orchestrateRolesJason() internal {
-        gtoken.mint(deployer, 2000 ether); // Increased to 2000 to cover sub-sequent roles and Anni funding
-        gtoken.approve(address(staking), 2000 ether);
-        
-        // Step 28: Register AAStar
-        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
-            name: "AAStar",
-            ensName: "aastar.eth",
-            website: "https://aastar.io",
-            description: "Empower Community, Unleash Humanity\xF0\x9F\x8D\x84",
-            logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
-            stakeAmount: 30 ether
-        });
-        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
-        
-        // Step 29: aPNTs
-        address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
-        apnts = xPNTsToken(apntsAddr);
-        console.log("  aPNTs Deployed at:", apntsAddr);
-        
-        // Factory handles auto-wiring of SuperPaymaster firewall if set beforehand
-        require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "Deploy: aPNTs Factory auto-wiring failed!");
-        
-        superPaymaster.setAPNTsToken(apntsAddr);
-        console.log("  aPNTs Firewall auto-wired via Factory to SP:", address(superPaymaster));
+        // COMMUNITY registration and aPNTs deployment already done in Step 2 of run().
+        // aPNTs is wired to SuperPaymaster in _executeWiring().
+        console.log("  aPNTs:", address(apnts), "SP:", address(superPaymaster));
+        require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "Deploy: aPNTs SP wiring failed!");
 
         // Step 31-36: AOA Paymaster
         bytes memory init = abi.encodeWithSignature(
@@ -198,7 +197,7 @@ contract DeployLive is Script {
         Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 
 
         gtoken.approve(address(staking), 33 ether);
-        registry.registerRole(registry.ROLE_PAYMASTER_AOA(), deployer, abi.encode(uint256(30 ether)));
+        registry.registerRole(ROLE_PAYMASTER_AOA, deployer, abi.encode(uint256(30 ether)));
         
         // Step 37: 0.05 ETH
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);
@@ -219,16 +218,13 @@ contract DeployLive is Script {
         Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
             name: "Mycelium Community",
             ensName: "mushroom.box",
-            website: "https://mushroom.box",
-            description: "Protocols and Networks",
-            logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
             stakeAmount: 30 ether
         });
-        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(mycData));
+        registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
         console.log("  Mycelium Community Registered");
 
         // 6b. Register as PAYMASTER_SUPER (deployer pays 50 stake + 5 burn)
-        registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+        registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
         console.log("  Mycelium PAYMASTER_SUPER Registered");
 
         // 6c. Fund Anni with aPNTs for SuperPaymaster deposit

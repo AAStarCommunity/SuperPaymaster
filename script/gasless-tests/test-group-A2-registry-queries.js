@@ -26,6 +26,8 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(1, 'Verify ROLE constants match keccak256');
 
+  // ROLE constants are file-level constants in IRegistry.sol (not public getters).
+  // Verify locally that our ROLES map matches the expected keccak256 values.
   const roleEntries = [
     ['ROLE_COMMUNITY', 'COMMUNITY'],
     ['ROLE_ENDUSER', 'ENDUSER'],
@@ -37,13 +39,9 @@ async function main() {
   ];
 
   for (const [fnName, key] of roleEntries) {
-    try {
-      const onChain = await registry[fnName]();
-      const expected = ROLES[key];
-      assertEqual(onChain, expected, `${fnName}`);
-    } catch (e) {
-      printError(`${fnName}: ${e.message.substring(0, 80)}`);
-    }
+    const expected = ROLES[key];
+    const computed = ethers.keccak256(ethers.toUtf8Bytes(key));
+    assertEqual(computed, expected, `${fnName} keccak256`);
   }
 
   // ──────────────────────────────────────────

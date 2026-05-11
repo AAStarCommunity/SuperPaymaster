@@ -17,7 +17,8 @@ function initTestEnv() {
   const config = loadConfig();
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL not set');
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  // staticNetwork avoids the initial eth_chainId auto-detect call that can fail under RPC rate limiting
+  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
 
   const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
   if (!deployerKey) throw new Error('DEPLOYER_PRIVATE_KEY not set');
@@ -53,14 +54,6 @@ const ABI = {
   Registry: [
     "function version() view returns (string)",
     "function owner() view returns (address)",
-    // Role constants
-    "function ROLE_COMMUNITY() view returns (bytes32)",
-    "function ROLE_ENDUSER() view returns (bytes32)",
-    "function ROLE_PAYMASTER_SUPER() view returns (bytes32)",
-    "function ROLE_PAYMASTER_AOA() view returns (bytes32)",
-    "function ROLE_DVT() view returns (bytes32)",
-    "function ROLE_ANODE() view returns (bytes32)",
-    "function ROLE_KMS() view returns (bytes32)",
     // Wiring
     "function GTOKEN_STAKING() view returns (address)",
     "function MYSBT() view returns (address)",
@@ -70,7 +63,6 @@ const ABI = {
     "function safeMintForRole(bytes32 roleId, address user, bytes data) returns (uint256)",
     "function hasRole(bytes32 roleId, address user) view returns (bool)",
     "function getUserRoles(address user) view returns (bytes32[])",
-    "function getRoleMembers(bytes32 roleId) view returns (address[])",
     "function getRoleUserCount(bytes32 roleId) view returns (uint256)",
     "function getRoleConfig(bytes32 roleId) view returns (tuple(uint256 minStake, uint256 entryBurn, uint32 slashThreshold, uint32 slashBase, uint32 slashInc, uint32 slashMax, uint16 exitFeePercent, bool isActive, uint256 minExitFee, string description, address owner, uint256 roleLockDuration))",
     // Community & reputation
@@ -179,6 +171,9 @@ const ABI = {
     "function setCommunityReputation(address community, address user, uint256 score)",
     "function getActiveRules(address community) view returns (bytes32[])",
     "function computeScore(address user, address[] communities, bytes32[][] ruleIds, uint256[][] activities) view returns (uint256)",
+    "function getReputationBreakdown(address user, address community, uint256 sbtTokenId) view returns (uint256 baseScore, uint256 nftBonus, uint256 activityBonus, uint256 multiplier)",
+    "function calculateReputation(address user, address community, uint256 sbtTokenId) view returns (uint256)",
+    "function syncToRegistry(address user, address[] communities, bytes32[][] ruleIds, uint256[][] activities, uint256 epoch, bytes proof) external",
   ],
 
   MySBT: [
@@ -375,39 +370,72 @@ async function expectRevert(fn, label) {
 let _nextNonce = null;
 let _nonceWallet = null;
 
-async function sendTxSafe(contract, method, args, label) {
-  try {
-    const signer = contract.runner;
-
-    // Initialize nonce tracker for this wallet
-    if (signer && signer.address) {
-      if (_nonceWallet !== signer.address) {
-        _nonceWallet = signer.address;
-        _nextNonce = await signer.getNonce('latest');
+async function retryView(fn, label, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (_isNetworkError(err) && attempt < retries) {
+        if (label) printInfo(`${label}: network error, retry ${attempt}/${retries - 1} in 3s...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
       }
+      throw err;
     }
+  }
+}
 
-    // Send TX with explicit nonce
-    const txOpts = _nextNonce !== null ? { nonce: _nextNonce } : {};
-    const tx = await contract[method](...args, txOpts);
-    if (_nextNonce !== null) _nextNonce++;
+function _isNetworkError(err) {
+  const msg = (err.message || '').toLowerCase();
+  return err.code === 'ETIMEDOUT' || err.code === 'ECONNRESET' ||
+    msg.includes('etimedout') || msg.includes('econnreset') ||
+    msg.includes('socket hang up') || msg.includes('request timeout') ||
+    msg.includes('read timeout');
+}
 
-    if (tx.wait) {
-      const receipt = await tx.wait(1);
-      printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed})`);
-      return receipt;
+async function sendTxSafe(contract, method, args, label, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const signer = contract.runner;
+
+      // Initialize nonce tracker for this wallet (use 'pending' to account for unconfirmed TXs)
+      if (signer && signer.address) {
+        if (_nonceWallet !== signer.address) {
+          _nonceWallet = signer.address;
+          _nextNonce = await signer.getNonce('pending');
+        }
+      }
+
+      // Send TX with explicit nonce
+      const txOpts = _nextNonce !== null ? { nonce: _nextNonce } : {};
+      const tx = await contract[method](...args, txOpts);
+      if (_nextNonce !== null) _nextNonce++;
+
+      if (tx.wait) {
+        const receipt = await tx.wait(1);
+        printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed})`);
+        return receipt;
+      }
+      return tx;
+    } catch (err) {
+      const isNet = _isNetworkError(err);
+      if (isNet && attempt < maxRetries) {
+        printInfo(`${label}: network error, retry ${attempt}/${maxRetries - 1} in 4s...`);
+        await new Promise(r => setTimeout(r, 4000));
+        // Refresh nonce before retry
+        if (_nonceWallet && contract.runner) {
+          try { _nextNonce = await contract.runner.getNonce('pending'); } catch (_) {}
+        }
+        continue;
+      }
+      const reason = err.reason || err.shortMessage || err.message.substring(0, 120);
+      printError(`${label}: TX failed (${reason})`);
+      // Refresh nonce on final failure to resync
+      if (_nonceWallet && contract.runner && contract.runner.address === _nonceWallet) {
+        try { _nextNonce = await contract.runner.getNonce('latest'); } catch (_) {}
+      }
+      return null;
     }
-    return tx;
-  } catch (err) {
-    const reason = err.reason || err.shortMessage || err.message.substring(0, 120);
-    printError(`${label}: TX failed (${reason})`);
-    // Refresh nonce on failure to resync
-    if (_nonceWallet && contract.runner && contract.runner.address === _nonceWallet) {
-      try {
-        _nextNonce = await contract.runner.getNonce('latest');
-      } catch (_) {}
-    }
-    return null;
   }
 }
 
@@ -447,9 +475,10 @@ function encodeCommunityRoleData(name, desc, stakeAmount) {
 }
 
 function encodeEndUserRoleData(community, stakeAmount) {
+  // EndUserRoleData struct: { address community; uint256 stakeAmount; }
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ["tuple(address,string,string,uint256)"],
-    [[community, "", "", stakeAmount || ethers.parseEther("0.3")]]
+    ["tuple(address,uint256)"],
+    [[community, stakeAmount || ethers.parseEther("0.3")]]
   );
 }
 
@@ -483,8 +512,9 @@ module.exports = {
   assertFalse,
   assertGte,
   expectRevert,
-  // TX
+  // TX / View retry
   sendTxSafe,
+  retryView,
   // Contracts
   getContracts,
   // Encoding

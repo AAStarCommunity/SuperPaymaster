@@ -52,11 +52,11 @@ contract InitializeTestCommunities is Script {
         });
         
         gToken.approve(staking, 50 ether);
-        if (!registry.hasRole(registry.ROLE_COMMUNITY(), jason)) {
-            registry.registerRole(registry.ROLE_COMMUNITY(), jason, abi.encode(aaStarData));
+        if (!registry.hasRole(ROLE_COMMUNITY, jason)) {
+            registry.registerRole(ROLE_COMMUNITY, jason, abi.encode(aaStarData));
         }
-        if (!registry.hasRole(registry.ROLE_PAYMASTER_SUPER(), jason)) {
-            registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), jason, "");
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, jason)) {
+            registry.registerRole(ROLE_PAYMASTER_SUPER, jason, "");
         }
         sp.configureOperator(aPNTsAddr, jason, 1e18);
 
@@ -75,13 +75,13 @@ contract InitializeTestCommunities is Script {
         });
 
         gToken.approve(staking, 50 ether);
-        if (!registry.hasRole(registry.ROLE_COMMUNITY(), anni)) {
-            registry.registerRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
+        if (!registry.hasRole(ROLE_COMMUNITY, anni)) {
+            registry.registerRole(ROLE_COMMUNITY, anni, abi.encode(demoData));
         }
 
         address dPNTs = factory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
-        if (!registry.hasRole(registry.ROLE_PAYMASTER_SUPER(), anni)) {
-            registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, anni)) {
+            registry.registerRole(ROLE_PAYMASTER_SUPER, anni, "");
         }
         sp.configureOperator(dPNTs, anni, 1e18);
         vm.stopBroadcast();
