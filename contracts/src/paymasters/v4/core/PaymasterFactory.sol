@@ -157,6 +157,8 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         //   without it produces an immediately-inactive paymaster.
         IRegistry reg = registry;
         if (address(reg) != address(0)) {
+            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
             if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredPaymasterAOA();
         }
@@ -204,6 +206,8 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // M-7: Require ROLE_COMMUNITY and ROLE_PAYMASTER_AOA (mirrors deployPaymaster check)
         IRegistry reg = registry;
         if (address(reg) != address(0)) {
+            bytes32 ROLE_COMMUNITY = keccak256("COMMUNITY");
+            bytes32 ROLE_PAYMASTER_AOA = keccak256("PAYMASTER_AOA");
             if (!reg.hasRole(ROLE_COMMUNITY, operator)) revert NotRegisteredCommunity();
             if (!reg.hasRole(ROLE_PAYMASTER_AOA, operator)) revert NotRegisteredPaymasterAOA();
         }

@@ -60,10 +60,10 @@ contract TestAccountPrepare is Script {
         vm.startBroadcast(ANNI_PK);
 
         // Register ROLE_PAYMASTER_AOA if Anni doesn't have it yet
-        if (!registry.hasRole(ROLE_PAYMASTER_AOA, ANNI_ADDR)) {
+        if (!registry.hasRole(registry.ROLE_PAYMASTER_AOA(), ANNI_ADDR)) {
             console.log("[Phase 2.2] Registering Anni as PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
-            registry.registerRole(ROLE_PAYMASTER_AOA, ANNI_ADDR, "");
+            registry.registerRole(registry.ROLE_PAYMASTER_AOA(), ANNI_ADDR, "");
         }
 
         // Deploy Anni's V4 paymaster proxy if not yet deployed

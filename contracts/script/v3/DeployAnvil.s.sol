@@ -92,11 +92,11 @@ contract DeployAnvil is Script {
         // Sync exit fees for ALL operator roles (minStake > 0).
         // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
         bytes32[] memory exitFeeRoles = new bytes32[](5);
-        exitFeeRoles[0] = ROLE_PAYMASTER_AOA;
-        exitFeeRoles[1] = ROLE_PAYMASTER_SUPER;
-        exitFeeRoles[2] = ROLE_DVT;
-        exitFeeRoles[3] = ROLE_ANODE;
-        exitFeeRoles[4] = ROLE_KMS;
+        exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
+        exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
+        exitFeeRoles[2] = registry.ROLE_DVT();
+        exitFeeRoles[3] = registry.ROLE_ANODE();
+        exitFeeRoles[4] = registry.ROLE_KMS();
         registry.syncExitFees(exitFeeRoles);
 
         console.log("=== Step 2: Deploy Foundation Modules ===");
@@ -109,9 +109,12 @@ contract DeployAnvil is Script {
         Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
             name: "AAStar",
             ensName: "aastar.eth",
+            website: "aastar.io",
+            description: "AAStar Community - Empower Community! Twitter: https://X.com/AAStarCommunity",
+            logoURI: "ipfs://aastar-logo",
             stakeAmount: 30 ether
         });
-        registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
+        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         
         console.log("=== Step 4: Deploy aPNTs via Factory ===");
         // Use factory to deploy aPNTs (ensures factory binding consistency)
@@ -147,7 +150,7 @@ contract DeployAnvil is Script {
         _executeWiring();
 
         console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
-        registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
+        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer, 1e18);
         
         apnts.mint(deployer, 1000 ether);        // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
@@ -159,15 +162,18 @@ contract DeployAnvil is Script {
         Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
             name: "DemoCommunity",
             ensName: "demo.eth",
+            website: "demo.com",
+            description: "Demo Community for testing purposes.",
+            logoURI: "ipfs://demo-logo",
             stakeAmount: 30 ether
         });
 
         // Jason 代付 Anni 的质押并注册社区
-        registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(demoData));
+        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(demoData));
         
         // 关键：Anni 在 Anvil 下也需要点钱进行 Paymaster 注册
         gtoken.mint(anni, 100 ether);
-        registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
+        registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         
         // 补全 DemoCommunity 的 Operator 配置
         // 为 DemoCommunity 注入资金

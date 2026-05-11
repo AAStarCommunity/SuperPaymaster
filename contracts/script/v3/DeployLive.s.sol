@@ -98,11 +98,11 @@ contract DeployLive is Script {
         // Sync exit fees for ALL operator roles (minStake > 0).
         // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
         bytes32[] memory exitFeeRoles = new bytes32[](5);
-        exitFeeRoles[0] = ROLE_PAYMASTER_AOA;
-        exitFeeRoles[1] = ROLE_PAYMASTER_SUPER;
-        exitFeeRoles[2] = ROLE_DVT;
-        exitFeeRoles[3] = ROLE_ANODE;
-        exitFeeRoles[4] = ROLE_KMS;
+        exitFeeRoles[0] = registry.ROLE_PAYMASTER_AOA();
+        exitFeeRoles[1] = registry.ROLE_PAYMASTER_SUPER();
+        exitFeeRoles[2] = registry.ROLE_DVT();
+        exitFeeRoles[3] = registry.ROLE_ANODE();
+        exitFeeRoles[4] = registry.ROLE_KMS();
         registry.syncExitFees(exitFeeRoles);
 
         console.log("=== Step 2: Deploy Core (UUPS Proxy) ===");
@@ -173,7 +173,7 @@ contract DeployLive is Script {
             logoURI: "ipfs://bafkreihqmsnyn4s5rt6nnyrxbwaufzmrsr2xfbj4yeqgi6qdr35umzxiay",
             stakeAmount: 30 ether
         });
-        registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
+        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, abi.encode(aaStarData));
         
         // Step 29: aPNTs
         address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
@@ -198,7 +198,7 @@ contract DeployLive is Script {
         Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 
 
         gtoken.approve(address(staking), 33 ether);
-        registry.registerRole(ROLE_PAYMASTER_AOA, deployer, abi.encode(uint256(30 ether)));
+        registry.registerRole(registry.ROLE_PAYMASTER_AOA(), deployer, abi.encode(uint256(30 ether)));
         
         // Step 37: 0.05 ETH
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);
@@ -224,11 +224,11 @@ contract DeployLive is Script {
             logoURI: "ipfs://bafybeiait3ds2fn42kmnu3ofp73ycujgppks3ma3zzvxnedthunpsrvn7e",
             stakeAmount: 30 ether
         });
-        registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
+        registry.safeMintForRole(registry.ROLE_COMMUNITY(), anni, abi.encode(mycData));
         console.log("  Mycelium Community Registered");
 
         // 6b. Register as PAYMASTER_SUPER (deployer pays 50 stake + 5 burn)
-        registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
+        registry.safeMintForRole(registry.ROLE_PAYMASTER_SUPER(), anni, "");
         console.log("  Mycelium PAYMASTER_SUPER Registered");
 
         // 6c. Fund Anni with aPNTs for SuperPaymaster deposit

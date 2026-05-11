@@ -186,8 +186,8 @@ contract DeployStandardV3 is Script {
         gtoken.mint(deployer, 1000 ether);
         gtoken.approve(address(staking), 1000 ether);
         bytes memory opData = abi.encode(Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether));
-        registry.registerRole(ROLE_COMMUNITY, deployer, opData);
-        registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
+        registry.registerRole(registry.ROLE_COMMUNITY(), deployer, opData);
+        registry.registerRole(registry.ROLE_PAYMASTER_SUPER(), deployer, "");
         IEntryPoint(entryPointAddr).depositTo{value: 0.1 ether}(address(superPaymaster));
         apnts.mint(deployer, 1000 ether);
         superPaymaster.depositFor(deployer, 1000 ether);
