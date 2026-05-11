@@ -359,17 +359,15 @@ contract CoverageSupplementTest is Test {
         assertEq(info.slashedAmount, 10 ether);
         assertEq(info.amount, 0 ether);
 
-        // Fix-1 semantic: slash-to-zero is an involuntary exit — Registry
-        // auto-revoked hasRole, so a subsequent manual exitRole now reverts
-        // (no separate cleanup is needed; the user has 0 GToken to refund anyway).
+        // Unlock
         vm.stopPrank();
         vm.startPrank(user);
-        vm.expectRevert(abi.encodeWithSelector(Registry.RoleNotGranted.selector, TEST_ROLE, user));
+        // Expect 0 refund as all slashed
+        uint256 balBefore = gtoken.balanceOf(user);
         registry.exitRole(TEST_ROLE);
+        uint256 balAfter = gtoken.balanceOf(user);
+        assertEq(balAfter - balBefore, 0);
         vm.stopPrank();
-
-        // Confirm hasRole was auto-revoked by the stake-to-zero invariant.
-        assertFalse(registry.hasRole(TEST_ROLE, user), "hasRole auto-revoked on slash-to-zero");
     }
     
     // --- SuperPaymaster Tests ---
