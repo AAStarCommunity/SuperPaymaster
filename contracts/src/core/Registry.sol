@@ -21,7 +21,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.3";
+        return "Registry-5.3.4";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -182,6 +182,14 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) external {
         if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
         roleStakes[roleId][user] = newAmount;
+        // Invariant: hasRole ⇒ stake > 0. When stake drops to 0 (slash-to-zero
+        // or full unlock), revoke the role so downstream hasRole checks (e.g.
+        // SuperPaymaster._requireSuperOperatorRole) immediately reflect the
+        // operator no longer being eligible.
+        if (newAmount == 0 && hasRole[roleId][user]) {
+            hasRole[roleId][user] = false;
+            emit RoleRevoked(roleId, user, msg.sender);
+        }
     }
 
     /// @notice Effective per-role stake from Staking source of truth (P0-14).

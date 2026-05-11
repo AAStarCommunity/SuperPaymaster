@@ -7,6 +7,7 @@ import "src/core/GTokenStaking.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/tokens/MySBT.sol";
+import {IRegistry} from "src/interfaces/v3/IRegistry.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /**
@@ -517,6 +518,49 @@ contract GTokenStaking_Coverage is Test {
 
         assertEq(staking.getLockedStake(operator, ROLE_PAYMASTER_SUPER), 0);
         assertFalse(staking.hasRoleLock(operator, ROLE_PAYMASTER_SUPER));
+    }
+
+    /// @notice C8b-Fix1: slashByDVT to zero — invariant hasRole ⇒ stake > 0
+    /// @dev Verifies Registry.syncStakeFromStaking auto-revokes hasRole when
+    ///      stake drops to 0, so downstream _requireSuperOperatorRole reflects
+    ///      the operator no longer being eligible.
+    function test_SlashByDVT_ToZero_RevokesRegistryHasRole() public {
+        _registerCommunityAndPaymaster(operator, 50 ether);
+
+        // Pre-condition: operator holds PAYMASTER_SUPER role in Registry
+        assertTrue(registry.hasRole(ROLE_PAYMASTER_SUPER, operator), "pre: hasRole should be true");
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 50 ether, "pre: stake = 50");
+
+        vm.prank(slasher);
+        staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 50 ether, "full slash");
+
+        // Post-condition: stake = 0 AND hasRole was auto-revoked by Registry
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 0, "post: stake = 0");
+        assertFalse(registry.hasRole(ROLE_PAYMASTER_SUPER, operator), "post: hasRole auto-revoked");
+    }
+
+    /// @notice C8b-Fix1: partial slash preserves hasRole (only full slash revokes)
+    function test_SlashByDVT_Partial_PreservesHasRole() public {
+        _registerCommunityAndPaymaster(operator, 50 ether);
+
+        vm.prank(slasher);
+        staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 20 ether, "partial slash");
+
+        // Partial slash: stake > 0, hasRole must remain true
+        assertEq(registry.getRoleStake(ROLE_PAYMASTER_SUPER, operator), 30 ether);
+        assertTrue(registry.hasRole(ROLE_PAYMASTER_SUPER, operator), "partial slash keeps hasRole");
+    }
+
+    /// @notice C8b-Fix1: emitted RoleRevoked event on auto-revoke
+    function test_SlashByDVT_ToZero_EmitsRoleRevoked() public {
+        _registerCommunityAndPaymaster(operator, 50 ether);
+
+        // Expect Registry to emit RoleRevoked(ROLE_PAYMASTER_SUPER, operator, address(staking))
+        vm.expectEmit(true, true, true, false, address(registry));
+        emit IRegistry.RoleRevoked(ROLE_PAYMASTER_SUPER, operator, address(staking));
+
+        vm.prank(slasher);
+        staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 50 ether, "full slash");
     }
 
     /// @notice C8c: slashByDVT exceeds lock amount — reverts with InsufficientStake
