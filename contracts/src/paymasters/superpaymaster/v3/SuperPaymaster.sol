@@ -60,7 +60,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.3.1";
+        return "SuperPaymaster-5.3.2";
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -456,6 +456,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     function setXPNTsFactory(address _factory) external onlyOwner {
+        if (_factory == address(0)) revert InvalidAddress();
         emit XPNTsFactoryUpdated(xpntsFactory, _factory);
         xpntsFactory = _factory;
     }
