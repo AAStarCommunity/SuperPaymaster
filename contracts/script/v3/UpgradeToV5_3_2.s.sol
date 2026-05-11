@@ -34,7 +34,8 @@ contract UpgradeToV5_3_2 is Script {
     string constant TARGET_SP_VERSION = "SuperPaymaster-5.3.2";
 
     function run() external {
-        string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.sepolia.json");
+        string memory network = vm.envOr("ENV", string("sepolia"));
+        string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory config = vm.readFile(configPath);
 
         address registryProxy = vm.parseJsonAddress(config, ".registry");
@@ -43,11 +44,14 @@ contract UpgradeToV5_3_2 is Script {
         address priceFeed     = vm.parseJsonAddress(config, ".priceFeed");
 
         console.log("=== UUPS Upgrade: SuperPaymaster v5.3.2 ===");
+        console.log("  Network:        ", network);
         console.log("  SP proxy:       ", spProxy);
         console.log("  Registry proxy: ", registryProxy, "(unchanged)");
 
         string memory spBefore = SuperPaymaster(payable(spProxy)).version();
         console.log("  SP before:      ", spBefore);
+
+        address newImpl;
 
         vm.startBroadcast();
 
@@ -57,11 +61,16 @@ contract UpgradeToV5_3_2 is Script {
                 Registry(registryProxy),
                 priceFeed
             );
-            console.log("  New SP impl:", address(newSPImpl));
-            UUPSUpgradeable(spProxy).upgradeToAndCall(address(newSPImpl), "");
+            newImpl = address(newSPImpl);
+            console.log("  New SP impl:", newImpl);
+            UUPSUpgradeable(spProxy).upgradeToAndCall(newImpl, "");
             console.log("  SP upgradeToAndCall executed");
         } else {
             console.log("  SuperPaymaster already at target version - skipping");
+            // Read current impl from ERC-1967 slot for idempotent runs.
+            // ERC-1967 implementation slot: bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)
+            bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+            newImpl = address(uint160(uint256(vm.load(spProxy, slot))));
         }
 
         vm.stopBroadcast();
@@ -73,6 +82,23 @@ contract UpgradeToV5_3_2 is Script {
             keccak256(bytes(spAfter)) == keccak256(bytes(TARGET_SP_VERSION)),
             "SuperPaymaster version mismatch after upgrade"
         );
+
+        // ---- Auto-patch config ----
+        // Patch in-place so we keep all the other fields (pnts, microPaymentChannel,
+        // agent registries, etc.) that DeployLive doesn't know about.
+        // SRC_HASH / DEPLOY_TIME are exported by deploy-core; fall back to whatever
+        // is already on disk if invoked directly via `forge script`.
+        string memory srcHash    = vm.envOr("SRC_HASH",    vm.parseJsonString(config, ".srcHash"));
+        string memory updateTime = vm.envOr("DEPLOY_TIME", vm.parseJsonString(config, ".updateTime"));
+
+        vm.writeJson(vm.toString(newImpl),     configPath, ".spImpl");
+        vm.writeJson(srcHash,                  configPath, ".srcHash");
+        vm.writeJson(updateTime,               configPath, ".updateTime");
+
+        console.log("  Config patched:", configPath);
+        console.log("    spImpl     =", newImpl);
+        console.log("    srcHash    =", srcHash);
+        console.log("    updateTime =", updateTime);
 
         console.log("=== Upgrade successful! ===");
     }
