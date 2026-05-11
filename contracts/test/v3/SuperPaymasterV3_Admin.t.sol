@@ -400,4 +400,32 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.expectRevert();
         paymaster.withdrawProtocolRevenue(treasury, 50 ether);
     }
+
+    // ====================================
+    // Fix-4: setXPNTsFactory zero-address guard
+    // ====================================
+
+    /// @notice Fix-4: setXPNTsFactory rejects address(0) to prevent silent
+    ///         break of all xPNTs-dependent paths via owner misoperation.
+    function test_SetXPNTsFactory_ZeroAddress_Reverts() public {
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        paymaster.setXPNTsFactory(address(0));
+    }
+
+    /// @notice Fix-4: setXPNTsFactory accepts a valid (non-zero) address.
+    function test_SetXPNTsFactory_ValidAddress_Succeeds() public {
+        MockXPNTsFactory newFactory = new MockXPNTsFactory();
+        vm.prank(owner);
+        paymaster.setXPNTsFactory(address(newFactory));
+        assertEq(paymaster.xpntsFactory(), address(newFactory));
+    }
+
+    /// @notice Fix-4: setXPNTsFactory remains onlyOwner.
+    function test_SetXPNTsFactory_NonOwner_Reverts() public {
+        MockXPNTsFactory newFactory = new MockXPNTsFactory();
+        vm.prank(user1);
+        vm.expectRevert();
+        paymaster.setXPNTsFactory(address(newFactory));
+    }
 }

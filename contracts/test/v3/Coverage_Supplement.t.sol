@@ -356,9 +356,9 @@ contract CoverageSupplementTest is Test {
         assertEq(slashed, 7 ether);
         
         info = staking.getStakeInfo(user, TEST_ROLE);
-        assertEq(info.slashedAmount, 10 ether); 
-        assertEq(info.amount, 0 ether); 
-        
+        assertEq(info.slashedAmount, 10 ether);
+        assertEq(info.amount, 0 ether);
+
         // Unlock
         vm.stopPrank();
         vm.startPrank(user);

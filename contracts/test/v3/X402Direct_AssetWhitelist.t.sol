@@ -174,9 +174,10 @@ contract X402Direct_AssetWhitelistTest is Test {
 
     /// @notice If owner forgot to wire the factory, Direct must fail closed
     ///         (cannot whitelist anything → reject all).
+    /// @dev    Fix-4 hardened setXPNTsFactory against address(0); use stdstore
+    ///         to simulate the legacy un-initialized state at the storage layer.
     function test_SettleDirect_RevertsWhenFactoryUnset() public {
-        vm.prank(owner);
-        paymaster.setXPNTsFactory(address(0));
+        stdstore.target(address(paymaster)).sig("xpntsFactory()").checked_write(address(0));
 
         address victim = address(0xDEFEA9);
         usdc.mint(victim, 1000e6);
