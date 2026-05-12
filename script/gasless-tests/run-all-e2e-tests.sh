@@ -14,6 +14,7 @@
 # 8. V5.3 Agent Economy: G1, G2, G3
 # 9. DVT / BLS / Reputation Infrastructure: H1, H2
 # 10. Legacy gasless: test-case-1/2/3
+# 11. Streaming & x402 Settlement: MicroPaymentChannel, x402 EIP-3009
 #
 # Each test failure does NOT abort the run; summary printed at end.
 ###############################################################################
@@ -196,6 +197,19 @@ sleep 5
 run_test "Gasless: SuperPaymaster xPNTs1"  "node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
 sleep 5
 run_test "Gasless: SuperPaymaster xPNTs2"  "node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 10: Streaming & x402 Settlement
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 10: Streaming & x402 Settlement"
+echo "================================================================"
+
+sleep 5
+run_test "MicroPaymentChannel: Open / Settle / Close"  "node $SCRIPT_DIR/test-micropayment-channel.js"
+sleep 5
+run_test "x402: EIP-3009 Settlement"                    "node $SCRIPT_DIR/test-x402-eip3009-settlement.js"
 
 # ─────────────────────────────────────────────────────────────
 # Summary
