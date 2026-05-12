@@ -7,9 +7,10 @@
 # missing from config.<env>.json → jq returns "null") does NOT abort the
 # whole run. The function tracks failures and prints a summary at the end.
 
-# NOTE: `set -e` intentionally NOT used here. A single null address or a
-#       single forge timeout shouldn't kill verification of the other 10
-#       contracts. Use FAILED_CONTRACTS to surface problems at the end.
+# NOTE: `set -e` intentionally NOT used here. A single forge timeout shouldn't
+#       kill verification of the other contracts. Use FAILED_CONTRACTS to
+#       surface problems at the end.
+set -uo pipefail
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -24,6 +25,10 @@ CHAIN_NAME="$ENV"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --env) 
+            if [ -z "${2:-}" ]; then
+                echo "Missing value for --env"
+                exit 1
+            fi
             ENV="$2"
             if [ "$ENV" == "op-sepolia" ]; then
                 CHAIN_NAME="optimism-sepolia"
@@ -58,13 +63,14 @@ fi
 
 # 动态获取 RPC URL
 # 将 ENV 转换为大写并替换 - 为 _ (例如 op-sepolia -> OP_SEPOLIA)
+GENERIC_RPC_URL="${RPC_URL:-}"
 ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 RPC_VAR_NAME="${ENV_UPPER}_RPC_URL"
-RPC_URL="${!RPC_VAR_NAME}"
+RPC_URL="${!RPC_VAR_NAME:-}"
 
 # 如果特定网络的 RPC 变量不存在，尝试回退到通用的 RPC_URL
 if [ -z "$RPC_URL" ]; then
-    RPC_URL="$RPC_URL"
+    RPC_URL="$GENERIC_RPC_URL"
 fi
 
 # 如果仍然没有找到 RPC URL，报错
@@ -76,7 +82,7 @@ fi
 echo -e "Using RPC URL: ${RPC_URL}"
 
 # 确保必要的变量存在
-if [ -z "$ETHERSCAN_API_KEY" ]; then
+if [ -z "${ETHERSCAN_API_KEY:-}" ]; then
     echo -e "${RED}Error: ETHERSCAN_API_KEY not set in ${ENV_FILE}${NC}"
     exit 1
 fi
@@ -114,15 +120,15 @@ PRICE_FEED=$(jq -r '.priceFeed' "$CONFIG_FILE")
 
 
 # 获取 Deployer 地址 (用于构造参数)
-if [ -n "$DEPLOYER_ADDRESS" ]; then
+if [ -n "${DEPLOYER_ADDRESS:-}" ]; then
     DEPLOYER="$DEPLOYER_ADDRESS"
-elif [ -n "$DEPLOYER_ACCOUNT" ]; then
+elif [ -n "${DEPLOYER_ACCOUNT:-}" ]; then
     # 如果只有 Account Name，尝试解析（可能需要密码，但 verify 不需要签名，只需地址）
     # 但 verify 脚本无法交互输入密码，所以最好是在 env 里配好 DEPLOYER_ADDRESS
     echo -e "${YELLOW}Warning: DEPLOYER_ADDRESS not set. Trying to resolve from Keystore (might fail if requires password)...${NC}"
     DEPLOYER=$(cast wallet address --account "$DEPLOYER_ACCOUNT" 2>/dev/null || echo "")
 else
-    DEPLOYER=$(cast wallet address --private-key "$PRIVATE_KEY" 2>/dev/null || echo "")
+    DEPLOYER=$(cast wallet address --private-key "${PRIVATE_KEY:-}" 2>/dev/null || echo "")
 fi
 
 if [ -z "$DEPLOYER" ]; then
@@ -142,12 +148,18 @@ verify() {
     local name=$2
     local contract_path=$3
     local args=$4
+    local optional=${5:-false}
 
     echo -e "\n${YELLOW}>>> Verifying ${name} at ${addr}...${NC}"
 
     # Skip when jq returned "null" (field missing from config) or empty
     if [ -z "$addr" ] || [ "$addr" == "null" ] || [ "$addr" == "0x0000000000000000000000000000000000000000" ]; then
-        echo -e "${YELLOW}Skip: ${name} address is null/zero/missing from config (this is OK for deprecated fields)${NC}"
+        if [ "$optional" = true ]; then
+            echo -e "${YELLOW}Skip: ${name} address is null/zero/missing from config (optional/deprecated)${NC}"
+        else
+            echo -e "${RED}Failed: ${name} address is null/zero/missing from config${NC}"
+            FAILED_CONTRACTS+=("$name (missing address)")
+        fi
         return 0
     fi
 
@@ -161,29 +173,43 @@ verify() {
 
     echo -e "Path: ${contract_path}"
 
+    # Capture both exit code AND stdout/stderr so we can recognize the
+    # "is already verified" idempotent case even when forge returns non-zero
+    # (observed behaviour with forge 1.7.x on Etherscan API V2 — already-
+    # verified contracts sometimes exit 1 despite the verification being
+    # confirmed on the explorer).
     local exit_code=0
+    local output
     if [ -n "$args" ]; then
         echo -e "Args: ${args}"
-        forge verify-contract "$addr" "$contract_path" \
+        output=$(forge verify-contract "$addr" "$contract_path" \
             --chain "$CHAIN_NAME" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
             --constructor-args "$args" \
             --compiler-version "0.8.33" \
             --optimizer-runs 10000 \
-            --via-ir || exit_code=$?
+            --via-ir 2>&1) || exit_code=$?
     else
-        forge verify-contract "$addr" "$contract_path" \
+        output=$(forge verify-contract "$addr" "$contract_path" \
             --chain "$CHAIN_NAME" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --watch \
             --compiler-version "0.8.33" \
             --optimizer-runs 10000 \
-            --via-ir || exit_code=$?
+            --via-ir 2>&1) || exit_code=$?
     fi
+
+    # Echo forge output so logs still show what happened
+    echo "$output"
 
     if [ "$exit_code" -eq 0 ]; then
         VERIFIED_CONTRACTS+=("$name")
+    elif echo "$output" | grep -q -i "already verified"; then
+        # Forge exited non-zero but Etherscan already has this contract.
+        # Treat as success — re-verification is a no-op.
+        echo -e "${YELLOW}  (forge exit ${exit_code} but Etherscan reports already-verified — treating as success)${NC}"
+        VERIFIED_CONTRACTS+=("$name (already verified)")
     else
         FAILED_CONTRACTS+=("$name @ $addr (exit $exit_code)")
     fi
@@ -225,18 +251,19 @@ verify "$BLS_AGGREGATOR" "BLSAggregator" "contracts/src/modules/monitoring/BLSAg
 verify "$DVT_VALIDATOR" "DVTValidator" "contracts/src/modules/monitoring/DVTValidator.sol:DVTValidator" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
 
 # BLSValidator()
-verify "$BLS_VALIDATOR" "BLSValidator" "contracts/src/modules/validators/BLSValidator.sol:BLSValidator" ""
+verify "$BLS_VALIDATOR" "BLSValidator" "contracts/src/modules/validators/BLSValidator.sol:BLSValidator" "" true
 
 # xPNTsFactory(address sp, address registry)
 verify "$XPNTS_FACTORY" "xPNTsFactory" "contracts/src/tokens/xPNTsFactory.sol:xPNTsFactory" "$(cast abi-encode "constructor(address,address)" "$SUPER_PAYMASTER" "$REGISTRY")"
 
 # 🚀 验证 xPNTsToken 实现合约 (Clone Pattern)
 echo -e "${YELLOW}Detecting xPNTsToken implementation...${NC}"
-XPNTS_IMPL=$(cast call "$XPNTS_FACTORY" "implementation()(address)" --rpc-url "$RPC_URL")
+XPNTS_IMPL=$(cast call "$XPNTS_FACTORY" "implementation()(address)" --rpc-url "$RPC_URL" 2>/dev/null || echo "")
 if [ -n "$XPNTS_IMPL" ] && [ "$XPNTS_IMPL" != "0x0000000000000000000000000000000000000000" ]; then
     verify "$XPNTS_IMPL" "xPNTsTokenImpl" "contracts/src/tokens/xPNTsToken.sol:xPNTsToken" ""
 else
     echo -e "${RED}Failed to detect xPNTsToken implementation address from factory.${NC}"
+    FAILED_CONTRACTS+=("xPNTsTokenImpl (implementation lookup failed)")
 fi
 
 # PaymasterFactory()
