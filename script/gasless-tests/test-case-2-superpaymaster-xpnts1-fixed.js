@@ -40,13 +40,19 @@ async function main() {
 
   const config = loadConfig();
   const SUPER_PAYMASTER_ADDRESS = config.superPaymaster;
+  // SP aPNTs path: this test exercises the operator whose xPNTsToken == aPNTs
+  // (deployer/AAStar). The token being transferred AND used in postOp burn/debt
+  // is the SAME token, so the operator must match the token.
   const XPNTS_TOKEN_ADDRESS = config.aPNTs;
   const ENTRYPOINT_ADDRESS = config.entryPoint;
 
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   const senderPrivateKey = process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
   const recipientAddress = process.env.OWNER2_ADDRESS || process.env.TEST_EOA_ADDRESS;
-  const operatorAddress = process.env.OPERATOR_ADDRESS || '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9';
+  // Default operator is the deployer (whose SP-configured xPNTsToken == aPNTs).
+  // Override with OPERATOR_ADDRESS env if the deployment has a different aPNTs operator.
+  const deployerWallet = new ethers.Wallet(senderPrivateKey);
+  const operatorAddress = process.env.OPERATOR_ADDRESS_APNTS || deployerWallet.address;
 
   if (!rpcUrl || !senderPrivateKey || !recipientAddress || !operatorAddress) {
     throw new Error('Required env variables not found');
@@ -98,7 +104,10 @@ async function main() {
     console.log(`  Nonce: ${nonce}`);
 
     const pmVerificationGasLimit = 150000n;
-    const pmPostOpGasLimit = 100000n;
+    // SP's postOp runs the burn → recordDebt → pendingDebts fallback chain
+    // (~120K gas with xPNTsToken._update + event emits). 100K was OOG on Sepolia,
+    // surfacing as `PostOpReverted("")` with empty inner bytes.
+    const pmPostOpGasLimit = 200000n;
     const paymasterAndData = ethers.solidityPacked(
       ['address', 'uint128', 'uint128', 'address'],
       [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress]
