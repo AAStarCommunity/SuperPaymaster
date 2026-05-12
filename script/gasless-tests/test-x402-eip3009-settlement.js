@@ -40,7 +40,10 @@ const SUPERPAYMASTER_ABI = [
   'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature) external returns (bytes32)',
   'function facilitatorFeeBPS() view returns (uint256)',
   'function facilitatorEarnings(address operator, address token) view returns (uint256)',
-  'function x402SettlementNonces(bytes32 nonce) view returns (bool)',
+  // P0-13: x402SettlementNonces is keyed by keccak256(abi.encode(asset, from, nonce)),
+  // not the raw nonce alone. Use x402NonceKey() to derive the composite key.
+  'function x402SettlementNonces(bytes32 key) view returns (bool)',
+  'function x402NonceKey(address asset, address from, bytes32 nonce) pure returns (bytes32)',
   'function version() view returns (string)',
 ];
 
@@ -167,7 +170,9 @@ async function main() {
 
     const payeeBalanceAfter = await usdc.balanceOf(payee);
     const earningsAfter = await superPaymaster.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
-    const nonceUsed = await superPaymaster.x402SettlementNonces(nonce);
+    // P0-13: derive composite key (asset, from, nonce) instead of using raw nonce
+    const nonceKey = await superPaymaster.x402NonceKey(USDC_SEPOLIA, payer.address, nonce);
+    const nonceUsed = await superPaymaster.x402SettlementNonces(nonceKey);
 
     const payeeReceived = payeeBalanceAfter - payeeBalanceBefore;
     const feeCollected = earningsAfter - earningsBefore;

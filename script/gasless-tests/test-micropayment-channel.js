@@ -18,12 +18,17 @@
 
 const { ethers } = require('ethers');
 const path = require('path');
+const { loadConfig } = require('./load-config');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
-// Constants
-const MPC_ADDRESS = '0x5753e9675f68221cA901e495C1696e33F552ea36';
-const APNTS_ADDRESS = '0xEA4b9d046285DC21484174C36BbFb58015Ad5E1f';
+// Addresses are loaded from deployments/config.sepolia.json (single source of truth)
+const config = loadConfig();
+const MPC_ADDRESS = config.microPaymentChannel;
+const APNTS_ADDRESS = config.aPNTs;
 const CHAIN_ID = 11155111;
+
+if (!MPC_ADDRESS) throw new Error('microPaymentChannel address missing from config.sepolia.json');
+if (!APNTS_ADDRESS) throw new Error('aPNTs address missing from config.sepolia.json');
 
 // ABIs
 const ERC20_ABI = [
