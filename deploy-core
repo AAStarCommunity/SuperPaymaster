@@ -115,4 +115,21 @@ for SCRIPT in $CHECK_SCRIPTS; do
     forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
 done
 
-echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Verified!\033[0m"
+echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Audited!\033[0m"
+
+# --- PHASE 3: Etherscan Verification (live networks only) ---
+# Skip for anvil; for sepolia / op-* / mainnet, submit every freshly-deployed
+# contract to Etherscan so external tools (SDK, audit, block explorer users)
+# can see the ABI immediately. Idempotent: already-verified contracts return
+# success fast. Failure is non-fatal — operator can re-run `./verify-all.sh
+# --env $ENV` later. See memory: 部署后必须 verify.
+if [ "$ENV" != "anvil" ] && [ "$SHOULD_RUN_DEPLOY" = true ]; then
+    echo -e "\n🔍 Starting Etherscan verification (this can take a few minutes)..."
+    if [ -x "./verify-all.sh" ]; then
+        ./verify-all.sh --env "$ENV" || echo -e "\033[1;33m⚠️  Some contracts failed to verify. Re-run './verify-all.sh --env $ENV' manually.\033[0m"
+    else
+        echo -e "\033[1;33m⚠️  verify-all.sh not executable; skipping Etherscan verification.\033[0m"
+    fi
+fi
+
+echo -e "\n\033[0;32m✅ deploy-core finished for env=$ENV\033[0m"

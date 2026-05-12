@@ -82,4 +82,16 @@ if [ "$DRY_RUN" = false ]; then
         echo "  Audit: $SCRIPT"
         forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv 2>&1 || echo "  ⚠️  $SCRIPT skipped"
     done
+
+    # Etherscan source verification — submit every freshly-deployed contract
+    # so the ABI / Read & Write tabs work for SDK / audit / explorer users.
+    # Idempotent. Failure is non-fatal; operator can re-run './verify-all.sh
+    # --env sepolia' later. See memory: 部署后必须 verify.
+    echo ""
+    echo "🔍 Submitting contracts to Etherscan for source verification..."
+    if [ -x "./verify-all.sh" ]; then
+        ./verify-all.sh --env sepolia || echo "⚠️  Some contracts failed to verify. Re-run './verify-all.sh --env sepolia' manually."
+    else
+        echo "⚠️  verify-all.sh not executable; skipping Etherscan verification."
+    fi
 fi

@@ -1,8 +1,15 @@
 #!/bin/bash
 # scripts/verify-all.sh
 # 自动化验证 SuperPaymaster 所有核心合约
+#
+# Idempotent: contracts already verified return success quickly.
+# Non-fatal per-contract: one bad address (e.g. deprecated `blsValidator`
+# missing from config.<env>.json → jq returns "null") does NOT abort the
+# whole run. The function tracks failures and prints a summary at the end.
 
-set -e
+# NOTE: `set -e` intentionally NOT used here. A single null address or a
+#       single forge timeout shouldn't kill verification of the other 10
+#       contracts. Use FAILED_CONTRACTS to surface problems at the end.
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -127,6 +134,9 @@ fi
 echo -e "Deployer detected: ${DEPLOYER}"
 
 # 3. 执行验证函数
+FAILED_CONTRACTS=()
+VERIFIED_CONTRACTS=()
+
 verify() {
     local addr=$1
     local name=$2
@@ -134,16 +144,24 @@ verify() {
     local args=$4
 
     echo -e "\n${YELLOW}>>> Verifying ${name} at ${addr}...${NC}"
-    
+
+    # Skip when jq returned "null" (field missing from config) or empty
+    if [ -z "$addr" ] || [ "$addr" == "null" ] || [ "$addr" == "0x0000000000000000000000000000000000000000" ]; then
+        echo -e "${YELLOW}Skip: ${name} address is null/zero/missing from config (this is OK for deprecated fields)${NC}"
+        return 0
+    fi
+
     # 简单的代码存在性检查
-    code=$(cast code "$addr" --rpc-url "$RPC_URL")
+    code=$(cast code "$addr" --rpc-url "$RPC_URL" 2>/dev/null || echo "0x")
     if [ "$code" == "0x" ]; then
         echo -e "${RED}Skip: No code at ${addr}${NC}"
-        return
+        FAILED_CONTRACTS+=("$name @ $addr (no code)")
+        return 0
     fi
 
     echo -e "Path: ${contract_path}"
-    
+
+    local exit_code=0
     if [ -n "$args" ]; then
         echo -e "Args: ${args}"
         forge verify-contract "$addr" "$contract_path" \
@@ -153,7 +171,7 @@ verify() {
             --constructor-args "$args" \
             --compiler-version "0.8.33" \
             --optimizer-runs 10000 \
-            --via-ir
+            --via-ir || exit_code=$?
     else
         forge verify-contract "$addr" "$contract_path" \
             --chain "$CHAIN_NAME" \
@@ -161,28 +179,41 @@ verify() {
             --watch \
             --compiler-version "0.8.33" \
             --optimizer-runs 10000 \
-            --via-ir
+            --via-ir || exit_code=$?
+    fi
+
+    if [ "$exit_code" -eq 0 ]; then
+        VERIFIED_CONTRACTS+=("$name")
+    else
+        FAILED_CONTRACTS+=("$name @ $addr (exit $exit_code)")
     fi
 }
 
 # 4. 依次验证 (按照 DeployLive.s.sol 的构造逻辑)
 
-# GToken(uint256 totalSupply)
+# GToken(uint256 cap_)
 verify "$GTOKEN" "GToken" "contracts/src/tokens/GToken.sol:GToken" "$(cast abi-encode "constructor(uint256)" "21000000000000000000000000")"
 
-# GTokenStaking(address gtoken, address initialOwner)
-verify "$STAKING" "GTokenStaking" "contracts/src/core/GTokenStaking.sol:GTokenStaking" "$(cast abi-encode "constructor(address,address)" "$GTOKEN" "$DEPLOYER")"
+# GTokenStaking(address _gtoken, address _treasury, address _registry)
+verify "$STAKING" "GTokenStaking" "contracts/src/core/GTokenStaking.sol:GTokenStaking" "$(cast abi-encode "constructor(address,address,address)" "$GTOKEN" "$DEPLOYER" "$REGISTRY")"
 
-# MySBT(address token, address staking, address registry, address initialOwner)
+# MySBT(address _g, address _s, address _r, address _d) — d is DAO/multisig (same as deployer on Sepolia)
 verify "$SBT" "MySBT" "contracts/src/tokens/MySBT.sol:MySBT" "$(cast abi-encode "constructor(address,address,address,address)" "$GTOKEN" "$STAKING" "$REGISTRY" "$DEPLOYER")"
 
-# Registry(address token, address staking, address sbt)
-verify "$REGISTRY" "Registry" "contracts/src/core/Registry.sol:Registry" "$(cast abi-encode "constructor(address,address,address)" "$GTOKEN" "$STAKING" "$SBT")"
+# Registry — UUPS implementation, no constructor args.
+# (The proxy stores `initialize(...)` data; the impl contract has no args.)
+# Note: $REGISTRY in config is the PROXY address. To verify the IMPL,
+# we read the ERC-1967 implementation slot.
+REGISTRY_IMPL=$(cast storage "$REGISTRY" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC_URL" 2>/dev/null | sed 's/0x000000000000000000000000/0x/')
+echo -e "${YELLOW}Registry implementation (UUPS): ${REGISTRY_IMPL}${NC}"
+verify "$REGISTRY_IMPL" "Registry (impl)" "contracts/src/core/Registry.sol:Registry" ""
 
-# SuperPaymaster(IEntryPoint entryPoint, address initialOwner, address registry, address supervisor, address priceFeed, address treasury, uint256 buffer)
-# Buffer according to DeployLive.s.sol is 4200
-verify "$SUPER_PAYMASTER" "SuperPaymaster" "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster" \
-    "$(cast abi-encode "constructor(address,address,address,address,address,address,uint256)" "$ENTRY_POINT" "$DEPLOYER" "$REGISTRY" "0x0000000000000000000000000000000000000000" "$PRICE_FEED" "$DEPLOYER" "4200")"
+# SuperPaymaster(IEntryPoint _entryPoint, IRegistry _registry, address _ethUsdPriceFeed) — UUPS impl
+# Note: $SUPER_PAYMASTER in config is the PROXY address. Resolve impl via ERC-1967 slot.
+SP_IMPL=$(cast storage "$SUPER_PAYMASTER" 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc --rpc-url "$RPC_URL" 2>/dev/null | sed 's/0x000000000000000000000000/0x/')
+echo -e "${YELLOW}SuperPaymaster implementation (UUPS): ${SP_IMPL}${NC}"
+verify "$SP_IMPL" "SuperPaymaster (impl)" "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster" \
+    "$(cast abi-encode "constructor(address,address,address)" "$ENTRY_POINT" "$REGISTRY" "$PRICE_FEED")"
 
 # ReputationSystem(address registry)
 verify "$REP_SYSTEM" "ReputationSystem" "contracts/src/modules/reputation/ReputationSystem.sol:ReputationSystem" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
@@ -218,8 +249,20 @@ verify "$PM_V4_IMPL" "PaymasterV4Impl" "contracts/src/paymasters/v4/Paymaster.so
 
 # 5. Generate Verification Report
 echo -e "\n${YELLOW}Generating verification report...${NC}"
-# Use npx tsx to execute the typescript script
-npx tsx scripts/generate-verification-report.ts "$ENV"
+# Use npx tsx to execute the typescript script (non-fatal)
+npx tsx scripts/generate-verification-report.ts "$ENV" || echo -e "${YELLOW}  (report generation skipped — non-fatal)${NC}"
+
+echo -e "\n${GREEN}========================================${NC}"
+echo -e "${GREEN}Per-contract summary:${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}Verified or already-verified (${#VERIFIED_CONTRACTS[@]}):${NC}"
+for c in "${VERIFIED_CONTRACTS[@]}"; do echo -e "  ${GREEN}✅${NC} $c"; done
+if [ "${#FAILED_CONTRACTS[@]}" -gt 0 ]; then
+    echo -e "\n${RED}Failed or skipped (${#FAILED_CONTRACTS[@]}):${NC}"
+    for c in "${FAILED_CONTRACTS[@]}"; do echo -e "  ${RED}❌${NC} $c"; done
+    echo -e "\n${YELLOW}Hint: re-run verify-all after fixing constructor args / config. Re-runs are idempotent.${NC}"
+    exit 1
+fi
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}Verification Process Complete!${NC}"
