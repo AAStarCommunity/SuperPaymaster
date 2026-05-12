@@ -154,7 +154,14 @@ contract DeployAnvil is Script {
         superPaymaster.depositFor(deployer, 1000 ether);
 
         // 2. 初始化 DemoCommunity (Anni)
-        uint256 anniPK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+        // Use PRIVATE_KEY_ANNI env if set; fall back to Anvil account #1 default.
+        // Honors env override so .env.anvil + DeployAnvil agree on which key is "Anni",
+        // avoiding the RoleNotGranted(COMMUNITY) failure when TestAccountPrepare reads
+        // a different key than what DeployAnvil registered.
+        uint256 anniPK = vm.envOr(
+            "PRIVATE_KEY_ANNI",
+            uint256(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d)
+        );
         address anni = vm.addr(anniPK);
         Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
             name: "DemoCommunity",

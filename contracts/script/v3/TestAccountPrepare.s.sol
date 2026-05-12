@@ -11,6 +11,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title TestAccountPrepare
@@ -103,8 +104,63 @@ contract TestAccountPrepare is Script {
         }
         vm.stopBroadcast();
 
+        // -----------------------------------------------------------------------
+        // Phase 2.4: Refresh paymaster price caches
+        //
+        // Both PaymasterV4 and SuperPaymaster cache the Chainlink ETH/USD price
+        // and use it to compute gas cost in aPNTs. If the cache is stale
+        // (block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold)
+        // validatePaymasterUserOp returns validUntil in the past and the
+        // EntryPoint rejects the userOp with "AA32 paymaster expired or not
+        // due". prepare-test runs at deploy time so it should leave both
+        // paymasters with fresh caches. See docs/gasless-test-troubleshooting.md
+        // section 1.3.
+        // -----------------------------------------------------------------------
+        vm.startBroadcast(deployerPK);
+        console.log("[Phase 2.4] Refreshing paymaster price caches...");
+        // SuperPaymaster.updatePrice() — non-fatal on failure (e.g. price-oracle
+        // unavailable on local anvil with mock feed).
+        (bool spOk,) = address(superPaymaster).call(abi.encodeWithSignature("updatePrice()"));
+        if (spOk) {
+            console.log("  SuperPaymaster.updatePrice() OK");
+        } else {
+            console.log("  SuperPaymaster.updatePrice() skipped (oracle unavailable)");
+        }
+        // PaymasterV4 (Anni's proxy) — same pattern.
+        if (pmProxyAnni != address(0)) {
+            (bool v4Ok,) = pmProxyAnni.call(abi.encodeWithSignature("updatePrice()"));
+            if (v4Ok) {
+                console.log("  Anni V4 paymaster updatePrice() OK");
+            } else {
+                console.log("  Anni V4 paymaster updatePrice() skipped");
+            }
+        }
+        vm.stopBroadcast();
+
+        // -----------------------------------------------------------------------
+        // Phase 2.5: Print Operator → xPNTsToken matrix (diagnostic, no writes)
+        //
+        // Critical invariant: SP gasless tests must transfer the same token
+        // their operator is configured with (operator.xPNTsToken). Mismatch
+        // causes outer status=1 / inner transfer reverted in postOp. See
+        // docs/gasless-test-troubleshooting.md section 1.6.
+        // -----------------------------------------------------------------------
+        console.log("\n[Phase 2.5] Operator -> xPNTsToken Matrix:");
+        address deployerAddr = vm.addr(deployerPK);
+        _printOperatorRow("  deployer", deployerAddr, superPaymaster);
+        _printOperatorRow("  Anni    ", anniAddr,     superPaymaster);
+
         console.log("\n--- Phase 2: Test Preparation Complete ---");
         console.log("  Anni address:   ", anniAddr);
         console.log("  Anni PM proxy:  ", pmProxyAnni);
+    }
+
+    /// @dev Read-only helper: log a single row of the operator matrix.
+    function _printOperatorRow(string memory label, address op, SuperPaymaster sp) internal view {
+        (uint128 bal, , bool isCfg, , address xpnts, , , , , ) = sp.operators(op);
+        console.log(label, op);
+        console.log("    isConfigured:", isCfg);
+        console.log("    xPNTsToken: ", xpnts);
+        console.log("    aPNTsBalance:", uint256(bal));
     }
 }
