@@ -5,7 +5,7 @@
  *
  * Tests gasless ERC20 token transfer using:
  * - SuperPaymaster (UUPS Proxy)
- * - aPNTs Token (same token, different AA account)
+ * - PNTs Token (Mycelium community token, operator = Anni)
  * - EntryPoint v0.7
  *
  * Addresses are loaded from deployments/config.sepolia.json
@@ -35,28 +35,36 @@ const SIMPLE_ACCOUNT_ABI = [
 
 async function main() {
   console.log('╔═══════════════════════════════════════════════════════════╗');
-  console.log('║  Gasless Transfer Test Case 3 - SuperPaymaster + aPNTs   ║');
+  console.log('║  Gasless Transfer Test Case 3 - SuperPaymaster + PNTs    ║');
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   const config = loadConfig();
   const SUPER_PAYMASTER_ADDRESS = config.superPaymaster;
-  const XPNTS_TOKEN_ADDRESS = config.aPNTs;
+  // SP PNTs path: this test exercises the operator whose xPNTsToken == PNTs
+  // (Mycelium/Anni). The token being transferred AND used in postOp burn/debt
+  // is the SAME token, so the operator must match the token.
+  const XPNTS_TOKEN_ADDRESS = config.pnts;
   const ENTRYPOINT_ADDRESS = config.entryPoint;
 
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   const senderPrivateKey = process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
   const recipientAddress = process.env.OWNER2_ADDRESS || process.env.TEST_EOA_ADDRESS;
 
-  const operatorAddress = process.env.OPERATOR_ADDRESS || '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9';
+  // Default operator is Anni (whose SP-configured xPNTsToken == PNTs).
+  // Override with OPERATOR_ADDRESS_PNTS env if the deployment has a different PNTs operator.
+  const operatorAddress = process.env.OPERATOR_ADDRESS_PNTS || process.env.OPERATOR_ADDRESS || '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9';
 
   if (!rpcUrl || !senderPrivateKey || !recipientAddress) {
     throw new Error('Required env variables not found in .env.sepolia');
+  }
+  if (!XPNTS_TOKEN_ADDRESS) {
+    throw new Error('config.pnts missing — Mycelium PNTs token must be deployed and recorded in deployments/config.<network>.json');
   }
 
   console.log('📌 Configuration:');
   console.log(`  RPC: ${rpcUrl.substring(0, 50)}...`);
   console.log(`  SuperPaymaster: ${SUPER_PAYMASTER_ADDRESS}`);
-  console.log(`  aPNTs Token: ${XPNTS_TOKEN_ADDRESS}`);
+  console.log(`  PNTs Token: ${XPNTS_TOKEN_ADDRESS}`);
   console.log(`  EntryPoint: ${ENTRYPOINT_ADDRESS}`);
   console.log(`  Operator: ${operatorAddress}\n`);
 
@@ -87,7 +95,7 @@ async function main() {
   }
 
   try {
-    console.log('📊 Step 1: Check aPNTs Balance');
+    console.log('📊 Step 1: Check PNTs Balance');
     const balance = await retryCall(() => xPNTsToken.balanceOf(senderAAAccount));
     const symbol = await retryCall(() => xPNTsToken.symbol());
     const decimals = await retryCall(() => xPNTsToken.decimals());
@@ -109,7 +117,10 @@ async function main() {
     console.log(`  Nonce: ${nonce}`);
 
     const pmVerificationGasLimit = 150000n;
-    const pmPostOpGasLimit = 100000n;
+    // SP's postOp runs the burn → recordDebt → pendingDebts fallback chain
+    // (~120K gas with xPNTsToken._update + event emits). 100K was OOG on Sepolia,
+    // surfacing as `PostOpReverted("")` with empty inner bytes.
+    const pmPostOpGasLimit = 200000n;
     const paymasterAndData = ethers.solidityPacked(
       ['address', 'uint128', 'uint128', 'address'],
       [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress]
