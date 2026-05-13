@@ -9,6 +9,16 @@
  * - EntryPoint v0.7
  *
  * Addresses are loaded from deployments/config.sepolia.json
+ *
+ * EXIT CODES — LESSON LEARNED (2026-05-13):
+ *   0 = PASS  — UserOp submitted and confirmed on-chain
+ *   1 = FAIL  — Script ran but test failed (TX reverted, assertion failed)
+ *   2 = SKIP  — Precondition not met (zero balance, network error, etc.)
+ *
+ * Root cause of the old bug: zero-balance path used `return` inside main(), which
+ * caused main().then(() => process.exit(0)) to execute — giving the test runner
+ * exit 0 (PASS) even though no UserOp was submitted. Fix: always use process.exit(2)
+ * for skipped / precondition-not-met cases, NEVER bare `return` from main().
  */
 
 const { ethers } = require('ethers');
@@ -94,6 +104,8 @@ async function main() {
     }
   }
 
+  // Note: retryCall exhaustion throws, which is caught by the outer catch block below.
+  // The outer catch distinguishes network errors (exit 2 SKIP) from logic errors (exit 1 FAIL).
   try {
     console.log('📊 Step 1: Check PNTs Balance');
     const balance = await retryCall(() => xPNTsToken.balanceOf(senderAAAccount));
@@ -102,8 +114,9 @@ async function main() {
     console.log(`  Balance: ${ethers.formatUnits(balance, decimals)} ${symbol}`);
 
     if (balance === 0n) {
-      console.log('  ⚠️  Warning: Zero balance, cannot test transfer\n');
-      return;
+      console.log('  ⚠️  SKIP: Zero token balance — fund TEST_AA_ACCOUNT_ADDRESS_C with PNTs first.');
+      console.log('  Use: PRIVATE_KEY_ANNI=<key> node transfer-tokens.js\n');
+      process.exit(2);
     }
 
     console.log('\n📝 Step 2: Prepare Transfer CallData');
@@ -175,9 +188,9 @@ async function main() {
     const msg = (error.message || '').toLowerCase();
     const isNet = msg.includes('timeout') || msg.includes('econnreset') || msg.includes('socket hang up') || msg.includes('etimedout');
     if (isNet) {
-      console.warn('\n⚠️  Network error (transient RPC issue):', error.message);
-      console.warn('  Skipping test — not a contract logic failure\n');
-      return; // exit(0) from main()
+      console.warn('\n⚠️  SKIP: Network error (transient RPC issue):', error.message);
+      console.warn('  Not a contract logic failure — re-run manually.\n');
+      process.exit(2);
     }
     console.error('\n❌ Error:', error.message);
     if (error.data) console.error('  Error data:', error.data);

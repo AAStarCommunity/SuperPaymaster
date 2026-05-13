@@ -51,6 +51,13 @@ echo -e "${GREEN}Configuration loaded: $ENV_FILE${NC}"
 echo ""
 
 # Results tracking
+# EXIT CODE CONVENTION (lesson learned 2026-05-13):
+#   0 = PASS   — test ran and assertions passed (UserOp confirmed on-chain)
+#   1 = FAIL   — test ran but failed (TX reverted, assertion failed)
+#   2 = SKIP   — precondition not met (zero balance, network error, missing config)
+# NEVER treat exit 0 as PASS unless the test actually executed its core logic.
+# Using bare `return` inside an async main() exits with 0 — always use process.exit(2)
+# for any early-exit / skip path to avoid silent false positives in this runner.
 declare -a TEST_NAMES
 declare -a TEST_RESULTS
 TOTAL=0
@@ -68,16 +75,22 @@ run_test() {
     echo -e "${CYAN}  [$TOTAL] $name${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-    if eval "$cmd"; then
-        TEST_NAMES+=("$name")
+    eval "$cmd"
+    local exit_code=$?
+
+    TEST_NAMES+=("$name")
+    if [ $exit_code -eq 0 ]; then
         TEST_RESULTS+=("PASS")
         PASSED=$((PASSED + 1))
         echo -e "${GREEN}  [$TOTAL] $name: PASSED${NC}"
+    elif [ $exit_code -eq 2 ]; then
+        TEST_RESULTS+=("SKIP")
+        SKIPPED=$((SKIPPED + 1))
+        echo -e "${YELLOW}  [$TOTAL] $name: SKIPPED (precondition not met)${NC}"
     else
-        TEST_NAMES+=("$name")
         TEST_RESULTS+=("FAIL")
         FAILED=$((FAILED + 1))
-        echo -e "${RED}  [$TOTAL] $name: FAILED${NC}"
+        echo -e "${RED}  [$TOTAL] $name: FAILED (exit $exit_code)${NC}"
     fi
 }
 
@@ -191,6 +204,19 @@ echo "================================================================"
 echo "  Phase 9: Legacy Gasless Transfer Tests"
 echo "================================================================"
 
+# Run pre-flight setup to ensure all prerequisites are met before gasless tests.
+# This funds PaymasterV4 deposits, tops up operator balances, and refreshes the
+# Chainlink price cache in SuperPaymaster. Safe to run repeatedly (idempotent).
+echo ""
+echo -e "${YELLOW}  Running pre-flight setup for gasless tests...${NC}"
+if node "$SCRIPT_DIR/setup-gasless.js"; then
+    echo -e "${GREEN}  Setup complete — all prerequisites met.${NC}"
+else
+    SETUP_EXIT=$?
+    echo -e "${RED}  Setup failed (exit $SETUP_EXIT) — gasless tests may fail due to missing prerequisites.${NC}"
+    echo -e "${YELLOW}  Continuing anyway (test results will reflect actual state).${NC}"
+fi
+
 sleep 15  # Extended pause to let RPC rate limit window reset after heavy test groups
 run_test "Gasless: PaymasterV4"            "node $SCRIPT_DIR/test-case-1-paymasterv4.js"
 sleep 5
@@ -225,6 +251,8 @@ echo ""
 for i in "${!TEST_NAMES[@]}"; do
     if [ "${TEST_RESULTS[$i]}" = "PASS" ]; then
         echo -e "  ${GREEN}PASS${NC}  ${TEST_NAMES[$i]}"
+    elif [ "${TEST_RESULTS[$i]}" = "SKIP" ]; then
+        echo -e "  ${YELLOW}SKIP${NC}  ${TEST_NAMES[$i]}"
     else
         echo -e "  ${RED}FAIL${NC}  ${TEST_NAMES[$i]}"
     fi
@@ -232,7 +260,7 @@ done
 
 echo ""
 echo "────────────────────────────────────────────────────────────────"
-echo -e "  Total: $TOTAL  |  ${GREEN}Passed: $PASSED${NC}  |  ${RED}Failed: $FAILED${NC}"
+echo -e "  Total: $TOTAL  |  ${GREEN}Passed: $PASSED${NC}  |  ${RED}Failed: $FAILED${NC}  |  ${YELLOW}Skipped: $SKIPPED${NC}"
 echo "────────────────────────────────────────────────────────────────"
 echo ""
 

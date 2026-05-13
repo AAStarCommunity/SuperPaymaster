@@ -16,6 +16,17 @@
  * - PaymasterV4 must have ETH in EntryPoint
  *
  * Reads RPC URL and private keys from .env.sepolia in the project root
+ *
+ * EXIT CODES — LESSON LEARNED (2026-05-13):
+ *   0 = PASS  — UserOp submitted and confirmed on-chain
+ *   1 = FAIL  — Script ran but test failed (TX reverted, assertion failed)
+ *   2 = SKIP  — Precondition not met (zero balance, no paymaster deployed, etc.)
+ *              Callers (run-all-e2e-tests.sh) must treat exit 2 as SKIPPED, not PASS.
+ *
+ * Root cause of the old bug: zero-balance path used `return` inside main(), which
+ * caused main().then(() => process.exit(0)) to run — giving run-all-e2e-tests.sh an
+ * exit 0 (PASS) even though no UserOp was submitted. Three gasless tests were
+ * falsely reported PASS in the 2026-05-13 deployment record. Fixed: use process.exit(2).
  */
 
 const { ethers } = require('ethers');
@@ -72,9 +83,9 @@ async function main() {
   const PAYMASTER_ADDRESS = await factory.paymasterByOperator(wallet.address);
 
   if (PAYMASTER_ADDRESS === ethers.ZeroAddress) {
-    console.log('  No PaymasterV4 deployed for this operator yet.');
+    console.log('  ⚠️  SKIP: No PaymasterV4 deployed for this operator yet.');
     console.log('  Run prepare-test sepolia first to set up test accounts.');
-    process.exit(0);
+    process.exit(2);
   }
 
   console.log('📌 Configuration:');
@@ -103,8 +114,11 @@ async function main() {
     console.log(`  Balance: ${ethers.formatUnits(balance, decimals)} ${symbol}`);
 
     if (balance === 0n) {
-      console.log('  ⚠️  Warning: Zero balance, cannot test transfer\n');
-      return;
+      console.log('  ⚠️  SKIP: Zero token balance — fund TEST_AA_ACCOUNT_ADDRESS_A with aPNTs first.');
+      console.log('  Use: node transfer-tokens.js  (or run ./prepare-test sepolia)\n');
+      // exit(2) = SKIPPED. Do NOT use `return` here: main().then(() => process.exit(0))
+      // would execute next, reporting exit 0 (PASS) to the test runner — a silent false positive.
+      process.exit(2);
     }
 
     // Step 2: Prepare transfer calldata
@@ -178,9 +192,9 @@ async function main() {
     const msg = (error.message || '').toLowerCase();
     const isNet = msg.includes('timeout') || msg.includes('econnreset') || msg.includes('socket hang up') || msg.includes('etimedout');
     if (isNet) {
-      console.warn('\n⚠️  Network error (transient RPC issue):', error.message);
-      console.warn('  Skipping test — not a contract logic failure\n');
-      return;
+      console.warn('\n⚠️  SKIP: Network error (transient RPC issue):', error.message);
+      console.warn('  Not a contract logic failure — re-run manually.\n');
+      process.exit(2);
     }
     console.error('\n❌ Error:', error.reason || error.message);
     if (error.data) console.error('  Error data:', error.data);
