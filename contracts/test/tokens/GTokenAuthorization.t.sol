@@ -296,7 +296,7 @@ contract GTokenAuthorizationTest is Test {
     function test_revert_validAfterEqualsValidBefore() public {
         uint256 va = block.timestamp + 10;
         bytes32 n = bytes32(uint256(34));
-        vm.expectRevert(GTokenAuthorization.AuthorizationExpired.selector);
+        vm.expectRevert(GTokenAuthorization.AuthorizationWindowInvalid.selector);
         token.transferWithAuthorization(
             alice, bob, AMOUNT, va, va, n, address(0),
             _sign(TRANSFER_TYPEHASH, alice, bob, AMOUNT, va, va, n, alicePk)

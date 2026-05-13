@@ -85,6 +85,7 @@ contract GTokenAuthorization is GToken, EIP712 {
     error AuthorizationNotYetValid();
     error AuthorizationExpired();
     error AuthorizationWindowTooLong();
+    error AuthorizationWindowInvalid(); // validBefore <= validAfter
     error AuthorizationUsedOrCanceled();
     error InvalidSignature();
     error RecipientNotInProtocol();
@@ -173,6 +174,10 @@ contract GTokenAuthorization is GToken, EIP712 {
     /**
      * @notice Permanently cancel an unused nonce so it can never be executed.
      *         Must be signed by `authorizer`.
+     * @dev An empty or malformed `signature` causes ECDSA.tryRecover to return
+     *      RecoverError.InvalidSignatureLength / InvalidSignature, which reverts
+     *      with InvalidSignature(). SDK callers should ensure the signature is a
+     *      valid 65-byte ECDSA signature over the CancelAuthorization digest.
      */
     function cancelAuthorization(
         address authorizer,
@@ -225,7 +230,7 @@ contract GTokenAuthorization is GToken, EIP712 {
         bytes calldata signature
     ) internal {
         // 1. RC-1: time window
-        if (validBefore <= validAfter)                      revert AuthorizationExpired();
+        if (validBefore <= validAfter)                      revert AuthorizationWindowInvalid();
         if (validBefore - validAfter > MAX_AUTH_VALIDITY)   revert AuthorizationWindowTooLong();
         if (block.timestamp <= validAfter)                  revert AuthorizationNotYetValid();
         if (block.timestamp >= validBefore)                 revert AuthorizationExpired();
@@ -241,7 +246,12 @@ contract GTokenAuthorization is GToken, EIP712 {
         (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError || recovered != from) revert InvalidSignature();
 
-        // 4. RC-2: short-circuit on SBT to avoid unnecessary factory/token calls
+        // 4. Effects — write state before any external call (strict CEI).
+        //    If RC-2 reverts below, Solidity rolls back this write too; no nonce is burned.
+        _authStates[from][nonce] = AuthorizationState.Used;
+        emit AuthorizationUsed(from, nonce);
+
+        // 5. RC-2: short-circuit on SBT to avoid unnecessary factory/token calls.
         //    If mySBT not yet set, fall through to xPNTs path.
         if (address(mySBT) == address(0) || mySBT.balanceOf(to) == 0) {
             if (
@@ -251,8 +261,6 @@ contract GTokenAuthorization is GToken, EIP712 {
             ) revert RecipientNotInProtocol();
         }
 
-        _authStates[from][nonce] = AuthorizationState.Used;
-        emit AuthorizationUsed(from, nonce);
         _transfer(from, to, value);
     }
 }
