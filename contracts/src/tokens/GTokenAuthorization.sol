@@ -10,46 +10,64 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title GTokenAuthorization v2.2.0 — GToken with EIP-3009 gasless transfers
- * @notice Extends GToken with transferWithAuthorization (EIP-3009 style).
- *         Two risk controls applied on every authorization:
- *           1. Validity window capped at MAX_AUTH_VALIDITY (5 min) — limits
- *              the attack surface when a signature is intercepted.
- *           2. Recipient must hold mySBT or any xPNTs token issued by the
- *              registered factory — covers the entire protocol ecosystem
- *              (all communities, not just a single aPNTs address).
+ * @notice Extends GToken with two EIP-3009 transfer paths and two risk controls.
  *
- * RC-2 detail: relay passes `xPNTsToken` (the specific community token the
- * recipient holds). The contract verifies factory.isXPNTs(xPNTsToken) and
- * balanceOf(to) > 0. `xPNTsToken` is NOT included in the EIP-712 signature
- * because it is only a gate-check parameter — it cannot redirect funds or
- * change the transfer beneficiary (to/value are signature-bound).
+ * Transfer paths
+ * ──────────────
+ * transferWithAuthorization  — any relay can call; suitable for simple gasless sends.
+ * receiveWithAuthorization   — only msg.sender == to may call; prevents front-running
+ *                              for atomic deposit/wrapper flows (e.g. UI-driven UIDC
+ *                              purchases where the contract must be the caller).
  *
- * @dev Inherits GToken; compiled into a single contract — no cross-contract
- *      call overhead vs. writing the logic directly in GToken.sol.
+ * Risk controls
+ * ─────────────
+ * RC-1  Validity window hard-capped at MAX_AUTH_VALIDITY (5 min).
+ *       Limits the attack surface if a signature is intercepted.
+ * RC-2  Recipient must hold mySBT OR any xPNTs token issued by `factory`.
+ *       Covers the entire protocol ecosystem — all past and future communities —
+ *       without redeployment. `xPNTsToken` is a relay-supplied calldata hint
+ *       (not EIP-712 signed) because it only gates access; funds always flow to
+ *       the signature-bound `to` address.
+ *       Note: balanceOf is an at-execution snapshot; a recipient that briefly
+ *       holds xPNTs will pass RC-2. Persistent membership enforcement requires
+ *       a registry/lock mechanism (out of scope for this contract).
  *
- * EIP-712 domain: name="GToken", version="1"
+ * Execution order (gas-optimal)
+ * ─────────────────────────────
+ * 1. Time-window checks  (pure arithmetic, cheapest)
+ * 2. Nonce state check   (1 SLOAD)
+ * 3. Signature recovery  (ecrecover, ~3k gas)
+ * 4. RC-2 eligibility    (≤3 external calls, most expensive — runs only on valid sigs)
  *
- * Deployment: use GTokenAuthorization in place of GToken for new deployments.
- *             Existing GToken deployments cannot be upgraded in-place (no proxy).
+ * Deployment dependency
+ * ─────────────────────
+ * Deploy order: Registry → xPNTsFactory → MySBT → GTokenAuthorization
+ * xPNTsFactory has no dependency on GToken/GTokenAuthorization — no circular dep.
+ *
+ * @dev EIP-712 domain: name="GToken", version="1"
  */
 contract GTokenAuthorization is GToken, EIP712 {
-    using ECDSA for bytes32;
 
-    // ─── EIP-3009 type hashes ───────────────────────────────────────────────
+    // ─── Type hashes ───────────────────────────────────────────────────────
     bytes32 public constant TRANSFER_WITH_AUTHORIZATION_TYPEHASH = keccak256(
         "TransferWithAuthorization(address from,address to,uint256 value,"
+        "uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+    );
+    // Distinct typehash prevents replaying a receiveWith sig as a transferWith
+    bytes32 public constant RECEIVE_WITH_AUTHORIZATION_TYPEHASH = keccak256(
+        "ReceiveWithAuthorization(address from,address to,uint256 value,"
         "uint256 validAfter,uint256 validBefore,bytes32 nonce)"
     );
     bytes32 public constant CANCEL_AUTHORIZATION_TYPEHASH = keccak256(
         "CancelAuthorization(address authorizer,bytes32 nonce)"
     );
 
-    // ─── Risk Control 1 ────────────────────────────────────────────────────
+    // ─── RC-1 ──────────────────────────────────────────────────────────────
     uint256 public constant MAX_AUTH_VALIDITY = 5 minutes;
 
-    // ─── Risk Control 2 ────────────────────────────────────────────────────
+    // ─── RC-2 ──────────────────────────────────────────────────────────────
     ISBT          public immutable mySBT;
-    IxPNTsFactory public immutable factory;  // all xPNTs tokens issued by this factory qualify
+    IxPNTsFactory public immutable factory;
 
     // ─── Nonce state ───────────────────────────────────────────────────────
     enum AuthorizationState { Unused, Used, Canceled }
@@ -66,13 +84,15 @@ contract GTokenAuthorization is GToken, EIP712 {
     error AuthorizationUsedOrCanceled();
     error InvalidSignature();
     error RecipientNotInProtocol();
+    error CallerMustBeRecipient();
 
     // ─── Constructor ───────────────────────────────────────────────────────
     /**
      * @param cap_      Token hard cap (e.g. 21_000_000 * 1e18)
      * @param mySBT_    MySBT contract — balanceOf(to) > 0 satisfies RC-2
-     * @param factory_  xPNTsFactory — any token where factory.isXPNTs(token)
-     *                  and balanceOf(to) > 0 satisfies RC-2
+     * @param factory_  xPNTsFactory — factory.isXPNTs(token) && balanceOf(to) > 0 satisfies RC-2
+     *                  Deploy order: xPNTsFactory must exist before GTokenAuthorization.
+     *                  Passing a wrong address here is permanent (immutable).
      */
     constructor(uint256 cap_, address mySBT_, address factory_)
         GToken(cap_)
@@ -91,23 +111,13 @@ contract GTokenAuthorization is GToken, EIP712 {
         return _domainSeparatorV4();
     }
 
-    // ─── EIP-3009 Public API ───────────────────────────────────────────────
+    // ─── EIP-3009 public API ───────────────────────────────────────────────
 
     /**
-     * @notice Transfer tokens via an EIP-712 authorization signed by `from`.
-     *         Can be called by any relay — `from` never pays gas.
-     *
-     * @param from        Token owner (signer)
-     * @param to          Recipient — must hold mySBT or a factory-issued xPNTs (RC-2)
-     * @param value       Amount to transfer
-     * @param validAfter  Unix timestamp: not valid before this (0 = immediate)
-     * @param validBefore Unix timestamp: expires at this time
-     *                    (validBefore - validAfter <= 5 min enforced by RC-1)
-     * @param nonce       Random bytes32 chosen by the signer (single-use)
-     * @param xPNTsToken  The specific xPNTs token the relay claims `to` holds.
-     *                    Pass address(0) to skip the xPNTs path (SBT path only).
-     *                    Not included in the EIP-712 signature — see contract docs.
-     * @param signature   EIP-712 signature over (from,to,value,validAfter,validBefore,nonce)
+     * @notice Gasless transfer: any relay may call on behalf of `from`.
+     * @param xPNTsToken  Factory-issued xPNTs token the relay asserts `to` holds.
+     *                    Pass address(0) to rely on SBT path alone.
+     *                    Not included in the EIP-712 signature (gate-check only).
      */
     function transferWithAuthorization(
         address from,
@@ -119,19 +129,36 @@ contract GTokenAuthorization is GToken, EIP712 {
         address xPNTsToken,
         bytes calldata signature
     ) external {
-        _requireValidAuthorization(from, to, validAfter, validBefore, nonce, xPNTsToken);
-        _requireValidSignature(
+        _execute(
             TRANSFER_WITH_AUTHORIZATION_TYPEHASH,
-            from, to, value, validAfter, validBefore, nonce, signature
+            from, to, value, validAfter, validBefore, nonce, xPNTsToken, signature
         );
-
-        _authStates[from][nonce] = AuthorizationState.Used;
-        emit AuthorizationUsed(from, nonce);
-        _transfer(from, to, value);
     }
 
     /**
-     * @notice Cancel an unused authorization so the nonce can never be used.
+     * @notice Gasless transfer where only the recipient may submit the authorization.
+     *         Prevents front-running for atomic contract flows (deposit, wrap, etc.).
+     *         msg.sender must equal `to`.
+     */
+    function receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        address xPNTsToken,
+        bytes calldata signature
+    ) external {
+        if (msg.sender != to) revert CallerMustBeRecipient();
+        _execute(
+            RECEIVE_WITH_AUTHORIZATION_TYPEHASH,
+            from, to, value, validAfter, validBefore, nonce, xPNTsToken, signature
+        );
+    }
+
+    /**
+     * @notice Permanently cancel an unused nonce so it can never be executed.
      *         Must be signed by `authorizer`.
      */
     function cancelAuthorization(
@@ -145,7 +172,9 @@ contract GTokenAuthorization is GToken, EIP712 {
         bytes32 digest = _hashTypedDataV4(
             keccak256(abi.encode(CANCEL_AUTHORIZATION_TYPEHASH, authorizer, nonce))
         );
-        if (digest.recover(signature) != authorizer) revert InvalidSignature();
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError || recovered != authorizer)
+            revert InvalidSignature();
 
         _authStates[authorizer][nonce] = AuthorizationState.Canceled;
         emit AuthorizationCanceled(authorizer, nonce);
@@ -161,35 +190,17 @@ contract GTokenAuthorization is GToken, EIP712 {
         return _authStates[authorizer][nonce];
     }
 
-    // ─── Internal helpers ─────────────────────────────────────────────────
+    // ─── Internal ─────────────────────────────────────────────────────────
 
-    function _requireValidAuthorization(
-        address from,
-        address to,
-        uint256 validAfter,
-        uint256 validBefore,
-        bytes32 nonce,
-        address xPNTsToken
-    ) internal view {
-        // RC-1: window must be > 0 and <= 5 minutes
-        if (validBefore <= validAfter) revert AuthorizationExpired();
-        if (validBefore - validAfter > MAX_AUTH_VALIDITY) revert AuthorizationWindowTooLong();
-        if (block.timestamp <= validAfter)  revert AuthorizationNotYetValid();
-        if (block.timestamp >= validBefore) revert AuthorizationExpired();
-
-        // RC-2: recipient holds mySBT OR a factory-issued xPNTs token
-        bool hasSBT     = mySBT.balanceOf(to) > 0;
-        bool hasXPNTs   = xPNTsToken != address(0)
-                          && factory.isXPNTs(xPNTsToken)
-                          && IERC20(xPNTsToken).balanceOf(to) > 0;
-        if (!hasSBT && !hasXPNTs) revert RecipientNotInProtocol();
-
-        // nonce must be unused
-        if (_authStates[from][nonce] != AuthorizationState.Unused)
-            revert AuthorizationUsedOrCanceled();
-    }
-
-    function _requireValidSignature(
+    /**
+     * @dev Shared execution path for both transfer and receive variants.
+     *      Gas-optimal check order:
+     *        1. time window  (arithmetic only)
+     *        2. nonce        (1 SLOAD)
+     *        3. signature    (ecrecover, ~3k gas)
+     *        4. RC-2         (≤3 external calls — only reached on valid sigs)
+     */
+    function _execute(
         bytes32 typeHash,
         address from,
         address to,
@@ -197,11 +208,37 @@ contract GTokenAuthorization is GToken, EIP712 {
         uint256 validAfter,
         uint256 validBefore,
         bytes32 nonce,
+        address xPNTsToken,
         bytes calldata signature
-    ) internal view {
+    ) internal {
+        // 1. RC-1: time window
+        if (validBefore <= validAfter)                      revert AuthorizationExpired();
+        if (validBefore - validAfter > MAX_AUTH_VALIDITY)   revert AuthorizationWindowTooLong();
+        if (block.timestamp <= validAfter)                  revert AuthorizationNotYetValid();
+        if (block.timestamp >= validBefore)                 revert AuthorizationExpired();
+
+        // 2. Nonce
+        if (_authStates[from][nonce] != AuthorizationState.Unused)
+            revert AuthorizationUsedOrCanceled();
+
+        // 3. Signature — tryRecover unifies all ECDSA failures under InvalidSignature()
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
             typeHash, from, to, value, validAfter, validBefore, nonce
         )));
-        if (digest.recover(signature) != from) revert InvalidSignature();
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError || recovered != from) revert InvalidSignature();
+
+        // 4. RC-2: short-circuit on SBT to avoid unnecessary factory/token calls
+        if (mySBT.balanceOf(to) == 0) {
+            if (
+                xPNTsToken == address(0) ||
+                !factory.isXPNTs(xPNTsToken) ||
+                IERC20(xPNTsToken).balanceOf(to) == 0
+            ) revert RecipientNotInProtocol();
+        }
+
+        _authStates[from][nonce] = AuthorizationState.Used;
+        emit AuthorizationUsed(from, nonce);
+        _transfer(from, to, value);
     }
 }
