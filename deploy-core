@@ -64,7 +64,9 @@ if [ "$ENV" == "anvil" ]; then
     # confirmation when a contract exceeds 24576 bytes, causing CI/non-TTY failures.
     FORGE_FLAGS="$FORGE_FLAGS --disable-code-size-limit"
 else
-    FORGE_FLAGS="$FORGE_FLAGS --timeout 300"
+    # --non-interactive: forge 1.4+ prompts for broadcast confirmation via /dev/tty even
+    # with --broadcast, which blocks non-TTY (CI/background) runs indefinitely.
+    FORGE_FLAGS="$FORGE_FLAGS --timeout 300 --non-interactive"
 fi
 
 # Determine Signer
