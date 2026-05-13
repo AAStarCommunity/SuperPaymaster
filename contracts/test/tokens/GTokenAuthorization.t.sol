@@ -81,7 +81,8 @@ contract GTokenAuthorizationTest is Test {
         factory.registerToken(address(pntsA));
         factory.registerToken(address(pntsB));
 
-        token = new GTokenAuthorization(CAP, address(sbt), address(factory));
+        token = new GTokenAuthorization(CAP, address(factory));
+        token.setMySBT(address(sbt));
         token.mint(alice, AMOUNT);
 
         sbt.setBalance(bob, 1);
@@ -402,5 +403,38 @@ contract GTokenAuthorizationTest is Test {
         assertEq(address(token.mySBT()),    address(sbt));
         assertEq(address(token.factory()),  address(factory));
         assertEq(token.MAX_AUTH_VALIDITY(), 5 minutes);
+    }
+
+    function test_setMySBT_onlyOnce() public {
+        GTokenAuthorization fresh = new GTokenAuthorization(CAP, address(factory));
+        fresh.setMySBT(address(sbt));
+        vm.expectRevert(GTokenAuthorization.SBTAlreadySet.selector);
+        fresh.setMySBT(address(sbt));
+    }
+
+    function test_setMySBT_onlyOwner() public {
+        GTokenAuthorization fresh = new GTokenAuthorization(CAP, address(factory));
+        vm.prank(bob);
+        vm.expectRevert();
+        fresh.setMySBT(address(sbt));
+    }
+
+    function test_rc2_beforeSBTSet_xpntsPathWorks() public {
+        // Deploy token without setting mySBT — RC-2 should still pass via xPNTs
+        GTokenAuthorization fresh = new GTokenAuthorization(CAP, address(factory));
+        fresh.mint(alice, AMOUNT);
+        (uint256 va, uint256 vb) = _w();
+        bytes32 n = bytes32(uint256(90));
+        bytes32 ds = fresh.DOMAIN_SEPARATOR();
+        bytes32 digest = keccak256(abi.encodePacked(
+            "\x19\x01", ds,
+            keccak256(abi.encode(TRANSFER_TYPEHASH, alice, carol, AMOUNT, va, vb, n))
+        ));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
+        fresh.transferWithAuthorization(
+            alice, carol, AMOUNT, va, vb, n, address(pntsA),
+            abi.encodePacked(r, s, v)
+        );
+        assertEq(fresh.balanceOf(carol), AMOUNT);
     }
 }

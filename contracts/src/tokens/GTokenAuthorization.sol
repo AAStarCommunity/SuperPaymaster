@@ -31,6 +31,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  *       Note: balanceOf is an at-execution snapshot; a recipient that briefly
  *       holds xPNTs will pass RC-2. Persistent membership enforcement requires
  *       a registry/lock mechanism (out of scope for this contract).
+ *       If mySBT has not been set yet, RC-2 falls back to xPNTs path only.
  *
  * Execution order (gas-optimal)
  * ─────────────────────────────
@@ -41,8 +42,10 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  *
  * Deployment dependency
  * ─────────────────────
- * Deploy order: Registry → xPNTsFactory → MySBT → GTokenAuthorization
- * xPNTsFactory has no dependency on GToken/GTokenAuthorization — no circular dep.
+ * Deploy order: Registry → xPNTsFactory → GTokenAuthorization → GTokenStaking → MySBT
+ *               → GTokenAuthorization.setMySBT(mysbt)
+ * mySBT is set post-deploy (one-time, owner-only) to avoid circular constructor deps.
+ * factory is immutable — wrong address at deploy is permanent.
  *
  * @dev EIP-712 domain: name="GToken", version="1"
  */
@@ -66,8 +69,9 @@ contract GTokenAuthorization is GToken, EIP712 {
     uint256 public constant MAX_AUTH_VALIDITY = 5 minutes;
 
     // ─── RC-2 ──────────────────────────────────────────────────────────────
-    ISBT          public immutable mySBT;
+    ISBT          public mySBT;              // set once post-deploy via setMySBT()
     IxPNTsFactory public immutable factory;
+    bool          private _mySBTSet;
 
     // ─── Nonce state ───────────────────────────────────────────────────────
     enum AuthorizationState { Unused, Used, Canceled }
@@ -85,22 +89,31 @@ contract GTokenAuthorization is GToken, EIP712 {
     error InvalidSignature();
     error RecipientNotInProtocol();
     error CallerMustBeRecipient();
+    error SBTAlreadySet();
 
     // ─── Constructor ───────────────────────────────────────────────────────
     /**
      * @param cap_      Token hard cap (e.g. 21_000_000 * 1e18)
-     * @param mySBT_    MySBT contract — balanceOf(to) > 0 satisfies RC-2
      * @param factory_  xPNTsFactory — factory.isXPNTs(token) && balanceOf(to) > 0 satisfies RC-2
-     *                  Deploy order: xPNTsFactory must exist before GTokenAuthorization.
      *                  Passing a wrong address here is permanent (immutable).
      */
-    constructor(uint256 cap_, address mySBT_, address factory_)
+    constructor(uint256 cap_, address factory_)
         GToken(cap_)
         EIP712("GToken", "1")
     {
-        require(mySBT_ != address(0) && factory_ != address(0), "GTokenAuth: zero addr");
-        mySBT   = ISBT(mySBT_);
+        require(factory_ != address(0), "GTokenAuth: zero addr");
         factory = IxPNTsFactory(factory_);
+    }
+
+    /**
+     * @notice Set the mySBT contract address (one-time, owner only).
+     *         Call this after MySBT is deployed. Until set, RC-2 falls back to xPNTs path.
+     */
+    function setMySBT(address mySBT_) external onlyOwner {
+        if (_mySBTSet) revert SBTAlreadySet();
+        require(mySBT_ != address(0), "GTokenAuth: zero addr");
+        mySBT = ISBT(mySBT_);
+        _mySBTSet = true;
     }
 
     function version() external pure override returns (string memory) {
@@ -229,7 +242,8 @@ contract GTokenAuthorization is GToken, EIP712 {
         if (err != ECDSA.RecoverError.NoError || recovered != from) revert InvalidSignature();
 
         // 4. RC-2: short-circuit on SBT to avoid unnecessary factory/token calls
-        if (mySBT.balanceOf(to) == 0) {
+        //    If mySBT not yet set, fall through to xPNTs path.
+        if (address(mySBT) == address(0) || mySBT.balanceOf(to) == 0) {
             if (
                 xPNTsToken == address(0) ||
                 !factory.isXPNTs(xPNTsToken) ||
