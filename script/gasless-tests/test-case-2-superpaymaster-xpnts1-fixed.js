@@ -7,6 +7,16 @@
  * paymasterAndData format and allowance checking.
  *
  * Addresses are loaded from deployments/config.sepolia.json
+ *
+ * EXIT CODES — LESSON LEARNED (2026-05-13):
+ *   0 = PASS  — UserOp submitted and confirmed on-chain
+ *   1 = FAIL  — Script ran but test failed (TX reverted, assertion failed)
+ *   2 = SKIP  — Precondition not met (zero balance, network error, etc.)
+ *
+ * Root cause of the old bug: zero-balance path used `return` inside main(), which
+ * caused main().then(() => process.exit(0)) to execute — giving the test runner
+ * exit 0 (PASS) even though no UserOp was submitted. Fix: always use process.exit(2)
+ * for skipped / precondition-not-met cases, NEVER bare `return` from main().
  */
 
 const { ethers } = require('ethers');
@@ -89,8 +99,9 @@ async function main() {
     console.log(`  Allowance: ${ethers.formatUnits(allowance, decimals)} ${symbol}`);
 
     if (balance === 0n) {
-      console.log('  ⚠️  Warning: Zero balance, cannot test transfer\n');
-      return;
+      console.log('  ⚠️  SKIP: Zero token balance — fund TEST_AA_ACCOUNT_ADDRESS_B with aPNTs first.');
+      console.log('  Use: node transfer-tokens.js  (or run ./prepare-test sepolia)\n');
+      process.exit(2);
     }
 
     console.log('\n📝 Step 2: Prepare Transfer CallData');
@@ -163,9 +174,9 @@ async function main() {
     const msg = (error.message || '').toLowerCase();
     const isNet = msg.includes('timeout') || msg.includes('econnreset') || msg.includes('socket hang up') || msg.includes('etimedout');
     if (isNet) {
-      console.warn('\n⚠️  Network error (transient RPC issue):', error.message);
-      console.warn('  Skipping test — not a contract logic failure\n');
-      return;
+      console.warn('\n⚠️  SKIP: Network error (transient RPC issue):', error.message);
+      console.warn('  Not a contract logic failure — re-run manually.\n');
+      process.exit(2);
     }
     console.error('\n❌ Error:', error.message);
     if (error.data) console.error('  Error data:', error.data);
