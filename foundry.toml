@@ -74,3 +74,26 @@ remappings = [
 fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, { access = "read-write", path = "./script" }, { access = "read-write", path = "./" }, { access = "read-write", path = "./script/v3" }]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# ============================================
+# Tokens-only profile (skips paper7 scratch dir)
+# ============================================
+# Usage: forge test --profile tokens
+[profile.tokens]
+src = "contracts/src"
+test = "contracts/test/tokens"
+out = "out"
+libs = ["contracts/lib", "singleton-paymaster/lib"]
+cache_path = "cache"
+solc_version = "0.8.33"
+optimizer = true
+optimizer_runs = 500
+via_ir = true
+evm_version = "cancun"
+remappings = [
+    "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
+    "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
+    "@chainlink/contracts/=contracts/lib/chainlink-brownie-contracts/contracts/",
+    "solady/=contracts/lib/solady/src/",
+    "src/=contracts/src/"
+]
