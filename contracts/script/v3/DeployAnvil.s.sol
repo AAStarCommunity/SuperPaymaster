@@ -9,7 +9,7 @@ import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 // Core Imports
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
-import "src/tokens/GToken.sol";
+import "src/tokens/GTokenAuthorization.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -48,7 +48,7 @@ contract DeployAnvil is Script {
     address entryPointAddr;
     address priceFeedAddr;
 
-    GToken gtoken;
+    GTokenAuthorization gtoken;
     GTokenStaking staking;
     MySBT mysbt;
     Registry registry;
@@ -74,21 +74,28 @@ contract DeployAnvil is Script {
         entryPointAddr = address(new EntryPoint());
 
         console.log("=== Step 1: Deploy Foundation (Scheme B) ===");
-        gtoken = new GToken(21_000_000 * 1e18);
 
-        // Deploy Registry as UUPS proxy first (placeholder initialize)
+        // Deploy Registry as UUPS proxy first (no deps)
         Registry regImpl = new Registry();
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
 
-        // Deploy Staking and MySBT with immutable Registry reference
+        // Deploy xPNTsFactory early — GTokenAuthorization needs factory address (immutable)
+        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SP not deployed yet
+
+        // Deploy GTokenAuthorization (replaces plain GToken)
+        gtoken = new GTokenAuthorization(21_000_000 * 1e18, address(xpntsFactory));
+
+        // Deploy Staking and MySBT with immutable Registry + GToken references
         staking = new GTokenStaking(address(gtoken), deployer, address(registry));
         mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
 
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
         registry.setMySBT(address(mysbt));
+        // Wire MySBT into GTokenAuthorization (one-time, locks RC-2 SBT path)
+        gtoken.setMySBT(address(mysbt));
         // Sync exit fees for ALL operator roles (minStake > 0).
         // ⚠ When adding new operator roles in Registry.initialize(), add them here too.
         bytes32[] memory exitFeeRoles = new bytes32[](5);
@@ -99,8 +106,7 @@ contract DeployAnvil is Script {
         exitFeeRoles[4] = ROLE_KMS;
         registry.syncExitFees(exitFeeRoles);
 
-        console.log("=== Step 2: Deploy Foundation Modules ===");
-        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SuperPaymaster not deployed yet
+        console.log("=== Step 2: (xPNTsFactory already deployed in Step 1) ===");
 
         console.log("=== Step 3: Pre-register Deployer as COMMUNITY ===");
         // CRITICAL: Must register COMMUNITY role BEFORE deploying xPNTs via factory
