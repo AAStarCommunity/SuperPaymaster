@@ -1,640 +1,724 @@
-{
-  "abi": [
-    {
-      "type": "constructor",
-      "inputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "addImplementation",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        },
-        {
-          "name": "implementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "defaultVersion",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "deployPaymaster",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        },
-        {
-          "name": "initData",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "deployPaymasterDeterministic",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        },
-        {
-          "name": "salt",
-          "type": "bytes32",
-          "internalType": "bytes32"
-        },
-        {
-          "name": "initData",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "getImplementation",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "implementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getOperatorByPaymaster",
-      "inputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getPaymasterByOperator",
-      "inputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getPaymasterCount",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "count",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getPaymasterInfo",
-      "inputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "isValid",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getPaymasterList",
-      "inputs": [
-        {
-          "name": "offset",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "limit",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "paymasters",
-          "type": "address[]",
-          "internalType": "address[]"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "hasImplementation",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "exists",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "hasPaymaster",
-      "inputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "implementations",
-      "inputs": [
-        {
-          "name": "",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "operatorByPaymaster",
-      "inputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "owner",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "paymasterByOperator",
-      "inputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "paymasterList",
-      "inputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "predictPaymasterAddress",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        },
-        {
-          "name": "salt",
-          "type": "bytes32",
-          "internalType": "bytes32"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "predicted",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "renounceOwnership",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setDefaultVersion",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "totalDeployed",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "transferOwnership",
-      "inputs": [
-        {
-          "name": "newOwner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "upgradeImplementation",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        },
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "version",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "stateMutability": "pure"
-    },
-    {
-      "type": "event",
-      "name": "DefaultVersionChanged",
-      "inputs": [
-        {
-          "name": "oldVersion",
-          "type": "string",
-          "indexed": false,
-          "internalType": "string"
-        },
-        {
-          "name": "newVersion",
-          "type": "string",
-          "indexed": false,
-          "internalType": "string"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ImplementationAdded",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "indexed": true,
-          "internalType": "string"
-        },
-        {
-          "name": "implementation",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ImplementationUpgraded",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "indexed": true,
-          "internalType": "string"
-        },
-        {
-          "name": "oldImplementation",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "OwnershipTransferred",
-      "inputs": [
-        {
-          "name": "previousOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "PaymasterDeployed",
-      "inputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "paymaster",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "_version",
-          "type": "string",
-          "indexed": false,
-          "internalType": "string"
-        },
-        {
-          "name": "timestamp",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "error",
-      "name": "ERC1167FailedCreateClone",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "ImplementationNotFound",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidImplementation",
-      "inputs": [
-        {
-          "name": "implementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OperatorAlreadyHasPaymaster",
-      "inputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableInvalidOwner",
-      "inputs": [
-        {
-          "name": "owner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableUnauthorizedAccount",
-      "inputs": [
-        {
-          "name": "account",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "PaymasterNotFound",
-      "inputs": [
-        {
-          "name": "paymaster",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ReentrancyGuardReentrantCall",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "VersionAlreadyExists",
-      "inputs": [
-        {
-          "name": "_version",
-          "type": "string",
-          "internalType": "string"
-        }
-      ]
-    }
-  ],
-  "bytecode": "0x6080806040523460755733156062575f8054336001600160a01b0319821681178355916001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a3600180556115aa908161007a8239f35b631e4fbdf760e01b5f525f60045260245ffd5b5f80fdfe60806040526004361015610011575f80fd5b5f3560e01c80630618f10414610f2a5780630cfb14b014610f0d57806314b1c40114610ef05780631798d48214610ec157806341bbe5a814610c6157806354fd4d5014610e5e57806364feab6414610d4a5780636a18943914610d075780636b68389614610ca25780636c583e5914610c61578063715018a614610bfd57806375637505146109a55780637857bce9146108d3578063821ac3fb1461089257806385365cbb146106525780638da5cb5b1461062d578063a87d5a74146105d1578063ad384a9b146103e3578063bde9cb2a146102f6578063ce47d467146102b5578063d125531314610249578063dc2a147214610202578063f2fde38b146101865763f3bcebbd14610121575f80fd5b346101825760203660031901126101825760043567ffffffffffffffff8111610182576001600160a01b0360208061015e81943690600401610fc7565b604051928184925191829101835e8101600281520301902054161515604051908152f35b5f80fd5b34610182576020366003190112610182576001600160a01b036101a761111e565b6101af61154e565b1680156101ef576001600160a01b035f548282198216175f55167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a3005b631e4fbdf760e01b5f525f60045260245ffd5b34610182576020366003190112610182576001600160a01b0361022361111e565b165f52600460205260406001600160a01b03815f20541681519080825215156020820152f35b3461018257604036600319011261018257610268602435600435611298565b6040518091602082016020835281518091526020604084019201905f5b818110610293575050500390f35b82516001600160a01b0316845285945060209384019390920191600101610285565b34610182576020366003190112610182576001600160a01b036102d661111e565b165f52600460205260206001600160a01b0360405f205416604051908152f35b346101825760403660031901126101825760043567ffffffffffffffff811161018257610327903690600401610fc7565b6001600160a01b03604051602081845180838701835e8101600281520301902054169081156103ba5760206055604384604051903060388301526f5af43d82803e903d91602b57fd5bf3ff60248301526014820152733d602d80600a3d3981f3363d3d373d3d3d363d73815260243560588201526037600c820120607882015201206001600160a01b0360405191168152f35b60405163ed4fac3760e01b8152602060048201529081906103df9060248301906110fa565b0390fd5b346101825760603660031901126101825760043567ffffffffffffffff811161018257610414903690600401610fc7565b60443567ffffffffffffffff811161018257610434903690600401610fc7565b9061043d611365565b335f5260036020526001600160a01b0360405f2054166105be57604051602081835180838601835e81016002815203019020546001600160a01b0381161561059c5780763d602d80600a3d3981f3363d3d373d3d3d363d7300000062ffffff6e5af43d82803e903d91602b57fd5bf39360881c16175f526effffffffffffffffffffffffffffff199060781b1617602052602435603760095ff56001600160a01b03811691821561058d5761053e83926104fa60209633836113b4565b335f526003865260405f20846001600160a01b0319825416179055835f526004865260405f206001600160a01b0333166001600160a01b03198254161790556111a2565b610549600754611219565b6007557fa1ff1ed230517376e0a7481a00b4dfc8f2f2e212bccebd933d567bf5640494c06040518061057e339442908361123b565b0390a360018055604051908152f35b6330be1a3d60e21b5f5260045ffd5b60405163ed4fac3760e01b815260206004820152806103df60248201856110fa565b6369e496ad60e01b5f523360045260245ffd5b34610182576020366003190112610182576001600160a01b036105f261111e565b16805f5260046020526001600160a01b0360405f205416801561061a57602090604051908152f35b50630a36f2b760e31b5f5260045260245ffd5b34610182575f3660031901126101825760206001600160a01b035f5416604051908152f35b346101825760203660031901126101825760043567ffffffffffffffff811161018257610683903690600401610fc7565b61068b61154e565b6001600160a01b03604051602081845180838701835e810160028152030190205416156103ba576106ba611043565b81519167ffffffffffffffff831161087e576106d760065461100b565b601f8111610810575b50602092601f81116001146107685761074a929181610758927ff2d0bf91625d9d6f0875b7d42914fd44597c078083d98cb3619c009136be9f6a965f9161075d575b508160011b915f199060031b1c1916176006555b6040519384936040855260408501906110fa565b9083820360208501526110fa565b0390a1005b905082015187610722565b601f19811660065f527ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f905f5b8181106107f857508261074a9594927ff2d0bf91625d9d6f0875b7d42914fd44597c078083d98cb3619c009136be9f6a9761075895600194106107e0575b5050811b01600655610736565b8401515f1960f88460031b161c1916905587806107d3565b84870151835560209687019660019093019201610795565b838111156106e05760065f52601f840160051c9060208510610876575b601f82910160051c03905f5b8281106108475750506106e0565b5f8282017ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f0155600101610839565b5f915061082d565b634e487b7160e01b5f52604160045260245ffd5b3461018257602036600319011261018257600435600554811015610182576001600160a01b036108c3602092611176565b90549060031b1c16604051908152f35b34610182576108e136611134565b906108ea61154e565b6001600160a01b03821691821590811561099b575b5061098857604051906001600160a01b03815192602081818501958087835e81016002815203019020541691821561059c5790610962916020604051809284518091835e81016002815203019020846001600160a01b0319825416179055611257565b7f2255c4b39068cc7208e9c29b0fc9a3d106b3a41ada38999656d54aa44a6dc9e85f80a4005b50630c76093760e01b5f5260045260245ffd5b90503b15836108ff565b34610182576109b336611134565b6109bb61154e565b6001600160a01b038116908115908115610bf3575b50610be1576040516001600160a01b03835191602081818701948086835e810160028152030190205416610bbf576020604051809285518091835e81016002815203019020816001600160a01b031982541617905560065491610a328361100b565b15610a67575b610a4190611257565b7f9aa81ca4174435962ad1571b0a59c4440cf6de4a12ba4ed96d6fdf5d346742785f80a3005b80519267ffffffffffffffff841161087e57610a829061100b565b601f8111610b51575b50602092601f8111600114610ace5780610a4193945f91610ac3575b508160011b915f199060031b1c1916176006555b829150610a38565b905082015185610aa7565b601f19811660065f527ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f905f5b818110610b39575090610a419495836001949310610b21575b5050811b01600655610abb565b8401515f1960f88460031b161c191690558580610b14565b84870151835560209687019660019093019201610afb565b83811115610a8b5760065f52601f840160051c9060208510610bb7575b601f82910160051c03905f5b828110610b88575050610a8b565b5f8282017ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f0155600101610b7a565b5f9150610b6e565b60405163b94f32dd60e01b815260206004820152806103df60248201866110fa565b630c76093760e01b5f5260045260245ffd5b90503b15836109d0565b34610182575f36600319011261018257610c1561154e565b5f805473ffffffffffffffffffffffffffffffffffffffff19811682556001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a3005b34610182576020366003190112610182576001600160a01b03610c8261111e565b165f52600360205260206001600160a01b0360405f205416604051908152f35b346101825760203660031901126101825760043567ffffffffffffffff811161018257610cd3903690600401610fc7565b6001600160a01b03604051602081845180838701835e8101600281520301902054169081156103ba57602082604051908152f35b34610182576020366003190112610182576001600160a01b03610d2861111e565b165f52600360205260206001600160a01b0360405f2054161515604051908152f35b346101825760403660031901126101825760043567ffffffffffffffff811161018257610d7b903690600401610fc7565b60243567ffffffffffffffff811161018257610d9b903690600401610fc7565b90610da4611365565b335f5260036020526001600160a01b0360405f2054166105be57604051602081835180838601835e81016002815203019020546001600160a01b0381161561059c5780763d602d80600a3d3981f3363d3d373d3d3d363d7300000062ffffff6e5af43d82803e903d91602b57fd5bf39360881c16175f526effffffffffffffffffffffffffffff199060781b1617602052603760095ff06001600160a01b03811691821561058d5761053e83926104fa60209633836113b4565b34610182575f36600319011261018257610ebd604051610e7f604082610f89565b601681527f5061796d6173746572466163746f72792d312e302e320000000000000000000060208201526040519182916020835260208301906110fa565b0390f35b34610182575f36600319011261018257610ebd610edc611043565b6040519182916020835260208301906110fa565b34610182575f366003190112610182576020600554604051908152f35b34610182575f366003190112610182576020600754604051908152f35b346101825760203660031901126101825760043567ffffffffffffffff8111610182576001600160a01b03602080610f6781943690600401610fc7565b604051928184925191829101835e810160028152030190205416604051908152f35b90601f8019910116810190811067ffffffffffffffff82111761087e57604052565b67ffffffffffffffff811161087e57601f01601f191660200190565b81601f8201121561018257602081359101610fe182610fab565b92610fef6040519485610f89565b8284528282011161018257815f92602092838601378301015290565b90600182811c92168015611039575b602083101461102557565b634e487b7160e01b5f52602260045260245ffd5b91607f169161101a565b604051905f82600654916110568361100b565b80835292600181169081156110db575060011461107c575b61107a92500383610f89565b565b5060065f90815290917ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f5b8183106110bf57505090602061107a9282010161106e565b60209193508060019154838589010152019101909184926110a7565b6020925061107a94915060ff191682840152151560051b82010161106e565b805180835260209291819084018484015e5f828201840152601f01601f1916010190565b600435906001600160a01b038216820361018257565b6040600319820112610182576004359067ffffffffffffffff82116101825761115f91600401610fc7565b906024356001600160a01b03811681036101825790565b60055481101561118e5760055f5260205f2001905f90565b634e487b7160e01b5f52603260045260245ffd5b6005546801000000000000000081101561087e576001810160055560055481101561118e5760055f527f036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db001805473ffffffffffffffffffffffffffffffffffffffff19166001600160a01b03909216919091179055565b5f1981146112275760010190565b634e487b7160e01b5f52601160045260245ffd5b9291906112526020916040865260408601906110fa565b930152565b602090604051918183925191829101835e81015f815203902090565b67ffffffffffffffff811161087e5760051b60200190565b9190820180921161122757565b91906005549081841015611349576112b0908461128b565b90808211611341575b50828103908111611227576112cd81611273565b906112db6040519283610f89565b808252601f196112ea82611273565b0136602084013781935f5b8281106113025750505050565b6001600160a01b0361131c611317838561128b565b611176565b90549060031b1c1690845181101561118e5760019160208260051b87010152016112f5565b90505f6112b9565b5050905060405161135b602082610f89565b5f81525f36813790565b600260015414611376576002600155565b633ee5aeb560e01b5f5260045ffd5b3d156113af573d9061139682610fab565b916113a46040519384610f89565b82523d5f602084013e565b606090565b90918051156114f9575f80826020809451910182865af1611413602d6113d8611385565b6040519485916c024b734ba103330b4b632b21d1609d1b828401528051918291018484015e81015f838201520301601f198101845283610f89565b156114d557505f80916040516020810190638da5cb5b60e01b82526004815261143d602482610f89565b51915afa9061144a611385565b8261149e575b50501561145957565b60405162461bcd60e51b815260206004820152601760248201527f4f776e6572206e6f742073657420636f72726563746c790000000000000000006044820152606490fd5b9091506020818051810103126101825760200151906001600160a01b038216809203610182576001600160a01b0316145f80611450565b60405162461bcd60e51b8152602060048201529081906103df9060248301906110fa565b60405162461bcd60e51b815260206004820152602760248201527f696e69744461746120726571756972656420666f7220736563757265206465706044820152661b1bde5b595b9d60ca1b6064820152608490fd5b6001600160a01b035f5416330361156157565b63118cdaa760e01b5f523360045260245ffdfea2646970667358221220d476a5d830c40adc42b95f4a499de1b4d52fc41934badfc8b086adce59a8c85a64736f6c63430008210033"
-}
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "addImplementation",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "implementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "defaultVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "deployPaymaster",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "initData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deployPaymasterDeterministic",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "initData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getImplementation",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getOperatorByPaymaster",
+    "inputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymasterByOperator",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymasterCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "count",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymasterInfo",
+    "inputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "isValid",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPaymasterList",
+    "inputs": [
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "paymasters",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasImplementation",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasPaymaster",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "implementations",
+    "inputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "operatorByPaymaster",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paymasterByOperator",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paymasterList",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "predictPaymasterAddress",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "predicted",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IRegistry"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setDefaultVersion",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRegistry",
+    "inputs": [
+      {
+        "name": "_registry",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "totalDeployed",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeImplementation",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "event",
+    "name": "DefaultVersionChanged",
+    "inputs": [
+      {
+        "name": "oldVersion",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "newVersion",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ImplementationAdded",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "indexed": true,
+        "internalType": "string"
+      },
+      {
+        "name": "implementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ImplementationUpgraded",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "indexed": true,
+        "internalType": "string"
+      },
+      {
+        "name": "oldImplementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PaymasterDeployed",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "paymaster",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "_version",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RegistryUpdated",
+    "inputs": [
+      {
+        "name": "oldRegistry",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newRegistry",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ERC1167FailedCreateClone",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ImplementationNotFound",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InitFailed",
+    "inputs": [
+      {
+        "name": "returnData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidImplementation",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidInitData",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotRegisteredCommunity",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotRegisteredPaymasterAOA",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OperatorAlreadyHasPaymaster",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnerMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PaymasterNotFound",
+    "inputs": [
+      {
+        "name": "paymaster",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "VersionAlreadyExists",
+    "inputs": [
+      {
+        "name": "_version",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  }
+]
