@@ -1,6 +1,8 @@
 # SuperPaymaster
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![arXiv](https://img.shields.io/badge/arXiv-2605.05774-b31b1b.svg)](https://arxiv.org/abs/2605.05774)
+
 **Decentralized Payment & Gas Sponsorship Infrastructure for ERC-4337**
 
 **[English](#english)** | **[中文](#chinese)**
@@ -14,6 +16,8 @@
 ## What is SuperPaymaster?
 
 SuperPaymaster is a **multi-mode payment infrastructure** for the ERC-4337 Account Abstraction ecosystem. It goes beyond simple gas sponsorship — combining gasless transactions, x402 resource payments, micropayment channels, and AI agent economy into a unified on-chain settlement layer.
+
+> **Research paper**: Huifeng Jiao, Nathapon Udomlertsakul. *"SuperPaymaster: Eliminating Centralized Signer Authority via Asset-Oriented Abstraction to Reconcile Usability and Decentralization in Account Abstraction"* — [arXiv:2605.05774](https://arxiv.org/abs/2605.05774). Introduces Asset-Oriented Abstraction (AOA), anchoring sponsorship authority in on-chain Gas Cards instead of off-chain signers; ~49% gas reduction vs. commercial baselines on Optimism Mainnet.
 
 ### Who is it for?
 
@@ -346,6 +350,8 @@ See [NOTICE](./NOTICE) · [TRADEMARK.md](./TRADEMARK.md) · [LICENSE-zh.md](./LI
 ## SuperPaymaster 是什么？
 
 SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**。它不仅仅是 Gas 赞助——而是将无 Gas 交易、x402 资源支付、微支付通道和 AI Agent 经济统一到一个链上结算层中。
+
+> **研究论文**: Huifeng Jiao, Nathapon Udomlertsakul. *"SuperPaymaster: Eliminating Centralized Signer Authority via Asset-Oriented Abstraction to Reconcile Usability and Decentralization in Account Abstraction"* — [arXiv:2605.05774](https://arxiv.org/abs/2605.05774)。提出**资产导向抽象 (AOA)**，将 Gas 赞助权限锚定在链上 Gas Card 而非链下签名服务；在 Optimism 主网相比商业基线降低约 49% gas 成本。
 
 ### 面向谁？
 
