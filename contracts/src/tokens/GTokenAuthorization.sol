@@ -5,6 +5,7 @@ import "./GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/EIP712.sol";
 import { ISBT } from "src/interfaces/ISBT.sol";
+import { IxPNTsFactory } from "src/interfaces/IxPNTsFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -13,11 +14,18 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  *         Two risk controls applied on every authorization:
  *           1. Validity window capped at MAX_AUTH_VALIDITY (5 min) — limits
  *              the attack surface when a signature is intercepted.
- *           2. Recipient must hold mySBT or aPNTs — keeps GToken transfers
- *              within the protocol ecosystem (registered users or aPNTs holders).
+ *           2. Recipient must hold mySBT or any xPNTs token issued by the
+ *              registered factory — covers the entire protocol ecosystem
+ *              (all communities, not just a single aPNTs address).
  *
- * @dev Inherits GToken; compiled into a single contract — no cross-contract call
- *      overhead vs. writing the logic directly in GToken.sol.
+ * RC-2 detail: relay passes `xPNTsToken` (the specific community token the
+ * recipient holds). The contract verifies factory.isXPNTs(xPNTsToken) and
+ * balanceOf(to) > 0. `xPNTsToken` is NOT included in the EIP-712 signature
+ * because it is only a gate-check parameter — it cannot redirect funds or
+ * change the transfer beneficiary (to/value are signature-bound).
+ *
+ * @dev Inherits GToken; compiled into a single contract — no cross-contract
+ *      call overhead vs. writing the logic directly in GToken.sol.
  *
  * EIP-712 domain: name="GToken", version="1"
  *
@@ -40,8 +48,8 @@ contract GTokenAuthorization is GToken, EIP712 {
     uint256 public constant MAX_AUTH_VALIDITY = 5 minutes;
 
     // ─── Risk Control 2 ────────────────────────────────────────────────────
-    ISBT   public immutable mySBT;
-    IERC20 public immutable aPNTs;
+    ISBT          public immutable mySBT;
+    IxPNTsFactory public immutable factory;  // all xPNTs tokens issued by this factory qualify
 
     // ─── Nonce state ───────────────────────────────────────────────────────
     enum AuthorizationState { Unused, Used, Canceled }
@@ -61,17 +69,18 @@ contract GTokenAuthorization is GToken, EIP712 {
 
     // ─── Constructor ───────────────────────────────────────────────────────
     /**
-     * @param cap_   Token hard cap (same as GToken, e.g. 21_000_000 * 1e18)
-     * @param mySBT_ MySBT contract address — balanceOf(to) > 0 satisfies RC-2
-     * @param aPNTs_ aPNTs ERC-20 address — balanceOf(to) > 0 satisfies RC-2
+     * @param cap_      Token hard cap (e.g. 21_000_000 * 1e18)
+     * @param mySBT_    MySBT contract — balanceOf(to) > 0 satisfies RC-2
+     * @param factory_  xPNTsFactory — any token where factory.isXPNTs(token)
+     *                  and balanceOf(to) > 0 satisfies RC-2
      */
-    constructor(uint256 cap_, address mySBT_, address aPNTs_)
+    constructor(uint256 cap_, address mySBT_, address factory_)
         GToken(cap_)
         EIP712("GToken", "1")
     {
-        require(mySBT_ != address(0) && aPNTs_ != address(0), "GTokenAuth: zero addr");
-        mySBT = ISBT(mySBT_);
-        aPNTs = IERC20(aPNTs_);
+        require(mySBT_ != address(0) && factory_ != address(0), "GTokenAuth: zero addr");
+        mySBT   = ISBT(mySBT_);
+        factory = IxPNTsFactory(factory_);
     }
 
     function version() external pure override returns (string memory) {
@@ -89,13 +98,16 @@ contract GTokenAuthorization is GToken, EIP712 {
      *         Can be called by any relay — `from` never pays gas.
      *
      * @param from        Token owner (signer)
-     * @param to          Recipient — must hold mySBT or aPNTs (RC-2)
+     * @param to          Recipient — must hold mySBT or a factory-issued xPNTs (RC-2)
      * @param value       Amount to transfer
-     * @param validAfter  Unix timestamp: authorization not valid before this
-     * @param validBefore Unix timestamp: authorization expires at this time
+     * @param validAfter  Unix timestamp: not valid before this (0 = immediate)
+     * @param validBefore Unix timestamp: expires at this time
      *                    (validBefore - validAfter <= 5 min enforced by RC-1)
      * @param nonce       Random bytes32 chosen by the signer (single-use)
-     * @param signature   EIP-712 signature over the authorization struct
+     * @param xPNTsToken  The specific xPNTs token the relay claims `to` holds.
+     *                    Pass address(0) to skip the xPNTs path (SBT path only).
+     *                    Not included in the EIP-712 signature — see contract docs.
+     * @param signature   EIP-712 signature over (from,to,value,validAfter,validBefore,nonce)
      */
     function transferWithAuthorization(
         address from,
@@ -104,9 +116,10 @@ contract GTokenAuthorization is GToken, EIP712 {
         uint256 validAfter,
         uint256 validBefore,
         bytes32 nonce,
+        address xPNTsToken,
         bytes calldata signature
     ) external {
-        _requireValidAuthorization(from, to, validAfter, validBefore, nonce);
+        _requireValidAuthorization(from, to, validAfter, validBefore, nonce, xPNTsToken);
         _requireValidSignature(
             TRANSFER_WITH_AUTHORIZATION_TYPEHASH,
             from, to, value, validAfter, validBefore, nonce, signature
@@ -119,7 +132,7 @@ contract GTokenAuthorization is GToken, EIP712 {
 
     /**
      * @notice Cancel an unused authorization so the nonce can never be used.
-     *         Must be called by the authorizer (signed by `authorizer`).
+     *         Must be signed by `authorizer`.
      */
     function cancelAuthorization(
         address authorizer,
@@ -155,21 +168,25 @@ contract GTokenAuthorization is GToken, EIP712 {
         address to,
         uint256 validAfter,
         uint256 validBefore,
-        bytes32 nonce
+        bytes32 nonce,
+        address xPNTsToken
     ) internal view {
-        // RC-1: window must be <= 5 minutes
+        // RC-1: window must be > 0 and <= 5 minutes
         if (validBefore <= validAfter) revert AuthorizationExpired();
         if (validBefore - validAfter > MAX_AUTH_VALIDITY) revert AuthorizationWindowTooLong();
         if (block.timestamp <= validAfter)  revert AuthorizationNotYetValid();
         if (block.timestamp >= validBefore) revert AuthorizationExpired();
 
-        // RC-2: recipient must be in protocol (holds mySBT or aPNTs)
-        if (mySBT.balanceOf(to) == 0 && aPNTs.balanceOf(to) == 0)
-            revert RecipientNotInProtocol();
+        // RC-2: recipient holds mySBT OR a factory-issued xPNTs token
+        bool hasSBT     = mySBT.balanceOf(to) > 0;
+        bool hasXPNTs   = xPNTsToken != address(0)
+                          && factory.isXPNTs(xPNTsToken)
+                          && IERC20(xPNTsToken).balanceOf(to) > 0;
+        if (!hasSBT && !hasXPNTs) revert RecipientNotInProtocol();
 
         // nonce must be unused
-        AuthorizationState state = _authStates[from][nonce];
-        if (state != AuthorizationState.Unused) revert AuthorizationUsedOrCanceled();
+        if (_authStates[from][nonce] != AuthorizationState.Unused)
+            revert AuthorizationUsedOrCanceled();
     }
 
     function _requireValidSignature(
