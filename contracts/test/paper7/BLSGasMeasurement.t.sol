@@ -12,8 +12,8 @@ pragma solidity ^0.8.23;
  *   forge test --match-contract BLSGasMeasurement -vv --fork-url $SEPOLIA_RPC_URL
  *
  * Deployed (Sepolia v5.3.2, 2026-05-12):
- *   BLSAggregator : 0x01E18f6460d1e4581E2c7Dd3A65e3eF26e962F16
- *   DVTValidator  : 0x70a06AC908e3589B0B9DC35D657D96Fa1F0Fb1f1
+ *   BLSAggregator : 0x12Ae250EF63adCEF487B5679b917011D508687AB
+ *   DVTValidator  : 0x6b131ac781Adea7785d4DFfF612E5A26B37F0D0d
  *
  * grep results: forge test --match-contract BLSGasMeasurement -vv 2>&1 | grep PAPER7
  */
@@ -67,8 +67,8 @@ contract BLSGasMeasurement is Test {
     uint256 constant GAS_PAIRING_BASE  = 115_000;
     uint256 constant GAS_PAIRING_PER   = 23_000;
 
-    address constant SEPOLIA_BLS = 0x01E18f6460d1e4581E2c7Dd3A65e3eF26e962F16;
-    address constant SEPOLIA_DVT = 0x70a06AC908e3589B0B9DC35D657D96Fa1F0Fb1f1;
+    address constant SEPOLIA_BLS = 0x12Ae250EF63adCEF487B5679b917011D508687AB;
+    address constant SEPOLIA_DVT = 0x6b131ac781Adea7785d4DFfF612E5A26B37F0D0d;
 
     BLSAggregator         bls;
     DVTValidator          dvt;
