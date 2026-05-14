@@ -135,62 +135,74 @@ Ran 72 test suites in 489.23ms (464.97ms CPU time)
 
 ## 六、E2E 测试结果（Sepolia 链上）
 
-**运行时间**: 2026-05-13 22:43 CST  
-**前置准备**: `./prepare-test sepolia` + `RegisterEnduser.s.sol` + `transfer-tokens.js`  
-**结果**: **21/24 通过，3 失败**
+### 初次运行（2026-05-13 22:43 CST）
 
-### 通过的测试（21）
+**结果**: 21/24 通过，3 失败（原因为 mempool 限流 + 脚本 bug，见下方复测）
 
-| 组 | 测试名 | 状态 |
-|----|--------|------|
-| Preflight | Check Contracts | ✅ PASS |
-| Preflight | Check Balances | ✅ PASS |
-| A1 | Registry Roles | ✅ PASS |
-| A2 | Registry Queries | ✅ PASS |
-| B1 | Operator Config | ✅ PASS |
-| B2 | Operator Deposit/Withdraw | ✅ PASS |
-| C1 | SuperPaymaster Negative Cases | ✅ PASS |
-| C2 | PaymasterV4 Negative Cases | ✅ PASS |
-| D1 | Reputation Rules | ✅ PASS |
-| D2 | Credit Tiers | ✅ PASS |
-| E1 | Pricing & Oracle | ✅ PASS |
-| E2 | Protocol Fees | ✅ PASS |
-| F1 | Staking Queries | ✅ PASS |
-| G1 | Reputation-Gated Sponsorship | ✅ PASS |
-| G2 | Agent Identity Sponsorship (ERC-8004) | ✅ PASS |
-| H1 | DVT & BLS Aggregator Queries | ✅ PASS |
-| H2 | ReputationSystem Community Scoring & BLS Sync | ✅ PASS |
-| **Gasless** | **PaymasterV4 真实 gasless 交易** | ✅ PASS |
-| **Gasless** | **SuperPaymaster + xPNTs1 (aPNTs) 真实 gasless 交易** | ✅ PASS |
-| **Gasless** | **SuperPaymaster + xPNTs2 (PNTs) 真实 gasless 交易** | ✅ PASS |
-| x402 | EIP-3009 Settlement | ✅ PASS |
+### 复测（2026-05-14 mempool 冷却后）
 
-### 失败的测试（3）及原因
+**结果**: ✅ **24/24 全部通过，0 失败**
 
-| 组 | 测试名 | 失败原因 | 是否影响上线 |
-|----|--------|---------|-------------|
-| F2 | Slash History | `slashOperator(WARNING, 0)` TX 失败：in-flight tx limit + slash 计数未增加 (8步中5步失败) | ⚠️ 非核心路径，slash 功能本身存在（H2 BLS slash 通过），测试账户限流问题 |
-| G3 | Credit Tier Escalation | 17/20 步通过，3步失败（信用额度升降级边界条件）| ⚠️ 轻微，credit tier 基础功能正常（D2通过） |
-| MicroPaymentChannel | Open/Settle/Close | `microPaymentChannel address missing from config.sepolia.json` | ℹ️ 未部署：MPC 是 V5.x 特性，本次未纳入部署范围 |
+| 组 | 测试名 | 状态 | 说明 |
+|----|--------|------|------|
+| Preflight | Check Contracts | ✅ PASS | |
+| Preflight | Check Balances | ✅ PASS | |
+| A1 | Registry Roles | ✅ PASS | |
+| A2 | Registry Queries | ✅ PASS | |
+| B1 | Operator Config | ✅ PASS | |
+| B2 | Operator Deposit/Withdraw | ✅ PASS | |
+| C1 | SuperPaymaster Negative Cases | ✅ PASS | |
+| C2 | PaymasterV4 Negative Cases | ✅ PASS | |
+| D1 | Reputation Rules | ✅ PASS | |
+| D2 | Credit Tiers | ✅ PASS | |
+| E1 | Pricing & Oracle | ✅ PASS | |
+| E2 | Protocol Fees | ✅ PASS | |
+| F1 | Staking Queries | ✅ PASS | |
+| **F2** | **Slash History** | ✅ **PASS** | 复测 8/8，初次失败原因：mempool 限流 |
+| G1 | Reputation-Gated Sponsorship | ✅ PASS | |
+| G2 | Agent Identity Sponsorship (ERC-8004) | ✅ PASS | |
+| **G3** | **Credit Tier Escalation** | ✅ **PASS** | 复测 18/18，初次失败原因：脚本 exit-code bug |
+| H1 | DVT & BLS Aggregator Queries | ✅ PASS | |
+| H2 | ReputationSystem Community Scoring & BLS Sync | ✅ PASS | |
+| **Gasless** | **PaymasterV4 真实 gasless 交易** | ✅ PASS | TX: `0x20c99e37...` |
+| **Gasless** | **SuperPaymaster + xPNTs1 (aPNTs) 真实 gasless 交易** | ✅ PASS | TX: `0xdd46b9e0...` |
+| **Gasless** | **SuperPaymaster + xPNTs2 (PNTs) 真实 gasless 交易** | ✅ PASS | TX: `0x9ddd0c08...` |
+| **MicroPaymentChannel** | **Open / Settle / Close** | ✅ **PASS** | TX: `0x308180b4...` |
+| x402 | EIP-3009 Settlement | ✅ PASS | |
 
 ---
 
 ## 七、真实 Gasless 交易测试详情
 
 ### Test Case 1: PaymasterV4 + aPNTs
-- **Paymaster**: `0x35deFe84539e88960cF35784a6e370B2afe6d484`
+- **Paymaster**: `0x3e3ae35c545E5fc0E7746E67F21f5cf1230930A8`
 - **Token**: aPNTs `0x6859dC0b5ee1CcE829673161B7a3550CC4A25E48`
-- **结果**: ✅ PASS — 链上 AA 交易成功执行，gas 由 PaymasterV4 用 aPNTs 代付
+- **Sender AA**: `0xECD9C07f648B09CFb78906302822Ec52Ab87dd70`
+- **TX**: [`0x20c99e37fa82630d7e79401a4cb3fa5667f243d9e20e081249bde3973f849c14`](https://sepolia.etherscan.io/tx/0x20c99e37fa82630d7e79401a4cb3fa5667f243d9e20e081249bde3973f849c14)
+- **Gas 用量**: 412,177（估算）
+- **结果**: ✅ PASS — AA 账户成功无 ETH 转账 1 aPNTs，gas 由 PaymasterV4 用 aPNTs 代付
 
 ### Test Case 2: SuperPaymaster + aPNTs (xPNTs1)
 - **Paymaster**: SuperPaymaster `0x506962D17AEA6E7A15fd3479D8c4E2ABBBF91112`
 - **Token**: aPNTs `0x6859dC0b5ee1CcE829673161B7a3550CC4A25E48`
+- **Sender AA**: `0x179Faf25600c01DBFcEf7971f15DcFa3FbE5d31C`
+- **TX**: [`0xdd46b9e0beeb1fbf62ed0728a2367faf57cd6683e8da28f1b20f46163b3fb8a1`](https://sepolia.etherscan.io/tx/0xdd46b9e0beeb1fbf62ed0728a2367faf57cd6683e8da28f1b20f46163b3fb8a1)
+- **Gas 用量**: 581,836（估算）
 - **结果**: ✅ PASS — 路由到 AAStar operator，gas 由 SuperPaymaster 用 aPNTs 代付
 
 ### Test Case 3: SuperPaymaster + PNTs (xPNTs2)
 - **Paymaster**: SuperPaymaster `0x506962D17AEA6E7A15fd3479D8c4E2ABBBF91112`
 - **Token**: PNTs `0xAc57F61ad917d8D9325cB5388B7Ec307d8644eEa`
+- **Sender AA**: `0xb78ef5C8DD059ABa48b65c8069641f30BBf0A1ED`
+- **TX**: [`0x9ddd0c087cb1797f2cd06af3e364daf3e0e925b570b432ce81cdf97e385e149e`](https://sepolia.etherscan.io/tx/0x9ddd0c087cb1797f2cd06af3e364daf3e0e925b570b432ce81cdf97e385e149e)
+- **Gas 用量**: 562,785（估算）
 - **结果**: ✅ PASS — 路由到 Mycelium operator，gas 由 SuperPaymaster 用 PNTs 代付
+
+### MicroPaymentChannel: Open / Settle / Close
+- **合约**: MicroPaymentChannel（V5.x 流式支付）
+- **TX (Close)**: [`0x308180b4a7dbfa6ef6a1e5a7e1455bec8fccea279e03fe5de2ac13bc9c376e52`](https://sepolia.etherscan.io/tx/0x308180b4a7dbfa6ef6a1e5a7e1455bec8fccea279e03fe5de2ac13bc9c376e52)
+- **结算金额**: 7 aPNTs，退款 3 aPNTs
+- **结果**: ✅ PASS — Open → 中途 Settle → Close 全流程验证，finalization 保护有效
 
 ---
 
@@ -228,7 +240,28 @@ Ran 72 test suites in 489.23ms (464.97ms CPU time)
 | PR #196 | 本次部署脚本 + 配置更新（待 merge） |
 | commit `f6a7c48b` | docs: 2026-05-13 安全扫描发现（v5.4-todo Section 8） |
 | commit `4ea69e46` | feat(deploy): Sepolia 重新部署 + verify-all 修复 |
+| commit `f5b967f4` | fix(e2e-tests): 修复 gasless 测试 false PASS + 新增 setup-gasless.js 前置检查脚本 |
 
 ---
 
-*生成时间: 2026-05-13 | 环境: Sepolia Testnet (Chain ID: 11155111)*
+## 十一、E2E 测试脚本改进（2026-05-14）
+
+### 根本问题（已修复）
+`test-case-1/2/3` 在 AA 账户余额为零时，使用 `return` 退出 async `main()`，导致
+`main().then(() => process.exit(0))` 执行，对测试运行器产生虚假 exit 0（PASS）。
+三个 gasless 测试在 2026-05-13 初次记录中均为"false PASS"——实际 UserOp 未提交。
+
+### 修复内容
+- **exit code 约定**：0=PASS，1=FAIL，2=SKIP（前置条件未满足）
+- 所有早退出路径改为 `process.exit(2)`
+- `run-all-e2e-tests.sh`：新增 SKIP 分支（exit 2 → 黄色 SKIPPED）
+- **`setup-gasless.js`（新文件）**：幂等前置检查，自动修复：
+  - SuperPaymaster 价格缓存过期 → 调用 `updatePrice()`
+  - PaymasterV4 价格缓存过期 → 调用 `setCachedPrice(price, now-60)`
+    （PaymasterV4 存的是 Chainlink `updatedAt` 而非 `block.timestamp`，须用 `setCachedPrice` 才能真正刷新）
+  - PaymasterV4 代币存款不足 → 自动 `depositFor(AA_A, aPNTs, 500)`
+  - SuperPaymaster operator 余额不足 → 自动 `deposit(1000 aPNTs)`
+
+---
+
+*生成时间: 2026-05-13 | 复测更新: 2026-05-14 | 环境: Sepolia Testnet (Chain ID: 11155111)*
