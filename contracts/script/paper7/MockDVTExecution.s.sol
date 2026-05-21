@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
-./**
+/**
  * @title MockDVTExecution
  * @notice Paper7 Step 2 — Execute DVT reputation proposals on-chain for gas measurement
  *
@@ -50,7 +50,7 @@ contract MockDVTExecution is Script {
         uint256[] memory sizes = new uint256[](4);
         sizes[0]=1; sizes[1]=10; sizes[2]=50; sizes[3]=100;
         bytes memory proof = _proof(1);
-        uint256 epoch = block.timestamp . 3600;
+        uint256 epoch = block.timestamp / 3600;
 
         vm.startBroadcast(pk);
         for (uint256 b = 0; b < sizes.length; b++) {

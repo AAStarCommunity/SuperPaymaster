@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
-./**
+/**
  * @title CollectPaper7Gas
  * @notice Paper7 Step 3 — Read-only report of all gas data
  *

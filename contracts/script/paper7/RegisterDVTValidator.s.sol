@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
 
-./**
+/**
  * @title RegisterDVTValidator
  * @notice Paper7 Step 1 — Register deployer as DVT validator on Sepolia/Mainnet
  *
@@ -27,7 +27,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 contract RegisterDVTValidator is Script {
 
-    .// BLS12-381 G1 generator (EIP-2537 uncompressed, 4x bytes32)
+    // BLS12-381 G1 generator (EIP-2537 uncompressed, 4x bytes32)
     function _g1Gen() internal pure returns (BLS.G1Point memory p) {
         p.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
         p.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
@@ -79,11 +79,16 @@ contract RegisterDVTValidator is Script {
             console.log("    validator added");
         } else { console.log("[3] already validator"); }
 
-        if (bls.defaultThreshold() != 1) {
-            console.log("[4] setThreshold(1)...");
-            bls.setMinThreshold(1);
-            bls.setDefaultThreshold(1);
-        } else { console.log("[4] threshold already 1"); }
+        // minThreshold floor is 2 (contract enforced), chain value is 3.
+        // For paper7 gas measurement, defaultThreshold just needs to be >= minThreshold.
+        // executeWithProof uses zero BLS sig (expected revert), threshold doesn't affect gas.
+        uint256 curMin = bls.minThreshold();
+        uint256 curDef = bls.defaultThreshold();
+        if (curDef > curMin) {
+            console.log("[4] setDefaultThreshold to minThreshold...");
+            bls.setDefaultThreshold(curMin);
+            console.log("    defaultThreshold set to", curMin);
+        } else { console.log("[4] threshold already at minimum, skip"); }
 
         if (!keyActive) {
             console.log("[5] registerBLSPublicKey(slot=1, G1_GEN)...");
