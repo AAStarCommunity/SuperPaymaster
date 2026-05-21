@@ -94,59 +94,65 @@ Step 3: AirAccount 侧记录（可选，本地可见性）
 
 ## 3. 兼容性问题与现有代码 Gap
 
-### 3.1 关键接口不匹配（必须修复）
+### 3.1 接口不匹配分析（SuperPaymaster 不需要改）
 
-**问题**：SuperPaymaster 调用 `IAgentIdentityRegistry.isRegisteredAgent(account)`，但 ERC-8004 官方合约**没有这个函数**，只有 ERC-721 的 `balanceOf(account)`。
+**问题表象**：SuperPaymaster 调用 `IAgentIdentityRegistry.isRegisteredAgent(account)`，但 ERC-8004 官方合约（`IdentityRegistryUpgradeable.sol`）**没有这个函数**，只有 ERC-721 继承的 `balanceOf(account)`。直接把 ERC-8004 地址传给 `setAgentRegistries()` 会导致永远返回 false。
 
-当前代码（`SuperPaymaster.sol:1465`）：
+**为何测试通过**：`SuperPaymasterV5Features.t.sol:39` 定义了一个**测试本地 mock**，它确实实现了 `isRegisteredAgent()`。`contracts/src/mocks/MockAgentIdentityRegistry.sol` 是另一个文件，并未被主测试使用。测试环境和生产环境用的是不同的 mock。
+
+**解法：部署薄适配器，SuperPaymaster 零改动**
+
+新建 `ERC8004Adapter.sol`，实现 `IAgentIdentityRegistry` 接口，内部委托给真实 ERC-8004：
+
 ```solidity
-try IAgentIdentityRegistry(reg).isRegisteredAgent(account) returns (bool registered) {
-    return registered;
-} catch {
-    return false;  // ← 实际永远走这里！balanceOf 调 isRegisteredAgent 会 revert
-}
-```
+contract ERC8004Adapter is IAgentIdentityRegistry {
+    address public immutable erc8004Registry;
 
-**后果**：即使 `setAgentRegistries(0x8004A818...)` 配置正确，`isRegisteredAgent()` 始终返回 `false`，agent 无法被赞助。
+    constructor(address _registry) {
+        erc8004Registry = _registry;
+    }
 
-**修复方案**：将 `isRegisteredAgent()` 的判断逻辑改为 `balanceOf(account) > 0`：
-```solidity
-function isRegisteredAgent(address account) public view returns (bool) {
-    address reg = agentIdentityRegistry;
-    if (reg == address(0)) return false;
-    try IAgentIdentityRegistry(reg).balanceOf(account) returns (uint256 bal) {
-        return bal > 0;
-    } catch {
-        return false;
+    /// ERC-7562 合规：读取的是 ERC-8004._balances[account]，
+    /// 属于 UserOp sender 的关联存储，bundler 不会拒绝。
+    function isRegisteredAgent(address account) external view returns (bool) {
+        return IERC721(erc8004Registry).balanceOf(account) > 0;
+    }
+
+    function balanceOf(address owner) external view returns (uint256) {
+        return IERC721(erc8004Registry).balanceOf(owner);
+    }
+
+    function ownerOf(uint256 agentId) external view returns (address) {
+        return IERC721(erc8004Registry).ownerOf(agentId);
     }
 }
 ```
 
-同时更新 `IAgentIdentityRegistry.sol`，移除不存在的 `isRegisteredAgent()` 声明。
+`setAgentRegistries(adapterAddr, 0x8004B663...)` 指向 adapter，不直接指向 ERC-8004。
 
 ### 3.2 Gap 汇总表
 
 | 项目 | 当前状态 | 所需工作 | 优先级 |
 |------|---------|---------|--------|
 | ERC-8004 合约部署 | ✅ 官方已预部署 | 无需任何部署 | — |
-| `isRegisteredAgent()` 接口兼容 | ❌ 永远返回 false | 改用 `balanceOf > 0`，更新接口 | **P0** |
-| `agentIdentityRegistry` Sepolia 配置 | ❌ `address(0)` | 调 `setAgentRegistries(0x8004A818..., 0x8004B663...)` | **P1** |
-| `agentReputationRegistry` Sepolia 配置 | ❌ `address(0)` | 同上 | **P1** |
+| **SuperPaymaster 合约改动** | ✅ **不需要** | 零改动 | — |
+| `ERC8004Adapter` 合约 | ❌ 未实现 | 新建 ~30 行适配器，部署一次 | **P0** |
+| `agentIdentityRegistry` Sepolia 配置 | ❌ `address(0)` | `setAgentRegistries(adapter, 0x8004B663...)` | **P1** |
 | AirAccount `setAgentWallet()` 接入真实地址 | ⚠️ 已实现但未用真实注册表 | 传入 `0x8004A818...` 替代 mock | **P1** |
 | 人类 `register()` 铸造 agentId | ❌ 未做 | 人类账户调 IdentityRegistry.register() | **P2** |
-| Agent 调 `setAgentWallet()` 绑定执行钱包 | ❌ 未做 | Agent 执行钱包签名调用 | **P2** |
-| ValidationRegistry 集成 | ❌ 规范未定稿 | 等待 TEE 社区讨论完成 | P3 |
-| E2E 测试（G2）切换到真实 ERC-8004 | ⚠️ 当前用 mock | 替换为真实地址后回归 | **P1** |
+| Agent 调 `setAgentWallet()` 绑定执行钱包 | ❌ 未做 | Agent 钱包 EIP-712 签名调用 | **P2** |
+| E2E 测试（G2）切换到真实 ERC-8004 | ⚠️ 当前用 inline mock | adapter 部署后替换地址回归 | **P1** |
+| ValidationRegistry 集成 | ❌ 规范未定稿 | 等待 TEE 社区讨论 | P3 |
 
 ---
 
 ## 4. 完成 Feature 的具体步骤
 
-### Phase 1：接口修复（不需要新部署，只改 SuperPaymaster 逻辑）
+### Phase 1：部署 ERC8004Adapter（SuperPaymaster 零改动）
 
-1. **修改 `IAgentIdentityRegistry.sol`**：移除 `isRegisteredAgent()`，保留 `balanceOf` + `ownerOf`
-2. **修改 `SuperPaymaster.isRegisteredAgent()`**：调 `balanceOf(account) > 0`
-3. **跑 forge test**：确认 G2 测试仍通过（mock 实现了 balanceOf）
+1. **新建 `contracts/src/adapters/ERC8004Adapter.sol`**：实现 `IAgentIdentityRegistry`，内部委托 `balanceOf`
+2. **forge test**：确认现有 G2 测试仍通过（test mock 不受影响）
+3. **部署 adapter 到 Sepolia**：`forge script` 或 `cast`
 4. **PR + 合并**
 
 ### Phase 2：Sepolia 接线（链上配置，不需要合约升级）
