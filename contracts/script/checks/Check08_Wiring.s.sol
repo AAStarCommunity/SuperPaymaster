@@ -76,6 +76,18 @@ contract Check08_Wiring is Script {
         // Note: Registry uses camelCase getters for these public variables
         require(Registry(registry).blsAggregator() == blsAggregator, "Check08: Registry -> BLS Aggregator Failed");
 
+        // 6. Agent Registry Check (non-blocking warning — required for Agent Sponsorship)
+        address agentIdentity = SuperPaymaster(payable(superPaymaster)).agentIdentityRegistry();
+        address agentReputation = SuperPaymaster(payable(superPaymaster)).agentReputationRegistry();
+        if (agentIdentity == address(0) || agentReputation == address(0)) {
+            console.log("WARN Check08: agentRegistries not set — Agent Sponsorship disabled");
+            console.log("  Fix: cast send $SP 'setAgentRegistries(address,address)' $IDENTITY $REPUTATION");
+            console.log("  (Deploy AgentRegistry via AirAccount team first, then wire here)");
+        } else {
+            console.log("  agentIdentityRegistry: ", agentIdentity);
+            console.log("  agentReputationRegistry:", agentReputation);
+        }
+
         console.log("All Core & BLS Wiring Paths Verified Successfully!");
     }
 }
