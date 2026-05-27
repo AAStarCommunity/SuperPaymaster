@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import "forge-std/StdStorage.sol";
 import "src/tokens/xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "src/interfaces/IERC1363.sol";
@@ -18,6 +19,7 @@ contract MockReceiver is IERC1363Receiver {
 
 contract xPNTsTokenFullTest is Test {
     using Clones for address;
+    using stdStorage for StdStorage;
     xPNTsToken token;
     address admin = address(0x111);
     address user = address(0x222);
@@ -211,6 +213,32 @@ contract xPNTsTokenFullTest is Test {
 
         // 4. Verify the state hasn't changed
         assertEq(token.balanceOf(user), 6000 ether);
+    }
+
+    // Regression test for Bug A: _update floor-rounding zero-burn
+    // PoC: rate=3e17, debt=3 aPNTs, mint=1 xPNTs
+    // Old (floor): repayXPNTs = floor(3 * 3e17 / 1e18) = 0 → debt cleared, no burn
+    // New (ceil):  repayXPNTs = ceil(3 * 3e17 / 1e18) = 1 → debt cleared AND 1 xPNT burned
+    function test_AutoRepay_ZeroBurn_Regression() public {
+        // Force exchangeRate = 3e17 (0.3 aPNTs per xPNT) bypassing cooldown/delta guards
+        stdstore.target(address(token)).sig("exchangeRate()").checked_write(3e17);
+        assertEq(token.exchangeRate(), 3e17);
+
+        // Record exactly 3 aPNTs of debt
+        vm.prank(paymaster);
+        token.recordDebt(user, 3);
+
+        // Mint 1 xPNT:
+        //   mintedAPNTs = floor(1 * 1e18 / 3e17) = 3
+        //   repayAPNTs  = min(3, 3) = 3
+        //   repayXPNTs  = ceil(3 * 3e17 / 1e18) = ceil(0.9) = 1  ← ceil fix
+        vm.prank(admin);
+        token.mint(user, 1);
+
+        // Debt fully cleared
+        assertEq(token.getDebt(user), 0, "Debt must be fully cleared");
+        // Net balance: minted 1, burned 1 = 0
+        assertEq(token.balanceOf(user), 0, "repayXPNTs=1 must be burned");
     }
 
     function test_Security_KeyRotation_Revokes_Privileges() public {

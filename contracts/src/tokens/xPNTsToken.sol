@@ -377,8 +377,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
                  revert UnauthorizedRecipient();
             }
 
-            // Single transaction limit (anti-bug safeguard)
-            if (value > maxSingleTxLimit) {
+            // Single transaction limit in aPNTs — convert xPNTs → aPNTs before comparing
+            if ((value * 1e18) / exchangeRate > maxSingleTxLimit) {
                 revert SingleTxLimitExceeded();
             }
         }
@@ -525,8 +525,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /**
      * @notice Override _update to implement Auto-Repayment on mint.
      * @dev Debt is stored in aPNTs; value (minted xPNTs) is converted before comparing.
-     *      repayXPNTs = floor(repayAPNTs * rate / 1e18) — floor ensures we never burn
-     *      more xPNTs than the converted amount covers.
+     *      repayXPNTs uses ceil so it is always ≥ 1 when repayAPNTs > 0 (no zero-burn).
+     *      Invariant: ceil(floor(value/rate)×rate) ≤ value — proven safe, never burns more than minted.
      */
     function _update(address from, address to, uint256 value) internal virtual override {
         // Feature: Auto-Repayment ONLY on MINT (Income from Community/Protocol)
@@ -539,8 +539,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
                 uint256 mintedAPNTs = (value * 1e18) / rate;
                 if (mintedAPNTs > 0) {
                     uint256 repayAPNTs = mintedAPNTs > debt ? debt : mintedAPNTs;
-                    // Convert repayAPNTs back to xPNTs to burn (floor — safe: repayXPNTs ≤ value)
-                    uint256 repayXPNTs = (repayAPNTs * rate) / 1e18;
+                    // ceil: guarantees repayXPNTs ≥ 1 when repayAPNTs > 0; still ≤ value (proven)
+                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;
 
                     // 1. Reduce Debt (aPNTs)
                     debts[to] -= repayAPNTs;
@@ -549,10 +549,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
                     super._update(from, to, value);
 
                     // 3. Immediately burn the xPNTs equivalent from 'to'
-                    if (repayXPNTs > 0) {
-                        _burn(to, repayXPNTs);
-                        emit DebtRepaid(to, repayAPNTs, debts[to]);
-                    }
+                    _burn(to, repayXPNTs);
+                    emit DebtRepaid(to, repayAPNTs, debts[to]);
                     return;
                 }
             }
