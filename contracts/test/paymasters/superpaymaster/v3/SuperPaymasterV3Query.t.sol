@@ -101,7 +101,7 @@ contract SuperPaymasterQueryTest is Test {
         mockFactory.setToken(owner, address(gtoken));
 
         // Setup operator
-        paymaster.configureOperator(address(gtoken), treasury, 1 ether);
+        paymaster.configureOperator(address(gtoken), treasury);
 
         vm.stopPrank();
     }

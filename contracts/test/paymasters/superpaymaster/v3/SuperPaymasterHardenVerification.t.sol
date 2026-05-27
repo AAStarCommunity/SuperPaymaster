@@ -174,14 +174,14 @@ contract SuperPaymasterHardenVerification is Test {
         
         vm.prank(community);
         vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
-        paymaster.configureOperator(fakeToken, community, 1e18);
+        paymaster.configureOperator(fakeToken, community);
         
         // Now deploy a real one through factory
         vm.startPrank(community);
         address realToken = factory.deployxPNTsToken("Real", "RL", "Real", "real.eth", 1e18, address(0));
         
         // Should succeed
-        paymaster.configureOperator(realToken, community, 1e18);
+        paymaster.configureOperator(realToken, community);
         vm.stopPrank();
     }
 
@@ -196,7 +196,7 @@ contract SuperPaymasterHardenVerification is Test {
         );
 
         vm.prank(community);
-        paymaster.configureOperator(address(mal), community, 1e18);
+        paymaster.configureOperator(address(mal), community);
         
         // Fund paymaster for operator
         vm.startPrank(owner);

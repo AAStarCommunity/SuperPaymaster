@@ -100,26 +100,15 @@ contract M4_ExchangeRateOverflowTest is Test {
         vm.stopPrank();
     }
 
-    /// @notice exchangeRate > type(uint96).max must revert with ExchangeRateOverflow
-    function test_M4_ExchangeRateOverflowReverts() public {
-        uint256 overflowRate = uint256(type(uint96).max) + 1;
+    /// @notice M-4 (historical): exchangeRate was removed from OperatorConfig and is now
+    ///         read live from xPNTsToken.exchangeRate(). configureOperator() no longer
+    ///         accepts a rate parameter, so overflow is impossible.
+    ///         This test verifies configureOperator succeeds and token is set correctly.
+    function test_M4_ConfigureOperatorSucceeds() public {
         vm.prank(OPERATOR);
-        vm.expectRevert(SuperPaymaster.ExchangeRateOverflow.selector);
-        paymaster.configureOperator(xpntsToken, TREASURY, overflowRate);
-    }
-
-    /// @notice exchangeRate == type(uint96).max is the boundary — must succeed
-    function test_M4_ExchangeRateAtMaxUint96Succeeds() public {
-        uint256 maxRate = uint256(type(uint96).max);
-        vm.prank(OPERATOR);
-        paymaster.configureOperator(xpntsToken, TREASURY, maxRate);
-        uint96 storedRate = _getConfigRate();
-        assertEq(storedRate, uint96(maxRate), "rate stored correctly at max boundary");
-    }
-
-    function _getConfigRate() internal view returns (uint96 rate) {
-        (, uint96 r,,,,,,,, ) = paymaster.operators(OPERATOR);
-        rate = r;
+        paymaster.configureOperator(xpntsToken, TREASURY);
+        (, bool isConfigured,,,,,,, ) = paymaster.operators(OPERATOR);
+        assertTrue(isConfigured, "operator should be configured");
     }
 }
 

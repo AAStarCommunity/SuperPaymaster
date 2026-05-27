@@ -154,7 +154,7 @@ contract SuperPaymasterPricingV2Test is Test {
         // Setup Operator
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 10000 ether);
-        paymaster.configureOperator(address(apnts), treasury, 1e18);
+        paymaster.configureOperator(address(apnts), treasury);
         paymaster.depositFor(operator, 5000 ether);
         paymaster.depositFor(operator, 5000 ether);
         vm.stopPrank();

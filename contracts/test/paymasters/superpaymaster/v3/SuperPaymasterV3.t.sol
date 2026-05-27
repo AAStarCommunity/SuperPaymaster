@@ -188,7 +188,6 @@ contract SuperPaymasterTest is Test {
 
         (
             uint128 v1_bal,
-            uint96 v2_rate,
             bool v3_conf,
             bool v4_pause,
             address v5_token,
@@ -247,7 +246,7 @@ contract SuperPaymasterTest is Test {
 
         paymaster.withdraw(50 ether);
         
-        (uint128 bal,,,,,,,,,) = paymaster.operators(operator); 
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator); 
         assertEq(bal, 50 ether);
         assertEq(apnts.balanceOf(operator), 950 ether);
         vm.stopPrank();
@@ -255,8 +254,8 @@ contract SuperPaymasterTest is Test {
     
     function testConfigureOperator() public {
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury, 1e18);
-        (,,,, address token,,,,,) = paymaster.operators(operator); 
+        paymaster.configureOperator(address(apnts), treasury);
+        (,,, address token,,,,,) = paymaster.operators(operator); 
         assertEq(token, address(apnts));
         vm.stopPrank();
     }
@@ -267,7 +266,7 @@ contract SuperPaymasterTest is Test {
         
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
-        (,,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
+        (,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
         assertEq(repMinor, 80);
 
         // P0-14: advance past 24h cooldown before second slash
@@ -275,7 +274,7 @@ contract SuperPaymasterTest is Test {
 
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");
-        (,,,,, uint32 repMajor,,,,) = paymaster.operators(operator); 
+        (,,,, uint32 repMajor,,,,) = paymaster.operators(operator); 
         assertEq(repMajor, 30);
         
         vm.stopPrank();
@@ -289,7 +288,7 @@ contract SuperPaymasterTest is Test {
         vm.stopPrank();
 
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury, 1e18);
+        paymaster.configureOperator(address(apnts), treasury);
         
         apnts.approve(address(paymaster), 200000 ether);
         // Split deposit to respect 5000 ether limit (40 * 5000 = 200,000)
@@ -319,7 +318,7 @@ contract SuperPaymasterTest is Test {
         // Struct: 6=Balance, 7=TotalSpent. 
         // Tuple: (v1..v9).
         // If v6 is Balance, then v7 is TotalSpent.
-        (,,,,,,,, uint256 spent,) = paymaster.operators(operator); 
+        (,,,,,,, uint256 spent,) = paymaster.operators(operator); 
         
         uint256 revenue = paymaster.protocolRevenue();
         console.log("Revenue detected:", revenue);
@@ -356,7 +355,7 @@ contract SuperPaymasterTest is Test {
         vm.stopPrank();
 
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury, 1e18);
+        paymaster.configureOperator(address(apnts), treasury);
         apnts.approve(address(paymaster), 200 ether);
         paymaster.depositFor(operator, 200 ether);
         vm.stopPrank();

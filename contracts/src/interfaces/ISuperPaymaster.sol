@@ -13,19 +13,18 @@ interface ISuperPaymaster is IVersioned {
     struct OperatorConfig {
         // Slot 0: HOT (Validation Critical)
         uint128 aPNTsBalance;   // Cap: ~3.4e38 (Enough for 18 decimals)
-        uint96 exchangeRate;    // Cap: ~7.9e28
         bool isConfigured;
         bool isPaused;
-        // Remaining: 2 bytes
-        
+        // Remaining: 14 bytes
+
         // Slot 1: WARM
         address xPNTsToken;
         uint32 reputation;      // Max 4 billion
         uint48 minTxInterval;   // Min interval between user ops
-        
+
         // Slot 2: COLD
         address treasury;
-        
+
         // Slot 3+: Stats
         uint256 totalSpent;
         uint256 totalTxSponsored;
@@ -43,8 +42,8 @@ interface ISuperPaymaster is IVersioned {
 
     event OperatorDeposited(address indexed operator, uint256 amount);
     event OperatorWithdrawn(address indexed operator, uint256 amount);
-    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
-    event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
+    event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury);
+    event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 debtAPNTs);
     event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
     event ReputationUpdated(address indexed operator, uint256 newScore);
     // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
@@ -55,9 +54,10 @@ interface ISuperPaymaster is IVersioned {
     // ============ Functions ============
 
     /**
-     * @notice Configure operator billing settings
+     * @notice Configure operator billing settings.
+     *         Exchange rate is read from the xPNTs token contract at runtime.
      */
-    function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external;
+    function configureOperator(address xPNTsToken, address _opTreasury) external;
 
     /**
      * @notice Deposit aPNTs as gas collateral
@@ -89,7 +89,6 @@ interface ISuperPaymaster is IVersioned {
      */
     function operators(address operator) external view returns (
         uint128 aPNTsBalance,
-        uint96 exchangeRate,
         bool isConfigured,
         bool isPaused,
         address xPNTsToken,

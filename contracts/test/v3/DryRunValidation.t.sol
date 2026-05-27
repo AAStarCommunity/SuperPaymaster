@@ -157,7 +157,7 @@ contract DryRunValidationTest is Test {
         // Operator: configure + deposit
         vm.startPrank(operator);
         apnts.approve(address(paymaster), type(uint256).max);
-        paymaster.configureOperator(address(xpnts), address(0x999), 1 ether);
+        paymaster.configureOperator(address(xpnts), address(0x999));
         paymaster.deposit(5_000 ether);
         vm.stopPrank();
     }
@@ -291,10 +291,10 @@ contract DryRunValidationTest is Test {
 
     /// @notice Sanity check: dryRunValidation does not mutate operator state
     function test_DryRun_IsViewOnly_NoBalanceChange() public {
-        (uint128 balBefore,,,,,,,,,) = paymaster.operators(operator);
+        (uint128 balBefore,,,,,,,,) = paymaster.operators(operator);
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
         paymaster.dryRunValidation(op, 1000);
-        (uint128 balAfter,,,,,,,,,) = paymaster.operators(operator);
+        (uint128 balAfter,,,,,,,,) = paymaster.operators(operator);
         assertEq(balBefore, balAfter, "dryRun must not deduct balance");
     }
 

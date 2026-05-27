@@ -402,7 +402,7 @@ contract CoverageSupplementTest is Test {
 
         // Config Operator
         vm.startPrank(operator);
-        paymaster.configureOperator(address(xpnts), treasury, 1e18);
+        paymaster.configureOperator(address(xpnts), treasury);
         vm.stopPrank();
         
         // 2. User Not Verified
@@ -508,7 +508,7 @@ contract CoverageSupplementTest is Test {
         paymaster.depositFor(operator, 100 ether);
         
         // Verify
-        (uint128 bal,,,,,,,,,) = paymaster.operators(operator);
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
         assertEq(bal, 100 ether);
         vm.stopPrank();
     }

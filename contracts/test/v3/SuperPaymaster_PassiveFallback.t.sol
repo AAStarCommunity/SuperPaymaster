@@ -129,7 +129,7 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
         // We need to configure operator to set exchangeRate etc.
         // Test contract is the operator.
         // Grant COMMUNITY role (Registry Stub allows).
-        paymaster.configureOperator(address(xpnts), address(this), 1e18);
+        paymaster.configureOperator(address(xpnts), address(this));
         
         // Fund operator (Deposit)
         apnts.approve(address(paymaster), 1000e18);
