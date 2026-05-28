@@ -12,10 +12,15 @@ interface ISuperPaymaster is IVersioned {
 
     struct OperatorConfig {
         // Slot 0: HOT (Validation Critical)
+        // Layout: aPNTsBalance(16) + isConfigured(1) + isPaused(1) = 18 bytes; 14 bytes slack.
+        // STORAGE NOTE: v5.3.2 and earlier packed `uint96 exchangeRate` into bytes [18..30) of
+        // slot 0.  Removing it leaves those 12 bytes as unused padding.  Because address(20)
+        // never fit in the ≤14 remaining bytes of slot 0 (with or without uint96), `xPNTsToken`
+        // and all subsequent fields still start at the same slots as in v5.3.2.
+        // → UUPS in-place upgrade from v5.3.2 is SAFE; stale `exchangeRate` bytes are ignored.
         uint128 aPNTsBalance;   // Cap: ~3.4e38 (Enough for 18 decimals)
         bool isConfigured;
         bool isPaused;
-        // Remaining: 14 bytes
 
         // Slot 1: WARM
         address xPNTsToken;
@@ -43,6 +48,7 @@ interface ISuperPaymaster is IVersioned {
     event OperatorDeposited(address indexed operator, uint256 amount);
     event OperatorWithdrawn(address indexed operator, uint256 amount);
     event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury);
+    // aPNTsCost: raw gas cost before protocol fee; debtAPNTs: actual debt recorded (cost + fee markup)
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 debtAPNTs);
     event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
     event ReputationUpdated(address indexed operator, uint256 newScore);

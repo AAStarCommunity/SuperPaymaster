@@ -196,6 +196,40 @@ contract xPNTsTokenFullTest is Test {
         assertEq(token.getDebt(user), 5 ether);
     }
 
+    // SUGGEST: repayDebt with xPNTs too small to convert to ≥1 aPNTs returns silently
+    function test_RepayDebt_PrecisionTruncation_SilentReturn() public {
+        // rate = 1e18 (1:1), so 1 xPNT = 1 aPNT; but at high rates, small xPNTs → 0 aPNTs
+        // Set rate = 2e18: 1 xPNT = 2 aPNTs; but a sub-unit amount truncates to 0
+        stdstore.target(address(token)).sig("exchangeRate()").checked_write(2e18);
+
+        // Record 10 aPNTs of debt
+        vm.prank(paymaster);
+        token.recordDebt(user, 10);
+
+        // Give user some xPNTs via transfer (not mint, to avoid auto-repay)
+        vm.prank(admin);
+        token.mint(other, 100);
+        vm.prank(other);
+        token.transfer(user, 100);
+
+        uint256 debtBefore  = token.getDebt(user);
+        uint256 balBefore   = token.balanceOf(user);
+
+        // repaidAPNTs = floor(0 * 1e18 / 2e18) = 0 → silent return (no revert, no state change)
+        vm.prank(user);
+        token.repayDebt(0); // explicit zero path — should return early
+
+        assertEq(token.getDebt(user), debtBefore, "Zero repay must not change debt");
+        assertEq(token.balanceOf(user), balBefore,  "Zero repay must not burn tokens");
+
+        // Tiny nonzero amount that still truncates: floor(1 * 1e18 / 2e18) = 0 → silent return
+        vm.prank(user);
+        token.repayDebt(1);
+
+        assertEq(token.getDebt(user), debtBefore, "Sub-unit repay must not change debt");
+        assertEq(token.balanceOf(user), balBefore,  "Sub-unit repay must not burn tokens");
+    }
+
     function test_Security_TransferFrom_SingleTxLimit() public {
         // 1. Setup user balance
         vm.prank(admin);

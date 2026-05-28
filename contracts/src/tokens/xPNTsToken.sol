@@ -378,7 +378,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             }
 
             // Single transaction limit in aPNTs — convert xPNTs → aPNTs before comparing
-            if ((value * 1e18) / exchangeRate > maxSingleTxLimit) {
+            if ((value * 1e18) / _requireRate() > maxSingleTxLimit) {
                 revert SingleTxLimitExceeded();
             }
         }
@@ -433,7 +433,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
 
         // 5. Convert aPNTs → xPNTs (ceil so protocol never under-collects)
         //    xPNTs = ceil(amountAPNTs * rate / 1e18)
-        uint256 rate = exchangeRate;
+        uint256 rate = _requireRate();
         uint256 xPNTsToBurn = (amountAPNTs * rate + 1e18 - 1) / 1e18;
 
         // 6. Execute Burn
@@ -507,7 +507,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (balanceOf(msg.sender) < amountXPNTs) revert BurnExceedsBalance();
 
         // Convert xPNTs → aPNTs (floor — user cannot over-repay via rounding)
-        uint256 rate = exchangeRate;
+        uint256 rate = _requireRate();
         uint256 repaidAPNTs = (amountXPNTs * 1e18) / rate;
         // If the xPNTs amount is too small to convert to ≥1 aPNTs, skip silently.
         if (repaidAPNTs == 0) return;
@@ -521,7 +521,13 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     function getDebt(address user) external view returns (uint256) {
         return debts[user];
     }
-    
+
+    /// @dev Reads exchangeRate and reverts with ExchangeRateCannotBeZero if uninitialized.
+    function _requireRate() private view returns (uint256 r) {
+        r = exchangeRate;
+        if (r == 0) revert ExchangeRateCannotBeZero();
+    }
+
     /**
      * @notice Override _update to implement Auto-Repayment on mint.
      * @dev Debt is stored in aPNTs; value (minted xPNTs) is converted before comparing.
@@ -534,7 +540,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         if (from == address(0) && to != address(0) && value > 0) {
             uint256 debt = debts[to]; // aPNTs
             if (debt > 0) {
-                uint256 rate = exchangeRate;
+                uint256 rate = _requireRate();
                 // Convert minted xPNTs → aPNTs equivalent (floor)
                 uint256 mintedAPNTs = (value * 1e18) / rate;
                 if (mintedAPNTs > 0) {

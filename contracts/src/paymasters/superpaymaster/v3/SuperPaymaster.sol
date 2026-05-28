@@ -1255,7 +1255,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
 
-            emit TransactionSponsored(operator, user, finalCharge, finalCharge);
+            emit TransactionSponsored(operator, user, actualAPNTsCost, finalCharge);
         } else {
              // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
              // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
