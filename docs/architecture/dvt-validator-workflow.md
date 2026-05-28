@@ -412,7 +412,94 @@ function registerBLSPublicKey(
 ## 附录 B：版本与 PR 引用
 
 - **BLSAggregator**：`"BLSAggregator-4.0.0"`（PR #112）
-- **DVTValidator**：`"DVTValidator-0.5.0"`（P0-2 + P0-4 + P0-17）
-- **Registry**：`"Registry-5.3.0"`（PR #112 兼容性 storage 字段保留）
-- **相关 PR 栈**：main → PR #104 (P0-4+17) → PR #105 (P0-2) → PR #112 (P0-1)
-- **测试覆盖**：437/437 通过，含 8 条新增 `BLSAggregator_PkAggReconstruct.t.sol` 用例
+- **DVTValidator**：`"DVTValidator-0.6.0"`（P0-2 + P0-4 + P0-17 + M-4/M-5/M-7 input validation）
+- **Registry**：`"Registry-5.3.3"`（Sepolia 2026-05-13 部署）
+- **相关 PR 栈**：main → PR #104 (P0-4+17) → PR #105 (P0-2) → PR #112 (P0-1) → PR #174 (M-4/M-5/M-7)
+- **测试覆盖**：925/925 通过（v5.3.2）
+
+---
+
+## 附录 C：架构设计决策记录（ADR）
+
+> 记录于 2026-05-14，来源于 Sepolia 部署后 on-call 审查讨论。
+
+### ADR-1：BLSAggregator._reconstructPkAgg 直接读 Registry+Staking，不经过 DVTValidator
+
+**背景**：`_reconstructPkAgg` 在聚合每个 validator 的公钥时，同时实时校验：
+1. `Registry.hasRole(ROLE_DVT, v)` — validator 是否仍持有 DVT 角色
+2. `GTokenStaking.roleLocks(v, ROLE_DVT).amount >= minStake` — 质押是否仍达标
+
+这两项检查**绕过了 DVTValidator**，直接访问 Registry 和 Staking。
+
+**决策**：这是有意为之的架构设计，原因如下：
+
+1. **避免循环依赖**：如果把信任检查放进 DVTValidator，调用链变成：
+   ```
+   DVTValidator.executeWithProof()
+     → BLSAggregator.verifyAndExecute()
+       → _reconstructPkAgg()
+         → DVTValidator（查信任）       ← 循环！
+   ```
+   BLSAggregator 已经是 DVTValidator 的下游调用目标，反向依赖会形成环。
+
+2. **职责边界清晰**：
+   - **DVTValidator**：提案生命周期（create / markExecuted）+ DVT 节点业务白名单（isValidator）
+   - **BLSAggregator**：密码学 + 经济信任验证（BLS pairing + Registry/Staking 实时读）
+   - 两者调用关系是**有向无环图（DAG）**，BLSAggregator 对 DVTValidator 只有一个反向写（markProposalExecuted），不涉及查询。
+
+3. **治理灵活性**：`REGISTRY` 是 BLSAggregator 的 immutable 字段，但 `minStake` 和 Staking 合约地址每次 `_reconstructPkAgg` 都从 Registry 动态读取（`Registry.getRoleConfig(roleDvt).minStake`）。治理可以调整质押门槛或轮换 Staking 实现，**无需重新部署 BLSAggregator**。
+
+**代码引用**：`BLSAggregator.sol:526-552`（`_reconstructPkAgg` 内的实时检查循环）
+
+---
+
+### ADR-2：DVTValidator 冷启动状态（nextProposalId=1）是预期设计
+
+**背景**：Sepolia 部署后，DVTValidator（`0x6b131ac781...`）`nextProposalId = 1`，`isValidator` 名单为空，从未有任何 slash proposal。
+
+**决策**：这是正确的冷启动状态，**不是部署遗漏**。
+
+原因：
+
+- 部署脚本（`DeployLive.s.sol`）只完成合约部署 + 基础 wiring（setBLSAggregator、setDVTValidator 等）。
+- **不预注册任何 DVT 验证节点**——那是节点运营方的职责，需要实际运行 DVT P2P 节点软件。
+- 注册流程必须严格按照 §2 三步顺序（`Registry.registerRole` → `DVTValidator.addValidator` → `BLSAggregator.registerBLSPublicKey`），且要求 validator 自己发起第一步，owner/治理发起后两步。
+- 在 DVT 节点注册之前，`executeWithProof` 路径不可用，但所有其他 SuperPaymaster 功能（gasless 赞助、operator 管理、价格更新等）完全正常。
+
+**预期启动顺序**（部署后运营阶段）：
+```
+1. DVT 节点运营方各自 → Registry.registerRole(ROLE_DVT, self, roleData)
+2. Governance → DVTValidator.addValidator(v)          （逐个验证节点）
+3. Governance → BLSAggregator.registerBLSPublicKey(v, pkG1, slot)
+4. Governance → GTokenStaking.setAuthorizedSlasher(blsAggregator, true)  ← Tier 2 slash 必需
+5. Governance → BLSAggregator.setMinThreshold(N)                          ← 设生产门槛
+```
+完成上述步骤后，DVTValidator 才开始接收 slash proposals，`nextProposalId` 才会 > 1。
+
+---
+
+### ADR-3：Section 5.2「已知缺口」已修复（勘误）
+
+**原文（Section 5.2 末尾）** 写道：
+> "当前合约层一个已知缺口：`_reconstructPkAgg` 没有显式回查 `Registry.hasRole(ROLE_DVT, v)` 与 `roleLocks(v, ROLE_DVT) >= minStake`。"
+
+**此描述已过时**。该缺口已在 PR #174（`fix(security): M-4/M-5/M-7`，commit `be730993`）中修复。
+
+当前 `_reconstructPkAgg`（`BLSAggregator.sol:546-552`）**确实进行实时检查**：
+
+```solidity
+if (!REGISTRY.hasRole(roleDvt, v)) {
+    revert SlotValidatorRoleRevoked(slot, v);
+}
+(uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+if (uint256(amount) < minStake) {
+    revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
+}
+```
+
+这意味着 Section 5.2 中"失效点是 `revokeBLSPublicKey`"的结论也需要更新：现在**即使 owner 忘记调用 `revokeBLSPublicKey`，已退押的 validator 也无法参与投票**，因为 `roleLocks` 检查会在聚合时实时 revert。`revokeBLSPublicKey` 仍是推荐的显式清理操作，但不再是唯一防线。
+
+**修复后的防线层次**：
+1. `_reconstructPkAgg` 实时 `hasRole` + `roleLocks` 检查（在线防御，修复后新增）
+2. `_blsKeys[v].isActive` 检查（需 owner 调 `revokeBLSPublicKey`）
+3. BLS pairing 验证 + chainid 绑定（密码学防御，永远有效）

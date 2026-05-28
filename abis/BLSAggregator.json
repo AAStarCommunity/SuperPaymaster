@@ -1,686 +1,971 @@
-{
-  "abi": [
-    {
-      "type": "constructor",
-      "inputs": [
-        {
-          "name": "_registry",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_superPaymaster",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "_dvtValidator",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "DVT_VALIDATOR",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "MAX_VALIDATORS",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "REGISTRY",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "contract IRegistry"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "SUPERPAYMASTER",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "aggregatedSignatures",
-      "inputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "aggregatedSig",
-          "type": "bytes",
-          "internalType": "bytes"
-        },
-        {
-          "name": "messageHash",
-          "type": "bytes32",
-          "internalType": "bytes32"
-        },
-        {
-          "name": "timestamp",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "verified",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "blsPublicKeys",
-      "inputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "publicKey",
-          "type": "bytes",
-          "internalType": "bytes"
-        },
-        {
-          "name": "isActive",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "defaultThreshold",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "executeProposal",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "target",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "callData",
-          "type": "bytes",
-          "internalType": "bytes"
-        },
-        {
-          "name": "requiredThreshold",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "proof",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "executedProposals",
-      "inputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool",
-          "internalType": "bool"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "minThreshold",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "owner",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "proposalNonces",
-      "inputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "registerBLSPublicKey",
-      "inputs": [
-        {
-          "name": "validator",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "publicKey",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "renounceOwnership",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setDVTValidator",
-      "inputs": [
-        {
-          "name": "_dv",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setDefaultThreshold",
-      "inputs": [
-        {
-          "name": "_newThreshold",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setMinThreshold",
-      "inputs": [
-        {
-          "name": "_newThreshold",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "setSuperPaymaster",
-      "inputs": [
-        {
-          "name": "_sp",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "transferOwnership",
-      "inputs": [
-        {
-          "name": "newOwner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "verifyAndExecute",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "operator",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "slashLevel",
-          "type": "uint8",
-          "internalType": "uint8"
-        },
-        {
-          "name": "repUsers",
-          "type": "address[]",
-          "internalType": "address[]"
-        },
-        {
-          "name": "newScores",
-          "type": "uint256[]",
-          "internalType": "uint256[]"
-        },
-        {
-          "name": "epoch",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "proof",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "version",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "stateMutability": "pure"
-    },
-    {
-      "type": "event",
-      "name": "BLSPublicKeyRegistered",
-      "inputs": [
-        {
-          "name": "validator",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "publicKey",
-          "type": "bytes",
-          "indexed": false,
-          "internalType": "bytes"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "BLSVerificationStatus",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "indexed": true,
-          "internalType": "uint256"
-        },
-        {
-          "name": "success",
-          "type": "bool",
-          "indexed": false,
-          "internalType": "bool"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "OwnershipTransferred",
-      "inputs": [
-        {
-          "name": "previousOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ProposalExecuted",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "indexed": true,
-          "internalType": "uint256"
-        },
-        {
-          "name": "target",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "callDataHash",
-          "type": "bytes32",
-          "indexed": false,
-          "internalType": "bytes32"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ReputationEpochTriggered",
-      "inputs": [
-        {
-          "name": "epoch",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "userCount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "SignatureAggregated",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "indexed": true,
-          "internalType": "uint256"
-        },
-        {
-          "name": "aggregatedSignature",
-          "type": "bytes",
-          "indexed": false,
-          "internalType": "bytes"
-        },
-        {
-          "name": "count",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "SlashExecuted",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "indexed": true,
-          "internalType": "uint256"
-        },
-        {
-          "name": "operator",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "level",
-          "type": "uint8",
-          "indexed": false,
-          "internalType": "uint8"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "ThresholdUpdated",
-      "inputs": [
-        {
-          "name": "oldThreshold",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "newThreshold",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "error",
-      "name": "InvalidAddress",
-      "inputs": [
-        {
-          "name": "addr",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidBLSKey",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "InvalidParameter",
-      "inputs": [
-        {
-          "name": "message",
-          "type": "string",
-          "internalType": "string"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidSignatureCount",
-      "inputs": [
-        {
-          "name": "count",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "required",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidTarget",
-      "inputs": [
-        {
-          "name": "target",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableInvalidOwner",
-      "inputs": [
-        {
-          "name": "owner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableUnauthorizedAccount",
-      "inputs": [
-        {
-          "name": "account",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ProposalAlreadyExecuted",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ProposalExecutionFailed",
-      "inputs": [
-        {
-          "name": "proposalId",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "returnData",
-          "type": "bytes",
-          "internalType": "bytes"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ReentrancyGuardReentrantCall",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "SignatureVerificationFailed",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "UnauthorizedCaller",
-      "inputs": [
-        {
-          "name": "caller",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    }
-  ],
-  "bytecode": "0x60a03461014057601f61238938819003918201601f19168301916001600160401b03831184841017610144578084926060946040528339810103126101405761004781610158565b90610060604061005960208401610158565b9201610158565b90331561012d575f8054336001600160a01b0319821681178355604051959290916001600160a01b0316907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a360018055600360085560076009556001600160a01b0316801561011a57608052600280546001600160a01b039283166001600160a01b0319918216179091556003805493909216921691909117905561221c908161016d823960805181818161176c0152611c570152f35b634726455360e11b5f525f60045260245ffd5b631e4fbdf760e01b5f525f60045260245ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b03821682036101405756fe60a0806040526004361015610012575f80fd5b5f905f3560e01c90816306433b1b14611c3a5750806322c70bbb146119fb5780632399c30914610fcc578063300b0b3514610f615780633b60288a14610f3257806353f10a4b14610f1457806354fd4d5014610eaf5780635ae48ba414610e885780635e1a03a21461051f5780636578b0cc146104e0578063714897df146104c4578063715018a6146104725780637f39a939146103c75780638da5cb5b146103a1578063a74c1ca814610377578063bc8efe7514610350578063c5246bf514610259578063c85501bb1461023b578063e79e9739146101fc578063f2fde38b146101695763f42cc34e14610105575f80fd5b3461016657602036600319011261016657604061015a916001600160a01b0361012c611c7b565b16815260046020522060ff600161014283611d99565b92015416604051928392604084526040840190611e39565b90151560208301520390f35b80fd5b5034610166576020366003190112610166576001600160a01b0361018b611c7b565b610193611f51565b1680156101e857815473ffffffffffffffffffffffffffffffffffffffff198116821783556001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08380a380f35b631e4fbdf760e01b82526004829052602482fd5b5034610166576020366003190112610166576001600160a01b0361021e611c7b565b610226611f51565b166001600160a01b0319600254161760025580f35b50346101665780600319360112610166576020600854604051908152f35b503461016657602036600319011261016657600435610276611f51565b600854811061030a57600d81116102bf577fb06a54caabe58475c86c2bf9df3f2f06dd1213e9e10659c293117fe4893b274b60406009548151908152836020820152a160095580f35b6040516305519d6f60e51b815260206004820152600f60248201527f5468726573686f6c64203e204d61780000000000000000000000000000000000604482015280606481015b0390fd5b6040516305519d6f60e51b815260206004820152601260248201527f42656c6f77206d696e5468726573686f6c6400000000000000000000000000006044820152606490fd5b503461016657806003193601126101665760206001600160a01b0360035416604051908152f35b50346101665760203660031901126101665760406020916004358152600783522054604051908152f35b50346101665780600319360112610166576001600160a01b036020915416604051908152f35b5034610166576020366003190112610166576004356103e4611f51565b6002811061042c57600d81116102bf577fb06a54caabe58475c86c2bf9df3f2f06dd1213e9e10659c293117fe4893b274b60406008548151908152836020820152a160085580f35b6040516305519d6f60e51b815260206004820152601560248201527f4d696e207468726573686f6c6420746f6f206c6f7700000000000000000000006044820152606490fd5b503461016657806003193601126101665761048b611f51565b806001600160a01b038154811981168355167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a380f35b50346101665780600319360112610166576020604051600d8152f35b5034610166576020366003190112610166576001600160a01b03610502611c7b565b61050a611f51565b166001600160a01b0319600354161760035580f35b50346101665760a036600319011261016657610539611c91565b60443567ffffffffffffffff8111610c9757610559903690600401611ca7565b9160843567ffffffffffffffff8111610da05761057a903690600401611ca7565b929094610585611f77565b6001600160a01b036003541633141580610e74575b610e61576001600160a01b03831615610e45576004358152600660205260ff604082205416610e305760085460643510610dea57600d60643511610da4576105e3368684611e79565b60208151910120604051602081019160043583526001600160a01b0386166040830152606082015260643560808201524660a082015260a0815261062860c082611d77565b51902093860193608087860312610c1557863567ffffffffffffffff8111610c975785610656918901611f97565b94602088013567ffffffffffffffff8111610c065781610677918a01611f97565b90604089013567ffffffffffffffff8111610da05790610698918a01611f97565b97604051926020840152602083526106b1604084611d77565b6106b961203e565b9261072f6067604051809360403661010084013780518160200161014084015e518101600160f81b610140820152886101428201537f424c53313233383147325f584d443a5348412d3235365f535357555f524f5f4e61014382015263554c5f2360e01b610163820152030161010083016120e7565b806020528061010083015260016101208301537f424c53313233383147325f584d443a5348412d3235365f535357555f524f5f4e61012183015263554c5f2360e01b6101418301526020866045610100850160025afa60203d141615610d9c5785518252600260016020845b8051851861010087015201916107c860ff19866107bc8461012083016120ab565b030161010087016120e7565b83520191600983146107e0579160206001919261079b565b50505061089e9060406101008201526020610120820152604061014082015260016101a08201526f1a0111ea397fe69a4b1ba7b6434bacd76101c08201527f64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab6101e08201526108538161010081016120ff565b6108646040820161010083016120ff565b6108756080820161010083016120ff565b61088660c0820161010083016120ff565b610890858261211d565b84610100019060800161211d565b6101008361020081600d5afa6101003d141615610d8f578851926108ca6020808c01958c010185611fb5565b81518151149182610d7c575b82610d69575b82610d56575b82610d43575b82610d30575b82610d1d575b82610d0a575b505015610cfb57606001358084915b610cb357506064358110610c9b5750608086805181010312610c975790602061096c6109779360806040519961093e8b611d3e565b848101518b526040810151858c0152606081015160408c0152015160608a0152828082518301019101611fb5565b988051010190611fb5565b92606093604051956109898688611d77565b60028752601f19860198845b8a8110610c805750604051996109ab888c611d77565b60028b52855b818110610c6857505090610a68916109c761201a565b6f17f1d3a73197d7942695638c4fa9ac0f81527fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb60208201526f08b3f481e3aaa0f1a09e30ed741d8ae460408201527ffcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e189820152610a448a61207a565b52610a4e8961207a565b50610a588b61207a565b52610a628a61207a565b50612142565b610a718761209b565b52610a7b8661209b565b50610a858861209b565b52610a8f8761209b565b50849285519660405196890395845b868a8214610acf579061010060206001930198608060208d85610180020192828d51855e8d01015191015e01610a9e565b5050888a6020878b846101800290600f5afa9160203d14915114161615610c5b57845115610c4c5784806040518486823780858101838152039082885af1903d15610c4657503d90610b2082611e5d565b91610b2e6040519384611d77565b82523d86602084013e5b15610c1957506004358452600660205260408420600160ff19825416179055836001600160a01b036003541680610bbf575b50506001600160a01b0391610b80913691611e79565b602081519101209160405192835216907ff75669458e39b3e450bebdf8e3f8396a4ca0b4057017be244aa5af43321b2807602060043592a36001805580f35b803b15610c155781809160246040518094819363424a3d7760e01b835260043560048401525af18015610c0a5715610b6a5781610bfb91611d77565b610c06578385610b6a565b8380fd5b6040513d84823e3d90fd5b5080fd5b6103069060405191829163020c65b360e11b83526004356004840152604060248401526044830190611e39565b90610b38565b63729d0f6b60e01b8552600485fd5b634df45e2f85526004601cfd5b808c60208093610c7661203e565b92010152016109b1565b602090610c8b61201a565b82828c01015201610995565b8280fd5b636b01174760e11b8452600452606435602452604483fd5b5f19810190808211610ce75716905f198114610cd3576001019080610909565b634e487b7160e01b85526011600452602485fd5b634e487b7160e01b86526011600452602486fd5b63729d0f6b60e01b8452600484fd5b60e0919250810151910151145f806108fa565b915060c082015160c082015114916108f4565b915060a082015160a082015114916108ee565b91506080820151608082015114916108e8565b91506060820151606082015114916108e2565b91506040820151604082015114916108dc565b91506020820151602082015114916108d6565b63c55e5e3384526004601cfd5b8580fd5b8480fd5b6040516305519d6f60e51b815260206004820152601560248201527f5468726573686f6c642065786365656473206d617800000000000000000000006044820152606490fd5b6040516305519d6f60e51b815260206004820152601760248201527f5468726573686f6c642062656c6f77206d696e696d756d0000000000000000006044820152606490fd5b632776407360e11b8152600480359052602490fd5b63d08525e960e01b81526001600160a01b038316600452602490fd5b63d86ad9cf60e01b815233600452602490fd5b506001600160a01b0381541633141561059a565b503461016657806003193601126101665760206001600160a01b0360025416604051908152f35b503461016657806003193601126101665750610f10604051610ed2604082611d77565b601381527f424c5341676772656761746f722d332e322e31000000000000000000000000006020820152604051918291602083526020830190611e39565b0390f35b50346101665780600319360112610166576020600954604051908152f35b50346101665760203660031901126101665760ff60406020926004358152600684522054166040519015158152f35b5034610166576020366003190112610166576040610fb6916004358152600560205220610f8d81611d99565b9060028101549060ff600460038301549201541690604051948594608086526080860190611e39565b9260208501526040840152151560608301520390f35b50346118665760e036600319011261186657610fe6611c91565b9060443560ff811681036118665760643567ffffffffffffffff811161186657611014903690600401611cd5565b909160843567ffffffffffffffff811161186657611036903690600401611cd5565b94909160c43567ffffffffffffffff811161186657611059903690600401611ca7565b979094611064611f77565b6001600160a01b0360035416331415806119e7575b6119d4576004355f52600660205260ff60405f205416806119c9575b6119b457604051602081019060043582526001600160a01b038416604082015260ff8516606082015260e0608082015261110b816110ef6110dc8c87610100850191611ecf565b828103601f190160a08401528d8b611f14565b60a43560c08301524660e083015203601f198101835282611d77565b5190209560095499808201976080838a031261186657823567ffffffffffffffff8111611866578961113e918501611f97565b90602084013567ffffffffffffffff8111611866578a61115f918601611f97565b9960408501359067ffffffffffffffff821161186657611180918601611f97565b9c60405191602083015260208252611199604083611d77565b6111a161203e565b91604051610100810191604036843761121760678383519361014082019481602001865e518101600160f81b6101408201525f6101428201537f424c53313233383147325f584d443a5348412d3235365f535357555f524f5f4e61014382015263554c5f2360e01b6101638201520301846120e7565b9283602052838152610120830193600185537f424c53313233383147325f584d443a5348412d3235365f535357555f524f5f4e61012185015263554c5f2360e01b61014185015260205f60458460025afa60203d141615611866575f518452600260016020865b805185188652019161129f60ff1988611297848c6120ab565b0301866120e7565b83520191600983146112b7579160206001919261127e565b505050604061133f92602061135796838552525260016101a08401526f1a0111ea397fe69a4b1ba7b6434bacd76101c08401527f64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab6101e084015261131b83826120ff565b61132860408401826120ff565b61133560808401826120ff565b60c08301906120ff565b611349848261211d565b83610100019060800161211d565b6101008261020081600d5afa6101003d1416156119a7578d916113836020845181860195010184611fb5565b81518151149182611994575b82611981575b8261196e575b8261195b575b82611948575b82611935575b82611922575b50501561186a575f6060860135805b6118ee57508181106118d957505060808280518101031261186657604051989c989a999394929390916113f48c611d3e565b60208101518c52604081015160208d0152606081015160408d01526080015160608c015280518101602001906020019061142d91611fb5565b9780510160200161143d91611fb5565b6060996040519861144e8c8b611d77565b60028a525f5b601f198d0181106118aa5750908b95949392916114746040519d8e611d77565b60028d525f5b601f198801811061188657509061152e916115248e61151e8e61149b61201a565b6f17f1d3a73197d7942695638c4fa9ac0f81527fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb60208201526f08b3f481e3aaa0f1a09e30ed741d8ae460408201527ffcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e18d8201526115188261207a565b5261207a565b5061207a565b52610a628d61207a565b6115378a61209b565b526115418961209b565b5061154b8b61209b565b526115558a61209b565b50879b8851996040516080528d5f905b9e8c82146115a8579c809e9f60208d9e9f019c8d928461018002608051019351608090855e0301602001519060800190610100915e6001018a9e9d9c9b9a611565565b50508c8b8d60205f8361018002608051600f5afa9160203d14915114161615611879575f511561186a5783611762575b505050506001600160a01b03841661167c575b50505050506004356115ff575b6001805580f35b6004358152600660205260408120600160ff19825416179055806001600160a01b036003541680611632575b50506115f8565b803b156116795781809160246040518094819363424a3d7760e01b835260043560048401525af18015610c0a571561162b578161166e91611d77565b61016657808261162b565b50fd5b600360ff8616101561174e57908592916001600160a01b0360025416803b15610da0576001600160a01b0385876116e282968b9660ff996040519a8b998a9889976303ce96a160e11b895216600488015216602486015260448501526064840191611eaf565b03925af18015610c0a57611739575b50506001600160a01b039060ff6040519316835216907f85137418138b73abf7daf3f3556f050e536be403436e0ee7649eaee69d1faaca602060043592a381808080806115eb565b8161174391611d77565b610c975782846116f1565b634e487b7160e01b86526021600452602486fd5b6001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016803b15611866576117cd5f80946117fa6117df60405198899788968795631b02e44f60e01b8752600435600488015260a060248801528d60a4880191611ecf565b85810360031901604487015291611f14565b60a43560648401528281036003190160848401528a8c611eaf565b03925af1801561185b57611845575b5060407f5ce6898a418ad55caa812016e4cdd4a200158714e584a9627d17df3369316ef39181519060a43582526020820152a1868080806115d8565b6118529197505f90611d77565b5f956040611809565b6040513d5f823e3d90fd5b5f80fd5b63729d0f6b60e01b5f5260045ffd5b634df45e2f5f526004601cfd5b8d9e9f9b9c9d90602091828261189a61203e565b92010152019e9d9c9b9a9e61147a565b808b929f9b60209d9e9897969594939d80936118c461201a565b92010152019d9091929394959b9a999d611454565b636b01174760e11b5f5260045260245260445ffd5b5f1981019080821161190e5716905f19811461190e5760010190806113c2565b634e487b7160e01b5f52601160045260245ffd5b60e0919250810151910151145f806113b3565b915060c082015160c082015114916113ad565b915060a082015160a082015114916113a7565b91506080820151608082015114916113a1565b915060608201516060820151149161139b565b9150604082015160408201511491611395565b915060208201516020820151149161138f565b63c55e5e335f526004601cfd5b632776407360e11b5f5260043560045260245ffd5b506004351515611095565b63d86ad9cf60e01b5f523360045260245ffd5b506001600160a01b035f5416331415611079565b3461186657604036600319011261186657611a14611c7b565b60243567ffffffffffffffff811161186657611a34903690600401611ca7565b9190611a3e611f51565b60308303611c2b57604051926040840184811067ffffffffffffffff821117611c1757604052611a6f368284611e79565b84526001600160a01b036020850193600185521692835f52600460205260405f20945194855167ffffffffffffffff8111611c1757611aae8254611d06565b601f8111611bc6575b506020601f8211600114611b40579080600193927f472da4d064218fa97032725fbcff922201fa643fed0765b5ffe0ceef63d7b3dc98995f92611b35575b50505f19600383901b1c191690831b1781555b019051151560ff80198354169116179055611b30604051928392602084526020840191611eaf565b0390a2005b015190508980611af5565b601f19821690835f52805f20915f5b818110611bae57509183917f472da4d064218fa97032725fbcff922201fa643fed0765b5ffe0ceef63d7b3dc999a60019695879510611b96575b505050811b018155611b08565b01515f1960f88460031b161c19169055898080611b89565b9192602060018192868e015181550194019201611b4f565b81811115611ab757825f5260205f20601f830160051c9060208410611c0f575b81601f9101920160051c03905f5b828110611c02575050611ab7565b5f82820155600101611bf4565b5f9150611be6565b634e487b7160e01b5f52604160045260245ffd5b63222a023b60e21b5f5260045ffd5b34611866575f366003190112611866576020906001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b600435906001600160a01b038216820361186657565b602435906001600160a01b038216820361186657565b9181601f840112156118665782359167ffffffffffffffff8311611866576020838186019501011161186657565b9181601f840112156118665782359167ffffffffffffffff8311611866576020808501948460051b01011161186657565b90600182811c92168015611d34575b6020831014611d2057565b634e487b7160e01b5f52602260045260245ffd5b91607f1691611d15565b6080810190811067ffffffffffffffff821117611c1757604052565b610100810190811067ffffffffffffffff821117611c1757604052565b90601f8019910116810190811067ffffffffffffffff821117611c1757604052565b9060405191825f825492611dac84611d06565b8084529360018116908115611e175750600114611dd3575b50611dd192500383611d77565b565b90505f9291925260205f20905f915b818310611dfb575050906020611dd1928201015f611dc4565b6020919350806001915483858901015201910190918492611de2565b905060209250611dd194915060ff191682840152151560051b8201015f611dc4565b805180835260209291819084018484015e5f828201840152601f01601f1916010190565b67ffffffffffffffff8111611c1757601f01601f191660200190565b929192611e8582611e5d565b91611e936040519384611d77565b829481845281830111611866578281602093845f960137010152565b908060209392818452848401375f828201840152601f01601f1916010190565b916020908281520191905f905b808210611ee95750505090565b9091928335906001600160a01b03821680920361186657602081600193829352019401920190611edc565b90918281527f07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff83116118665760209260051b809284830137010190565b6001600160a01b035f54163303611f6457565b63118cdaa760e01b5f523360045260245ffd5b600260015414611f88576002600155565b633ee5aeb560e01b5f5260045ffd5b9080601f8301121561186657816020611fb293359101611e79565b90565b90816101009103126118665760e060405191611fd083611d5a565b805183526020810151602084015260408101516040840152606081015160608401526080810151608084015260a081015160a084015260c081015160c0840152015160e082015290565b6040519061202782611d3e565b5f6060838281528260208201528260408201520152565b6040519061204b82611d5a565b5f60e0838281528260208201528260408201528260608201528260808201528260a08201528260c08201520152565b8051156120875760200190565b634e487b7160e01b5f52603260045260245ffd5b8051600110156120875760400190565b9081537f424c53313233383147325f584d443a5348412d3235365f535357555f524f5f4e600182015263554c5f2360e01b602182015260250190565b6020915f9160025afa60203d141615611866575f5190565b906101006040928383606083015e60055afa60403d14161561186657565b9060806101009260115afa6101003d14161561213557565b6389083b915f526004601cfd5b61214a61201a565b5060408101805160608301918251918015806121de575b6121d7577f64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab8311156121cf5760ff60015b16016f1a0111ea397fe69a4b1ba7b6434bacd70390527f64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab03905290565b60ff5f612192565b5050505090565b50821561216156fea2646970667358221220e08aa4035956fdbe038194ecb5d8d63d7ff90ed773aacb6aa8eb80b9f9b2683f64736f6c63430008210033"
-}
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_registry",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_superPaymaster",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_dvtValidator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "DVT_VALIDATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_VALIDATORS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REGISTRY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IRegistry"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SUPERPAYMASTER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aggregatedSignatures",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "aggregatedSig",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "messageHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "verified",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "defaultThreshold",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "executeProposal",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "target",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "callData",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "requiredThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "proof",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executedProposals",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getBLSPublicKey",
+    "inputs": [
+      {
+        "name": "validator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "publicKey",
+        "type": "tuple",
+        "internalType": "struct BLS.G1Point",
+        "components": [
+          {
+            "name": "x_a",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "x_b",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "y_a",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "y_b",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "minThreshold",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposalNonces",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerBLSPublicKey",
+    "inputs": [
+      {
+        "name": "validator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "publicKey",
+        "type": "tuple",
+        "internalType": "struct BLS.G1Point",
+        "components": [
+          {
+            "name": "x_a",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "x_b",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "y_a",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "y_b",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revokeBLSPublicKey",
+    "inputs": [
+      {
+        "name": "validator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setDVTValidator",
+    "inputs": [
+      {
+        "name": "_dv",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setDefaultThreshold",
+    "inputs": [
+      {
+        "name": "_newThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setMinThreshold",
+    "inputs": [
+      {
+        "name": "_newThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setSuperPaymaster",
+    "inputs": [
+      {
+        "name": "_sp",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "validatorAtSlot",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "verify",
+    "inputs": [
+      {
+        "name": "expectedMessageHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signerMask",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "requiredThreshold",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "sigBytes",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "verifyAndExecute",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "slashLevel",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "repUsers",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "newScores",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "proof",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "event",
+    "name": "BLSPublicKeyRegistered",
+    "inputs": [
+      {
+        "name": "validator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BLSPublicKeyRevoked",
+    "inputs": [
+      {
+        "name": "validator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BLSVerificationStatus",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "success",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DVTValidatorUpdated",
+    "inputs": [
+      {
+        "name": "oldAddr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newAddr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProposalExecuted",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "callDataHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReputationEpochTriggered",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "userCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SignatureAggregated",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "aggregatedSignature",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      },
+      {
+        "name": "count",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SlashExecuted",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "level",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SuperPaymasterUpdated",
+    "inputs": [
+      {
+        "name": "oldAddr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newAddr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ThresholdUpdated",
+    "inputs": [
+      {
+        "name": "oldThreshold",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newThreshold",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "EmptySignerMask",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidAddress",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidBLSKey",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidBLSKeyNotInSubgroup",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidBLSKeyNotOnCurve",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidParameter",
+    "inputs": [
+      {
+        "name": "message",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidProposalId",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSignatureCount",
+    "inputs": [
+      {
+        "name": "count",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "required",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidTarget",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "KeyNotActive",
+    "inputs": [
+      {
+        "name": "v",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ProposalAlreadyExecuted",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ProposalExecutionFailed",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "returnData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SignatureVerificationFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SlotAlreadyTaken",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SlotOutOfRange",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SlotValidatorRoleRevoked",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "v",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SlotValidatorStakeBelowMinimum",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "v",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "required",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StakingNotConfigured",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnauthorizedCaller",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownValidatorSlot",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  }
+]

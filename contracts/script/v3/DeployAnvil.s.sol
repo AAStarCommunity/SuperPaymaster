@@ -25,6 +25,10 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 // MockBLSValidator removed in P0-1 — Registry verifies via BLSAggregator only.
 
+// Agent Registry Mocks (Anvil/local only — production uses AgentRegistry deployed by AirAccount)
+import "src/mocks/MockAgentIdentityRegistry.sol";
+import "src/mocks/MockAgentReputationRegistry.sol";
+
 // External Interfaces
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import {SimpleAccountFactory} from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
@@ -61,6 +65,8 @@ contract DeployAnvil is Script {
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
     SimpleAccountFactory accountFactory;
+    MockAgentIdentityRegistry mockAgentIdentity;
+    MockAgentReputationRegistry mockAgentReputation;
 
     function setUp() public {
         deployer = vm.addr(deployerPK); 
@@ -148,6 +154,9 @@ contract DeployAnvil is Script {
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
         accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+        // Agent Registries (mock for local dev; production uses AgentRegistry from AirAccount)
+        mockAgentIdentity = new MockAgentIdentityRegistry();
+        mockAgentReputation = new MockAgentReputationRegistry();
 
         console.log("=== Step 7: The Grand Wiring ===");
         _executeWiring();
@@ -231,6 +240,8 @@ contract DeployAnvil is Script {
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
+        // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)
+        superPaymaster.setAgentRegistries(address(mockAgentIdentity), address(mockAgentReputation));
     }
 
     function _verifyWiring() internal view {
@@ -257,6 +268,8 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "xPNTsFactory", address(xpntsFactory));
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
+        vm.serializeAddress(jsonObj, "agentIdentityRegistry", address(mockAgentIdentity));
+        vm.serializeAddress(jsonObj, "agentReputationRegistry", address(mockAgentReputation));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);

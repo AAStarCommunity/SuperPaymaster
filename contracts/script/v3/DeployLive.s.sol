@@ -42,6 +42,8 @@ contract DeployLive is Script {
     address entryPointAddr;
     address priceFeedAddr;
     address simpleAccountFactory;
+    address spImplAddr;          // SuperPaymaster implementation (UUPS)
+    address microPaymentChannel; // Optional: external MicroPaymentChannel address
 
     GTokenAuthorization gtoken;
     GTokenStaking staking;
@@ -131,6 +133,7 @@ contract DeployLive is Script {
 
         console.log("=== Step 3: Deploy SuperPaymaster (UUPS Proxy) ===");
         SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        spImplAddr = address(spImpl); // capture for config write
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
         superPaymaster = SuperPaymaster(payable(address(spProxy)));
@@ -171,6 +174,21 @@ contract DeployLive is Script {
 
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
+
+        // Agent Registry wiring (conditional — requires AirAccount to deploy AgentRegistry first)
+        // Set AGENT_IDENTITY_REGISTRY and AGENT_REPUTATION_REGISTRY in .env.<network> to activate
+        address agentIdentityReg = vm.envOr("AGENT_IDENTITY_REGISTRY", address(0));
+        address agentReputationReg = vm.envOr("AGENT_REPUTATION_REGISTRY", address(0));
+        if (agentIdentityReg != address(0) && agentReputationReg != address(0)) {
+            superPaymaster.setAgentRegistries(agentIdentityReg, agentReputationReg);
+            console.log("  Agent registries wired:");
+            console.log("    identity:   ", agentIdentityReg);
+            console.log("    reputation: ", agentReputationReg);
+        } else {
+            console.log("  WARN: Agent registries not configured (Agent Sponsorship disabled)");
+            console.log("  To enable: set AGENT_IDENTITY_REGISTRY + AGENT_REPUTATION_REGISTRY in .env");
+            console.log("  Then run: cast send $SP 'setAgentRegistries(address,address)' $IDENTITY $REPUTATION");
+        }
 
         // Oracle Init
         try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
@@ -283,6 +301,17 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
         vm.serializeAddress(jsonObj, "pnts", pntsAddr);
+        // Agent registry addresses — address(0) if not configured at deploy time
+        vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
+        vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
+        // UUPS implementation address — required for future upgrades via upgradeToAndCall()
+        vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
+        // Optional: external MicroPaymentChannel; set MICRO_PAYMENT_CHANNEL env var to record it
+        microPaymentChannel = vm.envOr("MICRO_PAYMENT_CHANNEL", address(0));
+        if (microPaymentChannel == address(0)) {
+            console.log("  WARN: MICRO_PAYMENT_CHANNEL not set; writing address(0) to config");
+        }
+        vm.serializeAddress(jsonObj, "microPaymentChannel", microPaymentChannel);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
