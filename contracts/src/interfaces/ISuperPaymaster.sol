@@ -12,12 +12,13 @@ interface ISuperPaymaster is IVersioned {
 
     struct OperatorConfig {
         // Slot 0: HOT (Validation Critical)
-        // Layout: aPNTsBalance(16) + isConfigured(1) + isPaused(1) = 18 bytes; 14 bytes slack.
-        // STORAGE NOTE: v5.3.2 and earlier packed `uint96 exchangeRate` into bytes [18..30) of
-        // slot 0.  Removing it leaves those 12 bytes as unused padding.  Because address(20)
-        // never fit in the ≤14 remaining bytes of slot 0 (with or without uint96), `xPNTsToken`
-        // and all subsequent fields still start at the same slots as in v5.3.2.
-        // → UUPS in-place upgrade from v5.3.2 is SAFE; stale `exchangeRate` bytes are ignored.
+        // ⚠️  BREAKING STORAGE LAYOUT CHANGE vs v5.3.2:
+        // v5.3.2 slot 0: bytes 0-15 aPNTsBalance | bytes 16-27 exchangeRate(uint96) | byte 28 isConfigured | byte 29 isPaused
+        // v5.3.3 slot 0: bytes 0-15 aPNTsBalance | byte 16 isConfigured             | byte 17 isPaused
+        // isConfigured shifts from byte 28 → byte 16.  On an in-place UUPS upgrade new code reads
+        // isConfigured at byte 16 = old exchangeRate LSByte (e.g. 1e18 LSByte = 0x00 → false).
+        // All operators would appear unconfigured.  In-place UUPS upgrade from v5.3.2 is NOT SAFE.
+        // All affected deployments must be redeployed.  Sepolia was redeployed in PR #196.
         uint128 aPNTsBalance;   // Cap: ~3.4e38 (Enough for 18 decimals)
         bool isConfigured;
         bool isPaused;
