@@ -45,8 +45,14 @@ contract MockERC20Sec is ERC20 {
     mapping(address => uint256) public debts;
     function setDebt(address u, uint256 d) external { debts[u] = d; }
     function recordDebt(address u, uint256 d) external { debts[u] = d; }
+    function recordDebtWithOpHash(address u, uint256 d, bytes32) external { debts[u] += d; }
+    function burnFromWithOpHash(address, uint256, bytes32) external {}
+    function approvedFacilitators(address) external pure returns (bool) { return false; }
+    function FACTORY() external view returns (address) { return address(0); }
 
     function getDebt(address u) external view returns (uint256) { return debts[u]; }
+    // Rate commitment check requires exchangeRate() — return 1:1 (1e18)
+    function exchangeRate() external pure returns (uint256) { return 1e18; }
 }
 
 contract MockAggregatorV3Sec {
@@ -120,7 +126,7 @@ contract SuperPaymaster_SecurityTest is Test {
         vm.startPrank(operator);
         token.approve(address(paymaster), 100 ether);
         paymaster.deposit(100 ether);
-        paymaster.configureOperator(address(token), treasury, 1e18); // 1.0 margin
+        paymaster.configureOperator(address(token), treasury); // 1.0 margin
         vm.stopPrank();
         
         // Sync SBT Status for user (Must be called by Registry)
@@ -137,7 +143,7 @@ contract SuperPaymaster_SecurityTest is Test {
         
         // Verify storage (Tuple unpacking based on latest V3 structure)
         // (,,,, address token, uint32 rep, uint48 minTx,...)
-        (,,,,, , uint48 minTx,,,) = paymaster.operators(operator);
+        (,,,,, uint48 minTx,,,) = paymaster.operators(operator);
         assertEq(minTx, 60);
     }
 

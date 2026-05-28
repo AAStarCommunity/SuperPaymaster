@@ -210,7 +210,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Operator setup
         vm.startPrank(operator1);
         apnts.approve(address(paymaster), type(uint256).max);
-        paymaster.configureOperator(address(xpnts), address(0x999), 1 ether);
+        paymaster.configureOperator(address(xpnts), address(0x999));
         paymaster.deposit(50_000 ether);
         vm.stopPrank();
     }
@@ -243,7 +243,7 @@ contract SuperPaymaster_Coverage_Test is Test {
     function test_D1_ExecuteAPNTsTokenChange_WhenZeroBalances() public {
         // Make sure totalTrackedBalance and protocolRevenue are both zero.
         // Withdraw all from operator1 first.
-        (uint128 bal,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
         vm.prank(operator1);
         paymaster.withdraw(bal);
 
@@ -271,7 +271,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "test");
 
         // Drain operator1's balance to zero
-        (uint128 bal,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
         if (bal > 0) {
             vm.prank(operator1);
             paymaster.withdraw(bal);
@@ -294,7 +294,7 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D1_ExecuteAPNTsTokenChange_Reverts_BeforeTimelock() public {
         // Drain so only balance condition is satisfied
-        (uint128 bal,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
         vm.prank(operator1);
         paymaster.withdraw(bal);
 
@@ -383,16 +383,16 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.configureOperator(wrongToken, address(0x999), 1 ether);
+        paymaster.configureOperator(wrongToken, address(0x999));
     }
 
     /**
-     * @notice D3b: configureOperator reverts when exchangeRate == 0
+     * @notice D3b: configureOperator reverts when treasury == address(0)
      */
-    function test_D3_ConfigureOperator_Reverts_ZeroExchangeRate() public {
+    function test_D3_ConfigureOperator_Reverts_ZeroTreasury() public {
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
-        paymaster.configureOperator(address(xpnts), address(0x999), 0);
+        paymaster.configureOperator(address(xpnts), address(0));
     }
 
     /**
@@ -401,7 +401,7 @@ contract SuperPaymaster_Coverage_Test is Test {
     function test_D3_ConfigureOperator_Reverts_NoRole() public {
         vm.prank(user1);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.configureOperator(address(xpnts), address(0x999), 1 ether);
+        paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
     /**
@@ -415,7 +415,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         vm.prank(op2);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.configureOperator(address(xpnts), address(0x999), 1 ether);
+        paymaster.configureOperator(address(xpnts), address(0x999));
     }
 
     /**
@@ -435,7 +435,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
-        fresh.configureOperator(address(xpnts), address(0x999), 1 ether);
+        fresh.configureOperator(address(xpnts), address(0x999));
     }
 
     // ─── D4: settleX402Payment ─────────────────────────────────────────────────
@@ -636,13 +636,13 @@ contract SuperPaymaster_Coverage_Test is Test {
     function test_D7_PostOp_PostOpReverted_ReturnsEarly() public {
         bytes memory ctx = _runValidate(user1);
 
-        (uint128 balBefore,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 balBefore,,,,,,,,) = paymaster.operators(operator1);
         uint256 revBefore = paymaster.protocolRevenue();
 
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.postOpReverted, ctx, 1000, 0);
 
-        (uint128 balAfter,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 balAfter,,,,,,,,) = paymaster.operators(operator1);
         assertEq(balAfter, balBefore, "Balance should not change on postOpReverted");
         assertEq(paymaster.protocolRevenue(), revBefore, "Revenue should not change on postOpReverted");
     }

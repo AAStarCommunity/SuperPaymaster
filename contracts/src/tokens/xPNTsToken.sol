@@ -106,13 +106,13 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     string private _tokenName;
     string private _tokenSymbol;
 
-    /// @notice User debt balance in xPNTs
+    /// @notice User debt balance in aPNTs (protocol unit; converted to xPNTs at settlement)
     mapping(address => uint256) public debts;
 
     /// @dev Internal reentrancy status for clone-safe nonReentrant guard
     uint256 private _reentrancyStatus;
 
-    /// @notice Maximum allowed single transaction amount (anti-bug safeguard)
+    /// @notice Maximum allowed single transaction amount in aPNTs (anti-bug safeguard)
     /// @dev Prevents catastrophic losses from code bugs while maintaining flexibility
     uint256 public maxSingleTxLimit = 5_000 ether;
     uint256 public constant MAX_SINGLE_TX_LIMIT_CAP = 50_000 ether; // $1000 safety ceiling
@@ -146,7 +146,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     mapping(bytes32 => bool) public usedDebtHashes;
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-3.3.0"; // P1-16: maxSingleTxLimit configurable + P1-14: 1h cooldown
+        return "XPNTs-3.4.0"; // unified aPNTs debt accounting
     }
 
     /**
@@ -377,8 +377,8 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
                  revert UnauthorizedRecipient();
             }
 
-            // Single transaction limit (anti-bug safeguard)
-            if (value > maxSingleTxLimit) {
+            // Single transaction limit in aPNTs — convert xPNTs → aPNTs before comparing
+            if ((value * 1e18) / _requireRate() > maxSingleTxLimit) {
                 revert SingleTxLimitExceeded();
             }
         }
@@ -402,10 +402,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /**
      * @notice The ONLY function the SuperPaymaster can call to deduct funds.
      * @param from The user's address to burn tokens from.
-     * @param amount The amount of tokens to burn.
+     * @param amountAPNTs The aPNTs amount to settle; converted to xPNTs internally
+     *        using: xPNTs = ceil(amountAPNTs * exchangeRate / 1e18).
      * @param userOpHash The unique hash of the UserOperation, preventing replays.
      */
-    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {
+    function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 userOpHash) external {
         // P0-7: gate before any state read so a compromised SP can't slip in
         // between revoke and rotation.
         if (emergencyDisabled) revert EmergencyStop();
@@ -425,13 +426,18 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // 3. Mark Hash as used
         usedOpHashes[userOpHash] = true;
 
-        // 4. Single transaction limit (anti-bug safeguard)
-        if (amount > maxSingleTxLimit) {
+        // 4. Single transaction limit in aPNTs (anti-bug safeguard)
+        if (amountAPNTs > maxSingleTxLimit) {
             revert SingleTxLimitExceeded();
         }
 
-        // 5. Execute Burn
-        _burn(from, amount);
+        // 5. Convert aPNTs → xPNTs (ceil so protocol never under-collects)
+        //    xPNTs = ceil(amountAPNTs * rate / 1e18)
+        uint256 rate = _requireRate();
+        uint256 xPNTsToBurn = (amountAPNTs * rate + 1e18 - 1) / 1e18;
+
+        // 6. Execute Burn
+        _burn(from, xPNTsToBurn);
     }
 
 
@@ -441,9 +447,10 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     // ====================================
 
     /**
-     * @notice Record user debt (only SuperPaymaster)
+     * @notice Record user debt in aPNTs (only SuperPaymaster).
+     *         All internal accounting uses aPNTs; xPNTs conversion happens at settlement.
      */
-    function recordDebt(address user, uint256 amountXPNTs) external {
+    function recordDebt(address user, uint256 amountAPNTs) external {
         // P0-7: emergency stop applies to debt accrual too — debts get auto-
         // repaid on next mint, so leaving this open during a compromise
         // would let the rogue SP create artificial liabilities.
@@ -454,87 +461,107 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             revert Unauthorized(msg.sender);
         }
 
-        // Single transaction limit (anti-bug safeguard)
-        if (amountXPNTs > maxSingleTxLimit) {
+        // Single transaction limit in aPNTs (anti-bug safeguard)
+        if (amountAPNTs > maxSingleTxLimit) {
             revert SingleTxLimitExceeded();
         }
 
-        debts[user] += amountXPNTs;
-        emit DebtRecorded(user, amountXPNTs);
+        debts[user] += amountAPNTs;
+        emit DebtRecorded(user, amountAPNTs);
     }
 
     /**
-     * @notice Record user debt with opHash replay protection (P1-17).
+     * @notice Record user debt in aPNTs with opHash replay protection (P1-17).
      * @dev    Preferred over recordDebt when the UserOp hash is available.
      *         Ensures that if postOp is somehow invoked twice for the same
      *         UserOp (EntryPoint invariant violation), the second call reverts
      *         rather than doubling the user's debt. The burnFromWithOpHash path
      *         already carries opHash replay protection via usedOpHashes; this
      *         function closes the same gap for the balance-insufficient fallback.
-     *         SuperPaymaster._recordXPNTsDebt calls this instead of recordDebt.
+     *         SuperPaymaster._recordDebt calls this instead of recordDebt.
      */
-    function recordDebtWithOpHash(address user, uint256 amountXPNTs, bytes32 opHash) external {
+    function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash) external {
         if (emergencyDisabled) revert EmergencyStop();
         if (SUPERPAYMASTER_ADDRESS == address(0)) revert SuperPaymasterNotConfigured();
         if (msg.sender != SUPERPAYMASTER_ADDRESS) revert Unauthorized(msg.sender);
-        if (amountXPNTs > maxSingleTxLimit) revert SingleTxLimitExceeded();
+        if (amountAPNTs > maxSingleTxLimit) revert SingleTxLimitExceeded();
         // P1-17 cross-path: check BOTH hash maps so that a prior successful burn
         // (usedOpHashes set) blocks debt recording, and a prior debt record
         // (usedDebtHashes set) blocks a duplicate entry — regardless of which path
         // the first settlement used.
         if (usedOpHashes[opHash] || usedDebtHashes[opHash]) revert DebtAlreadyRecorded(opHash);
         usedDebtHashes[opHash] = true;
-        debts[user] += amountXPNTs;
-        emit DebtRecorded(user, amountXPNTs);
+        debts[user] += amountAPNTs;
+        emit DebtRecorded(user, amountAPNTs);
     }
 
     
     /**
-     * @notice Manually repay debt using user's xPNTs balance
+     * @notice Manually repay debt by burning xPNTs.
+     * @param amountXPNTs xPNTs to burn; converts to aPNTs = floor(amountXPNTs * 1e18 / rate).
      */
-    function repayDebt(uint256 amount) external {
-        uint256 currentDebt = debts[msg.sender];
-        if (amount == 0) return;
+    function repayDebt(uint256 amountXPNTs) external {
+        uint256 currentDebt = debts[msg.sender]; // aPNTs
+        if (amountXPNTs == 0) return;
         if (currentDebt == 0) revert NoDebtToRepay();
-        if (amount > currentDebt) revert RepayExceedsDebt();
-        if (balanceOf(msg.sender) < amount) revert BurnExceedsBalance();
+        if (balanceOf(msg.sender) < amountXPNTs) revert BurnExceedsBalance();
 
-        debts[msg.sender] = currentDebt - amount;
-        _burn(msg.sender, amount);
-        emit DebtRepaid(msg.sender, amount, debts[msg.sender]);
+        // Convert xPNTs → aPNTs (floor — user cannot over-repay via rounding)
+        uint256 rate = _requireRate();
+        uint256 repaidAPNTs = (amountXPNTs * 1e18) / rate;
+        // If the xPNTs amount is too small to convert to ≥1 aPNTs, skip silently.
+        if (repaidAPNTs == 0) return;
+        if (repaidAPNTs > currentDebt) revert RepayExceedsDebt();
+
+        debts[msg.sender] = currentDebt - repaidAPNTs;
+        _burn(msg.sender, amountXPNTs);
+        emit DebtRepaid(msg.sender, repaidAPNTs, debts[msg.sender]);
     }
     
     function getDebt(address user) external view returns (uint256) {
         return debts[user];
     }
-    
+
+    /// @dev Reads exchangeRate and reverts with ExchangeRateCannotBeZero if uninitialized.
+    function _requireRate() private view returns (uint256 r) {
+        r = exchangeRate;
+        if (r == 0) revert ExchangeRateCannotBeZero();
+    }
+
     /**
-     * @notice Override _update to implement Auto-Repayment
+     * @notice Override _update to implement Auto-Repayment on mint.
+     * @dev Debt is stored in aPNTs; value (minted xPNTs) is converted before comparing.
+     *      repayXPNTs uses ceil so it is always ≥ 1 when repayAPNTs > 0 (no zero-burn).
+     *      Invariant: ceil(floor(value/rate)×rate) ≤ value — proven safe, never burns more than minted.
      */
     function _update(address from, address to, uint256 value) internal virtual override {
         // Feature: Auto-Repayment ONLY on MINT (Income from Community/Protocol)
         // This preserves ERC20 standard behavior for regular user-to-user transfers.
         if (from == address(0) && to != address(0) && value > 0) {
-            uint256 debt = debts[to];
+            uint256 debt = debts[to]; // aPNTs
             if (debt > 0) {
-                // Auto-Repay Logic
-                uint256 repayAmount = value > debt ? debt : value;
-                
-                // 1. Reduce Debt
-                debts[to] -= repayAmount;
-                
-                // 2. Process Mint (Full amount first for standard event emitting)
-                super._update(from, to, value); 
-                
-                // 3. Immediately burn the repaid amount from 'to'
-                if (repayAmount > 0) {
-                    _burn(to, repayAmount);
-                    emit DebtRepaid(to, repayAmount, debts[to]);
+                uint256 rate = _requireRate();
+                // Convert minted xPNTs → aPNTs equivalent (floor)
+                uint256 mintedAPNTs = (value * 1e18) / rate;
+                if (mintedAPNTs > 0) {
+                    uint256 repayAPNTs = mintedAPNTs > debt ? debt : mintedAPNTs;
+                    // ceil: guarantees repayXPNTs ≥ 1 when repayAPNTs > 0; still ≤ value (proven)
+                    uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;
+
+                    // 1. Reduce Debt (aPNTs)
+                    debts[to] -= repayAPNTs;
+
+                    // 2. Process Mint (full amount for standard event)
+                    super._update(from, to, value);
+
+                    // 3. Immediately burn the xPNTs equivalent from 'to'
+                    _burn(to, repayXPNTs);
+                    emit DebtRepaid(to, repayAPNTs, debts[to]);
+                    return;
                 }
-                return;
             }
         }
-        
+
         super._update(from, to, value);
     }
 

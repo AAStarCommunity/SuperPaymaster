@@ -217,8 +217,8 @@ verify() {
 
 # 4. 依次验证 (按照 DeployLive.s.sol 的构造逻辑)
 
-# GToken(uint256 cap_)
-verify "$GTOKEN" "GToken" "contracts/src/tokens/GToken.sol:GToken" "$(cast abi-encode "constructor(uint256)" "21000000000000000000000000")"
+# GTokenAuthorization(uint256 cap_, address factory_)
+verify "$GTOKEN" "GTokenAuthorization" "contracts/src/tokens/GTokenAuthorization.sol:GTokenAuthorization" "$(cast abi-encode "constructor(uint256,address)" "21000000000000000000000000" "$XPNTS_FACTORY")"
 
 # GTokenStaking(address _gtoken, address _treasury, address _registry)
 verify "$STAKING" "GTokenStaking" "contracts/src/core/GTokenStaking.sol:GTokenStaking" "$(cast abi-encode "constructor(address,address,address)" "$GTOKEN" "$DEPLOYER" "$REGISTRY")"

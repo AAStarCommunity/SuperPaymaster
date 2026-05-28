@@ -60,7 +60,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.3.2";
+        return "SuperPaymaster-5.3.3"; // unified aPNTs debt accounting
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -194,8 +194,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error EmergencyExpired();
     /// @notice M-5: initialize() called with owner == address(0).
     error InvalidOwner();
-    /// @notice M-4: configureOperator() called with exchangeRate exceeding uint96 range.
-    error ExchangeRateOverflow();
 
     // ====================================
     // Internal Helpers
@@ -255,23 +253,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /**
-     * @notice Configure billing settings (Operator only)
+     * @notice Configure billing settings (Operator only).
+     *         Exchange rate is read from xPNTsToken.exchangeRate() at runtime.
      * @param xPNTsToken Token to charge users
      * @param _opTreasury Address to receive payments
-     * @param exchangeRate Rate (1e18 = 1:1)
      */
     /// @dev Registers msg.sender as an operator with the given xPNTs token; reverts if token not issued by the wired factory.
-    function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate) external {
+    function configureOperator(address xPNTsToken, address _opTreasury) external {
         // Must be registered in Registry
         _requireSuperOperatorRole();
         // BUS-RULE: Must be Community to be Paymaster
-         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
+        if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender)) {
             revert Unauthorized();
         }
-        if (xPNTsToken == address(0) || _opTreasury == address(0) || exchangeRate == 0) {
+        if (xPNTsToken == address(0) || _opTreasury == address(0)) {
             revert InvalidConfiguration();
         }
-        if (exchangeRate > type(uint96).max) revert ExchangeRateOverflow();
 
         // P1-4: Factory binding is always required — configuring an arbitrary ERC20
         // before the factory is set would bypass the community token validation.
@@ -283,10 +280,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
         config.treasury = _opTreasury;
-        config.exchangeRate = uint96(exchangeRate);
         config.isConfigured = true;
 
-        emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury, exchangeRate);
+        emit OperatorConfigured(msg.sender, xPNTsToken, _opTreasury);
     }
 
     /// @notice Window between queueing an `setAPNTsToken` change and being
@@ -799,17 +795,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     function getAvailableCredit(address user, address token) external view returns (uint256) {
-        // Calculate Credit in APNTs
         uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
-        
-        // Get Debt from Token (in xPNTs)
-        uint256 currentDebtXPNTs = IxPNTsToken(token).getDebt(user);
-        
-        // Convert Debt to APNTs for comparison
-        // xPNTs = aPNTs * Rate / 1e18 => aPNTs = xPNTs * 1e18 / Rate
-        uint256 rate = IxPNTsToken(token).exchangeRate();
-        uint256 currentDebtAPNTs = (currentDebtXPNTs * 1e18) / rate;
-
+        // Debt is stored in aPNTs — no rate conversion needed
+        uint256 currentDebtAPNTs = IxPNTsToken(token).getDebt(user);
         return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
     }
 
@@ -1077,10 +1065,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (userOp.paymasterAndData.length >= 104) {
              maxRate = abi.decode(userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32], (uint256));
         }
-        
-        // Cast uint96 to uint256 for comparison
-        if (uint256(config.exchangeRate) > maxRate) {
-             return ("", _packValidationData(true, 0, 0)); 
+
+        // Read live rate from xPNTs token (canonical source of truth)
+        if (IxPNTsToken(config.xPNTsToken).exchangeRate() > maxRate) {
+             return ("", _packValidationData(true, 0, 0));
         }
         // Use CACHED price for validation (fast, compliant)
         // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
@@ -1168,7 +1156,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 (uint256)
             );
         }
-        if (uint256(config.exchangeRate) > maxRate) {
+        // Read live rate from xPNTs token (canonical source of truth)
+        if (IxPNTsToken(config.xPNTsToken).exchangeRate() > maxRate) {
             return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
         }
 
@@ -1230,7 +1219,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // P1-17 postOp-level idempotency guard: set BEFORE all accounting so that
         // a replay (EntryPoint bug / malicious bundler) cannot double-refund the
         // operator or double-deduct protocolRevenue.  Written here rather than
-        // inside _recordXPNTsDebt so it covers the full accounting block
+        // inside _recordDebt so it covers the full accounting block
         // (operator.aPNTsBalance += refund, protocolRevenue -= refund) not just
         // the xPNTs debt recording.  Storage write survives if inner try/catch
         // catches a revert; if postOp itself reverts the write is also reverted,
@@ -1249,9 +1238,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // We want the final deduction to be Actual + 10%.
         uint256 finalCharge = (actualAPNTsCost * (BPS_DENOMINATOR + protocolFeeBPS)) / BPS_DENOMINATOR;
 
-        // 3. Process Refund & Record Debt
-        uint256 exchangeRate = operators[operator].exchangeRate;
-
+        // 3. Process Refund & Record Debt (all in aPNTs; xPNTs conversion happens inside xPNTsToken)
         if (finalCharge < initialAPNTs) {
             uint256 refund = initialAPNTs - finalCharge;
             if (refund > type(uint128).max) refund = type(uint128).max;
@@ -1260,17 +1247,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
                 refund = protocolRevenue;
             }
 
-            uint256 finalXPNTsDebt = (finalCharge * exchangeRate) / 1e18;
-
             // Preferred: burn from user's xPNTs balance with replay protection.
             // Falls back to recordDebt when user has insufficient balance (e.g. new user).
             // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
+            _recordDebt(token, user, finalCharge, userOpHash);
 
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
 
-            emit TransactionSponsored(operator, user, finalCharge, finalXPNTsDebt);
+            emit TransactionSponsored(operator, user, actualAPNTsCost, finalCharge);
         } else {
              // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
              // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
@@ -1278,8 +1263,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // an EntryPoint invariant violation or an unexpected price swing between
              // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
-             uint256 finalXPNTsDebt = (initialAPNTs * exchangeRate) / 1e18;
-             _recordXPNTsDebt(token, user, finalXPNTsDebt, userOpHash);
+             _recordDebt(token, user, initialAPNTs, userOpHash);
         }
 
     }
@@ -1296,12 +1280,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
-    /// @dev Try to burn xPNTs debt from user; fall back to recordDebtWithOpHash (P1-17 idempotent);
+    /// @dev Try to burn xPNTs (converted from aPNTs inside token) from user's balance;
+    ///      fall back to recordDebtWithOpHash (P1-17 idempotent) when balance insufficient;
     ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
+    ///      amount is in aPNTs throughout — xPNTs conversion happens inside xPNTsToken.
     ///      Idempotency is guaranteed by the postOp-level _settledDebtOps guard which
     ///      runs before this function is called.  xPNTs cross-hash checks
     ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
-    function _recordXPNTsDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+    function _recordDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
             try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
                 pendingDebts[token][user] += amount;
@@ -1579,7 +1565,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /// @notice P1-17: SP-level guard — once a (token, opHash) pair has entered
-    ///         _recordXPNTsDebt, no retry can re-enter regardless of which path
+    ///         _recordDebt, no retry can re-enter regardless of which path
     ///         (burn, recordDebt, pendingDebts) the first call took.  Closes the
     ///         pendingDebts fallback double-charge scenario that xPNTs-level
     ///         cross-checks alone cannot prevent.

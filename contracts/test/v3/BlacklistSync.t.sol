@@ -123,7 +123,7 @@ contract BlacklistSyncTest is Test {
         registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(100 ether)));
 
         // Configure Operator
-        paymaster.configureOperator(address(apnts), treasury, 1e18);
+        paymaster.configureOperator(address(apnts), treasury);
         paymaster.updatePrice();
         
         // Fund Operator

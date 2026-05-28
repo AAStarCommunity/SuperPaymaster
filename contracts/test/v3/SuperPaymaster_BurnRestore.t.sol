@@ -176,7 +176,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
 
         vm.startPrank(operator1);
         apnts.approve(address(paymaster), type(uint256).max);
-        paymaster.configureOperator(address(xpnts), address(0x999), 1 ether);
+        paymaster.configureOperator(address(xpnts), address(0x999));
         paymaster.deposit(5_000 ether);
         vm.stopPrank();
     }
@@ -391,13 +391,13 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         uint256 largeInitial = 500 ether; // over-estimated validate charge
         bytes memory ctx = abi.encode(address(xpnts), user1, largeInitial, opHash, operator1);
 
-        (uint128 balBefore,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 balBefore,,,,,,,,) = paymaster.operators(operator1);
 
         // First postOp — actualGasCost much smaller → refund flows to operator
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
 
-        (uint128 balAfterFirst,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 balAfterFirst,,,,,,,,) = paymaster.operators(operator1);
         // Balance increases (refund) or stays same; either way we record it
         uint128 refund = balAfterFirst > balBefore ? balAfterFirst - balBefore : 0;
 
@@ -405,7 +405,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
 
-        (uint128 balAfterSecond,,,,,,,,,) = paymaster.operators(operator1);
+        (uint128 balAfterSecond,,,,,,,,) = paymaster.operators(operator1);
         assertEq(balAfterSecond, balAfterFirst,
             "Operator aPNTsBalance must not change on postOp replay: no double refund");
         // If first call had a refund, second must not have added another

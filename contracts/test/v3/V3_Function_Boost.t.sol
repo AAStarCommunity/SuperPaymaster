@@ -187,17 +187,17 @@ contract V3_Function_BoostTest is Test {
         registry.registerRole(keccak256("PAYMASTER_SUPER"), manager, opData);
 
         // 2. Configure in Paymaster
-        paymaster.configureOperator(address(aPNTs), treasury, 1e18);
+        paymaster.configureOperator(address(aPNTs), treasury);
         vm.stopPrank();
 
         // 3. Pause as OWNER
         vm.startPrank(owner);
         paymaster.setOperatorPaused(manager, true);
-        (,,,bool isPaused,,,,,,) = paymaster.operators(manager);
+        (,,bool isPaused,,,,,,) = paymaster.operators(manager);
         assertTrue(isPaused);
         
         paymaster.setOperatorPaused(manager, false);
-        (,,,bool isPaused2,,,,,,) = paymaster.operators(manager);
+        (,,bool isPaused2,,,,,,) = paymaster.operators(manager);
         assertFalse(isPaused2);
         vm.stopPrank();
     }

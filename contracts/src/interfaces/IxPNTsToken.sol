@@ -14,35 +14,36 @@ interface IxPNTsToken {
     function exchangeRate() external view returns (uint256 rate);
 
     /**
-     * @notice Record user debt (only SuperPaymaster)
+     * @notice Record user debt (only SuperPaymaster). Amount in aPNTs.
      * @param user User address
-     * @param amountXPNTs Debt amount in xPNTs
+     * @param amountAPNTs Debt amount in aPNTs (protocol unit)
      */
-    function recordDebt(address user, uint256 amountXPNTs) external;
+    function recordDebt(address user, uint256 amountAPNTs) external;
 
     /**
-     * @notice Record user debt with opHash replay protection (P1-17)
+     * @notice Record user debt with opHash replay protection (P1-17). Amount in aPNTs.
      * @dev Preferred over recordDebt; reverts if the same opHash was already processed
      * @param user User address
-     * @param amountXPNTs Debt amount in xPNTs
+     * @param amountAPNTs Debt amount in aPNTs (protocol unit)
      * @param opHash UserOperation hash — used as replay guard key
      */
-    function recordDebtWithOpHash(address user, uint256 amountXPNTs, bytes32 opHash) external;
+    function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash) external;
 
     /**
-     * @notice Get user debt amount
+     * @notice Get user debt amount in aPNTs (protocol unit)
      * @param user User address
-     * @return debt Debt amount in xPNTs
+     * @return debt Debt amount in aPNTs
      */
     function getDebt(address user) external view returns (uint256 debt);
 
     /**
-     * @notice Secure burn by Paymaster with replay protection
+     * @notice Secure burn by Paymaster with replay protection. Amount in aPNTs;
+     *         xPNTs burned = amountAPNTs * exchangeRate / 1e18 (ceil).
      * @param from User address
-     * @param amount Token amount to burn
+     * @param amountAPNTs aPNTs amount to settle (converted to xPNTs internally)
      * @param userOpHash UserOperation hash for replay protection
      */
-    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external;
+    function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 userOpHash) external;
     
     /**
      * @notice Get factory address that created this token
