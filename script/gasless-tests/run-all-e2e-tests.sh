@@ -113,6 +113,7 @@ echo "================================================================"
 
 run_test "B1: Operator Config"           "node $SCRIPT_DIR/test-group-B1-operator-config.js"
 run_test "B2: Operator Deposit/Withdraw" "node $SCRIPT_DIR/test-group-B2-operator-deposit-withdraw.js"
+run_test "B3: configureOperator v2 (2-arg, PR#200)" "node $SCRIPT_DIR/test-group-B3-configure-operator-v2.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 3: Negative / Boundary Cases
@@ -148,6 +149,7 @@ echo "================================================================"
 run_test "E1: Pricing & Oracle"  "node $SCRIPT_DIR/test-group-E1-pricing-oracle.js"
 sleep 5  # Let RPC recover between pricing tests
 run_test "E2: Protocol Fees"     "node $SCRIPT_DIR/test-group-E2-protocol-fees.js"
+run_test "E3: aPNTs Exchange Rate Accounting (PR#200)" "node $SCRIPT_DIR/test-group-E3-apnts-exchange-rate.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 6: Staking & Slash
