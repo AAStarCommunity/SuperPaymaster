@@ -42,6 +42,8 @@ contract DeployLive is Script {
     address entryPointAddr;
     address priceFeedAddr;
     address simpleAccountFactory;
+    address spImplAddr;          // SuperPaymaster implementation (UUPS)
+    address microPaymentChannel; // Optional: external MicroPaymentChannel address
 
     GTokenAuthorization gtoken;
     GTokenStaking staking;
@@ -131,6 +133,7 @@ contract DeployLive is Script {
 
         console.log("=== Step 3: Deploy SuperPaymaster (UUPS Proxy) ===");
         SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        spImplAddr = address(spImpl); // capture for config write
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
         superPaymaster = SuperPaymaster(payable(address(spProxy)));
@@ -301,6 +304,14 @@ contract DeployLive is Script {
         // Agent registry addresses — address(0) if not configured at deploy time
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
         vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
+        // UUPS implementation address — required for future upgrades via upgradeToAndCall()
+        vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
+        // Optional: external MicroPaymentChannel; set MICRO_PAYMENT_CHANNEL env var to record it
+        microPaymentChannel = vm.envOr("MICRO_PAYMENT_CHANNEL", address(0));
+        if (microPaymentChannel == address(0)) {
+            console.log("  WARN: MICRO_PAYMENT_CHANNEL not set; writing address(0) to config");
+        }
+        vm.serializeAddress(jsonObj, "microPaymentChannel", microPaymentChannel);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
