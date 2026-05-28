@@ -23,10 +23,10 @@ contract xPNTs_APNTs_Accounting_Test is Test {
     address paymaster = address(0xA3);
     address other    = address(0xA4);
 
-    uint256 constant RATE_1X  = 1e18;   // 1 xPNT = 1 aPNT
-    uint256 constant RATE_2X  = 2e18;   // 1 xPNT = 2 aPNTs  (high rate)
-    uint256 constant RATE_HALF = 5e17;  // 1 xPNT = 0.5 aPNTs (low rate)
-    uint256 constant RATE_MAX = 1e22;   // absolute maximum allowed
+    uint256 constant RATE_1X   = 1e18;   // 1 xPNT = 1 aPNT  (1:1)
+    uint256 constant RATE_2X   = 2e18;   // cheap xPNTs: 1 aPNT costs 2 xPNTs  → 1 xPNT = 0.5 aPNTs
+    uint256 constant RATE_HALF = 5e17;   // expensive xPNTs: 1 aPNT costs 0.5 xPNTs → 1 xPNT = 2 aPNTs
+    uint256 constant RATE_MAX  = 1e22;   // absolute maximum allowed
 
     function setUp() public {
         vm.startPrank(admin);
@@ -52,8 +52,9 @@ contract xPNTs_APNTs_Accounting_Test is Test {
 
     // ─── burnFromWithOpHash: aPNTs → xPNTs ceil conversion ───────────────────
 
-    // rate=2e18, 10 aPNTs → ceil(10*2e18/1e18) = 20 xPNTs burned
-    function test_BurnFromWithOpHash_HighRate_CeilConversion() public {
+    // rate=2e18 (cheap xPNTs): 10 aPNTs → 10*2=20 xPNTs burned (exact, no rounding)
+    // Tests correct burn amount at integer-multiple rate; ceil == floor here.
+    function test_BurnFromWithOpHash_HighRate_ExactConversion() public {
         _setRate(RATE_2X);
         vm.prank(admin);
         token.mint(user, 50 ether);
@@ -62,7 +63,21 @@ contract xPNTs_APNTs_Accounting_Test is Test {
         vm.prank(paymaster);
         token.burnFromWithOpHash(user, 10 ether, bytes32("op1"));
 
-        assertEq(token.balanceOf(user), balBefore - 20 ether, "ceil(10*2e18/1e18)=20 xPNTs must be burned");
+        assertEq(token.balanceOf(user), balBefore - 20 ether, "10 aPNTs at 2x rate = 20 xPNTs burned");
+    }
+
+    // rate=15e17 (1.5 xPNTs per aPNT), 3 wei aPNTs → ceil(3*15e17/1e18) = ceil(4.5) = 5 wei xPNTs burned
+    // floor would give 4; ceil gives 5 — protocol never under-collects at fractional high rates.
+    function test_BurnFromWithOpHash_HighFractionalRate_CeilRounding() public {
+        _setRate(15e17); // 1.5 xPNTs per aPNT — high rate, non-integer ratio
+        vm.prank(admin);
+        token.mint(user, 50 ether);
+
+        vm.prank(paymaster);
+        token.burnFromWithOpHash(user, 3, bytes32("op_hceil")); // 3 wei aPNTs
+
+        // floor(3*15e17/1e18)=4, ceil=5: the extra 1 wei xPNT is burned to avoid under-collection
+        assertEq(token.balanceOf(user), 50 ether - 5, "ceil(3*1.5)=5 wei xPNTs burned, not floor=4");
     }
 
     // rate=5e17, 3 wei aPNTs → ceil(3*5e17/1e18) = ceil(1.5) = 2 wei xPNTs burned
