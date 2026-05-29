@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/tokens/GToken.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -46,6 +47,34 @@ contract TestAccountPrepare is Script {
         address entryPointAddr       = stdJson.readAddress(json, ".entryPoint");
         address priceFeedAddr        = stdJson.readAddress(json, ".priceFeed");
         address stakingAddr          = stdJson.readAddress(json, ".staking");
+
+        // -----------------------------------------------------------------------
+        // Phase 2.0: Deployer registers Anni as COMMUNITY + PAYMASTER_SUPER
+        //   (idempotent — skipped if already granted)
+        //   Required before TestAccountPrepare can register PAYMASTER_AOA.
+        //   Mirrors _setupMyceliumCommunity() in DeployLive.s.sol.
+        // -----------------------------------------------------------------------
+        vm.startBroadcast(deployerPK);
+        if (!registry.hasRole(ROLE_COMMUNITY, anniAddr)) {
+            console.log("[Phase 2.0] Registering Anni as COMMUNITY (Mycelium)...");
+            // Ensure deployer has GToken for stake + burn
+            gtoken.mint(vm.addr(deployerPK), 100 ether);
+            gtoken.approve(stakingAddr, 100 ether);
+            Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
+                name: "Mycelium Community",
+                ensName: "mushroom.box",
+                stakeAmount: 30 ether
+            });
+            registry.safeMintForRole(ROLE_COMMUNITY, anniAddr, abi.encode(mycData));
+            console.log("  Mycelium Community registered for Anni");
+        }
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, anniAddr)) {
+            console.log("[Phase 2.0] Registering Anni as PAYMASTER_SUPER...");
+            gtoken.approve(stakingAddr, 60 ether);
+            registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anniAddr, "");
+            console.log("  PAYMASTER_SUPER granted to Anni");
+        }
+        vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
         // Phase 2.1: Deployer top-ups Anni's GT balance so she can stake
