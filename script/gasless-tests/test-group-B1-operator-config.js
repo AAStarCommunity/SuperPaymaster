@@ -103,9 +103,8 @@ async function main() {
     } else {
       const xPNTsToken = config.aPNTs;
       const treasury = deployerAddr;
-      const exchangeRate = ethers.parseEther('1');
       const receipt = await sendTxSafe(sp, 'configureOperator',
-        [xPNTsToken, treasury, exchangeRate], 'configureOperator');
+        [xPNTsToken, treasury], 'configureOperator');
       if (receipt) {
         const op = await sp.operators(deployerAddr);
         assertTrue(op.isConfigured, 'Operator now configured');

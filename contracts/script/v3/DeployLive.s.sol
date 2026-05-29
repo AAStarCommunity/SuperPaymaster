@@ -23,6 +23,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
+import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // BLSValidator standalone contract removed in P0-1 — Registry now verifies via BLSAggregator.
 
 // External Interfaces
@@ -43,7 +44,8 @@ contract DeployLive is Script {
     address priceFeedAddr;
     address simpleAccountFactory;
     address spImplAddr;          // SuperPaymaster implementation (UUPS)
-    address microPaymentChannel; // Optional: external MicroPaymentChannel address
+    address erc8004Validation;   // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
+    MicroPaymentChannel microPaymentCh; // Deployed in Step 4
 
     GTokenAuthorization gtoken;
     GTokenStaking staking;
@@ -142,6 +144,7 @@ contract DeployLive is Script {
         repSystem = new ReputationSystem(address(registry));
         dvt = new DVTValidator(address(registry));
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
+        microPaymentCh = new MicroPaymentChannel(deployer);
 
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
@@ -175,19 +178,36 @@ contract DeployLive is Script {
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
 
-        // Agent Registry wiring (conditional — requires AirAccount to deploy AgentRegistry first)
-        // Set AGENT_IDENTITY_REGISTRY and AGENT_REPUTATION_REGISTRY in .env.<network> to activate
-        address agentIdentityReg = vm.envOr("AGENT_IDENTITY_REGISTRY", address(0));
-        address agentReputationReg = vm.envOr("AGENT_REPUTATION_REGISTRY", address(0));
-        if (agentIdentityReg != address(0) && agentReputationReg != address(0)) {
-            superPaymaster.setAgentRegistries(agentIdentityReg, agentReputationReg);
-            console.log("  Agent registries wired:");
-            console.log("    identity:   ", agentIdentityReg);
-            console.log("    reputation: ", agentReputationReg);
+        // ERC-8004 official agent registry addresses (CREATE2, deterministic across all EVM chains).
+        // Mainnet chains: Ethereum, OP, Base, Arbitrum, Polygon, etc.
+        // Testnet chains:  Sepolia, OP Sepolia, Base Sepolia, Arbitrum Sepolia, Polygon Amoy.
+        // Override via AGENT_IDENTITY_REGISTRY / AGENT_REPUTATION_REGISTRY env vars if needed.
+        address erc8004Identity;
+        address erc8004Reputation;
+        uint256 cid = block.chainid;
+        bool isMainnet = (cid==1||cid==10||cid==137||cid==8453||cid==42161||cid==43114||cid==56||cid==534352);
+        bool isTestnet = (cid==11155111||cid==11155420||cid==84532||cid==421614||cid==80002);
+        if (isMainnet) {
+            erc8004Identity   = 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432;
+            erc8004Reputation = 0x8004BAa17C55a88189AE136b182e5fdA19dE9b63;
+            erc8004Validation = 0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58;
+        } else if (isTestnet) {
+            erc8004Identity   = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
+            erc8004Reputation = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
+            erc8004Validation = 0x8004Cb1BF31DAf7788923b405b754f57acEB4272;
+        }
+        // Allow env override
+        erc8004Identity   = vm.envOr("AGENT_IDENTITY_REGISTRY",   erc8004Identity);
+        erc8004Reputation = vm.envOr("AGENT_REPUTATION_REGISTRY", erc8004Reputation);
+        erc8004Validation = vm.envOr("AGENT_VALIDATION_REGISTRY", erc8004Validation);
+        if (erc8004Identity != address(0) && erc8004Reputation != address(0)) {
+            superPaymaster.setAgentRegistries(erc8004Identity, erc8004Reputation);
+            console.log("  Agent registries wired (ERC-8004 official)");
+            console.log("    identity:   ", erc8004Identity);
+            console.log("    reputation: ", erc8004Reputation);
+            console.log("    validation: ", erc8004Validation, " (recorded, not wired to SP yet)");
         } else {
-            console.log("  WARN: Agent registries not configured (Agent Sponsorship disabled)");
-            console.log("  To enable: set AGENT_IDENTITY_REGISTRY + AGENT_REPUTATION_REGISTRY in .env");
-            console.log("  Then run: cast send $SP 'setAgentRegistries(address,address)' $IDENTITY $REPUTATION");
+            console.log("  WARN: Agent registries not wired (unsupported chain or no override set)");
         }
 
         // Oracle Init
@@ -301,17 +321,15 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
         vm.serializeAddress(jsonObj, "pnts", pntsAddr);
-        // Agent registry addresses — address(0) if not configured at deploy time
+        // ERC-8004 agent registry addresses (official CREATE2 constants per chain).
+        // identity + reputation are wired into SuperPaymaster; validation is recorded for future use.
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
         vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
+        vm.serializeAddress(jsonObj, "agentValidationRegistry", erc8004Validation);
         // UUPS implementation address — required for future upgrades via upgradeToAndCall()
         vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
-        // Optional: external MicroPaymentChannel; set MICRO_PAYMENT_CHANNEL env var to record it
-        microPaymentChannel = vm.envOr("MICRO_PAYMENT_CHANNEL", address(0));
-        if (microPaymentChannel == address(0)) {
-            console.log("  WARN: MICRO_PAYMENT_CHANNEL not set; writing address(0) to config");
-        }
-        vm.serializeAddress(jsonObj, "microPaymentChannel", microPaymentChannel);
+        // MicroPaymentChannel — deployed in Step 4
+        vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
