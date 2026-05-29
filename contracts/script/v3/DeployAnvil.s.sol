@@ -163,7 +163,7 @@ contract DeployAnvil is Script {
 
         console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
-        superPaymaster.configureOperator(address(apnts), deployer, 1e18);
+        superPaymaster.configureOperator(address(apnts), deployer);
         
         apnts.mint(deployer, 1000 ether);        // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
         superPaymaster.depositFor(deployer, 1000 ether);
@@ -201,7 +201,7 @@ contract DeployAnvil is Script {
         
         vm.startBroadcast(anniPK);
         address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
-        superPaymaster.configureOperator(dPNTs, anni, 1e18);
+        superPaymaster.configureOperator(dPNTs, anni);
         
         // 2. Anni 存入 aPNTs -> SuperPaymaster
         apnts.approve(address(superPaymaster), 1000 ether);

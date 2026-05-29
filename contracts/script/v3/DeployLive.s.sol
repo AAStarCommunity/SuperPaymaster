@@ -266,7 +266,7 @@ contract DeployLive is Script {
         console.log("  PNTs Deployed at:", pntsAddr);
 
         // 6e. Configure Anni as SuperPaymaster operator
-        superPaymaster.configureOperator(pntsAddr, anni, 1e18);
+        superPaymaster.configureOperator(pntsAddr, anni);
         console.log("  Operator Configured (PNTs -> SuperPaymaster)");
 
         // 6f. Deposit aPNTs into SuperPaymaster (gasless sponsorship fund)
