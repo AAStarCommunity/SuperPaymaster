@@ -47,6 +47,7 @@ contract TestAccountPrepare is Script {
         address entryPointAddr       = stdJson.readAddress(json, ".entryPoint");
         address priceFeedAddr        = stdJson.readAddress(json, ".priceFeed");
         address stakingAddr          = stdJson.readAddress(json, ".staking");
+        xPNTsToken apnts             = xPNTsToken(stdJson.readAddress(json, ".aPNTs"));
 
         // -----------------------------------------------------------------------
         // Phase 2.0: Deployer registers Anni as COMMUNITY + PAYMASTER_SUPER
@@ -74,6 +75,11 @@ contract TestAccountPrepare is Script {
             registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anniAddr, "");
             console.log("  PAYMASTER_SUPER granted to Anni");
         }
+        // Transfer aPNTs to Anni if she has less than 1000 (for SP deposit)
+        if (apnts.balanceOf(anniAddr) < 1000 ether) {
+            console.log("[Phase 2.0] Transferring 1000 aPNTs to Anni...");
+            apnts.transfer(anniAddr, 1000 ether);
+        }
         vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
@@ -96,6 +102,29 @@ contract TestAccountPrepare is Script {
             console.log("[Phase 2.2] Registering Anni as PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
             registry.registerRole(ROLE_PAYMASTER_AOA, anniAddr, "");
+        }
+
+        // Deploy Anni's PNTs xPNTs token + configure SP operator (mirrors DeployLive step 6d-6f)
+        address pntsAddr = xpntsFactory.getTokenAddress(anniAddr);
+        if (pntsAddr == address(0)) {
+            console.log("[Phase 2.2] Deploying Anni's PNTs token...");
+            pntsAddr = xpntsFactory.deployxPNTsToken(
+                "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
+            );
+            console.log("  PNTs deployed:", pntsAddr);
+        }
+        (uint128 anniBal, bool isCfgAnni,,,,,,,) = superPaymaster.operators(anniAddr);
+        if (!isCfgAnni) {
+            console.log("[Phase 2.2] Configuring Anni as SuperPaymaster operator...");
+            superPaymaster.configureOperator(pntsAddr, anniAddr);
+            console.log("  Operator configured");
+        }
+        // Deposit 1000 aPNTs into SuperPaymaster if balance is low
+        if (anniBal < 100 ether) {
+            console.log("[Phase 2.2] Depositing aPNTs to SuperPaymaster for Anni...");
+            apnts.approve(address(superPaymaster), 1000 ether);
+            superPaymaster.deposit(1000 ether);
+            console.log("  1000 aPNTs deposited");
         }
 
         // Deploy Anni's V4 paymaster proxy if not yet deployed
