@@ -52,11 +52,12 @@ contract CheckVersions is Script {
         
         // 定义需要检查的合约列表（按字母顺序）
         // P0-1: standalone "blsValidator" entry removed — Registry now verifies via blsAggregator only.
-        string[12] memory contractKeys = [
+        string[13] memory contractKeys = [
             "aPNTs",
             "blsAggregator",
             "dvtValidator",
             "gToken",
+            "microPaymentChannel",
             "paymasterFactory",
             "paymasterV4Impl",
             "registry",
@@ -68,7 +69,7 @@ contract CheckVersions is Script {
         ];
         
         // 遍历并检查每个合约
-        for (uint i = 0; i < contractKeys.length; i++) {
+        for (uint i = 0; i < 13; i++) {
             string memory key = contractKeys[i];
             address contractAddr = vm.parseJsonAddress(json, string.concat(".", key));
             

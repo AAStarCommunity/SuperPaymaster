@@ -23,6 +23,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
+import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // MockBLSValidator removed in P0-1 — Registry verifies via BLSAggregator only.
 
 // Agent Registry Mocks (Anvil/local only — production uses AgentRegistry deployed by AirAccount)
@@ -67,6 +68,7 @@ contract DeployAnvil is Script {
     SimpleAccountFactory accountFactory;
     MockAgentIdentityRegistry mockAgentIdentity;
     MockAgentReputationRegistry mockAgentReputation;
+    MicroPaymentChannel microPaymentCh;
 
     function setUp() public {
         deployer = vm.addr(deployerPK); 
@@ -153,8 +155,9 @@ contract DeployAnvil is Script {
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(address(registry));
+        microPaymentCh = new MicroPaymentChannel(deployer);
         accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
-        // Agent Registries (mock for local dev; production uses AgentRegistry from AirAccount)
+        // Agent Registries (mock for local dev; production uses ERC-8004 official contracts on live networks)
         mockAgentIdentity = new MockAgentIdentityRegistry();
         mockAgentReputation = new MockAgentReputationRegistry();
 
@@ -163,7 +166,7 @@ contract DeployAnvil is Script {
 
         console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
-        superPaymaster.configureOperator(address(apnts), deployer, 1e18);
+        superPaymaster.configureOperator(address(apnts), deployer);
         
         apnts.mint(deployer, 1000 ether);        // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
         superPaymaster.depositFor(deployer, 1000 ether);
@@ -201,7 +204,7 @@ contract DeployAnvil is Script {
         
         vm.startBroadcast(anniPK);
         address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
-        superPaymaster.configureOperator(dPNTs, anni, 1e18);
+        superPaymaster.configureOperator(dPNTs, anni);
         
         // 2. Anni 存入 aPNTs -> SuperPaymaster
         apnts.approve(address(superPaymaster), 1000 ether);
@@ -270,6 +273,8 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", address(mockAgentIdentity));
         vm.serializeAddress(jsonObj, "agentReputationRegistry", address(mockAgentReputation));
+        vm.serializeAddress(jsonObj, "agentValidationRegistry", address(0)); // no mock for Anvil; ERC-8004 validation is TEE-based
+        vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
