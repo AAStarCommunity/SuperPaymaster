@@ -33,10 +33,24 @@ CURRENT_HASH=$(find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -
 CONFIG_FILE_PATH="deployments/config.$ENV.json"
 
 FORCE_DEPLOY=false
-if [[ "$*" == *"--force"* ]]; then FORCE_DEPLOY=true; fi
+FRESH_DEPLOY=false
+if [[ "$*" == *"--force"* ]];        then FORCE_DEPLOY=true; fi
+if [[ "$*" == *"--fresh-deploy"* ]]; then FRESH_DEPLOY=true; fi
+
+# Warn loudly if --fresh-deploy is used on a live network (destructive — creates new proxies)
+if [ "$FRESH_DEPLOY" = true ] && [ "$ENV" != "anvil" ]; then
+    echo -e "\033[0;31m⚠️  WARNING: --fresh-deploy will deploy NEW UUPS proxies and LOSE all on-chain state\033[0m"
+    echo -e "\033[0;31m   (registered communities, staked GToken, SBT records, etc.)\033[0m"
+    echo -e "\033[0;31m   Only use this for brand-new network deployments!\033[0m"
+    read -p "   Type 'yes' to confirm fresh deployment on $ENV: " CONFIRM
+    if [ "$CONFIRM" != "yes" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
 
 SHOULD_RUN_DEPLOY=false
-if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = false ]; then
+if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = false ] && [ "$FRESH_DEPLOY" = false ]; then
     STORED_HASH=$(jq -r '.srcHash // ""' "$CONFIG_FILE_PATH")
     if [ "$CURRENT_HASH" == "$STORED_HASH" ]; then
         echo "✅ Code unchanged ($CURRENT_HASH). Skipping Core Deployment."
@@ -46,7 +60,7 @@ if [ "$ENV" != "anvil" ] && [ -f "$CONFIG_FILE_PATH" ] && [ "$FORCE_DEPLOY" = fa
         SHOULD_RUN_DEPLOY=true
     fi
 else
-    # Anvil, no config file, or --force flag
+    # Anvil, no config file, --force, or --fresh-deploy
     SHOULD_RUN_DEPLOY=true
 fi
 
@@ -54,7 +68,22 @@ export CONFIG_FILE="config.$ENV.json"
 export SRC_HASH="$CURRENT_HASH"
 export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
-SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
+
+# ─── Routing: Anvil → DeployAnvil, live fresh → DeployLive, live upgrade → UpgradeLive ───
+# From v5.3.3-beta onwards, ALL SuperPaymaster/Registry changes on live networks
+# MUST go through UpgradeLive (UUPS) to preserve proxy addresses and on-chain state.
+# Use --fresh-deploy only for brand-new network deployments.
+if [ "$ENV" == "anvil" ]; then
+    SCRIPT_NAME="DeployAnvil"
+elif [ "$FRESH_DEPLOY" = true ] || ! jq -e '.registry != null and .registry != "0x0000000000000000000000000000000000000000"' "$CONFIG_FILE_PATH" > /dev/null 2>&1; then
+    # Fresh deploy: no config yet, or --fresh-deploy flag
+    SCRIPT_NAME="DeployLive"
+    echo "🆕 Mode: Fresh Deploy (DeployLive)"
+else
+    # Existing proxies found → UUPS upgrade (preserves state)
+    SCRIPT_NAME="UpgradeLive"
+    echo "🔄 Mode: UUPS Upgrade (UpgradeLive) — proxy addresses preserved"
+fi
 
 # Prepare Forge flags
 FORGE_FLAGS="--rpc-url $RPC_URL --broadcast --slow -vv"
