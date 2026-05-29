@@ -273,6 +273,7 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "simpleAccountFactory", address(accountFactory));
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", address(mockAgentIdentity));
         vm.serializeAddress(jsonObj, "agentReputationRegistry", address(mockAgentReputation));
+        vm.serializeAddress(jsonObj, "agentValidationRegistry", address(0)); // no mock for Anvil; ERC-8004 validation is TEE-based
         vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));

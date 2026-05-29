@@ -44,6 +44,7 @@ contract DeployLive is Script {
     address priceFeedAddr;
     address simpleAccountFactory;
     address spImplAddr;          // SuperPaymaster implementation (UUPS)
+    address erc8004Validation;   // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
     MicroPaymentChannel microPaymentCh; // Deployed in Step 4
 
     GTokenAuthorization gtoken;
@@ -189,18 +190,22 @@ contract DeployLive is Script {
         if (isMainnet) {
             erc8004Identity   = 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432;
             erc8004Reputation = 0x8004BAa17C55a88189AE136b182e5fdA19dE9b63;
+            erc8004Validation = 0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58;
         } else if (isTestnet) {
             erc8004Identity   = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
             erc8004Reputation = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
+            erc8004Validation = 0x8004Cb1BF31DAf7788923b405b754f57acEB4272;
         }
         // Allow env override
         erc8004Identity   = vm.envOr("AGENT_IDENTITY_REGISTRY",   erc8004Identity);
         erc8004Reputation = vm.envOr("AGENT_REPUTATION_REGISTRY", erc8004Reputation);
+        erc8004Validation = vm.envOr("AGENT_VALIDATION_REGISTRY", erc8004Validation);
         if (erc8004Identity != address(0) && erc8004Reputation != address(0)) {
             superPaymaster.setAgentRegistries(erc8004Identity, erc8004Reputation);
             console.log("  Agent registries wired (ERC-8004 official)");
             console.log("    identity:   ", erc8004Identity);
             console.log("    reputation: ", erc8004Reputation);
+            console.log("    validation: ", erc8004Validation, " (recorded, not wired to SP yet)");
         } else {
             console.log("  WARN: Agent registries not wired (unsupported chain or no override set)");
         }
@@ -316,9 +321,11 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
         vm.serializeAddress(jsonObj, "pnts", pntsAddr);
-        // Agent registry addresses — wired via ERC-8004 official addresses in _executeWiring()
+        // ERC-8004 agent registry addresses (official CREATE2 constants per chain).
+        // identity + reputation are wired into SuperPaymaster; validation is recorded for future use.
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
         vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
+        vm.serializeAddress(jsonObj, "agentValidationRegistry", erc8004Validation);
         // UUPS implementation address — required for future upgrades via upgradeToAndCall()
         vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
         // MicroPaymentChannel — deployed in Step 4
