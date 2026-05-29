@@ -134,17 +134,27 @@ fi
 if [ "$SHOULD_RUN_DEPLOY" = true ]; then
     echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
     forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" $FORGE_FLAGS
+
+    # Sync ABI JSONs from compiled artifacts (keeps abis/ in sync with deployed bytecode)
+    echo "  📄 Syncing ABI JSONs from out/..."
+    for contract in SuperPaymaster Registry xPNTsToken xPNTsFactory GToken GTokenStaking MySBT MicroPaymentChannel; do
+        artifact=$(find out -name "${contract}.json" -not -path "*test*" 2>/dev/null | head -1)
+        if [ -n "$artifact" ]; then
+            jq '.abi' "$artifact" > "abis/${contract}.json" 2>/dev/null && echo "    ✓ $contract" || true
+        fi
+    done
 fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---
-echo -e "\n🛡️ Starting Core Logic Audit..."
-# Use space-separated string for compatibility
-CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring VerifyV3_1_1"
-
-for SCRIPT in $CHECK_SCRIPTS; do
-    echo -e "  Audit: $SCRIPT"
-    forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
-done
+# Delegate to audit-core (per-check idempotency + retry + ABI/interface checks).
+# --force because we just deployed: stamps from a previous run are now stale.
+echo ""
+if [ -x "./audit-core" ]; then
+    ./audit-core "$ENV"
+else
+    echo -e "\033[0;31m❌ audit-core not found or not executable. Run: chmod +x audit-core\033[0m"
+    exit 1
+fi
 
 echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Audited!\033[0m"
 

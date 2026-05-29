@@ -80,7 +80,7 @@ contract Check08_Wiring is Script {
         address agentIdentity = SuperPaymaster(payable(superPaymaster)).agentIdentityRegistry();
         address agentReputation = SuperPaymaster(payable(superPaymaster)).agentReputationRegistry();
         if (agentIdentity == address(0) || agentReputation == address(0)) {
-            console.log("WARN Check08: agentRegistries not set — Agent Sponsorship disabled");
+            console.log("WARN Check08: agentRegistries not set - Agent Sponsorship disabled");
             console.log("  Fix: cast send $SP 'setAgentRegistries(address,address)' $IDENTITY $REPUTATION");
             console.log("  (Deploy AgentRegistry via AirAccount team first, then wire here)");
         } else {

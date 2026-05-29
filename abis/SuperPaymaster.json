@@ -243,11 +243,6 @@
         "name": "_opTreasury",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "exchangeRate",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -820,11 +815,6 @@
         "name": "aPNTsBalance",
         "type": "uint128",
         "internalType": "uint128"
-      },
-      {
-        "name": "exchangeRate",
-        "type": "uint96",
-        "internalType": "uint96"
       },
       {
         "name": "isConfigured",
@@ -2148,12 +2138,6 @@
         "type": "address",
         "indexed": false,
         "internalType": "address"
-      },
-      {
-        "name": "exchangeRate",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -2528,7 +2512,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "xPNTsCost",
+        "name": "debtAPNTs",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -2759,11 +2743,6 @@
   {
     "type": "error",
     "name": "EmergencyTimelockNotElapsed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ExchangeRateOverflow",
     "inputs": []
   },
   {

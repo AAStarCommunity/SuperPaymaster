@@ -154,3 +154,4 @@ mythril*.txt
 slither*.txt
 slither_results.json
 scripts/local_env.json
+deployments/.audit.*.stamp
