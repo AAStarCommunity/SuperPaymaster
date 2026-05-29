@@ -83,8 +83,9 @@ const ABI = {
     "function APNTS_TOKEN() view returns (address)",
     "function MAX_PROTOCOL_FEE() view returns (uint256)",
     // Operator
-    "function operators(address operator) view returns (uint128 aPNTsBalance, uint96 exchangeRate, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)",
-    "function configureOperator(address xPNTsToken, address _opTreasury, uint256 exchangeRate)",
+    // v5.3.3: exchangeRate removed from OperatorConfig (read live from xPNTsToken.exchangeRate())
+    "function operators(address operator) view returns (uint128 aPNTsBalance, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)",
+    "function configureOperator(address xPNTsToken, address _opTreasury)",
     "function setOperatorLimits(uint48 _minTxInterval)",
     "function setOperatorPaused(address operator, bool paused)",
     // Deposits
