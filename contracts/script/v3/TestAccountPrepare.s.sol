@@ -157,7 +157,7 @@ contract TestAccountPrepare is Script {
 
     /// @dev Read-only helper: log a single row of the operator matrix.
     function _printOperatorRow(string memory label, address op, SuperPaymaster sp) internal view {
-        (uint128 bal, , bool isCfg, , address xpnts, , , , , ) = sp.operators(op);
+        (uint128 bal, bool isCfg, , address xpnts, , , , , ) = sp.operators(op);
         console.log(label, op);
         console.log("    isConfigured:", isCfg);
         console.log("    xPNTsToken: ", xpnts);

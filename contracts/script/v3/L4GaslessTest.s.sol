@@ -147,7 +147,7 @@ contract L4GaslessTest is Script {
 
     function _checkFunding() internal {
         // Ensure Anni has credit in SP
-        (uint128 credit,,,,,,,,,) = sp.operators(ANNI);
+        (uint128 credit,,,,,,,,) = sp.operators(ANNI);
         console.log(unicode"   📊 Anni SP Credit:", credit / 1e18, "aPNTs");
         if (credit < 100 ether) {
             console.log(unicode"   ⚠️ Anni credit too low! Funding...");
@@ -164,7 +164,7 @@ contract L4GaslessTest is Script {
         console.log(unicode"\n🔹 [T2] Gasless Transfer via SuperPaymaster");
         
         // 1. Get Anni's Token (xPNTs)
-        (address tokenAddr,,,,,,,,,) = sp.operators(ANNI);
+        (,,, address tokenAddr,,,,,) = sp.operators(ANNI);
         xPNTsToken token = xPNTsToken(tokenAddr);
         console.log(unicode"   Token:", address(token));
         
@@ -272,7 +272,7 @@ contract L4GaslessTest is Script {
         // We can just query `debts` mapping on Token.
         // If we want to simulate debt, we need to drain user.
         // For now, just log existing debt.
-        (address tokenAddr,,,,,,,,,) = sp.operators(ANNI);
+        (,,, address tokenAddr,,,,,) = sp.operators(ANNI);
         xPNTsToken token = xPNTsToken(tokenAddr);
         uint256 debt = token.debts(USER);
         console.log(unicode"   📊 User Debt:", debt);
