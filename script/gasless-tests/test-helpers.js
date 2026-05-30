@@ -217,6 +217,28 @@ const ABI = {
     "function execute(address dest, uint256 value, bytes func)",
     "function getNonce() view returns (uint256)",
   ],
+
+  xPNTsToken: [
+    "function balanceOf(address) view returns (uint256)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function totalSupply() view returns (uint256)",
+    "function name() view returns (string)",
+    "function getDebt(address user) view returns (uint256)",
+    "function repayDebt(uint256 amountXPNTs)",
+    "function exchangeRate() view returns (uint256)",
+    "function updateExchangeRate(uint256 newRate)",
+    "function maxSingleTxLimit() view returns (uint256)",
+    "function lastRateUpdate() view returns (uint256)",
+    "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
+    "function recordDebt(address user, uint256 amountAPNTs)",
+    "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
+    "function mint(address to, uint256 amount)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+  ],
 };
 
 // ============================================================
@@ -351,6 +373,16 @@ function assertGte(actual, expected, label) {
   }
 }
 
+function assertGt(actual, expected, label) {
+  if (actual > expected) {
+    printSuccess(`${label}: ${actual} > ${expected}`);
+    return true;
+  } else {
+    printError(`${label}: ${actual} not > ${expected}`);
+    return false;
+  }
+}
+
 async function expectRevert(fn, label) {
   try {
     await fn();
@@ -452,6 +484,7 @@ function getContracts(config, signerOrProvider) {
     staking:          new ethers.Contract(config.staking, ABI.GTokenStaking, signerOrProvider),
     sbt:              new ethers.Contract(config.sbt, ABI.MySBT, signerOrProvider),
     aPNTs:            new ethers.Contract(config.aPNTs, ABI.ERC20, signerOrProvider),
+    aPNTsToken:       new ethers.Contract(config.aPNTs, ABI.xPNTsToken, signerOrProvider),
     reputationSystem: new ethers.Contract(config.reputationSystem, ABI.ReputationSystem, signerOrProvider),
     paymasterFactory: new ethers.Contract(config.paymasterFactory, ABI.PaymasterFactory, signerOrProvider),
     priceFeed:        new ethers.Contract(config.priceFeed, ABI.PriceFeed, signerOrProvider),
@@ -511,6 +544,7 @@ module.exports = {
   assertEqual,
   assertTrue,
   assertFalse,
+  assertGt,
   assertGte,
   expectRevert,
   // TX / View retry

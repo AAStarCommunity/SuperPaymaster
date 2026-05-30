@@ -163,6 +163,7 @@ run_test "E1: Pricing & Oracle"  "node $SCRIPT_DIR/test-group-E1-pricing-oracle.
 sleep 5  # Let RPC recover between pricing tests
 run_test "E2: Protocol Fees"     "node $SCRIPT_DIR/test-group-E2-protocol-fees.js"
 run_test "E3: aPNTs Exchange Rate Accounting (PR#200)" "node $SCRIPT_DIR/test-group-E3-apnts-exchange-rate.js"
+run_test "E4: repayDebt & Exchange Rate Settlement"    "node $SCRIPT_DIR/test-group-E4-repay-debt-exchange-rate.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 6: Staking & Slash
@@ -227,6 +228,8 @@ sleep 5
 run_test "Gasless: SuperPaymaster xPNTs1"  "TEST_AA_ACCOUNT_ADDRESS_B=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
 sleep 5
 run_test "Gasless: SuperPaymaster xPNTs2"  "TEST_AA_ACCOUNT_ADDRESS_C=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
+sleep 5
+run_test "Gasless: SP Credit/Debt Path"   "node $SCRIPT_DIR/test-case-4-superpaymaster-credit-path.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 10: Streaming & x402 Settlement
@@ -266,6 +269,45 @@ echo ""
 echo "────────────────────────────────────────────────────────────────"
 echo -e "  Total: $TOTAL  |  ${GREEN}Passed: $PASSED${NC}  |  ${RED}Failed: $FAILED${NC}  |  ${YELLOW}Skipped: $SKIPPED${NC}"
 echo "────────────────────────────────────────────────────────────────"
+echo ""
+
+# ── Write result file ────────────────────────────────────────────────────────
+RESULTS_DIR="$SCRIPT_DIR/results"
+mkdir -p "$RESULTS_DIR"
+E2E_RESULT_FILE="$RESULTS_DIR/$(date '+%Y-%m-%d_%H-%M-%S')_run-all-e2e-tests.md"
+SP_ADDR=$(cat "$PROJECT_ROOT/deployments/config.sepolia.json" 2>/dev/null | grep '"superPaymaster"' | grep -oE '0x[0-9a-fA-F]+' | head -1 || echo "N/A")
+APNTS_ADDR=$(cat "$PROJECT_ROOT/deployments/config.sepolia.json" 2>/dev/null | grep '"aPNTs"' | grep -oE '0x[0-9a-fA-F]+' | head -1 || echo "N/A")
+
+{
+  echo "# E2E Test Run — $(date '+%Y-%m-%d %H:%M:%S')"
+  echo ""
+  echo "## Environment"
+  echo "- Network: Sepolia"
+  echo "- SuperPaymaster: $SP_ADDR"
+  echo "- aPNTs: $APNTS_ADDR"
+  echo ""
+  echo "## Results"
+  echo ""
+  echo "| # | Test | Status |"
+  echo "|---|------|--------|"
+  for i in "${!TEST_NAMES[@]}"; do
+    idx=$((i + 1))
+    if [ "${TEST_RESULTS[$i]}" = "PASS" ]; then
+      echo "| $idx | ${TEST_NAMES[$i]} | ✅ PASS |"
+    elif [ "${TEST_RESULTS[$i]}" = "SKIP" ]; then
+      echo "| $idx | ${TEST_NAMES[$i]} | ⏭️  SKIP |"
+    else
+      echo "| $idx | ${TEST_NAMES[$i]} | ❌ FAIL |"
+    fi
+  done
+  echo ""
+  echo "## Summary"
+  echo "- Total: $TOTAL | Passed: $PASSED | Failed: $FAILED | Skipped: $SKIPPED"
+  [ $FAILED -eq 0 ] && echo "- **All tests PASSED ✅**" || echo "- **$FAILED test(s) FAILED ❌**"
+} > "$E2E_RESULT_FILE"
+
+echo ""
+echo "📁 Results saved to: $E2E_RESULT_FILE"
 echo ""
 
 if [ $FAILED -eq 0 ]; then
