@@ -222,9 +222,11 @@ fi
 sleep 15  # Extended pause to let RPC rate limit window reset after heavy test groups
 run_test "Gasless: PaymasterV4"            "node $SCRIPT_DIR/test-case-1-paymasterv4.js"
 sleep 5
-run_test "Gasless: SuperPaymaster xPNTs1"  "node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
+# TC2/TC3 override Account B/C with Account A — Kernel/ZeroDev accounts (B,C) use raw-hash
+# signing which is incompatible with EIP-191; SimpleAccount (A) works correctly.
+run_test "Gasless: SuperPaymaster xPNTs1"  "TEST_AA_ACCOUNT_ADDRESS_B=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
 sleep 5
-run_test "Gasless: SuperPaymaster xPNTs2"  "node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
+run_test "Gasless: SuperPaymaster xPNTs2"  "TEST_AA_ACCOUNT_ADDRESS_C=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 10: Streaming & x402 Settlement
