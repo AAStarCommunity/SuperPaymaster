@@ -36,7 +36,7 @@ async function main() {
       printKeyValue('isConfigured', op.isConfigured);
       printKeyValue('isPaused', op.isPaused);
       printKeyValue('aPNTsBalance', ethers.formatEther(op.aPNTsBalance));
-      printKeyValue('exchangeRate', op.exchangeRate.toString());
+      // exchangeRate removed from OperatorConfig in v5.3.3 — read live from xPNTsToken.exchangeRate()
       printKeyValue('reputation', op.reputation.toString());
       printKeyValue('xPNTsToken', op.xPNTsToken);
       printKeyValue('treasury', op.treasury);

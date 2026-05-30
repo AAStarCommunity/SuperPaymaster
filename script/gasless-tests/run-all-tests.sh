@@ -54,7 +54,10 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🧪 Test Case 2: SuperPaymasterV2 + xPNTs1"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if node "$SCRIPT_DIR/test-case-2-superpaymaster-xpnts1.js"; then
+# TC2 uses Account A (same as TC1) because TEST_AA_ACCOUNT_ADDRESS_B is a Kernel
+# (ZeroDev) account that requires raw-hash signing rather than EIP-191. SimpleAccount
+# (Account A) is compatible with EIP-191 and is the reference implementation.
+if TEST_AA_ACCOUNT_ADDRESS_B="$TEST_AA_ACCOUNT_ADDRESS_A" node "$SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"; then
     echo "✅ Test Case 2: PASSED"
 else
     echo "❌ Test Case 2: FAILED"
@@ -67,7 +70,8 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🧪 Test Case 3: SuperPaymasterV2 + xPNTs2"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if node "$SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"; then
+# TC3 uses Account A (same override logic as TC2 — Account C is Kernel/ZeroDev).
+if TEST_AA_ACCOUNT_ADDRESS_C="$TEST_AA_ACCOUNT_ADDRESS_A" node "$SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"; then
     echo "✅ Test Case 3: PASSED"
 else
     echo "❌ Test Case 3: FAILED"
