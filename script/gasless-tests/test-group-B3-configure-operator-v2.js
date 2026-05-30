@@ -36,11 +36,26 @@ async function main() {
   // Step 1: Verify deployer has ROLE_PAYMASTER_SUPER
   // ──────────────────────────────────────────
   printStep(1, 'Verify ROLE_PAYMASTER_SUPER');
-  const hasRole = await registry.hasRole(ROLES.PAYMASTER_SUPER, deployerAddr);
+  let hasRole;
+  try {
+    hasRole = await registry.hasRole(ROLES.PAYMASTER_SUPER, deployerAddr);
+  } catch (e) {
+    const msg = (e.message || '').toLowerCase();
+    const isNet = msg.includes('socket hang up') || msg.includes('timeout') ||
+      msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('request timeout');
+    if (isNet) {
+      printSkip(`Network error in Step 1 — transient RPC issue: ${e.message.substring(0, 60)}`);
+      const allPassed = printSummary('B3: configureOperator v2');
+      process.exit(allPassed ? 0 : 2);
+    }
+    printError(`hasRole: ${e.message.substring(0, 100)}`);
+    const allPassed = printSummary('B3: configureOperator v2');
+    process.exit(allPassed ? 0 : 1);
+  }
   if (!hasRole) {
     printSkip('Deployer lacks ROLE_PAYMASTER_SUPER — skipping configure tests');
-    printSummary();
-    return;
+    printSummary('B3: configureOperator v2');
+    process.exit(2);
   }
   printSuccess('Deployer has ROLE_PAYMASTER_SUPER');
 
@@ -89,8 +104,8 @@ async function main() {
 
   if (!xPNTsAddr || xPNTsAddr === ethers.ZeroAddress) {
     printSkip('No xPNTsToken available — cannot test configureOperator');
-    printSummary();
-    return;
+    printSummary('B3: configureOperator v2');
+    process.exit(2);
   }
 
   // ──────────────────────────────────────────
@@ -147,7 +162,8 @@ async function main() {
     printSkip('No original treasury to restore');
   }
 
-  printSummary();
+  const allPassed = printSummary('B3: configureOperator v2');
+  process.exit(allPassed ? 0 : 1);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

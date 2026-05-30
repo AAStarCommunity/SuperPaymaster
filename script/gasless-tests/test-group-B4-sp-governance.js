@@ -20,15 +20,6 @@ const {
   sendTxSafe,
 } = require('./test-helpers');
 
-// ──────────────────────────────────────────────────────────────
-// Extra ABI entries not present in test-helpers SP_ABI
-// (treasury(), pendingBLSAggregator(), blsAggregatorChangeAt())
-// ──────────────────────────────────────────────────────────────
-const EXTRA_SP_ABI = [
-  "function treasury() view returns (address)",
-  "function pendingBLSAggregator() view returns (address)",
-  "function blsAggregatorChangeAt() view returns (uint256)",
-];
 
 async function main() {
   printHeader('Test Group B4: SP Governance / Admin');
@@ -77,62 +68,27 @@ async function main() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // Step 2: updateSBTStatus — grant + verify + revoke
+  // Step 2: updateSBTStatus — onlyRegistry, verify current state only
   // ──────────────────────────────────────────────────────────────
-  printStep(2, 'updateSBTStatus — grant true + verify + revoke');
-  let sbtBefore = false;
+  printStep(2, 'updateSBTStatus — read state (write is onlyRegistry)');
   try {
-    sbtBefore = await sp.sbtHolders(testUser);
-    printKeyValue('sbtHolders(testUser) before', sbtBefore);
-
-    const receipt = await sendTxSafe(sp, 'updateSBTStatus', [testUser, true], 'updateSBTStatus(true)');
-    if (receipt) {
-      const afterGrant = await sp.sbtHolders(testUser);
-      assertTrue(afterGrant, 'sbtHolders(testUser) is true after grant');
-
-      // Only revoke if it was false before — don't strip existing SBT holders
-      if (!sbtBefore) {
-        await sendTxSafe(sp, 'updateSBTStatus', [testUser, false], 'updateSBTStatus(false restore)');
-        const afterRevoke = await sp.sbtHolders(testUser);
-        assertFalse(afterRevoke, 'sbtHolders(testUser) is false after revoke');
-      } else {
-        printInfo('testUser already had SBT status — restore skipped to avoid side-effects');
-      }
-    }
+    const sbtStatus = await sp.sbtHolders(testUser);
+    printKeyValue('sbtHolders(testUser)', sbtStatus);
+    printSkip('updateSBTStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.');
   } catch (e) {
-    printError(`updateSBTStatus: ${e.message.substring(0, 100)}`);
+    printError(`updateSBTStatus read: ${e.message.substring(0, 100)}`);
   }
 
   // ──────────────────────────────────────────────────────────────
-  // Step 3: updateBlockedStatus — block + verify + unblock
+  // Step 3: updateBlockedStatus — onlyRegistry, verify current state only
   // ──────────────────────────────────────────────────────────────
-  printStep(3, 'updateBlockedStatus — block user + verify + unblock');
+  printStep(3, 'updateBlockedStatus — read state (write is onlyRegistry)');
   try {
-    const operator = deployerAddr;
-    // Read current state
-    const stateBefore = await sp.userOpState(operator, testUser);
-    printKeyValue('isBlocked before', stateBefore.isBlocked);
-
-    const receipt = await sendTxSafe(
-      sp, 'updateBlockedStatus',
-      [operator, [testUser], [true]],
-      'block user'
-    );
-    if (receipt) {
-      const stateAfterBlock = await sp.userOpState(operator, testUser);
-      assertTrue(stateAfterBlock.isBlocked, 'userOpState.isBlocked is true after block');
-
-      // Restore — unblock regardless of prior state (blocking is a test artifact)
-      await sendTxSafe(
-        sp, 'updateBlockedStatus',
-        [operator, [testUser], [false]],
-        'unblock user (restore)'
-      );
-      const stateAfterUnblock = await sp.userOpState(operator, testUser);
-      assertFalse(stateAfterUnblock.isBlocked, 'userOpState.isBlocked is false after unblock');
-    }
+    const stateBefore = await sp.userOpState(deployerAddr, testUser);
+    printKeyValue('userOpState.isBlocked', stateBefore.isBlocked);
+    printSkip('updateBlockedStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.');
   } catch (e) {
-    printError(`updateBlockedStatus: ${e.message.substring(0, 100)}`);
+    printError(`updateBlockedStatus read: ${e.message.substring(0, 100)}`);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -290,10 +246,10 @@ async function main() {
   // ──────────────────────────────────────────────────────────────
   printStep(8, 'queueBLSAggregator — queue deployer as test address + verify');
   try {
-    const pendingBefore = await sp.pendingBLSAggregator();
-    const etaBefore = await sp.blsAggregatorChangeAt();
-    printKeyValue('pendingBLSAggregator before', pendingBefore);
-    printKeyValue('blsAggregatorChangeAt before', etaBefore.toString());
+    const pendingBefore = await sp.pendingBLSAgg();
+    const etaBefore = await sp.pendingBLSAggEta();
+    printKeyValue('pendingBLSAgg before', pendingBefore);
+    printKeyValue('pendingBLSAggEta before', etaBefore.toString());
 
     const receipt = await sendTxSafe(
       sp, 'queueBLSAggregator',
@@ -301,10 +257,10 @@ async function main() {
       'queue BLS agg (deployer as test address)'
     );
     if (receipt) {
-      const pendingAfter = await sp.pendingBLSAggregator();
-      const etaAfter = await sp.blsAggregatorChangeAt();
-      assertEqual(pendingAfter.toLowerCase(), deployerAddr.toLowerCase(), 'pendingBLSAggregator == deployer');
-      assertTrue(etaAfter > 0n, 'blsAggregatorChangeAt > 0 (timelock set)');
+      const pendingAfter = await sp.pendingBLSAgg();
+      const etaAfter = await sp.pendingBLSAggEta();
+      assertEqual(pendingAfter.toLowerCase(), deployerAddr.toLowerCase(), 'pendingBLSAgg == deployer');
+      assertTrue(etaAfter > 0n, 'pendingBLSAggEta > 0 (timelock set)');
       printInfo('Note: applyBLSAggregator skipped — requires 24h timelock');
     }
   } catch (e) {

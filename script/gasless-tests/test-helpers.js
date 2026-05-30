@@ -139,8 +139,8 @@ const ABI = {
     "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
     "function queueBLSAggregator(address _bls)",
     "function treasury() view returns (address)",
-    "function pendingBLSAggregator() view returns (address)",
-    "function blsAggregatorChangeAt() view returns (uint256)",
+    "function pendingBLSAgg() view returns (address)",
+    "function pendingBLSAggEta() view returns (uint48)",
     "function priceValidUntil() view returns (uint256)",
   ],
 
@@ -473,7 +473,18 @@ async function sendTxSafe(contract, method, args, label, maxRetries = 3) {
         continue;
       }
       const reason = err.reason || err.shortMessage || err.message.substring(0, 120);
-      printError(`${label}: TX failed (${reason})`);
+      const reasonLower = reason.toLowerCase();
+      const isNonceConflict = reasonLower.includes('replacement transaction underpriced') ||
+        reasonLower.includes('replacement underpriced') ||
+        reasonLower.includes('nonce too low') ||
+        reasonLower.includes('already known') ||
+        reasonLower.includes('in-flight transaction limit') ||
+        (err.code || '').toLowerCase() === 'replacement_underpriced';
+      if (isNonceConflict) {
+        printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped`);
+      } else {
+        printError(`${label}: TX failed (${reason})`);
+      }
       // Refresh nonce on final failure to resync
       if (_nonceWallet && contract.runner && contract.runner.address === _nonceWallet) {
         try { _nextNonce = await contract.runner.getNonce('latest'); } catch (_) {}

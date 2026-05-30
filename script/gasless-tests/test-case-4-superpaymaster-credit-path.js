@@ -83,6 +83,17 @@ function isNetworkError(err) {
     msg.includes('request timeout') || msg.includes('read timeout');
 }
 
+function isNonceConflict(err) {
+  const msg = (err.message || '').toLowerCase();
+  const code = (err.code || '').toLowerCase();
+  return msg.includes('replacement transaction underpriced') ||
+    msg.includes('replacement underpriced') ||
+    code === 'replacement_underpriced' ||
+    msg.includes('nonce too low') ||
+    msg.includes('already known') ||
+    msg.includes('in-flight transaction limit');  // Alchemy rate limit: too many pending TXs
+}
+
 // ============================================================
 // Main
 // ============================================================
@@ -156,6 +167,20 @@ async function main() {
   const xPNTsAsERC20  = new ethers.Contract(XPNTS_TOKEN_ADDRESS, ERC20_ABI, provider);
   const registry      = new ethers.Contract(config.registry, REGISTRY_ABI, wallet);
 
+  // Hoisted so cleanup can run from any early-exit path
+  let creditSetupRestoreValue = null;
+  async function restoreCreditTier() {
+    if (creditSetupRestoreValue !== null) {
+      try {
+        const tx = await registry.setCreditTier(1n, creditSetupRestoreValue);
+        await tx.wait();
+        console.log(`\n  ✅ Registry.setCreditTier(1, ${ethers.formatEther(creditSetupRestoreValue)}) restored`);
+      } catch (restoreErr) {
+        console.warn(`\n  ⚠️  Could not restore creditTierConfig[1]: ${restoreErr.message.substring(0, 80)}`);
+      }
+    }
+  }
+
   try {
     // ── Step 1: Read current state ──────────────────────────────
     console.log('📊 Step 1: Read current credit/debt state');
@@ -186,7 +211,6 @@ async function main() {
 
     // ── Step 2: Credit precondition — ensure Account A has available credit ──
     console.log('\n📊 Step 2: Credit precondition check');
-    let creditSetupRestoreValue = null; // if we boosted tier 1, restore this after test
 
     if (creditBefore === 0n) {
       console.log('  ⚠️  Available credit is 0 — attempting to set up credit via Registry.setCreditTier(1, 1000 ether)...');
@@ -197,19 +221,21 @@ async function main() {
         const tx = await registry.setCreditTier(1n, TEMP_CREDIT);
         await tx.wait();
         console.log(`  ✅ setCreditTier(1, 1000 ether) succeeded — original was ${ethers.formatEther(tier1Before)}`);
-        creditSetupRestoreValue = tier1Before; // save for restoration
+        creditSetupRestoreValue = tier1Before; // save for restoration (outer scope)
 
         // Re-read credit after tier boost
         creditBefore = await sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS);
         console.log(`  ✅ Available credit after tier boost: ${ethers.formatEther(creditBefore)} aPNTs`);
       } catch (setupErr) {
         console.log(`  ❌ SKIP: Could not set up credit tier (not Registry owner? err: ${setupErr.message.substring(0, 80)})`);
+        await restoreCreditTier();
         process.exit(2);
       }
     }
 
     if (creditBefore === 0n) {
       console.log('  ❌ SKIP: Available credit still 0 after tier setup. Cannot test credit path.');
+      await restoreCreditTier();
       process.exit(2);
     }
     console.log(`  ✅ Available credit: ${ethers.formatEther(creditBefore)} aPNTs — proceeding`);
@@ -241,6 +267,7 @@ async function main() {
     } catch (err) {
       if (isNetworkError(err)) {
         console.warn('\n⚠️  SKIP: Network error fetching nonce:', err.message);
+        await restoreCreditTier();
         process.exit(2);
       }
       throw err;
@@ -285,6 +312,12 @@ async function main() {
     } catch (estimateErr) {
       if (isNetworkError(estimateErr)) {
         console.warn('\n⚠️  SKIP: Network error during gas estimation:', estimateErr.message);
+        await restoreCreditTier();
+        process.exit(2);
+      }
+      if (isNonceConflict(estimateErr)) {
+        console.warn('\n⚠️  SKIP: In-flight/nonce limit during gas estimation — too many pending TXs.');
+        await restoreCreditTier();
         process.exit(2);
       }
       console.log(`  Gas estimation: ${estimateErr.message.substring(0, 100)}...`);
@@ -298,6 +331,14 @@ async function main() {
     } catch (txErr) {
       if (isNetworkError(txErr)) {
         console.warn('\n⚠️  SKIP: Network error sending TX:', txErr.message);
+        await restoreCreditTier();
+        process.exit(2);
+      }
+      if (isNonceConflict(txErr)) {
+        console.warn('\n⚠️  SKIP: Nonce conflict (REPLACEMENT_UNDERPRICED / nonce too low).');
+        console.warn('  A previous TX from this account is still pending in the mempool.');
+        console.warn('  Wait for the pending TX to confirm and re-run this test.');
+        await restoreCreditTier();
         process.exit(2);
       }
       throw txErr;
@@ -392,24 +433,18 @@ async function main() {
     if (isNetworkError(error)) {
       console.warn('\n⚠️  SKIP: Network error (transient RPC issue):', error.message);
       console.warn('  Not a contract logic failure — re-run manually.\n');
+      await restoreCreditTier();
       process.exit(2);
     }
     console.error('\n❌ Error:', error.message);
     if (error.data)  console.error('  Error data:', error.data);
     if (error.error) console.error('  Error reason:', error.error);
+    await restoreCreditTier();
     process.exit(1);
   }
 
-  // ── Restore Registry credit tier if we boosted it ─────────────────────
-  if (creditSetupRestoreValue !== null) {
-    try {
-      const restoreTx = await registry.setCreditTier(1n, creditSetupRestoreValue);
-      await restoreTx.wait();
-      console.log(`\n  ✅ Registry.setCreditTier(1, ${ethers.formatEther(creditSetupRestoreValue)}) restored`);
-    } catch (restoreErr) {
-      console.warn(`\n  ⚠️  Could not restore creditTierConfig[1]: ${restoreErr.message.substring(0, 80)}`);
-    }
-  }
+  // Always restore credit tier on normal completion
+  await restoreCreditTier();
 
   console.log('\n╔═══════════════════════════════════════════════════════════╗');
   console.log('║               Test Case 4 Completed — PASS               ║');

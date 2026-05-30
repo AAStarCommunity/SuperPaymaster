@@ -89,8 +89,13 @@ async function main() {
   printStep(5, 'getCreditLimit for unregistered address');
   try {
     const limit = await registry.getCreditLimit(randomAddr);
+    // rep=0 maps to the minimum tier (tier 1 in the Registry's 1-indexed scheme).
+    // Compare against the current creditTierConfig[1] value so this test remains
+    // correct regardless of what tier 1 has been configured to.
+    const tier1Limit = await registry.creditTierConfig(1n);
     printKeyValue('Random addr credit limit', ethers.formatEther(limit));
-    assertEqual(limit, 0n, 'Unregistered user credit limit is 0');
+    printKeyValue('creditTierConfig[1] (expected)', ethers.formatEther(tier1Limit));
+    assertEqual(limit, tier1Limit, 'Unregistered user credit limit matches tier-1 config');
   } catch (e) {
     // If it reverts, that's also acceptable for unregistered user
     printSuccess(`getCreditLimit(random) reverted as expected: ${e.message.substring(0, 60)}`);

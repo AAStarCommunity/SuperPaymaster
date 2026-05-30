@@ -169,22 +169,22 @@ async function main() {
 
   const payeeReceived = payeeBalanceAfter - payeeBalanceBefore;
   const expectedPayee = ethers.parseUnits('7', decimals);
-  const expectedRefund = ethers.parseUnits('3', decimals); // 10 - 7
 
   // After closeChannel, the channel struct is cleared from storage.
   // ch3 fields (finalized, settled) will return zero/default — that is correct.
   // The real correctness check is token balance deltas.
   const payerBalanceAfter = await apnts.balanceOf(payer.address);
-  const payerRefund = payerBalanceAfter - payerBalanceBefore;
+  // payerNetCost = what the payer spent net (deposited 10, got back 3 → net cost = 7 = cumulativeAmount2)
+  const payerNetCost = payerBalanceBefore - payerBalanceAfter;
 
-  console.log(`  Payee received: ${ethers.formatUnits(payeeReceived, decimals)} aPNTs`);
-  console.log(`  Expected payee: ${ethers.formatUnits(expectedPayee, decimals)} aPNTs`);
-  console.log(`  Payer refund:   ${ethers.formatUnits(payerRefund, decimals)} aPNTs`);
-  console.log(`  Expected refund: ${ethers.formatUnits(expectedRefund, decimals)} aPNTs`);
+  console.log(`  Payee received:   ${ethers.formatUnits(payeeReceived, decimals)} aPNTs`);
+  console.log(`  Expected payee:   ${ethers.formatUnits(expectedPayee, decimals)} aPNTs`);
+  console.log(`  Payer net cost:   ${ethers.formatUnits(payerNetCost, decimals)} aPNTs`);
+  console.log(`  Expected payer cost: ${ethers.formatUnits(cumulativeAmount2, decimals)} aPNTs (= cumulative settled)`);
   console.log(`  Channel struct after close: payer=${ch3.payer} (zero = deleted ✓)`);
 
   if (payeeReceived !== expectedPayee) { console.log('  ❌ FAIL: Payee amount mismatch!'); testPassed = false; }
-  else if (payerRefund < expectedRefund) { console.log(`  ❌ FAIL: Payer refund too small! got=${payerRefund} want>=${expectedRefund}`); testPassed = false; }
+  else if (payerNetCost !== cumulativeAmount2) { console.log(`  ❌ FAIL: Payer net cost mismatch! got=${payerNetCost} want=${cumulativeAmount2}`); testPassed = false; }
   else { console.log('  ✅ All assertions passed!'); }
 
   // Step 6: Verify channel is finalized (cannot settle again)
