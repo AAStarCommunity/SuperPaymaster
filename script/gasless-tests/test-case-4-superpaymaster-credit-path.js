@@ -48,6 +48,13 @@ const SP_ABI = [
   "function updatePrice()",
 ];
 
+const REGISTRY_ABI = [
+  "function owner() view returns (address)",
+  "function creditTierConfig(uint256 level) view returns (uint256)",
+  "function setCreditTier(uint256 level, uint256 limit)",
+  "function getCreditLimit(address user) view returns (uint256)",
+];
+
 const ENTRYPOINT_ABI = [
   "function handleOps((address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature)[] calldata ops, address payable beneficiary) external",
   "function getUserOpHash((address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) calldata userOp) view returns (bytes32)"
@@ -147,6 +154,7 @@ async function main() {
   const simpleAccount = new ethers.Contract(senderAAAccount, SIMPLE_ACCOUNT_ABI, provider);
   const entryPoint    = new ethers.Contract(ENTRYPOINT_ADDRESS, ENTRYPOINT_ABI, wallet);
   const xPNTsAsERC20  = new ethers.Contract(XPNTS_TOKEN_ADDRESS, ERC20_ABI, provider);
+  const registry      = new ethers.Contract(config.registry, REGISTRY_ABI, wallet);
 
   try {
     // ── Step 1: Read current state ──────────────────────────────
@@ -176,11 +184,32 @@ async function main() {
     console.log(`  Operator configured:  ${opConfig[1]}`);
     console.log(`  Operator aPNTs bal:   ${ethers.formatEther(opConfig[0])} aPNTs`);
 
-    // ── Step 2: Credit precondition check ──────────────────────
+    // ── Step 2: Credit precondition — ensure Account A has available credit ──
     console.log('\n📊 Step 2: Credit precondition check');
+    let creditSetupRestoreValue = null; // if we boosted tier 1, restore this after test
+
     if (creditBefore === 0n) {
-      console.log('  ⚠️  SKIP: Account A has no available credit (getAvailableCredit == 0).');
-      console.log('  To enable credit: register Account A as ENDUSER and set a credit tier in Registry.');
+      console.log('  ⚠️  Available credit is 0 — attempting to set up credit via Registry.setCreditTier(1, 1000 ether)...');
+      try {
+        const tier1Before = await registry.creditTierConfig(1n);
+        const TEMP_CREDIT = ethers.parseEther('1000');
+
+        const tx = await registry.setCreditTier(1n, TEMP_CREDIT);
+        await tx.wait();
+        console.log(`  ✅ setCreditTier(1, 1000 ether) succeeded — original was ${ethers.formatEther(tier1Before)}`);
+        creditSetupRestoreValue = tier1Before; // save for restoration
+
+        // Re-read credit after tier boost
+        creditBefore = await sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS);
+        console.log(`  ✅ Available credit after tier boost: ${ethers.formatEther(creditBefore)} aPNTs`);
+      } catch (setupErr) {
+        console.log(`  ❌ SKIP: Could not set up credit tier (not Registry owner? err: ${setupErr.message.substring(0, 80)})`);
+        process.exit(2);
+      }
+    }
+
+    if (creditBefore === 0n) {
+      console.log('  ❌ SKIP: Available credit still 0 after tier setup. Cannot test credit path.');
       process.exit(2);
     }
     console.log(`  ✅ Available credit: ${ethers.formatEther(creditBefore)} aPNTs — proceeding`);
@@ -369,6 +398,17 @@ async function main() {
     if (error.data)  console.error('  Error data:', error.data);
     if (error.error) console.error('  Error reason:', error.error);
     process.exit(1);
+  }
+
+  // ── Restore Registry credit tier if we boosted it ─────────────────────
+  if (creditSetupRestoreValue !== null) {
+    try {
+      const restoreTx = await registry.setCreditTier(1n, creditSetupRestoreValue);
+      await restoreTx.wait();
+      console.log(`\n  ✅ Registry.setCreditTier(1, ${ethers.formatEther(creditSetupRestoreValue)}) restored`);
+    } catch (restoreErr) {
+      console.warn(`\n  ⚠️  Could not restore creditTierConfig[1]: ${restoreErr.message.substring(0, 80)}`);
+    }
   }
 
   console.log('\n╔═══════════════════════════════════════════════════════════╗');

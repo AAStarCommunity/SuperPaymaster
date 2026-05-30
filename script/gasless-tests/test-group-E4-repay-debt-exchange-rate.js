@@ -33,7 +33,7 @@ const XPNTS_DEBT_ABI = [
   "function exchangeRate() view returns (uint256)",
   "function updateExchangeRate(uint256 newRate)",
   "function maxSingleTxLimit() view returns (uint256)",
-  "function lastRateUpdate() view returns (uint256)",
+  "function exchangeRateUpdatedAt() view returns (uint256)",
   "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
   "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
   // Also include ERC20 basics needed here
@@ -83,7 +83,7 @@ async function main() {
     [rate, txLimit, lastUpdate, debtBeforeStep3] = await Promise.all([
       xpnts.exchangeRate(),
       xpnts.maxSingleTxLimit(),
-      xpnts.lastRateUpdate(),
+      xpnts.exchangeRateUpdatedAt(),
       xpnts.getDebt(deployerAddr),
     ]);
   } catch (e) {
@@ -95,7 +95,7 @@ async function main() {
   printKeyValue('xPNTs token address', config.aPNTs);
   printKeyValue('exchangeRate (live)', ethers.formatEther(rate) + ' (xPNTs per aPNTs, 18-dec fixed point)');
   printKeyValue('maxSingleTxLimit (aPNTs)', ethers.formatEther(txLimit));
-  printKeyValue('lastRateUpdate (unix)', lastUpdate.toString());
+  printKeyValue('exchangeRateUpdatedAt (unix)', lastUpdate.toString());
   printKeyValue("deployer's current debt (aPNTs)", ethers.formatEther(debtBeforeStep3));
 
   assertGt(rate, 0n, 'exchangeRate must be non-zero');

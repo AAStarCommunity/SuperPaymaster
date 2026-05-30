@@ -48,6 +48,8 @@ const MPC_ABI = [
 ];
 
 async function main() {
+  let testPassed = true; // global pass flag — set false on any assertion failure
+
   console.log('╔═══════════════════════════════════════════════════════════╗');
   console.log('║     MicroPaymentChannel E2E Test (Streaming Vouchers)    ║');
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
@@ -80,6 +82,7 @@ async function main() {
   console.log('📊 Step 1: Check Balances & Approve');
   const decimals = await apnts.decimals();
   const payerBalance = await apnts.balanceOf(payer.address);
+  const payerBalanceBefore = payerBalance; // capture before-state for Step 5 refund check
   console.log(`  Payer aPNTs: ${ethers.formatUnits(payerBalance, decimals)}`);
 
   const depositAmount = ethers.parseUnits('10', decimals); // 10 aPNTs
@@ -168,17 +171,21 @@ async function main() {
   const expectedPayee = ethers.parseUnits('7', decimals);
   const expectedRefund = ethers.parseUnits('3', decimals); // 10 - 7
 
-  console.log(`  Channel finalized: ${ch3.finalized}`);
-  console.log(`  Total settled: ${ethers.formatUnits(ch3.settled, decimals)} aPNTs`);
+  // After closeChannel, the channel struct is cleared from storage.
+  // ch3 fields (finalized, settled) will return zero/default — that is correct.
+  // The real correctness check is token balance deltas.
+  const payerBalanceAfter = await apnts.balanceOf(payer.address);
+  const payerRefund = payerBalanceAfter - payerBalanceBefore;
+
   console.log(`  Payee received: ${ethers.formatUnits(payeeReceived, decimals)} aPNTs`);
   console.log(`  Expected payee: ${ethers.formatUnits(expectedPayee, decimals)} aPNTs`);
-  console.log(`  Refund (10-7): ${ethers.formatUnits(expectedRefund, decimals)} aPNTs`);
+  console.log(`  Payer refund:   ${ethers.formatUnits(payerRefund, decimals)} aPNTs`);
+  console.log(`  Expected refund: ${ethers.formatUnits(expectedRefund, decimals)} aPNTs`);
+  console.log(`  Channel struct after close: payer=${ch3.payer} (zero = deleted ✓)`);
 
-  let pass = true;
-  if (!ch3.finalized) { console.log('  ❌ FAIL: Channel not finalized!'); pass = false; }
-  if (payeeReceived !== expectedPayee) { console.log('  ❌ FAIL: Payee amount mismatch!'); pass = false; }
-  if (ch3.settled !== cumulativeAmount2) { console.log('  ❌ FAIL: Settled amount mismatch!'); pass = false; }
-  if (pass) { console.log('  ✅ All assertions passed!'); }
+  if (payeeReceived !== expectedPayee) { console.log('  ❌ FAIL: Payee amount mismatch!'); testPassed = false; }
+  else if (payerRefund < expectedRefund) { console.log(`  ❌ FAIL: Payer refund too small! got=${payerRefund} want>=${expectedRefund}`); testPassed = false; }
+  else { console.log('  ✅ All assertions passed!'); }
 
   // Step 6: Verify channel is finalized (cannot settle again)
   console.log('\n🛡️  Step 6: Test Finalization Protection');
@@ -193,6 +200,8 @@ async function main() {
   console.log('\n╔═══════════════════════════════════════════════════════════╗');
   console.log('║                    Test Completed                         ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
+
+  process.exit(testPassed ? 0 : 1);
 }
 
 async function signVoucher(signer, channelId, cumulativeAmount) {

@@ -37,11 +37,8 @@ async function main() {
   const { config, deployer } = initTestEnv();
   const c = getContracts(config, deployer);
   const deployerAddr = deployer.address;
-
-  // Extend SuperPaymaster contract with the extra ABI entries
-  const { ABI } = require('./test-helpers');
-  const spAbi = ABI.SuperPaymaster.concat(EXTRA_SP_ABI);
-  const sp = new ethers.Contract(config.superPaymaster, spAbi, deployer);
+  // All governance/admin functions are now in test-helpers ABI.SuperPaymaster
+  const sp = c.superPaymaster;
 
   // Optional: TEST_AA_ACCOUNT_ADDRESS_A from env, fallback to deployer
   const testUser = process.env.TEST_AA_ACCOUNT_ADDRESS_A || deployerAddr;

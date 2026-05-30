@@ -131,6 +131,17 @@ const ABI = {
     "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, bytes32 settlementRef) returns (bytes32)",
     // V5.3: Credit
     "function getAvailableCredit(address user, address token) view returns (uint256)",
+    // Governance / Admin (covered by B4)
+    "function setTreasury(address _treasury)",
+    "function updateSBTStatus(address user, bool status)",
+    "function updateBlockedStatus(address operator, address[] users, bool[] statuses)",
+    "function withdrawProtocolRevenue(address to, uint256 amount)",
+    "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
+    "function queueBLSAggregator(address _bls)",
+    "function treasury() view returns (address)",
+    "function pendingBLSAggregator() view returns (address)",
+    "function blsAggregatorChangeAt() view returns (uint256)",
+    "function priceValidUntil() view returns (uint256)",
   ],
 
   MicroPaymentChannel: [
@@ -229,7 +240,7 @@ const ABI = {
     "function exchangeRate() view returns (uint256)",
     "function updateExchangeRate(uint256 newRate)",
     "function maxSingleTxLimit() view returns (uint256)",
-    "function lastRateUpdate() view returns (uint256)",
+    "function exchangeRateUpdatedAt() view returns (uint256)",
     "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
     "function recordDebt(address user, uint256 amountAPNTs)",
     "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
