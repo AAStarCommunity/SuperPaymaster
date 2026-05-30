@@ -11,7 +11,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   sendTxSafe,
 } = require('./test-helpers');
 
@@ -154,8 +154,7 @@ async function main() {
   } catch (e) {
     printError(`pendingDebts query failed: ${e.message.substring(0, 100)}`);
     // Cannot proceed with retry/clear if query itself failed
-    const allPassed = printSummary('B5: dryRunValidation and Pending Debt Recovery');
-    process.exit(allPassed ? 0 : 1);
+    process.exit(finishTest('B5: dryRunValidation and Pending Debt Recovery'));
   }
 
   // ──────────────────────────────────────────
@@ -218,8 +217,7 @@ async function main() {
     }
   }
 
-  const allPassed = printSummary('B5: dryRunValidation and Pending Debt Recovery');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B5: dryRunValidation and Pending Debt Recovery'));
 }
 
 main().catch(err => {

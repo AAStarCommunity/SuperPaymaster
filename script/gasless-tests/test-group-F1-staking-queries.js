@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
 } = require('./test-helpers');
 
@@ -137,8 +137,7 @@ async function main() {
     printError(`treasury: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('F1: Staking Queries');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('F1: Staking Queries'));
 }
 
 main().catch(err => {

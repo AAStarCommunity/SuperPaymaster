@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ROLES, ROLE_NAMES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe, encodeCommunityRoleData, encodeEndUserRoleData,
 } = require('./test-helpers');
@@ -150,8 +150,7 @@ async function main() {
     printError(`getRoleUserCount failed: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('A1: Registry Roles');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('A1: Registry Roles'));
 }
 
 main().catch(err => {

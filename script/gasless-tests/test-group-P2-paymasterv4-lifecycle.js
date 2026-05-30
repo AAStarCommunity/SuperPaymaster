@@ -10,7 +10,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -250,8 +250,7 @@ async function main() {
     printError(`updatePrice step failed: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('P2: PaymasterV4 Lifecycle');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('P2: PaymasterV4 Lifecycle'));
 }
 
 main().catch(err => {

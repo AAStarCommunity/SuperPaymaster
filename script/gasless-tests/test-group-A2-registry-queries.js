@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ROLES, ROLE_NAMES, ethers,
   printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
 } = require('./test-helpers');
 
@@ -130,8 +130,7 @@ async function main() {
     printError(`SUPER_PAYMASTER: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('A2: Registry Queries');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('A2: Registry Queries'));
 }
 
 main().catch(err => {

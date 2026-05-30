@@ -15,7 +15,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -56,7 +56,7 @@ async function main() {
 
       // Restore
       if (currentTreasury.toLowerCase() !== deployerAddr.toLowerCase()) {
-        await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)');
+        await sendTxSafe(sp, 'setTreasury', [currentTreasury], 'setTreasury(restore)', { critical: false });
         const afterRestore = await sp.treasury();
         assertEqual(afterRestore.toLowerCase(), currentTreasury.toLowerCase(), 'treasury restored');
       } else {
@@ -140,7 +140,7 @@ async function main() {
       assertEqual(feeAfter, 100n, 'facilitatorFeeBPS == 100');
 
       // Restore
-      await sendTxSafe(sp, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)');
+      await sendTxSafe(sp, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
       const feeRestored = await sp.facilitatorFeeBPS();
       assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
     }
@@ -331,8 +331,7 @@ async function main() {
     printError(`withdrawFacilitatorEarnings: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('B4: SP Governance');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B4: SP Governance'));
 }
 
 main().catch(err => {

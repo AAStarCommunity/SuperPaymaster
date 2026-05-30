@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -106,7 +106,7 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(6, 'Cleanup: setCreditTier(7, 0)');
   try {
-    const receipt = await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)');
+    const receipt = await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)', { critical: false });
     if (receipt) {
       const stored = await registry.creditTierConfig(testTierLevel);
       assertEqual(stored, 0n, 'Tier 7 reset to 0');
@@ -117,8 +117,7 @@ async function main() {
     printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
   }
 
-  const allPassed = printSummary('D2: Credit Tiers');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('D2: Credit Tiers'));
 }
 
 main().catch(err => {

@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe, expectRevert,
 } = require('./test-helpers');
@@ -109,8 +109,7 @@ async function main() {
     assertEqual(opFinal.aPNTsBalance, opBalanceBefore, 'Restored to original balance');
   }
 
-  const allPassed = printSummary('B2: Operator Deposit/Withdraw');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B2: Operator Deposit/Withdraw'));
 }
 
 main().catch(err => {

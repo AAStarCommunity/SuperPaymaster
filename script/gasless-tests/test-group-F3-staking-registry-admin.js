@@ -22,7 +22,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -176,7 +176,7 @@ async function main() {
         await sendTxSafe(staking, 'setAuthorizedSlasher', [deployerAddr, false], 'removeSlasher');
         assertFalse(await staking.authorizedSlashers(deployerAddr), 'not authorized after remove');
 
-        await sendTxSafe(staking, 'setAuthorizedSlasher', [deployerAddr, true], 'restoreSlasher');
+        await sendTxSafe(staking, 'setAuthorizedSlasher', [deployerAddr, true], 'restoreSlasher', { critical: false });
         assertTrue(await staking.authorizedSlashers(deployerAddr), 'authorized again after restore');
       } else {
         // Add, verify, then remove
@@ -251,7 +251,7 @@ async function main() {
         await sendTxSafe(registry, 'setReputationSource', [deployerAddr, false], 'removeRepSource');
         assertFalse(await registry.isReputationSource(deployerAddr), 'not rep source after remove');
 
-        await sendTxSafe(registry, 'setReputationSource', [deployerAddr, true], 'restoreRepSource');
+        await sendTxSafe(registry, 'setReputationSource', [deployerAddr, true], 'restoreRepSource', { critical: false });
         assertTrue(await registry.isReputationSource(deployerAddr), 'rep source restored');
       } else {
         await sendTxSafe(registry, 'setReputationSource', [deployerAddr, true], 'addRepSource');
@@ -301,7 +301,8 @@ async function main() {
             registry,
             'setLevelThresholds',
             [originalThresholds],
-            'restoreLevelThresholds'
+            'restoreLevelThresholds',
+            { critical: false }
           );
           if (restoreReceipt) {
             const restoredFirst = await registry.levelThresholds(0);
@@ -369,7 +370,7 @@ async function main() {
 
         // Restore
         printInfo('Restoring original credit tier...');
-        await sendTxSafe(registry, 'setCreditTier', [level, currentLimit], 'restoreCreditTier');
+        await sendTxSafe(registry, 'setCreditTier', [level, currentLimit], 'restoreCreditTier', { critical: false });
         const restored = await registry.creditTierConfig(level);
         assertEqual(restored, currentLimit, `creditTierConfig[${level}] restored`);
       }
@@ -378,8 +379,7 @@ async function main() {
     printError(`setCreditTier: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('F3: Staking & Registry Admin');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('F3: Staking & Registry Admin'));
 }
 
 main().catch(err => {

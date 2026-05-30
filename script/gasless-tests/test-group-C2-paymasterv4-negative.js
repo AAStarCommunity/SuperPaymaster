@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
 } = require('./test-helpers');
 
@@ -98,8 +98,7 @@ async function main() {
     }
   }
 
-  const allPassed = printSummary('C2: PaymasterV4 Negative Cases');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('C2: PaymasterV4 Negative Cases'));
 }
 
 main().catch(err => {

@@ -17,7 +17,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGt, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -88,8 +88,7 @@ async function main() {
     ]);
   } catch (e) {
     printError(`Failed to read xPNTs state: ${e.message.substring(0, 100)}`);
-    const allPassed = printSummary('E4: repayDebt & Exchange Rate');
-    process.exit(allPassed ? 0 : 1);
+    process.exit(finishTest('E4: repayDebt & Exchange Rate'));
   }
 
   printKeyValue('xPNTs token address', config.aPNTs);
@@ -265,8 +264,7 @@ async function main() {
   // ──────────────────────────────────────────────────────────
   // Summary
   // ──────────────────────────────────────────────────────────
-  const allPassed = printSummary('E4: repayDebt & Exchange Rate');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('E4: repayDebt & Exchange Rate'));
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

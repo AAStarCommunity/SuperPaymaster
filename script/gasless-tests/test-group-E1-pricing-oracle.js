@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -80,7 +80,7 @@ async function main() {
 
     // Restore original
     if (originalPrice > 0n) {
-      await sendTxSafe(sp, 'setAPNTSPrice', [originalPrice], `Restore aPNTsPriceUSD(${ethers.formatEther(originalPrice)})`);
+      await sendTxSafe(sp, 'setAPNTSPrice', [originalPrice], `Restore aPNTsPriceUSD(${ethers.formatEther(originalPrice)})`, { critical: false });
       const restored = await sp.aPNTsPriceUSD();
       assertEqual(restored, originalPrice, 'aPNTsPriceUSD restored');
     }
@@ -137,8 +137,7 @@ async function main() {
     printError(`PaymasterV4 updatePrice: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('E1: Pricing & Oracle');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('E1: Pricing & Oracle'));
 }
 
 main().catch(err => {

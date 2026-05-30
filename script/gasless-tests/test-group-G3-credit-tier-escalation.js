@@ -29,7 +29,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -180,7 +180,7 @@ async function main() {
   // Cleanup: reset tier 7 to 0 (unused)
   if (tierSet) {
     try {
-      await sendTxSafe(registry, 'setCreditTier', [testTier, 0n], 'Reset tier 7 to 0');
+      await sendTxSafe(registry, 'setCreditTier', [testTier, 0n], 'Reset tier 7 to 0', { critical: false });
       printInfo('Tier 7 reset to 0 (cleanup)');
     } catch (e) {
       printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
@@ -228,8 +228,7 @@ async function main() {
   console.log();
   printSuccess('Credit tier escalation path documented');
 
-  const allPassed = printSummary('G3: Credit Tier Escalation');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('G3: Credit Tier Escalation'));
 }
 
 main().catch(err => {

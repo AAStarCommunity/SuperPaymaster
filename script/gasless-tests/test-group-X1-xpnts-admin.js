@@ -11,7 +11,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -123,7 +123,7 @@ async function main() {
 
       // Restore
       printInfo('Restoring original limit...');
-      const restoreR1 = await sendTxSafe(xpnts, 'setMaxSingleTxLimit', [currentLimit], 'restoreMaxSingleTxLimit');
+      const restoreR1 = await sendTxSafe(xpnts, 'setMaxSingleTxLimit', [currentLimit], 'restoreMaxSingleTxLimit', { critical: false });
       if (restoreR1) {
         const restored = await xpnts.maxSingleTxLimit();
         assertEqual(restored, currentLimit, 'maxSingleTxLimit restored');
@@ -151,7 +151,7 @@ async function main() {
 
       // Restore
       printInfo('Restoring original daily cap...');
-      const restoreR2 = await sendTxSafe(xpnts, 'setSpenderDailyCap', [currentCap], 'restoreSpenderDailyCap');
+      const restoreR2 = await sendTxSafe(xpnts, 'setSpenderDailyCap', [currentCap], 'restoreSpenderDailyCap', { critical: false });
       if (restoreR2) {
         const restored = await xpnts.spenderDailyCapTokens();
         assertEqual(restored, currentCap, 'spenderDailyCapTokens restored');
@@ -175,7 +175,7 @@ async function main() {
       const rR = await sendTxSafe(xpnts, 'removeAutoApprovedSpender', [testSpender], 'removeAutoApprovedSpender');
       if (rR) {
         assertFalse(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved false after remove');
-        const aR = await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender(restore)');
+        const aR = await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender(restore)', { critical: false });
         if (aR) assertTrue(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved true after restore');
       }
     } else {
@@ -204,7 +204,7 @@ async function main() {
       const rF = await sendTxSafe(xpnts, 'removeApprovedFacilitator', [testSpender], 'removeApprovedFacilitator');
       if (rF) {
         assertFalse(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator false after remove');
-        const aF = await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator(restore)');
+        const aF = await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator(restore)', { critical: false });
         if (aF) assertTrue(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator true after restore');
       }
     } else {
@@ -343,8 +343,7 @@ async function main() {
     printError(`transferAndCall: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('X1: xPNTs Admin');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('X1: xPNTs Admin'));
 }
 
 main().catch(err => {

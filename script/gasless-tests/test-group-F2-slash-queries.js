@@ -9,7 +9,7 @@
 const {
   initTestEnv, getContracts, SLASH_LEVEL, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe, retryView,
 } = require('./test-helpers');
@@ -157,8 +157,7 @@ async function main() {
     printError(`userOpState: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('F2: Slash History');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('F2: Slash History'));
 }
 
 main().catch(err => {

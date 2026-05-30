@@ -16,7 +16,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -45,12 +45,11 @@ async function main() {
       msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('request timeout');
     if (isNet) {
       printSkip(`Network error in Step 1 — transient RPC issue: ${e.message.substring(0, 60)}`);
-      const allPassed = printSummary('B3: configureOperator v2');
-      process.exit(allPassed ? 0 : 2);
+      printSummary('B3: configureOperator v2');
+      process.exit(2); // could not run the test → SKIP, not PASS
     }
     printError(`hasRole: ${e.message.substring(0, 100)}`);
-    const allPassed = printSummary('B3: configureOperator v2');
-    process.exit(allPassed ? 0 : 1);
+    process.exit(finishTest('B3: configureOperator v2'));
   }
   if (!hasRole) {
     printSkip('Deployer lacks ROLE_PAYMASTER_SUPER — skipping configure tests');
@@ -151,7 +150,7 @@ async function main() {
   printStep(6, 'Re-configure with original treasury — verify idempotent');
   if (currentTreasury && currentTreasury !== ethers.ZeroAddress) {
     try {
-      await sendTxSafe(sp, 'configureOperator', [xPNTsAddr, currentTreasury], 'configureOperator (restore treasury)');
+      await sendTxSafe(sp, 'configureOperator', [xPNTsAddr, currentTreasury], 'configureOperator (restore treasury)', { critical: false });
       const op = await sp.operators(deployerAddr);
       assertEqual(op[6], currentTreasury, 'Treasury must be restored');
       printSuccess('Re-configure is idempotent — treasury updated without breaking state');
@@ -162,8 +161,7 @@ async function main() {
     printSkip('No original treasury to restore');
   }
 
-  const allPassed = printSummary('B3: configureOperator v2');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B3: configureOperator v2'));
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

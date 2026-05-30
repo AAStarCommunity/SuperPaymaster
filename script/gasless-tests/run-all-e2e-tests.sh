@@ -328,17 +328,30 @@ APNTS_ADDR=$(cat "$PROJECT_ROOT/deployments/config.sepolia.json" 2>/dev/null | g
   echo ""
   echo "## Summary"
   echo "- Total: $TOTAL | Passed: $PASSED | Failed: $FAILED | Skipped: $SKIPPED"
-  [ $FAILED -eq 0 ] && echo "- **All tests PASSED ✅**" || echo "- **$FAILED test(s) FAILED ❌**"
+  if [ $FAILED -gt 0 ]; then
+    echo "- **$FAILED test(s) FAILED ❌**"
+  elif [ $SKIPPED -gt 0 ]; then
+    echo "- **PASS WITH SKIPS ⏭️ — $SKIPPED test(s) INCONCLUSIVE (not executed/verified). NOT a clean pass.**"
+    echo "- A skip means a test could not run or a load-bearing write was skipped — re-run after the mempool clears to get a definitive result."
+  else
+    echo "- **All tests PASSED ✅ (clean — 0 skipped)**"
+  fi
 } > "$E2E_RESULT_FILE"
 
 echo ""
 echo "📁 Results saved to: $E2E_RESULT_FILE"
 echo ""
 
-if [ $FAILED -eq 0 ]; then
-    echo -e "${GREEN}All E2E tests passed!${NC}"
-    exit 0
-else
+if [ $FAILED -gt 0 ]; then
     echo -e "${RED}$FAILED test(s) failed.${NC}"
     exit 1
+elif [ $SKIPPED -gt 0 ]; then
+    # No hard failures, but skips mean the run is not a definitive all-green.
+    # Exit 0 so transient infra skips don't break CI, but the banner + report
+    # make clear this is INCONCLUSIVE, not a clean pass (MEDIUM #5).
+    echo -e "${YELLOW}PASS WITH SKIPS: $SKIPPED test(s) inconclusive. Re-run after mempool clears for a definitive result.${NC}"
+    exit 0
+else
+    echo -e "${GREEN}All E2E tests passed (clean — 0 skipped)!${NC}"
+    exit 0
 fi

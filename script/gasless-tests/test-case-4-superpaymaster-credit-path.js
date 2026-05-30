@@ -46,6 +46,8 @@ const SP_ABI = [
   "function getAvailableCredit(address user, address token) view returns (uint256)",
   "function sbtHolders(address user) view returns (bool)",
   "function updatePrice()",
+  "function priceValidUntil() view returns (uint256)",
+  "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
 ];
 
 const REGISTRY_ABI = [
@@ -95,14 +97,46 @@ function isNonceConflict(err) {
     msg.includes('nonce has already been used');
 }
 
-// AA32 "paymaster expired or not due" from Alchemy simulation when mempool is congested.
-// The contract itself is correct (dryRunValidation passes); AA32 here is Alchemy's
-// simulation misreporting timestamps when too many TXs are in-flight from the same wallet.
-function isAA32SimulationError(err) {
+// Detect the AA32 "paymaster expired or not due" string. NOTE: matching the
+// string alone is NOT sufficient to skip — AA32 is a REAL EntryPoint validation
+// error (paymaster validUntil/validAfter window). Callers MUST run classifyAA32()
+// to independently confirm it is a simulation artifact before skipping (HIGH #1).
+function isAA32Error(err) {
   const msg = (err.message || '').toLowerCase();
   const data = (err.data || (err.info && err.info.error && err.info.error.data) || '').toLowerCase();
   return msg.includes('aa32') || msg.includes('paymaster expired or not due') ||
     data.includes('41413332');  // hex encoding of "AA32"
+}
+
+// Independently classify an AA32 error as a spurious simulation artifact vs a
+// genuine paymaster-validation failure. We do NOT trust the EntryPoint/bundler
+// time-window check in isolation — instead we verify the paymaster's own state:
+//   1. If the price cache is actually expired (now >= priceValidUntil), the AA32
+//      is REAL — the paymaster genuinely signed an already-expired validUntil.
+//   2. Otherwise run dryRunValidation (same validation path, no time-window gate):
+//      ok=true  → paymaster logic is sound → AA32 is an out-of-band sim artifact.
+//      ok=false → validation genuinely fails → AA32 is REAL.
+// Returns { spurious: boolean, reason: string }.
+async function classifyAA32(sp, provider, userOp) {
+  try {
+    const block = await provider.getBlock('latest');
+    const now = BigInt(block.timestamp);
+    let validUntil = 0n;
+    try { validUntil = await sp.priceValidUntil(); } catch (_) {}
+    if (validUntil !== 0n && now >= validUntil) {
+      return { spurious: false, reason: `price cache expired: now=${now} >= priceValidUntil=${validUntil}` };
+    }
+    // Generous maxCost upper bound (gas * maxFeePerGas) so credit is not the limiter.
+    const maxCost = 3000000n * 2000000000n;
+    const [ok, reasonCode] = await sp.dryRunValidation(userOp, maxCost);
+    if (ok) {
+      return { spurious: true, reason: `dryRunValidation OK (validUntil=${validUntil}, now=${now}) — AA32 is a simulation artifact` };
+    }
+    return { spurious: false, reason: `dryRunValidation FAILED reasonCode=${reasonCode}` };
+  } catch (e) {
+    // Cannot verify → be conservative, treat AA32 as REAL so we never hide a bug.
+    return { spurious: false, reason: `classification failed: ${(e.message || '').substring(0, 80)}` };
+  }
 }
 
 // ============================================================
@@ -331,11 +365,16 @@ async function main() {
         await restoreCreditTier();
         process.exit(2);
       }
-      if (isAA32SimulationError(estimateErr)) {
-        console.warn('\n⚠️  SKIP: AA32 on gas estimation — Alchemy simulation issue (mempool congested after full run).');
-        console.warn('  Run TC4 standalone after mempool clears to confirm contract correctness.');
+      if (isAA32Error(estimateErr)) {
+        const verdict = await classifyAA32(sp, provider, userOp);
+        if (verdict.spurious) {
+          console.warn(`\n⚠️  SKIP: AA32 on gas estimation — verified spurious: ${verdict.reason}`);
+          await restoreCreditTier();
+          process.exit(2);
+        }
+        console.error(`\n❌ FAIL: AA32 on gas estimation is REAL — ${verdict.reason}`);
         await restoreCreditTier();
-        process.exit(2);
+        process.exit(1);
       }
       console.log(`  Gas estimation: ${estimateErr.message.substring(0, 100)}...`);
       console.log('  Proceeding with transaction anyway...');
@@ -358,12 +397,16 @@ async function main() {
         await restoreCreditTier();
         process.exit(2);
       }
-      if (isAA32SimulationError(txErr)) {
-        console.warn('\n⚠️  SKIP: AA32 on handleOps — Alchemy simulation issue (mempool congested after full run).');
-        console.warn('  Contract validation confirmed correct (dryRunValidation passes standalone).');
-        console.warn('  Run TC4 standalone after mempool clears to confirm.');
+      if (isAA32Error(txErr)) {
+        const verdict = await classifyAA32(sp, provider, userOp);
+        if (verdict.spurious) {
+          console.warn(`\n⚠️  SKIP: AA32 on handleOps — verified spurious: ${verdict.reason}`);
+          await restoreCreditTier();
+          process.exit(2);
+        }
+        console.error(`\n❌ FAIL: AA32 on handleOps is REAL — ${verdict.reason}`);
         await restoreCreditTier();
-        process.exit(2);
+        process.exit(1);
       }
       throw txErr;
     }

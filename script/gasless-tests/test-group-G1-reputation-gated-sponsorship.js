@@ -21,7 +21,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse, assertGte,
 } = require('./test-helpers');
 
@@ -230,8 +230,7 @@ async function main() {
     printError(`Simulation: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('G1: Reputation-Gated Sponsorship');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('G1: Reputation-Gated Sponsorship'));
 }
 
 main().catch(err => {

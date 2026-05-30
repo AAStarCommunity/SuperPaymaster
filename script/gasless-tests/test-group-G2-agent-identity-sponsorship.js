@@ -23,7 +23,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -162,8 +162,7 @@ async function main() {
     printError(`facilitatorFeeBPS: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('G2: Agent Identity Sponsorship (ERC-8004)');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('G2: Agent Identity Sponsorship (ERC-8004)'));
 }
 
 main().catch(err => {

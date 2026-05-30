@@ -13,9 +13,23 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 // Initialization
 // ============================================================
 
+// Only idempotent read RPC methods may be blindly retried on a transient
+// network error. eth_sendRawTransaction / eth_sendTransaction are NOT here:
+// if the node already accepted the tx but the response was lost, a retry would
+// double-submit (or submit a second tx at the next nonce). Write retries are
+// handled separately in sendTxSafe() with explicit nonce reconciliation.
+const _RETRYABLE_RPC_METHODS = new Set([
+  'eth_call', 'eth_estimateGas', 'eth_gasPrice', 'eth_maxPriorityFeePerGas',
+  'eth_feeHistory', 'eth_blockNumber', 'eth_chainId',
+  'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getLogs',
+  'eth_getTransactionCount', 'eth_getTransactionReceipt',
+  'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_getBlockByHash',
+]);
+
 function _addProviderRetry(provider) {
   const origSend = provider.send.bind(provider);
   provider.send = async function(method, params) {
+    const canRetry = _RETRYABLE_RPC_METHODS.has(method);
     const MAX_RETRIES = 3;
     let lastErr;
     for (let i = 0; i <= MAX_RETRIES; i++) {
@@ -25,7 +39,9 @@ function _addProviderRetry(provider) {
         const msg = (e.message || '').toLowerCase();
         const isRetryable = msg.includes('econnreset') || msg.includes('socket hang up') ||
           msg.includes('etimedout') || msg.includes('read timeout') || msg.includes('network error');
-        if (!isRetryable || i === MAX_RETRIES) throw e;
+        // Never auto-retry non-idempotent writes — a lost response may mean the
+        // tx was already broadcast. Bubble up so sendTxSafe can reconcile nonce.
+        if (!canRetry || !isRetryable || i === MAX_RETRIES) throw e;
         await new Promise(r => setTimeout(r, 500 * (i + 1)));
         lastErr = e;
       }
@@ -305,15 +321,21 @@ const SLASH_LEVEL = { WARNING: 0, MINOR: 1, MAJOR: 2 };
 let _testPassed = 0;
 let _testFailed = 0;
 let _testSkipped = 0;
+// Subset of skips that are load-bearing: a state-changing write a test depends on
+// that got skipped (nonce/in-flight conflict). These make the test INCONCLUSIVE
+// (exit 2) rather than PASS — a skipped critical write means the test never
+// actually verified what it claims. Optional cleanup skips are excluded.
+let _criticalTxSkipped = 0;
 
 function resetCounters() {
   _testPassed = 0;
   _testFailed = 0;
   _testSkipped = 0;
+  _criticalTxSkipped = 0;
 }
 
 function getCounters() {
-  return { passed: _testPassed, failed: _testFailed, skipped: _testSkipped };
+  return { passed: _testPassed, failed: _testFailed, skipped: _testSkipped, criticalSkipped: _criticalTxSkipped };
 }
 
 function printHeader(title) {
@@ -352,14 +374,30 @@ function printKeyValue(key, value) {
 }
 
 function printSummary(testName) {
-  const { passed, failed, skipped } = getCounters();
+  const { passed, failed, skipped, criticalSkipped } = getCounters();
   const total = passed + failed + skipped;
   const line = '='.repeat(60);
   console.log(`\n${line}`);
   console.log(`  ${testName} Summary`);
-  console.log(`  Total: ${total} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}`);
+  console.log(`  Total: ${total} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}` +
+    (criticalSkipped > 0 ? ` (${criticalSkipped} critical)` : ''));
   console.log(`${line}\n`);
   return failed === 0;
+}
+
+// Print the summary and return the process exit code following the suite
+// convention: 0 = PASS, 1 = FAIL, 2 = SKIP/INCONCLUSIVE.
+// A test is INCONCLUSIVE (not PASS) when a load-bearing write was skipped — its
+// assertions never ran, so reporting PASS would hide a real gap (HIGH #2).
+function finishTest(testName) {
+  printSummary(testName);
+  const { failed, criticalSkipped } = getCounters();
+  if (failed > 0) return 1;
+  if (criticalSkipped > 0) {
+    console.log(`  ⏭️  INCONCLUSIVE: ${criticalSkipped} critical write(s) skipped — assertions did not run. Re-run after mempool clears.`);
+    return 2;
+  }
+  return 0;
 }
 
 // ============================================================
@@ -461,59 +499,101 @@ function _isNetworkError(err) {
     msg.includes('read timeout');
 }
 
-async function sendTxSafe(contract, method, args, label, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const signer = contract.runner;
+function _isNonceConflict(err) {
+  const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
+  return reason.includes('replacement transaction underpriced') ||
+    reason.includes('replacement underpriced') ||
+    reason.includes('nonce too low') ||
+    reason.includes('already known') ||
+    reason.includes('in-flight transaction limit') ||
+    reason.includes('nonce has already been used') ||
+    (err.code || '').toLowerCase() === 'replacement_underpriced';
+}
 
-      // Initialize nonce tracker for this wallet (use 'pending' to account for unconfirmed TXs)
-      if (signer && signer.address) {
-        if (_nonceWallet !== signer.address) {
-          _nonceWallet = signer.address;
-          _nextNonce = await signer.getNonce('pending');
+/**
+ * Send a state-changing tx with nonce tracking and infra-aware error handling.
+ *
+ * @param opts.maxRetries  retry budget for PRE-broadcast network errors (default 3)
+ * @param opts.critical    if true (default), a nonce/in-flight skip marks the test
+ *                          INCONCLUSIVE (exit 2). Pass false for optional cleanup.
+ *
+ * Return values:
+ *   - receipt object           → tx confirmed (has .gasUsed, .logs)
+ *   - { applied:true } sentinel → tx was broadcast but receipt unavailable
+ *                                 (network dropped post-broadcast). Truthy so
+ *                                 read-back assertions still run; do NOT resend.
+ *   - null                      → tx skipped (nonce conflict) or failed/reverted
+ *
+ * Write-safety (HIGH #3): a network error is only retried when we can prove the
+ * tx was NOT broadcast (on-chain nonce unchanged). If the nonce advanced, the tx
+ * landed and we never resend.
+ */
+async function sendTxSafe(contract, method, args, label, opts = {}) {
+  if (typeof opts === 'number') opts = { maxRetries: opts }; // back-compat: numeric 5th arg
+  const maxRetries = opts.maxRetries != null ? opts.maxRetries : 3;
+  const critical = opts.critical !== false;
+  const signer = contract.runner;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Track nonce for this wallet ('pending' accounts for unconfirmed TXs)
+    if (signer && signer.address && _nonceWallet !== signer.address) {
+      _nonceWallet = signer.address;
+      _nextNonce = await signer.getNonce('pending');
+    }
+    const sentNonce = _nextNonce;
+    const txOpts = sentNonce !== null ? { nonce: sentNonce } : {};
+
+    let tx;
+    try {
+      tx = await contract[method](...args, txOpts);
+    } catch (err) {
+      if (_isNetworkError(err)) {
+        // Ambiguous: the node may have accepted the tx before the socket dropped.
+        // Reconcile against the on-chain nonce before deciding to resend.
+        let chainNonce = null;
+        try { chainNonce = await signer.getNonce('latest'); } catch (_) {}
+        if (chainNonce !== null && sentNonce !== null && chainNonce > sentNonce) {
+          printInfo(`${label}: network error but nonce ${sentNonce} consumed — tx landed, NOT resending`);
+          _nextNonce = chainNonce;
+          return { applied: true, noReceipt: true };
+        }
+        if (attempt < maxRetries) {
+          printInfo(`${label}: pre-broadcast network error (nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
+          await new Promise(r => setTimeout(r, 4000));
+          if (chainNonce !== null) _nextNonce = chainNonce;
+          continue;
         }
       }
+      const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
+      if (_isNonceConflict(err)) {
+        printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped${critical ? ' [CRITICAL]' : ''}`);
+        if (critical) _criticalTxSkipped++;
+      } else {
+        printError(`${label}: TX failed (${reason})`);
+      }
+      if (_nonceWallet && signer && signer.address === _nonceWallet) {
+        try { _nextNonce = await signer.getNonce('latest'); } catch (_) {}
+      }
+      return null;
+    }
 
-      // Send TX with explicit nonce
-      const txOpts = _nextNonce !== null ? { nonce: _nextNonce } : {};
-      const tx = await contract[method](...args, txOpts);
-      if (_nextNonce !== null) _nextNonce++;
-
+    // Broadcast succeeded — advance nonce, then await confirmation.
+    if (_nextNonce !== null) _nextNonce++;
+    try {
       if (tx.wait) {
         const receipt = await tx.wait(1);
         printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed})`);
         return receipt;
       }
       return tx;
-    } catch (err) {
-      const isNet = _isNetworkError(err);
-      if (isNet && attempt < maxRetries) {
-        printInfo(`${label}: network error, retry ${attempt}/${maxRetries - 1} in 4s...`);
-        await new Promise(r => setTimeout(r, 4000));
-        // Refresh nonce before retry
-        if (_nonceWallet && contract.runner) {
-          try { _nextNonce = await contract.runner.getNonce('pending'); } catch (_) {}
-        }
-        continue;
+    } catch (waitErr) {
+      // We have a tx hash; a confirmation-poll failure must NOT trigger a resend.
+      if (_isNetworkError(waitErr)) {
+        printInfo(`${label}: broadcast ok (${tx.hash}) but receipt poll failed — NOT resending`);
+        return { applied: true, noReceipt: true, hash: tx.hash };
       }
-      const reason = err.reason || err.shortMessage || err.message.substring(0, 120);
-      const reasonLower = reason.toLowerCase();
-      const isNonceConflict = reasonLower.includes('replacement transaction underpriced') ||
-        reasonLower.includes('replacement underpriced') ||
-        reasonLower.includes('nonce too low') ||
-        reasonLower.includes('already known') ||
-        reasonLower.includes('in-flight transaction limit') ||
-        reasonLower.includes('nonce has already been used') ||
-        (err.code || '').toLowerCase() === 'replacement_underpriced';
-      if (isNonceConflict) {
-        printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped`);
-      } else {
-        printError(`${label}: TX failed (${reason})`);
-      }
-      // Refresh nonce on final failure to resync
-      if (_nonceWallet && contract.runner && contract.runner.address === _nonceWallet) {
-        try { _nextNonce = await contract.runner.getNonce('latest'); } catch (_) {}
-      }
+      const reason = waitErr.reason || waitErr.shortMessage || (waitErr.message || '').substring(0, 120);
+      printError(`${label}: TX reverted on-chain (${reason})`);
       return null;
     }
   }
@@ -585,6 +665,7 @@ module.exports = {
   printInfo,
   printKeyValue,
   printSummary,
+  finishTest,
   resetCounters,
   getCounters,
   // Assertions

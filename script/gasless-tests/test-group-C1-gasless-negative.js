@@ -9,7 +9,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
   sendTxSafe, ABI,
 } = require('./test-helpers');
@@ -118,8 +118,7 @@ async function main() {
     printError(`userOpState query: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('C1: SuperPaymaster Negative Cases');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('C1: SuperPaymaster Negative Cases'));
 }
 
 main().catch(err => {

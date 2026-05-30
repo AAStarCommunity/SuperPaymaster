@@ -9,7 +9,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -116,7 +116,7 @@ async function main() {
     printKeyValue('Score with entropy=1.5', score2.toString());
 
     // Restore factor to 1e18
-    await sendTxSafe(rep, 'setEntropyFactor', [deployerAddr, ethers.parseEther('1')], 'Restore entropyFactor(1)');
+    await sendTxSafe(rep, 'setEntropyFactor', [deployerAddr, ethers.parseEther('1')], 'Restore entropyFactor(1)', { critical: false });
     printSuccess('entropyFactor restored to 1e18');
   } catch (e) {
     printError(`setEntropyFactor: ${e.message.substring(0, 80)}`);
@@ -151,8 +151,7 @@ async function main() {
     printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
   }
 
-  const allPassed = printSummary('D1: Reputation Rules');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('D1: Reputation Rules'));
 }
 
 main().catch(err => {

@@ -16,7 +16,7 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -214,8 +214,7 @@ async function main() {
     printError(`BLS proposal query: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('H1: DVT Validator & BLS Aggregator Queries');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('H1: DVT Validator & BLS Aggregator Queries'));
 }
 
 main().catch(err => {

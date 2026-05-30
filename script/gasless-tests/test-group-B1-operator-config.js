@@ -9,7 +9,7 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe,
 } = require('./test-helpers');
@@ -144,8 +144,7 @@ async function main() {
     printError(`Pause/unpause: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('B1: Operator Config');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B1: Operator Config'));
 }
 
 main().catch(err => {

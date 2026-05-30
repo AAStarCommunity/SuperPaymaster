@@ -14,7 +14,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGt, assertGte,
 } = require('./test-helpers');
 
@@ -134,7 +134,7 @@ async function main() {
     printSkip('OPERATOR_ADDRESS not set');
   }
 
-  printSummary();
+  process.exit(finishTest('E3: aPNTs Exchange Rate Accounting'));
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

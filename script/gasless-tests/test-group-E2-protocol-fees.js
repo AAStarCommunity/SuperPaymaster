@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe, expectRevert,
 } = require('./test-helpers');
@@ -46,7 +46,7 @@ async function main() {
     assertEqual(newFee, testFee, 'protocolFeeBPS set to 500');
 
     // Restore
-    await sendTxSafe(sp, 'setProtocolFee', [originalFee], `Restore protocolFeeBPS(${originalFee})`);
+    await sendTxSafe(sp, 'setProtocolFee', [originalFee], `Restore protocolFeeBPS(${originalFee})`, { critical: false });
     const restoredFee = await sp.protocolFeeBPS();
     assertEqual(restoredFee, originalFee, 'protocolFeeBPS restored');
   } catch (e) {
@@ -91,8 +91,7 @@ async function main() {
     printError(`totalTrackedBalance: ${e.message.substring(0, 80)}`);
   }
 
-  const allPassed = printSummary('E2: Protocol Fees');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('E2: Protocol Fees'));
 }
 
 main().catch(err => {

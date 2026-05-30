@@ -28,7 +28,7 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe,
 } = require('./test-helpers');
@@ -211,8 +211,7 @@ async function main() {
     printError(`getActiveRules: ${e.message.substring(0, 100)}`);
   }
 
-  const allPassed = printSummary('H2: ReputationSystem — Community Scoring & BLS Sync Pipeline');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('H2: ReputationSystem — Community Scoring & BLS Sync Pipeline'));
 }
 
 main().catch(err => {
