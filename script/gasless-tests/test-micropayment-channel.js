@@ -230,6 +230,10 @@ async function signVoucher(signer, channelId, cumulativeAmount) {
 }
 
 main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
   console.error('Fatal error:', err);
   process.exit(1);
 });

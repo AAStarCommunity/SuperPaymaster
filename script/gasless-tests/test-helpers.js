@@ -503,6 +503,7 @@ async function sendTxSafe(contract, method, args, label, maxRetries = 3) {
         reasonLower.includes('nonce too low') ||
         reasonLower.includes('already known') ||
         reasonLower.includes('in-flight transaction limit') ||
+        reasonLower.includes('nonce has already been used') ||
         (err.code || '').toLowerCase() === 'replacement_underpriced';
       if (isNonceConflict) {
         printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped`);

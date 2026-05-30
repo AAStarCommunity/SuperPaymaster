@@ -106,9 +106,13 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(6, 'Cleanup: setCreditTier(7, 0)');
   try {
-    await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)');
-    const stored = await registry.creditTierConfig(testTierLevel);
-    assertEqual(stored, 0n, 'Tier 7 reset to 0');
+    const receipt = await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)');
+    if (receipt) {
+      const stored = await registry.creditTierConfig(testTierLevel);
+      assertEqual(stored, 0n, 'Tier 7 reset to 0');
+    } else {
+      printInfo('Cleanup skipped (nonce conflict) — tier 7 may remain set until next run');
+    }
   } catch (e) {
     printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
   }

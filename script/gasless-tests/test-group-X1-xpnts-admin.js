@@ -123,9 +123,11 @@ async function main() {
 
       // Restore
       printInfo('Restoring original limit...');
-      await sendTxSafe(xpnts, 'setMaxSingleTxLimit', [currentLimit], 'restoreMaxSingleTxLimit');
-      const restored = await xpnts.maxSingleTxLimit();
-      assertEqual(restored, currentLimit, 'maxSingleTxLimit restored');
+      const restoreR1 = await sendTxSafe(xpnts, 'setMaxSingleTxLimit', [currentLimit], 'restoreMaxSingleTxLimit');
+      if (restoreR1) {
+        const restored = await xpnts.maxSingleTxLimit();
+        assertEqual(restored, currentLimit, 'maxSingleTxLimit restored');
+      }
     }
   } catch (e) {
     printError(`setMaxSingleTxLimit: ${e.message.substring(0, 100)}`);
@@ -149,9 +151,11 @@ async function main() {
 
       // Restore
       printInfo('Restoring original daily cap...');
-      await sendTxSafe(xpnts, 'setSpenderDailyCap', [currentCap], 'restoreSpenderDailyCap');
-      const restored = await xpnts.spenderDailyCapTokens();
-      assertEqual(restored, currentCap, 'spenderDailyCapTokens restored');
+      const restoreR2 = await sendTxSafe(xpnts, 'setSpenderDailyCap', [currentCap], 'restoreSpenderDailyCap');
+      if (restoreR2) {
+        const restored = await xpnts.spenderDailyCapTokens();
+        assertEqual(restored, currentCap, 'spenderDailyCapTokens restored');
+      }
     }
   } catch (e) {
     printError(`setSpenderDailyCap: ${e.message.substring(0, 100)}`);
@@ -168,18 +172,20 @@ async function main() {
     if (wasApproved) {
       // testSpender is already approved — test remove + re-add + remove cycle
       printInfo('testSpender already auto-approved — testing remove+re-add+remove cycle');
-      await sendTxSafe(xpnts, 'removeAutoApprovedSpender', [testSpender], 'removeAutoApprovedSpender');
-      assertFalse(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved false after remove');
-
-      await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender(restore)');
-      assertTrue(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved true after restore');
+      const rR = await sendTxSafe(xpnts, 'removeAutoApprovedSpender', [testSpender], 'removeAutoApprovedSpender');
+      if (rR) {
+        assertFalse(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved false after remove');
+        const aR = await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender(restore)');
+        if (aR) assertTrue(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved true after restore');
+      }
     } else {
       // Normal add + verify + remove flow
-      await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender');
-      assertTrue(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved true after add');
-
-      await sendTxSafe(xpnts, 'removeAutoApprovedSpender', [testSpender], 'removeAutoApprovedSpender');
-      assertFalse(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved false after remove');
+      const aR = await sendTxSafe(xpnts, 'addAutoApprovedSpender', [testSpender], 'addAutoApprovedSpender');
+      if (aR) {
+        assertTrue(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved true after add');
+        const rR = await sendTxSafe(xpnts, 'removeAutoApprovedSpender', [testSpender], 'removeAutoApprovedSpender');
+        if (rR) assertFalse(await xpnts.autoApprovedSpenders(testSpender), 'isAutoApproved false after remove');
+      }
     }
   } catch (e) {
     printError(`autoApprovedSpender: ${e.message.substring(0, 100)}`);
@@ -195,17 +201,19 @@ async function main() {
 
     if (wasApproved) {
       printInfo('testSpender already a facilitator — testing remove+re-add+remove cycle');
-      await sendTxSafe(xpnts, 'removeApprovedFacilitator', [testSpender], 'removeApprovedFacilitator');
-      assertFalse(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator false after remove');
-
-      await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator(restore)');
-      assertTrue(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator true after restore');
+      const rF = await sendTxSafe(xpnts, 'removeApprovedFacilitator', [testSpender], 'removeApprovedFacilitator');
+      if (rF) {
+        assertFalse(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator false after remove');
+        const aF = await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator(restore)');
+        if (aF) assertTrue(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator true after restore');
+      }
     } else {
-      await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator');
-      assertTrue(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator true after add');
-
-      await sendTxSafe(xpnts, 'removeApprovedFacilitator', [testSpender], 'removeApprovedFacilitator');
-      assertFalse(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator false after remove');
+      const aF = await sendTxSafe(xpnts, 'addApprovedFacilitator', [testSpender], 'addApprovedFacilitator');
+      if (aF) {
+        assertTrue(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator true after add');
+        const rF = await sendTxSafe(xpnts, 'removeApprovedFacilitator', [testSpender], 'removeApprovedFacilitator');
+        if (rF) assertFalse(await xpnts.approvedFacilitators(testSpender), 'isApprovedFacilitator false after remove');
+      }
     }
   } catch (e) {
     printError(`approvedFacilitator: ${e.message.substring(0, 100)}`);
