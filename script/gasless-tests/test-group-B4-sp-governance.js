@@ -17,7 +17,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, isInfraError,
 } = require('./test-helpers');
 
 
@@ -264,7 +264,13 @@ async function main() {
       printInfo('Note: applyBLSAggregator skipped — requires 24h timelock');
     }
   } catch (e) {
-    printError(`queueBLSAggregator: ${e.message.substring(0, 100)}`);
+    // A transient RPC/network error here means we couldn't exercise the step,
+    // not that the contract is wrong → SKIP (honest), not FAIL.
+    if (isInfraError(e)) {
+      printSkip(`queueBLSAggregator: transient RPC error — ${e.message.substring(0, 60)}`);
+    } else {
+      printError(`queueBLSAggregator: ${e.message.substring(0, 100)}`);
+    }
   }
 
   // ──────────────────────────────────────────────────────────────

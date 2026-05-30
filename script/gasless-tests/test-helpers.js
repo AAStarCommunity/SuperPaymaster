@@ -26,23 +26,34 @@ const _RETRYABLE_RPC_METHODS = new Set([
   'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_getBlockByHash',
 ]);
 
+// A transient RPC/network error worth retrying on idempotent reads. Covers the
+// many shapes ethers/Alchemy surface: ECONNRESET, socket hang up, any *timeout*
+// (request timeout / read timeout / ETIMEDOUT), and code-based TIMEOUT.
+function _isTransientRpcError(e) {
+  const msg = (e.message || '').toLowerCase();
+  const code = (e.code || '').toString().toUpperCase();
+  return code === 'TIMEOUT' || code === 'ETIMEDOUT' || code === 'ECONNRESET' ||
+    code === 'NETWORK_ERROR' || code === 'SERVER_ERROR' ||
+    msg.includes('econnreset') || msg.includes('socket hang up') ||
+    msg.includes('timeout') ||            // request timeout / read timeout / etimedout
+    msg.includes('network error') || msg.includes('failed to fetch') ||
+    msg.includes('bad gateway') || msg.includes('service unavailable');
+}
+
 function _addProviderRetry(provider) {
   const origSend = provider.send.bind(provider);
   provider.send = async function(method, params) {
     const canRetry = _RETRYABLE_RPC_METHODS.has(method);
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4;
     let lastErr;
     for (let i = 0; i <= MAX_RETRIES; i++) {
       try {
         return await origSend(method, params);
       } catch (e) {
-        const msg = (e.message || '').toLowerCase();
-        const isRetryable = msg.includes('econnreset') || msg.includes('socket hang up') ||
-          msg.includes('etimedout') || msg.includes('read timeout') || msg.includes('network error');
         // Never auto-retry non-idempotent writes — a lost response may mean the
         // tx was already broadcast. Bubble up so sendTxSafe can reconcile nonce.
-        if (!canRetry || !isRetryable || i === MAX_RETRIES) throw e;
-        await new Promise(r => setTimeout(r, 500 * (i + 1)));
+        if (!canRetry || !_isTransientRpcError(e) || i === MAX_RETRIES) throw e;
+        await new Promise(r => setTimeout(r, 600 * (i + 1)));
         lastErr = e;
       }
     }
@@ -492,11 +503,7 @@ async function retryView(fn, label, retries = 3) {
 }
 
 function _isNetworkError(err) {
-  const msg = (err.message || '').toLowerCase();
-  return err.code === 'ETIMEDOUT' || err.code === 'ECONNRESET' ||
-    msg.includes('etimedout') || msg.includes('econnreset') ||
-    msg.includes('socket hang up') || msg.includes('request timeout') ||
-    msg.includes('read timeout');
+  return _isTransientRpcError(err);
 }
 
 function _isNonceConflict(err) {
@@ -683,6 +690,8 @@ module.exports = {
   // TX / View retry
   sendTxSafe,
   retryView,
+  // Infra-error classifier for step-level catches (network/timeout → SKIP, not FAIL)
+  isInfraError: _isNetworkError,
   // Contracts
   getContracts,
   // Encoding
