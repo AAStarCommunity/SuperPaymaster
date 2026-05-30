@@ -9,7 +9,10 @@ import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 // Core Imports
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
-import "src/tokens/GTokenAuthorization.sol";
+// Named import: avoid leaking GTokenAuthorization's transitive EIP712 symbol into
+// this file's scope (it would clash with MicroPaymentChannel's EIP712 — both inherit
+// a differently-pathed EIP712, causing "Identifier already declared").
+import {GTokenAuthorization} from "src/tokens/GTokenAuthorization.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -23,7 +26,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
+import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // BLSValidator standalone contract removed in P0-1 — Registry now verifies via BLSAggregator.
 
 // External Interfaces
@@ -44,6 +47,7 @@ contract DeployLive is Script {
     address priceFeedAddr;
     address simpleAccountFactory;
     address spImplAddr;          // SuperPaymaster implementation (UUPS)
+    address registryImplAddr;    // Registry implementation (UUPS) — needed by audit-core ERC-1967 check
     address erc8004Validation;   // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
     MicroPaymentChannel microPaymentCh; // Deployed in Step 4
 
@@ -87,6 +91,7 @@ contract DeployLive is Script {
 
         // Deploy Registry as UUPS proxy first (no deps)
         Registry regImpl = new Registry();
+        registryImplAddr = address(regImpl); // capture for config write (UUPS upgrade support)
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
@@ -359,8 +364,10 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
         vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
         vm.serializeAddress(jsonObj, "agentValidationRegistry", erc8004Validation);
-        // UUPS implementation address — required for future upgrades via upgradeToAndCall()
+        // UUPS implementation addresses — required for future upgrades via upgradeToAndCall()
+        // and for audit-core's ERC-1967 implementation-slot verification.
         vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
+        vm.serializeAddress(jsonObj, "registryImpl", registryImplAddr);
         // MicroPaymentChannel — deployed in Step 4
         vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));

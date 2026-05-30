@@ -33,7 +33,19 @@ contract TestAccountPrepare is Script {
         string memory cfgPath   = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory json      = vm.readFile(cfgPath);
 
-        // Resolve keys from env (fall back to Anvil constants for local dev)
+        // Resolve keys from env (fall back to Anvil constants for local dev).
+        // GUARD: this script broadcasts with an explicit PK (vm.startBroadcast(pk))
+        // and derives the deployer ADDRESS from it (vm.addr) for mint targets, so a
+        // Foundry keystore (--account) alone is NOT enough. On any non-anvil network
+        // we MUST have PRIVATE_KEY / PRIVATE_KEY_ANNI — otherwise we'd silently sign
+        // with the hardcoded Anvil keys and mint to the wrong (anvil) address.
+        bool isAnvil = keccak256(bytes(network)) == keccak256(bytes("anvil"));
+        if (!isAnvil) {
+            require(vm.envOr("PRIVATE_KEY", uint256(0)) != 0,
+                "TestAccountPrepare: set PRIVATE_KEY for non-anvil (keystore-only not supported by this script)");
+            require(vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0,
+                "TestAccountPrepare: set PRIVATE_KEY_ANNI for non-anvil");
+        }
         uint256 deployerPK = vm.envOr("PRIVATE_KEY", ANVIL_DEPLOYER_PK);
         uint256 anniPK     = vm.envOr("PRIVATE_KEY_ANNI", ANVIL_ANNI_PK);
         address anniAddr   = vm.addr(anniPK);

@@ -51,7 +51,15 @@ contract UpgradeLive is Script {
         address spProxy       = vm.parseJsonAddress(config, ".superPaymaster");
         address entryPoint    = vm.parseJsonAddress(config, ".entryPoint");
         address priceFeed     = vm.parseJsonAddress(config, ".priceFeed");
-        address mcProxy       = vm.parseJsonAddress(config, ".microPaymentChannel");
+        // microPaymentChannel may be absent in pre-V5.3 configs — load tolerantly
+        // (parseJsonAddress reverts on a missing key) and treat absence as 0x0 so
+        // the deploy-if-missing branch below can handle it.
+        address mcProxy;
+        try vm.parseJsonAddress(config, ".microPaymentChannel") returns (address mc) {
+            mcProxy = mc;
+        } catch {
+            mcProxy = address(0);
+        }
         address deployer      = msg.sender;
 
         require(registryProxy != address(0), "UpgradeLive: registry proxy not in config");
