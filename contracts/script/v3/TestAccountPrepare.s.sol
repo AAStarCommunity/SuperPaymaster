@@ -75,6 +75,11 @@ contract TestAccountPrepare is Script {
             registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anniAddr, "");
             console.log("  PAYMASTER_SUPER granted to Anni");
         }
+        // Ensure deployer has aPNTs to transfer (mint if needed — deployer is communityOwner)
+        if (apnts.balanceOf(vm.addr(deployerPK)) < 1000 ether) {
+            console.log("[Phase 2.0] Minting 20000 aPNTs to deployer...");
+            apnts.mint(vm.addr(deployerPK), 20_000 ether);
+        }
         // Transfer aPNTs to Anni if she has less than 1000 (for SP deposit)
         if (apnts.balanceOf(anniAddr) < 1000 ether) {
             console.log("[Phase 2.0] Transferring 1000 aPNTs to Anni...");
