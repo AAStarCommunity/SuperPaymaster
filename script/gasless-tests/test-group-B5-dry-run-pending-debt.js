@@ -10,9 +10,9 @@
  */
 const {
   initTestEnv, getContracts, ethers,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, printSkip, printCriticalSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
-  sendTxSafe,
+  sendTxSafe, isInfraError, catchStep,
 } = require('./test-helpers');
 
 // SuperPaymaster extensions needed for this test group
@@ -115,24 +115,30 @@ async function main() {
           printSuccess(`dryRunValidation call succeeded (returned false with reason code)`);
         }
       } catch (callErr) {
-        // dryRunValidation may revert (e.g. if operator not configured)
-        const reason = callErr.reason || callErr.shortMessage || callErr.message.substring(0, 120);
-        printInfo(`dryRunValidation reverted: ${reason}`);
-        // Check for known failure patterns — these are expected in a test environment
-        const knownFailures = [
-          'not configured', 'not eligible', 'stale', 'paused', 'blocked',
-          'OperatorNotConfigured', 'UserNotEligible', 'PriceTooStale',
-          'DRYRUN_', 'execution reverted',
-        ];
-        const isExpected = knownFailures.some(kw => reason.toLowerCase().includes(kw.toLowerCase()));
-        if (isExpected) {
-          printSuccess(`dryRunValidation reverted with expected reason (environment precondition not met)`);
+        // A transient RPC error must not be read as a contract revert.
+        if (isInfraError(callErr)) {
+          printCriticalSkip(`dryRunValidation: transient RPC error — ${(callErr.message || '').substring(0, 50)}`);
         } else {
-          printError(`dryRunValidation reverted unexpectedly: ${reason}`);
+          const reason = callErr.reason || callErr.shortMessage || (callErr.message || '').substring(0, 120);
+          printInfo(`dryRunValidation reverted: ${reason}`);
+          // SPECIFIC expected-precondition signatures only — NOT the generic
+          // 'execution reverted' / '0x' (those match almost any revert and would
+          // mask a real failure).
+          const knownFailures = [
+            'not configured', 'not eligible', 'paused', 'blocked', 'rate',
+            'operatornotconfigured', 'usernoteligible', 'pricetoostale', 'stale_price',
+            'insufficient_balance', 'dryrun_',
+          ];
+          const isExpected = knownFailures.some(kw => reason.toLowerCase().includes(kw));
+          if (isExpected) {
+            printSuccess(`dryRunValidation reverted with expected precondition reason`);
+          } else {
+            printError(`dryRunValidation reverted unexpectedly: ${reason}`);
+          }
         }
       }
     } catch (e) {
-      printError(`Step 1 setup failed: ${e.message.substring(0, 100)}`);
+      catchStep('B5 Step 1 setup', e);
     }
   }
 
@@ -152,7 +158,7 @@ async function main() {
       printSuccess(`pendingDebts query succeeded — ${ethers.formatEther(pendingDebt)} aPNTs pending`);
     }
   } catch (e) {
-    printError(`pendingDebts query failed: ${e.message.substring(0, 100)}`);
+    catchStep(`pendingDebts query failed`, e);
     // Cannot proceed with retry/clear if query itself failed
     process.exit(finishTest('B5: dryRunValidation and Pending Debt Recovery'));
   }
@@ -181,7 +187,7 @@ async function main() {
         }
       }
     } catch (e) {
-      printError(`retryPendingDebt failed: ${e.message.substring(0, 100)}`);
+      catchStep(`retryPendingDebt failed`, e);
     }
   }
 
@@ -213,7 +219,7 @@ async function main() {
         }
       }
     } catch (e) {
-      printError(`clearPendingDebt failed: ${e.message.substring(0, 100)}`);
+      catchStep(`clearPendingDebt failed`, e);
     }
   }
 

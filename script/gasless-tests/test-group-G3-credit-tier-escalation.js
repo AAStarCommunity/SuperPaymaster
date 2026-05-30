@@ -31,7 +31,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -68,7 +68,7 @@ async function main() {
     assertTrue(tierLimits[6] > tierLimits[1], 'Tier 6 limit > Tier 1 limit');
     printSuccess('Credit tier limits read successfully');
   } catch (e) {
-    printError(`creditTierConfig: ${e.message.substring(0, 100)}`);
+    catchStep(`creditTierConfig`, e);
   }
 
   // ──────────────────────────────────────────
@@ -99,7 +99,7 @@ async function main() {
     }
     printSuccess('Thresholds are strictly increasing');
   } catch (e) {
-    printError(`levelThresholds: ${e.message.substring(0, 100)}`);
+    catchStep(`levelThresholds`, e);
   }
 
   // ──────────────────────────────────────────
@@ -122,7 +122,7 @@ async function main() {
     assertEqual(freshLimit, tierLimits[1] ?? 0n, 'Fresh user (rep=0) gets tier 1 limit');
     printSuccess('getCreditLimit returns tier 1 for users with reputation 0');
   } catch (e) {
-    printError(`getCreditLimit: ${e.message.substring(0, 100)}`);
+    catchStep(`getCreditLimit`, e);
   }
 
   // ──────────────────────────────────────────
@@ -151,7 +151,7 @@ async function main() {
     printSuccess('Escalation path simulated (actual escalation requires BLS-signed reputation update)');
     printInfo('Production: users earn reputation via community activity → BLSAggregator → batchUpdateGlobalReputation');
   } catch (e) {
-    printError(`Simulation: ${e.message.substring(0, 100)}`);
+    catchStep(`Simulation`, e);
   }
 
   // ──────────────────────────────────────────
@@ -174,7 +174,7 @@ async function main() {
       printSuccess('Tier 7 set to 5000 aPNTs — admin can expand credit ceiling');
     }
   } catch (e) {
-    printError(`setCreditTier: ${e.message.substring(0, 100)}`);
+    catchStep(`setCreditTier`, e);
   }
 
   // Cleanup: reset tier 7 to 0 (unused)
@@ -207,7 +207,7 @@ async function main() {
     assertEqual(freshLimit, tier1Limit, 'Fresh user getCreditLimit == tier 1');
     printSuccess('getAvailableCredit read successfully');
   } catch (e) {
-    printError(`getAvailableCredit: ${e.message.substring(0, 100)}`);
+    catchStep(`getAvailableCredit`, e);
   }
 
   // ──────────────────────────────────────────

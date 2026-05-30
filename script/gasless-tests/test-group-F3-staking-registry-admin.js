@@ -24,7 +24,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setRoleExitFee: ${e.message.substring(0, 100)}`);
+    catchStep(`setRoleExitFee`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setAuthorizedSlasher: ${e.message.substring(0, 100)}`);
+    catchStep(`setAuthorizedSlasher`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -225,7 +225,7 @@ async function main() {
       printSuccess('Stake state read successfully — topUpStake path is valid for Registry to call');
     }
   } catch (e) {
-    printError(`topUpStake check: ${e.message.substring(0, 100)}`);
+    catchStep(`topUpStake check`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setReputationSource: ${e.message.substring(0, 100)}`);
+    catchStep(`setReputationSource`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -314,7 +314,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setLevelThresholds: ${e.message.substring(0, 100)}`);
+    catchStep(`setLevelThresholds`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -343,7 +343,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`batchUpdateGlobalReputation: ${e.message.substring(0, 100)}`);
+    catchStep(`batchUpdateGlobalReputation`, e);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -376,7 +376,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setCreditTier: ${e.message.substring(0, 100)}`);
+    catchStep(`setCreditTier`, e);
   }
 
   process.exit(finishTest('F3: Staking & Registry Admin'));

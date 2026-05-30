@@ -11,7 +11,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
-  sendTxSafe, ABI,
+  sendTxSafe, catchStep, ABI,
 } = require('./test-helpers');
 
 function buildDummyUserOp(sender, paymaster, operator) {
@@ -115,7 +115,7 @@ async function main() {
     printKeyValue('isBlocked', state.isBlocked);
     assertTrue(state.lastTimestamp === 0n || state.lastTimestamp >= 0n, 'userOpState returned valid data');
   } catch (e) {
-    printError(`userOpState query: ${e.message.substring(0, 80)}`);
+    catchStep(`userOpState query`, e);
   }
 
   process.exit(finishTest('C1: SuperPaymaster Negative Cases'));

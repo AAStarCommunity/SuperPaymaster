@@ -11,7 +11,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -42,7 +42,7 @@ async function main() {
       printKeyValue('treasury', op.treasury);
       assertTrue(op.isConfigured, 'Anni operator is configured');
     } catch (e) {
-      printError(`Read Anni config: ${e.message.substring(0, 80)}`);
+      catchStep(`Read Anni config`, e);
     }
   } else {
     printSkip('OPERATOR_ADDRESS not set, skipping Anni check');
@@ -64,7 +64,7 @@ async function main() {
       printInfo('Deployer not yet configured as operator');
     }
   } catch (e) {
-    printError(`Read deployer config: ${e.message.substring(0, 80)}`);
+    catchStep(`Read deployer config`, e);
   }
 
   // ──────────────────────────────────────────
@@ -123,7 +123,7 @@ async function main() {
       assertEqual(op.minTxInterval, 60n, 'minTxInterval');
     }
   } catch (e) {
-    printError(`setOperatorLimits: ${e.message.substring(0, 80)}`);
+    catchStep(`setOperatorLimits`, e);
   }
 
   // ──────────────────────────────────────────
@@ -141,7 +141,7 @@ async function main() {
     op = await sp.operators(deployerAddr);
     assertFalse(op.isPaused, 'Operator is unpaused');
   } catch (e) {
-    printError(`Pause/unpause: ${e.message.substring(0, 80)}`);
+    catchStep(`Pause/unpause`, e);
   }
 
   process.exit(finishTest('B1: Operator Config'));

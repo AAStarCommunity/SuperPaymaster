@@ -35,19 +35,24 @@ const _RETRYABLE_RPC_METHODS = new Set([
 //   - Do NOT treat bare SERVER_ERROR as infra — some RPCs return it for reverts.
 function _isTransientRpcError(e) {
   if (!e) return false;
-  if (e.code === 'CALL_EXCEPTION' || e.reason != null || e.revert != null) return false;
-  const msg = (e.message || '').toLowerCase();
   const code = (e.code || '').toString().toUpperCase();
-  const codeTransient = code === 'TIMEOUT' || code === 'ETIMEDOUT' ||
-    code === 'ECONNRESET' || code === 'NETWORK_ERROR';
-  const msgTransient =
-    msg.includes('econnreset') || msg.includes('econnrefused') ||
+  // 1. Transport-level codes are infra REGARDLESS of any attached reason string.
+  //    (ethers v6 TIMEOUT errors carry reason:"timeout", so this must come BEFORE
+  //    the revert guard — otherwise a real timeout would be misread as a revert.)
+  if (code === 'TIMEOUT' || code === 'ETIMEDOUT' ||
+      code === 'ECONNRESET' || code === 'NETWORK_ERROR') return true;
+  // 2. A genuine contract revert / call exception is NEVER infra. Use only the
+  //    revert-specific signals (NOT e.reason, which timeouts also set).
+  if (code === 'CALL_EXCEPTION' || e.revert != null) return false;
+  // 3. Fall back to specific transport phrases (never the bare word "timeout",
+  //    which can appear in a contract custom-error name like DeadlineTimeout).
+  const msg = (e.message || '').toLowerCase();
+  return msg.includes('econnreset') || msg.includes('econnrefused') ||
     msg.includes('socket hang up') || msg.includes('socket disconnected') ||
     msg.includes('request timeout') || msg.includes('read timeout') ||
     msg.includes('etimedout') || msg.includes('timeout exceeded') ||
     msg.includes('network error') || msg.includes('failed to fetch') ||
     msg.includes('bad gateway') || msg.includes('service unavailable');
-  return codeTransient || msgTransient;
 }
 
 function _addProviderRetry(provider) {
@@ -396,6 +401,18 @@ function printCriticalSkip(msg) {
   _criticalTxSkipped++;
 }
 
+// Shared step-level catch classifier: a transient RPC/network error means the
+// step could not be exercised → INCONCLUSIVE skip (exit 2), NOT a silent PASS and
+// NOT a false FAIL; a genuine contract/logic error → FAIL. Use in step `catch`
+// blocks instead of a bare printError so transient infra never flips PASS↔FAIL.
+function catchStep(label, e) {
+  if (_isNetworkError(e)) {
+    printCriticalSkip(`${label}: transient RPC error — ${(e.message || '').substring(0, 60)}`);
+  } else {
+    printError(`${label}: ${(e.message || '').substring(0, 100)}`);
+  }
+}
+
 function printInfo(msg) {
   console.log(`    ${msg}`);
 }
@@ -493,7 +510,13 @@ async function expectRevert(fn, label) {
     printError(`${label}: expected revert but succeeded`);
     return false;
   } catch (err) {
-    const reason = err.reason || err.shortMessage || err.message.substring(0, 100);
+    // A transient RPC/network error is NOT a contract revert — counting it as a
+    // successful revert would falsely PASS a negative test and hide a real gap.
+    if (_isTransientRpcError(err)) {
+      printCriticalSkip(`${label}: could not verify revert — transient RPC error (${(err.message || '').substring(0, 50)})`);
+      return false;
+    }
+    const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 100);
     printSuccess(`${label}: reverted (${reason})`);
     return true;
   }
@@ -695,6 +718,7 @@ module.exports = {
   printError,
   printSkip,
   printCriticalSkip,
+  catchStep,
   printInfo,
   printKeyValue,
   printSummary,

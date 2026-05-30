@@ -11,7 +11,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -45,7 +45,7 @@ async function main() {
     printKeyValue('description', rule.description);
     assertTrue(rule.baseScore >= 0n, 'defaultRule has valid baseScore');
   } catch (e) {
-    printError(`defaultRule: ${e.message.substring(0, 80)}`);
+    catchStep(`defaultRule`, e);
   }
 
   // ──────────────────────────────────────────
@@ -65,7 +65,7 @@ async function main() {
     assertEqual(rule.activityBonus, 5n, 'E2E_ACTIVITY activityBonus');
     assertEqual(rule.maxBonus, 200n, 'E2E_ACTIVITY maxBonus');
   } catch (e) {
-    printError(`setRule: ${e.message.substring(0, 80)}`);
+    catchStep(`setRule`, e);
   }
 
   // ──────────────────────────────────────────
@@ -78,7 +78,7 @@ async function main() {
     const hasOurRule = activeRules.some(r => r === ruleId);
     assertTrue(hasOurRule, 'Active rules include E2E_ACTIVITY');
   } catch (e) {
-    printError(`getActiveRules: ${e.message.substring(0, 80)}`);
+    catchStep(`getActiveRules`, e);
   }
 
   // ──────────────────────────────────────────
@@ -96,7 +96,7 @@ async function main() {
     // baseScore(20) + min(activityBonus*activity, maxBonus) = 20 + min(50, 200) = 70
     assertGte(score, 0n, 'Score is non-negative');
   } catch (e) {
-    printError(`computeScore: ${e.message.substring(0, 80)}`);
+    catchStep(`computeScore`, e);
   }
 
   // ──────────────────────────────────────────
@@ -119,7 +119,7 @@ async function main() {
     await sendTxSafe(rep, 'setEntropyFactor', [deployerAddr, ethers.parseEther('1')], 'Restore entropyFactor(1)', { critical: false });
     printSuccess('entropyFactor restored to 1e18');
   } catch (e) {
-    printError(`setEntropyFactor: ${e.message.substring(0, 80)}`);
+    catchStep(`setEntropyFactor`, e);
   }
 
   // ──────────────────────────────────────────
@@ -134,7 +134,7 @@ async function main() {
     const rep_val = await rep.communityReputations(deployerAddr, testUser);
     assertEqual(rep_val, 42n, 'communityReputation set to 42');
   } catch (e) {
-    printError(`setCommunityReputation: ${e.message.substring(0, 80)}`);
+    catchStep(`setCommunityReputation`, e);
   }
 
   // ──────────────────────────────────────────

@@ -17,19 +17,8 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printCriticalSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe, isInfraError,
+  sendTxSafe, isInfraError, catchStep,
 } = require('./test-helpers');
-
-// Step-level catch helper: a transient RPC error means we could not exercise a
-// load-bearing governance op → INCONCLUSIVE SKIP (exit 2), never a silent PASS;
-// a genuine contract/logic error → FAIL.
-function catchStep(label, e) {
-  if (isInfraError(e)) {
-    printCriticalSkip(`${label}: transient RPC error — ${(e.message || '').substring(0, 60)}`);
-  } else {
-    printError(`${label}: ${(e.message || '').substring(0, 100)}`);
-  }
-}
 
 
 async function main() {
@@ -240,13 +229,10 @@ async function main() {
         printSuccess('dryRunValidation staticCall completed without revert');
       }
     } catch (innerErr) {
-      const msg = innerErr.message || '';
-      if (msg.includes('DryRunFailed') || msg.includes('dryrun') || msg.includes('0x')) {
-        printInfo(`dryRunValidation reverted (expected for misconfigured op): ${msg.substring(0, 100)}`);
-        printSuccess('dryRunValidation call handled (revert caught cleanly)');
-      } else {
-        catchStep('dryRunValidation unexpected error', innerErr);
-      }
+      // dryRunValidation is a `view` that RETURNS (ok, reasonCode) — it should not
+      // revert. A caught error is unexpected: infra → inconclusive skip, anything
+      // else → FAIL. Do NOT treat "contains 0x" as a clean pass (masks failures).
+      catchStep('dryRunValidation', innerErr);
     }
   } catch (e) {
     catchStep('dryRunValidation setup', e);

@@ -20,7 +20,7 @@
  */
 const {
   initTestEnv, getContracts, ROLES, ethers,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, catchStep, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse, assertGte,
 } = require('./test-helpers');
@@ -64,7 +64,7 @@ async function main() {
       printSuccess('Deployer is SBT holder');
     }
   } catch (e) {
-    printError(`sbtHolders: ${e.message.substring(0, 100)}`);
+    catchStep(`sbtHolders`, e);
   }
 
   // ──────────────────────────────────────────
@@ -87,7 +87,7 @@ async function main() {
       printInfo('Deployer not eligible — SBT not set; run RegisterEnduser.s.sol');
     }
   } catch (e) {
-    printError(`isEligibleForSponsorship: ${e.message.substring(0, 100)}`);
+    catchStep(`isEligibleForSponsorship`, e);
   }
 
   // ──────────────────────────────────────────
@@ -107,7 +107,7 @@ async function main() {
     assertFalse(randomIsAgent, 'Random address must not be registered agent');
     printSuccess('Agent check: random address is not a registered agent');
   } catch (e) {
-    printError(`isRegisteredAgent: ${e.message.substring(0, 100)}`);
+    catchStep(`isRegisteredAgent`, e);
   }
 
   // ──────────────────────────────────────────
@@ -124,7 +124,7 @@ async function main() {
     assertEqual(randomRep, 0n, 'New address starts at reputation 0');
     printSuccess('Reputation read from Registry');
   } catch (e) {
-    printError(`globalReputation: ${e.message.substring(0, 100)}`);
+    catchStep(`globalReputation`, e);
   }
 
   // ──────────────────────────────────────────
@@ -157,7 +157,7 @@ async function main() {
     assertTrue(thresholds.length > 0, 'At least one tier threshold configured');
     printSuccess(`${thresholds.length} tier thresholds configured above default`);
   } catch (e) {
-    printError(`levelThresholds: ${e.message.substring(0, 100)}`);
+    catchStep(`levelThresholds`, e);
   }
 
   // ──────────────────────────────────────────
@@ -187,7 +187,7 @@ async function main() {
     assertEqual(deployerLimit, expectedLimit, 'getCreditLimit matches tier formula');
     printSuccess('Credit limit correctly derived from reputation tier');
   } catch (e) {
-    printError(`getCreditLimit: ${e.message.substring(0, 100)}`);
+    catchStep(`getCreditLimit`, e);
   }
 
   // ──────────────────────────────────────────
@@ -205,7 +205,7 @@ async function main() {
 
     printSuccess('getAvailableCredit call succeeded');
   } catch (e) {
-    printError(`getAvailableCredit: ${e.message.substring(0, 100)}`);
+    catchStep(`getAvailableCredit`, e);
   }
 
   // ──────────────────────────────────────────
@@ -227,7 +227,7 @@ async function main() {
     printSuccess('Tier escalation path validated (globalReputation updated via BLS consensus in production)');
     printInfo('To reach a higher tier: accumulate community reputation → BLS-signed batchUpdateGlobalReputation');
   } catch (e) {
-    printError(`Simulation: ${e.message.substring(0, 100)}`);
+    catchStep(`Simulation`, e);
   }
 
   process.exit(finishTest('G1: Reputation-Gated Sponsorship'));

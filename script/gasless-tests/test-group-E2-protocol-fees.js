@@ -10,7 +10,7 @@ const {
   printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe, expectRevert,
+  sendTxSafe, catchStep, expectRevert,
 } = require('./test-helpers');
 
 async function main() {
@@ -32,7 +32,7 @@ async function main() {
     printKeyValue('Protocol fee %', `${Number(originalFee) / 100}%`);
     assertTrue(originalFee >= 0n, 'Fee is non-negative');
   } catch (e) {
-    printError(`protocolFeeBPS: ${e.message.substring(0, 80)}`);
+    catchStep(`protocolFeeBPS`, e);
   }
 
   // ──────────────────────────────────────────
@@ -50,7 +50,7 @@ async function main() {
     const restoredFee = await sp.protocolFeeBPS();
     assertEqual(restoredFee, originalFee, 'protocolFeeBPS restored');
   } catch (e) {
-    printError(`setProtocolFee cycle: ${e.message.substring(0, 80)}`);
+    catchStep(`setProtocolFee cycle`, e);
     // Try to restore
     try { await sp.setProtocolFee(originalFee); } catch (_) {}
   }
@@ -68,7 +68,7 @@ async function main() {
       'setProtocolFee exceeding max'
     );
   } catch (e) {
-    printError(`MAX_PROTOCOL_FEE check: ${e.message.substring(0, 80)}`);
+    catchStep(`MAX_PROTOCOL_FEE check`, e);
   }
 
   // ──────────────────────────────────────────
@@ -80,7 +80,7 @@ async function main() {
     printKeyValue('protocolRevenue', ethers.formatEther(revenue));
     assertGte(revenue, 0n, 'protocolRevenue >= 0');
   } catch (e) {
-    printError(`protocolRevenue: ${e.message.substring(0, 80)}`);
+    catchStep(`protocolRevenue`, e);
   }
 
   try {
@@ -88,7 +88,7 @@ async function main() {
     printKeyValue('totalTrackedBalance', ethers.formatEther(tracked));
     assertGte(tracked, 0n, 'totalTrackedBalance >= 0');
   } catch (e) {
-    printError(`totalTrackedBalance: ${e.message.substring(0, 80)}`);
+    catchStep(`totalTrackedBalance`, e);
   }
 
   process.exit(finishTest('E2: Protocol Fees'));

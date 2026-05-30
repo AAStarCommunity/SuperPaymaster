@@ -19,7 +19,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGt, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 // ============================================================
@@ -87,7 +87,7 @@ async function main() {
       xpnts.getDebt(deployerAddr),
     ]);
   } catch (e) {
-    printError(`Failed to read xPNTs state: ${e.message.substring(0, 100)}`);
+    catchStep(`Failed to read xPNTs state`, e);
     process.exit(finishTest('E4: repayDebt & Exchange Rate'));
   }
 
@@ -108,7 +108,7 @@ async function main() {
   try {
     xPNTsBalance = await xpnts.balanceOf(deployerAddr);
   } catch (e) {
-    printError(`balanceOf: ${e.message.substring(0, 100)}`);
+    catchStep(`balanceOf`, e);
     xPNTsBalance = 0n;
   }
 
@@ -149,7 +149,7 @@ async function main() {
       try {
         debtAfterRepay = await xpnts.getDebt(deployerAddr);
       } catch (e) {
-        printError(`getDebt after repay: ${e.message.substring(0, 100)}`);
+        catchStep(`getDebt after repay`, e);
         debtAfterRepay = debtBeforeStep3; // fallback: assume unchanged
       }
       const actualRepaid = debtBeforeStep3 - debtAfterRepay;
@@ -206,7 +206,7 @@ async function main() {
   try {
     creditNow = await sp.getAvailableCredit(deployerAddr, config.aPNTs);
   } catch (e) {
-    printError(`getAvailableCredit: ${e.message.substring(0, 100)}`);
+    catchStep(`getAvailableCredit`, e);
     creditNow = null;
   }
 

@@ -13,7 +13,7 @@
  */
 const {
   initTestEnv, getContracts, ethers,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, catchStep, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGt, assertGte,
 } = require('./test-helpers');
@@ -45,7 +45,7 @@ async function main() {
     printKeyValue('reputation', op[4].toString());
     assertEqual(fieldCount, 9, 'operators() must return 9 fields (exchangeRate removed)');
   } catch (e) {
-    printError(`operators() tuple check: ${e.message.substring(0, 100)}`);
+    catchStep(`operators() tuple check`, e);
   }
 
   // ──────────────────────────────────────────
@@ -75,7 +75,7 @@ async function main() {
       printSuccess('Live exchange rate verified from xPNTsToken');
     }
   } catch (e) {
-    printError(`xPNTsToken read: ${e.message.substring(0, 100)}`);
+    catchStep(`xPNTsToken read`, e);
   }
 
   // ──────────────────────────────────────────
@@ -92,7 +92,7 @@ async function main() {
       printSuccess('getAvailableCredit returns aPNTs value');
     }
   } catch (e) {
-    printError(`getAvailableCredit: ${e.message.substring(0, 100)}`);
+    catchStep(`getAvailableCredit`, e);
   }
 
   // ──────────────────────────────────────────
@@ -111,7 +111,7 @@ async function main() {
       printSuccess('getDebt() returns aPNTs denomination');
     }
   } catch (e) {
-    printError(`getDebt: ${e.message.substring(0, 100)}`);
+    catchStep(`getDebt`, e);
   }
 
   // ──────────────────────────────────────────
@@ -128,7 +128,7 @@ async function main() {
       assertTrue(op[1], 'Anni must be configured as operator');
       printSuccess('Anni operator state read successfully with new 9-tuple ABI');
     } catch (e) {
-      printError(`Anni operator read: ${e.message.substring(0, 100)}`);
+      catchStep(`Anni operator read`, e);
     }
   } else {
     printSkip('OPERATOR_ADDRESS not set');

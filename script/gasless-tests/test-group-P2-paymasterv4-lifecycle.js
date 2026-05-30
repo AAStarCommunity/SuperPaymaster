@@ -12,7 +12,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 // Extended ABI covering Paymaster.sol + PaymasterBase.sol lifecycle surface
@@ -68,7 +68,7 @@ async function main() {
     pmAddr = await pmFactory.getPaymasterByOperator(deployerAddr);
     printKeyValue('PaymasterV4 address', pmAddr);
   } catch (e) {
-    printError(`getPaymasterByOperator failed: ${e.message.substring(0, 100)}`);
+    catchStep(`getPaymasterByOperator failed`, e);
     printSummary('P2: PaymasterV4 Lifecycle');
     process.exit(1);
   }
@@ -95,7 +95,7 @@ async function main() {
     }
     printSuccess('Read PaymasterV4 state');
   } catch (e) {
-    printError(`Read state failed: ${e.message.substring(0, 100)}`);
+    catchStep(`Read state failed`, e);
     printSummary('P2: PaymasterV4 Lifecycle');
     process.exit(1);
   }
@@ -136,7 +136,7 @@ async function main() {
     // lacks PAYMASTER_AOA role, which is OK for this test; we just print it.
     printSuccess('Lifecycle toggle completed without error');
   } catch (e) {
-    printError(`Lifecycle toggle failed: ${e.message.substring(0, 100)}`);
+    catchStep(`Lifecycle toggle failed`, e);
   }
 
   // ──────────────────────────────────────────
@@ -190,7 +190,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`depositFor step failed: ${e.message.substring(0, 100)}`);
+    catchStep(`depositFor step failed`, e);
   }
 
   // ──────────────────────────────────────────
@@ -225,7 +225,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`withdraw step failed: ${e.message.substring(0, 100)}`);
+    catchStep(`withdraw step failed`, e);
   }
 
   // ──────────────────────────────────────────
@@ -247,7 +247,7 @@ async function main() {
       assertTrue(freshened, 'cachedPrice.updatedAt >= before.updatedAt after updatePrice');
     }
   } catch (e) {
-    printError(`updatePrice step failed: ${e.message.substring(0, 100)}`);
+    catchStep(`updatePrice step failed`, e);
   }
 
   process.exit(finishTest('P2: PaymasterV4 Lifecycle'));

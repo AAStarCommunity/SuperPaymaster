@@ -7,7 +7,7 @@
  */
 const {
   initTestEnv, getContracts, ethers, ABI,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, catchStep, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
 } = require('./test-helpers');
@@ -39,7 +39,7 @@ async function main() {
       printSuccess(`Found PaymasterV4: ${pmV4Addr}`);
     }
   } catch (e) {
-    printError(`paymasterByOperator: ${e.message.substring(0, 80)}`);
+    catchStep(`paymasterByOperator`, e);
   }
 
   // ──────────────────────────────────────────
@@ -94,7 +94,7 @@ async function main() {
       }
       assertTrue(tokens.length >= 0, 'getSupportedTokens returned');
     } catch (e) {
-      printError(`getSupportedTokens: ${e.message.substring(0, 80)}`);
+      catchStep(`getSupportedTokens`, e);
     }
   }
 

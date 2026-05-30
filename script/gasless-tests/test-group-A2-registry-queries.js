@@ -7,7 +7,7 @@
  */
 const {
   initTestEnv, getContracts, ROLES, ROLE_NAMES, ethers,
-  printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, catchStep, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
 } = require('./test-helpers');
@@ -71,7 +71,7 @@ async function main() {
       printKeyValue(`${key} members`, count.toString());
       assertGte(count, 0n, `${key} count >= 0`);
     } catch (e) {
-      printError(`${key}: ${e.message.substring(0, 80)}`);
+      catchStep(`${key}`, e);
     }
   }
 
@@ -87,7 +87,7 @@ async function main() {
     }
     assertTrue(roles.length > 0, 'Deployer has at least one role');
   } catch (e) {
-    printError(`getUserRoles: ${e.message.substring(0, 80)}`);
+    catchStep(`getUserRoles`, e);
   }
 
   // ──────────────────────────────────────────
@@ -113,21 +113,21 @@ async function main() {
     const stakingAddr = await registry.GTOKEN_STAKING();
     assertEqual(stakingAddr.toLowerCase(), config.staking.toLowerCase(), 'GTOKEN_STAKING');
   } catch (e) {
-    printError(`GTOKEN_STAKING: ${e.message.substring(0, 80)}`);
+    catchStep(`GTOKEN_STAKING`, e);
   }
 
   try {
     const mysbtAddr = await registry.MYSBT();
     assertEqual(mysbtAddr.toLowerCase(), config.sbt.toLowerCase(), 'MYSBT');
   } catch (e) {
-    printError(`MYSBT: ${e.message.substring(0, 80)}`);
+    catchStep(`MYSBT`, e);
   }
 
   try {
     const spAddr = await registry.SUPER_PAYMASTER();
     assertEqual(spAddr.toLowerCase(), config.superPaymaster.toLowerCase(), 'SUPER_PAYMASTER');
   } catch (e) {
-    printError(`SUPER_PAYMASTER: ${e.message.substring(0, 80)}`);
+    catchStep(`SUPER_PAYMASTER`, e);
   }
 
   process.exit(finishTest('A2: Registry Queries'));

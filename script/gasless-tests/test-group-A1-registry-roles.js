@@ -10,7 +10,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe, encodeCommunityRoleData, encodeEndUserRoleData,
+  sendTxSafe, catchStep, encodeCommunityRoleData, encodeEndUserRoleData,
 } = require('./test-helpers');
 
 async function main() {
@@ -139,7 +139,7 @@ async function main() {
     }
     assertTrue(userRoles.length > 0, 'Deployer has at least one role');
   } catch (e) {
-    printError(`getUserRoles failed: ${e.message.substring(0, 80)}`);
+    catchStep(`getUserRoles failed`, e);
   }
 
   try {
@@ -147,7 +147,7 @@ async function main() {
     printKeyValue('COMMUNITY members count', memberCount.toString());
     assertGte(memberCount, 1n, 'At least 1 COMMUNITY member');
   } catch (e) {
-    printError(`getRoleUserCount failed: ${e.message.substring(0, 80)}`);
+    catchStep(`getRoleUserCount failed`, e);
   }
 
   process.exit(finishTest('A1: Registry Roles'));

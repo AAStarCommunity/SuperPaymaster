@@ -18,7 +18,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -74,7 +74,7 @@ async function main() {
     printKeyValue('treasury', currentTreasury);
     printKeyValue('aPNTsBalance', ethers.formatEther(op[0]));
   } catch (e) {
-    printError(`Read state: ${e.message.substring(0, 100)}`);
+    catchStep(`Read state`, e);
   }
 
   // ──────────────────────────────────────────
@@ -122,7 +122,7 @@ async function main() {
     assertTrue(op[1], 'isConfigured must be true');
     printSuccess('configureOperator 2-arg signature works (no exchangeRate param)');
   } catch (e) {
-    printError(`configureOperator: ${e.message.substring(0, 100)}`);
+    catchStep(`configureOperator`, e);
   }
 
   // ──────────────────────────────────────────
@@ -141,7 +141,7 @@ async function main() {
     assertTrue(liveRate > 0n, 'Live rate from token must be non-zero');
     printSuccess('SuperPaymaster uses live rate from xPNTsToken — no stale config rate');
   } catch (e) {
-    printError(`Rate check: ${e.message.substring(0, 100)}`);
+    catchStep(`Rate check`, e);
   }
 
   // ──────────────────────────────────────────

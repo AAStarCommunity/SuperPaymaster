@@ -10,7 +10,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -50,7 +50,7 @@ async function main() {
     const stored = await registry.creditTierConfig(testTierLevel);
     assertEqual(stored, testTierLimit, 'Tier 7 limit');
   } catch (e) {
-    printError(`setCreditTier: ${e.message.substring(0, 80)}`);
+    catchStep(`setCreditTier`, e);
   }
 
   // ──────────────────────────────────────────
@@ -80,7 +80,7 @@ async function main() {
     printKeyValue('Deployer credit limit', ethers.formatEther(limit));
     assertGte(limit, 0n, 'Credit limit >= 0');
   } catch (e) {
-    printError(`getCreditLimit(deployer): ${e.message.substring(0, 80)}`);
+    catchStep(`getCreditLimit(deployer)`, e);
   }
 
   // ──────────────────────────────────────────

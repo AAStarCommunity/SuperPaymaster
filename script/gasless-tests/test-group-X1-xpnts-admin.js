@@ -13,7 +13,7 @@ const {
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ async function main() {
       printSuccess('Deployer is communityOwner — write tests should proceed');
     }
   } catch (e) {
-    printError(`Read admin state: ${e.message.substring(0, 100)}`);
+    catchStep(`Read admin state`, e);
   }
 
   // ──────────────────────────────────────────
@@ -130,7 +130,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setMaxSingleTxLimit: ${e.message.substring(0, 100)}`);
+    catchStep(`setMaxSingleTxLimit`, e);
   }
 
   // ──────────────────────────────────────────
@@ -158,7 +158,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setSpenderDailyCap: ${e.message.substring(0, 100)}`);
+    catchStep(`setSpenderDailyCap`, e);
   }
 
   // ──────────────────────────────────────────
@@ -188,7 +188,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`autoApprovedSpender: ${e.message.substring(0, 100)}`);
+    catchStep(`autoApprovedSpender`, e);
   }
 
   // ──────────────────────────────────────────
@@ -216,7 +216,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`approvedFacilitator: ${e.message.substring(0, 100)}`);
+    catchStep(`approvedFacilitator`, e);
   }
 
   // ──────────────────────────────────────────
@@ -240,7 +240,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`burn: ${e.message.substring(0, 100)}`);
+    catchStep(`burn`, e);
   }
 
   // ──────────────────────────────────────────
@@ -295,7 +295,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`updateExchangeRate: ${e.message.substring(0, 100)}`);
+    catchStep(`updateExchangeRate`, e);
   }
 
   // ──────────────────────────────────────────
@@ -340,7 +340,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`transferAndCall: ${e.message.substring(0, 100)}`);
+    catchStep(`transferAndCall`, e);
   }
 
   process.exit(finishTest('X1: xPNTs Admin'));
