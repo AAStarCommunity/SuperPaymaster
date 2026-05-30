@@ -127,6 +127,8 @@ echo "================================================================"
 run_test "B1: Operator Config"           "node $SCRIPT_DIR/test-group-B1-operator-config.js"
 run_test "B2: Operator Deposit/Withdraw" "node $SCRIPT_DIR/test-group-B2-operator-deposit-withdraw.js"
 run_test "B3: configureOperator v2 (2-arg, PR#200)" "node $SCRIPT_DIR/test-group-B3-configure-operator-v2.js"
+run_test "B4: SP Governance Admin"               "node $SCRIPT_DIR/test-group-B4-sp-governance.js"
+run_test "B5: Dry Run & Pending Debt"            "node $SCRIPT_DIR/test-group-B5-dry-run-pending-debt.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 3: Negative / Boundary Cases
@@ -173,8 +175,9 @@ echo "================================================================"
 echo "  Phase 6: Staking & Slash"
 echo "================================================================"
 
-run_test "F1: Staking Queries"  "node $SCRIPT_DIR/test-group-F1-staking-queries.js"
-run_test "F2: Slash History"    "node $SCRIPT_DIR/test-group-F2-slash-queries.js"
+run_test "F1: Staking Queries"       "node $SCRIPT_DIR/test-group-F1-staking-queries.js"
+run_test "F2: Slash History"         "node $SCRIPT_DIR/test-group-F2-slash-queries.js"
+run_test "F3: Staking & Registry Admin" "node $SCRIPT_DIR/test-group-F3-staking-registry-admin.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 7: V5.3 Agent Economy Scenarios
@@ -243,6 +246,28 @@ sleep 5
 run_test "MicroPaymentChannel: Open / Settle / Close"  "node $SCRIPT_DIR/test-micropayment-channel.js"
 sleep 5
 run_test "x402: EIP-3009 Settlement"                    "node $SCRIPT_DIR/test-x402-eip3009-settlement.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 11: PaymasterV4 Lifecycle
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 11: PaymasterV4 Lifecycle"
+echo "================================================================"
+
+sleep 5
+run_test "P2: PaymasterV4 Lifecycle (deposit/withdraw/activate)" "node $SCRIPT_DIR/test-group-P2-paymasterv4-lifecycle.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 12: xPNTs Token Admin
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 12: xPNTs Token Admin"
+echo "================================================================"
+
+sleep 5
+run_test "X1: xPNTs Token Admin (limits/spenders/exchange-rate)" "node $SCRIPT_DIR/test-group-X1-xpnts-admin.js"
 
 # ─────────────────────────────────────────────────────────────
 # Summary
