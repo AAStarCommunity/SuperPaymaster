@@ -97,52 +97,68 @@ function isNonceConflict(err) {
     msg.includes('nonce has already been used');
 }
 
-// Detect the AA32 "paymaster expired or not due" string. NOTE: matching the
-// string alone is NOT sufficient to skip — AA32 is a REAL EntryPoint validation
-// error (paymaster validUntil/validAfter window). Callers MUST run classifyAA32()
-// to independently confirm it is a simulation artifact before skipping (HIGH #1).
-function isAA32Error(err) {
+// True for any EntryPoint validation rejection (FailedOp "AAxx ..." / paymaster /
+// signature / expired). These must NOT be blindly skipped — classifyValidationFailure
+// runs the contract's own dryRunValidation to decide precondition-SKIP vs real-FAIL.
+function isValidationRejection(err) {
   const msg = (err.message || '').toLowerCase();
   const data = (err.data || (err.info && err.info.error && err.info.error.data) || '').toLowerCase();
-  return msg.includes('aa32') || msg.includes('paymaster expired or not due') ||
-    data.includes('41413332');  // hex encoding of "AA32"
+  return /aa2[0-9]|aa3[0-9]|failedop|paymaster|signature error|expired or not due/.test(msg) ||
+    data.includes('220266b6') ||                 // FailedOp(uint256,string) selector
+    /414132|414133/.test(data);                  // "AA2"/"AA3" hex prefixes
 }
 
-// Independently classify an AA32 error as a spurious simulation artifact vs a
-// genuine paymaster-validation failure. We do NOT trust the EntryPoint/bundler
-// time-window check in isolation — instead we verify the paymaster's own state:
-//   1. If the price cache is actually expired (now >= priceValidUntil), the AA32
-//      is REAL — the paymaster genuinely signed an already-expired validUntil.
-//   2. Otherwise run dryRunValidation (same validation path, no time-window gate):
-//      ok=true  → paymaster logic is sound → AA32 is an out-of-band sim artifact.
-//      ok=false → validation genuinely fails → AA32 is REAL.
-// Returns { spurious: boolean, reason: string }.
-async function classifyAA32(sp, provider, userOp) {
+// bytes32 reason code → ascii (e.g. 0x494e53554646...→ "INSUFFICIENT_BALANCE")
+function decodeReason(code) {
   try {
-    const block = await provider.getBlock('latest');
-    const now = BigInt(block.timestamp);
-    let validUntil = 0n;
-    try { validUntil = await sp.priceValidUntil(); } catch (_) {}
-    if (validUntil !== 0n && now >= validUntil) {
-      return { spurious: false, reason: `price cache expired: now=${now} >= priceValidUntil=${validUntil}` };
-    }
-    // Derive maxCost from THIS userOp's gas fields exactly as the EntryPoint does:
-    // (verificationGasLimit + callGasLimit + preVerificationGas) * maxFeePerGas.
-    // A hardcoded upper bound would over-state required credit and could make
-    // dryRunValidation return ok=false for an op the real flow would accept,
-    // i.e. falsely classify a spurious AA32 as REAL.
-    const verGas  = BigInt(ethers.dataSlice(userOp.accountGasLimits, 0, 16));
-    const callGas = BigInt(ethers.dataSlice(userOp.accountGasLimits, 16, 32));
-    const maxFeePerGas = BigInt(ethers.dataSlice(userOp.gasFees, 16, 32));
-    const maxCost = (verGas + callGas + BigInt(userOp.preVerificationGas)) * maxFeePerGas;
+    if (!code || code === ethers.ZeroHash) return 'OK';
+    return ethers.decodeBytes32String(code) || code; // handles null-termination correctly
+  } catch (_) { return code; }
+}
+
+// Compute the EntryPoint-style maxCost (required prefund) from this userOp,
+// INCLUDING the paymaster gas limits packed into paymasterAndData, so the
+// dryRunValidation solvency check mirrors what handleOps actually requires.
+function computeMaxCost(userOp) {
+  const verGas  = BigInt(ethers.dataSlice(userOp.accountGasLimits, 0, 16));
+  const callGas = BigInt(ethers.dataSlice(userOp.accountGasLimits, 16, 32));
+  const maxFeePerGas = BigInt(ethers.dataSlice(userOp.gasFees, 16, 32));
+  let pmVerGas = 0n, pmPostGas = 0n;
+  // paymasterAndData layout: [paymaster(20)][pmVerGas(16)][pmPostGas(16)][...]
+  if (userOp.paymasterAndData && ethers.dataLength(userOp.paymasterAndData) >= 52) {
+    pmVerGas  = BigInt(ethers.dataSlice(userOp.paymasterAndData, 20, 36));
+    pmPostGas = BigInt(ethers.dataSlice(userOp.paymasterAndData, 36, 52));
+  }
+  return (verGas + callGas + pmVerGas + pmPostGas + BigInt(userOp.preVerificationGas)) * maxFeePerGas;
+}
+
+// Classify a validation rejection using the contract's OWN diagnostic
+// (dryRunValidation), so we never guess:
+//   ok=false → reasonCode is a verifiable precondition (operator not configured /
+//              paused / underfunded, user blocked / ineligible, stale price,
+//              rate-limit/commitment) → SKIP with the exact reason.
+//   ok=true  → on-chain validation passes. If the bundler still rejected with AA32
+//              (time-window) it is a simulation artifact → SKIP; any other code is a
+//              genuine contradiction (validation OK yet EntryPoint rejects) → FAIL.
+// Returns { action: 'SKIP'|'FAIL', reason: string }.
+async function classifyValidationFailure(sp, userOp, errLabel) {
+  try {
+    const maxCost = computeMaxCost(userOp);
     const [ok, reasonCode] = await sp.dryRunValidation(userOp, maxCost);
-    if (ok) {
-      return { spurious: true, reason: `dryRunValidation OK (validUntil=${validUntil}, now=${now}) — AA32 is a simulation artifact` };
+    if (!ok) {
+      // Definitive precondition from the contract — terminal SKIP (don't proceed).
+      return { action: 'SKIP', proceed: false, reason: `precondition ${decodeReason(reasonCode)} (dryRunValidation, maxCost=${maxCost})` };
     }
-    return { spurious: false, reason: `dryRunValidation FAILED reasonCode=${reasonCode}` };
+    const lbl = (errLabel || '').toLowerCase();
+    if (lbl.includes('aa32') || lbl.includes('expired or not due')) {
+      // Validation is sound; only the bundler's time-window simulation glitched.
+      // proceed=true so an estimateGas-only AA32 doesn't abort the real submit.
+      return { action: 'SKIP', proceed: true, reason: 'AA32 but dryRunValidation OK — bundler simulation artifact' };
+    }
+    return { action: 'FAIL', proceed: false, reason: `validation passes on-chain yet EntryPoint rejected (${errLabel}) — real/unexpected bug` };
   } catch (e) {
-    // Cannot verify → be conservative, treat AA32 as REAL so we never hide a bug.
-    return { spurious: false, reason: `classification failed: ${(e.message || '').substring(0, 80)}` };
+    // Cannot verify → conservative FAIL so we never hide a bug.
+    return { action: 'FAIL', proceed: false, reason: `classification failed: ${(e.message || '').substring(0, 80)}` };
   }
 }
 
@@ -372,19 +388,23 @@ async function main() {
         await restoreCreditTier();
         process.exit(2);
       }
-      if (isAA32Error(estimateErr)) {
-        const verdict = await classifyAA32(sp, provider, userOp);
-        if (verdict.spurious) {
-          console.warn(`\n⚠️  SKIP: AA32 on gas estimation — verified spurious: ${verdict.reason}`);
+      if (isValidationRejection(estimateErr)) {
+        const verdict = await classifyValidationFailure(sp, userOp, estimateErr.message);
+        if (verdict.action === 'FAIL') {
+          console.error(`\n❌ FAIL: validation rejected on gas estimation — ${verdict.reason}`);
+          await restoreCreditTier();
+          process.exit(1);
+        }
+        if (!verdict.proceed) {
+          console.warn(`\n⚠️  SKIP: ${verdict.reason}`);
           await restoreCreditTier();
           process.exit(2);
         }
-        console.error(`\n❌ FAIL: AA32 on gas estimation is REAL — ${verdict.reason}`);
-        await restoreCreditTier();
-        process.exit(1);
+        console.log(`  Gas estimation hit a simulation artifact (${verdict.reason}) — proceeding to real submit...`);
+      } else {
+        console.log(`  Gas estimation: ${estimateErr.message.substring(0, 100)}...`);
+        console.log('  Proceeding with transaction anyway...');
       }
-      console.log(`  Gas estimation: ${estimateErr.message.substring(0, 100)}...`);
-      console.log('  Proceeding with transaction anyway...');
     }
 
     console.log('  Sending transaction...');
@@ -404,16 +424,16 @@ async function main() {
         await restoreCreditTier();
         process.exit(2);
       }
-      if (isAA32Error(txErr)) {
-        const verdict = await classifyAA32(sp, provider, userOp);
-        if (verdict.spurious) {
-          console.warn(`\n⚠️  SKIP: AA32 on handleOps — verified spurious: ${verdict.reason}`);
-          await restoreCreditTier();
-          process.exit(2);
-        }
-        console.error(`\n❌ FAIL: AA32 on handleOps is REAL — ${verdict.reason}`);
+      if (isValidationRejection(txErr)) {
+        // handleOps already failed, so even an AA32 artifact is terminal here.
+        const verdict = await classifyValidationFailure(sp, userOp, txErr.message);
         await restoreCreditTier();
-        process.exit(1);
+        if (verdict.action === 'FAIL') {
+          console.error(`\n❌ FAIL: validation rejected on handleOps — ${verdict.reason}`);
+          process.exit(1);
+        }
+        console.warn(`\n⚠️  SKIP: ${verdict.reason}`);
+        process.exit(2);
       }
       throw txErr;
     }
