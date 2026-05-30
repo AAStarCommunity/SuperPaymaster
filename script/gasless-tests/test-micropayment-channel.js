@@ -55,8 +55,10 @@ async function main() {
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   // Setup
-  const rpcUrl = process.env.RPC_URL;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL;
+  if (!rpcUrl) { console.error('Fatal: RPC_URL not set'); process.exit(1); }
+  // staticNetwork avoids eth_chainId auto-detect call that fails under RPC rate limiting
+  const provider = new ethers.JsonRpcProvider(rpcUrl, CHAIN_ID, { staticNetwork: true });
 
   // Payer = deployer EOA
   const payerKey = process.env.PRIVATE_KEY;
