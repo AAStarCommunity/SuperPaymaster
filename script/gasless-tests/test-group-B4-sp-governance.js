@@ -14,11 +14,22 @@
  */
 const {
   initTestEnv, getContracts, ethers,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
+  printHeader, printStep, printSuccess, printError, printSkip, printCriticalSkip, printInfo, printKeyValue,
   printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
   sendTxSafe, isInfraError,
 } = require('./test-helpers');
+
+// Step-level catch helper: a transient RPC error means we could not exercise a
+// load-bearing governance op → INCONCLUSIVE SKIP (exit 2), never a silent PASS;
+// a genuine contract/logic error → FAIL.
+function catchStep(label, e) {
+  if (isInfraError(e)) {
+    printCriticalSkip(`${label}: transient RPC error — ${(e.message || '').substring(0, 60)}`);
+  } else {
+    printError(`${label}: ${(e.message || '').substring(0, 100)}`);
+  }
+}
 
 
 async function main() {
@@ -64,7 +75,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`setTreasury: ${e.message.substring(0, 100)}`);
+    catchStep('setTreasury', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -76,7 +87,7 @@ async function main() {
     printKeyValue('sbtHolders(testUser)', sbtStatus);
     printSkip('updateSBTStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.');
   } catch (e) {
-    printError(`updateSBTStatus read: ${e.message.substring(0, 100)}`);
+    catchStep('updateSBTStatus read', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -88,7 +99,7 @@ async function main() {
     printKeyValue('userOpState.isBlocked', stateBefore.isBlocked);
     printSkip('updateBlockedStatus write requires msg.sender == REGISTRY — cannot call directly from E2E. Covered by Registry unit tests.');
   } catch (e) {
-    printError(`updateBlockedStatus read: ${e.message.substring(0, 100)}`);
+    catchStep('updateBlockedStatus read', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -122,7 +133,7 @@ async function main() {
       assertEqual(identityRestored.toLowerCase(), currentIdentity.toLowerCase(), 'agentIdentityRegistry restored');
     }
   } catch (e) {
-    printError(`setAgentRegistries: ${e.message.substring(0, 100)}`);
+    catchStep('setAgentRegistries', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -145,7 +156,7 @@ async function main() {
       assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
     }
   } catch (e) {
-    printError(`setFacilitatorFeeBPS: ${e.message.substring(0, 100)}`);
+    catchStep('setFacilitatorFeeBPS', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -176,7 +187,7 @@ async function main() {
       assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
     }
   } catch (e) {
-    printError(`setOperatorFacilitatorFee: ${e.message.substring(0, 100)}`);
+    catchStep('setOperatorFacilitatorFee', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -234,11 +245,11 @@ async function main() {
         printInfo(`dryRunValidation reverted (expected for misconfigured op): ${msg.substring(0, 100)}`);
         printSuccess('dryRunValidation call handled (revert caught cleanly)');
       } else {
-        printError(`dryRunValidation unexpected error: ${msg.substring(0, 100)}`);
+        catchStep('dryRunValidation unexpected error', innerErr);
       }
     }
   } catch (e) {
-    printError(`dryRunValidation setup: ${e.message.substring(0, 100)}`);
+    catchStep('dryRunValidation setup', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -264,13 +275,7 @@ async function main() {
       printInfo('Note: applyBLSAggregator skipped — requires 24h timelock');
     }
   } catch (e) {
-    // A transient RPC/network error here means we couldn't exercise the step,
-    // not that the contract is wrong → SKIP (honest), not FAIL.
-    if (isInfraError(e)) {
-      printSkip(`queueBLSAggregator: transient RPC error — ${e.message.substring(0, 60)}`);
-    } else {
-      printError(`queueBLSAggregator: ${e.message.substring(0, 100)}`);
-    }
+    catchStep('queueBLSAggregator', e);
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -308,7 +313,7 @@ async function main() {
     if (msg.includes('InsufficientRevenue') || msg.includes('buffer')) {
       printSkip(`protocolRevenue below withdrawal buffer: ${msg.substring(0, 80)}`);
     } else {
-      printError(`withdrawProtocolRevenue: ${msg.substring(0, 100)}`);
+      catchStep('withdrawProtocolRevenue', e);
     }
   }
 
@@ -334,7 +339,7 @@ async function main() {
       printSkip('No facilitator earnings to withdraw (facilitatorEarnings == 0)');
     }
   } catch (e) {
-    printError(`withdrawFacilitatorEarnings: ${e.message.substring(0, 100)}`);
+    catchStep('withdrawFacilitatorEarnings', e);
   }
 
   process.exit(finishTest('B4: SP Governance'));

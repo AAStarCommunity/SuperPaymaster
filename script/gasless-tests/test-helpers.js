@@ -26,18 +26,28 @@ const _RETRYABLE_RPC_METHODS = new Set([
   'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_getBlockByHash',
 ]);
 
-// A transient RPC/network error worth retrying on idempotent reads. Covers the
-// many shapes ethers/Alchemy surface: ECONNRESET, socket hang up, any *timeout*
-// (request timeout / read timeout / ETIMEDOUT), and code-based TIMEOUT.
+// A transient RPC/network error worth retrying on idempotent reads / treating as
+// SKIP. Deliberately NARROW so we never misclassify a contract revert as infra
+// (that would hide a real failure):
+//   - Hard guard: anything that looks like a revert / call exception → NOT infra.
+//   - Match specific transport phrases, not the bare word "timeout" (which can
+//     appear in a contract custom-error name like DeadlineTimeout).
+//   - Do NOT treat bare SERVER_ERROR as infra — some RPCs return it for reverts.
 function _isTransientRpcError(e) {
+  if (!e) return false;
+  if (e.code === 'CALL_EXCEPTION' || e.reason != null || e.revert != null) return false;
   const msg = (e.message || '').toLowerCase();
   const code = (e.code || '').toString().toUpperCase();
-  return code === 'TIMEOUT' || code === 'ETIMEDOUT' || code === 'ECONNRESET' ||
-    code === 'NETWORK_ERROR' || code === 'SERVER_ERROR' ||
-    msg.includes('econnreset') || msg.includes('socket hang up') ||
-    msg.includes('timeout') ||            // request timeout / read timeout / etimedout
+  const codeTransient = code === 'TIMEOUT' || code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET' || code === 'NETWORK_ERROR';
+  const msgTransient =
+    msg.includes('econnreset') || msg.includes('econnrefused') ||
+    msg.includes('socket hang up') || msg.includes('socket disconnected') ||
+    msg.includes('request timeout') || msg.includes('read timeout') ||
+    msg.includes('etimedout') || msg.includes('timeout exceeded') ||
     msg.includes('network error') || msg.includes('failed to fetch') ||
     msg.includes('bad gateway') || msg.includes('service unavailable');
+  return codeTransient || msgTransient;
 }
 
 function _addProviderRetry(provider) {
@@ -376,6 +386,16 @@ function printSkip(msg) {
   _testSkipped++;
 }
 
+// Skip of a LOAD-BEARING step (e.g. a governance write/read we meant to verify
+// was prevented by transient infra). Unlike printSkip (optional/expected skips
+// that keep the test PASS), this marks the test INCONCLUSIVE → finishTest exits 2,
+// so an honest "couldn't run" is never reported as a clean PASS.
+function printCriticalSkip(msg) {
+  console.log(`    SKIP*: ${msg} [INCONCLUSIVE]`);
+  _testSkipped++;
+  _criticalTxSkipped++;
+}
+
 function printInfo(msg) {
   console.log(`    ${msg}`);
 }
@@ -674,6 +694,7 @@ module.exports = {
   printSuccess,
   printError,
   printSkip,
+  printCriticalSkip,
   printInfo,
   printKeyValue,
   printSummary,

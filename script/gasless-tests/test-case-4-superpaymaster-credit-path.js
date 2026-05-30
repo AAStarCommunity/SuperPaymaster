@@ -134,28 +134,47 @@ function computeMaxCost(userOp) {
 
 // Classify a validation rejection using the contract's OWN diagnostic
 // (dryRunValidation), so we never guess:
-//   ok=false → reasonCode is a verifiable precondition (operator not configured /
-//              paused / underfunded, user blocked / ineligible, stale price,
-//              rate-limit/commitment) → SKIP with the exact reason.
+//   ok=false → split by reasonCode: RECOVERABLE preconditions (env not ready) →
+//              SKIP; HARD failures that mean the UserOp/test is wrong → FAIL.
 //   ok=true  → on-chain validation passes. If the bundler still rejected with AA32
 //              (time-window) it is a simulation artifact → SKIP; any other code is a
 //              genuine contradiction (validation OK yet EntryPoint rejects) → FAIL.
-// Returns { action: 'SKIP'|'FAIL', reason: string }.
-async function classifyValidationFailure(sp, userOp, errLabel) {
+// Returns { action: 'SKIP'|'FAIL', proceed: bool, reason: string }.
+//
+// Recoverable preconditions → SKIP (re-run after fixing the environment):
+const DRYRUN_SKIP_REASONS = new Set([
+  'OPERATOR_NOT_CONFIGURED', 'OPERATOR_PAUSED', 'USER_NOT_ELIGIBLE',
+  'INSUFFICIENT_BALANCE', 'STALE_PRICE', 'RATE_LIMITED',
+]);
+// Everything else (RATE_COMMITMENT_VIOLATED, USER_BLOCKED, unknown) means the
+// UserOp/test was constructed wrong or hit an unexpected state → FAIL, never hide.
+
+// Detect AA32 in BOTH message and revert data (the bundler sometimes only puts it
+// in data) — passing just the message would miss it and mislabel an artifact as a bug.
+function errIsAA32(err) {
+  const msg = (err && err.message || '').toLowerCase();
+  const data = (err && (err.data || (err.info && err.info.error && err.info.error.data)) || '').toLowerCase();
+  return msg.includes('aa32') || msg.includes('expired or not due') || data.includes('41413332');
+}
+
+async function classifyValidationFailure(sp, userOp, err) {
   try {
     const maxCost = computeMaxCost(userOp);
     const [ok, reasonCode] = await sp.dryRunValidation(userOp, maxCost);
     if (!ok) {
-      // Definitive precondition from the contract — terminal SKIP (don't proceed).
-      return { action: 'SKIP', proceed: false, reason: `precondition ${decodeReason(reasonCode)} (dryRunValidation, maxCost=${maxCost})` };
+      const reason = decodeReason(reasonCode);
+      if (DRYRUN_SKIP_REASONS.has(reason)) {
+        return { action: 'SKIP', proceed: false, reason: `precondition ${reason} (dryRunValidation, maxCost=${maxCost})` };
+      }
+      // Hard failure — the test/UserOp is wrong, not the environment.
+      return { action: 'FAIL', proceed: false, reason: `dryRunValidation rejected: ${reason} — NOT a recoverable precondition (real/test bug)` };
     }
-    const lbl = (errLabel || '').toLowerCase();
-    if (lbl.includes('aa32') || lbl.includes('expired or not due')) {
+    if (errIsAA32(err)) {
       // Validation is sound; only the bundler's time-window simulation glitched.
       // proceed=true so an estimateGas-only AA32 doesn't abort the real submit.
       return { action: 'SKIP', proceed: true, reason: 'AA32 but dryRunValidation OK — bundler simulation artifact' };
     }
-    return { action: 'FAIL', proceed: false, reason: `validation passes on-chain yet EntryPoint rejected (${errLabel}) — real/unexpected bug` };
+    return { action: 'FAIL', proceed: false, reason: `validation passes on-chain yet EntryPoint rejected — real/unexpected bug` };
   } catch (e) {
     // Cannot verify → conservative FAIL so we never hide a bug.
     return { action: 'FAIL', proceed: false, reason: `classification failed: ${(e.message || '').substring(0, 80)}` };
@@ -389,7 +408,7 @@ async function main() {
         process.exit(2);
       }
       if (isValidationRejection(estimateErr)) {
-        const verdict = await classifyValidationFailure(sp, userOp, estimateErr.message);
+        const verdict = await classifyValidationFailure(sp, userOp, estimateErr);
         if (verdict.action === 'FAIL') {
           console.error(`\n❌ FAIL: validation rejected on gas estimation — ${verdict.reason}`);
           await restoreCreditTier();
@@ -426,7 +445,7 @@ async function main() {
       }
       if (isValidationRejection(txErr)) {
         // handleOps already failed, so even an AA32 artifact is terminal here.
-        const verdict = await classifyValidationFailure(sp, userOp, txErr.message);
+        const verdict = await classifyValidationFailure(sp, userOp, txErr);
         await restoreCreditTier();
         if (verdict.action === 'FAIL') {
           console.error(`\n❌ FAIL: validation rejected on handleOps — ${verdict.reason}`);
