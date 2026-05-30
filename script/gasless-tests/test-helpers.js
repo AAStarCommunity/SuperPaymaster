@@ -13,12 +13,36 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 // Initialization
 // ============================================================
 
+function _addProviderRetry(provider) {
+  const origSend = provider.send.bind(provider);
+  provider.send = async function(method, params) {
+    const MAX_RETRIES = 3;
+    let lastErr;
+    for (let i = 0; i <= MAX_RETRIES; i++) {
+      try {
+        return await origSend(method, params);
+      } catch (e) {
+        const msg = (e.message || '').toLowerCase();
+        const isRetryable = msg.includes('econnreset') || msg.includes('socket hang up') ||
+          msg.includes('etimedout') || msg.includes('read timeout') || msg.includes('network error');
+        if (!isRetryable || i === MAX_RETRIES) throw e;
+        await new Promise(r => setTimeout(r, 500 * (i + 1)));
+        lastErr = e;
+      }
+    }
+    throw lastErr;
+  };
+  return provider;
+}
+
 function initTestEnv() {
   const config = loadConfig();
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL not set');
   // staticNetwork avoids the initial eth_chainId auto-detect call that can fail under RPC rate limiting
-  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
+  const provider = _addProviderRetry(
+    new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true })
+  );
 
   const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
   if (!deployerKey) throw new Error('DEPLOYER_PRIVATE_KEY not set');
