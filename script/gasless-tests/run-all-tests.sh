@@ -46,6 +46,22 @@ set +a
 echo "✅ Configuration file found: $ENV_FILE"
 echo ""
 
+# ── Pre-flight setup: refresh price caches + top up balances ─────────────────
+# PaymasterV4 and SuperPaymaster validate via Chainlink price feeds. If the price
+# cache has expired (priceStalenessThreshold ~70 min), validatePaymasterUserOp
+# returns a past validUntil → EntryPoint rejects with AA32. Run setup first.
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "⚙️  Pre-flight: Refreshing price caches & checking balances"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if node "$SCRIPT_DIR/setup-gasless.js"; then
+    echo "✅ Pre-flight setup complete — price caches refreshed."
+else
+    SETUP_EXIT=$?
+    echo "⚠️  Pre-flight setup failed (exit $SETUP_EXIT) — price caches may be stale."
+    echo "   Tests may fail with AA32 if prices have expired. Continuing anyway."
+fi
+echo ""
+
 # Test Case 1
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🧪 Test Case 1: PaymasterV4 + xPNTs"
