@@ -548,19 +548,22 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
       tx = await contract[method](...args, txOpts);
     } catch (err) {
       if (_isNetworkError(err)) {
-        // Ambiguous: the node may have accepted the tx before the socket dropped.
-        // Reconcile against the on-chain nonce before deciding to resend.
-        let chainNonce = null;
-        try { chainNonce = await signer.getNonce('latest'); } catch (_) {}
-        if (chainNonce !== null && sentNonce !== null && chainNonce > sentNonce) {
-          printInfo(`${label}: network error but nonce ${sentNonce} consumed — tx landed, NOT resending`);
-          _nextNonce = chainNonce;
+        // Ambiguous: the node may have accepted the tx into its mempool before the
+        // socket dropped. Reconcile against the PENDING nonce (NOT 'latest') — a tx
+        // sits in the mempool for seconds before it is mined, so 'latest' would still
+        // show the old count and we'd wrongly resend (double-submit). 'pending'
+        // increments the moment the node accepts the tx.
+        let pendingNonce = null;
+        try { pendingNonce = await signer.getNonce('pending'); } catch (_) {}
+        if (pendingNonce !== null && sentNonce !== null && pendingNonce > sentNonce) {
+          printInfo(`${label}: network error but pending nonce advanced (${sentNonce}→${pendingNonce}) — tx accepted, NOT resending`);
+          _nextNonce = pendingNonce;
           return { applied: true, noReceipt: true };
         }
         if (attempt < maxRetries) {
-          printInfo(`${label}: pre-broadcast network error (nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
+          printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
           await new Promise(r => setTimeout(r, 4000));
-          if (chainNonce !== null) _nextNonce = chainNonce;
+          if (pendingNonce !== null) _nextNonce = pendingNonce;
           continue;
         }
       }
@@ -572,7 +575,9 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
         printError(`${label}: TX failed (${reason})`);
       }
       if (_nonceWallet && signer && signer.address === _nonceWallet) {
-        try { _nextNonce = await signer.getNonce('latest'); } catch (_) {}
+        // Resync to 'pending' (consistent with the initial tracker) so we skip past
+        // any tx still sitting in the mempool rather than colliding with it.
+        try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
       }
       return null;
     }

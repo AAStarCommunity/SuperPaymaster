@@ -44,7 +44,7 @@ async function main() {
   if (aPNTsBalanceBefore < ethers.parseEther('15')) {
     printSkip('Insufficient aPNTs for deposit tests (need >= 15). Skipping write tests.');
     printSummary('B2: Operator Deposit/Withdraw');
-    process.exit(0);
+    process.exit(2); // precondition not met → SKIP, not PASS
   }
 
   // ──────────────────────────────────────────

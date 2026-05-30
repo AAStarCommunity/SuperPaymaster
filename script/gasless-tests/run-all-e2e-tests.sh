@@ -346,11 +346,12 @@ if [ $FAILED -gt 0 ]; then
     echo -e "${RED}$FAILED test(s) failed.${NC}"
     exit 1
 elif [ $SKIPPED -gt 0 ]; then
-    # No hard failures, but skips mean the run is not a definitive all-green.
-    # Exit 0 so transient infra skips don't break CI, but the banner + report
-    # make clear this is INCONCLUSIVE, not a clean pass (MEDIUM #5).
-    echo -e "${YELLOW}PASS WITH SKIPS: $SKIPPED test(s) inconclusive. Re-run after mempool clears for a definitive result.${NC}"
-    exit 0
+    # No hard failures, but skips mean the run is NOT a definitive all-green.
+    # Exit 2 (not 0) so a CI gate / caller never mistakes an inconclusive run for
+    # a clean pass — e.g. a run where every test skipped must not merge green.
+    # CI that wants to tolerate transient skips can explicitly treat exit 2 as soft.
+    echo -e "${YELLOW}PASS WITH SKIPS: $SKIPPED test(s) inconclusive (exit 2). Re-run after mempool clears for a definitive result.${NC}"
+    exit 2
 else
     echo -e "${GREEN}All E2E tests passed (clean — 0 skipped)!${NC}"
     exit 0

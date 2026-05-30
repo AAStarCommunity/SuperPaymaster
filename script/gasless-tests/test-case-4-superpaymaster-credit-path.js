@@ -126,8 +126,15 @@ async function classifyAA32(sp, provider, userOp) {
     if (validUntil !== 0n && now >= validUntil) {
       return { spurious: false, reason: `price cache expired: now=${now} >= priceValidUntil=${validUntil}` };
     }
-    // Generous maxCost upper bound (gas * maxFeePerGas) so credit is not the limiter.
-    const maxCost = 3000000n * 2000000000n;
+    // Derive maxCost from THIS userOp's gas fields exactly as the EntryPoint does:
+    // (verificationGasLimit + callGasLimit + preVerificationGas) * maxFeePerGas.
+    // A hardcoded upper bound would over-state required credit and could make
+    // dryRunValidation return ok=false for an op the real flow would accept,
+    // i.e. falsely classify a spurious AA32 as REAL.
+    const verGas  = BigInt(ethers.dataSlice(userOp.accountGasLimits, 0, 16));
+    const callGas = BigInt(ethers.dataSlice(userOp.accountGasLimits, 16, 32));
+    const maxFeePerGas = BigInt(ethers.dataSlice(userOp.gasFees, 16, 32));
+    const maxCost = (verGas + callGas + BigInt(userOp.preVerificationGas)) * maxFeePerGas;
     const [ok, reasonCode] = await sp.dryRunValidation(userOp, maxCost);
     if (ok) {
       return { spurious: true, reason: `dryRunValidation OK (validUntil=${validUntil}, now=${now}) — AA32 is a simulation artifact` };
