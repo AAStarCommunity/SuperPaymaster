@@ -243,7 +243,7 @@ contract BlacklistSyncTest is Test {
             paymasterAndData: abi.encodePacked(
                 address(paymaster),
                 uint128(100000),
-                uint128(0),
+                uint128(200000),
                 operator, // Paymaster Data: Operator
                 type(uint256).max // MaxRate (Fix for V3.2.1)
             ),

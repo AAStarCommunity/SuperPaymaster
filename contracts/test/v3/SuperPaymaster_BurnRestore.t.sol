@@ -185,7 +185,8 @@ contract SuperPaymaster_BurnRestore_Test is Test {
     function _buildPaymasterData() internal view returns (bytes memory) {
         return abi.encodePacked(
             address(paymaster),
-            uint256(MAX_COST),
+            uint128(100000),
+            uint128(200000),
             operator1,
             type(uint256).max  // maxRate
         );

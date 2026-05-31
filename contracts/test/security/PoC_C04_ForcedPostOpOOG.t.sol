@@ -165,54 +165,35 @@ contract PoC_C04_ForcedPostOpOOG_Test is Test {
         console.log("baseline SP ETH deposit loss", result.spDepositLoss);
     }
 
-    function test_forcedPostOpOOG() public {
+    // REGRESSION GUARD (post-fix): an op whose paymasterPostOpGasLimit is below
+    // MIN_POST_OP_GAS must be rejected at validation, so it never executes and the
+    // operator is never debited. Pre-fix this same op forced postOp OOG and drained
+    // the operator (C-04). This test PASSES on fixed code, FAILS on vulnerable code.
+    function test_fix_lowPostOpGasRejected() public {
         ScenarioResult memory result = _runScenario(0, 5_000);
 
-        assertFalse(result.handleOpsReverted, "forced-OOG handleOps must complete through EntryPoint catch path");
-        assertTrue(result.postOpFailed, "EntryPoint did not emit PostOpRevertReason; postOp may not have OOGed");
-        assertGt(result.operatorLoss, 0, "forced-OOG should reveal whether validation debit persists");
+        assertTrue(result.handleOpsReverted, "fix: low paymasterPostOpGasLimit must be rejected at validation");
+        assertEq(result.operatorLoss, 0, "fix: rejected op must not debit the operator");
+        assertEq(result.protocolRevenueIncrease, 0, "fix: rejected op must not inflate protocolRevenue");
 
-        console.log("forced OOG postOpGasLimit", result.postOpGasLimit);
-        console.log("forced OOG operator aPNTs loss", result.operatorLoss);
-        console.log("forced OOG protocolRevenue increase", result.protocolRevenueIncrease);
-        console.log("forced OOG user debt increase", result.userDebtIncrease);
-        console.log("forced OOG SP ETH deposit loss", result.spDepositLoss);
+        console.log("C-04 FIX VERIFIED: low postOpGasLimit op rejected, operator protected");
     }
 
-    function test_C04_verdict() public {
+    // A sufficient postOpGasLimit still settles normally (the fix doesn't break the happy path),
+    // while the forced-OOG attempt is now blocked — together this is the C-04 fix verdict.
+    function test_fix_verdict() public {
         ScenarioResult memory baseline = _runScenario(0, NORMAL_POST_OP_GAS);
         assertFalse(baseline.handleOpsReverted, "baseline handleOps must not revert");
         assertFalse(baseline.postOpFailed, "baseline postOp must succeed");
+        assertGt(baseline.operatorLoss, 0, "baseline charges operator for actual gas");
+        assertGt(baseline.userDebtIncrease, 0, "baseline records user debt");
 
         ScenarioResult memory oog = _runScenario(1, 5_000);
+        assertTrue(oog.handleOpsReverted, "C-04 fix: forced-OOG op must be rejected at validation");
+        assertEq(oog.operatorLoss, 0, "C-04 fix: no operator aPNTs lost");
+        assertEq(oog.protocolRevenueIncrease, 0, "C-04 fix: no protocolRevenue inflation");
 
-        if (oog.handleOpsReverted) {
-            console.log("C-04 NOT EXPLOITABLE: EntryPoint rejected low paymasterPostOpGasLimit before persistence");
-            assertTrue(false, "C-04 unexploitable: could not construct postOp-OOG with passing validation");
-        }
-
-        if (!oog.postOpFailed) {
-            console.log("C-04 NOT EXPLOITABLE: requested low postOp gas did not force EntryPoint PostOpRevertReason");
-            assertTrue(false, "C-04 inconclusive: postOp did not fail");
-        }
-
-        bool operatorLostAPNTs = oog.operatorLoss > 0;
-        bool revenueKeptValidationDebit = oog.protocolRevenueIncrease >= oog.operatorLoss;
-        bool noUserSettlement = oog.userDebtIncrease == 0;
-
-        if (operatorLostAPNTs && revenueKeptValidationDebit && noUserSettlement) {
-            console.log("C-04 CONFIRMED: operator lost aPNTs", oog.operatorLoss);
-            console.log("C-04 CONFIRMED: protocolRevenue inflated by", oog.protocolRevenueIncrease);
-            console.log("C-04 baseline normal operator loss", baseline.operatorLoss);
-            console.log("C-04 baseline normal user debt", baseline.userDebtIncrease);
-            assertTrue(true);
-        } else {
-            console.log("C-04 NOT EXPLOITABLE: real EntryPoint flow did not leave an uncompensated operator debit");
-            console.log("C-04 observed operator loss", oog.operatorLoss);
-            console.log("C-04 observed protocolRevenue increase", oog.protocolRevenueIncrease);
-            console.log("C-04 observed user debt increase", oog.userDebtIncrease);
-            assertEq(oog.operatorLoss, 0, "C-04 false-positive verdict requires no net operator aPNTs loss");
-        }
+        console.log("C-04 FIX VERIFIED: forced-OOG rejected; baseline operator loss", baseline.operatorLoss);
     }
 
     function _runScenario(uint256 nonce, uint256 postOpGasLimit) internal returns (ScenarioResult memory result) {

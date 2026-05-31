@@ -101,7 +101,7 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     }
 
     function _buildPaymasterData(uint256 maxRate) internal view returns (bytes memory) {
-        return abi.encodePacked(address(sp), uint256(MAX_COST), operator, maxRate);
+        return abi.encodePacked(address(sp), uint128(100000), uint128(200000), operator, maxRate);
     }
 
     function _runValidate(uint256 maxRate) internal returns (bytes memory ctx) {

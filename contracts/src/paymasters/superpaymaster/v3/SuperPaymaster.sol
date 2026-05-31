@@ -77,6 +77,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // V3.2.1 SECURITY: Enforce max rate in Validation
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52; // ERC-4337 v0.7
     uint256 internal constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
+    // paymasterAndData (v0.7): [paymaster 20][pmVerifGas 16][pmPostOpGas 16][operator 20][maxRate 32]
+    uint256 internal constant POSTOP_GAS_OFFSET = 36; // start of paymasterPostOpGasLimit (uint128)
+    // C-04: floor for paymasterPostOpGasLimit. postOp's measured cost is ~142k; below
+    // this an attacker can force postOp OOG so validation's optimistic operator debit is
+    // never reconciled (operator drain + protocolRevenue inflation). Builders use ~200k.
+    uint256 internal constant MIN_POST_OP_GAS = 150_000;
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
@@ -1041,6 +1047,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              return ("", _packValidationData(true, 0, 0));
         }
 
+        // C-04: reject a paymasterPostOpGasLimit too low for postOp to complete.
+        // Without this an attacker forces postOp OOG and the optimistic operator
+        // debit (below) is never refunded → operator drain + revenue inflation.
+        if (userOp.paymasterAndData.length >= POSTOP_GAS_OFFSET + 16) {
+            uint128 pmPostOpGas = uint128(bytes16(userOp.paymasterAndData[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16]));
+            if (pmPostOpGas < MIN_POST_OP_GAS) {
+                return ("", _packValidationData(true, 0, 0));
+            }
+        }
+
         // V3.2 Security: Check Blocklist & Rate Limit
         // CONSOLIDATED SLOAD: Get user state (Block status + Timestamp)
         UserOperatorState memory userState = userOpState[operator][userOp.sender];
@@ -1213,8 +1229,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             userOpState[operator][user].lastTimestamp = uint48(block.timestamp);
         }
 
-        // Defense: If postOp previously failed, validation already charged - avoid double charging
-        if (mode == PostOpMode.postOpReverted) return;
+        // C-04 cleanup: the v0.6-era `if (mode == postOpReverted) return;` was removed —
+        // EntryPoint v0.7 never calls postOp with postOpReverted (see EntryPoint
+        // `_postExecution`: it only calls postOp when `mode != postOpReverted`), so it
+        // was dead code. OOG protection now lives in validate (MIN_POST_OP_GAS).
 
         // P1-17 postOp-level idempotency guard: set BEFORE all accounting so that
         // a replay (EntryPoint bug / malicious bundler) cannot double-refund the

@@ -128,7 +128,7 @@ contract SuperPaymasterRefundTest is Test {
     
     function _mockUserOp() internal view returns (PackedUserOperation memory op) {
         op.sender = user;
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), address(operator)); // minimal
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(200000), address(operator)); // minimal
     }
 }
 

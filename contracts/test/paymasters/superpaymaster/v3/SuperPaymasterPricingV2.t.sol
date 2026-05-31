@@ -169,7 +169,7 @@ contract SuperPaymasterPricingV2Test is Test {
             accountGasLimits: bytes32(0),
             preVerificationGas: 0,
             gasFees: bytes32(0),
-            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100000), uint128(100000), operator),
+            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100000), uint128(200000), operator),
             signature: bytes("")
         });
     }

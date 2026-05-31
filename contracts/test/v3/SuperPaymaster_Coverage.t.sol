@@ -220,7 +220,8 @@ contract SuperPaymaster_Coverage_Test is Test {
     function _buildPaymasterData() internal view returns (bytes memory) {
         return abi.encodePacked(
             address(paymaster), // 20 bytes
-            uint256(1000),      // 32 bytes (gasLimits placeholder)
+            uint128(0),
+            uint128(200000),
             operator1,          // 20 bytes (operator)
             type(uint256).max   // 32 bytes (maxRate)
         );
@@ -628,24 +629,10 @@ contract SuperPaymaster_Coverage_Test is Test {
         assertFalse(paymaster.isRegisteredAgent(user1));
     }
 
-    // ─── Additional coverage: postOp postOpReverted path ────────────────────
-
-    /**
-     * @notice D7: postOp with mode=postOpReverted returns early — no accounting
-     */
-    function test_D7_PostOp_PostOpReverted_ReturnsEarly() public {
-        bytes memory ctx = _runValidate(user1);
-
-        (uint128 balBefore,,,,,,,,) = paymaster.operators(operator1);
-        uint256 revBefore = paymaster.protocolRevenue();
-
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.postOpReverted, ctx, 1000, 0);
-
-        (uint128 balAfter,,,,,,,,) = paymaster.operators(operator1);
-        assertEq(balAfter, balBefore, "Balance should not change on postOpReverted");
-        assertEq(paymaster.protocolRevenue(), revBefore, "Revenue should not change on postOpReverted");
-    }
+    // D7 removed: it asserted the v0.6-era `if (mode == postOpReverted) return;`
+    // early-return, which was dead code in EntryPoint v0.7 (postOp is never called
+    // with postOpReverted) and was removed as part of the C-04 cleanup. Replay/
+    // double-charge is now prevented by the `_settledDebtOps` idempotency guard.
 
     // ─── Additional coverage: validatePaymasterUserOp rejection paths ─────────
 
@@ -660,7 +647,8 @@ contract SuperPaymaster_Coverage_Test is Test {
         op.sender = user1;
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
-            uint256(1000),
+            uint128(0),
+            uint128(200000),
             op9, // operator without configureOperator called
             type(uint256).max
         );
@@ -684,7 +672,8 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Override operator in paymasterAndData to operator1 (already configured)
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
-            uint256(1000),
+            uint128(0),
+            uint128(200000),
             operator1,
             type(uint256).max
         );

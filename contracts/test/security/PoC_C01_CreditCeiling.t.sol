@@ -151,7 +151,7 @@ contract PoC_C01_CreditCeiling_Test is Test {
     }
 
     function _paymasterData() internal view returns (bytes memory) {
-        return abi.encodePacked(address(paymaster), uint256(MAX_COST), operator, type(uint256).max);
+        return abi.encodePacked(address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max);
     }
 
     function _operatorBalance() internal view returns (uint128 balance) {

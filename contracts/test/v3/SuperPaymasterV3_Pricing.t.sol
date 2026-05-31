@@ -218,7 +218,8 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         
         bytes memory paymasterAndData = abi.encodePacked(
             address(paymaster), // 20 bytes
-            uint256(1000),      // 32 bytes (gasLimits placeholder not strictly parsed here but needed for offset)
+            uint128(0),
+            uint128(200000),
             operator1           // 20 bytes (The Operator!)
         );
         // Padding for maxRate? offset 72. 20+32+20 = 72. Perfect.
@@ -292,7 +293,8 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         // Setup UserOp (Same as above)
         bytes memory paymasterAndData = abi.encodePacked(
             address(paymaster), // 20 bytes
-            uint256(1000),      // 32 bytes
+            uint128(0),
+            uint128(200000),
             operator1,          // 20 bytes
             type(uint256).max   // 32 bytes (maxRate)
         );

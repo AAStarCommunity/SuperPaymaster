@@ -169,7 +169,8 @@ contract DryRunValidationTest is Test {
     {
         bytes memory pmData = abi.encodePacked(
             address(paymaster),     // 20 bytes
-            uint256(1000),          // 32 bytes (gasLimits placeholder)
+            uint128(0),
+            uint128(200000),
             op,                     // 20 bytes (operator)
             maxRate                 // 32 bytes (maxRate)
         );
@@ -364,7 +365,8 @@ contract DryRunValidationTest is Test {
         //   paymaster(20) + gasLimits(32) + operator(20) = 72 bytes < 104
         bytes memory shortPmData = abi.encodePacked(
             address(paymaster), // 20 bytes
-            uint256(1000),      // 32 bytes (gasLimits placeholder)
+            uint128(0),
+            uint128(200000),
             operator            // 20 bytes (operator) — total = 72, no maxRate appended
         );
         PackedUserOperation memory op;

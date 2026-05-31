@@ -301,7 +301,8 @@ contract SuperPaymaster_SecurityTest is Test {
         // V3.2.1 Layout (No Sig): [PM(20)][Gas(32)][Op(20)][Rate(32)]
         bytes memory pmData = abi.encodePacked(
             address(paymaster),
-            bytes32(0), // gas limits padding/placeholder
+            uint128(0),
+            uint128(200000),
             opAddr,     // operator
             type(uint256).max // maxRate
         );
