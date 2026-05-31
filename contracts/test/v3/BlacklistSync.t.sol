@@ -130,6 +130,8 @@ contract BlacklistSyncTest is Test {
         vm.stopPrank();
         vm.prank(owner);
         apnts.mint(operator, 2000 ether);
+        vm.prank(owner);
+        apnts.mint(maliciousUser, 2000 ether);
         
         vm.prank(operator);
         apnts.approve(address(paymaster), 2000 ether);

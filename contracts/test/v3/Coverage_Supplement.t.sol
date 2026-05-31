@@ -73,6 +73,7 @@ contract MockOracle is AggregatorV3Interface {
 contract MockXPNTs {
     function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {} 
     function exchangeRate() external view returns (uint256) { return 1e18; }
+    function balanceOf(address) external view returns (uint256) { return 0; }
     function getDebt(address user) external view returns (uint256) { return 0; }
     function recordDebt(address user, uint256 amount) external {}
 }
@@ -422,6 +423,9 @@ contract CoverageSupplementTest is Test {
         bytes memory uData = abi.encode(Registry.EndUserRoleData(operator, 1 ether));
         registry.registerRole(ROLE_ENDUSER, user, uData);
         vm.stopPrank();
+
+        vm.prank(owner);
+        registry.setCreditTier(1, 1 ether);
         
         // 3. Operator Config: Low Balance
         // Operator hasn't deposited aPNTs

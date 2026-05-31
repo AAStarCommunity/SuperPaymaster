@@ -51,7 +51,7 @@ contract MockRegistry is IRegistry {
 
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
     
-        function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
+        function getCreditLimit(address user) external view override returns (uint256) { return creditLimits[user]; }
         function isReputationSource(address) external pure override returns (bool) { return true; }
         function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
         function version() external view override returns (string memory) { return "MockRegistryV3"; }

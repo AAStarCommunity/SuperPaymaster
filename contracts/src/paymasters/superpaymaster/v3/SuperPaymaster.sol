@@ -809,6 +809,21 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
     }
 
+    /// @dev C-01: single consolidated credit gate — validation and dryRun both call it.
+    ///      Returns true only when this op would push the user PAST their credit ceiling.
+    ///      A user who can settle the charge from their own xPNTs balance incurs no debt
+    ///      and is always allowed (credit only governs the overdraft/debt path); otherwise
+    ///      (recorded debt + pending debt + this charge) must stay within getCreditLimit,
+    ///      so an operator is never drained by a non-paying user accumulating debt.
+    function _creditExceeded(address token, address user, uint256 charge) internal view returns (bool) {
+        // Can the user pay this charge from xPNTs balance? Then postOp burns it → no debt.
+        uint256 xPNTsCharge = Math.mulDiv(charge, IxPNTsToken(token).exchangeRate(), 1e18, Math.Rounding.Ceil);
+        if (IERC20(token).balanceOf(user) >= xPNTsCharge) return false;
+        // Otherwise it falls to debt — total owed must fit the credit ceiling.
+        uint256 used = IxPNTsToken(token).getDebt(user) + pendingDebts[token][user];
+        return used + charge > REGISTRY.getCreditLimit(user);
+    }
+
     // ====================================
     // Reputation & Slash Management (Restored)
     // ====================================
@@ -1094,7 +1109,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
 
-
+        // C-01: enforce the user's credit ceiling (recorded debt + pending + this charge
+        // must stay within getCreditLimit). Without it a non-paying user accumulates
+        // unbounded debt in postOp and drains the operator.
+        if (_creditExceeded(config.xPNTsToken, userOp.sender, aPNTsAmount)) {
+             return ("", _packValidationData(true, 0, 0));
+        }
 
         // 4. Solvency Check
         // lastTimestamp intentionally NOT updated on sigFailure — rate-limit only counts successful validations.
@@ -1203,6 +1223,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
             return (false, DRYRUN_INSUFFICIENT_BALANCE);
+        }
+
+        // 7b. C-01 credit ceiling — mirror validatePaymasterUserOp so dry-run agrees.
+        if (_creditExceeded(config.xPNTsToken, userOp.sender, aPNTsAmount)) {
+            return (false, DRYRUN_CREDIT_EXCEEDED);
         }
 
         // 8. Rate-limit (soft/temporary failure): checked last so that hard
@@ -1405,6 +1430,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     bytes32 internal constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
     bytes32 internal constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
     bytes32 internal constant DRYRUN_POSTOP_GAS_TOO_LOW      = bytes32("POSTOP_GAS_TOO_LOW");
+    bytes32 internal constant DRYRUN_CREDIT_EXCEEDED         = bytes32("CREDIT_EXCEEDED");
     bytes32 internal constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
     bytes32 internal constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
     bytes32 internal constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
