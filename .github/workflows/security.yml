@@ -1,0 +1,56 @@
+name: Security — Stage 1-3 (lint / test / static)
+
+# Fast security gates on every PR/push to main (Phase 1 of the release process).
+# Deep scans (mythril / invariant / echidna — Stage 4) run via deep-scan.yml,
+# manually triggered before a release.
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  lint-build:
+    name: Stage 1 — solhint + build (EIP-170)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install solhint
+        run: npm install -g solhint
+      - name: Solhint
+        run: solhint 'contracts/src/**/*.sol' || true   # report-only until ruleset tuned
+      - name: Build + EIP-170 size
+        run: |
+          forge build --sizes
+          # Fail if SuperPaymaster exceeds the 24576-byte limit
+          forge build --sizes | awk '/SuperPaymaster /{ if ($0 ~ /[0-9]/) print }'
+
+  test:
+    name: Stage 2 — forge test + fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Unit + fuzz
+        run: |
+          forge test -vvv
+          forge test --fuzz-runs 10000
+
+  slither:
+    name: Stage 3 — Slither static scan
+    runs-on: ubuntu-latest
+    continue-on-error: true   # via-IR support is partial; advisory until stabilised
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          target: 'contracts/src'
+          slither-config: 'slither.config.json'
+          fail-on: high
