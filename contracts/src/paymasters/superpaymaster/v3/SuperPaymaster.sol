@@ -1151,6 +1151,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return (false, DRYRUN_USER_NOT_ELIGIBLE);
         }
 
+        // 3b. C-04 postOpGas floor — mirror validatePaymasterUserOp so dry-run and
+        // real validation agree (otherwise a low-postOpGas op shows OK here but reverts).
+        if (userOp.paymasterAndData.length >= POSTOP_GAS_OFFSET + 16) {
+            uint128 pmPostOpGas = uint128(bytes16(userOp.paymasterAndData[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16]));
+            if (pmPostOpGas < MIN_POST_OP_GAS) return (false, DRYRUN_POSTOP_GAS_TOO_LOW);
+        }
+
         // 4. Per-operator user state: blocklist check (hard failure).
         //    Rate-limit is a soft/temporary failure; it is deferred until after
         //    all hard checks so that a user who is rate-limited *and* also fails
@@ -1397,6 +1404,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     bytes32 internal constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
     bytes32 internal constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
     bytes32 internal constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
+    bytes32 internal constant DRYRUN_POSTOP_GAS_TOO_LOW      = bytes32("POSTOP_GAS_TOO_LOW");
     bytes32 internal constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
     bytes32 internal constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
     bytes32 internal constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
