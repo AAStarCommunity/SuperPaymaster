@@ -79,10 +79,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 internal constant RATE_OFFSET = 72; // 20 (paymaster addr) + 32 (gas limits) + 20 (operator addr) = 72
     // paymasterAndData (v0.7): [paymaster 20][pmVerifGas 16][pmPostOpGas 16][operator 20][maxRate 32]
     uint256 internal constant POSTOP_GAS_OFFSET = 36; // start of paymasterPostOpGasLimit (uint128)
-    // C-04: floor for paymasterPostOpGasLimit. postOp's measured cost is ~142k; below
-    // this an attacker can force postOp OOG so validation's optimistic operator debit is
-    // never reconciled (operator drain + protocolRevenue inflation). Builders use ~200k.
-    uint256 internal constant MIN_POST_OP_GAS = 150_000;
+    // C-04: floor for paymasterPostOpGasLimit. Below this an attacker forces postOp
+    // OOG so validation's optimistic operator debit is never reconciled (operator
+    // drain + protocolRevenue inflation). Measured postOp: ~142k (burn) / ~137k (debt
+    // path w/ minTxInterval); conservative cold-storage worst ~178k. 200k covers it
+    // with headroom and matches the gas-limit builders already use.
+    uint256 internal constant MIN_POST_OP_GAS = 200_000;
 
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%

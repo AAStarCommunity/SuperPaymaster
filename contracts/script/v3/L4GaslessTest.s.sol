@@ -195,9 +195,9 @@ contract L4GaslessTest is Script {
         
         bytes memory pmData = abi.encodePacked(
             config.superPaymaster,
-            uint128(100000), 
-            uint128(50000),
-            ANNI             
+            uint128(100000),
+            uint128(200000), // pmPostOpGasLimit >= SuperPaymaster MIN_POST_OP_GAS (C-04 fix)
+            ANNI
         );
         op.paymasterAndData = pmData;
         

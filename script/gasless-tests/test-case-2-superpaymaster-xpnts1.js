@@ -99,7 +99,7 @@ async function main() {
 
     // paymasterAndData: paymaster(20) + pmVerificationGasLimit(16) + pmPostOpGasLimit(16) + operator(20)
     const pmVerificationGasLimit = 150000n;
-    const pmPostOpGasLimit = 100000n;
+    const pmPostOpGasLimit = 200000n; // >= SuperPaymaster MIN_POST_OP_GAS (C-04 fix)
     const paymasterAndData = ethers.solidityPacked(
       ['address', 'uint128', 'uint128', 'address'],
       [SUPER_PAYMASTER_ADDRESS, pmVerificationGasLimit, pmPostOpGasLimit, operatorAddress]

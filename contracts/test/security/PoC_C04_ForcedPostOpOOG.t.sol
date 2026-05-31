@@ -196,6 +196,15 @@ contract PoC_C04_ForcedPostOpOOG_Test is Test {
         console.log("C-04 FIX VERIFIED: forced-OOG rejected; baseline operator loss", baseline.operatorLoss);
     }
 
+    // MIN_POST_OP_GAS must be high enough that an op allocating EXACTLY the floor does
+    // not OOG in postOp — otherwise the floor is too low and C-04 is only half-fixed.
+    function test_fix_minGasFloorIsSufficient() public {
+        ScenarioResult memory result = _runScenario(0, 200_000); // == MIN_POST_OP_GAS
+        assertFalse(result.handleOpsReverted, "op at the MIN floor must pass validation and execute");
+        assertFalse(result.postOpFailed, "postOp must NOT OOG when given exactly MIN_POST_OP_GAS");
+        console.log("C-04 FIX VERIFIED: postOp completes at the MIN_POST_OP_GAS floor");
+    }
+
     function _runScenario(uint256 nonce, uint256 postOpGasLimit) internal returns (ScenarioResult memory result) {
         PackedUserOperation memory op = _buildUserOp(nonce, postOpGasLimit);
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
