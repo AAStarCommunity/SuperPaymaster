@@ -8,7 +8,7 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
   sendTxSafe, expectRevert,
 } = require('./test-helpers');
@@ -44,7 +44,7 @@ async function main() {
   if (aPNTsBalanceBefore < ethers.parseEther('15')) {
     printSkip('Insufficient aPNTs for deposit tests (need >= 15). Skipping write tests.');
     printSummary('B2: Operator Deposit/Withdraw');
-    process.exit(0);
+    process.exit(2); // precondition not met → SKIP, not PASS
   }
 
   // ──────────────────────────────────────────
@@ -109,8 +109,14 @@ async function main() {
     assertEqual(opFinal.aPNTsBalance, opBalanceBefore, 'Restored to original balance');
   }
 
-  const allPassed = printSummary('B2: Operator Deposit/Withdraw');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B2: Operator Deposit/Withdraw'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

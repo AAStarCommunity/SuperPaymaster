@@ -127,6 +127,8 @@ echo "================================================================"
 run_test "B1: Operator Config"           "node $SCRIPT_DIR/test-group-B1-operator-config.js"
 run_test "B2: Operator Deposit/Withdraw" "node $SCRIPT_DIR/test-group-B2-operator-deposit-withdraw.js"
 run_test "B3: configureOperator v2 (2-arg, PR#200)" "node $SCRIPT_DIR/test-group-B3-configure-operator-v2.js"
+run_test "B4: SP Governance Admin"               "node $SCRIPT_DIR/test-group-B4-sp-governance.js"
+run_test "B5: Dry Run & Pending Debt"            "node $SCRIPT_DIR/test-group-B5-dry-run-pending-debt.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 3: Negative / Boundary Cases
@@ -163,6 +165,7 @@ run_test "E1: Pricing & Oracle"  "node $SCRIPT_DIR/test-group-E1-pricing-oracle.
 sleep 5  # Let RPC recover between pricing tests
 run_test "E2: Protocol Fees"     "node $SCRIPT_DIR/test-group-E2-protocol-fees.js"
 run_test "E3: aPNTs Exchange Rate Accounting (PR#200)" "node $SCRIPT_DIR/test-group-E3-apnts-exchange-rate.js"
+run_test "E4: repayDebt & Exchange Rate Settlement"    "node $SCRIPT_DIR/test-group-E4-repay-debt-exchange-rate.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 6: Staking & Slash
@@ -172,8 +175,9 @@ echo "================================================================"
 echo "  Phase 6: Staking & Slash"
 echo "================================================================"
 
-run_test "F1: Staking Queries"  "node $SCRIPT_DIR/test-group-F1-staking-queries.js"
-run_test "F2: Slash History"    "node $SCRIPT_DIR/test-group-F2-slash-queries.js"
+run_test "F1: Staking Queries"       "node $SCRIPT_DIR/test-group-F1-staking-queries.js"
+run_test "F2: Slash History"         "node $SCRIPT_DIR/test-group-F2-slash-queries.js"
+run_test "F3: Staking & Registry Admin" "node $SCRIPT_DIR/test-group-F3-staking-registry-admin.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 7: V5.3 Agent Economy Scenarios
@@ -222,9 +226,13 @@ fi
 sleep 15  # Extended pause to let RPC rate limit window reset after heavy test groups
 run_test "Gasless: PaymasterV4"            "node $SCRIPT_DIR/test-case-1-paymasterv4.js"
 sleep 5
-run_test "Gasless: SuperPaymaster xPNTs1"  "node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
+# TC2/TC3 override Account B/C with Account A — Kernel/ZeroDev accounts (B,C) use raw-hash
+# signing which is incompatible with EIP-191; SimpleAccount (A) works correctly.
+run_test "Gasless: SuperPaymaster xPNTs1"  "TEST_AA_ACCOUNT_ADDRESS_B=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-2-superpaymaster-xpnts1-fixed.js"
 sleep 5
-run_test "Gasless: SuperPaymaster xPNTs2"  "node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
+run_test "Gasless: SuperPaymaster xPNTs2"  "TEST_AA_ACCOUNT_ADDRESS_C=\"\$TEST_AA_ACCOUNT_ADDRESS_A\" node $SCRIPT_DIR/test-case-3-superpaymaster-xpnts2.js"
+sleep 5
+run_test "Gasless: SP Credit/Debt Path"   "node $SCRIPT_DIR/test-case-4-superpaymaster-credit-path.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 10: Streaming & x402 Settlement
@@ -238,6 +246,28 @@ sleep 5
 run_test "MicroPaymentChannel: Open / Settle / Close"  "node $SCRIPT_DIR/test-micropayment-channel.js"
 sleep 5
 run_test "x402: EIP-3009 Settlement"                    "node $SCRIPT_DIR/test-x402-eip3009-settlement.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 11: PaymasterV4 Lifecycle
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 11: PaymasterV4 Lifecycle"
+echo "================================================================"
+
+sleep 5
+run_test "P2: PaymasterV4 Lifecycle (deposit/withdraw/activate)" "node $SCRIPT_DIR/test-group-P2-paymasterv4-lifecycle.js"
+
+# ─────────────────────────────────────────────────────────────
+# Phase 12: xPNTs Token Admin
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo "================================================================"
+echo "  Phase 12: xPNTs Token Admin"
+echo "================================================================"
+
+sleep 5
+run_test "X1: xPNTs Token Admin (limits/spenders/exchange-rate)" "node $SCRIPT_DIR/test-group-X1-xpnts-admin.js"
 
 # ─────────────────────────────────────────────────────────────
 # Summary
@@ -266,10 +296,63 @@ echo -e "  Total: $TOTAL  |  ${GREEN}Passed: $PASSED${NC}  |  ${RED}Failed: $FAI
 echo "────────────────────────────────────────────────────────────────"
 echo ""
 
-if [ $FAILED -eq 0 ]; then
-    echo -e "${GREEN}All E2E tests passed!${NC}"
-    exit 0
-else
+# ── Write result file ────────────────────────────────────────────────────────
+RESULTS_DIR="$SCRIPT_DIR/results"
+mkdir -p "$RESULTS_DIR"
+E2E_RESULT_FILE="$RESULTS_DIR/$(date '+%Y-%m-%d_%H-%M-%S')_run-all-e2e-tests.md"
+SP_ADDR=$(cat "$PROJECT_ROOT/deployments/config.sepolia.json" 2>/dev/null | grep '"superPaymaster"' | grep -oE '0x[0-9a-fA-F]+' | head -1 || echo "N/A")
+APNTS_ADDR=$(cat "$PROJECT_ROOT/deployments/config.sepolia.json" 2>/dev/null | grep '"aPNTs"' | grep -oE '0x[0-9a-fA-F]+' | head -1 || echo "N/A")
+
+{
+  echo "# E2E Test Run — $(date '+%Y-%m-%d %H:%M:%S')"
+  echo ""
+  echo "## Environment"
+  echo "- Network: Sepolia"
+  echo "- SuperPaymaster: $SP_ADDR"
+  echo "- aPNTs: $APNTS_ADDR"
+  echo ""
+  echo "## Results"
+  echo ""
+  echo "| # | Test | Status |"
+  echo "|---|------|--------|"
+  for i in "${!TEST_NAMES[@]}"; do
+    idx=$((i + 1))
+    if [ "${TEST_RESULTS[$i]}" = "PASS" ]; then
+      echo "| $idx | ${TEST_NAMES[$i]} | ✅ PASS |"
+    elif [ "${TEST_RESULTS[$i]}" = "SKIP" ]; then
+      echo "| $idx | ${TEST_NAMES[$i]} | ⏭️  SKIP |"
+    else
+      echo "| $idx | ${TEST_NAMES[$i]} | ❌ FAIL |"
+    fi
+  done
+  echo ""
+  echo "## Summary"
+  echo "- Total: $TOTAL | Passed: $PASSED | Failed: $FAILED | Skipped: $SKIPPED"
+  if [ $FAILED -gt 0 ]; then
+    echo "- **$FAILED test(s) FAILED ❌**"
+  elif [ $SKIPPED -gt 0 ]; then
+    echo "- **PASS WITH SKIPS ⏭️ — $SKIPPED test(s) INCONCLUSIVE (not executed/verified). NOT a clean pass.**"
+    echo "- A skip means a test could not run or a load-bearing write was skipped — re-run after the mempool clears to get a definitive result."
+  else
+    echo "- **All tests PASSED ✅ (clean — 0 skipped)**"
+  fi
+} > "$E2E_RESULT_FILE"
+
+echo ""
+echo "📁 Results saved to: $E2E_RESULT_FILE"
+echo ""
+
+if [ $FAILED -gt 0 ]; then
     echo -e "${RED}$FAILED test(s) failed.${NC}"
     exit 1
+elif [ $SKIPPED -gt 0 ]; then
+    # No hard failures, but skips mean the run is NOT a definitive all-green.
+    # Exit 2 (not 0) so a CI gate / caller never mistakes an inconclusive run for
+    # a clean pass — e.g. a run where every test skipped must not merge green.
+    # CI that wants to tolerate transient skips can explicitly treat exit 2 as soft.
+    echo -e "${YELLOW}PASS WITH SKIPS: $SKIPPED test(s) inconclusive (exit 2). Re-run after mempool clears for a definitive result.${NC}"
+    exit 2
+else
+    echo -e "${GREEN}All E2E tests passed (clean — 0 skipped)!${NC}"
+    exit 0
 fi

@@ -23,9 +23,9 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -69,7 +69,7 @@ async function main() {
       printSuccess('agentReputationRegistry is set');
     }
   } catch (e) {
-    printError(`agentIdentityRegistry: ${e.message.substring(0, 100)}`);
+    catchStep(`agentIdentityRegistry`, e);
   }
 
   // ──────────────────────────────────────────
@@ -92,7 +92,7 @@ async function main() {
       printInfo('Deployer is not a registered agent (normal for EOA operators)');
     }
   } catch (e) {
-    printError(`isRegisteredAgent: ${e.message.substring(0, 100)}`);
+    catchStep(`isRegisteredAgent`, e);
   }
 
   // ──────────────────────────────────────────
@@ -118,7 +118,7 @@ async function main() {
     assertFalse(randomEligible, 'Random address with no SBT and no agent NFT is ineligible');
     printSuccess('Non-SBT non-agent address correctly rejected');
   } catch (e) {
-    printError(`isEligibleForSponsorship: ${e.message.substring(0, 100)}`);
+    catchStep(`isEligibleForSponsorship`, e);
   }
 
   // ──────────────────────────────────────────
@@ -159,11 +159,17 @@ async function main() {
     assertGte(feeBPS, 0n, 'facilitatorFeeBPS is non-negative');
     printSuccess('Facilitator fee configuration verified');
   } catch (e) {
-    printError(`facilitatorFeeBPS: ${e.message.substring(0, 100)}`);
+    catchStep(`facilitatorFeeBPS`, e);
   }
 
-  const allPassed = printSummary('G2: Agent Identity Sponsorship (ERC-8004)');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('G2: Agent Identity Sponsorship (ERC-8004)'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

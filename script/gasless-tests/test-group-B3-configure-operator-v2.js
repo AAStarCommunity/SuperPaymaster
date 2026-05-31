@@ -16,9 +16,9 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -36,11 +36,25 @@ async function main() {
   // Step 1: Verify deployer has ROLE_PAYMASTER_SUPER
   // ──────────────────────────────────────────
   printStep(1, 'Verify ROLE_PAYMASTER_SUPER');
-  const hasRole = await registry.hasRole(ROLES.PAYMASTER_SUPER, deployerAddr);
+  let hasRole;
+  try {
+    hasRole = await registry.hasRole(ROLES.PAYMASTER_SUPER, deployerAddr);
+  } catch (e) {
+    const msg = (e.message || '').toLowerCase();
+    const isNet = msg.includes('socket hang up') || msg.includes('timeout') ||
+      msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('request timeout');
+    if (isNet) {
+      printSkip(`Network error in Step 1 — transient RPC issue: ${e.message.substring(0, 60)}`);
+      printSummary('B3: configureOperator v2');
+      process.exit(2); // could not run the test → SKIP, not PASS
+    }
+    printError(`hasRole: ${e.message.substring(0, 100)}`);
+    process.exit(finishTest('B3: configureOperator v2'));
+  }
   if (!hasRole) {
     printSkip('Deployer lacks ROLE_PAYMASTER_SUPER — skipping configure tests');
-    printSummary();
-    return;
+    printSummary('B3: configureOperator v2');
+    process.exit(2);
   }
   printSuccess('Deployer has ROLE_PAYMASTER_SUPER');
 
@@ -60,7 +74,7 @@ async function main() {
     printKeyValue('treasury', currentTreasury);
     printKeyValue('aPNTsBalance', ethers.formatEther(op[0]));
   } catch (e) {
-    printError(`Read state: ${e.message.substring(0, 100)}`);
+    catchStep(`Read state`, e);
   }
 
   // ──────────────────────────────────────────
@@ -89,8 +103,8 @@ async function main() {
 
   if (!xPNTsAddr || xPNTsAddr === ethers.ZeroAddress) {
     printSkip('No xPNTsToken available — cannot test configureOperator');
-    printSummary();
-    return;
+    printSummary('B3: configureOperator v2');
+    process.exit(2);
   }
 
   // ──────────────────────────────────────────
@@ -108,7 +122,7 @@ async function main() {
     assertTrue(op[1], 'isConfigured must be true');
     printSuccess('configureOperator 2-arg signature works (no exchangeRate param)');
   } catch (e) {
-    printError(`configureOperator: ${e.message.substring(0, 100)}`);
+    catchStep(`configureOperator`, e);
   }
 
   // ──────────────────────────────────────────
@@ -127,7 +141,7 @@ async function main() {
     assertTrue(liveRate > 0n, 'Live rate from token must be non-zero');
     printSuccess('SuperPaymaster uses live rate from xPNTsToken — no stale config rate');
   } catch (e) {
-    printError(`Rate check: ${e.message.substring(0, 100)}`);
+    catchStep(`Rate check`, e);
   }
 
   // ──────────────────────────────────────────
@@ -136,7 +150,7 @@ async function main() {
   printStep(6, 'Re-configure with original treasury — verify idempotent');
   if (currentTreasury && currentTreasury !== ethers.ZeroAddress) {
     try {
-      await sendTxSafe(sp, 'configureOperator', [xPNTsAddr, currentTreasury], 'configureOperator (restore treasury)');
+      await sendTxSafe(sp, 'configureOperator', [xPNTsAddr, currentTreasury], 'configureOperator (restore treasury)', { critical: false });
       const op = await sp.operators(deployerAddr);
       assertEqual(op[6], currentTreasury, 'Treasury must be restored');
       printSuccess('Re-configure is idempotent — treasury updated without breaking state');
@@ -147,7 +161,7 @@ async function main() {
     printSkip('No original treasury to restore');
   }
 
-  printSummary();
+  process.exit(finishTest('B3: configureOperator v2'));
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

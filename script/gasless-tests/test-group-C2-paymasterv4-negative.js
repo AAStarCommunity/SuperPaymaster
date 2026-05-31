@@ -7,8 +7,8 @@
  */
 const {
   initTestEnv, getContracts, ethers, ABI,
-  printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printHeader, printStep, printSuccess, printError, catchStep, printSkip, printInfo, printKeyValue,
+  printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
 } = require('./test-helpers');
 
@@ -39,7 +39,7 @@ async function main() {
       printSuccess(`Found PaymasterV4: ${pmV4Addr}`);
     }
   } catch (e) {
-    printError(`paymasterByOperator: ${e.message.substring(0, 80)}`);
+    catchStep(`paymasterByOperator`, e);
   }
 
   // ──────────────────────────────────────────
@@ -94,12 +94,18 @@ async function main() {
       }
       assertTrue(tokens.length >= 0, 'getSupportedTokens returned');
     } catch (e) {
-      printError(`getSupportedTokens: ${e.message.substring(0, 80)}`);
+      catchStep(`getSupportedTokens`, e);
     }
   }
 
-  const allPassed = printSummary('C2: PaymasterV4 Negative Cases');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('C2: PaymasterV4 Negative Cases'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

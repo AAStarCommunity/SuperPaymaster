@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 
 import "src/core/Registry.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 
@@ -50,6 +51,16 @@ contract UpgradeLive is Script {
         address spProxy       = vm.parseJsonAddress(config, ".superPaymaster");
         address entryPoint    = vm.parseJsonAddress(config, ".entryPoint");
         address priceFeed     = vm.parseJsonAddress(config, ".priceFeed");
+        // microPaymentChannel may be absent in pre-V5.3 configs — load tolerantly
+        // (parseJsonAddress reverts on a missing key) and treat absence as 0x0 so
+        // the deploy-if-missing branch below can handle it.
+        address mcProxy;
+        try vm.parseJsonAddress(config, ".microPaymentChannel") returns (address mc) {
+            mcProxy = mc;
+        } catch {
+            mcProxy = address(0);
+        }
+        address deployer      = msg.sender;
 
         require(registryProxy != address(0), "UpgradeLive: registry proxy not in config");
         require(spProxy       != address(0), "UpgradeLive: superPaymaster proxy not in config");
@@ -87,6 +98,15 @@ contract UpgradeLive is Script {
         UUPSUpgradeable(spProxy).upgradeToAndCall(address(newSPImpl), "");
         console.log("  SuperPaymaster upgraded");
 
+        // --- Deploy MicroPaymentChannel if not yet deployed (idempotent) ---
+        if (mcProxy == address(0)) {
+            MicroPaymentChannel newMC = new MicroPaymentChannel(deployer);
+            mcProxy = address(newMC);
+            console.log("  MicroPaymentChannel deployed:", mcProxy);
+        } else {
+            console.log("  MicroPaymentChannel (existing):", mcProxy);
+        }
+
         vm.stopBroadcast();
 
         // --- Verify ---
@@ -101,6 +121,7 @@ contract UpgradeLive is Script {
 
         vm.writeJson(vm.toString(address(newRegImpl)), configPath, ".registryImpl");
         vm.writeJson(vm.toString(address(newSPImpl)),  configPath, ".spImpl");
+        vm.writeJson(vm.toString(mcProxy),             configPath, ".microPaymentChannel");
         vm.writeJson(srcHash,                          configPath, ".srcHash");
         vm.writeJson(updateTime,                       configPath, ".updateTime");
 
@@ -108,9 +129,10 @@ contract UpgradeLive is Script {
 
         console.log("");
         console.log("  Config patched:", configPath);
-        console.log("    registryImpl =", address(newRegImpl));
-        console.log("    spImpl       =", address(newSPImpl));
-        console.log("    srcHash      =", srcHash);
+        console.log("    registryImpl        =", address(newRegImpl));
+        console.log("    spImpl              =", address(newSPImpl));
+        console.log("    microPaymentChannel =", mcProxy);
+        console.log("    srcHash             =", srcHash);
         console.log("=== Upgrade successful! ===");
     }
 

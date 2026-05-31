@@ -9,9 +9,9 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertTrue, expectRevert,
-  sendTxSafe, ABI,
+  sendTxSafe, catchStep, ABI,
 } = require('./test-helpers');
 
 function buildDummyUserOp(sender, paymaster, operator) {
@@ -115,11 +115,17 @@ async function main() {
     printKeyValue('isBlocked', state.isBlocked);
     assertTrue(state.lastTimestamp === 0n || state.lastTimestamp >= 0n, 'userOpState returned valid data');
   } catch (e) {
-    printError(`userOpState query: ${e.message.substring(0, 80)}`);
+    catchStep(`userOpState query`, e);
   }
 
-  const allPassed = printSummary('C1: SuperPaymaster Negative Cases');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('C1: SuperPaymaster Negative Cases'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

@@ -49,22 +49,21 @@ contract Check09_TestAccounts is Script {
         // 2. Token & Config Verification
         (
             uint128 aPNTsBalance,
-            uint96 exchangeRate,
             bool isConfigured,
             bool isPaused,
-            address xPNTsToken,
+            address xpntsToken,
             uint32 reputation,
             uint48 minTxInterval,
             address treasury,
             uint256 totalSpent,
             uint256 totalTxSponsored
         ) = SuperPaymaster(payable(superPaymaster)).operators(anni);
-        
-        console.log("  Anni SP Token:       ", xPNTsToken);
-        console.log("  Anni SP Rate:        ", exchangeRate);
+
+        console.log("  Anni SP Token:       ", xpntsToken);
         console.log("  Anni SP Treasury:    ", treasury);
-        
-        require(xPNTsToken != address(0), "Check09: Anni SP Token not configured");
+        console.log("  Anni SP Balance:     ", aPNTsBalance / 1e18);
+
+        require(xpntsToken != address(0), "Check09: Anni SP Token not configured");
         require(treasury == anni, "Check09: Anni SP Treasury mismatch");
 
         // 3. V4 Paymaster Verification

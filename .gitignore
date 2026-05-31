@@ -26,6 +26,7 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 *.lcov
+lcov.info
 
 # nyc test coverage
 .nyc_output
@@ -154,3 +155,5 @@ mythril*.txt
 slither*.txt
 slither_results.json
 scripts/local_env.json
+deployments/.audit.*.stamp
+script/gasless-tests/results/

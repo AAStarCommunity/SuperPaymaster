@@ -13,12 +13,78 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 // Initialization
 // ============================================================
 
+// Only idempotent read RPC methods may be blindly retried on a transient
+// network error. eth_sendRawTransaction / eth_sendTransaction are NOT here:
+// if the node already accepted the tx but the response was lost, a retry would
+// double-submit (or submit a second tx at the next nonce). Write retries are
+// handled separately in sendTxSafe() with explicit nonce reconciliation.
+const _RETRYABLE_RPC_METHODS = new Set([
+  'eth_call', 'eth_estimateGas', 'eth_gasPrice', 'eth_maxPriorityFeePerGas',
+  'eth_feeHistory', 'eth_blockNumber', 'eth_chainId',
+  'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getLogs',
+  'eth_getTransactionCount', 'eth_getTransactionReceipt',
+  'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_getBlockByHash',
+]);
+
+// A transient RPC/network error worth retrying on idempotent reads / treating as
+// SKIP. Deliberately NARROW so we never misclassify a contract revert as infra
+// (that would hide a real failure):
+//   - Hard guard: anything that looks like a revert / call exception → NOT infra.
+//   - Match specific transport phrases, not the bare word "timeout" (which can
+//     appear in a contract custom-error name like DeadlineTimeout).
+//   - Do NOT treat bare SERVER_ERROR as infra — some RPCs return it for reverts.
+function _isTransientRpcError(e) {
+  if (!e) return false;
+  const code = (e.code || '').toString().toUpperCase();
+  // 1. Transport-level codes are infra REGARDLESS of any attached reason string.
+  //    (ethers v6 TIMEOUT errors carry reason:"timeout", so this must come BEFORE
+  //    the revert guard — otherwise a real timeout would be misread as a revert.)
+  if (code === 'TIMEOUT' || code === 'ETIMEDOUT' ||
+      code === 'ECONNRESET' || code === 'NETWORK_ERROR') return true;
+  // 2. A genuine contract revert / call exception is NEVER infra. Use only the
+  //    revert-specific signals (NOT e.reason, which timeouts also set).
+  if (code === 'CALL_EXCEPTION' || e.revert != null) return false;
+  // 3. Fall back to specific transport phrases (never the bare word "timeout",
+  //    which can appear in a contract custom-error name like DeadlineTimeout).
+  const msg = (e.message || '').toLowerCase();
+  return msg.includes('econnreset') || msg.includes('econnrefused') ||
+    msg.includes('socket hang up') || msg.includes('socket disconnected') ||
+    msg.includes('request timeout') || msg.includes('read timeout') ||
+    msg.includes('etimedout') || msg.includes('timeout exceeded') ||
+    msg.includes('network error') || msg.includes('failed to fetch') ||
+    msg.includes('bad gateway') || msg.includes('service unavailable');
+}
+
+function _addProviderRetry(provider) {
+  const origSend = provider.send.bind(provider);
+  provider.send = async function(method, params) {
+    const canRetry = _RETRYABLE_RPC_METHODS.has(method);
+    const MAX_RETRIES = 4;
+    let lastErr;
+    for (let i = 0; i <= MAX_RETRIES; i++) {
+      try {
+        return await origSend(method, params);
+      } catch (e) {
+        // Never auto-retry non-idempotent writes — a lost response may mean the
+        // tx was already broadcast. Bubble up so sendTxSafe can reconcile nonce.
+        if (!canRetry || !_isTransientRpcError(e) || i === MAX_RETRIES) throw e;
+        await new Promise(r => setTimeout(r, 600 * (i + 1)));
+        lastErr = e;
+      }
+    }
+    throw lastErr;
+  };
+  return provider;
+}
+
 function initTestEnv() {
   const config = loadConfig();
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL not set');
   // staticNetwork avoids the initial eth_chainId auto-detect call that can fail under RPC rate limiting
-  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
+  const provider = _addProviderRetry(
+    new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true })
+  );
 
   const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
   if (!deployerKey) throw new Error('DEPLOYER_PRIVATE_KEY not set');
@@ -131,6 +197,17 @@ const ABI = {
     "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, bytes32 settlementRef) returns (bytes32)",
     // V5.3: Credit
     "function getAvailableCredit(address user, address token) view returns (uint256)",
+    // Governance / Admin (covered by B4)
+    "function setTreasury(address _treasury)",
+    "function updateSBTStatus(address user, bool status)",
+    "function updateBlockedStatus(address operator, address[] users, bool[] statuses)",
+    "function withdrawProtocolRevenue(address to, uint256 amount)",
+    "function dryRunValidation(tuple(address sender, uint256 nonce, bytes initCode, bytes callData, bytes32 accountGasLimits, uint256 preVerificationGas, bytes32 gasFees, bytes paymasterAndData, bytes signature) userOp, uint256 maxCost) view returns (bool ok, bytes32 reasonCode)",
+    "function queueBLSAggregator(address _bls)",
+    "function treasury() view returns (address)",
+    "function pendingBLSAgg() view returns (address)",
+    "function pendingBLSAggEta() view returns (uint48)",
+    "function priceValidUntil() view returns (uint256)",
   ],
 
   MicroPaymentChannel: [
@@ -217,6 +294,28 @@ const ABI = {
     "function execute(address dest, uint256 value, bytes func)",
     "function getNonce() view returns (uint256)",
   ],
+
+  xPNTsToken: [
+    "function balanceOf(address) view returns (uint256)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function totalSupply() view returns (uint256)",
+    "function name() view returns (string)",
+    "function getDebt(address user) view returns (uint256)",
+    "function repayDebt(uint256 amountXPNTs)",
+    "function exchangeRate() view returns (uint256)",
+    "function updateExchangeRate(uint256 newRate)",
+    "function maxSingleTxLimit() view returns (uint256)",
+    "function exchangeRateUpdatedAt() view returns (uint256)",
+    "function burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 opHash)",
+    "function recordDebt(address user, uint256 amountAPNTs)",
+    "function recordDebtWithOpHash(address user, uint256 amountAPNTs, bytes32 opHash)",
+    "function mint(address to, uint256 amount)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+  ],
 };
 
 // ============================================================
@@ -248,15 +347,21 @@ const SLASH_LEVEL = { WARNING: 0, MINOR: 1, MAJOR: 2 };
 let _testPassed = 0;
 let _testFailed = 0;
 let _testSkipped = 0;
+// Subset of skips that are load-bearing: a state-changing write a test depends on
+// that got skipped (nonce/in-flight conflict). These make the test INCONCLUSIVE
+// (exit 2) rather than PASS — a skipped critical write means the test never
+// actually verified what it claims. Optional cleanup skips are excluded.
+let _criticalTxSkipped = 0;
 
 function resetCounters() {
   _testPassed = 0;
   _testFailed = 0;
   _testSkipped = 0;
+  _criticalTxSkipped = 0;
 }
 
 function getCounters() {
-  return { passed: _testPassed, failed: _testFailed, skipped: _testSkipped };
+  return { passed: _testPassed, failed: _testFailed, skipped: _testSkipped, criticalSkipped: _criticalTxSkipped };
 }
 
 function printHeader(title) {
@@ -286,6 +391,28 @@ function printSkip(msg) {
   _testSkipped++;
 }
 
+// Skip of a LOAD-BEARING step (e.g. a governance write/read we meant to verify
+// was prevented by transient infra). Unlike printSkip (optional/expected skips
+// that keep the test PASS), this marks the test INCONCLUSIVE → finishTest exits 2,
+// so an honest "couldn't run" is never reported as a clean PASS.
+function printCriticalSkip(msg) {
+  console.log(`    SKIP*: ${msg} [INCONCLUSIVE]`);
+  _testSkipped++;
+  _criticalTxSkipped++;
+}
+
+// Shared step-level catch classifier: a transient RPC/network error means the
+// step could not be exercised → INCONCLUSIVE skip (exit 2), NOT a silent PASS and
+// NOT a false FAIL; a genuine contract/logic error → FAIL. Use in step `catch`
+// blocks instead of a bare printError so transient infra never flips PASS↔FAIL.
+function catchStep(label, e) {
+  if (_isNetworkError(e)) {
+    printCriticalSkip(`${label}: transient RPC error — ${(e.message || '').substring(0, 60)}`);
+  } else {
+    printError(`${label}: ${(e.message || '').substring(0, 100)}`);
+  }
+}
+
 function printInfo(msg) {
   console.log(`    ${msg}`);
 }
@@ -295,14 +422,30 @@ function printKeyValue(key, value) {
 }
 
 function printSummary(testName) {
-  const { passed, failed, skipped } = getCounters();
+  const { passed, failed, skipped, criticalSkipped } = getCounters();
   const total = passed + failed + skipped;
   const line = '='.repeat(60);
   console.log(`\n${line}`);
   console.log(`  ${testName} Summary`);
-  console.log(`  Total: ${total} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}`);
+  console.log(`  Total: ${total} | Passed: ${passed} | Failed: ${failed} | Skipped: ${skipped}` +
+    (criticalSkipped > 0 ? ` (${criticalSkipped} critical)` : ''));
   console.log(`${line}\n`);
   return failed === 0;
+}
+
+// Print the summary and return the process exit code following the suite
+// convention: 0 = PASS, 1 = FAIL, 2 = SKIP/INCONCLUSIVE.
+// A test is INCONCLUSIVE (not PASS) when a load-bearing write was skipped — its
+// assertions never ran, so reporting PASS would hide a real gap (HIGH #2).
+function finishTest(testName) {
+  printSummary(testName);
+  const { failed, criticalSkipped } = getCounters();
+  if (failed > 0) return 1;
+  if (criticalSkipped > 0) {
+    console.log(`  ⏭️  INCONCLUSIVE: ${criticalSkipped} critical write(s) skipped — assertions did not run. Re-run after mempool clears.`);
+    return 2;
+  }
+  return 0;
 }
 
 // ============================================================
@@ -351,13 +494,29 @@ function assertGte(actual, expected, label) {
   }
 }
 
+function assertGt(actual, expected, label) {
+  if (actual > expected) {
+    printSuccess(`${label}: ${actual} > ${expected}`);
+    return true;
+  } else {
+    printError(`${label}: ${actual} not > ${expected}`);
+    return false;
+  }
+}
+
 async function expectRevert(fn, label) {
   try {
     await fn();
     printError(`${label}: expected revert but succeeded`);
     return false;
   } catch (err) {
-    const reason = err.reason || err.shortMessage || err.message.substring(0, 100);
+    // A transient RPC/network error is NOT a contract revert — counting it as a
+    // successful revert would falsely PASS a negative test and hide a real gap.
+    if (_isTransientRpcError(err)) {
+      printCriticalSkip(`${label}: could not verify revert — transient RPC error (${(err.message || '').substring(0, 50)})`);
+      return false;
+    }
+    const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 100);
     printSuccess(`${label}: reverted (${reason})`);
     return true;
   }
@@ -387,54 +546,109 @@ async function retryView(fn, label, retries = 3) {
 }
 
 function _isNetworkError(err) {
-  const msg = (err.message || '').toLowerCase();
-  return err.code === 'ETIMEDOUT' || err.code === 'ECONNRESET' ||
-    msg.includes('etimedout') || msg.includes('econnreset') ||
-    msg.includes('socket hang up') || msg.includes('request timeout') ||
-    msg.includes('read timeout');
+  return _isTransientRpcError(err);
 }
 
-async function sendTxSafe(contract, method, args, label, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const signer = contract.runner;
+function _isNonceConflict(err) {
+  const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
+  return reason.includes('replacement transaction underpriced') ||
+    reason.includes('replacement underpriced') ||
+    reason.includes('nonce too low') ||
+    reason.includes('already known') ||
+    reason.includes('in-flight transaction limit') ||
+    reason.includes('nonce has already been used') ||
+    (err.code || '').toLowerCase() === 'replacement_underpriced';
+}
 
-      // Initialize nonce tracker for this wallet (use 'pending' to account for unconfirmed TXs)
-      if (signer && signer.address) {
-        if (_nonceWallet !== signer.address) {
-          _nonceWallet = signer.address;
-          _nextNonce = await signer.getNonce('pending');
+/**
+ * Send a state-changing tx with nonce tracking and infra-aware error handling.
+ *
+ * @param opts.maxRetries  retry budget for PRE-broadcast network errors (default 3)
+ * @param opts.critical    if true (default), a nonce/in-flight skip marks the test
+ *                          INCONCLUSIVE (exit 2). Pass false for optional cleanup.
+ *
+ * Return values:
+ *   - receipt object           → tx confirmed (has .gasUsed, .logs)
+ *   - { applied:true } sentinel → tx was broadcast but receipt unavailable
+ *                                 (network dropped post-broadcast). Truthy so
+ *                                 read-back assertions still run; do NOT resend.
+ *   - null                      → tx skipped (nonce conflict) or failed/reverted
+ *
+ * Write-safety (HIGH #3): a network error is only retried when we can prove the
+ * tx was NOT broadcast (on-chain nonce unchanged). If the nonce advanced, the tx
+ * landed and we never resend.
+ */
+async function sendTxSafe(contract, method, args, label, opts = {}) {
+  if (typeof opts === 'number') opts = { maxRetries: opts }; // back-compat: numeric 5th arg
+  const maxRetries = opts.maxRetries != null ? opts.maxRetries : 3;
+  const critical = opts.critical !== false;
+  const signer = contract.runner;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Track nonce for this wallet ('pending' accounts for unconfirmed TXs)
+    if (signer && signer.address && _nonceWallet !== signer.address) {
+      _nonceWallet = signer.address;
+      _nextNonce = await signer.getNonce('pending');
+    }
+    const sentNonce = _nextNonce;
+    const txOpts = sentNonce !== null ? { nonce: sentNonce } : {};
+
+    let tx;
+    try {
+      tx = await contract[method](...args, txOpts);
+    } catch (err) {
+      if (_isNetworkError(err)) {
+        // Ambiguous: the node may have accepted the tx into its mempool before the
+        // socket dropped. Reconcile against the PENDING nonce (NOT 'latest') — a tx
+        // sits in the mempool for seconds before it is mined, so 'latest' would still
+        // show the old count and we'd wrongly resend (double-submit). 'pending'
+        // increments the moment the node accepts the tx.
+        let pendingNonce = null;
+        try { pendingNonce = await signer.getNonce('pending'); } catch (_) {}
+        if (pendingNonce !== null && sentNonce !== null && pendingNonce > sentNonce) {
+          printInfo(`${label}: network error but pending nonce advanced (${sentNonce}→${pendingNonce}) — tx accepted, NOT resending`);
+          _nextNonce = pendingNonce;
+          return { applied: true, noReceipt: true };
+        }
+        if (attempt < maxRetries) {
+          printInfo(`${label}: pre-broadcast network error (pending nonce ${sentNonce} intact), retry ${attempt}/${maxRetries - 1} in 4s...`);
+          await new Promise(r => setTimeout(r, 4000));
+          if (pendingNonce !== null) _nextNonce = pendingNonce;
+          continue;
         }
       }
+      const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
+      if (_isNonceConflict(err)) {
+        printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped${critical ? ' [CRITICAL]' : ''}`);
+        if (critical) _criticalTxSkipped++;
+      } else {
+        printError(`${label}: TX failed (${reason})`);
+      }
+      if (_nonceWallet && signer && signer.address === _nonceWallet) {
+        // Resync to 'pending' (consistent with the initial tracker) so we skip past
+        // any tx still sitting in the mempool rather than colliding with it.
+        try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
+      }
+      return null;
+    }
 
-      // Send TX with explicit nonce
-      const txOpts = _nextNonce !== null ? { nonce: _nextNonce } : {};
-      const tx = await contract[method](...args, txOpts);
-      if (_nextNonce !== null) _nextNonce++;
-
+    // Broadcast succeeded — advance nonce, then await confirmation.
+    if (_nextNonce !== null) _nextNonce++;
+    try {
       if (tx.wait) {
         const receipt = await tx.wait(1);
         printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed})`);
         return receipt;
       }
       return tx;
-    } catch (err) {
-      const isNet = _isNetworkError(err);
-      if (isNet && attempt < maxRetries) {
-        printInfo(`${label}: network error, retry ${attempt}/${maxRetries - 1} in 4s...`);
-        await new Promise(r => setTimeout(r, 4000));
-        // Refresh nonce before retry
-        if (_nonceWallet && contract.runner) {
-          try { _nextNonce = await contract.runner.getNonce('pending'); } catch (_) {}
-        }
-        continue;
+    } catch (waitErr) {
+      // We have a tx hash; a confirmation-poll failure must NOT trigger a resend.
+      if (_isNetworkError(waitErr)) {
+        printInfo(`${label}: broadcast ok (${tx.hash}) but receipt poll failed — NOT resending`);
+        return { applied: true, noReceipt: true, hash: tx.hash };
       }
-      const reason = err.reason || err.shortMessage || err.message.substring(0, 120);
-      printError(`${label}: TX failed (${reason})`);
-      // Refresh nonce on final failure to resync
-      if (_nonceWallet && contract.runner && contract.runner.address === _nonceWallet) {
-        try { _nextNonce = await contract.runner.getNonce('latest'); } catch (_) {}
-      }
+      const reason = waitErr.reason || waitErr.shortMessage || (waitErr.message || '').substring(0, 120);
+      printError(`${label}: TX reverted on-chain (${reason})`);
       return null;
     }
   }
@@ -452,6 +666,7 @@ function getContracts(config, signerOrProvider) {
     staking:          new ethers.Contract(config.staking, ABI.GTokenStaking, signerOrProvider),
     sbt:              new ethers.Contract(config.sbt, ABI.MySBT, signerOrProvider),
     aPNTs:            new ethers.Contract(config.aPNTs, ABI.ERC20, signerOrProvider),
+    aPNTsToken:       new ethers.Contract(config.aPNTs, ABI.xPNTsToken, signerOrProvider),
     reputationSystem: new ethers.Contract(config.reputationSystem, ABI.ReputationSystem, signerOrProvider),
     paymasterFactory: new ethers.Contract(config.paymasterFactory, ABI.PaymasterFactory, signerOrProvider),
     priceFeed:        new ethers.Contract(config.priceFeed, ABI.PriceFeed, signerOrProvider),
@@ -502,20 +717,26 @@ module.exports = {
   printSuccess,
   printError,
   printSkip,
+  printCriticalSkip,
+  catchStep,
   printInfo,
   printKeyValue,
   printSummary,
+  finishTest,
   resetCounters,
   getCounters,
   // Assertions
   assertEqual,
   assertTrue,
   assertFalse,
+  assertGt,
   assertGte,
   expectRevert,
   // TX / View retry
   sendTxSafe,
   retryView,
+  // Infra-error classifier for step-level catches (network/timeout → SKIP, not FAIL)
+  isInfraError: _isNetworkError,
   // Contracts
   getContracts,
   // Encoding

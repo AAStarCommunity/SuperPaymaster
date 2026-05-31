@@ -8,9 +8,9 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -37,7 +37,7 @@ async function main() {
     printKeyValue('ETH/USD', `$${priceUsd.toFixed(2)}`);
     assertTrue(cached.price > 0n, 'Cached price > 0');
   } catch (e) {
-    printError(`cachedPrice: ${e.message.substring(0, 80)}`);
+    catchStep(`cachedPrice`, e);
   }
 
   // ──────────────────────────────────────────
@@ -50,7 +50,7 @@ async function main() {
     printKeyValue('New updatedAt', new Date(Number(cached.updatedAt) * 1000).toISOString());
     printSuccess('Price cache updated');
   } catch (e) {
-    printError(`updatePrice: ${e.message.substring(0, 80)}`);
+    catchStep(`updatePrice`, e);
   }
 
   // ──────────────────────────────────────────
@@ -63,7 +63,7 @@ async function main() {
     printKeyValue('aPNTsPriceUSD', ethers.formatEther(originalPrice));
     assertGte(originalPrice, 0n, 'aPNTsPriceUSD >= 0');
   } catch (e) {
-    printError(`aPNTsPriceUSD: ${e.message.substring(0, 80)}`);
+    catchStep(`aPNTsPriceUSD`, e);
   }
 
   // ──────────────────────────────────────────
@@ -80,12 +80,12 @@ async function main() {
 
     // Restore original
     if (originalPrice > 0n) {
-      await sendTxSafe(sp, 'setAPNTSPrice', [originalPrice], `Restore aPNTsPriceUSD(${ethers.formatEther(originalPrice)})`);
+      await sendTxSafe(sp, 'setAPNTSPrice', [originalPrice], `Restore aPNTsPriceUSD(${ethers.formatEther(originalPrice)})`, { critical: false });
       const restored = await sp.aPNTsPriceUSD();
       assertEqual(restored, originalPrice, 'aPNTsPriceUSD restored');
     }
   } catch (e) {
-    printError(`setAPNTSPrice: ${e.message.substring(0, 80)}`);
+    catchStep(`setAPNTSPrice`, e);
     // Try to restore on error
     if (originalPrice > 0n) {
       try { await sp.setAPNTSPrice(originalPrice); } catch (_) {}
@@ -109,7 +109,7 @@ async function main() {
     printKeyValue('Updated at', new Date(Number(data.updatedAt) * 1000).toISOString());
     assertTrue(data.answer > 0n, 'Chainlink price > 0');
   } catch (e) {
-    printError(`priceFeed: ${e.message.substring(0, 80)}`);
+    catchStep(`priceFeed`, e);
   }
 
   // ──────────────────────────────────────────
@@ -134,11 +134,17 @@ async function main() {
       printSuccess('PaymasterV4 price updated');
     }
   } catch (e) {
-    printError(`PaymasterV4 updatePrice: ${e.message.substring(0, 80)}`);
+    catchStep(`PaymasterV4 updatePrice`, e);
   }
 
-  const allPassed = printSummary('E1: Pricing & Oracle');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('E1: Pricing & Oracle'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

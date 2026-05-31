@@ -8,9 +8,9 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -50,7 +50,7 @@ async function main() {
     const stored = await registry.creditTierConfig(testTierLevel);
     assertEqual(stored, testTierLimit, 'Tier 7 limit');
   } catch (e) {
-    printError(`setCreditTier: ${e.message.substring(0, 80)}`);
+    catchStep(`setCreditTier`, e);
   }
 
   // ──────────────────────────────────────────
@@ -80,7 +80,7 @@ async function main() {
     printKeyValue('Deployer credit limit', ethers.formatEther(limit));
     assertGte(limit, 0n, 'Credit limit >= 0');
   } catch (e) {
-    printError(`getCreditLimit(deployer): ${e.message.substring(0, 80)}`);
+    catchStep(`getCreditLimit(deployer)`, e);
   }
 
   // ──────────────────────────────────────────
@@ -89,8 +89,13 @@ async function main() {
   printStep(5, 'getCreditLimit for unregistered address');
   try {
     const limit = await registry.getCreditLimit(randomAddr);
+    // rep=0 maps to the minimum tier (tier 1 in the Registry's 1-indexed scheme).
+    // Compare against the current creditTierConfig[1] value so this test remains
+    // correct regardless of what tier 1 has been configured to.
+    const tier1Limit = await registry.creditTierConfig(1n);
     printKeyValue('Random addr credit limit', ethers.formatEther(limit));
-    assertEqual(limit, 0n, 'Unregistered user credit limit is 0');
+    printKeyValue('creditTierConfig[1] (expected)', ethers.formatEther(tier1Limit));
+    assertEqual(limit, tier1Limit, 'Unregistered user credit limit matches tier-1 config');
   } catch (e) {
     // If it reverts, that's also acceptable for unregistered user
     printSuccess(`getCreditLimit(random) reverted as expected: ${e.message.substring(0, 60)}`);
@@ -101,15 +106,25 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(6, 'Cleanup: setCreditTier(7, 0)');
   try {
-    await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)');
-    const stored = await registry.creditTierConfig(testTierLevel);
-    assertEqual(stored, 0n, 'Tier 7 reset to 0');
+    const receipt = await sendTxSafe(registry, 'setCreditTier', [testTierLevel, 0], 'setCreditTier(7, 0)', { critical: false });
+    if (receipt) {
+      const stored = await registry.creditTierConfig(testTierLevel);
+      assertEqual(stored, 0n, 'Tier 7 reset to 0');
+    } else {
+      printInfo('Cleanup skipped (nonce conflict) — tier 7 may remain set until next run');
+    }
   } catch (e) {
     printInfo(`Cleanup: ${e.message.substring(0, 60)}`);
   }
 
-  const allPassed = printSummary('D2: Credit Tiers');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('D2: Credit Tiers'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

@@ -1,141 +1,114 @@
-# E2E Test Suite for SuperPaymaster v4.1.x
+# SuperPaymaster E2E Test Suite
 
-Comprehensive on-chain E2E tests for all major contract flows on Sepolia.
+On-chain end-to-end tests covering all deployed contract ABIs on Sepolia.
 
-## Overview
-
-| Group | Name | Type | Tests | Description |
-|-------|------|------|-------|-------------|
-| -- | check-contracts | Preflight | -- | Verify all 13 contracts deployed + version strings |
-| -- | check-balances | Preflight | -- | Token balances + EntryPoint ETH deposits |
-| A1 | Registry Roles | Write | 7 | Register community, enduser, SBT verification |
-| A2 | Registry Queries | Read | 6 | Role constants, configs, member counts, credit tiers, wiring |
-| B1 | Operator Config | Write | 6 | configureOperator, limits, pause/unpause cycle |
-| B2 | Operator Deposit/Withdraw | Write | 6 | deposit, depositFor, withdraw, excess revert |
-| C1 | SuperPaymaster Negative | Read | 4 | No SBT, paused operator, unconfigured operator, userOpState |
-| C2 | PaymasterV4 Negative | Read | 3 | Zero-balance user, supported tokens query |
-| D1 | Reputation Rules | Write | 7 | setRule, computeScore, entropyFactor, communityReputation |
-| D2 | Credit Tiers | Write | 6 | setCreditTier, levelThresholds, getCreditLimit |
-| E1 | Pricing & Oracle | Write | 6 | cachedPrice, updatePrice, setAPNTSPrice, Chainlink, V4 |
-| E2 | Protocol Fees | Write | 4 | setProtocolFee, MAX revert, revenue queries |
-| F1 | Staking Queries | Read | 7 | totalStaked, stakes, lockedStake, previewExitFee, wiring |
-| F2 | Slash History | Write | 6 | getSlashCount, slashOperator WARNING, updateReputation |
-| -- | Gasless Test 1 | E2E TX | -- | PaymasterV4 + aPNTs gasless transfer |
-| -- | Gasless Test 2 | E2E TX | -- | SuperPaymaster + aPNTs gasless transfer |
-| -- | Gasless Test 3 | E2E TX | -- | SuperPaymaster + aPNTs (different AA account) |
-
-**Total: ~68 test points across 17 test groups.**
-
-## Contract Addresses
-
-All addresses are loaded dynamically from `deployments/config.sepolia.json`. No hardcoded addresses in test scripts.
-
-## Environment Configuration
-
-All test scripts read from `.env.sepolia` in the project root (override via `ENV_FILE`):
-
-- `SEPOLIA_RPC_URL`: Sepolia RPC endpoint
-- `DEPLOYER_PRIVATE_KEY` / `PRIVATE_KEY`: Deployer private key
-- `OPERATOR_ADDRESS`: SuperPaymaster operator (Anni)
-- `TEST_AA_ACCOUNT_ADDRESS_A/B/C`: SimpleAccount (AA) addresses
-
-**Important**: Private keys and RPC URLs are NOT committed to the repo.
-
-## Running Tests
-
-### Prerequisites
+## Quick Start
 
 ```bash
-# Install dependencies (ethers v6 + dotenv)
-cd script/gasless-tests && pnpm install ethers dotenv
+cd script/gasless-tests
+
+# Fast: gasless UserOp core tests only (TC1-TC4, ~5 min)
+./run-all-tests.sh
+
+# Full: all 34 test groups across 12 phases (~30–60 min)
+./run-all-e2e-tests.sh
 ```
 
-### Run full E2E suite
+Both scripts read configuration from `.env.sepolia` in the project root.
 
-```bash
-./script/gasless-tests/run-all-e2e-tests.sh
+## Test Scripts
+
+### `run-all-tests.sh` — Core Gasless Tests
+
+Runs the 4 gasless UserOp test cases that verify the complete ERC-4337 flow
+with real on-chain transactions. Includes a pre-flight step that refreshes
+the Chainlink price cache before testing (prevents `AA32 paymaster expired`).
+
+| Test | Contract | Flow |
+|------|----------|------|
+| TC1: PaymasterV4 + xPNTs | Paymaster v4 | depositFor → UserOp → burn xPNTs |
+| TC2: SuperPaymaster xPNTs1 | SuperPaymaster | configureOperator → UserOp → burnFromWithOpHash |
+| TC3: SuperPaymaster xPNTs2 | SuperPaymaster | Same flow, different AA account |
+| TC4: SP Credit/Debt Path | SuperPaymaster | recordDebtWithOpHash (zero-balance account) |
+
+**Result file**: `results/<timestamp>_run-all-tests.md` — includes TX hashes and Etherscan links.
+
+### `run-all-e2e-tests.sh` — Full ABI Coverage Suite
+
+Runs all 34 test groups covering every public write function in the deployed contracts.
+
+| Phase | Groups | Description |
+|-------|--------|-------------|
+| 0 | Check Contracts, Check Balances | Preflight: versions, balances |
+| 1 | A1, A2 | Registry: roles, queries |
+| 2 | B1–B5 | Operator config, deposit/withdraw, SP governance, dry-run |
+| 3 | C1, C2 | Negative / boundary cases |
+| 4 | D1, D2 | Reputation rules, credit tiers |
+| 5 | E1–E4 | Pricing, protocol fees, exchange rate accounting, repayDebt |
+| 6 | F1–F3 | Staking queries, slash history, staking/registry admin |
+| 7 | G1–G3 | V5.3 agent economy scenarios |
+| 8 | H1, H2 | DVT / BLS / Reputation infrastructure |
+| 9 | Gasless TC1–TC4 | Real UserOp transactions (same as run-all-tests.sh) |
+| 10 | MicroPaymentChannel, x402 | Streaming vouchers, EIP-3009 settlement |
+| 11 | P2 | PaymasterV4 lifecycle (activate/deactivate, deposit, withdraw) |
+| 12 | X1 | xPNTs token admin (limits, spenders, exchange rate) |
+
+**Result file**: `results/<timestamp>_run-all-e2e-tests.md` — markdown table with PASS/SKIP/FAIL per group.
+
+## Result Files
+
+All results are saved to `script/gasless-tests/results/` with timestamp prefixes:
+
+```
+results/
+  2026-05-30_10-49-51_run-all-e2e-tests.md   ← Full suite result
+  2026-05-30_09-00-00_run-all-tests.md        ← Core gasless result
 ```
 
-Executes all tests in dependency order across 7 phases. Each failure does NOT abort the run; a summary table is printed at the end.
+Each file contains:
+- Environment: network, contract addresses
+- Per-test status table (PASS ✅ / FAIL ❌ / SKIP ⏭️)
+- TX hashes and Etherscan links for on-chain transactions
+- Summary counts
 
-### Run individual test groups
+## ABI Coverage Map
 
-```bash
-# Read-only tests (safe, no state changes)
-node script/gasless-tests/test-group-A2-registry-queries.js
-node script/gasless-tests/test-group-F1-staking-queries.js
+| Contract | Test Groups |
+|----------|-------------|
+| **SuperPaymaster** | B1–B5, C1, E1–E4, F2, G1–G3, Gasless TC2/TC3/TC4 |
+| **Registry** | A1, A2, D1, D2, F3 |
+| **xPNTsToken** | B2, E3, E4, X1 |
+| **GTokenStaking** | F1, F3 |
+| **PaymasterV4** | B2, C2, E1, P2, Gasless TC1 |
+| **ReputationSystem** | D1, H2 |
+| **BLSAggregator / DVTValidator** | H1, H2 |
+| **MicroPaymentChannel** | Phase 10 MicroPaymentChannel |
 
-# Write tests (modify on-chain state, then restore)
-node script/gasless-tests/test-group-D1-reputation-rules.js
-node script/gasless-tests/test-group-E1-pricing-oracle.js
-```
+## Exit Code Convention
 
-### Legacy gasless transfer tests
+All test scripts use this convention:
 
-```bash
-node script/gasless-tests/test-case-1-paymasterv4.js
-node script/gasless-tests/test-case-2-superpaymaster-xpnts1-fixed.js
-node script/gasless-tests/test-case-3-superpaymaster-xpnts2.js
-```
+| Code | Meaning |
+|------|---------|
+| `0` | PASS — test ran and all assertions passed |
+| `1` | FAIL — test ran but assertion(s) failed |
+| `2` | SKIP — precondition not met (zero balance, RPC error, config missing) |
 
-## Dependency Order
+> Never use bare `return` in an async main — it exits 0 and gives a false PASS.
+> Always use `process.exit(2)` for skip paths.
 
-```
-test-helpers.js <- all test scripts
+## Prerequisites
 
-Independent (read-only): A2, F1
-A1 (registry roles) -> B1 (needs ROLE_COMMUNITY)
-B1 (operator config) -> B2 (needs configured operator)
-B1 + B2 -> C1 (needs operator with balance)
-A1 -> D1 (needs ROLE_COMMUNITY for rules)
-B1 -> F2 (needs operator for slash)
-Independent: C2, D2, E1, E2
-```
+1. Contracts deployed to Sepolia (`./deploy-core sepolia`)
+2. Test accounts set up (`./prepare-test sepolia`)
+3. AA accounts funded with aPNTs tokens (`node transfer-tokens.js`)
+4. `.env.sepolia` with: `SEPOLIA_RPC_URL`, `OWNER_PRIVATE_KEY`, `TEST_AA_ACCOUNT_ADDRESS_A`, `OPERATOR_ADDRESS`
 
-## Safety & Idempotency
-
-- **Read before write**: Already-registered roles are skipped
-- **Restore after modify**: Price/fee changes are reverted after test
-- **No Anni mutation**: Anni's config is only read, never modified
-- **WARNING-level slash**: Uses 0-penalty WARNING slash, restores reputation after
-- **Timestamped names**: Community names include timestamp to avoid conflicts
-- **Nonce management**: Explicit nonce tracking prevents TX conflicts on rapid sends
-
-## Troubleshooting
+## Common Failures
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `could not coalesce error` | Nonce conflict from rapid TX sends | Wait for pending TXs, re-run |
-| `replacement fee too low` | Duplicate nonce with lower gas | Wait for pending TX to confirm |
-| `AA34 paymaster validation failed` | Expected in negative tests (C1/C2) | This IS the expected behavior |
-| `AA21 didn't pay prefund` | Paymaster ETH balance insufficient | Deposit ETH to Paymaster |
-
-## Directory Structure
-
-```
-script/gasless-tests/
-├── test-helpers.js                              # Shared: ABIs, roles, display, assertions, TX wrapper
-├── test-group-A1-registry-roles.js              # Registry role lifecycle
-├── test-group-A2-registry-queries.js            # Registry view queries
-├── test-group-B1-operator-config.js             # Operator configuration
-├── test-group-B2-operator-deposit-withdraw.js   # Operator deposits & withdrawals
-├── test-group-C1-gasless-negative.js            # SuperPaymaster negative cases
-├── test-group-C2-paymasterv4-negative.js        # PaymasterV4 negative cases
-├── test-group-D1-reputation-rules.js            # Reputation rules & scoring
-├── test-group-D2-credit-tiers.js                # Credit tier configuration
-├── test-group-E1-pricing-oracle.js              # Pricing & oracle
-├── test-group-E2-protocol-fees.js               # Protocol fee configuration
-├── test-group-F1-staking-queries.js             # Staking queries
-├── test-group-F2-slash-queries.js               # Slash history & tests
-├── run-all-e2e-tests.sh                         # Full test runner (dependency-ordered)
-├── load-config.js                               # Config loader
-├── check-contracts.js                           # Contract deployment check
-├── check-balances.js                            # Token balance check
-├── mint-tokens.js                               # Mint aPNTs utility
-├── transfer-tokens.js                           # Transfer aPNTs utility
-├── test-case-1-paymasterv4.js                   # Legacy: PaymasterV4 gasless
-├── test-case-2-superpaymaster-xpnts1.js         # Legacy: SuperPaymaster gasless
-├── test-case-2-superpaymaster-xpnts1-fixed.js   # Legacy: SuperPaymaster gasless (fixed)
-├── test-case-3-superpaymaster-xpnts2.js         # Legacy: SuperPaymaster gasless
-└── README.md                                    # This file
-```
+| `AA32 paymaster expired or not due` | Chainlink price cache stale | Run `node setup-gasless.js` first |
+| `SKIP: Account A has no available credit` | creditTierConfig[1]=0, no reputation | TC4 now auto-sets tier via Registry.setCreditTier |
+| `Function.prototype.apply on undefined` | Function not in ethers ABI | Check ABI.SuperPaymaster in test-helpers.js |
+| `missing revert data (data=null)` | Wrong function name (wrong selector) | Check deployed ABI vs test ABI (cast sig) |

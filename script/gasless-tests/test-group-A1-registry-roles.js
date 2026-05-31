@@ -8,9 +8,9 @@
 const {
   initTestEnv, getContracts, ROLES, ROLE_NAMES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe, encodeCommunityRoleData, encodeEndUserRoleData,
+  sendTxSafe, catchStep, encodeCommunityRoleData, encodeEndUserRoleData,
 } = require('./test-helpers');
 
 async function main() {
@@ -139,7 +139,7 @@ async function main() {
     }
     assertTrue(userRoles.length > 0, 'Deployer has at least one role');
   } catch (e) {
-    printError(`getUserRoles failed: ${e.message.substring(0, 80)}`);
+    catchStep(`getUserRoles failed`, e);
   }
 
   try {
@@ -147,11 +147,17 @@ async function main() {
     printKeyValue('COMMUNITY members count', memberCount.toString());
     assertGte(memberCount, 1n, 'At least 1 COMMUNITY member');
   } catch (e) {
-    printError(`getRoleUserCount failed: ${e.message.substring(0, 80)}`);
+    catchStep(`getRoleUserCount failed`, e);
   }
 
-  const allPassed = printSummary('A1: Registry Roles');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('A1: Registry Roles'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

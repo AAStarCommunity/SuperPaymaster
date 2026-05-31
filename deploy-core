@@ -134,19 +134,50 @@ fi
 if [ "$SHOULD_RUN_DEPLOY" = true ]; then
     echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
     forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" $FORGE_FLAGS
+
+    # Sync ABI JSONs from compiled artifacts (keeps abis/ in sync with deployed bytecode)
+    echo "  📄 Syncing ABI JSONs from out/..."
+    for contract in SuperPaymaster Registry xPNTsToken xPNTsFactory GToken GTokenStaking MySBT MicroPaymentChannel; do
+        artifact=$(find out -name "${contract}.json" -not -path "*test*" 2>/dev/null | head -1)
+        if [ -n "$artifact" ]; then
+            jq '.abi' "$artifact" > "abis/${contract}.json" 2>/dev/null && echo "    ✓ $contract" || true
+        fi
+    done
 fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---
-echo -e "\n🛡️ Starting Core Logic Audit..."
-# Use space-separated string for compatibility
-CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring VerifyV3_1_1"
-
-for SCRIPT in $CHECK_SCRIPTS; do
-    echo -e "  Audit: $SCRIPT"
-    forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv
-done
+# Delegate to audit-core (per-check idempotency + retry + ABI/interface checks).
+# --force because we just deployed: stamps from a previous run are now stale.
+echo ""
+if [ -x "./audit-core" ]; then
+    ./audit-core "$ENV"
+else
+    echo -e "\033[0;31m❌ audit-core not found or not executable. Run: chmod +x audit-core\033[0m"
+    exit 1
+fi
 
 echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Audited!\033[0m"
+
+# --- PHASE 2.5: Prepare Test Accounts (testnet only, not mainnet/optimism) ---
+# After a successful deploy, idempotently set up the Mycelium/Anni demo operator.
+# Skipped on mainnet and optimism (real money; manual operator onboarding required).
+# prepare-test is itself idempotent — each step checks before acting.
+if [ "$SHOULD_RUN_DEPLOY" = true ]; then
+    case "$ENV" in
+        sepolia|op-sepolia|anvil)
+            echo ""
+            echo "━━━ Phase 2.5) Prepare Test Accounts ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            if [ -x "./prepare-test" ]; then
+                ./prepare-test "$ENV" || echo -e "\033[1;33m⚠️  prepare-test failed. Re-run './prepare-test $ENV' manually.\033[0m"
+            else
+                echo -e "\033[1;33m⚠️  prepare-test not executable; skipping test account setup.\033[0m"
+            fi
+            ;;
+        mainnet|optimism)
+            echo -e "\n\033[0;33mℹ️  Skipping prepare-test on $ENV (mainnet — manual operator onboarding required)\033[0m"
+            ;;
+    esac
+fi
 
 # --- PHASE 3: Etherscan Verification (live networks only) ---
 # Skip for anvil; for sepolia / op-* / mainnet, submit every freshly-deployed

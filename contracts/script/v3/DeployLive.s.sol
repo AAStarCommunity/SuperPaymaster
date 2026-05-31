@@ -9,7 +9,10 @@ import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 // Core Imports
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
-import "src/tokens/GTokenAuthorization.sol";
+// Named import: avoid leaking GTokenAuthorization's transitive EIP712 symbol into
+// this file's scope (it would clash with MicroPaymentChannel's EIP712 — both inherit
+// a differently-pathed EIP712, causing "Identifier already declared").
+import {GTokenAuthorization} from "src/tokens/GTokenAuthorization.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -23,7 +26,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
+import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // BLSValidator standalone contract removed in P0-1 — Registry now verifies via BLSAggregator.
 
 // External Interfaces
@@ -44,6 +47,7 @@ contract DeployLive is Script {
     address priceFeedAddr;
     address simpleAccountFactory;
     address spImplAddr;          // SuperPaymaster implementation (UUPS)
+    address registryImplAddr;    // Registry implementation (UUPS) — needed by audit-core ERC-1967 check
     address erc8004Validation;   // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
     MicroPaymentChannel microPaymentCh; // Deployed in Step 4
 
@@ -87,6 +91,7 @@ contract DeployLive is Script {
 
         // Deploy Registry as UUPS proxy first (no deps)
         Registry regImpl = new Registry();
+        registryImplAddr = address(regImpl); // capture for config write (UUPS upgrade support)
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
@@ -257,46 +262,79 @@ contract DeployLive is Script {
         console.log("  Anni (Mycelium Admin):", anni);
 
         // --- Deployer prepares Anni (safeMintForRole = deployer pays stake) ---
-        gtoken.approve(address(staking), 100 ether);
 
-        // 6a. Register Mycelium as COMMUNITY (deployer pays 30 stake + 3 burn)
-        Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
-            name: "Mycelium Community",
-            ensName: "mushroom.box",
-            stakeAmount: 30 ether
-        });
-        registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
-        console.log("  Mycelium Community Registered");
+        // 6a. Register Mycelium as COMMUNITY (deployer pays 30 stake + burn)
+        if (!registry.hasRole(ROLE_COMMUNITY, anni)) {
+            gtoken.approve(address(staking), 34 ether);
+            Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
+                name: "Mycelium Community",
+                ensName: "mushroom.box",
+                stakeAmount: 30 ether
+            });
+            registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
+            console.log("  Mycelium Community Registered");
+        } else {
+            console.log("  Mycelium Community (skip - already registered)");
+        }
 
-        // 6b. Register as PAYMASTER_SUPER (deployer pays 50 stake + 5 burn)
-        registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
-        console.log("  Mycelium PAYMASTER_SUPER Registered");
+        // 6b. Register as PAYMASTER_SUPER (deployer pays 50 stake + burn)
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, anni)) {
+            gtoken.approve(address(staking), 56 ether);
+            registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
+            console.log("  Mycelium PAYMASTER_SUPER Registered");
+        } else {
+            console.log("  Mycelium PAYMASTER_SUPER (skip - already registered)");
+        }
 
         // 6c. Fund Anni with aPNTs for SuperPaymaster deposit
-        apnts.transfer(anni, 1000 ether);
+        if (apnts.balanceOf(anni) < 1000 ether) {
+            apnts.transfer(anni, 1000 ether);
+            console.log("  1000 aPNTs transferred to Anni");
+        } else {
+            console.log("  Anni aPNTs (skip - sufficient balance)");
+        }
 
         // --- Switch to Anni broadcast for operator-specific calls ---
         vm.stopBroadcast();
         vm.startBroadcast(anniPK);
 
         // 6d. Deploy PNTs (Mycelium community token — special token name)
-        pntsAddr = xpntsFactory.deployxPNTsToken(
-            "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
-        );
-        console.log("  PNTs Deployed at:", pntsAddr);
+        pntsAddr = xpntsFactory.getTokenAddress(anni);
+        if (pntsAddr == address(0)) {
+            pntsAddr = xpntsFactory.deployxPNTsToken(
+                "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
+            );
+            console.log("  PNTs Deployed at:", pntsAddr);
+        } else {
+            console.log("  PNTs (skip - already deployed):", pntsAddr);
+        }
 
         // 6e. Configure Anni as SuperPaymaster operator
-        superPaymaster.configureOperator(pntsAddr, anni);
-        console.log("  Operator Configured (PNTs -> SuperPaymaster)");
+        (, bool isCfg,,,,,,,) = superPaymaster.operators(anni);
+        if (!isCfg) {
+            superPaymaster.configureOperator(pntsAddr, anni);
+            console.log("  Operator Configured (PNTs -> SuperPaymaster)");
+        } else {
+            console.log("  Operator (skip - already configured)");
+        }
 
         // 6f. Deposit aPNTs into SuperPaymaster (gasless sponsorship fund)
-        apnts.approve(address(superPaymaster), 1000 ether);
-        superPaymaster.deposit(1000 ether);
-        console.log("  1000 aPNTs Deposited to SuperPaymaster");
+        (uint128 bal,,,,,,,,) = superPaymaster.operators(anni);
+        if (bal < 100 ether) {
+            apnts.approve(address(superPaymaster), 1000 ether);
+            superPaymaster.deposit(1000 ether);
+            console.log("  1000 aPNTs Deposited to SuperPaymaster");
+        } else {
+            console.log("  SuperPaymaster deposit (skip - sufficient balance)");
+        }
 
         // 6g. Mint PNTs for test users
-        xPNTsToken(pntsAddr).mint(anni, 500 ether);
-        console.log("  500 PNTs Minted to Anni");
+        if (xPNTsToken(pntsAddr).balanceOf(anni) < 500 ether) {
+            xPNTsToken(pntsAddr).mint(anni, 500 ether);
+            console.log("  500 PNTs Minted to Anni");
+        } else {
+            console.log("  Anni PNTs (skip - sufficient balance)");
+        }
 
         // --- Switch back to deployer ---
         vm.stopBroadcast();
@@ -326,8 +364,10 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
         vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
         vm.serializeAddress(jsonObj, "agentValidationRegistry", erc8004Validation);
-        // UUPS implementation address — required for future upgrades via upgradeToAndCall()
+        // UUPS implementation addresses — required for future upgrades via upgradeToAndCall()
+        // and for audit-core's ERC-1967 implementation-slot verification.
         vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
+        vm.serializeAddress(jsonObj, "registryImpl", registryImplAddr);
         // MicroPaymentChannel — deployed in Step 4
         vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));

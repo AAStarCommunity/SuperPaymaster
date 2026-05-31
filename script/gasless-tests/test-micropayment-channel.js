@@ -48,13 +48,17 @@ const MPC_ABI = [
 ];
 
 async function main() {
+  let testPassed = true; // global pass flag — set false on any assertion failure
+
   console.log('╔═══════════════════════════════════════════════════════════╗');
   console.log('║     MicroPaymentChannel E2E Test (Streaming Vouchers)    ║');
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   // Setup
-  const rpcUrl = process.env.RPC_URL;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL;
+  if (!rpcUrl) { console.error('Fatal: RPC_URL not set'); process.exit(1); }
+  // staticNetwork avoids eth_chainId auto-detect call that fails under RPC rate limiting
+  const provider = new ethers.JsonRpcProvider(rpcUrl, CHAIN_ID, { staticNetwork: true });
 
   // Payer = deployer EOA
   const payerKey = process.env.PRIVATE_KEY;
@@ -80,6 +84,7 @@ async function main() {
   console.log('📊 Step 1: Check Balances & Approve');
   const decimals = await apnts.decimals();
   const payerBalance = await apnts.balanceOf(payer.address);
+  const payerBalanceBefore = payerBalance; // capture before-state for Step 5 refund check
   console.log(`  Payer aPNTs: ${ethers.formatUnits(payerBalance, decimals)}`);
 
   const depositAmount = ethers.parseUnits('10', decimals); // 10 aPNTs
@@ -166,19 +171,23 @@ async function main() {
 
   const payeeReceived = payeeBalanceAfter - payeeBalanceBefore;
   const expectedPayee = ethers.parseUnits('7', decimals);
-  const expectedRefund = ethers.parseUnits('3', decimals); // 10 - 7
 
-  console.log(`  Channel finalized: ${ch3.finalized}`);
-  console.log(`  Total settled: ${ethers.formatUnits(ch3.settled, decimals)} aPNTs`);
-  console.log(`  Payee received: ${ethers.formatUnits(payeeReceived, decimals)} aPNTs`);
-  console.log(`  Expected payee: ${ethers.formatUnits(expectedPayee, decimals)} aPNTs`);
-  console.log(`  Refund (10-7): ${ethers.formatUnits(expectedRefund, decimals)} aPNTs`);
+  // After closeChannel, the channel struct is cleared from storage.
+  // ch3 fields (finalized, settled) will return zero/default — that is correct.
+  // The real correctness check is token balance deltas.
+  const payerBalanceAfter = await apnts.balanceOf(payer.address);
+  // payerNetCost = what the payer spent net (deposited 10, got back 3 → net cost = 7 = cumulativeAmount2)
+  const payerNetCost = payerBalanceBefore - payerBalanceAfter;
 
-  let pass = true;
-  if (!ch3.finalized) { console.log('  ❌ FAIL: Channel not finalized!'); pass = false; }
-  if (payeeReceived !== expectedPayee) { console.log('  ❌ FAIL: Payee amount mismatch!'); pass = false; }
-  if (ch3.settled !== cumulativeAmount2) { console.log('  ❌ FAIL: Settled amount mismatch!'); pass = false; }
-  if (pass) { console.log('  ✅ All assertions passed!'); }
+  console.log(`  Payee received:   ${ethers.formatUnits(payeeReceived, decimals)} aPNTs`);
+  console.log(`  Expected payee:   ${ethers.formatUnits(expectedPayee, decimals)} aPNTs`);
+  console.log(`  Payer net cost:   ${ethers.formatUnits(payerNetCost, decimals)} aPNTs`);
+  console.log(`  Expected payer cost: ${ethers.formatUnits(cumulativeAmount2, decimals)} aPNTs (= cumulative settled)`);
+  console.log(`  Channel struct after close: payer=${ch3.payer} (zero = deleted ✓)`);
+
+  if (payeeReceived !== expectedPayee) { console.log('  ❌ FAIL: Payee amount mismatch!'); testPassed = false; }
+  else if (payerNetCost !== cumulativeAmount2) { console.log(`  ❌ FAIL: Payer net cost mismatch! got=${payerNetCost} want=${cumulativeAmount2}`); testPassed = false; }
+  else { console.log('  ✅ All assertions passed!'); }
 
   // Step 6: Verify channel is finalized (cannot settle again)
   console.log('\n🛡️  Step 6: Test Finalization Protection');
@@ -193,6 +202,8 @@ async function main() {
   console.log('\n╔═══════════════════════════════════════════════════════════╗');
   console.log('║                    Test Completed                         ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
+
+  process.exit(testPassed ? 0 : 1);
 }
 
 async function signVoucher(signer, channelId, cumulativeAmount) {
@@ -219,6 +230,10 @@ async function signVoucher(signer, channelId, cumulativeAmount) {
 }
 
 main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
   console.error('Fatal error:', err);
   process.exit(1);
 });

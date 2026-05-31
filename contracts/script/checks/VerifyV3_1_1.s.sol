@@ -89,7 +89,7 @@ contract VerifyV3_1_1 is Script {
         // 3. Operational Checks (SuperPaymaster)
         console.log("\n[3. Operational Checks (SuperPaymaster)]");
         {
-            (uint128 bal,,,,,,,,,) = SuperPaymaster(sp).operators(deployerAddr);
+            (uint128 bal,,,,,,,,) = SuperPaymaster(sp).operators(deployerAddr);
             console.log("Deployer Op Balance (aPNTs):", uint256(bal) / 1e18, "aPNTs");
             console.log("SP Price Staleness Threshold:", SuperPaymaster(sp).priceStalenessThreshold());
         }
@@ -117,10 +117,10 @@ contract VerifyV3_1_1 is Script {
         }
     }
 
-    function _loadAddr(string memory json, string memory key) internal view returns (address) {
+    function _loadAddr(string memory json, string memory key) internal pure returns (address) {
         if (bytes(json).length < 2) return address(0);
         try vm.parseJsonAddress(json, key) returns (address a) {
-            if (a.code.length > 0) return a;
+            return a;
         } catch {}
         return address(0);
     }

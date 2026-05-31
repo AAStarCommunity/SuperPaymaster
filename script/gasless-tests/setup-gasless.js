@@ -56,7 +56,7 @@ const PAYMASTER_V4_ABI = [
 ];
 
 const SP_ABI = [
-  'function operators(address) view returns (uint128 aPNTsBalance, uint256 exchangeRate, bool isConfigured, bool isPaused, address xPNTsToken, uint256 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)',
+  'function operators(address) view returns (uint128 aPNTsBalance, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)',
   'function deposit(uint256 amount) external',
   'function updatePrice() external',
   'function priceValidUntil() view returns (uint48)',

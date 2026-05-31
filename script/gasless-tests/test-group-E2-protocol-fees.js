@@ -8,9 +8,9 @@
 const {
   initTestEnv, getContracts, ethers,
   printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe, expectRevert,
+  sendTxSafe, catchStep, expectRevert,
 } = require('./test-helpers');
 
 async function main() {
@@ -32,7 +32,7 @@ async function main() {
     printKeyValue('Protocol fee %', `${Number(originalFee) / 100}%`);
     assertTrue(originalFee >= 0n, 'Fee is non-negative');
   } catch (e) {
-    printError(`protocolFeeBPS: ${e.message.substring(0, 80)}`);
+    catchStep(`protocolFeeBPS`, e);
   }
 
   // ──────────────────────────────────────────
@@ -46,11 +46,11 @@ async function main() {
     assertEqual(newFee, testFee, 'protocolFeeBPS set to 500');
 
     // Restore
-    await sendTxSafe(sp, 'setProtocolFee', [originalFee], `Restore protocolFeeBPS(${originalFee})`);
+    await sendTxSafe(sp, 'setProtocolFee', [originalFee], `Restore protocolFeeBPS(${originalFee})`, { critical: false });
     const restoredFee = await sp.protocolFeeBPS();
     assertEqual(restoredFee, originalFee, 'protocolFeeBPS restored');
   } catch (e) {
-    printError(`setProtocolFee cycle: ${e.message.substring(0, 80)}`);
+    catchStep(`setProtocolFee cycle`, e);
     // Try to restore
     try { await sp.setProtocolFee(originalFee); } catch (_) {}
   }
@@ -68,7 +68,7 @@ async function main() {
       'setProtocolFee exceeding max'
     );
   } catch (e) {
-    printError(`MAX_PROTOCOL_FEE check: ${e.message.substring(0, 80)}`);
+    catchStep(`MAX_PROTOCOL_FEE check`, e);
   }
 
   // ──────────────────────────────────────────
@@ -80,7 +80,7 @@ async function main() {
     printKeyValue('protocolRevenue', ethers.formatEther(revenue));
     assertGte(revenue, 0n, 'protocolRevenue >= 0');
   } catch (e) {
-    printError(`protocolRevenue: ${e.message.substring(0, 80)}`);
+    catchStep(`protocolRevenue`, e);
   }
 
   try {
@@ -88,11 +88,17 @@ async function main() {
     printKeyValue('totalTrackedBalance', ethers.formatEther(tracked));
     assertGte(tracked, 0n, 'totalTrackedBalance >= 0');
   } catch (e) {
-    printError(`totalTrackedBalance: ${e.message.substring(0, 80)}`);
+    catchStep(`totalTrackedBalance`, e);
   }
 
-  const allPassed = printSummary('E2: Protocol Fees');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('E2: Protocol Fees'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

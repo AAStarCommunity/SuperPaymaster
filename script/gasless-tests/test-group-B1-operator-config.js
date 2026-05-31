@@ -9,9 +9,9 @@
 const {
   initTestEnv, getContracts, ROLES, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertFalse,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -36,13 +36,13 @@ async function main() {
       printKeyValue('isConfigured', op.isConfigured);
       printKeyValue('isPaused', op.isPaused);
       printKeyValue('aPNTsBalance', ethers.formatEther(op.aPNTsBalance));
-      printKeyValue('exchangeRate', op.exchangeRate.toString());
+      // exchangeRate removed from OperatorConfig in v5.3.3 — read live from xPNTsToken.exchangeRate()
       printKeyValue('reputation', op.reputation.toString());
       printKeyValue('xPNTsToken', op.xPNTsToken);
       printKeyValue('treasury', op.treasury);
       assertTrue(op.isConfigured, 'Anni operator is configured');
     } catch (e) {
-      printError(`Read Anni config: ${e.message.substring(0, 80)}`);
+      catchStep(`Read Anni config`, e);
     }
   } else {
     printSkip('OPERATOR_ADDRESS not set, skipping Anni check');
@@ -64,7 +64,7 @@ async function main() {
       printInfo('Deployer not yet configured as operator');
     }
   } catch (e) {
-    printError(`Read deployer config: ${e.message.substring(0, 80)}`);
+    catchStep(`Read deployer config`, e);
   }
 
   // ──────────────────────────────────────────
@@ -123,7 +123,7 @@ async function main() {
       assertEqual(op.minTxInterval, 60n, 'minTxInterval');
     }
   } catch (e) {
-    printError(`setOperatorLimits: ${e.message.substring(0, 80)}`);
+    catchStep(`setOperatorLimits`, e);
   }
 
   // ──────────────────────────────────────────
@@ -141,11 +141,17 @@ async function main() {
     op = await sp.operators(deployerAddr);
     assertFalse(op.isPaused, 'Operator is unpaused');
   } catch (e) {
-    printError(`Pause/unpause: ${e.message.substring(0, 80)}`);
+    catchStep(`Pause/unpause`, e);
   }
 
-  const allPassed = printSummary('B1: Operator Config');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('B1: Operator Config'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

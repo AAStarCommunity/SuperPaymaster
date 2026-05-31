@@ -9,9 +9,9 @@
 const {
   initTestEnv, getContracts, SLASH_LEVEL, ethers,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe, retryView,
+  sendTxSafe, catchStep, retryView,
 } = require('./test-helpers');
 
 async function main() {
@@ -36,7 +36,7 @@ async function main() {
     printKeyValue('Deployer slash count', deployerSlashCount.toString());
     assertGte(deployerSlashCount, 0n, 'Deployer slash count >= 0');
   } catch (e) {
-    printError(`getSlashCount(deployer): ${e.message.substring(0, 80)}`);
+    catchStep(`getSlashCount(deployer)`, e);
   }
 
   if (anniAddr && anniAddr.toLowerCase() !== deployerAddr.toLowerCase()) {
@@ -64,7 +64,7 @@ async function main() {
     }
     printSuccess('getSlashHistory read completed');
   } catch (e) {
-    printError(`getSlashHistory: ${e.message.substring(0, 80)}`);
+    catchStep(`getSlashHistory`, e);
   }
 
   // ──────────────────────────────────────────
@@ -100,7 +100,7 @@ async function main() {
         const newCount = await sp.getSlashCount(deployerAddr);
         assertEqual(newCount, deployerSlashCount + 1n, 'Slash count incremented');
       } catch (e) {
-        printError(`slashOperator: ${e.message.substring(0, 80)}`);
+        catchStep(`slashOperator`, e);
       }
     }
   }
@@ -123,7 +123,7 @@ async function main() {
         printError('No slash history after slashOperator');
       }
     } catch (e) {
-      printError(`Verify slash: ${e.message.substring(0, 80)}`);
+      catchStep(`Verify slash`, e);
     }
   }
 
@@ -139,7 +139,7 @@ async function main() {
       const opAfter = await sp.operators(deployerAddr);
       assertEqual(opAfter.reputation, 100n, 'Reputation restored to 100');
     } catch (e) {
-      printError(`updateReputation: ${e.message.substring(0, 80)}`);
+      catchStep(`updateReputation`, e);
     }
   }
 
@@ -154,11 +154,17 @@ async function main() {
     printKeyValue('isBlocked', state.isBlocked);
     printSuccess('userOpState query completed');
   } catch (e) {
-    printError(`userOpState: ${e.message.substring(0, 80)}`);
+    catchStep(`userOpState`, e);
   }
 
-  const allPassed = printSummary('F2: Slash History');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('F2: Slash History'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

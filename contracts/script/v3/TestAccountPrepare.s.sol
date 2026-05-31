@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/core/Registry.sol";
+import "src/interfaces/v3/IRegistry.sol";
 import "src/tokens/GToken.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -32,7 +33,19 @@ contract TestAccountPrepare is Script {
         string memory cfgPath   = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory json      = vm.readFile(cfgPath);
 
-        // Resolve keys from env (fall back to Anvil constants for local dev)
+        // Resolve keys from env (fall back to Anvil constants for local dev).
+        // GUARD: this script broadcasts with an explicit PK (vm.startBroadcast(pk))
+        // and derives the deployer ADDRESS from it (vm.addr) for mint targets, so a
+        // Foundry keystore (--account) alone is NOT enough. On any non-anvil network
+        // we MUST have PRIVATE_KEY / PRIVATE_KEY_ANNI — otherwise we'd silently sign
+        // with the hardcoded Anvil keys and mint to the wrong (anvil) address.
+        bool isAnvil = keccak256(bytes(network)) == keccak256(bytes("anvil"));
+        if (!isAnvil) {
+            require(vm.envOr("PRIVATE_KEY", uint256(0)) != 0,
+                "TestAccountPrepare: set PRIVATE_KEY for non-anvil (keystore-only not supported by this script)");
+            require(vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0,
+                "TestAccountPrepare: set PRIVATE_KEY_ANNI for non-anvil");
+        }
         uint256 deployerPK = vm.envOr("PRIVATE_KEY", ANVIL_DEPLOYER_PK);
         uint256 anniPK     = vm.envOr("PRIVATE_KEY_ANNI", ANVIL_ANNI_PK);
         address anniAddr   = vm.addr(anniPK);
@@ -46,6 +59,45 @@ contract TestAccountPrepare is Script {
         address entryPointAddr       = stdJson.readAddress(json, ".entryPoint");
         address priceFeedAddr        = stdJson.readAddress(json, ".priceFeed");
         address stakingAddr          = stdJson.readAddress(json, ".staking");
+        xPNTsToken apnts             = xPNTsToken(stdJson.readAddress(json, ".aPNTs"));
+
+        // -----------------------------------------------------------------------
+        // Phase 2.0: Deployer registers Anni as COMMUNITY + PAYMASTER_SUPER
+        //   (idempotent — skipped if already granted)
+        //   Required before TestAccountPrepare can register PAYMASTER_AOA.
+        //   Mirrors _setupMyceliumCommunity() in DeployLive.s.sol.
+        // -----------------------------------------------------------------------
+        vm.startBroadcast(deployerPK);
+        if (!registry.hasRole(ROLE_COMMUNITY, anniAddr)) {
+            console.log("[Phase 2.0] Registering Anni as COMMUNITY (Mycelium)...");
+            // Ensure deployer has GToken for stake + burn
+            gtoken.mint(vm.addr(deployerPK), 100 ether);
+            gtoken.approve(stakingAddr, 100 ether);
+            Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
+                name: "Mycelium Community",
+                ensName: "mushroom.box",
+                stakeAmount: 30 ether
+            });
+            registry.safeMintForRole(ROLE_COMMUNITY, anniAddr, abi.encode(mycData));
+            console.log("  Mycelium Community registered for Anni");
+        }
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, anniAddr)) {
+            console.log("[Phase 2.0] Registering Anni as PAYMASTER_SUPER...");
+            gtoken.approve(stakingAddr, 60 ether);
+            registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anniAddr, "");
+            console.log("  PAYMASTER_SUPER granted to Anni");
+        }
+        // Ensure deployer has aPNTs to transfer (mint if needed — deployer is communityOwner)
+        if (apnts.balanceOf(vm.addr(deployerPK)) < 1000 ether) {
+            console.log("[Phase 2.0] Minting 20000 aPNTs to deployer...");
+            apnts.mint(vm.addr(deployerPK), 20_000 ether);
+        }
+        // Transfer aPNTs to Anni if she has less than 1000 (for SP deposit)
+        if (apnts.balanceOf(anniAddr) < 1000 ether) {
+            console.log("[Phase 2.0] Transferring 1000 aPNTs to Anni...");
+            apnts.transfer(anniAddr, 1000 ether);
+        }
+        vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
         // Phase 2.1: Deployer top-ups Anni's GT balance so she can stake
@@ -67,6 +119,29 @@ contract TestAccountPrepare is Script {
             console.log("[Phase 2.2] Registering Anni as PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
             registry.registerRole(ROLE_PAYMASTER_AOA, anniAddr, "");
+        }
+
+        // Deploy Anni's PNTs xPNTs token + configure SP operator (mirrors DeployLive step 6d-6f)
+        address pntsAddr = xpntsFactory.getTokenAddress(anniAddr);
+        if (pntsAddr == address(0)) {
+            console.log("[Phase 2.2] Deploying Anni's PNTs token...");
+            pntsAddr = xpntsFactory.deployxPNTsToken(
+                "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
+            );
+            console.log("  PNTs deployed:", pntsAddr);
+        }
+        (uint128 anniBal, bool isCfgAnni,,,,,,,) = superPaymaster.operators(anniAddr);
+        if (!isCfgAnni) {
+            console.log("[Phase 2.2] Configuring Anni as SuperPaymaster operator...");
+            superPaymaster.configureOperator(pntsAddr, anniAddr);
+            console.log("  Operator configured");
+        }
+        // Deposit 1000 aPNTs into SuperPaymaster if balance is low
+        if (anniBal < 100 ether) {
+            console.log("[Phase 2.2] Depositing aPNTs to SuperPaymaster for Anni...");
+            apnts.approve(address(superPaymaster), 1000 ether);
+            superPaymaster.deposit(1000 ether);
+            console.log("  1000 aPNTs deposited");
         }
 
         // Deploy Anni's V4 paymaster proxy if not yet deployed
@@ -157,7 +232,7 @@ contract TestAccountPrepare is Script {
 
     /// @dev Read-only helper: log a single row of the operator matrix.
     function _printOperatorRow(string memory label, address op, SuperPaymaster sp) internal view {
-        (uint128 bal, , bool isCfg, , address xpnts, , , , , ) = sp.operators(op);
+        (uint128 bal, bool isCfg, , address xpnts, , , , , ) = sp.operators(op);
         console.log(label, op);
         console.log("    isConfigured:", isCfg);
         console.log("    xPNTsToken: ", xpnts);

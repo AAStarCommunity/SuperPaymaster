@@ -7,8 +7,8 @@
  */
 const {
   initTestEnv, getContracts, ROLES, ethers,
-  printHeader, printStep, printSuccess, printError, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printHeader, printStep, printSuccess, printError, catchStep, printInfo, printKeyValue,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
 } = require('./test-helpers');
 
@@ -32,7 +32,7 @@ async function main() {
     printKeyValue('Total staked', ethers.formatEther(total));
     assertGte(total, 0n, 'totalStaked >= 0');
   } catch (e) {
-    printError(`totalStaked: ${e.message.substring(0, 80)}`);
+    catchStep(`totalStaked`, e);
   }
 
   // ──────────────────────────────────────────
@@ -47,7 +47,7 @@ async function main() {
     printKeyValue('GToken cap', ethers.formatEther(cap));
     assertTrue(supply <= cap, 'Supply <= cap');
   } catch (e) {
-    printError(`GToken supply: ${e.message.substring(0, 80)}`);
+    catchStep(`GToken supply`, e);
   }
 
   // ──────────────────────────────────────────
@@ -65,7 +65,7 @@ async function main() {
     }
     assertTrue(stake.amount >= 0n, 'Stake amount valid');
   } catch (e) {
-    printError(`stakes: ${e.message.substring(0, 80)}`);
+    catchStep(`stakes`, e);
   }
 
   // ──────────────────────────────────────────
@@ -77,7 +77,7 @@ async function main() {
     printKeyValue('Net stake balance', ethers.formatEther(balance));
     assertGte(balance, 0n, 'Balance >= 0');
   } catch (e) {
-    printError(`balanceOf: ${e.message.substring(0, 80)}`);
+    catchStep(`balanceOf`, e);
   }
 
   // ──────────────────────────────────────────
@@ -89,7 +89,7 @@ async function main() {
     printKeyValue('Locked for COMMUNITY', ethers.formatEther(locked));
     assertGte(locked, 0n, 'Locked stake >= 0');
   } catch (e) {
-    printError(`getLockedStake: ${e.message.substring(0, 80)}`);
+    catchStep(`getLockedStake`, e);
   }
 
   // ──────────────────────────────────────────
@@ -108,7 +108,7 @@ async function main() {
     }
     printSuccess('previewExitFee check complete');
   } catch (e) {
-    printError(`previewExitFee: ${e.message.substring(0, 80)}`);
+    catchStep(`previewExitFee`, e);
   }
 
   // ──────────────────────────────────────────
@@ -119,14 +119,14 @@ async function main() {
     const registryAddr = await staking.REGISTRY();
     assertEqual(registryAddr.toLowerCase(), config.registry.toLowerCase(), 'REGISTRY');
   } catch (e) {
-    printError(`REGISTRY: ${e.message.substring(0, 80)}`);
+    catchStep(`REGISTRY`, e);
   }
 
   try {
     const gtokenAddr = await staking.GTOKEN();
     assertEqual(gtokenAddr.toLowerCase(), config.gToken.toLowerCase(), 'GTOKEN');
   } catch (e) {
-    printError(`GTOKEN: ${e.message.substring(0, 80)}`);
+    catchStep(`GTOKEN`, e);
   }
 
   try {
@@ -134,11 +134,17 @@ async function main() {
     printKeyValue('Treasury', treasuryAddr);
     assertTrue(treasuryAddr !== ethers.ZeroAddress, 'Treasury is set');
   } catch (e) {
-    printError(`treasury: ${e.message.substring(0, 80)}`);
+    catchStep(`treasury`, e);
   }
 
-  const allPassed = printSummary('F1: Staking Queries');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('F1: Staking Queries'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

@@ -28,9 +28,9 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -60,7 +60,7 @@ async function main() {
     assertTrue(owner.length > 0, 'owner set');
     printSuccess('ReputationSystem wiring OK');
   } catch (e) {
-    printError(`Wiring check: ${e.message.substring(0, 100)}`);
+    catchStep(`Wiring check`, e);
   }
 
   // ──────────────────────────────────────────
@@ -75,7 +75,7 @@ async function main() {
     assertGte(ef, 0n, 'entropyFactor >= 0');
     printSuccess('entropyFactors query OK');
   } catch (e) {
-    printError(`entropyFactors: ${e.message.substring(0, 100)}`);
+    catchStep(`entropyFactors`, e);
   }
 
   // ──────────────────────────────────────────
@@ -94,7 +94,7 @@ async function main() {
     // After D1 cleanup the rule is zeroed — baseScore == 0
     printSuccess('communityRules query completed (zeroed after D1 cleanup)');
   } catch (e) {
-    printError(`communityRules: ${e.message.substring(0, 100)}`);
+    catchStep(`communityRules`, e);
   }
 
   // ──────────────────────────────────────────
@@ -113,7 +113,7 @@ async function main() {
       printSuccess('communityReputations query OK');
     }
   } catch (e) {
-    printError(`communityReputations: ${e.message.substring(0, 100)}`);
+    catchStep(`communityReputations`, e);
   }
 
   // ──────────────────────────────────────────
@@ -130,7 +130,7 @@ async function main() {
     assertGte(bd.multiplier, 0n, 'multiplier >= 0');
     printSuccess('getReputationBreakdown OK');
   } catch (e) {
-    printError(`getReputationBreakdown: ${e.message.substring(0, 100)}`);
+    catchStep(`getReputationBreakdown`, e);
   }
 
   // ──────────────────────────────────────────
@@ -143,7 +143,7 @@ async function main() {
     assertGte(calc, 0n, 'calculateReputation >= 0');
     printSuccess('calculateReputation OK');
   } catch (e) {
-    printError(`calculateReputation: ${e.message.substring(0, 100)}`);
+    catchStep(`calculateReputation`, e);
   }
 
   // ──────────────────────────────────────────
@@ -208,11 +208,17 @@ async function main() {
       printSuccess(`${rules.length} active rule(s) found`);
     }
   } catch (e) {
-    printError(`getActiveRules: ${e.message.substring(0, 100)}`);
+    catchStep(`getActiveRules`, e);
   }
 
-  const allPassed = printSummary('H2: ReputationSystem — Community Scoring & BLS Sync Pipeline');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('H2: ReputationSystem — Community Scoring & BLS Sync Pipeline'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});

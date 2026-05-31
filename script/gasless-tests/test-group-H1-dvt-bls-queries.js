@@ -16,9 +16,9 @@
 const {
   initTestEnv, getContracts, ethers, ABI,
   printHeader, printStep, printSuccess, printError, printSkip, printInfo, printKeyValue,
-  printSummary, resetCounters,
+  printSummary, finishTest, resetCounters,
   assertEqual, assertTrue, assertGte,
-  sendTxSafe,
+  sendTxSafe, catchStep,
 } = require('./test-helpers');
 
 async function main() {
@@ -79,7 +79,7 @@ async function main() {
     assertEqual(dvtBLS.toLowerCase(), config.blsAggregator.toLowerCase(), 'DVT BLS_AGGREGATOR == config.blsAggregator');
     assertTrue(dvtVersion.length > 0, 'DVT version non-empty');
   } catch (e) {
-    printError(`DVT wiring: ${e.message.substring(0, 100)}`);
+    catchStep(`DVT wiring`, e);
   }
 
   // ──────────────────────────────────────────
@@ -94,7 +94,7 @@ async function main() {
     // Fresh deployment: no validators added, no proposals
     assertGte(nextId, 1n, 'nextProposalId >= 1 (starts at 1)');
   } catch (e) {
-    printError(`DVT state: ${e.message.substring(0, 100)}`);
+    catchStep(`DVT state`, e);
   }
 
   // ──────────────────────────────────────────
@@ -117,7 +117,7 @@ async function main() {
     assertEqual(blsDVT.toLowerCase(), config.dvtValidator.toLowerCase(), 'BLS DVT_VALIDATOR == config.dvtValidator');
     assertTrue(blsVersion.length > 0, 'BLS version non-empty');
   } catch (e) {
-    printError(`BLS wiring: ${e.message.substring(0, 100)}`);
+    catchStep(`BLS wiring`, e);
   }
 
   // ──────────────────────────────────────────
@@ -138,7 +138,7 @@ async function main() {
     assertEqual(maxV, 13n, 'MAX_VALIDATORS == 13');
     assertTrue(defT >= minT, 'defaultThreshold >= minThreshold');
   } catch (e) {
-    printError(`BLS thresholds: ${e.message.substring(0, 100)}`);
+    catchStep(`BLS thresholds`, e);
   }
 
   // ──────────────────────────────────────────
@@ -161,7 +161,7 @@ async function main() {
     printKeyValue('Slots with validators (first 5)', slotCount);
     printSuccess('Validator slot scan completed');
   } catch (e) {
-    printError(`Slot scan: ${e.message.substring(0, 100)}`);
+    catchStep(`Slot scan`, e);
   }
 
   // ──────────────────────────────────────────
@@ -198,7 +198,7 @@ async function main() {
       }
     }
   } catch (e) {
-    printError(`addValidator lifecycle: ${e.message.substring(0, 100)}`);
+    catchStep(`addValidator lifecycle`, e);
   }
 
   // ──────────────────────────────────────────
@@ -211,11 +211,17 @@ async function main() {
     // proposal 0 should be non-executed (ID 0 is unused; IDs start from DVTValidator's nextProposalId)
     printSuccess('BLS proposal state query OK');
   } catch (e) {
-    printError(`BLS proposal query: ${e.message.substring(0, 100)}`);
+    catchStep(`BLS proposal query`, e);
   }
 
-  const allPassed = printSummary('H1: DVT Validator & BLS Aggregator Queries');
-  process.exit(allPassed ? 0 : 1);
+  process.exit(finishTest('H1: DVT Validator & BLS Aggregator Queries'));
 }
 
-main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
+main().catch(err => {
+  const m = (err.message || '').toLowerCase();
+  const isNet = m.includes('socket hang up') || m.includes('econnreset') ||
+    m.includes('timeout') || m.includes('etimedout') || m.includes('request timeout');
+  if (isNet) { console.error('Fatal (network):', err.message.substring(0, 80)); process.exit(2); }
+  console.error('Fatal:', err.message);
+  process.exit(1);
+});
