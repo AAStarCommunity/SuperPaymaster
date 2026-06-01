@@ -238,21 +238,29 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
 
-        // Access control. The owner may always register any validator's key (the
-        // permissioned default; popSignature is not inspected). Otherwise — only when
-        // the permissionless switch is on — a validator may self-register their OWN key,
-        // provided they currently hold ROLE_DVT with sufficient stake AND supply a valid
-        // proof-of-possession. PoP blocks the rogue-key attack the owner would otherwise
-        // prevent by vetting keys off-chain.
+        // Validate on-curve and prime-order subgroup membership FIRST, so a malformed key
+        // is rejected before it is ever fed to _verifyPoP / the pairing precompile (rather
+        // than relying on the precompile to reject it). Applies to every path.
+        _validateG1Point(publicKey);
+
+        // Access control. The owner may always register any validator's key at the
+        // caller-chosen slot (the permissioned default; popSignature is not inspected).
+        // Otherwise — only when the permissionless switch is on — a validator may
+        // self-register their OWN key, provided they currently hold ROLE_DVT with
+        // sufficient stake AND supply a valid proof-of-possession. PoP blocks the
+        // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
         if (msg.sender != owner()) {
             if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
             if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
             _requireDVTStake(validator, slot);
             if (!_verifyPoP(publicKey, popSignature)) revert InvalidPoP();
+            // Permissionless callers do NOT choose their slot: the contract assigns the
+            // lowest free slot deterministically (re-registration keeps the prior slot).
+            // This removes the slot-squatting / front-running vector where a caller could
+            // grab or deny a specific slot. (Filling the whole capped set still costs
+            // minStake per identity and remains owner-revocable.)
+            slot = _assignSlot(validator);
         }
-
-        // Validate on-curve and prime-order subgroup membership before storing.
-        _validateG1Point(publicKey);
 
         BLSValidatorKey storage existing = _blsKeys[validator];
         // Re-registration of the SAME validator must reuse the prior slot to
@@ -649,6 +657,19 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         p.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
         p.y_a = bytes32(uint256(0x08b3f481e3aaa0f1a09e30ed741d8ae4));
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
+    }
+
+    /// @dev H-02: deterministic slot assignment for the permissionless path. A validator
+    ///      that already has an active key keeps its slot; otherwise the lowest free slot
+    ///      is returned. Reverts when the capped set is full. The caller cannot influence
+    ///      which slot it gets, so it cannot squat or front-run a specific slot.
+    function _assignSlot(address validator) internal view returns (uint8) {
+        BLSValidatorKey storage existing = _blsKeys[validator];
+        if (existing.isActive) return existing.index;
+        for (uint8 s = 1; s <= MAX_VALIDATORS; s++) {
+            if (validatorAtSlot[s] == address(0)) return s;
+        }
+        revert SlotOutOfRange(uint8(MAX_VALIDATORS + 1));
     }
 
     /// @dev H-02: a self-registering validator must currently hold ROLE_DVT in the
