@@ -1,7 +1,6 @@
-// PoC_C01 — Credit ceiling
-// VULNERABILITY: validatePaymasterUserOp never enforces getCreditLimit, allowing debt to exceed a user's credit ceiling.
-// TEST PASSES = vulnerability exists on current code
-// TEST SHOULD FAIL/REVERT after fix
+// C01 — Credit ceiling regression
+// Verifies validatePaymasterUserOp enforces getCreditLimit before a zero-balance
+// user can accumulate debt through postOp.
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
@@ -129,25 +128,19 @@ contract PoC_C01_CreditCeiling_Test is Test {
     function test_PoC_validateDoesNotEnforceCreditCeiling() public {
         uint128 operatorBefore = _operatorBalance();
 
-        for (uint256 i = 1; i <= 3; i++) {
-            PackedUserOperation memory op;
-            op.sender = user;
-            op.paymasterAndData = _paymasterData();
+        PackedUserOperation memory op;
+        op.sender = user;
+        op.paymasterAndData = _paymasterData();
 
-            bytes32 opHash = bytes32(i);
-            vm.prank(address(paymaster.entryPoint()));
-            (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, MAX_COST);
-            assertEq(uint160(validationData), 0, "validate unexpectedly rejected zero-credit user");
-
-            vm.prank(address(paymaster.entryPoint()));
-            paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, MAX_COST, 0);
-        }
+        vm.prank(address(paymaster.entryPoint()));
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32("c01"), MAX_COST);
 
         uint256 debt = xpnts.getDebt(user);
         uint256 creditLimit = registry.getCreditLimit(user);
 
-        assertGt(debt, creditLimit, "debt must exceed zero credit ceiling");
-        assertLt(_operatorBalance(), operatorBefore, "operator balance must be drained by sponsored debt");
+        assertEq(uint160(validationData), 1, "zero-credit zero-balance user must be rejected");
+        assertLe(debt, creditLimit, "debt must not exceed credit ceiling");
+        assertEq(_operatorBalance(), operatorBefore, "operator balance must not be debited");
     }
 
     function _paymasterData() internal view returns (bytes memory) {
