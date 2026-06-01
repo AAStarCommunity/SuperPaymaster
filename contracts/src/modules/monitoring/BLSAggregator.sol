@@ -238,21 +238,19 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
 
-        // Validate on-curve and prime-order subgroup membership FIRST, so a malformed key
-        // is rejected before it is ever fed to _verifyPoP / the pairing precompile (rather
-        // than relying on the precompile to reject it). Applies to every path.
-        _validateG1Point(publicKey);
-
         // Access control. The owner may always register any validator's key at the
         // caller-chosen slot (the permissioned default; popSignature is not inspected).
         // Otherwise — only when the permissionless switch is on — a validator may
         // self-register their OWN key, provided they currently hold ROLE_DVT with
         // sufficient stake AND supply a valid proof-of-possession. PoP blocks the
         // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
+        // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
+        // caller reverts without paying for them; G1 is still validated before _verifyPoP.
         if (msg.sender != owner()) {
             if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
             if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
             _requireDVTStake(validator, slot);
+            _validateG1Point(publicKey);
             if (!_verifyPoP(publicKey, popSignature)) revert InvalidPoP();
             // Permissionless callers do NOT choose their slot: the contract assigns the
             // lowest free slot deterministically (re-registration keeps the prior slot).
@@ -260,6 +258,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // grab or deny a specific slot. (Filling the whole capped set still costs
             // minStake per identity and remains owner-revocable.)
             slot = _assignSlot(validator);
+        } else {
+            // Validate on-curve + prime-order subgroup membership for the owner path too.
+            _validateG1Point(publicKey);
         }
 
         BLSValidatorKey storage existing = _blsKeys[validator];
