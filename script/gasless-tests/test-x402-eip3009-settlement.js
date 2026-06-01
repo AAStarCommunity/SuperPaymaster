@@ -5,9 +5,15 @@
  *
  * Tests settleX402Payment on SuperPaymaster V5.3.0
  *
+ * PENDING aastar-sdk#39: C-03 changed settleX402Payment — the final recipient is now
+ * bound into the EIP-3009 nonce (on-chain nonce = keccak256(to, salt)) and the call takes
+ * `salt` instead of a raw nonce. The payer must sign EIP-3009 over keccak256(to, salt).
+ * This script's signing step needs updating once the @aastar/x402 SDK exposes the salt
+ * scheme; the ABI below is already on the new signature.
+ *
  * Flow:
- *   1. Payer signs EIP-3009 transferWithAuthorization (EIP-712)
- *   2. Facilitator calls settleX402Payment
+ *   1. Payer signs EIP-3009 transferWithAuthorization over nonce = keccak256(to, salt)
+ *   2. Facilitator calls settleX402Payment(..., salt, signature)
  *   3. Verify: payee received USDC - fee, facilitator earnings tracked
  *   4. Test replay protection
  *
@@ -37,7 +43,7 @@ const ERC20_ABI = [
 ];
 
 const SUPERPAYMASTER_ABI = [
-  'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature) external returns (bytes32)',
+  'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) external returns (bytes32)',
   'function facilitatorFeeBPS() view returns (uint256)',
   'function facilitatorEarnings(address operator, address token) view returns (uint256)',
   // P0-13: x402SettlementNonces is keyed by keccak256(abi.encode(asset, from, nonce)),

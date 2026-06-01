@@ -1,4 +1,11 @@
 // Contract ABIs and interaction helpers
+//
+// @deprecated This in-repo facilitator node is superseded by the @aastar/x402 SDK.
+// The x402 settlement ABI below tracks SuperPaymaster's C-02/C-03 signature-required
+// settlement (commit d7df0c3e): settleX402PaymentDirect now needs the payer's EIP-712
+// X402PaymentAuthorization signature; settleX402Payment binds the recipient via
+// nonce = keccak256(to, salt). Full signing-flow integration lives in the SDK —
+// see https://github.com/AAStarCommunity/aastar-sdk/issues/39.
 
 import { type Abi } from "viem";
 
@@ -15,7 +22,8 @@ export const SUPER_PAYMASTER_ABI = [
       { name: "amount", type: "uint256" },
       { name: "validAfter", type: "uint256" },
       { name: "validBefore", type: "uint256" },
-      { name: "nonce", type: "bytes32" },
+      // C-03: recipient bound via on-chain nonce = keccak256(to, salt). Pass `salt`.
+      { name: "salt", type: "bytes32" },
       { name: "signature", type: "bytes" },
     ],
     outputs: [{ name: "settlementId", type: "bytes32" }],
@@ -29,7 +37,11 @@ export const SUPER_PAYMASTER_ABI = [
       { name: "to", type: "address" },
       { name: "asset", type: "address" },
       { name: "amount", type: "uint256" },
+      // C-02: payer EIP-712 X402PaymentAuthorization required (see aastar-sdk#39).
+      { name: "maxFee", type: "uint256" },
+      { name: "validBefore", type: "uint256" },
       { name: "nonce", type: "bytes32" },
+      { name: "signature", type: "bytes" },
     ],
     outputs: [{ name: "settlementId", type: "bytes32" }],
   },

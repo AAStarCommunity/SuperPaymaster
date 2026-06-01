@@ -32,6 +32,12 @@ export function settleRoute(config: Config) {
     }
 
     const { from, to, asset, amount, nonce, validAfter, validBefore, signature } = body.payment;
+    // PENDING aastar-sdk#39: C-02/C-03 settlement requires a payer EIP-712 signature
+    // (direct path) and a recipient-bound salt (EIP-3009 path). These are read from the
+    // payment payload once the SDK produces them; the fallbacks below keep the deprecated
+    // in-repo node type-correct against the new ABI but are NOT a substitute for the SDK.
+    const maxFee = (body.payment as { maxFee?: string | number | bigint }).maxFee;
+    const salt = (body.payment as { salt?: string }).salt ?? nonce;
     const publicClient = getPublicClient();
     const walletClient = getWalletClient();
     const account = getAccount();
@@ -49,7 +55,10 @@ export function settleRoute(config: Config) {
             to as `0x${string}`,
             asset as `0x${string}`,
             BigInt(amount),
+            BigInt(maxFee ?? amount), // C-02: fee cap; SDK supplies the signed maxFee
+            BigInt(validBefore),
             nonce as `0x${string}`,
+            signature as `0x${string}`, // C-02: payer X402PaymentAuthorization signature
           ],
         });
 
@@ -76,7 +85,7 @@ export function settleRoute(config: Config) {
           BigInt(amount),
           BigInt(validAfter),
           BigInt(validBefore),
-          nonce as `0x${string}`,
+          salt as `0x${string}`, // C-03: on-chain nonce = keccak256(to, salt)
           signature as `0x${string}`,
         ],
       });
