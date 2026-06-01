@@ -26,31 +26,63 @@ contract MockStakingReconstruct {
 ///         stake check resolves with unlimited stake.
 contract MockRegistryReconstruct is IRegistry {
     address public stakingAddr;
-    function setStakingAddr(address s) external { stakingAddr = s; }
+
+    function setStakingAddr(address s) external {
+        stakingAddr = s;
+    }
+
     function GTOKEN_STAKING() external view returns (IGTokenStaking) {
         return IGTokenStaking(stakingAddr);
     }
 
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
-    function hasRole(bytes32, address) external pure override returns (bool) { return true; }
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external
+        override
+    {}
+
+    function hasRole(bytes32, address) external pure override returns (bool) {
+        return true;
+    }
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
+
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
-        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0);
+        return RoleConfig(0, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
     }
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
-    function isReputationSource(address) external pure override returns (bool) { return true; }
+
+    function getCreditLimit(address) external view override returns (uint256) {
+        return 100 ether;
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "Mock"; }
+
+    function version() external view override returns (string memory) {
+        return "Mock";
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
-    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 }
 
 /**
@@ -94,6 +126,8 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         pk.y_b = bytes32(uint256(0xD0) | seed << 24);
     }
 
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+
     function setUp() public {
         // Mock EIP-2537 precompiles BEFORE registering keys so that the new
         // _validateG1Point checks in registerBLSPublicKey pass with stub keys.
@@ -117,7 +151,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // Register 7 validators into slots 1..7 — exactly meets defaultThreshold.
         for (uint8 slot = 1; slot <= 7; slot++) {
             address v = address(uint160(uint256(slot) + 1000));
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot);
+            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _emptyPoP());
         }
         vm.stopPrank();
     }
@@ -144,10 +178,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         assertTrue(oldSelector != newSelector, "Legacy ABI must not match new ABI");
 
         // Sanity: confirm new selector matches the documented signature.
-        assertEq(
-            newSelector,
-            bytes4(keccak256("verify(bytes32,uint256,uint256,bytes)"))
-        );
+        assertEq(newSelector, bytes4(keccak256("verify(bytes32,uint256,uint256,bytes)")));
     }
 
     // ====================================
@@ -181,10 +212,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // doesn't short-circuit. Use slots 1, 2, 8 — slot 8 is unregistered.
         uint256 forgedMask = (uint256(1) << 0) | (uint256(1) << 1) | (uint256(1) << 7);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.UnknownValidatorSlot.selector,
-            uint8(8)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(8)));
         bls.verify(_msg(), forgedMask, uint256(3), _sigBytes());
     }
 
@@ -194,10 +222,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // with garbage bits hoping for silent truncation.
         uint256 maskBeyondMax = (uint256(1) << 13); // bit 13 = slot 14
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.SlotOutOfRange.selector,
-            uint8(14)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(14)));
         bls.verify(_msg(), maskBeyondMax, uint256(3), _sigBytes());
     }
 
@@ -211,11 +236,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // Pairing precompile is mocked but the threshold gate fires before it.
         uint256 mask = uint256(0x03); // slots 1, 2
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.InvalidSignatureCount.selector,
-            uint256(2),
-            uint256(3)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidSignatureCount.selector, uint256(2), uint256(3)));
         bls.verify(_msg(), mask, uint256(3), _sigBytes());
     }
 
