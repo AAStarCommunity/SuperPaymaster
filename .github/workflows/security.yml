@@ -22,11 +22,13 @@ jobs:
         run: npm install -g solhint
       - name: Solhint
         run: solhint 'contracts/src/**/*.sol' || true   # report-only until ruleset tuned
-      - name: Build + EIP-170 size
-        run: |
-          forge build --sizes
-          # Fail if SuperPaymaster exceeds the 24576-byte limit
-          forge build --sizes | awk '/SuperPaymaster /{ if ($0 ~ /[0-9]/) print }'
+      - name: Build + EIP-170 size (deployable contracts only)
+        # --sizes exits non-zero if ANY built contract exceeds the 24576-byte EIP-170
+        # limit. Scope the build to deployable src by skipping test/script files, so the
+        # gate enforces the limit on contracts we actually deploy — and is not tripped by
+        # test-only helpers (e.g. SuperPaymasterV2Reinit, a thin SuperPaymaster subclass
+        # used purely for UUPS reinitializer testing) that are never deployed.
+        run: forge build --sizes --skip "*.t.sol" --skip "*.s.sol"
 
   test:
     name: Stage 2 — forge test + fuzz
