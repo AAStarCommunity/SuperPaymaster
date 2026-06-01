@@ -377,7 +377,7 @@ contract CoverageSupplementTest is Test {
         PackedUserOperation memory op;
         op.sender = user;
         // Construct paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)]
-        bytes memory pmData = abi.encodePacked(address(paymaster), uint128(100), uint128(100), address(operator));
+        bytes memory pmData = abi.encodePacked(address(paymaster), uint128(100), uint128(200000), address(operator));
         op.paymasterAndData = pmData;
         
         // 1. Operator Not Registered

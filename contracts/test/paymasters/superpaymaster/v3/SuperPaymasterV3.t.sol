@@ -394,7 +394,7 @@ contract SuperPaymasterTest is Test {
         bytes memory pmData = abi.encodePacked(
             address(paymaster),
             uint128(100000), 
-            uint128(0),      
+            uint128(200000),      
             operator,
             type(uint256).max // MaxRate
         );
