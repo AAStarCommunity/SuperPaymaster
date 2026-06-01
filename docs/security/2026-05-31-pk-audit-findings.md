@@ -116,3 +116,25 @@ Each fix ships with a regression test that **fails on current code and passes af
 - `PoC_C02_UnsignedDrain.t.sol` ✅ faithful (real xPNTs auto-allowance)
 - `PoC_C03_RecipientRedirect.t.sol` ✅ faithful (real EIP-3009 sig)
 - `PoC_C04_ForcedPostOpOOG.t.sol` ✅ faithful (real EntryPoint handleOps; replaces the removed dead-code PoC)
+
+---
+
+## Final resolution (2026-06-01) — fixes landed + per-fix Codex challenge review
+
+| Finding | Status | Commit / note |
+|---|---|---|
+| **C-04** | ✅ FIXED (3 Codex rounds clean) | `MIN_POST_OP_GAS = 200_000` floor in validate + dryRun; dead `postOpReverted` branch removed. 200k measured (postOp ~141k), not Codex's 250k over-estimate. |
+| **C-01** | ✅ FIXED | `b9c13af7`. Balance-aware `_creditExceeded`: pay-from-balance → allowed; else `getDebt + pendingDebts + charge <= getCreditLimit`. **TOCTOU (balance moved between validate and postOp) ACCEPTED by jhf** as a bounded one-op overrun — recovery via mint auto-repayment (`xPNTsToken._update`, mint-only = B1) + manual `repayDebt`. exchangeRate read from `xPNTsToken.exchangeRate()` (consistent with AirAccount #10). |
+| **C-02** | ✅ FIXED — Codex approved mainnet | `d7df0c3e`. `settleX402PaymentDirect` requires payer EIP-712 `X402PaymentAuthorization(from,to,asset,amount,maxFee,validBefore,nonce)`, domain `verifyingContract = SP proxy`, `SignatureCheckerLib` (EOA + ERC-1271). |
+| **C-03** | ✅ FIXED — Codex approved mainnet | `d7df0c3e`. `settleX402Payment` binds recipient via `nonce = keccak256(to, salt)` — reuses the payer's EIP-3009 signature, no second sig. |
+| **L-01** | 📝 ACCEPTED as a feature (not fixed) | Codex flagged: X402 auth not bound to `msg.sender` → another approved facilitator can front-run the fee (payer funds 100% safe; only fee attribution). **jhf decision: keep it — decentralized facilitator competition is the intended model; you sign once, whoever serves first earns.** `facilitator` deliberately NOT bound into the signature (preserves flexible routing). |
+| **I-01** | ↪ off-chain WYSIWYS, see below | On-chain nonce/recipient binding is tamper-evident; the residual "malicious UI" risk is solved off-chain (passkey-bound signing + clear-signing display). Converges with AirAccount KMS #16. |
+
+### Verification
+- 969 forge tests pass / 0 failed. SuperPaymaster 24,093 bytes (EIP-170 OK, 483 spare).
+- PoC_C02/PoC_C03 rewritten as fix regressions (no-sig drain reverts; redirect reverts; valid-sig happy paths pass).
+- AirAccount KMS EIP-712 digest is standard `keccak256(0x1901 || domainSeparator || hashStruct)` — **compatible with SP `_verifyX402Auth`**.
+
+### Cross-repo dependencies
+- **aastar-sdk #39** (filed): client must sign `X402PaymentAuthorization` (direct) + derive EIP-3009 `nonce = keccak256(to, salt)` (USDC). Canonical x402 integration lives in the SDK; in-repo `packages/x402-facilitator-node` is deprecated.
+- **AirAccount KMS #16** (their repo): host-compromise → arbitrary `sign_typed_data` would let a forged X402 authorization pass SP's on-chain check for AirAccount (ERC-1271) users. SP's C-02 gate is necessary but end-to-end security for AirAccount accounts ALSO needs KMS passkey-bound JWT issuance (their fix A). **On-chain fix + KMS fix together = complete.**
