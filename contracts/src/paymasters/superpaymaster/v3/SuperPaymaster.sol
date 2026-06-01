@@ -1353,13 +1353,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Pending Debt Recovery
     // ====================================
 
-    /// @notice Retry recording a pending debt that failed during postOp
-    /// @param token The xPNTs token address
-    /// @param user The user address
-    function retryPendingDebt(address token, address user) external onlyOwner nonReentrant {
-        uint256 amount = pendingDebts[token][user];
-        if (amount == 0) revert NoPendingDebt();
-        delete pendingDebts[token][user];
+    /// @notice Retry recording a pending debt that failed during postOp.
+    /// @dev    H-01: takes an explicit `amount` so a pending balance larger than the
+    ///         token's per-tx limit (`maxSingleTxLimit`) can be drained in chunks —
+    ///         call repeatedly with `amount <= maxSingleTxLimit` until empty. Previously
+    ///         it always retried the full balance, which reverted (and stayed stuck)
+    ///         whenever the accumulated debt exceeded that limit. The remainder stays in
+    ///         `pendingDebts` for the next call. Pass `amount == 0` to attempt the full
+    ///         balance in one shot (works when it is within the limit).
+    /// @param token  The xPNTs token address
+    /// @param user   The user address
+    /// @param amount aPNTs to record this call; clamped to the pending balance.
+    function retryPendingDebt(address token, address user, uint256 amount) external onlyOwner nonReentrant {
+        uint256 pending = pendingDebts[token][user];
+        if (pending == 0) revert NoPendingDebt();
+        if (amount == 0 || amount > pending) amount = pending;
+        pendingDebts[token][user] = pending - amount;
         IxPNTsToken(token).recordDebt(user, amount);
         emit PendingDebtRetried(token, user, amount);
     }
