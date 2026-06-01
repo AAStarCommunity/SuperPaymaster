@@ -138,3 +138,30 @@ Each fix ships with a regression test that **fails on current code and passes af
 ### Cross-repo dependencies
 - **aastar-sdk #39** (filed): client must sign `X402PaymentAuthorization` (direct) + derive EIP-3009 `nonce = keccak256(to, salt)` (USDC). Canonical x402 integration lives in the SDK; in-repo `packages/x402-facilitator-node` is deprecated.
 - **AirAccount KMS #16** (their repo): host-compromise → arbitrary `sign_typed_data` would let a forged X402 authorization pass SP's on-chain check for AirAccount (ERC-1271) users. SP's C-02 gate is necessary but end-to-end security for AirAccount accounts ALSO needs KMS passkey-bound JWT issuance (their fix A). **On-chain fix + KMS fix together = complete.**
+
+---
+
+## KMS integration consistency — CONFIRMED OK (2026-06-01, AirAccount #16 / PR #20)
+
+AirAccount closed KMS Issue #16 (PR #20, 5 rounds): removed the JWT signing oracle
+(JwtHmacSign/JwtSignPayload as external TA commands), folded JWT issuance into
+`create_agent_key` (WebAuthn-gated), added TA passkey auth to `sign_typed_data`, and
+made the TA own the JWT `iat`. **Impact on SuperPaymaster x402: none on the interface,
+positive on end-to-end security.** The dual-payer x402 design maps cleanly onto two
+SEPARATE TA command paths — confirmed by AirAccount:
+
+| x402 payer | TA command | Auth | Passkey per payment? |
+|---|---|---|---|
+| Human user (manual EIP-712) | `sign_typed_data` (cmd 17) | passkey, user present | yes (by design) |
+| Human grants a session key | `sign_grant_session` / `sign_p256_grant_session` (PR #19) | passkey once | once, at delegation |
+| **Autonomous agent (x402 micropayment)** | `sign_agent_user_op` (cmd 12) | **JWT, no passkey** | **no** |
+
+Agent x402 micropayments go through `sign_agent_user_op` (JWT auth) — #16's passkey
+gating on `sign_typed_data` does NOT touch this path. Lifecycle: `create_agent_key`
+(passkey once) → `grant_session` (passkey once) → every x402 via `sign_agent_user_op`
+(JWT, 0 passkey). So C-02's `_verifyX402Auth` (ERC-1271) accepts both: human-signed
+(passkey path) and agent-signed (session-key path) authorizations, with no contract change.
+
+- Signature format unchanged (standard EIP-712 digest); our on-chain verification is auth-method-agnostic.
+- #16 resolves the C-02 ↔ KMS dependency flagged in I-01 (host compromise can no longer forge a human's X402 authorization).
+- **Open coordination item (low):** confirm `sign_grant_session` / `sign_p256_grant_session` (PR #19) are themselves passkey-gated — that is the human-delegation moment and should require user presence. If not, flag to AirAccount.
