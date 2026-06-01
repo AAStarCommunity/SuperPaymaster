@@ -10,6 +10,7 @@ import "src/interfaces/v3/IAgentIdentityRegistry.sol";
 import "src/interfaces/v3/IAgentReputationRegistry.sol";
 import "src/interfaces/v3/IERC3009.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // ====================================
@@ -93,14 +94,58 @@ contract MockAgentReputationRegistry is IAgentReputationRegistry {
 
 /// @dev Mock ERC-3009 token (USDC-like) with transferWithAuthorization
 contract MockERC3009Token is ERC20, IERC3009 {
+    using ECDSA for bytes32;
+
+    mapping(address => mapping(bytes32 => bool)) public authorizationUsed;
+
     constructor() ERC20("USDC", "USDC") {}
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
+
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name())),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                value,
+                validAfter,
+                validBefore,
+                nonce
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
     function transferWithAuthorization(
         address from, address to, uint256 value,
-        uint256, uint256, bytes32, bytes calldata
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
     ) external override {
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
         _transfer(from, to, value);
     }
 }
@@ -243,6 +288,58 @@ contract SuperPaymasterV5Features_Test is Test {
         agentRepRegistry.setScore(agent1, 500);
     }
 
+    function _signEIP3009(
+        uint256 privateKey,
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 digest = usdc.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _signX402Direct(
+        uint256 privateKey,
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 maxFee,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("SuperPaymaster"),
+                keccak256("1"),
+                block.chainid,
+                address(paymaster)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                asset,
+                amount,
+                maxFee,
+                validBefore,
+                nonce
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
     // ====================================
     // F1: isRegisteredAgent Tests
     // ====================================
@@ -313,7 +410,13 @@ contract SuperPaymasterV5Features_Test is Test {
 
     function test_SettleEIP3009_Success() public {
         uint256 amount = 1000e6;
-        address payer = address(0x10);
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(1));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
 
         usdc.mint(payer, amount);
 
@@ -323,7 +426,7 @@ contract SuperPaymasterV5Features_Test is Test {
         vm.prank(operator1);
         bytes32 settlementId = paymaster.settleX402Payment(
             payer, payee, address(usdc), amount,
-            0, block.timestamp + 1 hours, bytes32(uint256(1)), ""
+            validAfter, validBefore, salt, signature
         );
 
         uint256 fee = (amount * 100) / 10000;
@@ -334,17 +437,22 @@ contract SuperPaymasterV5Features_Test is Test {
 
     function test_SettleEIP3009_Replay() public {
         uint256 amount = 100e6;
-        address payer = address(0x10);
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, amount * 2);
 
-        bytes32 nonce = bytes32(uint256(42));
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(42));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), amount, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, validAfter, validBefore, salt, signature);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), amount, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, validAfter, validBefore, salt, signature);
     }
 
     function test_SettleEIP3009_Unauthorized() public {
@@ -359,7 +467,12 @@ contract SuperPaymasterV5Features_Test is Test {
 
     function test_SettleDirect_Success() public {
         uint256 amount = 500 ether;
-        address payer = address(0x10);
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
+        uint256 maxFee = (amount * 200) / 10000;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(1));
+        bytes memory signature = _signX402Direct(payerKey, payer, payee, address(xpnts), amount, maxFee, validBefore, nonce);
         xpnts.mint(payer, amount);
 
         vm.prank(owner);
@@ -367,7 +480,7 @@ contract SuperPaymasterV5Features_Test is Test {
 
         vm.prank(operator1);
         bytes32 settlementId = paymaster.settleX402PaymentDirect(
-            payer, payee, address(xpnts), amount, bytes32(uint256(1))
+            payer, payee, address(xpnts), amount, maxFee, validBefore, nonce, signature
         );
 
         uint256 fee = (amount * 200) / 10000;
@@ -378,22 +491,34 @@ contract SuperPaymasterV5Features_Test is Test {
 
     function test_SettleDirect_Replay() public {
         uint256 amount = 100 ether;
-        address payer = address(0x10);
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
         xpnts.mint(payer, amount * 2);
+        uint256 maxFee = (amount * 30) / 10000;
+        uint256 validBefore = block.timestamp + 1 hours;
         bytes32 nonce = bytes32(uint256(99));
+        bytes memory signature = _signX402Direct(payerKey, payer, payee, address(xpnts), amount, maxFee, validBefore, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, nonce);
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, maxFee, validBefore, nonce, signature);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, nonce);
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, maxFee, validBefore, nonce, signature);
     }
 
     function test_SettleDirect_Unauthorized() public {
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
+        uint256 amount = 100 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(77));
+        bytes memory signature = _signX402Direct(payerKey, payer, payee, address(xpnts), amount, maxFee, validBefore, nonce);
+
         vm.prank(user1);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(address(0x10), payee, address(xpnts), 100 ether, bytes32(uint256(77)));
+        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), amount, maxFee, validBefore, nonce, signature);
     }
 
     // ====================================
@@ -404,63 +529,87 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         the global nonce mapping let an anonymous attacker pre-burn a
     ///         victim's nonce by submitting a dummy settlement on a junk asset.
     function test_Nonce_PerAssetIsolation() public {
-        bytes32 nonce = bytes32(uint256(0xCAFE));
-        address payer = address(0x40);
+        bytes32 salt = bytes32(uint256(0xCAFE));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerKey = 0x40;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, 100e6);
         xpnts.mint(payer, 100 ether);
+        bytes memory eip3009Sig =
+            _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
+        bytes memory directSig =
+            _signX402Direct(payerKey, payer, payee, address(xpnts), 100 ether, 0.3 ether, block.timestamp + 1 hours, nonce);
 
         // Burn nonce on USDC.
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         // Same nonce, same payer, different asset must still be available.
         vm.prank(operator1);
-        bytes32 sid = paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), 100 ether, nonce);
+        bytes32 sid = paymaster.settleX402PaymentDirect(
+            payer, payee, address(xpnts), 100 ether, 0.3 ether, block.timestamp + 1 hours, nonce, directSig
+        );
         assertTrue(sid != bytes32(0), "same nonce on different asset must succeed");
     }
 
     /// @notice Same nonce, same asset, different `from` must also be independent.
     function test_Nonce_PerPayerIsolation() public {
-        bytes32 nonce = bytes32(uint256(0xBEEF));
-        address payerA = address(0x50);
-        address payerB = address(0x51);
+        bytes32 salt = bytes32(uint256(0xBEEF));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerAKey = 0x50;
+        uint256 payerBKey = 0x51;
+        address payerA = vm.addr(payerAKey);
+        address payerB = vm.addr(payerBKey);
         usdc.mint(payerA, 100e6);
         usdc.mint(payerB, 100e6);
+        bytes memory sigA =
+            _signEIP3009(payerAKey, payerA, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
+        bytes memory sigB =
+            _signEIP3009(payerBKey, payerB, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, sigA);
 
         vm.prank(operator1);
-        bytes32 sid = paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        bytes32 sid =
+            paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, sigB);
         assertTrue(sid != bytes32(0), "same nonce on different payer must succeed");
     }
 
     /// @notice Replay on the exact (asset, from, nonce) triple must still revert.
     function test_Nonce_TripleReplayBlocked() public {
-        bytes32 nonce = bytes32(uint256(0xDEAD));
-        address payer = address(0x60);
+        bytes32 salt = bytes32(uint256(0xDEAD));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerKey = 0x60;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, 200e6);
+        bytes memory signature =
+            _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
     }
 
     /// @notice The public helper `x402NonceKey` must agree with what the
     ///         contract writes internally — SDKs depend on this.
     function test_Nonce_PublicKeyMatchesStorage() public {
-        bytes32 nonce = bytes32(uint256(0xBABE));
-        address payer = address(0x70);
+        bytes32 salt = bytes32(uint256(0xBABE));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerKey = 0x70;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, 100e6);
+        bytes memory signature =
+            _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         bytes32 key = paymaster.x402NonceKey(address(usdc), payer, nonce);
         assertFalse(paymaster.x402SettlementNonces(key), "key should be unused before settle");
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
 
         assertTrue(paymaster.x402SettlementNonces(key), "key should be set after settle");
     }
@@ -470,44 +619,65 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         settleX402Payment must be rejected by settleX402PaymentDirect and
     ///         vice-versa.
     function test_Nonce_CrossPath_EIP3009ThenDirectBlocked() public {
-        bytes32 nonce = bytes32(uint256(0xC0FFEE));
-        address payer = address(0x80);
+        bytes32 salt = bytes32(uint256(0xC0FFEE));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerKey = 0x80;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, 200e6);
+        bytes memory eip3009Sig =
+            _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
+        bytes memory directSig =
+            _signX402Direct(payerKey, payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         // Step 1: consume nonce via EIP-3009 path (USDC).
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         // Step 2: same nonce, same payer, same asset via Direct path must revert.
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402PaymentDirect(payer, payee, address(usdc), 100e6, nonce);
+        paymaster.settleX402PaymentDirect(
+            payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, directSig
+        );
     }
 
     /// @notice Inverse cross-path check: Direct consumed nonce must be rejected
     ///         by the EIP-3009 path for the same (asset, from, nonce) triple.
     function test_Nonce_CrossPath_DirectThenEIP3009Blocked() public {
-        bytes32 nonce = bytes32(uint256(0xDECAF));
-        address payer = address(0x81);
+        bytes32 salt = bytes32(uint256(0xDECAF));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 payerKey = 0x81;
+        address payer = vm.addr(payerKey);
         xpnts.mint(payer, 200 ether);
+        bytes memory directSig =
+            _signX402Direct(payerKey, payer, payee, address(xpnts), 100 ether, 0.3 ether, block.timestamp + 1 hours, nonce);
 
         // Step 1: consume nonce via Direct path (xPNTs).
         vm.prank(operator1);
-        paymaster.settleX402PaymentDirect(payer, payee, address(xpnts), 100 ether, nonce);
+        paymaster.settleX402PaymentDirect(
+            payer, payee, address(xpnts), 100 ether, 0.3 ether, block.timestamp + 1 hours, nonce, directSig
+        );
 
         // Step 2: same nonce, same payer, same asset via EIP-3009 path must revert.
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(xpnts), 100 ether, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(xpnts), 100 ether, 0, block.timestamp + 1 hours, salt, "");
     }
 
     /// @notice Pre-upgrade (pre-P0-13) settlements were keyed by the raw nonce
     ///         bytes32 alone. This test simulates that state by writing the legacy
     ///         slot directly, then verifying the new code refuses to reuse the nonce.
     function test_Nonce_LegacyRawNonceReplayBlocked() public {
-        bytes32 nonce = bytes32(uint256(0xABCDEF));
-        address payer = address(0x82);
+        bytes32 salt = bytes32(uint256(0xABCDEF));
+        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        bytes32 directNonce = bytes32(uint256(0xABCDF0));
+        uint256 payerKey = 0x82;
+        address payer = vm.addr(payerKey);
         usdc.mint(payer, 100e6);
+        bytes memory eip3009Sig =
+            _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
+        bytes memory directSig =
+            _signX402Direct(payerKey, payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, directNonce);
 
         // Simulate a pre-P0-13 settlement: write the raw nonce as the mapping key.
         // This is exactly what the old code wrote: x402SettlementNonces[nonce] = true.
@@ -516,15 +686,22 @@ contract SuperPaymasterV5Features_Test is Test {
             .sig("x402SettlementNonces(bytes32)")
             .with_key(nonce)
             .checked_write(true);
+        stdstore
+            .target(address(paymaster))
+            .sig("x402SettlementNonces(bytes32)")
+            .with_key(directNonce)
+            .checked_write(true);
 
         // Both settle paths must now revert even though the NEW triple-key slot is clear.
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, nonce, "");
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402PaymentDirect(payer, payee, address(usdc), 100e6, nonce);
+        paymaster.settleX402PaymentDirect(
+            payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, directNonce, directSig
+        );
     }
 
     // ====================================

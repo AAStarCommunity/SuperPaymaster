@@ -103,23 +103,75 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
     // settleX402PaymentDirect facilitator gate
     // -----------------------------------------------------------------------
 
+    function _signX402Direct(
+        uint256 privateKey,
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 maxFee,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("SuperPaymaster"),
+                keccak256("1"),
+                block.chainid,
+                address(paymaster)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                asset,
+                amount,
+                maxFee,
+                validBefore,
+                nonce
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
     function test_SettleDirect_RevertsForUnapprovedFacilitator() public {
         // operator has PAYMASTER_SUPER role but is NOT in approvedFacilitators
         // → must revert at facilitator gate before transfer.
-        address user = address(0x1234);
+        uint256 userKey = 0x1234;
+        address user = vm.addr(userKey);
+        uint256 amount = 50 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(1));
+        bytes memory signature =
+            _signX402Direct(userKey, user, payee, address(token), amount, maxFee, validBefore, nonce);
         vm.prank(community); // community owner can mint
         token.mint(user, 100 ether);
 
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), 50 ether, bytes32(uint256(1)));
+        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
 
         // Balance untouched — gate fired before transfer.
         assertEq(token.balanceOf(user), 100 ether);
     }
 
     function test_SettleDirect_AllowsApprovedFacilitator() public {
-        address user = address(0x1234);
+        uint256 userKey = 0x1234;
+        address user = vm.addr(userKey);
+        uint256 amount = 50 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(2));
+        bytes memory signature =
+            _signX402Direct(userKey, user, payee, address(token), amount, maxFee, validBefore, nonce);
         vm.prank(community);
         token.mint(user, 100 ether);
 
@@ -133,7 +185,7 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
         vm.prank(operator);
         bytes32 sid = paymaster.settleX402PaymentDirect(
-            user, payee, address(token), 50 ether, bytes32(uint256(2))
+            user, payee, address(token), amount, maxFee, validBefore, nonce, signature
         );
         assertTrue(sid != bytes32(0));
         assertEq(token.balanceOf(payee), 50 ether);
@@ -157,13 +209,20 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         token.addApprovedFacilitator(operator);
 
         // Try to use that approval against community B's xPNTs → must fail.
-        address user = address(0xDEAD);
+        uint256 userKey = 0xDEAD;
+        address user = vm.addr(userKey);
+        uint256 amount = 10 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(3));
+        bytes memory signature =
+            _signX402Direct(userKey, user, payee, address(tokenB), amount, maxFee, validBefore, nonce);
         vm.prank(communityB);
         tokenB.mint(user, 100 ether);
 
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(tokenB), 10 ether, bytes32(uint256(3)));
+        paymaster.settleX402PaymentDirect(user, payee, address(tokenB), amount, maxFee, validBefore, nonce, signature);
     }
 
     // -----------------------------------------------------------------------
@@ -213,7 +272,17 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
     }
 
     function test_RemoveApprovedFacilitator_RevokesAccess() public {
-        address user = address(0x1234);
+        uint256 userKey = 0x1234;
+        address user = vm.addr(userKey);
+        uint256 amount = 10 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce1 = bytes32(uint256(4));
+        bytes32 nonce2 = bytes32(uint256(5));
+        bytes memory signature1 =
+            _signX402Direct(userKey, user, payee, address(token), amount, maxFee, validBefore, nonce1);
+        bytes memory signature2 =
+            _signX402Direct(userKey, user, payee, address(token), amount, maxFee, validBefore, nonce2);
         vm.prank(community);
         token.mint(user, 100 ether);
         vm.prank(community);
@@ -221,7 +290,7 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
         // Works once.
         vm.prank(operator);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(4)));
+        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce1, signature1);
         assertTrue(token.approvedFacilitators(operator));
 
         // Community revokes.
@@ -233,7 +302,7 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         // allowance + autoApproved spender state.
         vm.prank(operator);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), 10 ether, bytes32(uint256(5)));
+        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce2, signature2);
     }
 
     function test_RemoveApprovedFacilitator_OnlyCommunity() public {
