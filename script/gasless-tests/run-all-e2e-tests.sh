@@ -246,6 +246,10 @@ sleep 5
 run_test "MicroPaymentChannel: Open / Settle / Close"  "node $SCRIPT_DIR/test-micropayment-channel.js"
 sleep 5
 run_test "x402: EIP-3009 Settlement"                    "node $SCRIPT_DIR/test-x402-eip3009-settlement.js"
+sleep 5
+run_test "x402: Direct Settle (C-02 signed auth)"       "node $SCRIPT_DIR/test-x402-direct-settle.js"
+sleep 5
+run_test "BLS: Permissionless Switch (H-02)"            "node $SCRIPT_DIR/test-bls-permissionless-switch.js"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 11: PaymasterV4 Lifecycle

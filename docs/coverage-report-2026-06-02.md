@@ -8,7 +8,7 @@ unit-test and 100%-ABI E2E coverage run against the **live on-chain contracts**.
 | Layer | Result |
 |---|---|
 | **Unit tests (`forge test`)** | **979 passed / 0 failed / 0 skipped** (79 suites) |
-| **E2E (on-chain Sepolia, `run-all-e2e-tests.sh`)** | **33 passed / 0 failed** (1 documented SKIP — BLS DVT cluster) |
+| **E2E (on-chain Sepolia, `run-all-e2e-tests.sh`)** | **33 passed / 0 failed** in the full run + **2 supplementary tests** (C-02 direct-settle, H-02 switch) run separately, both pass → **35 green** (1 documented SKIP — BLS DVT cluster) |
 | **Security fixes deployed + verified** | 6/6 (C-01, C-02, C-03, C-04, H-01, H-02) |
 | **E2E issues found** | 4 — all root-caused, **0 contract bugs** (all test-data / SDK-signing gaps) |
 
@@ -50,12 +50,17 @@ Raw result: `script/gasless-tests/results/2026-06-02_18-35-04_run-all-e2e-tests.
 | Gasless TC2/TC3 | SuperPaymaster xPNTs sponsorship (real UserOp) | ✅ |
 | Gasless TC4 | SP credit/debt path (real UserOp) | ✅ |
 | MicroPaymentChannel | open / settle / close | ✅ |
-| x402 | EIP-3009 settlement + replay protection | ✅ |
+| x402 | EIP-3009 settlement + replay protection (C-03) | ✅ |
+| x402 direct | **C-02** signed-auth direct settle + replay + recipient-tamper rejection | ✅ (supplementary) |
+| BLS switch | **H-02** permissionless-registration switch gate (non-owner → revert) | ✅ (supplementary) |
 | P2 | PaymasterV4 lifecycle (deposit/withdraw/activate) | ✅ |
 | X1 | xPNTs token admin (limits/spenders/exchange-rate) | ✅ |
 
-**Total: 33 PASS / 0 FAIL.** One inner `SKIP` (H2 `syncToRegistry`) is by design — it needs
-a ≥3-validator DVT node cluster, an infra dependency not reproducible from a script.
+**Total: 33 PASS / 0 FAIL** in the full run, **+2 supplementary** (C-02 direct-settle, H-02
+switch) added afterward to close E2E gaps — both pass on-chain → **35 green**. One inner
+`SKIP` (H2 `syncToRegistry`) is by design — it needs a ≥3-validator DVT node cluster, an
+infra dependency not reproducible from a script. The two supplementary tests are now wired
+into `run-all-e2e-tests.sh` so future full runs cover them.
 
 ---
 
@@ -68,11 +73,11 @@ Deployment: **SuperPaymaster UUPS upgrade** (proxy storage + operator state pres
 | Fix | Severity | What it does | On-chain proof |
 |---|---|---|---|
 | **C-01** credit ceiling | Critical | `_creditExceeded` balance-aware: reject over-limit users unless they hold enough xPNTs balance | TC4: charge+debt 871.88 > 1000 → `CREDIT_EXCEEDED`; after repay → sponsored from balance ✅ |
-| **C-02** x402 unsigned drain | Critical | `settleX402PaymentDirect` requires EIP-712 `X402PaymentAuthorization` (SignatureCheckerLib, EOA+ERC-1271) | xPNTs direct path gated by `_verifyX402Auth` |
+| **C-02** x402 unsigned drain | Critical | `settleX402PaymentDirect` requires EIP-712 `X402PaymentAuthorization` (SignatureCheckerLib, EOA+ERC-1271) | x402 direct-settle E2E: signed auth settles 1 xPNTs ✅, replay → `NonceAlreadyUsed` ✅, recipient-tamper → `InvalidX402Signature` ✅ (drain prevented) |
 | **C-03** recipient redirect | Critical | EIP-3009 `nonce = keccak256(abi.encode(payee, salt))` binds recipient | x402 test: settle 1.0 USDC to payee ✅, replay rejected ✅; swapped recipient → signature no longer recovers `from` |
 | **C-04** postOp OOG | Critical | `MIN_POST_OP_GAS=200000` floor + `VALIDATION_BUFFER_BPS=1000` | Covered by unit suite + live UserOps (TC2/3/4) |
 | **H-01** chunked retryPendingDebt | High | `retryPendingDebt(token,user,amount)` bounded settlement | B5 dry-run + pending-debt E2E ✅ |
-| **H-02** permissionless BLS registration | High | PoP-gated `registerBLSPublicKey`; `permissionlessBLSRegistration` switch (default OFF) | BLSAggregator redeployed `0x7ec72505`, `Registry.blsAggregator()` rewired, switch=`false` ✅ |
+| **H-02** permissionless BLS registration | High | PoP-gated `registerBLSPublicKey`; `permissionlessBLSRegistration` switch (default OFF) | BLSAggregator redeployed `0x7ec72505`, `Registry.blsAggregator()` rewired, switch=`false` ✅; BLS-switch E2E: non-owner self-register → `PermissionlessRegistrationDisabled` ✅ |
 
 ### Deployed addresses (Sepolia)
 
@@ -121,9 +126,11 @@ simulation printed success. **Always run multi-tx scripts from this account with
 # Unit tests
 forge test                                   # 979 passed / 0 failed
 
-# Full E2E (100% ABI) against live Sepolia
-cd script/gasless-tests && ./run-all-e2e-tests.sh   # 33 passed / 0 failed
+# Full E2E (100% ABI) against live Sepolia — now includes the 2 supplementary tests
+cd script/gasless-tests && ./run-all-e2e-tests.sh
 
-# Single x402 EIP-3009 C-03 proof
-node script/gasless-tests/test-x402-eip3009-settlement.js
+# Individual fix proofs (run standalone)
+node script/gasless-tests/test-x402-eip3009-settlement.js   # C-03 recipient binding
+node script/gasless-tests/test-x402-direct-settle.js        # C-02 signed-auth direct settle
+node script/gasless-tests/test-bls-permissionless-switch.js # H-02 permissionless switch gate
 ```
