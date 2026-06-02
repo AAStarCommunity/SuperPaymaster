@@ -142,12 +142,17 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         if (totalAmount > 0) {
             if (stakeAmount > 0) {
                 // Stake + ticket: transfer to this contract first, then forward ticket to treasury
+                // `payer` is not arbitrary: this function is onlyRegistry, and the trusted
+                // Registry supplies the registering account (which must hold an allowance).
+                // slither-disable-next-line arbitrary-send-erc20
                 GTOKEN.safeTransferFrom(payer, address(this), totalAmount);
                 if (ticketPrice > 0) {
                     GTOKEN.safeTransfer(treasury, ticketPrice);
                 }
             } else {
-                // Ticket-only: transfer directly to treasury
+                // Ticket-only: transfer directly to treasury (onlyRegistry; payer is the
+                // Registry-supplied registrant, not arbitrary).
+                // slither-disable-next-line arbitrary-send-erc20
                 GTOKEN.safeTransferFrom(payer, treasury, ticketPrice);
             }
         }
@@ -185,6 +190,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         RoleLock storage lock = roleLocks[user][roleId];
         if (lock.amount == 0) revert RoleNotLocked();
 
+        // onlyRegistry; `payer` is the Registry-supplied registrant (must hold an
+        // allowance), not an arbitrary victim.
+        // slither-disable-next-line arbitrary-send-erc20
         GTOKEN.safeTransferFrom(payer, address(this), stakeAmount);
 
         uint256 newTotal = totalStaked + stakeAmount;

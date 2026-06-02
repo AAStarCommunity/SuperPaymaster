@@ -22,7 +22,7 @@ const SP_DRY_ABI = [
   // Pending debt tracking
   "function pendingDebts(address token, address user) view returns (uint256)",
   // Owner-only recovery functions
-  "function retryPendingDebt(address token, address user) external",
+  "function retryPendingDebt(address token, address user, uint256 amount) external",
   "function clearPendingDebt(address token, address user) external",
 ];
 
@@ -172,7 +172,10 @@ async function main() {
     printSkip('No pending debts — retryPendingDebt not applicable');
   } else {
     try {
-      const r = await sendTxSafe(sp, 'retryPendingDebt', [config.aPNTs, deployerAddr], 'retryPendingDebt');
+      // H-01: 3rd arg is the chunk to record this call; 0 = full pending balance
+      // (clamped to the balance). Use repeated calls with amount <= maxSingleTxLimit
+      // to drain a balance larger than the per-tx limit.
+      const r = await sendTxSafe(sp, 'retryPendingDebt', [config.aPNTs, deployerAddr, 0n], 'retryPendingDebt');
       if (r) {
         const debtAfter = await sp.pendingDebts(config.aPNTs, deployerAddr);
         printKeyValue('pendingDebt after retry', ethers.formatEther(debtAfter));
@@ -180,10 +183,12 @@ async function main() {
           printSuccess(`pendingDebt decreased after retryPendingDebt (${ethers.formatEther(pendingDebt)} → ${ethers.formatEther(debtAfter)})`);
           pendingDebt = debtAfter;
         } else {
-          // retryPendingDebt deletes the mapping then calls xPNTs.recordDebt.
-          // If recordDebt succeeds, pendingDebts[token][user] is now 0.
-          // If recordDebt reverts, retryPendingDebt itself reverts (no partial state).
-          printInfo(`pendingDebt unchanged after retry — xPNTs.recordDebt may have also reverted`);
+          // retryPendingDebt records `amount` (here the full balance) via xPNTs.recordDebt,
+          // leaving the remainder in pendingDebts. With amount=0 and recordDebt succeeding,
+          // pendingDebts[token][user] is now 0. If recordDebt reverts, the call reverts
+          // (no partial state) — e.g. the balance exceeds maxSingleTxLimit, so pass a
+          // chunk <= the limit instead.
+          printInfo(`pendingDebt unchanged after retry — xPNTs.recordDebt may have reverted (try a chunk <= maxSingleTxLimit)`);
         }
       }
     } catch (e) {

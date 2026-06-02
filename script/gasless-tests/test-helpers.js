@@ -193,8 +193,9 @@ const ABI = {
     "function setFacilitatorFeeBPS(uint256 _fee)",
     "function setOperatorFacilitatorFee(address operator, uint256 _fee)",
     "function withdrawFacilitatorEarnings(address asset)",
-    "function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature) returns (bytes32)",
-    "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, bytes32 settlementRef) returns (bytes32)",
+    // C-02/C-03: settlement now requires a payer EIP-712 signature; see aastar-sdk#39 for the signing flow.
+    "function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) returns (bytes32)",
+    "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature) returns (bytes32)",
     // V5.3: Credit
     "function getAvailableCredit(address user, address token) view returns (uint256)",
     // Governance / Admin (covered by B4)

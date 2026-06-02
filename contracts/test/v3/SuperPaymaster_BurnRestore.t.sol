@@ -252,6 +252,35 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         assertGt(paymaster.pendingDebts(address(xpnts), user1), 0, "pendingDebts must be non-zero");
     }
 
+    // ── H-01: chunked retryPendingDebt drains a balance over multiple calls ──────
+    function test_RetryPendingDebt_Chunked() public {
+        // 1. Accumulate a pending debt (both burn + recordDebt fail in postOp).
+        xpnts.setRecordDebtFail(true);
+        bytes memory ctx = _runValidate();
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        uint256 pending = paymaster.pendingDebts(address(xpnts), user1);
+        assertGt(pending, 1, "setup: pending must be > 1");
+
+        // 2. recordDebt works again; drain in a chunk smaller than the balance.
+        xpnts.setRecordDebtFail(false);
+        address owner = paymaster.owner();
+        uint256 chunk = pending / 2;
+        vm.prank(owner);
+        paymaster.retryPendingDebt(address(xpnts), user1, chunk);
+        assertEq(paymaster.pendingDebts(address(xpnts), user1), pending - chunk, "chunk 1 leaves remainder");
+
+        // 3. amount == 0 drains the full remainder.
+        vm.prank(owner);
+        paymaster.retryPendingDebt(address(xpnts), user1, 0);
+        assertEq(paymaster.pendingDebts(address(xpnts), user1), 0, "fully drained");
+
+        // 4. retrying an empty balance reverts.
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymaster.NoPendingDebt.selector);
+        paymaster.retryPendingDebt(address(xpnts), user1, 0);
+    }
+
     // ── Test 4: Two consecutive ops → different burns (not replay) ────────────
 
     function test_PostOp_TwoOps_NoDuplicateReplay() public {

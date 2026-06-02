@@ -1,7 +1,4 @@
-// PoC_C03 — Recipient redirect
-// VULNERABILITY: settleX402Payment lets the caller choose the final recipient even though the victim only authorized a transfer to SuperPaymaster.
-// TEST PASSES = vulnerability exists on current code
-// TEST SHOULD FAIL/REVERT after fix
+// PoC_C03 regression — final recipient is bound into the EIP-3009 nonce.
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
 
@@ -47,7 +44,7 @@ contract C03APNTs is ERC20 {
 contract MockERC20WithAuthorization is ERC20 {
     using ECDSA for bytes32;
 
-    mapping(bytes32 => bool) public authorizationUsed;
+    mapping(address => mapping(bytes32 => bool)) public authorizationUsed;
 
     constructor() ERC20("Mock USDC", "mUSDC") {}
 
@@ -63,8 +60,29 @@ contract MockERC20WithAuthorization is ERC20 {
         uint256 validBefore,
         bytes32 nonce
     ) public view returns (bytes32) {
-        bytes32 structHash = keccak256(abi.encode(from, to, value, validAfter, validBefore, nonce, address(this), block.chainid));
-        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", structHash));
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name())),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                value,
+                validAfter,
+                validBefore,
+                nonce
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 
     function transferWithAuthorization(
@@ -78,12 +96,12 @@ contract MockERC20WithAuthorization is ERC20 {
     ) external {
         require(block.timestamp > validAfter, "authorization not yet valid");
         require(block.timestamp < validBefore, "authorization expired");
-        require(!authorizationUsed[nonce], "authorization used");
+        require(!authorizationUsed[from][nonce], "authorization used");
 
         bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
         require(digest.recover(signature) == from, "bad signature");
 
-        authorizationUsed[nonce] = true;
+        authorizationUsed[from][nonce] = true;
         _transfer(from, to, value);
     }
 }
@@ -129,38 +147,71 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         vm.stopPrank();
     }
 
-    function test_PoC_callerRedirectsSignedPaymentToAttacker() public {
+    function _signEIP3009(
+        uint256 privateKey,
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 digest = asset.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_Regression_redirectedRecipientInvalidatesAuthorization() public {
         uint256 amount = 100 ether;
         uint256 validAfter = block.timestamp - 1;
         uint256 validBefore = block.timestamp + 1 hours;
-        bytes32 nonce = bytes32(uint256(0xC03));
-
-        bytes32 digest = asset.authorizationDigest(
-            victim,
-            address(paymaster),
-            amount,
-            validAfter,
-            validBefore,
-            nonce
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(victimKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        bytes32 salt = bytes32(uint256(0xC03));
+        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, salt));
+        bytes memory signature =
+            _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
 
         vm.prank(facilitator);
-        bytes32 settlementId = paymaster.settleX402Payment(
+        vm.expectRevert("bad signature");
+        paymaster.settleX402Payment(
             victim,
             attackerRecipient,
             address(asset),
             amount,
             validAfter,
             validBefore,
-            nonce,
+            salt,
+            signature
+        );
+
+        assertEq(asset.balanceOf(victim), 1_000 ether, "victim balance must be unchanged");
+        assertEq(asset.balanceOf(attackerRecipient), 0, "attacker recipient receives nothing");
+        assertEq(asset.balanceOf(expectedRecipient), 0, "expected recipient receives nothing on failed redirect");
+    }
+
+    function test_Regression_expectedRecipientSettlementSucceeds() public {
+        uint256 amount = 100 ether;
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(0xC0302));
+        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, salt));
+        bytes memory signature =
+            _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
+
+        vm.prank(facilitator);
+        bytes32 settlementId = paymaster.settleX402Payment(
+            victim,
+            expectedRecipient,
+            address(asset),
+            amount,
+            validAfter,
+            validBefore,
+            salt,
             signature
         );
 
         assertTrue(settlementId != bytes32(0), "settlement should succeed");
-        assertEq(asset.balanceOf(attackerRecipient), amount, "caller-chosen attacker recipient receives funds");
-        assertEq(asset.balanceOf(expectedRecipient), 0, "expected recipient receives nothing");
-        assertEq(asset.balanceOf(victim), 900 ether, "victim authorized only the pull into SuperPaymaster");
+        assertEq(asset.balanceOf(expectedRecipient), amount, "expected recipient receives funds");
+        assertEq(asset.balanceOf(attackerRecipient), 0, "attacker recipient receives nothing");
+        assertEq(asset.balanceOf(victim), 900 ether, "victim paid amount");
     }
 }

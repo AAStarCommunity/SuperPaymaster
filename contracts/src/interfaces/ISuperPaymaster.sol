@@ -113,15 +113,16 @@ interface ISuperPaymaster is IVersioned {
     // V5.3: Dual-channel eligibility
     function isEligibleForSponsorship(address user) external view returns (bool);
 
-    // V5: x402 EIP-3009 Settlement (USDC native)
+    // V5: x402 EIP-3009 Settlement (USDC native). C-03: recipient bound via nonce = keccak256(to, salt).
     function settleX402Payment(
         address from, address to, address asset, uint256 amount,
-        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+        uint256 validAfter, uint256 validBefore, bytes32 salt, bytes calldata signature
     ) external returns (bytes32 settlementId);
 
-    // V5: x402 Direct Settlement (xPNTs and pre-approved tokens)
+    // V5: x402 Direct Settlement (xPNTs). C-02: payer EIP-712 authorization required.
     function settleX402PaymentDirect(
-        address from, address to, address asset, uint256 amount, bytes32 nonce
+        address from, address to, address asset, uint256 amount,
+        uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes calldata signature
     ) external returns (bytes32 settlementId);
 
 }

@@ -7,6 +7,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
@@ -83,19 +84,61 @@ contract CovMockXPNTsFactory {
 
 // Mock ERC-3009 asset (USDC-like) for x402 settlement tests
 contract CovMockERC3009 is ERC20 {
+    using ECDSA for bytes32;
+
+    mapping(address => mapping(bytes32 => bool)) public authorizationUsed;
+
     constructor() ERC20("USDC", "USDC") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
 
-    // Stub: simply do a regular transfer (no real auth check, test harness controls balances)
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name())),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                value,
+                validAfter,
+                validBefore,
+                nonce
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
     function transferWithAuthorization(
         address from,
         address to,
         uint256 value,
-        uint256, // validAfter
-        uint256, // validBefore
-        bytes32, // nonce
-        bytes calldata // signature
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
     ) external {
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
         _transfer(from, to, value);
     }
 }
@@ -160,8 +203,10 @@ contract SuperPaymaster_Coverage_Test is Test {
     address public treasury  = address(0x2);
     address public operator1 = address(0x3);
     address public operator2 = address(0x4); // non-registered operator
-    address public user1     = address(0x5);
-    address public user2     = address(0x6); // no SBT, no agent
+    uint256 public user1Key  = 0x5;
+    uint256 public user2Key  = 0x6;
+    address public user1     = vm.addr(user1Key);
+    address public user2     = vm.addr(user2Key); // no SBT, no agent
 
     bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
     bytes32 constant ROLE_COMMUNITY       = keccak256("COMMUNITY");
@@ -225,6 +270,59 @@ contract SuperPaymaster_Coverage_Test is Test {
             operator1,          // 20 bytes (operator)
             type(uint256).max   // 32 bytes (maxRate)
         );
+    }
+
+    function _signEIP3009(
+        CovMockERC3009 token,
+        uint256 privateKey,
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 digest = token.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _signX402Direct(
+        uint256 privateKey,
+        address from,
+        address to,
+        address asset,
+        uint256 amount,
+        uint256 maxFee,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes memory) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("SuperPaymaster"),
+                keccak256("1"),
+                block.chainid,
+                address(paymaster)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)"
+                ),
+                from,
+                to,
+                asset,
+                amount,
+                maxFee,
+                validBefore,
+                nonce
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
     }
 
     function _runValidate(address user) internal returns (bytes memory ctx) {
@@ -448,8 +546,13 @@ contract SuperPaymaster_Coverage_Test is Test {
         CovMockERC3009 usdc = new CovMockERC3009();
         usdc.mint(user1, 100 ether);
 
-        bytes32 nonce = bytes32(uint256(42));
+        bytes32 salt = bytes32(uint256(42));
+        bytes32 nonce = keccak256(abi.encode(treasury, salt));
         uint256 amount = 10 ether;
+        uint256 validAfter = 0;
+        uint256 validBefore = type(uint256).max;
+        bytes memory signature =
+            _signEIP3009(usdc, user1Key, user1, address(paymaster), amount, validAfter, validBefore, nonce);
 
         // Approve paymaster to pull from user1 (via transferWithAuthorization stub)
         vm.prank(user1);
@@ -457,12 +560,12 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // First settle — success
         vm.prank(operator1);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, 0, type(uint256).max, nonce, "");
+        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, validAfter, validBefore, salt, signature);
 
         // Second settle with same (asset, from, nonce) — should revert
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, 0, type(uint256).max, nonce, "");
+        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, validAfter, validBefore, salt, signature);
     }
 
     /**
@@ -472,12 +575,12 @@ contract SuperPaymaster_Coverage_Test is Test {
         CovMockERC3009 usdc = new CovMockERC3009();
         usdc.mint(user1, 100 ether);
 
-        bytes32 nonce = bytes32(uint256(1));
+        bytes32 salt = bytes32(uint256(1));
 
         // user2 has no ROLE_PAYMASTER_SUPER → should revert Unauthorized
         vm.prank(user2);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), 10 ether, 0, type(uint256).max, nonce, "");
+        paymaster.settleX402Payment(user1, treasury, address(usdc), 10 ether, 0, type(uint256).max, salt, "");
     }
 
     /**
@@ -489,7 +592,10 @@ contract SuperPaymaster_Coverage_Test is Test {
         usdc.mint(user1, 100 ether);
         usdc.mint(user2, 100 ether);
 
-        bytes32 nonce = bytes32(uint256(77));
+        bytes32 salt = bytes32(uint256(77));
+        bytes32 nonce = keccak256(abi.encode(treasury, salt));
+        bytes memory sig1 = _signEIP3009(usdc, user1Key, user1, address(paymaster), 5 ether, 0, type(uint256).max, nonce);
+        bytes memory sig2 = _signEIP3009(usdc, user2Key, user2, address(paymaster), 5 ether, 0, type(uint256).max, nonce);
 
         vm.prank(user1);
         usdc.approve(address(paymaster), type(uint256).max);
@@ -498,11 +604,11 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Settle for user1
         vm.prank(operator1);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), 5 ether, 0, type(uint256).max, nonce, "");
+        paymaster.settleX402Payment(user1, treasury, address(usdc), 5 ether, 0, type(uint256).max, salt, sig1);
 
         // Settle for user2 — same nonce but different from → different key, should succeed
         vm.prank(operator1);
-        paymaster.settleX402Payment(user2, treasury, address(usdc), 5 ether, 0, type(uint256).max, nonce, "");
+        paymaster.settleX402Payment(user2, treasury, address(usdc), 5 ether, 0, type(uint256).max, salt, sig2);
     }
 
     // ─── D5: settleX402PaymentDirect ──────────────────────────────────────────
@@ -524,6 +630,12 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Use a plain ERC20 that is NOT in the factory's isXPNTs mapping
         CovMockAPNTs plainToken = new CovMockAPNTs();
         plainToken.mint(user1, 100 ether);
+        uint256 amount = 10 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(1));
+        bytes memory signature =
+            _signX402Direct(user1Key, user1, treasury, address(plainToken), amount, maxFee, validBefore, nonce);
 
         vm.prank(user1);
         plainToken.approve(address(paymaster), type(uint256).max);
@@ -531,7 +643,9 @@ contract SuperPaymaster_Coverage_Test is Test {
         // operator1 is an approved super operator; plainToken is NOT an xPNTs
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.settleX402PaymentDirect(user1, treasury, address(plainToken), 10 ether, bytes32(uint256(1)));
+        paymaster.settleX402PaymentDirect(
+            user1, treasury, address(plainToken), amount, maxFee, validBefore, nonce, signature
+        );
 
         // Restore original factory so other tests still work
         vm.prank(owner);
@@ -544,6 +658,12 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D5_SettleX402PaymentDirect_Reverts_NotApprovedFacilitator() public {
         xpnts.mint(user1, 100 ether);
+        uint256 amount = 10 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(1));
+        bytes memory signature =
+            _signX402Direct(user1Key, user1, treasury, address(xpnts), amount, maxFee, validBefore, nonce);
         vm.prank(user1);
         xpnts.approve(address(paymaster), type(uint256).max);
 
@@ -552,7 +672,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user1, treasury, address(xpnts), 10 ether, bytes32(uint256(1)));
+        paymaster.settleX402PaymentDirect(user1, treasury, address(xpnts), amount, maxFee, validBefore, nonce, signature);
     }
 
     /**
@@ -560,6 +680,12 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D5_SettleX402PaymentDirect_Success_WhenApproved() public {
         xpnts.mint(user1, 100 ether);
+        uint256 amount = 10 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(2));
+        bytes memory signature =
+            _signX402Direct(user1Key, user1, treasury, address(xpnts), amount, maxFee, validBefore, nonce);
         vm.prank(user1);
         xpnts.approve(address(paymaster), type(uint256).max);
 
@@ -567,7 +693,8 @@ contract SuperPaymaster_Coverage_Test is Test {
         xpnts.setApprovedFacilitator(operator1, true);
 
         vm.prank(operator1);
-        bytes32 sid = paymaster.settleX402PaymentDirect(user1, treasury, address(xpnts), 10 ether, bytes32(uint256(2)));
+        bytes32 sid =
+            paymaster.settleX402PaymentDirect(user1, treasury, address(xpnts), amount, maxFee, validBefore, nonce, signature);
 
         assertTrue(sid != bytes32(0), "Settlement ID should be non-zero");
     }
@@ -577,12 +704,18 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D5_SettleX402PaymentDirect_Reverts_NoRole() public {
         xpnts.mint(user2, 100 ether);
+        uint256 amount = 5 ether;
+        uint256 maxFee = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = bytes32(uint256(3));
+        bytes memory signature =
+            _signX402Direct(user2Key, user2, treasury, address(xpnts), amount, maxFee, validBefore, nonce);
         vm.prank(user2);
         xpnts.approve(address(paymaster), type(uint256).max);
 
         vm.prank(user2);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user2, treasury, address(xpnts), 5 ether, bytes32(uint256(3)));
+        paymaster.settleX402PaymentDirect(user2, treasury, address(xpnts), amount, maxFee, validBefore, nonce, signature);
     }
 
     // ─── D6: Agent / eligibility paths ────────────────────────────────────────

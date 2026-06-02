@@ -14,6 +14,7 @@ import "../../../interfaces/ISuperPaymaster.sol";
 import "../../../interfaces/v3/IAgentIdentityRegistry.sol";
 import "../../../interfaces/v3/IAgentReputationRegistry.sol";
 import "../../../interfaces/v3/IERC3009.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 
 
@@ -1352,13 +1353,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Pending Debt Recovery
     // ====================================
 
-    /// @notice Retry recording a pending debt that failed during postOp
-    /// @param token The xPNTs token address
-    /// @param user The user address
-    function retryPendingDebt(address token, address user) external onlyOwner nonReentrant {
-        uint256 amount = pendingDebts[token][user];
-        if (amount == 0) revert NoPendingDebt();
-        delete pendingDebts[token][user];
+    /// @notice Retry recording a pending debt that failed during postOp.
+    /// @dev    H-01: takes an explicit `amount` so a pending balance larger than the
+    ///         token's per-tx limit (`maxSingleTxLimit`) can be drained in chunks —
+    ///         call repeatedly with `amount <= maxSingleTxLimit` until empty. Previously
+    ///         it always retried the full balance, which reverted (and stayed stuck)
+    ///         whenever the accumulated debt exceeded that limit. The remainder stays in
+    ///         `pendingDebts` for the next call. Pass `amount == 0` to attempt the full
+    ///         balance in one shot (works when it is within the limit).
+    /// @param token  The xPNTs token address
+    /// @param user   The user address
+    /// @param amount aPNTs to record this call; clamped to the pending balance.
+    function retryPendingDebt(address token, address user, uint256 amount) external onlyOwner nonReentrant {
+        uint256 pending = pendingDebts[token][user];
+        if (pending == 0) revert NoPendingDebt();
+        if (amount == 0 || amount > pending) amount = pending;
+        pendingDebts[token][user] = pending - amount;
         IxPNTsToken(token).recordDebt(user, amount);
         emit PendingDebtRetried(token, user, amount);
     }
@@ -1414,6 +1424,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // V5 Errors
     error NonceAlreadyUsed();
     error InvalidFee();
+    error InvalidX402Signature();
+    error X402AuthExpired();
+    error X402FeeExceedsMax();
     // P0-14
     error SlashCooldown();
     // P0-3
@@ -1546,15 +1559,54 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (fee > 0) facilitatorEarnings[msg.sender][asset] += fee;
     }
 
+    /// @dev EIP-712 typehash for a payer's x402 payment authorization (C-02/C-03).
+    bytes32 private constant X402_AUTH_TYPEHASH = keccak256(
+        "X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)"
+    );
+
+    /// @dev Domain separator bound to THIS proxy. Recomputed each call (never cached at
+    ///      impl construction, which would capture the implementation address instead of
+    ///      the proxy) so it stays correct under UUPS and across chain forks.
+    function _x402DomainSeparator() internal view returns (bytes32) {
+        return keccak256(abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256("SuperPaymaster"),
+            keccak256("1"),
+            block.chainid,
+            address(this)
+        ));
+    }
+
+    /// @dev C-02/C-03: require the payer (`from`) to have signed an EIP-712 authorization
+    ///      binding the exact recipient, asset, amount, fee cap, expiry and nonce. Without
+    ///      it a community-approved facilitator could pull any holder's xPNTs (auto-allowance)
+    ///      to a caller-chosen recipient with no payer consent. SignatureCheckerLib accepts
+    ///      both EOA and ERC-1271 (AirAccount passkey / smart-account) signatures.
+    function _verifyX402Auth(
+        address from, address to, address asset, uint256 amount,
+        uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) internal view {
+        bytes32 structHash = keccak256(abi.encode(
+            X402_AUTH_TYPEHASH, from, to, asset, amount, maxFee, validBefore, nonce
+        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _x402DomainSeparator(), structHash));
+        if (!SignatureCheckerLib.isValidSignatureNowCalldata(from, digest, signature)) {
+            revert InvalidX402Signature();
+        }
+    }
+
     /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
-    /// @dev settlementId uses abi.encode (not encodePacked) to stay consistent with
-    ///      x402NonceKey encoding and to avoid any future collision risk with variable-length
-    ///      types. All fields (address, uint256, bytes32) are fixed-size, so the encoding
-    ///      produces a unique deterministic id per (from, to, asset, amount, nonce) tuple.
+    /// @dev    C-03: the final recipient is bound into the EIP-3009 nonce
+    ///         (`nonce = keccak256(to, salt)`). The payer signs the EIP-3009 authorization
+    ///         over that nonce, so a facilitator that swaps `to` produces a different nonce
+    ///         and the EIP-3009 signature no longer recovers `from` — the transfer reverts.
+    ///         This reuses the payer's existing token-level signature; no second signature.
+    /// @dev    settlementId uses abi.encode (fixed-size fields) for a collision-free id.
     function settleX402Payment(
         address from, address to, address asset, uint256 amount,
-        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+        uint256 validAfter, uint256 validBefore, bytes32 salt, bytes calldata signature
     ) external nonReentrant returns (bytes32 settlementId) {
+        bytes32 nonce = keccak256(abi.encode(to, salt));
         uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
         IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
         IERC20(asset).safeTransfer(to, amount - fee);
@@ -1586,11 +1638,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back
     ///         the nonce write — so the nonce is NOT consumed on failure.
     function settleX402PaymentDirect(
-        address from, address to, address asset, uint256 amount, bytes32 nonce
+        address from, address to, address asset, uint256 amount,
+        uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes calldata signature
     ) external nonReentrant returns (bytes32 settlementId) {
-        // Validate fee/nonce/role first so unauthorized callers cannot probe
-        // the asset whitelist by pre-burning nonces.
+        // C-02/C-03: the payer must have signed this exact (from,to,asset,amount,maxFee,nonce).
+        // xPNTs carry no token-level authorization (SP holds an auto-allowance over every
+        // holder), so the consent gate lives here at the SuperPaymaster level.
+        if (block.timestamp > validBefore) revert X402AuthExpired();
+        _verifyX402Auth(from, to, asset, amount, maxFee, validBefore, nonce, signature);
+
+        // Validate fee/nonce/role. The signature is checked first so an attacker cannot
+        // pre-burn a victim's nonce without a valid payer authorization.
         uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
+        if (fee > maxFee) revert X402FeeExceedsMax();
 
         // P0-12a: Direct settle is xPNTs-only. Reject any asset that is not
         // a token deployed by the configured xPNTs factory.
@@ -1608,6 +1668,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             revert Unauthorized();
         }
 
+        // C-02: `from` is not arbitrary — it must have signed the X402PaymentAuthorization
+        // verified by _verifyX402Auth above, so the signature IS its authorization.
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
