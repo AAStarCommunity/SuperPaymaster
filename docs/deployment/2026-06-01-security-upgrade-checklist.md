@@ -1,18 +1,25 @@
-# Deployment / upgrade runbook — security hardening (C-01..C-04, H-01)
+# Deployment / upgrade runbook — security hardening (C-01..C-04, H-01, H-02)
 
 Date: 2026-06-01 · main @ `65700d06` · `forge test` 979 passed / 0 · SuperPaymaster 24,159 B (EIP-170 OK).
 Revised after Codex review (addresses 14 blockers — coverage map at the end).
 
-## SCOPE DECISION (read first)
+## SCOPE — differs by network (read first)
 
-**This execution upgrades SuperPaymaster ONLY** (C-01, C-02, C-03, C-04, H-01 — all in
-`SuperPaymaster.sol`, a UUPS proxy). It is the urgent, low-risk part.
+The scope below is the **MAINNET** plan. **Sepolia was deployed FULL** (see status box).
 
-**H-02 (BLSAggregator) is REMOVED from this execution.** Rationale: its switch
-`permissionlessBLSRegistration` defaults **OFF** (zero behaviour change), while redeploying
-the non-UUPS BLSAggregator is high-risk (validator-key migration + in-flight DVT proposals).
-It is deferred to **Appendix B** as a separate, independently-planned runbook.
-- [ ] **SIGN-OFF REQUIRED**: `__________` confirms H-02 is intentionally deferred and the
+> ### ✅ Sepolia — DEPLOYED 2026-06-02 (ALL 6 fixes, incl. H-02)
+> - SuperPaymaster UUPS upgrade (C-01..C-04 + H-01): impl `8e2d93bb`→`52c1e6f0`; state preserved.
+> - BLSAggregator (H-02): redeployed `0x7ec72505…d3e9` + rewired; switch OFF. Old `0xCDCdb8e2…0276`.
+> - On sepolia the BLS key set was empty (no validator-key migration needed), so H-02 was
+>   deployed alongside SP. **Open item: E2E TC2/TC4 `CREDIT_EXCEEDED` — root-cause before mainnet.**
+
+### MAINNET plan (not yet executed)
+
+**Upgrade SuperPaymaster ONLY** (C-01..C-04, H-01 — UUPS, low-risk). **Defer H-02** to
+Appendix B as a separate runbook: its switch defaults **OFF** (zero behaviour change), while
+redeploying the non-UUPS BLSAggregator on a network with live validators is high-risk
+(key migration + in-flight DVT proposals) — unlike sepolia where the key set was empty.
+- [ ] **MAINNET SIGN-OFF**: `__________` confirms H-02 is deferred on mainnet and the
       production release of the 4 Criticals + H-01 without H-02 is accepted.
 
 GTokenStaking (slither comments only) and Registry (unchanged) are **not** redeployed.
