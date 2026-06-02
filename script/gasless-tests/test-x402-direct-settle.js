@@ -165,34 +165,52 @@ async function main() {
   feeCollected === expectedFee ? pass(`facilitator earnings += fee`) : fail(`fee ${feeCollected} != ${expectedFee}`);
   nonceUsed ? pass('nonce consumed') : fail('nonce not marked consumed');
 
-  // Step 4: Replay — reusing the same nonce must revert
-  console.log('\n🛡️  Step 4: Replay protection (reuse same nonce)');
-  try {
-    await sp.settleX402PaymentDirect.staticCall(
-      payer.address, payee, asset, amount, maxFee, validBefore, nonce, signature
-    );
-    fail('replay was NOT rejected');
-  } catch (e) {
-    const name = e?.revert?.name || e?.shortMessage || 'revert';
-    name.includes('NonceAlreadyUsed') ? pass(`replay rejected (${name})`) : pass(`replay rejected (${name})`);
-  }
+  // Helper: run a settle that must revert, and return the revert reason (or 'settled' if it did not).
+  const expectRevert = async (to, n, sig) => {
+    try {
+      await sp.settleX402PaymentDirect.staticCall(payer.address, to, asset, amount, maxFee, validBefore, n, sig);
+      return 'settled';
+    } catch (e) {
+      return e?.revert?.name || e?.shortMessage || String(e?.message || e);
+    }
+  };
 
-  // Step 5: Tamper — swap recipient → signature no longer recovers payer (C-02 core guarantee)
-  console.log('\n🛡️  Step 5: Recipient-tamper rejection (C-02 drain prevention)');
+  // Step 4: Replay — the original (valid) signature passes _verifyX402Auth but the consumed
+  //         nonce must reject it. Assert the SPECIFIC error, not "any revert".
+  console.log('\n🛡️  Step 4: Replay protection (reuse same nonce)');
+  const replayReason = await expectRevert(payee, nonce, signature);
+  if (replayReason === 'settled') fail('replay was NOT rejected');
+  else if (replayReason.includes('NonceAlreadyUsed')) pass(`replay rejected with NonceAlreadyUsed`);
+  else fail(`replay reverted for the WRONG reason (${replayReason}) — expected NonceAlreadyUsed`);
+
+  // Step 5: Recipient binding (C-02 core). Sign a FRESH authorization for `payee`, then:
+  //   5a — redirect the SAME signature to a different recipient → must revert *specifically*
+  //        InvalidX402Signature (any other revert reason fails: it would not prove binding).
+  //   5b — settle the SAME signature to the AUTHORIZED recipient → must succeed. This isolates
+  //        the cause of 5a to the recipient swap (the signature is otherwise valid), so a
+  //        false pass (revert for an unrelated reason) cannot masquerade as recipient binding.
+  console.log('\n🛡️  Step 5: Recipient binding (C-02 drain prevention)');
   const attacker = '0x00000000000000000000000000000000DeaDBeef';
-  const tamperNonce = ethers.hexlify(ethers.randomBytes(32)); // fresh nonce so we test the sig, not replay
-  try {
-    // signature authorizes `payee`, but facilitator tries to redirect to `attacker`
-    await sp.settleX402PaymentDirect.staticCall(
-      payer.address, attacker, asset, amount, maxFee, validBefore, tamperNonce, signature
-    );
-    fail('recipient-tamper was NOT rejected — C-02 BROKEN');
-  } catch (e) {
-    const name = e?.revert?.name || e?.shortMessage || 'revert';
-    name.includes('InvalidX402Signature')
-      ? pass(`recipient-tamper rejected (InvalidX402Signature) — C-02 verified`)
-      : pass(`recipient-tamper rejected (${name})`);
-  }
+  const bindNonce = ethers.hexlify(ethers.randomBytes(32));
+  const bindSig = await payer.signTypedData(
+    domain, types, { from: payer.address, to: payee, asset, amount, maxFee, validBefore, nonce: bindNonce }
+  ); // authorizes payee ONLY
+
+  const tamperReason = await expectRevert(attacker, bindNonce, bindSig);
+  if (tamperReason === 'settled') fail('redirect to attacker SETTLED — C-02 BROKEN (drain possible)');
+  else if (tamperReason.includes('InvalidX402Signature')) pass('redirect to attacker → InvalidX402Signature');
+  else fail(`redirect reverted for the WRONG reason (${tamperReason}) — does not prove recipient binding`);
+
+  // 5b positive control: same signature, AUTHORIZED recipient → must settle.
+  const payeeBefore2 = await xpntsOwner.balanceOf(payee);
+  const tx2 = await sp.settleX402PaymentDirect(
+    payer.address, payee, asset, amount, maxFee, validBefore, bindNonce, bindSig, { gasLimit: 500000 }
+  );
+  await tx2.wait();
+  const got2 = (await xpntsOwner.balanceOf(payee)) - payeeBefore2;
+  got2 === amount - expectedFee
+    ? pass('same signature settles to the AUTHORIZED recipient — binding isolated, C-02 verified')
+    : fail(`authorized settle returned ${ethers.formatUnits(got2, decimals)}, expected ${ethers.formatUnits(amount - expectedFee, decimals)}`);
 
   console.log('\n╔═══════════════════════════════════════════════════════════╗');
   if (failures === 0) {
