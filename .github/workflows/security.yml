@@ -19,6 +19,7 @@ on:
       - 'foundry.toml'
       - 'remappings.txt'
       - 'echidna*.yaml'
+      - '.github/workflows/security.yml'   # edits to this gate must re-run it (no self-bypass)
 
 jobs:
   lint-build:

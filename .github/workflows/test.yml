@@ -12,6 +12,7 @@ on:
       - 'singleton-paymaster/**'
       - 'foundry.toml'
       - 'remappings.txt'
+      - '.github/workflows/test.yml'   # edits to this gate must re-run it (no self-bypass)
 
 jobs:
   test:
