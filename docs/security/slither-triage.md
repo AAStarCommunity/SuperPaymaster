@@ -1,27 +1,28 @@
-# Slither triage — `arbitrary-send-erc20` excluded (with rationale)
+# Slither triage — `arbitrary-send-erc20` (per-line, not globally excluded)
 
 The Stage 3 Slither gate runs with `fail-on: high`. The only High-severity detector that
 fires on `contracts/src` is **`arbitrary-send-erc20`** ("uses arbitrary `from` in
-`transferFrom`"). It is excluded via `detectors_to_exclude` in `slither.config.json`
-because **every instance is a deliberate, guarded transfer** — Slither cannot reason about
-the access-control / signature guard that authorizes the `from`, so it is a false positive
-in each case. After excluding it, `contracts/src` has **0 High** findings (only Low /
-Medium / Optimization remain, which are advisory).
+`transferFrom`"). It is a **false positive at every site** — Slither cannot reason about
+the access-control / signature guard that authorizes the `from`.
 
-## The three flagged sites (all safe)
+The detector is **NOT excluded globally** (that would hide any *future* unguarded
+`transferFrom(param, …)`). Instead each known-safe site carries an inline
+`// slither-disable-next-line arbitrary-send-erc20` with its justification, so the gate
+still catches any new, un-triaged occurrence. After triage, `contracts/src` has **0 High**.
+
+## The three flagged sites (all safe, all annotated inline)
 
 | Site | Why the `from` is NOT arbitrary |
 |---|---|
-| `GTokenStaking.lockStakeWithTicket` (`GTOKEN.safeTransferFrom(payer, …)`) | Pre-existing. Called only by `Registry` during role registration; `payer` is the registering account that initiated the staking flow. Access-controlled. |
-| `GTokenStaking.topUpStake` (`GTOKEN.safeTransferFrom(payer, …)`) | Pre-existing. Same Registry-driven flow. |
-| `SuperPaymaster.settleX402PaymentDirect` (`IERC20(asset).safeTransferFrom(from, …)`) | **C-02 fix.** `from` must have signed an EIP-712 `X402PaymentAuthorization` over exactly `(from, to, asset, amount, maxFee, validBefore, nonce)`, verified by `_verifyX402Auth` (SignatureCheckerLib, EOA + ERC-1271) *before* the transfer. The signature **is** the authorization — the `from` is the consenting payer, not an arbitrary victim. (This is precisely the C-02 vulnerability's fix.) |
+| `GTokenStaking.lockStakeWithTicket` (`safeTransferFrom(payer, …)`, 2 calls) | `onlyRegistry` — only the trusted Registry can call, and it supplies the registering account as `payer` (which must hold an allowance). |
+| `GTokenStaking.topUpStake` (`safeTransferFrom(payer, …)`) | Same `onlyRegistry`, Registry-supplied `payer`. |
+| `SuperPaymaster.settleX402PaymentDirect` (`safeTransferFrom(from, …)`) | **C-02 fix.** `from` must have signed an EIP-712 `X402PaymentAuthorization` over exactly `(from, to, asset, amount, maxFee, validBefore, nonce)`, verified by `_verifyX402Auth` (SignatureCheckerLib, EOA + ERC-1271) *immediately above* the transfer. The signature **is** the authorization. |
 
 ## Notes
 
-- Slither remains **advisory** (`continue-on-error: true`) — it never blocks merges; this
-  exclusion only removes a known false positive so the check reflects real signal.
-- `arbitrary-send-erc20` is excluded **globally** rather than per-line so the config stays
-  in one place; if a *new* `transferFrom(param, …)` is added it should be reviewed for an
-  authorization guard equivalent to the three above (e.g. a signature or role check).
+- Slither is also `continue-on-error: true` (advisory) — it never hard-blocks merges; the
+  inline triage just makes the check reflect real signal instead of known false positives.
+- A *new* `transferFrom(param, …)` will trip the gate until it is reviewed and (if proven
+  safe by an equivalent guard) annotated — the detector stays fully active.
 - Re-run locally: `slither contracts/src --config-file slither.config.json --json out.json`
   then `jq '[.results.detectors[]|select(.impact=="High")]|length' out.json` → expect `0`.

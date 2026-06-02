@@ -1668,6 +1668,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             revert Unauthorized();
         }
 
+        // C-02: `from` is not arbitrary — it must have signed the X402PaymentAuthorization
+        // verified by _verifyX402Auth above, so the signature IS its authorization.
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset).safeTransferFrom(from, address(this), amount);
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);

@@ -2,7 +2,6 @@
   "filter_paths": "lib|contracts/lib|singleton-paymaster|node_modules|contracts/test|contracts/src/mocks|contracts/script",
   "exclude_informational": true,
   "exclude_low": false,
-  "detectors_to_exclude": "arbitrary-send-erc20",
   "solc_remaps": [
     "@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
