@@ -25,9 +25,10 @@ jobs:
       - name: Build + EIP-170 size (deployable contracts only)
         # `forge build --sizes` exits non-zero if ANY built contract exceeds the 24576-byte
         # EIP-170 limit. `test` and `script` are forge's documented --skip aliases for
-        # `.t.sol` / `.s.sol`, so this scopes the gate to deployable contracts and is not
-        # tripped by test-only helpers (e.g. SuperPaymasterV2Reinit, a thin SuperPaymaster
-        # subclass used purely for UUPS reinitializer testing, never deployed).
+        # `.t.sol` / `.s.sol` (see `forge build --help`), so this scopes the gate to the
+        # contracts we actually deploy and is not tripped by test-only helpers — e.g.
+        # SuperPaymasterV2Reinit, a thin SuperPaymaster subclass used purely for UUPS
+        # reinitializer testing that is never deployed.
         run: forge build --sizes --skip test --skip script
 
   test:

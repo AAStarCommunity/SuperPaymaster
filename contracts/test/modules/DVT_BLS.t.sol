@@ -26,33 +26,63 @@ contract MockStakingPermissive {
 contract MockRegistryV3 is IRegistry {
     address public stakingAddr;
 
-    function setStakingAddr(address s) external { stakingAddr = s; }
+    function setStakingAddr(address s) external {
+        stakingAddr = s;
+    }
 
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
-    function hasRole(bytes32, address) external pure override returns (bool) { return true; }
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external
+        override
+    {}
+
+    function hasRole(bytes32, address) external pure override returns (bool) {
+        return true;
+    }
 
     // Stubs
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
+
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
         // P0-2: minStake = 0 lets test validators pass the floor without
         // having to model stake accounting in the mock; the permissive
         // staking stub still advertises max balance.
-        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0);
+        return RoleConfig(0, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
     }
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
-    function isReputationSource(address) external pure override returns (bool) { return true; }
+
+    function getCreditLimit(address) external view override returns (uint256) {
+        return 100 ether;
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "MockRegistryV3"; }
+
+    function version() external view override returns (string memory) {
+        return "MockRegistryV3";
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
-    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 
     /// @notice Mirrors Registry.GTOKEN_STAKING() so the IRegistryStakingAware
     ///         cast inside DVTValidator.addValidator can resolve.
@@ -62,7 +92,11 @@ contract MockRegistryV3 is IRegistry {
 }
 
 contract MockSuperPaymaster {
-    enum SlashLevel { WARNING, MINOR, MAJOR }
+    enum SlashLevel {
+        WARNING,
+        MINOR,
+        MAJOR
+    }
     // Mock the call signature
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
@@ -85,6 +119,8 @@ contract DVTBLSTest is Test {
         pk.y_a = bytes32(seed + 2);
         pk.y_b = bytes32(seed + 3);
     }
+
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
 
     function setUp() public {
         // Mock BLS precompiles BEFORE any registerBLSPublicKey call below —
@@ -117,12 +153,12 @@ contract DVTBLSTest is Test {
         dvt.setBLSAggregator(address(bls));
 
         // Add validators (10) and register their BLS keys into deterministic slots.
-        for(uint i=1; i<=10; i++) {
-            address v = address(uint160(i+100)); // 101..110
+        for (uint256 i = 1; i <= 10; i++) {
+            address v = address(uint160(i + 100)); // 101..110
             dvt.addValidator(v);
             // P0-1: register typed G1 key into slot i. The first 7 keys (slots 1..7)
             // form the default-threshold quorum used by tests below.
-            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i));
+            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i), _emptyPoP());
         }
 
         vm.stopPrank();
@@ -158,7 +194,7 @@ contract DVTBLSTest is Test {
         vm.stopPrank();
 
         // Check proposal was executed
-        (,,,bool executed,) = dvt.proposals(id);
+        (,,, bool executed,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
     }
 
@@ -177,11 +213,7 @@ contract DVTBLSTest is Test {
 
         vm.prank(address(dvt));
 
-        bls.verifyAndExecute(
-            id, op, 1,
-            new address[](0), new uint256[](0), 123,
-            mockProof
-        );
+        bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, mockProof);
 
         assertTrue(bls.executedProposals(id));
     }
@@ -191,10 +223,7 @@ contract DVTBLSTest is Test {
         // which reverts NotActiveValidator(v) for unregistered callers — the
         // old NotValidator() error is no longer reached on this path.
         vm.prank(address(0x999));
-        vm.expectRevert(abi.encodeWithSelector(
-            DVTValidator.NotActiveValidator.selector,
-            address(0x999)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.NotActiveValidator.selector, address(0x999)));
         dvt.createProposal(op, 1, "fail");
     }
 }

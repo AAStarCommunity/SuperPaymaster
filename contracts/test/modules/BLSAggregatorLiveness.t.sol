@@ -39,9 +39,17 @@ contract MockRegistryToggleableBLS is IRegistry {
         minStake = 100;
     }
 
-    function setStakingAddr(address s) external { stakingAddr = s; }
-    function setHasDvtRole(address v, bool has_) external { dvtRoleHolders[v] = has_; }
-    function setMinStake(uint256 ms) external { minStake = ms; }
+    function setStakingAddr(address s) external {
+        stakingAddr = s;
+    }
+
+    function setHasDvtRole(address v, bool has_) external {
+        dvtRoleHolders[v] = has_;
+    }
+
+    function setMinStake(uint256 ms) external {
+        minStake = ms;
+    }
 
     function GTOKEN_STAKING() external view returns (IGTokenStaking) {
         return IGTokenStaking(stakingAddr);
@@ -56,22 +64,46 @@ contract MockRegistryToggleableBLS is IRegistry {
     }
 
     // --- IRegistry stubs ---
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external
+        override
+    {}
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
-    function isReputationSource(address) external pure override returns (bool) { return true; }
+
+    function getCreditLimit(address) external view override returns (uint256) {
+        return 100 ether;
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "MockRegistryToggleableBLS"; }
+
+    function version() external view override returns (string memory) {
+        return "MockRegistryToggleableBLS";
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
-    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 }
 
 /**
@@ -102,6 +134,8 @@ contract BLSAggregatorLivenessTest is Test {
         pk.y_b = bytes32(seed + 1);
     }
 
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+
     function setUp() public {
         // BLS precompile mocks. G1ADD + G1MUL must succeed for stub keys to
         // pass _validateG1Point during register; G1MUL returning 128 zero
@@ -124,7 +158,7 @@ contract BLSAggregatorLivenessTest is Test {
             address v = address(uint160(uint256(slot) + 0x100));
             registry.setHasDvtRole(v, true);
             staking.setLocked(v, 200);
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot);
+            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _emptyPoP());
         }
         vm.stopPrank();
 
@@ -154,11 +188,7 @@ contract BLSAggregatorLivenessTest is Test {
         registry.setHasDvtRole(slot3v, false);
 
         // Mask still includes slot 3 (bit 2). Aggregator must revert.
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.SlotValidatorRoleRevoked.selector,
-            uint8(3),
-            slot3v
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorRoleRevoked.selector, uint8(3), slot3v));
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
@@ -168,13 +198,11 @@ contract BLSAggregatorLivenessTest is Test {
         vm.prank(owner);
         staking.setLocked(slot5v, 50);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.SlotValidatorStakeBelowMinimum.selector,
-            uint8(5),
-            slot5v,
-            uint256(50),
-            uint256(100)
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.SlotValidatorStakeBelowMinimum.selector, uint8(5), slot5v, uint256(50), uint256(100)
+            )
+        );
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
@@ -184,13 +212,11 @@ contract BLSAggregatorLivenessTest is Test {
         vm.prank(owner);
         staking.setLocked(slot1v, 0);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.SlotValidatorStakeBelowMinimum.selector,
-            uint8(1),
-            slot1v,
-            uint256(0),
-            uint256(100)
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.SlotValidatorStakeBelowMinimum.selector, uint8(1), slot1v, uint256(0), uint256(100)
+            )
+        );
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
@@ -201,10 +227,7 @@ contract BLSAggregatorLivenessTest is Test {
         vm.prank(owner);
         bls.revokeBLSPublicKey(slot4v);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.UnknownValidatorSlot.selector,
-            uint8(4)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(4)));
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
@@ -235,10 +258,7 @@ contract BLSAggregatorLivenessTest is Test {
         bls.revokeBLSPublicKey(slot1v);
 
         // Second revoke must revert (no longer idempotent).
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.KeyNotActive.selector,
-            slot1v
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.KeyNotActive.selector, slot1v));
         bls.revokeBLSPublicKey(slot1v);
         vm.stopPrank();
     }
@@ -246,10 +266,7 @@ contract BLSAggregatorLivenessTest is Test {
     function test_RevokeBLSPublicKey_RevertsForUnknownValidator() public {
         // Validator never registered → key not active → revert.
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.KeyNotActive.selector,
-            attacker
-        ));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.KeyNotActive.selector, attacker));
         bls.revokeBLSPublicKey(attacker);
     }
 
@@ -257,7 +274,7 @@ contract BLSAggregatorLivenessTest is Test {
         // After revoke, getBLSPublicKey still returns the stored key bytes
         // (audit trail) but isActive is false and validatorAtSlot is cleared.
         address slot2v = address(uint160(uint256(2) + 0x100));
-        (BLS.G1Point memory before_, , bool wasActive) = bls.getBLSPublicKey(slot2v);
+        (BLS.G1Point memory before_,, bool wasActive) = bls.getBLSPublicKey(slot2v);
         assertTrue(wasActive);
 
         vm.prank(owner);
@@ -280,7 +297,7 @@ contract BLSAggregatorLivenessTest is Test {
         // Newcomer can claim slot 7.
         registry.setHasDvtRole(newcomer, true);
         staking.setLocked(newcomer, 200);
-        bls.registerBLSPublicKey(newcomer, _stubKey(uint256(99)), 7);
+        bls.registerBLSPublicKey(newcomer, _stubKey(uint256(99)), 7, _emptyPoP());
         vm.stopPrank();
 
         assertEq(bls.validatorAtSlot(7), newcomer);

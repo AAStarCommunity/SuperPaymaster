@@ -26,7 +26,6 @@ import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 contract RegisterDVTValidator is Script {
-
     // BLS12-381 G1 generator (EIP-2537 uncompressed, 4x bytes32)
     function _g1Gen() internal pure returns (BLS.G1Point memory p) {
         p.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
@@ -35,23 +34,25 @@ contract RegisterDVTValidator is Script {
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
 
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+
     function run() external {
         string memory network = vm.envOr("ENV", string("sepolia"));
         string memory cfg = vm.readFile(string.concat(vm.projectRoot(), "/deployments/config.", network, ".json"));
 
-        address dvtAddr = vm.envOr("DVT_VALIDATOR_ADDR",  stdJson.readAddress(cfg, ".dvtValidator"));
+        address dvtAddr = vm.envOr("DVT_VALIDATOR_ADDR", stdJson.readAddress(cfg, ".dvtValidator"));
         address blsAddr = vm.envOr("BLS_AGGREGATOR_ADDR", stdJson.readAddress(cfg, ".blsAggregator"));
-        address regAddr = vm.envOr("REGISTRY_ADDR",        stdJson.readAddress(cfg, ".registry"));
-        address gtAddr  = vm.envOr("GTOKEN_ADDR",          stdJson.readAddress(cfg, ".gToken"));
-        address stkAddr = vm.envOr("STAKING_ADDR",         stdJson.readAddress(cfg, ".staking"));
+        address regAddr = vm.envOr("REGISTRY_ADDR", stdJson.readAddress(cfg, ".registry"));
+        address gtAddr = vm.envOr("GTOKEN_ADDR", stdJson.readAddress(cfg, ".gToken"));
+        address stkAddr = vm.envOr("STAKING_ADDR", stdJson.readAddress(cfg, ".staking"));
 
-        DVTValidator  dvt = DVTValidator(dvtAddr);
+        DVTValidator dvt = DVTValidator(dvtAddr);
         BLSAggregator bls = BLSAggregator(blsAddr);
-        Registry    reg   = Registry(regAddr);
-        IERC20      gt    = IERC20(gtAddr);
+        Registry reg = Registry(regAddr);
+        IERC20 gt = IERC20(gtAddr);
 
         uint256 pk = vm.envUint("PRIVATE_KEY");
-        address v  = vm.addr(pk);
+        address v = vm.addr(pk);
 
         console.log("=== RegisterDVTValidator ===");
         console.log("network:", network, "validator:", v);
@@ -60,9 +61,9 @@ contract RegisterDVTValidator is Script {
         require(dvt.owner() == v, "Not DVT owner");
         require(gt.balanceOf(v) >= 33 ether, "Need >= 33 GT");
 
-        bool hasDVT  = reg.hasRole(ROLE_DVT, v);
-        bool hasVal  = dvt.isValidator(v);
-        (,,bool keyActive) = bls.getBLSPublicKey(v);
+        bool hasDVT = reg.hasRole(ROLE_DVT, v);
+        bool hasVal = dvt.isValidator(v);
+        (,, bool keyActive) = bls.getBLSPublicKey(v);
 
         vm.startBroadcast(pk);
 
@@ -71,13 +72,17 @@ contract RegisterDVTValidator is Script {
             gt.approve(stkAddr, 33 ether);
             reg.safeMintForRole(ROLE_DVT, v, abi.encode(uint256(30 ether)));
             console.log("    DVT role granted");
-        } else { console.log("[1-2] already has DVT role"); }
+        } else {
+            console.log("[1-2] already has DVT role");
+        }
 
         if (!hasVal) {
             console.log("[3] addValidator...");
             dvt.addValidator(v);
             console.log("    validator added");
-        } else { console.log("[3] already validator"); }
+        } else {
+            console.log("[3] already validator");
+        }
 
         // minThreshold floor is 2 (contract enforced), chain value is 3.
         // For paper7 gas measurement, defaultThreshold just needs to be >= minThreshold.
@@ -88,13 +93,17 @@ contract RegisterDVTValidator is Script {
             console.log("[4] setDefaultThreshold to minThreshold...");
             bls.setDefaultThreshold(curMin);
             console.log("    defaultThreshold set to", curMin);
-        } else { console.log("[4] threshold already at minimum, skip"); }
+        } else {
+            console.log("[4] threshold already at minimum, skip");
+        }
 
         if (!keyActive) {
             console.log("[5] registerBLSPublicKey(slot=1, G1_GEN)...");
-            bls.registerBLSPublicKey(v, _g1Gen(), 1);
+            bls.registerBLSPublicKey(v, _g1Gen(), 1, _emptyPoP());
             console.log("    BLS key registered");
-        } else { console.log("[5] BLS key already registered"); }
+        } else {
+            console.log("[5] BLS key already registered");
+        }
 
         vm.stopBroadcast();
 
@@ -102,7 +111,7 @@ contract RegisterDVTValidator is Script {
         console.log("hasRole(DVT):", reg.hasRole(ROLE_DVT, v));
         console.log("isValidator:", dvt.isValidator(v));
         console.log("defaultThreshold:", bls.defaultThreshold());
-        (,,bool ka2) = bls.getBLSPublicKey(v);
+        (,, bool ka2) = bls.getBLSPublicKey(v);
         console.log("BLS key active:", ka2);
         console.log("Done. Run MockDVTExecution.s.sol next.");
     }

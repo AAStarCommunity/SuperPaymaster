@@ -98,6 +98,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public defaultThreshold = 7; // Default for legacy calls
     uint256 public constant MAX_VALIDATORS = 13;
 
+    /// @notice H-02: when true, a staked ROLE_DVT validator may self-register their OWN
+    ///         BLS key (with proof-of-possession) instead of requiring an owner call.
+    ///         Default false — onboarding stays owner-gated (off-chain trust established
+    ///         first) until governance flips it on. Closes the otherwise-inconsistent
+    ///         path where Registry ROLE_DVT is permissionless (self-service stake) but
+    ///         BLS-key registration here was owner-only.
+    bool public permissionlessBLSRegistration;
+
     function version() external pure override returns (string memory) {
         return "BLSAggregator-4.1.0";
     }
@@ -109,6 +117,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
 
     event BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot);
+    event PermissionlessBLSRegistrationSet(bool enabled);
     event BLSPublicKeyRevoked(address indexed validator, uint8 indexed slot);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
@@ -165,6 +174,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         currently active. Stricter than the previous idempotent return
     ///         so misbehavior is loudly surfaced to off-chain operators.
     error KeyNotActive(address v);
+    /// @notice H-02: a non-owner tried to self-register a BLS key while the
+    ///         permissionless switch is off.
+    error PermissionlessRegistrationDisabled();
+    /// @notice H-02: the proof-of-possession did not verify against the public key.
+    error InvalidPoP();
     /// @notice The supplied G1 point is not on the BLS12-381 G1 curve (G1ADD precompile rejected it),
     ///         or it is the point at infinity (identity element), which is forbidden to prevent
     ///         key-cancellation attacks during pkAgg reconstruction.
@@ -212,16 +226,42 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @param  publicKey  uncompressed EIP-2537 G1 point (4×32 bytes).
     /// @param  slot       1-indexed slot in [1..MAX_VALIDATORS]. Must not collide
     ///                    with another validator's already-bound slot.
+    /// @param  popSignature proof-of-possession (G2): the validator's BLS signature over
+    ///                    their own public key. Ignored on the owner path; REQUIRED and
+    ///                    verified on the permissionless self-registration path.
     function registerBLSPublicKey(
         address validator,
         BLS.G1Point calldata publicKey,
-        uint8 slot
-    ) external onlyOwner {
+        uint8 slot,
+        BLS.G2Point calldata popSignature
+    ) external {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
 
-        // Validate on-curve and prime-order subgroup membership before storing.
-        _validateG1Point(publicKey);
+        // Access control. The owner may always register any validator's key at the
+        // caller-chosen slot (the permissioned default; popSignature is not inspected).
+        // Otherwise — only when the permissionless switch is on — a validator may
+        // self-register their OWN key, provided they currently hold ROLE_DVT with
+        // sufficient stake AND supply a valid proof-of-possession. PoP blocks the
+        // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
+        // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
+        // caller reverts without paying for them; G1 is still validated before _verifyPoP.
+        if (msg.sender != owner()) {
+            if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
+            if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
+            _requireDVTStake(validator, slot);
+            _validateG1Point(publicKey);
+            if (!_verifyPoP(publicKey, popSignature)) revert InvalidPoP();
+            // Permissionless callers do NOT choose their slot: the contract assigns the
+            // lowest free slot deterministically (re-registration keeps the prior slot).
+            // This removes the slot-squatting / front-running vector where a caller could
+            // grab or deny a specific slot. (Filling the whole capped set still costs
+            // minStake per identity and remains owner-revocable.)
+            slot = _assignSlot(validator);
+        } else {
+            // Validate on-curve + prime-order subgroup membership for the owner path too.
+            _validateG1Point(publicKey);
+        }
 
         BLSValidatorKey storage existing = _blsKeys[validator];
         // Re-registration of the SAME validator must reuse the prior slot to
@@ -620,6 +660,62 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
 
+    /// @dev H-02: deterministic slot assignment for the permissionless path. A validator
+    ///      that already has an active key keeps its slot; otherwise the lowest free slot
+    ///      is returned. Reverts when the capped set is full. The caller cannot influence
+    ///      which slot it gets, so it cannot squat or front-run a specific slot.
+    function _assignSlot(address validator) internal view returns (uint8) {
+        BLSValidatorKey storage existing = _blsKeys[validator];
+        if (existing.isActive) return existing.index;
+        for (uint8 s = 1; s <= MAX_VALIDATORS; s++) {
+            if (validatorAtSlot[s] == address(0)) return s;
+        }
+        revert SlotOutOfRange(uint8(MAX_VALIDATORS + 1));
+    }
+
+    /// @dev H-02: a self-registering validator must currently hold ROLE_DVT in the
+    ///      Registry with locked stake >= the role's minStake. Mirrors the per-signer
+    ///      liveness check used during aggregate verification (reads staking pointer +
+    ///      minStake live so governance can rotate them without redeploying).
+    function _requireDVTStake(address validator, uint8 slot) internal view {
+        bytes32 roleDvt = keccak256("DVT");
+        if (!REGISTRY.hasRole(roleDvt, validator)) revert SlotValidatorRoleRevoked(slot, validator);
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+        uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;
+        (uint128 amount,,,, ) = staking.roleLocks(validator, roleDvt);
+        if (uint256(amount) < minStake) {
+            revert SlotValidatorStakeBelowMinimum(slot, validator, uint256(amount), minStake);
+        }
+    }
+
+    /// @dev H-02: proof-of-possession — verify the registrant signed their OWN public key
+    ///      under a PoP-specific domain, proving they hold the secret key. Without it a
+    ///      permissionless registrant could submit a rogue key (pk_rogue = pk_target − Σpk_i)
+    ///      and bias the reconstructed pkAgg. Same pairing form as aggregate verification:
+    ///      e(G1, pop) == e(pk, H_pop(pk)), i.e. e(G1, pop) · e(-pk, H_pop(pk)) == 1.
+    ///      The "..._POP_v1" domain tag keeps PoP signatures disjoint from slash-consensus
+    ///      message hashes, so neither can ever be replayed as the other.
+    function _verifyPoP(BLS.G1Point calldata publicKey, BLS.G2Point calldata popSignature)
+        internal
+        view
+        returns (bool)
+    {
+        BLS.G2Point memory msgG2 = BLS.hashToG2(
+            abi.encodePacked(
+                "BLS12381G1_XMD:SHA-256_POP_v1:",
+                publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b
+            )
+        );
+        BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
+        BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
+        g1s[0] = _getG1Generator();
+        g2s[0] = popSignature;
+        g1s[1] = _negateG1Point(publicKey);
+        g2s[1] = msgG2;
+        return BLS.pairing(g1s, g2s);
+    }
+
     function _countSetBits(uint256 n) internal pure returns (uint256 count) {
         while (n != 0) {
             n &= (n - 1);
@@ -659,6 +755,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (_newThreshold > defaultThreshold) revert InvalidParameter("minThreshold > defaultThreshold");
         emit ThresholdUpdated(minThreshold, _newThreshold);
         minThreshold = _newThreshold;
+    }
+
+    /// @notice H-02: toggle permissionless (stake + proof-of-possession) self-registration
+    ///         of BLS validator keys. Default off — flip on once governance is ready to let
+    ///         staked ROLE_DVT validators onboard their own keys without an owner call.
+    function setPermissionlessBLSRegistration(bool enabled) external onlyOwner {
+        permissionlessBLSRegistration = enabled;
+        emit PermissionlessBLSRegistrationSet(enabled);
     }
 
     /**
