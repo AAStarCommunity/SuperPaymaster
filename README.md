@@ -7,7 +7,10 @@
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **Beta 0.22** (Internal: V5.3) — Sepolia Testnet Live
+> **v5.3.3-beta.2** (Security-Hardened Beta · Core Gasless) — Sepolia Testnet Live
+> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.3.3-beta.2)
+> · [Integration Guide](./docs/integration/v5.3.3-beta.2-integration-guide.md)
+> · [Coverage Report](./docs/coverage-report-2026-06-02.md)
 
 <a name="english"></a>
 
@@ -132,6 +135,12 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 - **BLS replay protection** with non-zero proposalId enforcement (H-02 audit fix)
 - **CEI order** in postOp with nonReentrant double protection (H-01 audit fix)
 
+**v5.3.3-beta.2 security hardening** (6 audit fixes, all on-chain-verified — see
+[Coverage Report](./docs/coverage-report-2026-06-02.md)):
+- **C-01** balance-aware credit ceiling · **C-02** signed x402 direct settle (EIP-712 `X402PaymentAuthorization`)
+- **C-03** recipient-bound EIP-3009 nonce · **C-04** postOp out-of-gas floor (`MIN_POST_OP_GAS`)
+- **H-01** chunked `retryPendingDebt` · **H-02** PoP-gated permissionless BLS registration (switch default OFF)
+
 ---
 
 ## Quick Start
@@ -188,16 +197,22 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 
 ## Contract Addresses (Sepolia)
 
+> `v5.3.3-beta.2` deployment. Always read live addresses from
+> [`deployments/config.sepolia.json`](./deployments/config.sepolia.json).
+
 | Contract | Proxy | Implementation |
 |----------|-------|----------------|
-| Registry | `0xD88CF5316c64f753d024fcd665E69789b33A5EB6` | `0x84bB9e3CAfb90C5938731A6dA1ADdee301F0B2D0` |
-| SuperPaymaster | `0x829C3178DeF488C2dB65207B4225e18824696860` | `0xf4d022Ea721Aaa1Dec8CC8f3B630547D34C6c972` |
-| ReputationSystem | — | `0x3384317Da5312077218C990CeB1010CCb5dc5897` |
-| GToken | — | `0x868F8437F1be18008B31E4E590e62C0BfD81B72c` |
-| GTokenStaking | — | `0x92eD5b65A97E98ee84B3d3d73aA33F678B68a64B` |
-| MySBT | — | `0xc108584B5b6bc7D95e55E12FCEFa61108cE0D378` |
-| xPNTsFactory | — | `0xC2AFEA04f06C2A8d2A19cCd1839DFaf84b6bC1e0` |
-| PaymasterFactory | — | `0x65Cf6C4ab3d40f3C919b6F3CADC09Efb72817920` |
+| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0xC931F91D134A16cCDfe4bf37EdEff217c9f193F1` |
+| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0x52C1E6f039eb9BA50ac9Ad0D041cB07Dcf4C9AA0` |
+| ReputationSystem | — | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
+| GToken | — | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` |
+| GTokenStaking | — | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
+| MySBT | — | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
+| xPNTsFactory | — | `0xC4f5A121c426734CC1c0DbE57f6A2Dd764E278e4` |
+| PaymasterFactory | — | `0x60B8f728Abca14B82a4EC72f00Ff5437e0702e90` |
+| BLSAggregator | — | `0x7ec72505220a13040c80EF2B895Bf3405b6ed3e9` |
+| DVTValidator | — | `0xB60C82158734def92D0d2163C93927cf19b86a95` |
+| MicroPaymentChannel | — | `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed` |
 
 **EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
@@ -233,7 +248,9 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 - [Spores Protocol Design](./docs/Spores-protocol-design-2026.md) — Decentralized revenue sharing network
 
 ### Developer Guides
+- [**Beta Integration Guide (v5.3.3-beta.2)**](./docs/integration/v5.3.3-beta.2-integration-guide.md) — beta entry: ready vs pending (x402), prerequisites, `dryRunValidation` pre-flight
 - [Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — Gasless, x402, micropayment scenarios
+- [SDK x402 Integration](./docs/integration/sdk-x402-integration.md) — EIP-3009 + direct settle signing (post-C-02)
 - [SDK E2E Scenario Guide](./docs/SDK-E2E-Scenario-Guide.md) — 7 complete user scenarios
 - [Ecosystem Services Setup](./docs/ECOSYSTEM-SERVICES-SETUP-GUIDE.md) — Operator node, facilitator, keeper
 - [Registry v4.1 SDK Migration](./docs/registry-v4.1-sdk-migration.md) — Interface changes, viem examples, error mapping

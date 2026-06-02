@@ -5,6 +5,13 @@ on:
     branches: [main, feature/*]
   pull_request:
     branches: [main]
+    # Skip on docs/script/ABI-only PRs — forge test only matters when Solidity or
+    # build inputs change. Pushes to main/feature still run regardless of paths.
+    paths:
+      - 'contracts/**'
+      - 'singleton-paymaster/**'
+      - 'foundry.toml'
+      - 'remappings.txt'
 
 jobs:
   test:
