@@ -5,11 +5,12 @@
  *
  * Tests settleX402Payment on SuperPaymaster V5.3.0
  *
- * PENDING aastar-sdk#39: C-03 changed settleX402Payment — the final recipient is now
- * bound into the EIP-3009 nonce (on-chain nonce = keccak256(to, salt)) and the call takes
- * `salt` instead of a raw nonce. The payer must sign EIP-3009 over keccak256(to, salt).
- * This script's signing step needs updating once the @aastar/x402 SDK exposes the salt
- * scheme; the ABI below is already on the new signature.
+ * C-03 (aastar-sdk#39): settleX402Payment binds the final recipient into the EIP-3009
+ * nonce (on-chain nonce = keccak256(abi.encode(payee, salt))) and the call takes `salt`
+ * instead of a raw nonce. The payer signs EIP-3009 over that derived nonce, so a
+ * facilitator that swaps the recipient produces a different nonce and the signature no
+ * longer recovers `from` — the transfer reverts. This script's signing step now derives
+ * the nonce directly (Step 3); the @aastar/x402 SDK must expose the same salt scheme.
  *
  * Flow:
  *   1. Payer signs EIP-3009 transferWithAuthorization over nonce = keccak256(to, salt)
@@ -110,7 +111,14 @@ async function main() {
   // Step 3: Sign EIP-3009 transferWithAuthorization
   console.log('\n✍️  Step 3: Sign EIP-3009 TransferWithAuthorization');
 
-  const nonce = ethers.hexlify(ethers.randomBytes(32));
+  // C-03: the final recipient (payee) is bound into the EIP-3009 nonce.
+  // salt is random; the on-chain nonce = keccak256(abi.encode(payee, salt)),
+  // and the payer signs the EIP-3009 authorization over that derived nonce.
+  // settleX402Payment takes `salt` (not the raw nonce) and re-derives it.
+  const salt = ethers.hexlify(ethers.randomBytes(32));
+  const nonce = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(['address', 'bytes32'], [payee, salt])
+  );
   const validAfter = 0n;
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
 
@@ -161,7 +169,7 @@ async function main() {
       amount,
       validAfter,
       validBefore,
-      nonce,
+      salt,
       signature,
       { gasLimit: 500000 }
     );
