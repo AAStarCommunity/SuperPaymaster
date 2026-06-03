@@ -38,7 +38,7 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 | Mode | Protocol | Description | Since |
 |------|----------|-------------|-------|
 | **Gas Sponsorship** | ERC-4337 | Operators pre-fund aPNTs; users pay zero gas, repay in xPNTs (community tokens) | V3 |
-| **x402 Settlement** | HTTP 402 + EIP-3009 | Single-payment resource purchases — client pays USDC/xPNTs per request | V5.1 |
+| **x402 Settlement** *(contracts live; SDK signing [integrating](https://github.com/AAStarCommunity/aastar-sdk/issues/39))* | HTTP 402 + EIP-3009 | Single-payment resource purchases — client pays USDC/xPNTs per request | V5.1 |
 | **Micropayment Channel** | EIP-712 Vouchers | Streaming micro-charges with off-chain signing and batch on-chain settlement | V5.2 |
 | **Agent Sponsorship** | ERC-8004 | Reputation-driven tiered gas sponsorship for registered AI agents | V5.3 |
 

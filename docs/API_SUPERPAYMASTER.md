@@ -415,23 +415,29 @@ function settleX402Payment(
     uint256 amount,
     uint256 validAfter,
     uint256 validBefore,
-    bytes32 nonce,
+    bytes32 salt,
     bytes calldata signature
 ) external nonReentrant returns (bytes32 settlementId)
 ```
 
 **Access:** Caller must hold `ROLE_PAYMASTER_SUPER` in Registry (acts as facilitator)
 
+**C-03 recipient binding:** the contract derives the EIP-3009 nonce as
+`nonce = keccak256(abi.encode(to, salt))`. The payer signs the EIP-3009 `TransferWithAuthorization`
+over **that derived nonce** (with `to = SuperPaymaster`), then the facilitator passes **`salt`**
+(not a raw nonce). If a facilitator swaps `to`, a different nonce is derived and the EIP-3009
+signature no longer recovers `from` → the transfer reverts.
+
 **Parameters:**
 - `from` — payer address (must have signed the EIP-3009 authorization)
-- `to` — payee / service provider address
+- `to` — final payee / service provider address (bound into the nonce)
 - `asset` — ERC-20 token implementing EIP-3009 (e.g. USDC)
 - `amount` — gross transfer amount
 - `validAfter`, `validBefore` — authorization time window (EIP-3009)
-- `nonce` — unique bytes32 nonce for replay prevention
-- `signature` — EIP-3009 authorization signature from `from`
+- `salt` — random bytes32; combined with `to` to derive the recipient-bound nonce
+- `signature` — EIP-3009 authorization signature from `from` over `keccak256(abi.encode(to, salt))`
 
-**Returns:** `settlementId = keccak256(from, to, asset, amount, nonce)`
+**Returns:** `settlementId = keccak256(from, to, asset, amount, nonce)` (derived nonce)
 
 **Fee:** Deducts `facilitatorFeeBPS` (or per-operator override) from `amount` before forwarding net to `to`. Fee credited to `facilitatorEarnings[msg.sender][asset]`.
 
@@ -443,7 +449,9 @@ function settleX402Payment(
 
 ### settleX402PaymentDirect
 
-Settle an x402 payment via standard `transferFrom` (for xPNTs tokens auto-approved by factory, or any pre-approved ERC-20).
+Settle an x402 payment for an **xPNTs token** (factory-deployed) via `transferFrom`. Since the
+SuperPaymaster holds an auto-allowance over every xPNTs holder, the consent gate lives here:
+the payer **must** sign an EIP-712 `X402PaymentAuthorization` (C-02 hardening).
 
 ```solidity
 function settleX402PaymentDirect(
@@ -451,19 +459,23 @@ function settleX402PaymentDirect(
     address to,
     address asset,
     uint256 amount,
-    bytes32 nonce
+    uint256 maxFee,
+    uint256 validBefore,
+    bytes32 nonce,
+    bytes calldata signature
 ) external nonReentrant returns (bytes32 settlementId)
 ```
 
-**Access:** Caller must hold `ROLE_PAYMASTER_SUPER` in Registry
+**Access:** Caller must hold `ROLE_PAYMASTER_SUPER`, AND be on the xPNTs token's
+`approvedFacilitators` whitelist (P0-12b). `asset` must be a factory-minted xPNTs (P0-12a).
 
-**Parameters:** same semantics as `settleX402Payment` except no signature required (uses `transferFrom` allowance).
+**Signature (C-02, required):** `from` must sign EIP-712 `X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)` over the SuperPaymaster proxy domain (`name:"SuperPaymaster", version:"1"`). Verified by `SignatureCheckerLib` (EOA + ERC-1271). The contract also enforces `block.timestamp <= validBefore` and `fee <= maxFee`.
 
 **Returns:** `settlementId = keccak256(from, to, asset, amount, nonce)`
 
 **Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`
 
-**Errors:** `NonceAlreadyUsed`, `Unauthorized`
+**Errors:** `InvalidX402Signature`, `X402AuthExpired`, `X402FeeExceedsMax`, `InvalidXPNTsToken`, `NonceAlreadyUsed`, `Unauthorized`
 
 ---
 
