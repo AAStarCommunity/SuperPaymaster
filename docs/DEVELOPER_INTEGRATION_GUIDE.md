@@ -908,10 +908,13 @@ const paymasterAndData = concat([
 ```typescript
 import { hashTypedData } from 'viem';
 
+// Design reference only — chargeMicroPayment is NOT deployed (see banner above).
+// chainId must be read dynamically (the contract would verify against block.chainid).
+const chainId = await walletClient.getChainId();
 const domain = {
   name: 'SuperPaymaster',
   version: '5',
-  chainId,  // read dynamically: await client.getChainId() — never hardcode (design reference; fn not deployed)
+  chainId,
   verifyingContract: SUPER_PAYMASTER,
 };
 

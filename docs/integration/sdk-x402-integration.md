@@ -303,6 +303,8 @@ SDK 调用示例（**含签名**；`@aastar/x402` 暴露 salt/签名前见 [aast
 
 ```ts
 // payer 用 SP proxy 的 domain 签 X402PaymentAuthorization
+// chainId 动态读取（合约按 block.chainid 验签，硬编码换链即失效）
+const chainId = await payerWallet.getChainId();
 const signature = await payerWallet.signTypedData({
   domain: { name: 'SuperPaymaster', version: '1', chainId, verifyingContract: SUPER_PAYMASTER },
   types: { X402PaymentAuthorization: [
