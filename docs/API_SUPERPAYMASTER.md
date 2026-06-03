@@ -1,8 +1,8 @@
 # SuperPaymaster API Reference
 
-**Version**: `SuperPaymaster-5.3.0`
+**Version**: `SuperPaymaster-5.3.3` (release `v5.3.3-beta.2`)
 
-> This document covers the full public API as of v5.3.0, including V3/V4 baseline
+> This document covers the full public API as of v5.3.3, including V3/V4 baseline
 > functions and all V5.x additions (agent-native gas sponsorship, x402 settlement,
 > ERC-8004 dual-channel eligibility, and agent sponsorship policies).
 
@@ -12,12 +12,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `SuperPaymaster-5.3.0` |
-| **Sepolia Proxy** | `0x829C3178DeF488C2dB65207B4225e18824696860` |
-| **Sepolia Impl** | `0x3C4DE35f6391Dd07B56c70cB45A7D3dEc219855e` |
-| **MicroPaymentChannel (Sepolia)** | `0x5753e9675f68221cA901e495C1696e33F552ea36` |
-| **AgentIdentityRegistry (Sepolia)** | `0x400624Fa1423612B5D16c416E1B4125699467d9a` |
-| **AgentReputationRegistry (Sepolia)** | `0x2D82b2De1A0745454cDCf38f8c022f453d02Ca55` |
+| **Version** | `SuperPaymaster-5.3.3` |
+| **Sepolia Proxy** | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` |
+| **Sepolia Impl** | `0x52C1E6f039eb9BA50ac9Ad0D041cB07Dcf4C9AA0` |
+| **MicroPaymentChannel (Sepolia)** | `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed` |
+| **AgentIdentityRegistry (Sepolia)** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| **AgentReputationRegistry (Sepolia)** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | **EntryPoint** | v0.7 — `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
 | **Upgrade pattern** | UUPS (ERC1967Proxy) |
 | **Solidity** | 0.8.33, optimizer 10,000 runs, Cancun EVM, via-IR |
@@ -475,7 +475,7 @@ function settleX402PaymentDirect(
 
 **Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`
 
-**Errors:** `InvalidX402Signature`, `X402AuthExpired`, `X402FeeExceedsMax`, `InvalidXPNTsToken`, `NonceAlreadyUsed`, `Unauthorized`
+**Errors:** `InvalidX402Signature`, `X402AuthExpired`, `X402FeeExceedsMax`, `InvalidConfiguration` (xpntsFactory unset), `InvalidXPNTsToken`, `NonceAlreadyUsed`, `Unauthorized`
 
 ---
 
@@ -875,7 +875,7 @@ error InvalidFee();
 
 The `MicroPaymentChannel` contract is a separate deployment that provides unidirectional payment channel streaming for agent-to-service-provider micropayments. It is referenced by the x402 facilitator SDK but is **not** part of SuperPaymaster's on-chain code.
 
-**Sepolia address:** `0x5753e9675f68221cA901e495C1696e33F552ea36`
+**Sepolia address:** `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed`
 
 **Key functions:**
 
