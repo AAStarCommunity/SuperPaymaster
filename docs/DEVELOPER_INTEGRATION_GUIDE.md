@@ -771,9 +771,27 @@ EIP-712 `X402PaymentAuthorization`** (C-02 hardening): without it, any approved 
 pull any holder's xPNTs to a chosen recipient. The signature is the payer's consent.
 
 ```typescript
+import { keccak256, toBytes } from 'viem';
+
+// Inputs: payer (xPNTs holder), payee (recipient), xpnts (factory-minted token), amount (18 decimals),
+//         facilitatorAddress (msg.sender, holds ROLE_PAYMASTER_SUPER + on approvedFacilitators)
+// Unlike the EIP-3009 path (A1), the direct-path nonce is a PLAIN random bytes32 — the recipient
+// is bound by the signed `to` field itself, not by deriving the nonce from `to`.
+const nonce       = keccak256(toBytes(crypto.randomUUID()));        // random bytes32
+const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600);  // expiry (1 hour)
+
+// maxFee = the most fee the payer authorizes. Fee = amount * effectiveFeeBPS / 10000, where
+// effectiveFeeBPS = operatorFacilitatorFees(facilitator) || facilitatorFeeBPS(). Read it on-chain
+// and cap accordingly; the contract reverts with X402FeeExceedsMax if the computed fee > maxFee.
+let effBps = await publicClient.readContract({ address: SUPER_PAYMASTER, abi: SuperPaymasterABI,
+  functionName: 'operatorFacilitatorFees', args: [facilitatorAddress] });
+if (effBps === 0n) effBps = await publicClient.readContract({ address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI, functionName: 'facilitatorFeeBPS' });
+const maxFee = (amount * effBps) / 10_000n;
+
 // 1) Payer signs the authorization over the SuperPaymaster proxy domain
 const signature = await payerWallet.signTypedData({
-  domain: { name: 'SuperPaymaster', version: '1', chainId, verifyingContract: SUPER_PAYMASTER },
+  domain: { name: 'SuperPaymaster', version: '1', chainId: 11155111, verifyingContract: SUPER_PAYMASTER },
   types: { X402PaymentAuthorization: [
     { name: 'from', type: 'address' }, { name: 'to', type: 'address' },
     { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
