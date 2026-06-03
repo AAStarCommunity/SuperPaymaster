@@ -259,8 +259,11 @@ primaryType: 'TransferWithAuthorization'
 完整 typed-data：
 
 ```ts
+// chainId must be read dynamically — the token/contract verifies against block.chainid,
+// so a hardcoded value yields a mismatched domain separator (invalid signature) off that chain.
+const chainId = await walletClient.getChainId();
 const typedData = {
-  domain: { name: 'USDC', version: '2', chainId: 11155111, verifyingContract: USDC_ADDR },
+  domain: { name: 'USDC', version: '2', chainId, verifyingContract: USDC_ADDR },
   types: { TransferWithAuthorization: [...] },
   primaryType: 'TransferWithAuthorization',
   message: {

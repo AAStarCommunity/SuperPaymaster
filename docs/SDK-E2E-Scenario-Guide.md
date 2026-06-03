@@ -369,10 +369,12 @@ SuperPaymaster.SettlementProcessed(
 ```typescript
 import { signTypedData } from 'viem/actions';
 
+// Read chainId dynamically — hardcoding it breaks the EIP-712 domain separator off-chain.
+const chainId = BigInt(await walletClient.getChainId());
 const domain = {
   name: 'USDC',
   version: '2',
-  chainId: 11155111n,
+  chainId,
   verifyingContract: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
 };
 
@@ -547,11 +549,13 @@ const receipt = await publicClient.waitForTransactionReceipt({ hash: openTx });
 const channelId = receipt.logs[0].topics[1]; // ChannelOpened event, first indexed param
 
 // Step 3: Sign a voucher (payer side, off-chain)
+// chainId read dynamically — hardcoding breaks the domain separator off-chain.
+const chainId = BigInt(await walletClient.getChainId());
 const voucherSignature = await walletClient.signTypedData({
   domain: {
     name: 'MicroPaymentChannel',
     version: '1.0.0',
-    chainId: 11155111n,
+    chainId,
     verifyingContract: MPC_ADDRESS
   },
   types: {

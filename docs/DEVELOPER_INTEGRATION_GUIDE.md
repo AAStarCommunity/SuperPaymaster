@@ -695,10 +695,11 @@ import { encodeAbiParameters, parseAbiParameters, keccak256, toBytes } from 'vie
 
 // 1. Build the EIP-3009 authorization signature off-chain (user signs)
 //    Fields: from, to, value, validAfter, validBefore, nonce
+const chainId = await walletClient.getChainId(); // never hardcode — must match the deployed chain
 const domain = {
   name: 'USD Coin',
   version: '2',
-  chainId: 11155111n, // Sepolia
+  chainId,
   verifyingContract: USDC_ADDRESS,
 };
 const types = {
@@ -789,9 +790,12 @@ if (effBps === 0n) effBps = await publicClient.readContract({ address: SUPER_PAY
   abi: SuperPaymasterABI, functionName: 'facilitatorFeeBPS' });
 const maxFee = (amount * effBps) / 10_000n;
 
-// 1) Payer signs the authorization over the SuperPaymaster proxy domain
+// 1) Payer signs the authorization over the SuperPaymaster proxy domain.
+//    chainId must be read dynamically — the contract uses block.chainid, so a hardcoded
+//    value produces a mismatched domain separator (invalid signature) on any other chain.
+const chainId = await publicClient.getChainId();
 const signature = await payerWallet.signTypedData({
-  domain: { name: 'SuperPaymaster', version: '1', chainId: 11155111, verifyingContract: SUPER_PAYMASTER },
+  domain: { name: 'SuperPaymaster', version: '1', chainId, verifyingContract: SUPER_PAYMASTER },
   types: { X402PaymentAuthorization: [
     { name: 'from', type: 'address' }, { name: 'to', type: 'address' },
     { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
@@ -907,7 +911,7 @@ import { hashTypedData } from 'viem';
 const domain = {
   name: 'SuperPaymaster',
   version: '5',
-  chainId: 11155111n,
+  chainId,  // read dynamically: await client.getChainId() — never hardcode (design reference; fn not deployed)
   verifyingContract: SUPER_PAYMASTER,
 };
 
