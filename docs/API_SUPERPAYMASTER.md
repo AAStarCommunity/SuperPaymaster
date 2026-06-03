@@ -875,7 +875,7 @@ error InvalidFee();
 
 The `MicroPaymentChannel` contract is a separate deployment that provides unidirectional payment channel streaming for agent-to-service-provider micropayments. It is referenced by the x402 facilitator SDK but is **not** part of SuperPaymaster's on-chain code.
 
-**Sepolia address:** `0x5753e9675f68221cA901e495C1696e33F552ea36`
+**Sepolia address:** `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed`
 
 **Key functions:**
 
