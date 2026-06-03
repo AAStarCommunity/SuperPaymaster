@@ -695,10 +695,11 @@ import { encodeAbiParameters, parseAbiParameters, keccak256, toBytes } from 'vie
 
 // 1. Build the EIP-3009 authorization signature off-chain (user signs)
 //    Fields: from, to, value, validAfter, validBefore, nonce
+const chainId = await walletClient.getChainId(); // never hardcode — must match the deployed chain
 const domain = {
   name: 'USD Coin',
   version: '2',
-  chainId: 11155111n, // Sepolia
+  chainId,
   verifyingContract: USDC_ADDRESS,
 };
 const types = {
@@ -714,7 +715,13 @@ const types = {
 
 const validAfter  = 0n;
 const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
-const nonce       = keccak256(toBytes(crypto.randomUUID()));       // unique bytes32
+
+// C-03: the recipient (final payee) is bound into the EIP-3009 nonce.
+// salt is random; the on-chain nonce = keccak256(abi.encode(payee, salt)),
+// and the payer signs the EIP-3009 authorization over THAT derived nonce.
+const salt  = keccak256(toBytes(crypto.randomUUID()));            // random bytes32
+const nonce = keccak256(encodeAbiParameters(
+  parseAbiParameters('address, bytes32'), [payee, salt]));        // = keccak256(abi.encode(payee, salt))
 
 const signature = await walletClient.signTypedData({
   account: payerAccount,
@@ -723,34 +730,35 @@ const signature = await walletClient.signTypedData({
   primaryType: 'TransferWithAuthorization',
   message: {
     from:        payerAddress,
-    to:          SUPER_PAYMASTER,    // facilitator receives funds
+    to:          SUPER_PAYMASTER,    // EIP-3009 `to` is the SuperPaymaster (it receives, then forwards to payee)
     value:       amountUSDC,
     validAfter,
     validBefore,
-    nonce,
+    nonce,                           // the recipient-bound derived nonce
   },
 });
 
-// 2. Call settleX402Payment (operator calls on behalf of user after service delivery)
+// 2. Facilitator (ROLE_PAYMASTER_SUPER) calls settleX402Payment, passing `salt` (not the raw nonce)
 const txHash = await walletClient.writeContract({
   address: SUPER_PAYMASTER,
   abi: SuperPaymasterABI,
   functionName: 'settleX402Payment',
   args: [
-    operatorAddress,   // operator receiving the aPNTs credit
-    payerAddress,      // USDC sender (payer)
+    payerAddress,      // from — USDC sender (payer)
+    payee,             // to   — final payee (bound into the nonce)
+    USDC_ADDRESS,      // asset
     amountUSDC,        // amount in USDC smallest unit (6 decimals)
     validAfter,
     validBefore,
-    nonce,
-    signature,         // EIP-3009 signature from payer
+    salt,              // salt — contract derives nonce = keccak256(abi.encode(to, salt))
+    signature,         // EIP-3009 signature from payer over the derived nonce
   ],
 });
 // Gas: ~161,000 (19% savings vs ERC-20 approve + transferFrom path)
 ```
 
 **Notes:**
-- `nonce` is a `bytes32` random value tracked in `x402SettlementNonces` — reuse reverts.
+- The on-chain nonce is `keccak256(abi.encode(payee, salt))` (C-03); pass `salt`, not a raw nonce. Tracked in `x402SettlementNonces` — reuse reverts. Swapping `to` breaks the EIP-3009 signature.
 - The USDC amount is converted to aPNTs credit using the Chainlink ETH/USD price feed.
 - `validBefore` enforces a time window; expired signatures revert.
 
@@ -758,26 +766,60 @@ const txHash = await walletClient.writeContract({
 
 #### A2. xPNTs Settlement (settleX402PaymentDirect)
 
-Used when the payer holds community xPNTs tokens. xPNTs deployed by `xPNTsFactory` carry a built-in infinite approval to SuperPaymaster, so no user signature is required.
+Used when the payer holds community xPNTs tokens. xPNTs deployed by `xPNTsFactory` carry a
+built-in infinite approval to SuperPaymaster — which is exactly why the **payer must sign an
+EIP-712 `X402PaymentAuthorization`** (C-02 hardening): without it, any approved facilitator could
+pull any holder's xPNTs to a chosen recipient. The signature is the payer's consent.
 
 ```typescript
-// settleX402PaymentDirect: xPNTs transferFrom (auto-approved by factory)
+import { keccak256, toBytes } from 'viem';
+
+// Inputs: payer (xPNTs holder), payee (recipient), xpnts (factory-minted token), amount (18 decimals),
+//         facilitatorAddress (msg.sender, holds ROLE_PAYMASTER_SUPER + on approvedFacilitators)
+// Unlike the EIP-3009 path (A1), the direct-path nonce is a PLAIN random bytes32 — the recipient
+// is bound by the signed `to` field itself, not by deriving the nonce from `to`.
+const nonce       = keccak256(toBytes(crypto.randomUUID()));        // random bytes32
+const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600);  // expiry (1 hour)
+
+// maxFee = the most fee the payer authorizes. Fee = amount * effectiveFeeBPS / 10000, where
+// effectiveFeeBPS = operatorFacilitatorFees(facilitator) || facilitatorFeeBPS(). Read it on-chain
+// and cap accordingly; the contract reverts with X402FeeExceedsMax if the computed fee > maxFee.
+let effBps = await publicClient.readContract({ address: SUPER_PAYMASTER, abi: SuperPaymasterABI,
+  functionName: 'operatorFacilitatorFees', args: [facilitatorAddress] });
+if (effBps === 0n) effBps = await publicClient.readContract({ address: SUPER_PAYMASTER,
+  abi: SuperPaymasterABI, functionName: 'facilitatorFeeBPS' });
+const maxFee = (amount * effBps) / 10_000n;
+
+// 1) Payer signs the authorization over the SuperPaymaster proxy domain.
+//    chainId must be read dynamically — the contract uses block.chainid, so a hardcoded
+//    value produces a mismatched domain separator (invalid signature) on any other chain.
+const chainId = await publicClient.getChainId();
+const signature = await payerWallet.signTypedData({
+  domain: { name: 'SuperPaymaster', version: '1', chainId, verifyingContract: SUPER_PAYMASTER },
+  types: { X402PaymentAuthorization: [
+    { name: 'from', type: 'address' }, { name: 'to', type: 'address' },
+    { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
+    { name: 'maxFee', type: 'uint256' }, { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
+  ] },
+  primaryType: 'X402PaymentAuthorization',
+  message: { from: payer, to: payee, asset: xpnts, amount, maxFee, validBefore, nonce },
+});
+
+// 2) Facilitator (ROLE_PAYMASTER_SUPER + on the xPNTs approvedFacilitators list) submits
 const txHash = await walletClient.writeContract({
   address: SUPER_PAYMASTER,
   abi: SuperPaymasterABI,
   functionName: 'settleX402PaymentDirect',
-  args: [
-    operatorAddress,   // operator whose aPNTs balance is credited
-    payerAddress,      // xPNTs holder (payer)
-    amountXPNTs,       // amount in xPNTs (18 decimals)
-  ],
+  args: [payer, payee, xpnts, amount, maxFee, validBefore, nonce, signature],
 });
-// Gas: lower than USDC path — no EIP-3009 verification
 ```
 
 **Notes:**
-- xPNTs must be from the `xPNTsFactory` deployment (pre-approved to SuperPaymaster).
-- The amount is debited from `payer`'s xPNTs balance and credited to `operator`'s aPNTs account.
+- `asset` must be a factory-minted xPNTs (`isXPNTs`, P0-12a) and the caller must be on the token's
+  `approvedFacilitators` whitelist (P0-12b).
+- `from` (payer) needs no ETH — it only signs off-chain; the facilitator pays gas and submits.
+- A plain-EOA payer keeps the ecrecover path; a 7702-delegated / smart account is verified via ERC-1271.
 
 ---
 
@@ -852,17 +894,27 @@ const paymasterAndData = concat([
 
 ### Scenario C — Micro-Payment via chargeMicroPayment (Off-Path)
 
-`chargeMicroPayment` allows an operator to charge a user off the UserOp hot path using an EIP-712 signature. Useful for API metering, streaming payments, and pay-per-call models.
+> ⚠️ **Status: designed, NOT deployed.** `chargeMicroPayment` is specified in `docs/V5.1-Plan.md`
+> but is **not present in the deployed SuperPaymaster-5.3.3** (no such function in the ABI). The
+> snippet below is a design reference, not a working call. For the session / limited / metered
+> micro-payment use case today, use **AirAccount Session Keys** (account-layer target/selector/
+> velocity/quota limits) for authorization plus SuperPaymaster gasless settlement, or
+> **MicroPaymentChannel** for streaming. This section will be updated if/when the function ships.
+
+`chargeMicroPayment` would let an operator charge a user off the UserOp hot path using an EIP-712 signature, for API metering, streaming payments, and pay-per-call models.
 
 #### C1. User Signs EIP-712 Authorization
 
 ```typescript
 import { hashTypedData } from 'viem';
 
+// Design reference only — chargeMicroPayment is NOT deployed (see banner above).
+// chainId must be read dynamically (the contract would verify against block.chainid).
+const chainId = await walletClient.getChainId();
 const domain = {
   name: 'SuperPaymaster',
   version: '5',
-  chainId: 11155111n,
+  chainId,
   verifyingContract: SUPER_PAYMASTER,
 };
 
