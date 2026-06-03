@@ -475,7 +475,7 @@ function settleX402PaymentDirect(
 
 **Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`
 
-**Errors:** `InvalidX402Signature`, `X402AuthExpired`, `X402FeeExceedsMax`, `InvalidXPNTsToken`, `NonceAlreadyUsed`, `Unauthorized`
+**Errors:** `InvalidX402Signature`, `X402AuthExpired`, `X402FeeExceedsMax`, `InvalidConfiguration` (xpntsFactory unset), `InvalidXPNTsToken`, `NonceAlreadyUsed`, `Unauthorized`
 
 ---
 
