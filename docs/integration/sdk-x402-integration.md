@@ -44,7 +44,7 @@
 | `X402Client` 高级 API | `X402Client.ts` | 已实现 |
 | `x402Fetch` 自动 402 → sign → retry | `X402Client.ts` `x402Fetch()` | 已实现，有 TODO（部分 server 把 PaymentRequired 放 body 而非 header） |
 | HMAC challenge 客户端封装 | — | **TODO（缺失，详见 §10）** |
-| Direct path（xPNTs，无签名） | `X402Client.settleDirectOnChain()` | 已实现（链上直发） |
+| Direct path（xPNTs，**需 EIP-712 签名**，C-02 起） | `X402Client.settleDirectOnChain()` | 链上直发已实现，但**签名参数 TODO**（aastar-sdk#39）；详见 §5.2 |
 | Settlement via external facilitator | `X402Client.settleViaFacilitator()` | 已实现 |
 
 入口导出（`packages/x402/src/index.ts`）：
@@ -77,7 +77,7 @@ export {
 | 类别 | 函数 | 链上对应 |
 |------|------|----------|
 | Settlement (write) | `settleX402Payment` | `SuperPaymaster.settleX402Payment(from,to,asset,amount,validAfter,validBefore,nonce,signature)` |
-| Settlement (write) | `settleX402PaymentDirect` | `SuperPaymaster.settleX402PaymentDirect(from,to,asset,amount,nonce)` |
+| Settlement (write) | `settleX402PaymentDirect` | `SuperPaymaster.settleX402PaymentDirect(from,to,asset,amount,maxFee,validBefore,nonce,signature)` （C-02：8 参数，含 payer EIP-712 签名） |
 | View | `x402SettlementNonces({nonce})` | `mapping(bytes32 => bool)` 公共 getter（**注意：在 P0-13 之后 key 已变为三元组哈希；详见 §10**） |
 | View | `facilitatorFeeBPS()` | 全局费率 |
 | View | `facilitatorEarnings({operator,asset})` | 累计可提 |
@@ -277,26 +277,42 @@ const signature = await walletClient.signTypedData(typedData);
 
 > **注意**：`X402Client.createPayment()` 当前签的是用户 → payee 的转账（`to = params.to`），**与 facilitator-node 期望的 `to = SuperPaymaster` 不一致**。当资源服务器 + facilitator-node 是 SuperPaymaster 自家服务时（场景 A/B），用户应让 SDK 直接调 `client.settleOnChain()`，而 `to` 字段在合约内是"SP 收到 USDC 后再转给 payee"的语义。集成方需要看清楚自己用的是 spec 标准 to-payee 还是 SP 业务 to-SP 模型——**这是文档化漏点**（详见 §10 TODO）。
 
-### 5.2 Direct path（xPNTs；无需用户签）
+### 5.2 Direct path（xPNTs；**需用户 EIP-712 签名** — C-02 起）
 
-D4 决策：xPNTs 由 xPNTsFactory 部署时已自动 approve(SuperPaymaster, max)，**调用方 = operator/facilitator**，把 token 从 user 的余额按既定 nonce/asset/amount 直接转给 payee。无 EIP-712 签名。
+> ⚠️ **v5.3.3-beta.2 起的破坏性变更（C-02 安全修复）**：direct path **不再是"无需用户签"**。
+> xPNTs 虽由 xPNTsFactory 自动 approve(SuperPaymaster, max)，但正因为 SP 对每个持有人都有
+> auto-allowance，缺少签名就意味着任意被 community 批准的 facilitator 能把任意持有人的 xPNTs
+> 转给自选收款人。C-02 在 SP 层补上了授权门：**payer 必须签 EIP-712 `X402PaymentAuthorization`**。
 
-调用约束（来自 `SuperPaymaster.settleX402PaymentDirect`）：
+调用约束（来自 `SuperPaymaster.settleX402PaymentDirect`，参数 8 个）：
+- payer（`from`）必须签 `X402PaymentAuthorization(from,to,asset,amount,maxFee,validBefore,nonce)`，
+  domain 为 SP proxy（`name:"SuperPaymaster", version:"1", chainId, verifyingContract=SP`），
+  由 `_verifyX402Auth`（SignatureCheckerLib，支持 EOA + ERC-1271）校验；
+- `block.timestamp <= validBefore`，否则 `X402AuthExpired`；
 - `msg.sender` 必须有 `ROLE_PAYMASTER_SUPER`（即 operator）；
 - `nonce` 三元组（asset, from, nonce）必须未用过（P0-13）；
-- 资产必须在合约层判定为可信（**P0-12a 待修**：当前缺 `isXPNTs` 白名单，理论上恶意 token 也能走 direct path 制造伪结算事件）；
-- facilitator 必须在 community 白名单内（**P0-12b 待修**）。
+- 计算出的 `fee` 必须 `<= maxFee`，否则 `X402FeeExceedsMax`；
+- 资产必须是 xPNTsFactory 部署的 xPNTs（**P0-12a 已修复**：`isXPNTs(asset)` 白名单强制，恶意 token → `InvalidXPNTsToken`）；
+- facilitator 必须在该 xPNTs 的 `approvedFacilitators` 白名单内（**P0-12b 已修复**：否则 `Unauthorized`）。
 
-SDK 调用示例：
+SDK 调用示例（**含签名**；`@aastar/x402` 暴露 salt/签名前见 [aastar-sdk#39](https://github.com/AAStarCommunity/aastar-sdk/issues/39)，
+可参考裸 EIP-712 实现 `script/gasless-tests/test-x402-direct-settle.js`）：
 
 ```ts
-const txHash = await client.settleDirectOnChain({
-  from:   '0xUser',
-  to:     '0xPayee',
-  asset:  '0xXPNTs',
-  amount: 1_000_000_000_000_000_000n,    // 1 xPNTs (18 decimals)
-  nonce:  generateNonce(),
+// payer 用 SP proxy 的 domain 签 X402PaymentAuthorization
+const signature = await payerWallet.signTypedData({
+  domain: { name: 'SuperPaymaster', version: '1', chainId, verifyingContract: SUPER_PAYMASTER },
+  types: { X402PaymentAuthorization: [
+    { name: 'from', type: 'address' }, { name: 'to', type: 'address' },
+    { name: 'asset', type: 'address' }, { name: 'amount', type: 'uint256' },
+    { name: 'maxFee', type: 'uint256' }, { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
+  ] },
+  primaryType: 'X402PaymentAuthorization',
+  message: { from, to, asset, amount, maxFee, validBefore, nonce },
 });
+// facilitator（operator）提交
+const txHash = await client.settleDirectOnChain({ from, to, asset, amount, maxFee, validBefore, nonce, signature });
 ```
 
 ---
