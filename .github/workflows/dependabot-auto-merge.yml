@@ -1,5 +1,9 @@
 name: Dependabot auto-merge
 
+# SECURITY NOTE: do NOT add actions/checkout in this workflow.
+# pull_request_target runs with write permissions; checking out PR head code
+# here would expose those permissions to fork PRs (pwn-request attack).
+
 on: pull_request_target
 
 permissions:
@@ -9,15 +13,21 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    # Triple guard: actor, PR author, and target repo must all match.
+    if: |
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'AAStarCommunity/SuperPaymaster'
     steps:
       - name: Fetch Dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@d21a6a8b2e73737d90f98a72e0bd6a8cec2c2de1  # v2.3.0
+        # Pinned to v2.3.0 by SHA — verify: git ls-remote https://github.com/dependabot/fetch-metadata.git refs/tags/v2.3.0
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7  # v2.3.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # patch + minor: auto-approve and queue for auto-merge (CI must pass first)
+      # patch + minor only: auto-approve and queue auto-merge.
+      # Actual merge is gated on all required CI checks passing (branch protection).
       - name: Auto-approve patch/minor update
         if: |
           steps.meta.outputs.update-type == 'version-update:semver-patch' ||
@@ -36,7 +46,7 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # major version bump: add label so it's easy to filter, but do NOT auto-merge
+      # major version bump: label for manual review, never auto-merge.
       - name: Label major update for manual review
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: gh pr edit "$PR_URL" --add-label "dependencies,major-update"
