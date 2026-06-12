@@ -1,0 +1,56 @@
+name: CI Required Shim
+
+# WHY THIS EXISTS
+# ----------------
+# Branch protection marks these four checks as required:
+#   - test                              (test.yml,      paths: contracts/**, ...)
+#   - Stage 1 — solhint + build (EIP-170) (security.yml, paths: contracts/**, ...)
+#   - Stage 2 — forge test + fuzz       (security.yml,  paths: contracts/**, ...)
+#   - Scan for Private Keys and Secrets (check-secrets.yml, no path filter — always runs)
+#
+# The first three are path-filtered to contract code. A PR that touches ONLY
+# npm packages / docs (e.g. Dependabot npm bumps #241/#242) never triggers them,
+# so GitHub shows them as "Expected — waiting for status" forever and BLOCKS merge
+# (including `gh pr merge --auto`). This is GitHub's well-known "skipped but
+# required" problem.
+#
+# The fix is the official mirror/shim pattern: this workflow runs on the COMPLEMENT
+# path set (when NO contract code changed) and reports SUCCESS under the exact same
+# check names. So for any PR, exactly one of {real workflow, this shim} reports each
+# required check — contract PRs run the real tests, non-contract PRs get a green shim.
+#
+# The path list below MUST stay the UNION of test.yml's and security.yml's `paths:`.
+# If you edit either gate's paths, mirror the change here.
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'contracts/**'
+      - 'singleton-paymaster/**'
+      - 'foundry.toml'
+      - 'remappings.txt'
+      - 'echidna*.yaml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No contract changes in this PR — shim satisfies required check 'test'."
+
+  stage1:
+    name: Stage 1 — solhint + build (EIP-170)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No contract changes — shim satisfies required check 'Stage 1'."
+
+  stage2:
+    name: Stage 2 — forge test + fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No contract changes — shim satisfies required check 'Stage 2'."
