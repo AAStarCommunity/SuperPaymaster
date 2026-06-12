@@ -13,6 +13,11 @@ evm_version = "cancun"
 # Always emit storage layout so the UUPS storage-drift guard
 # (scripts/check_storage_layout.py) can read it from artifacts.
 extra_output = ["storageLayout"]
+# Strip CBOR metadata from deployed bytecode so that codehash reflects only
+# logic changes. Without this, ANY source-file edit (tests, unrelated contracts)
+# changes the metadata suffix and makes UpgradeLive.s.sol think an upgrade is
+# needed even when SP/Registry logic is identical.
+bytecode_hash = "none"
 
 # Include singleton-paymaster libs but exclude tests to avoid conflicts
 # Also exclude old test location to prevent duplicates

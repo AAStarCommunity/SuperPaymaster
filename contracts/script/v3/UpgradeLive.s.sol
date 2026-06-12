@@ -12,19 +12,26 @@ import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUp
 
 /**
  * @title UpgradeLive
- * @notice Generic version-agnostic UUPS upgrade for SuperPaymaster + Registry.
+ * @notice Selective UUPS upgrade for SuperPaymaster and/or Registry.
  *
  * Policy (from v5.3.3-beta onwards):
  *   Any change to SuperPaymaster or Registry on a live network MUST go through
  *   this script (not DeployLive). DeployLive deploys new proxies and loses all
  *   state (communities, stake, SBT, etc.).
  *
+ * Selective upgrade logic:
+ *   Each contract is only upgraded when its compiled bytecode actually differs
+ *   from what is currently deployed. The script reads each proxy's current
+ *   implementation address via the ERC-1967 storage slot, deploys the new
+ *   implementation, and compares codehashes. If they match the proxy is left
+ *   untouched and a "skipped -- already up to date" message is logged.
+ *
  * What this script does:
  *   1. Reads existing proxy addresses from config.<env>.json
- *   2. Deploys a new Registry implementation (no constructor args)
- *   3. Deploys a new SuperPaymaster implementation (entryPoint, registry, priceFeed)
- *   4. Calls upgradeToAndCall() on each proxy  → state preserved, logic updated
- *   5. Patches config: registryImpl, spImpl, srcHash, updateTime
+ *   2. Reads current impl addresses from ERC-1967 slots (no RPC call needed)
+ *   3. Deploys new Registry and SuperPaymaster implementations
+ *   4. For each contract: calls upgradeToAndCall() ONLY if codehash differs
+ *   5. Patches config for any contract that was actually upgraded
  *
  * Scope: SP + Registry only (UUPS contracts). Other contracts (GToken, Staking,
  * MySBT, ReputationSystem, etc.) are NOT touched; use dedicated scripts for those.
@@ -42,6 +49,13 @@ import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUp
  */
 contract UpgradeLive is Script {
 
+    // ERC-1967 implementation slot: keccak256("eip1967.proxy.implementation") - 1
+    bytes32 constant IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
+    function _currentImpl(address proxy) internal view returns (address) {
+        return address(uint160(uint256(vm.load(proxy, IMPL_SLOT))));
+    }
+
     function run() external {
         string memory network = vm.envOr("ENV", string("sepolia"));
         string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
@@ -51,36 +65,36 @@ contract UpgradeLive is Script {
         address spProxy       = vm.parseJsonAddress(config, ".superPaymaster");
         address entryPoint    = vm.parseJsonAddress(config, ".entryPoint");
         address priceFeed     = vm.parseJsonAddress(config, ".priceFeed");
-        // microPaymentChannel may be absent in pre-V5.3 configs — load tolerantly
-        // (parseJsonAddress reverts on a missing key) and treat absence as 0x0 so
-        // the deploy-if-missing branch below can handle it.
         address mcProxy;
         try vm.parseJsonAddress(config, ".microPaymentChannel") returns (address mc) {
             mcProxy = mc;
         } catch {
             mcProxy = address(0);
         }
-        address deployer      = msg.sender;
+        address deployer = msg.sender;
 
         require(registryProxy != address(0), "UpgradeLive: registry proxy not in config");
         require(spProxy       != address(0), "UpgradeLive: superPaymaster proxy not in config");
         require(entryPoint    != address(0), "UpgradeLive: entryPoint not in config");
         require(priceFeed     != address(0), "UpgradeLive: priceFeed not in config");
 
-        console.log("=== UUPS Upgrade: SuperPaymaster + Registry ===");
-        console.log("  Network:        ", network);
-        console.log("  Registry proxy: ", registryProxy);
-        console.log("  SP proxy:       ", spProxy);
-        console.log("");
+        // --- Read current impl addresses before any broadcast ---
+        address curRegImpl = _currentImpl(registryProxy);
+        address curSPImpl  = _currentImpl(spProxy);
 
-        string memory regBefore = Registry(registryProxy).version();
-        string memory spBefore  = SuperPaymaster(payable(spProxy)).version();
-        console.log("  Registry before:", regBefore);
-        console.log("  SP before:      ", spBefore);
+        console.log("=== UUPS Selective Upgrade: SuperPaymaster + Registry ===");
+        console.log("  Network:             ", network);
+        console.log("  Registry proxy:      ", registryProxy);
+        console.log("  Registry current impl:", curRegImpl);
+        console.log("  SP proxy:            ", spProxy);
+        console.log("  SP current impl:     ", curSPImpl);
+        console.log("  Registry version:    ", Registry(registryProxy).version());
+        console.log("  SP version:          ", SuperPaymaster(payable(spProxy)).version());
+        console.log("");
 
         vm.startBroadcast();
 
-        // --- Deploy new implementations ---
+        // --- Deploy new implementations (always compiled fresh) ---
         Registry newRegImpl = new Registry();
         SuperPaymaster newSPImpl = new SuperPaymaster(
             IEntryPoint(entryPoint),
@@ -88,15 +102,28 @@ contract UpgradeLive is Script {
             priceFeed
         );
 
-        console.log("  New Registry impl:", address(newRegImpl));
-        console.log("  New SP impl:      ", address(newSPImpl));
+        console.log("  New Registry impl:   ", address(newRegImpl));
+        console.log("  New SP impl:         ", address(newSPImpl));
 
-        // --- Upgrade proxies (state preserved) ---
-        UUPSUpgradeable(registryProxy).upgradeToAndCall(address(newRegImpl), "");
-        console.log("  Registry upgraded");
+        // --- Selective upgrade: only call upgradeToAndCall if bytecode changed ---
+        bool regUpgraded;
+        bool spUpgraded;
 
-        UUPSUpgradeable(spProxy).upgradeToAndCall(address(newSPImpl), "");
-        console.log("  SuperPaymaster upgraded");
+        if (curRegImpl.codehash != address(newRegImpl).codehash) {
+            UUPSUpgradeable(registryProxy).upgradeToAndCall(address(newRegImpl), "");
+            regUpgraded = true;
+            console.log("  Registry: upgraded -- codehash changed");
+        } else {
+            console.log("  Registry: skipped -- bytecode unchanged, proxy already up to date");
+        }
+
+        if (curSPImpl.codehash != address(newSPImpl).codehash) {
+            UUPSUpgradeable(spProxy).upgradeToAndCall(address(newSPImpl), "");
+            spUpgraded = true;
+            console.log("  SuperPaymaster: upgraded -- codehash changed");
+        } else {
+            console.log("  SuperPaymaster: skipped -- bytecode unchanged, proxy already up to date");
+        }
 
         // --- Deploy MicroPaymentChannel if not yet deployed (idempotent) ---
         if (mcProxy == address(0)) {
@@ -109,31 +136,35 @@ contract UpgradeLive is Script {
 
         vm.stopBroadcast();
 
-        // --- Verify ---
-        string memory regAfter = Registry(registryProxy).version();
-        string memory spAfter  = SuperPaymaster(payable(spProxy)).version();
-        console.log("  Registry after: ", regAfter);
-        console.log("  SP after:       ", spAfter);
+        // --- Post-upgrade verification ---
+        console.log("  Registry version after: ", Registry(registryProxy).version());
+        console.log("  SP version after:       ", SuperPaymaster(payable(spProxy)).version());
 
-        // --- Patch config (keep all existing keys, only update changed fields) ---
+        if (!regUpgraded && !spUpgraded) {
+            console.log("");
+            console.log("  Nothing to upgrade -- both contracts are already at the latest bytecode.");
+            console.log("  Config NOT patched (no changes).");
+            return;
+        }
+
+        // --- Patch config only for upgraded contracts ---
         string memory srcHash    = vm.envOr("SRC_HASH",    vm.parseJsonString(config, ".srcHash"));
         string memory updateTime = vm.envOr("DEPLOY_TIME", string("N/A"));
 
-        vm.writeJson(vm.toString(address(newRegImpl)), configPath, ".registryImpl");
-        vm.writeJson(vm.toString(address(newSPImpl)),  configPath, ".spImpl");
-        vm.writeJson(vm.toString(mcProxy),             configPath, ".microPaymentChannel");
-        vm.writeJson(srcHash,                          configPath, ".srcHash");
-        vm.writeJson(updateTime,                       configPath, ".updateTime");
+        if (regUpgraded) vm.writeJson(vm.toString(address(newRegImpl)), configPath, ".registryImpl");
+        if (spUpgraded)  vm.writeJson(vm.toString(address(newSPImpl)),  configPath, ".spImpl");
+        vm.writeJson(vm.toString(mcProxy), configPath, ".microPaymentChannel");
+        vm.writeJson(srcHash,              configPath, ".srcHash");
+        vm.writeJson(updateTime,           configPath, ".updateTime");
 
         _ensureTrailingNewline(configPath);
 
         console.log("");
         console.log("  Config patched:", configPath);
-        console.log("    registryImpl        =", address(newRegImpl));
-        console.log("    spImpl              =", address(newSPImpl));
+        if (regUpgraded) console.log("    registryImpl        =", address(newRegImpl));
+        if (spUpgraded)  console.log("    spImpl              =", address(newSPImpl));
         console.log("    microPaymentChannel =", mcProxy);
-        console.log("    srcHash             =", srcHash);
-        console.log("=== Upgrade successful! ===");
+        console.log("=== Upgrade complete ===");
     }
 
     function _ensureTrailingNewline(string memory path) internal {
