@@ -19,6 +19,14 @@ name: CI Required Shim
 # check names. So for any PR, exactly one of {real workflow, this shim} reports each
 # required check — contract PRs run the real tests, non-contract PRs get a green shim.
 #
+# SECURITY NOTE — 300-file path-filter bypass guard
+# --------------------------------------------------
+# GitHub's `paths-ignore` only evaluates the first 300 changed files in a PR.
+# A large PR with contract changes buried beyond file #300 would trigger this shim
+# instead of the real tests. Each job below guards against this by explicitly checking
+# the full diff. The guard logic is inline (not in a checked-out script) so that a
+# fork PR cannot replace it with `exit 0`.
+#
 # The path list below MUST stay the UNION of test.yml's and security.yml's `paths:`.
 # If you edit either gate's paths, mirror the change here.
 
@@ -41,37 +49,55 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: 300-file path-filter bypass guard
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bash .github/scripts/shim-guard.sh
+        run: |
+          if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+            echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
+            exit 1
+          fi
+          echo "No contract-path changes — shim satisfies required check 'test'."
 
   stage1:
     name: Stage 1 — solhint + build (EIP-170)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: 300-file path-filter bypass guard
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bash .github/scripts/shim-guard.sh
+        run: |
+          if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+            echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
+            exit 1
+          fi
+          echo "No contract-path changes — shim satisfies required check 'Stage 1'."
 
   stage2:
     name: Stage 2 — forge test + fuzz
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: 300-file path-filter bypass guard
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bash .github/scripts/shim-guard.sh
+        run: |
+          if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+            echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
+            exit 1
+          fi
+          echo "No contract-path changes — shim satisfies required check 'Stage 2'."
