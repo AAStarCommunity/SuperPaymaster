@@ -41,16 +41,37 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - run: echo "No contract changes in this PR — shim satisfies required check 'test'."
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 300-file path-filter bypass guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/shim-guard.sh
 
   stage1:
     name: Stage 1 — solhint + build (EIP-170)
     runs-on: ubuntu-latest
     steps:
-      - run: echo "No contract changes — shim satisfies required check 'Stage 1'."
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 300-file path-filter bypass guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/shim-guard.sh
 
   stage2:
     name: Stage 2 — forge test + fuzz
     runs-on: ubuntu-latest
     steps:
-      - run: echo "No contract changes — shim satisfies required check 'Stage 2'."
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 300-file path-filter bypass guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/shim-guard.sh
