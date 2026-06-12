@@ -3,150 +3,322 @@
     "label": "_owner",
     "slot": "0",
     "offset": 0,
-    "type": "t_address"
+    "type": "address"
   },
   {
     "label": "_status",
     "slot": "1",
     "offset": 0,
-    "type": "t_uint256"
+    "type": "uint256"
   },
   {
     "label": "GTOKEN_STAKING",
     "slot": "2",
     "offset": 0,
-    "type": "t_contract(IGTokenStaking)45793"
+    "type": "contract IGTokenStaking"
   },
   {
     "label": "MYSBT",
     "slot": "3",
     "offset": 0,
-    "type": "t_contract(IMySBT)45890"
+    "type": "contract IMySBT"
   },
   {
     "label": "SUPER_PAYMASTER",
     "slot": "4",
     "offset": 0,
-    "type": "t_address"
+    "type": "address"
   },
   {
     "label": "blsAggregator",
     "slot": "5",
     "offset": 0,
-    "type": "t_address"
+    "type": "address"
   },
   {
     "label": "roleConfigs",
     "slot": "6",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_struct(RoleConfig)45957_storage)"
+    "type": {
+      "mapping": "mapping(bytes32 => struct IRegistry.RoleConfig)",
+      "key": "bytes32",
+      "value": {
+        "struct": "struct IRegistry.RoleConfig",
+        "members": [
+          {
+            "label": "minStake",
+            "slot": "0",
+            "offset": 0,
+            "type": "uint256"
+          },
+          {
+            "label": "ticketPrice",
+            "slot": "1",
+            "offset": 0,
+            "type": "uint256"
+          },
+          {
+            "label": "slashThreshold",
+            "slot": "2",
+            "offset": 0,
+            "type": "uint32"
+          },
+          {
+            "label": "slashBase",
+            "slot": "2",
+            "offset": 4,
+            "type": "uint32"
+          },
+          {
+            "label": "slashInc",
+            "slot": "2",
+            "offset": 8,
+            "type": "uint32"
+          },
+          {
+            "label": "slashMax",
+            "slot": "2",
+            "offset": 12,
+            "type": "uint32"
+          },
+          {
+            "label": "exitFeePercent",
+            "slot": "2",
+            "offset": 16,
+            "type": "uint16"
+          },
+          {
+            "label": "isActive",
+            "slot": "2",
+            "offset": 18,
+            "type": "bool"
+          },
+          {
+            "label": "minExitFee",
+            "slot": "3",
+            "offset": 0,
+            "type": "uint256"
+          },
+          {
+            "label": "description",
+            "slot": "4",
+            "offset": 0,
+            "type": "string"
+          },
+          {
+            "label": "owner",
+            "slot": "5",
+            "offset": 0,
+            "type": "address"
+          },
+          {
+            "label": "roleLockDuration",
+            "slot": "6",
+            "offset": 0,
+            "type": "uint256"
+          }
+        ]
+      }
+    }
   },
   {
     "label": "hasRole",
     "slot": "7",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bool))"
+    "type": {
+      "mapping": "mapping(bytes32 => mapping(address => bool))",
+      "key": "bytes32",
+      "value": {
+        "mapping": "mapping(address => bool)",
+        "key": "address",
+        "value": "bool"
+      }
+    }
   },
   {
     "label": "roleStakes",
     "slot": "8",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    "type": {
+      "mapping": "mapping(bytes32 => mapping(address => uint256))",
+      "key": "bytes32",
+      "value": {
+        "mapping": "mapping(address => uint256)",
+        "key": "address",
+        "value": "uint256"
+      }
+    }
   },
   {
     "label": "roleMembers",
     "slot": "9",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_array(t_address)dyn_storage)"
+    "type": {
+      "mapping": "mapping(bytes32 => address[])",
+      "key": "bytes32",
+      "value": {
+        "array": "address[]",
+        "base": "address"
+      }
+    }
   },
   {
     "label": "roleMemberIndex",
     "slot": "10",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    "type": {
+      "mapping": "mapping(bytes32 => mapping(address => uint256))",
+      "key": "bytes32",
+      "value": {
+        "mapping": "mapping(address => uint256)",
+        "key": "address",
+        "value": "uint256"
+      }
+    }
   },
   {
     "label": "roleSBTTokenIds",
     "slot": "11",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    "type": {
+      "mapping": "mapping(bytes32 => mapping(address => uint256))",
+      "key": "bytes32",
+      "value": {
+        "mapping": "mapping(address => uint256)",
+        "key": "address",
+        "value": "uint256"
+      }
+    }
   },
   {
     "label": "roleMetadata",
     "slot": "12",
     "offset": 0,
-    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bytes_storage))"
+    "type": {
+      "mapping": "mapping(bytes32 => mapping(address => bytes))",
+      "key": "bytes32",
+      "value": {
+        "mapping": "mapping(address => bytes)",
+        "key": "address",
+        "value": "bytes"
+      }
+    }
   },
   {
     "label": "communityByName",
     "slot": "13",
     "offset": 0,
-    "type": "t_mapping(t_string_memory_ptr,t_address)"
+    "type": {
+      "mapping": "mapping(string => address)",
+      "key": "string",
+      "value": "address"
+    }
   },
   {
     "label": "communityByENS",
     "slot": "14",
     "offset": 0,
-    "type": "t_mapping(t_string_memory_ptr,t_address)"
+    "type": {
+      "mapping": "mapping(string => address)",
+      "key": "string",
+      "value": "address"
+    }
   },
   {
     "label": "userRoles",
     "slot": "15",
     "offset": 0,
-    "type": "t_mapping(t_address,t_array(t_bytes32)dyn_storage)"
+    "type": {
+      "mapping": "mapping(address => bytes32[])",
+      "key": "address",
+      "value": {
+        "array": "bytes32[]",
+        "base": "bytes32"
+      }
+    }
   },
   {
     "label": "userRoleCount",
     "slot": "16",
     "offset": 0,
-    "type": "t_mapping(t_address,t_uint256)"
+    "type": {
+      "mapping": "mapping(address => uint256)",
+      "key": "address",
+      "value": "uint256"
+    }
   },
   {
     "label": "globalReputation",
     "slot": "17",
     "offset": 0,
-    "type": "t_mapping(t_address,t_uint256)"
+    "type": {
+      "mapping": "mapping(address => uint256)",
+      "key": "address",
+      "value": "uint256"
+    }
   },
   {
     "label": "lastReputationEpoch",
     "slot": "18",
     "offset": 0,
-    "type": "t_mapping(t_address,t_uint256)"
+    "type": {
+      "mapping": "mapping(address => uint256)",
+      "key": "address",
+      "value": "uint256"
+    }
   },
   {
     "label": "creditTierConfig",
     "slot": "19",
     "offset": 0,
-    "type": "t_mapping(t_uint256,t_uint256)"
+    "type": {
+      "mapping": "mapping(uint256 => uint256)",
+      "key": "uint256",
+      "value": "uint256"
+    }
   },
   {
     "label": "isReputationSource",
     "slot": "20",
     "offset": 0,
-    "type": "t_mapping(t_address,t_bool)"
+    "type": {
+      "mapping": "mapping(address => bool)",
+      "key": "address",
+      "value": "bool"
+    }
   },
   {
     "label": "executedProposals",
     "slot": "21",
     "offset": 0,
-    "type": "t_mapping(t_uint256,t_bool)"
+    "type": {
+      "mapping": "mapping(uint256 => bool)",
+      "key": "uint256",
+      "value": "bool"
+    }
   },
   {
     "label": "levelThresholds",
     "slot": "22",
     "offset": 0,
-    "type": "t_array(t_uint256)dyn_storage"
+    "type": {
+      "array": "uint256[]",
+      "base": "uint256"
+    }
   },
   {
     "label": "blacklistNonce",
     "slot": "23",
     "offset": 0,
-    "type": "t_uint256"
+    "type": "uint256"
   },
   {
     "label": "__gap",
     "slot": "24",
     "offset": 0,
-    "type": "t_array(t_uint256)50_storage"
+    "type": {
+      "array": "uint256[50]",
+      "base": "uint256"
+    }
   }
 ]

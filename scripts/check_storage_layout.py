@@ -21,6 +21,39 @@ CONTRACTS = ["SuperPaymaster", "Registry"]
 SNAP_DIR = "storage-layout"
 
 
+def _resolve_type(type_id, types, seen):
+    """Expand a type reference into a structural description so that nested
+    struct/array/mapping INTERNAL layout changes are captured — not just the
+    top-level type-id string.
+
+    Critical: storing only the type-id (e.g. `t_struct(OperatorConfig)45043`)
+    MISSES a struct field reorder, because the id can stay the same while the
+    members shift slot/offset — that is exactly the v5.3.2 / PR #196 bug class.
+    We key on the human `label` (no compiler-assigned astId) so genuine layout
+    drift trips the guard while incidental id churn does not.
+    """
+    if type_id in seen:
+        return type_id  # cycle guard (self-referential mapping/struct)
+    seen = seen | {type_id}
+    t = types.get(type_id, {})
+    label = t.get("label", type_id)
+    members = t.get("members")
+    if members:
+        return {"struct": label, "members": [
+            {"label": m["label"], "slot": m["slot"], "offset": m["offset"],
+             "type": _resolve_type(m["type"], types, seen)}
+            for m in members
+        ]}
+    if "value" in t:  # mapping
+        key_id = t.get("key", "")
+        return {"mapping": label,
+                "key": types.get(key_id, {}).get("label", key_id),
+                "value": _resolve_type(t["value"], types, seen)}
+    if "base" in t:  # array
+        return {"array": label, "base": _resolve_type(t["base"], types, seen)}
+    return label  # primitive / enum
+
+
 def current_layout(contract):
     out = subprocess.run(
         ["forge", "inspect", contract, "storageLayout", "--json"],
@@ -30,10 +63,13 @@ def current_layout(contract):
         print(f"forge inspect {contract} failed:\n{out.stderr}", file=sys.stderr)
         sys.exit(2)
     data = json.loads(out.stdout)
-    # Keep only the layout-critical fields; drop the verbose `types` table whose
-    # internal ids are noisy across compiler runs.
+    types = data.get("types") or {}
+    # Recursively expand each slot's type so nested struct/array/mapping layout is
+    # part of the snapshot. A struct field reorder changes the expanded members
+    # even when the top-level type-id string is unchanged.
     return [
-        {"label": e["label"], "slot": e["slot"], "offset": e["offset"], "type": e["type"]}
+        {"label": e["label"], "slot": e["slot"], "offset": e["offset"],
+         "type": _resolve_type(e["type"], types, set())}
         for e in data.get("storage", [])
     ]
 
