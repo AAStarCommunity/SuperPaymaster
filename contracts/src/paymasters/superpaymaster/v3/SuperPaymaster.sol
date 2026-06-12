@@ -1303,7 +1303,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             // Preferred: burn from user's xPNTs balance with replay protection.
             // Falls back to recordDebt when user has insufficient balance (e.g. new user).
             // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            _recordDebt(token, user, finalCharge, userOpHash);
+            _recordDebt(token, user, finalCharge, userOpHash, operator);
 
             operators[operator].aPNTsBalance += uint128(refund);
             protocolRevenue -= refund;
@@ -1316,7 +1316,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
              // an EntryPoint invariant violation or an unexpected price swing between
              // validation and postOp. Cap at initialAPNTs to protect operator solvency.
              // Rare: actual > max, cap at max (no refund)
-             _recordDebt(token, user, initialAPNTs, userOpHash);
+             _recordDebt(token, user, initialAPNTs, userOpHash, operator);
         }
 
     }
@@ -1340,26 +1340,35 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      Idempotency is guaranteed by the postOp-level _settledDebtOps guard which
     ///      runs before this function is called.  xPNTs cross-hash checks
     ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
-    function _recordDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
+    function _recordDebt(address token, address user, uint256 amount, bytes32 opHash, address operator) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
             // AUDIT H-1 (2026-06-11): _creditExceeded's validation-time balance
-            // short-circuit is defeatable — a user can drain its xPNTs inside its
-            // own UserOp (executed between validate and postOp), so a charge that
-            // passed validation on "balance is enough" lands here with zero
-            // balance. recordDebtWithOpHash only checks maxSingleTxLimit, NOT the
-            // credit ceiling, which let debt accumulate past getCreditLimit and
-            // drain the operator. Re-enforce the ceiling on this fallback: only
-            // book collectible token-level debt if it still fits the limit;
-            // otherwise isolate the over-ceiling amount in pendingDebts (owner-
-            // visible, not auto-repaid on the user's next mint) so it cannot
-            // masquerade as normal debt and so repeat draining surfaces for
-            // operator / DVT-driven blacklist intervention. Preserves the
-            // balance short-circuit for honest level-1 (zero-credit) users, who
-            // pay from balance and never reach this fallback.
+            // short-circuit (intentional — lets zero-credit level-1 users pay
+            // from balance) is defeatable: a user can drain its xPNTs inside its
+            // own UserOp between validate and postOp, so a charge that passed on
+            // "balance is enough" lands here with zero balance. recordDebtWithOpHash
+            // only checks maxSingleTxLimit, NOT getCreditLimit, which let debt
+            // accumulate past the ceiling and drain the operator (the exact
+            // scenario C-01 set out to prevent).
             if (IxPNTsToken(token).getDebt(user) + pendingDebts[token][user] + amount
                 <= REGISTRY.getCreditLimit(user)) {
+                // Within ceiling: normal debt fallback (honest user, e.g. new
+                // user with no balance but within credit).
                 try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) { return; } catch {}
+            } else {
+                // Over ceiling: the balance short-circuit was defeated by a
+                // mid-UserOp drain — this op was effectively an unbacked
+                // sponsorship. The gas for THIS op is already spent (cannot be
+                // clawed back), so cap the loss by blocking the user for this
+                // operator: isBlocked is checked in validate and is channel-
+                // agnostic (gates BOTH the SBT and the agent path), so the
+                // drain-then-bypass cannot be REPEATED. Owner can unblock via
+                // updateBlockedStatus after review. The DebtRecordFailed event
+                // below is the off-chain signal; isBlocked is queryable state.
+                userOpState[operator][user].isBlocked = true;
             }
+            // Isolate the amount in pendingDebts (owner-visible, not auto-repaid
+            // on the user's next mint) rather than collectible token debt.
             pendingDebts[token][user] += amount;
             emit DebtRecordFailed(token, user, amount);
         }

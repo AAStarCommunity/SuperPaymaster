@@ -266,6 +266,39 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         assertEq(xpnts.burnSuccesses(), 0, "burn cannot succeed (drained)");
         assertEq(xpnts.recordDebtCalls(), 0, "over-ceiling debt must NOT reach recordDebt (would bypass credit limit)");
         assertGt(paymaster.pendingDebts(address(xpnts), user1), 0, "over-ceiling debt isolated in pendingDebts");
+        (, bool blocked) = paymaster.userOpState(operator1, user1);
+        assertTrue(blocked, "drained user must be blocked to stop repeat draining");
+    }
+
+    // ── AUDIT H-1: repeated drain is blocked after the first (Codex review) ───
+    // Isolating debt alone does NOT stop the attack — the op's gas is already
+    // spent, and without blocking the user could re-fund and re-drain endlessly,
+    // white-mailing one sponsored op per round. The fix blocks the user on the
+    // abuse signal so validation rejects every subsequent attempt.
+    function test_AuditH1_RepeatDrain_BlockedAfterFirstAttempt() public {
+        registry.setCreditLimitOverride(0);
+
+        // Round 1: validate passes on balance, user drains, postOp blocks.
+        xpnts.mint(user1, 1_000 ether);
+        bytes memory ctx = _runValidate();
+        uint256 bal = xpnts.balanceOf(user1);
+        vm.prank(user1);
+        xpnts.transfer(address(0xDEAD), bal);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+
+        (, bool blocked) = paymaster.userOpState(operator1, user1);
+        assertTrue(blocked, "user blocked after first drain");
+
+        // Round 2: even fully re-funded, validation now rejects the user
+        // (isBlocked is channel-agnostic — gates SBT and agent paths alike).
+        xpnts.mint(user1, 1_000 ether);
+        PackedUserOperation memory op;
+        op.sender = user1;
+        op.paymasterAndData = _buildPaymasterData();
+        vm.prank(address(entryPoint));
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(uint256(2)), MAX_COST);
+        assertEq(uint160(validationData), 1, "blocked user must be rejected on repeat sponsorship attempt");
     }
 
     // ── AUDIT H-1: no regression — within-ceiling debt is still recorded ───────
