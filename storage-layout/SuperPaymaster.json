@@ -1,0 +1,400 @@
+[
+  {
+    "label": "_owner",
+    "slot": "0",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "_status",
+    "slot": "1",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "APNTS_TOKEN",
+    "slot": "2",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "xpntsFactory",
+    "slot": "3",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "treasury",
+    "slot": "4",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "operators",
+    "slot": "5",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => struct ISuperPaymaster.OperatorConfig)",
+      "key": "address",
+      "value": {
+        "struct": "struct ISuperPaymaster.OperatorConfig",
+        "members": [
+          {
+            "label": "aPNTsBalance",
+            "slot": "0",
+            "offset": 0,
+            "type": "uint128"
+          },
+          {
+            "label": "isConfigured",
+            "slot": "0",
+            "offset": 16,
+            "type": "bool"
+          },
+          {
+            "label": "isPaused",
+            "slot": "0",
+            "offset": 17,
+            "type": "bool"
+          },
+          {
+            "label": "xPNTsToken",
+            "slot": "1",
+            "offset": 0,
+            "type": "address"
+          },
+          {
+            "label": "reputation",
+            "slot": "1",
+            "offset": 20,
+            "type": "uint32"
+          },
+          {
+            "label": "minTxInterval",
+            "slot": "1",
+            "offset": 24,
+            "type": "uint48"
+          },
+          {
+            "label": "treasury",
+            "slot": "2",
+            "offset": 0,
+            "type": "address"
+          },
+          {
+            "label": "totalSpent",
+            "slot": "3",
+            "offset": 0,
+            "type": "uint256"
+          },
+          {
+            "label": "totalTxSponsored",
+            "slot": "4",
+            "offset": 0,
+            "type": "uint256"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "label": "userOpState",
+    "slot": "6",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => mapping(address => struct SuperPaymaster.UserOperatorState))",
+      "key": "address",
+      "value": {
+        "mapping": "mapping(address => struct SuperPaymaster.UserOperatorState)",
+        "key": "address",
+        "value": {
+          "struct": "struct SuperPaymaster.UserOperatorState",
+          "members": [
+            {
+              "label": "lastTimestamp",
+              "slot": "0",
+              "offset": 0,
+              "type": "uint48"
+            },
+            {
+              "label": "isBlocked",
+              "slot": "0",
+              "offset": 6,
+              "type": "bool"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "label": "sbtHolders",
+    "slot": "7",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => bool)",
+      "key": "address",
+      "value": "bool"
+    }
+  },
+  {
+    "label": "slashHistory",
+    "slot": "8",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => struct ISuperPaymaster.SlashRecord[])",
+      "key": "address",
+      "value": {
+        "array": "struct ISuperPaymaster.SlashRecord[]",
+        "base": {
+          "struct": "struct ISuperPaymaster.SlashRecord",
+          "members": [
+            {
+              "label": "timestamp",
+              "slot": "0",
+              "offset": 0,
+              "type": "uint256"
+            },
+            {
+              "label": "amount",
+              "slot": "1",
+              "offset": 0,
+              "type": "uint256"
+            },
+            {
+              "label": "reputationLoss",
+              "slot": "2",
+              "offset": 0,
+              "type": "uint256"
+            },
+            {
+              "label": "reason",
+              "slot": "3",
+              "offset": 0,
+              "type": "string"
+            },
+            {
+              "label": "level",
+              "slot": "4",
+              "offset": 0,
+              "type": "enum ISuperPaymaster.SlashLevel"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "label": "aPNTsPriceUSD",
+    "slot": "9",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "cachedPrice",
+    "slot": "10",
+    "offset": 0,
+    "type": {
+      "struct": "struct SuperPaymaster.PriceCache",
+      "members": [
+        {
+          "label": "price",
+          "slot": "0",
+          "offset": 0,
+          "type": "int256"
+        },
+        {
+          "label": "updatedAt",
+          "slot": "1",
+          "offset": 0,
+          "type": "uint256"
+        },
+        {
+          "label": "roundId",
+          "slot": "2",
+          "offset": 0,
+          "type": "uint80"
+        },
+        {
+          "label": "decimals",
+          "slot": "2",
+          "offset": 10,
+          "type": "uint8"
+        }
+      ]
+    }
+  },
+  {
+    "label": "protocolFeeBPS",
+    "slot": "13",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "BLS_AGGREGATOR",
+    "slot": "14",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "totalTrackedBalance",
+    "slot": "15",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "protocolRevenue",
+    "slot": "16",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "pendingDebts",
+    "slot": "17",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => mapping(address => uint256))",
+      "key": "address",
+      "value": {
+        "mapping": "mapping(address => uint256)",
+        "key": "address",
+        "value": "uint256"
+      }
+    }
+  },
+  {
+    "label": "priceMode",
+    "slot": "18",
+    "offset": 0,
+    "type": "uint8"
+  },
+  {
+    "label": "emergencyQueuedAt",
+    "slot": "19",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "emergencyPendingPrice",
+    "slot": "20",
+    "offset": 0,
+    "type": "int256"
+  },
+  {
+    "label": "emergencyActivatedAt",
+    "slot": "21",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "priceStalenessThreshold",
+    "slot": "22",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "agentIdentityRegistry",
+    "slot": "23",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "agentReputationRegistry",
+    "slot": "24",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "facilitatorFeeBPS",
+    "slot": "25",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "operatorFacilitatorFees",
+    "slot": "26",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => uint256)",
+      "key": "address",
+      "value": "uint256"
+    }
+  },
+  {
+    "label": "x402SettlementNonces",
+    "slot": "27",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(bytes32 => bool)",
+      "key": "bytes32",
+      "value": "bool"
+    }
+  },
+  {
+    "label": "facilitatorEarnings",
+    "slot": "28",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => mapping(address => uint256))",
+      "key": "address",
+      "value": {
+        "mapping": "mapping(address => uint256)",
+        "key": "address",
+        "value": "uint256"
+      }
+    }
+  },
+  {
+    "label": "pendingAPNTsToken",
+    "slot": "29",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "pendingAPNTsTokenEta",
+    "slot": "30",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "_slashCd",
+    "slot": "31",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(address => uint48)",
+      "key": "address",
+      "value": "uint48"
+    }
+  },
+  {
+    "label": "pendingBLSAgg",
+    "slot": "32",
+    "offset": 0,
+    "type": "address"
+  },
+  {
+    "label": "pendingBLSAggEta",
+    "slot": "32",
+    "offset": 20,
+    "type": "uint48"
+  },
+  {
+    "label": "_settledDebtOps",
+    "slot": "33",
+    "offset": 0,
+    "type": {
+      "mapping": "mapping(bytes32 => bool)",
+      "key": "bytes32",
+      "value": "bool"
+    }
+  },
+  {
+    "label": "__gap",
+    "slot": "34",
+    "offset": 0,
+    "type": {
+      "array": "uint256[31]",
+      "base": "uint256"
+    }
+  }
+]
