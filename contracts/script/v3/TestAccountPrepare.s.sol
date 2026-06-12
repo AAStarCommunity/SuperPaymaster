@@ -88,12 +88,21 @@ contract TestAccountPrepare is Script {
 
             // Phase 2.0.2: Configure deployer as SP operator if unconfigured or
             // if the stored token no longer matches (e.g. after factory upgrade).
-            (, bool deployerCfg,, address deployerXPNTs,,,,,) = superPaymaster.operators(deployerAddr);
+            (, bool deployerCfg,, address deployerXPNTs, , , , ,) = superPaymaster.operators(deployerAddr);
             if (!deployerCfg || deployerXPNTs != address(apnts)) {
                 console.log("[Phase 2.0.2] Configuring deployer as SuperPaymaster operator...");
                 apnts.approve(address(superPaymaster), 10_000 ether);
                 superPaymaster.configureOperator(address(apnts), deployerAddr);
                 console.log("  Deployer operator configured:", address(apnts));
+            }
+
+            // Phase 2.0.3: Ensure deployer operator is not paused.
+            // Previous E2E runs may have paused it and crashed before restoring.
+            (, , bool deployerPaused, , , , , ,) = superPaymaster.operators(deployerAddr);
+            if (deployerPaused) {
+                console.log("[Phase 2.0.3] Unpausing deployer operator...");
+                superPaymaster.setOperatorPaused(deployerAddr, false);
+                console.log("  Deployer operator unpaused");
             }
         }
 
