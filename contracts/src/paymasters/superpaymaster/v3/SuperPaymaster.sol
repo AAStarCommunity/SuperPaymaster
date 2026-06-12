@@ -1342,10 +1342,26 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
     function _recordDebt(address token, address user, uint256 amount, bytes32 opHash) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
-            try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) {} catch {
-                pendingDebts[token][user] += amount;
-                emit DebtRecordFailed(token, user, amount);
+            // AUDIT H-1 (2026-06-11): _creditExceeded's validation-time balance
+            // short-circuit is defeatable — a user can drain its xPNTs inside its
+            // own UserOp (executed between validate and postOp), so a charge that
+            // passed validation on "balance is enough" lands here with zero
+            // balance. recordDebtWithOpHash only checks maxSingleTxLimit, NOT the
+            // credit ceiling, which let debt accumulate past getCreditLimit and
+            // drain the operator. Re-enforce the ceiling on this fallback: only
+            // book collectible token-level debt if it still fits the limit;
+            // otherwise isolate the over-ceiling amount in pendingDebts (owner-
+            // visible, not auto-repaid on the user's next mint) so it cannot
+            // masquerade as normal debt and so repeat draining surfaces for
+            // operator / DVT-driven blacklist intervention. Preserves the
+            // balance short-circuit for honest level-1 (zero-credit) users, who
+            // pay from balance and never reach this fallback.
+            if (IxPNTsToken(token).getDebt(user) + pendingDebts[token][user] + amount
+                <= REGISTRY.getCreditLimit(user)) {
+                try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) { return; } catch {}
             }
+            pendingDebts[token][user] += amount;
+            emit DebtRecordFailed(token, user, amount);
         }
     }
 
