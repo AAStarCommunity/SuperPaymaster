@@ -475,8 +475,93 @@ contract SuperPaymasterTest is Test {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
         PackedUserOperation memory op = _createOp(user);
-        
+
         vm.prank(address(entryPoint));
         paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
+    }
+
+    // ─── C-01 Negative Tests (audit §6 T-H) ──────────────────────────────────────
+    // The credit gate (`_creditExceeded`) is a soft validation failure: it does
+    // NOT revert, it returns SIG_VALIDATION_FAILED so the EntryPoint drops the op.
+    // Per ERC-4337 v0.7 the failure is encoded in the low 160 bits (authorizer ==
+    // address(1)), with validUntil/validAfter in the upper bits — so the correct
+    // assertion is `uint160(validationData) == 1`, NOT `validationData == 1`
+    // (the latter only holds when validUntil/validAfter are both zero, which is
+    // why the historical inline test was commented out).
+
+    /// @notice C-01a: a user with ZERO credit AND zero xPNTs balance (so the
+    ///         charge must fall to debt) is rejected at validation.
+    function test_C01_ZeroCredit_NoBalance_Rejected() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 0);
+        deal(address(apnts), user, 0); // cannot settle from balance → debt path
+
+        PackedUserOperation memory op = _createOp(user);
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(op, keccak256("c01a"), 0.001 ether);
+
+        assertEq(uint160(validationData), 1, "C-01a: zero-credit user must fail validation");
+        assertEq(context.length, 0, "C-01a: no context emitted on credit failure");
+    }
+
+    /// @notice C-01b: a user whose existing debt already sits at their credit
+    ///         ceiling (and who has no xPNTs to pay) is rejected — the new charge
+    ///         would push debt PAST the ceiling.
+    function test_C01_DebtAtCeiling_Rejected() public {
+        _setupV3Env();
+        uint256 creditLimit = 1 ether; // tiny ceiling
+        registry.setCreditForUser(user, creditLimit);
+        deal(address(apnts), user, 0);
+
+        // Pre-load debt right up to the ceiling via the SuperPaymaster path.
+        vm.prank(address(paymaster));
+        apnts.recordDebt(user, creditLimit);
+        assertEq(apnts.getDebt(user), creditLimit);
+
+        PackedUserOperation memory op = _createOp(user);
+
+        vm.prank(address(entryPoint));
+        (, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(op, keccak256("c01b"), 0.001 ether);
+
+        assertEq(uint160(validationData), 1, "C-01b: over-ceiling charge must fail validation");
+    }
+
+    /// @notice C-01c (positive control): a user WITH ample credit but zero balance
+    ///         is allowed — the charge falls to debt but stays within the ceiling.
+    ///         Guards against the gate being so strict it rejects legitimate ops.
+    function test_C01_AmpleCredit_NoBalance_Allowed() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 1000 ether);
+        deal(address(apnts), user, 0);
+
+        PackedUserOperation memory op = _createOp(user);
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(op, keccak256("c01c"), 0.001 ether);
+
+        assertEq(uint160(validationData), 0, "C-01c: in-credit user must pass validation");
+        assertGt(context.length, 0, "C-01c: context must be emitted on success");
+    }
+
+    /// @notice C-01d (positive control): a user with NO credit but enough xPNTs
+    ///         to settle the charge from balance is allowed — credit only governs
+    ///         the overdraft/debt path, never balance-backed payment.
+    function test_C01_NoCredit_WithBalance_Allowed() public {
+        _setupV3Env();
+        registry.setCreditForUser(user, 0);
+        // setUp already minted the user 1000 ether xPNTs; ensure it's intact.
+        require(apnts.balanceOf(user) > 0, "precondition: user holds xPNTs");
+
+        PackedUserOperation memory op = _createOp(user);
+
+        vm.prank(address(entryPoint));
+        (, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(op, keccak256("c01d"), 0.001 ether);
+
+        assertEq(uint160(validationData), 0, "C-01d: balance-backed op must pass even with zero credit");
     }
 }
