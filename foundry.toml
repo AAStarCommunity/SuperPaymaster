@@ -100,3 +100,18 @@ remappings = [
     "solady/=contracts/lib/solady/src/",
     "src/=contracts/src/"
 ]
+
+# ============================================
+# Property-based testing config (audit §6 T-H2)
+# ============================================
+# Top-level [fuzz]/[invariant] tables apply to the default profile. They give
+# the new invariant suite (contracts/test/invariant/) enough breadth without a
+# CLI override. CI can still pass --fuzz-runs / --invariant-runs to scale up.
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 256              # independent invariant campaigns per test
+depth = 500             # handler calls per run
+fail_on_revert = false  # handlers intentionally swallow expected reverts
+                        # (bound() guards, rate cooldowns, replay rejections)
