@@ -58,7 +58,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
-             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/(test|security)\.yml$)'; then
             echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
             exit 1
           fi
@@ -77,7 +77,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
-             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/(test|security)\.yml$)'; then
             echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
             exit 1
           fi
@@ -96,7 +96,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
-             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna)'; then
+             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/(test|security)\.yml$)'; then
             echo "::error::Contract-path changes detected — shim must NOT satisfy CI for this PR."
             exit 1
           fi
