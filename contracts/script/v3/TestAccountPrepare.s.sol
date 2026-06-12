@@ -67,7 +67,36 @@ contract TestAccountPrepare is Script {
         //   Required before TestAccountPrepare can register PAYMASTER_AOA.
         //   Mirrors _setupMyceliumCommunity() in DeployLive.s.sol.
         // -----------------------------------------------------------------------
+        address deployerAddr = vm.addr(deployerPK);
         vm.startBroadcast(deployerPK);
+
+        // Phase 2.0.1: Ensure deployer's aPNTs is from the CURRENT factory.
+        // After a factory upgrade the factory mapping has no entry for the old
+        // token, so getTokenAddress(deployer) returns 0.  Deploy a fresh token
+        // via the new factory so that configureOperator() and H-2 tests work.
+        {
+            address deployerTokenInFactory = xpntsFactory.getTokenAddress(deployerAddr);
+            if (deployerTokenInFactory == address(0)) {
+                console.log("[Phase 2.0.1] aPNTs not in current factory -- deploying fresh token...");
+                deployerTokenInFactory = xpntsFactory.deployxPNTsToken(
+                    "AAStar PNTs", "aPNTs", "AAStar Community", "aastar.eth", 1e18, address(0)
+                );
+                console.log("  New aPNTs deployed:", deployerTokenInFactory);
+                vm.writeJson(vm.toString(deployerTokenInFactory), cfgPath, ".aPNTs");
+                apnts = xPNTsToken(deployerTokenInFactory);
+            }
+
+            // Phase 2.0.2: Configure deployer as SP operator if unconfigured or
+            // if the stored token no longer matches (e.g. after factory upgrade).
+            (, bool deployerCfg,, address deployerXPNTs,,,,,) = superPaymaster.operators(deployerAddr);
+            if (!deployerCfg || deployerXPNTs != address(apnts)) {
+                console.log("[Phase 2.0.2] Configuring deployer as SuperPaymaster operator...");
+                apnts.approve(address(superPaymaster), 10_000 ether);
+                superPaymaster.configureOperator(address(apnts), deployerAddr);
+                console.log("  Deployer operator configured:", address(apnts));
+            }
+        }
+
         if (!registry.hasRole(ROLE_COMMUNITY, anniAddr)) {
             console.log("[Phase 2.0] Registering Anni as COMMUNITY (Mycelium)...");
             // Ensure deployer has GToken for stake + burn
@@ -221,7 +250,6 @@ contract TestAccountPrepare is Script {
         // docs/gasless-test-troubleshooting.md section 1.6.
         // -----------------------------------------------------------------------
         console.log("\n[Phase 2.5] Operator -> xPNTsToken Matrix:");
-        address deployerAddr = vm.addr(deployerPK);
         _printOperatorRow("  deployer", deployerAddr, superPaymaster);
         _printOperatorRow("  Anni    ", anniAddr,     superPaymaster);
 
