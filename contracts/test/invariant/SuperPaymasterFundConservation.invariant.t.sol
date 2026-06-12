@@ -200,11 +200,19 @@ contract SuperPaymasterFundHandler is Test {
     ///      OperatorConfig, preserving isConfigured/isPaused in the upper bytes.
     function _setOperatorBalance(address op, uint128 newBal) internal {
         // mapping(address => OperatorConfig) operators is at storage slot 5
-        // (verified via `forge inspect SuperPaymaster storage-layout`).
+        // (verified via `forge inspect SuperPaymaster storageLayout`; drift is
+        // guarded in CI by scripts/check_storage_layout.py). aPNTsBalance is the
+        // low 16 bytes of the struct's slot 0.
         bytes32 slot = keccak256(abi.encode(op, uint256(5)));
         bytes32 cur = vm.load(address(paymaster), slot);
         bytes32 upper = bytes32(uint256(cur) & ~uint256(type(uint128).max));
         bytes32 packed = bytes32(uint256(upper) | uint256(newBal));
         vm.store(address(paymaster), slot, packed);
+        // Sanity: if the operators mapping slot ever moves, this poke would
+        // silently corrupt an unrelated slot and the invariant would test
+        // nothing. Read back via the public getter and require the write landed,
+        // turning a silent slot-index drift into a hard test failure.
+        (uint128 readBack,,,,,,,,) = paymaster.operators(op);
+        require(readBack == newBal, "operators slot index drifted - update _setOperatorBalance");
     }
 }
