@@ -10,6 +10,9 @@ optimizer = true
 optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
+# Always emit storage layout so the UUPS storage-drift guard
+# (scripts/check_storage_layout.py) can read it from artifacts.
+extra_output = ["storageLayout"]
 
 # Include singleton-paymaster libs but exclude tests to avoid conflicts
 # Also exclude old test location to prevent duplicates

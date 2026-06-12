@@ -30,6 +30,14 @@ jobs:
       - name: Build
         run: forge build --sizes --skip test
 
+      - name: Storage-layout drift guard (UUPS proxies — SuperPaymaster, Registry)
+        # Fails if SuperPaymaster/Registry storage layout drifts from the committed
+        # snapshot. These are upgraded in place via ERC1967 proxies, so a reordered/
+        # inserted/resized slot corrupts live state (v5.3.2 shipped a broken upgrade
+        # for exactly this reason — PR #196). An intentional change must regenerate
+        # the snapshot: python3 scripts/check_storage_layout.py update
+        run: python3 scripts/check_storage_layout.py
+
       - name: Run Tests
         run: forge test -v
 

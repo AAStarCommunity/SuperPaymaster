@@ -1,0 +1,152 @@
+[
+  {
+    "label": "_owner",
+    "slot": "0",
+    "offset": 0,
+    "type": "t_address"
+  },
+  {
+    "label": "_status",
+    "slot": "1",
+    "offset": 0,
+    "type": "t_uint256"
+  },
+  {
+    "label": "GTOKEN_STAKING",
+    "slot": "2",
+    "offset": 0,
+    "type": "t_contract(IGTokenStaking)45793"
+  },
+  {
+    "label": "MYSBT",
+    "slot": "3",
+    "offset": 0,
+    "type": "t_contract(IMySBT)45890"
+  },
+  {
+    "label": "SUPER_PAYMASTER",
+    "slot": "4",
+    "offset": 0,
+    "type": "t_address"
+  },
+  {
+    "label": "blsAggregator",
+    "slot": "5",
+    "offset": 0,
+    "type": "t_address"
+  },
+  {
+    "label": "roleConfigs",
+    "slot": "6",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_struct(RoleConfig)45957_storage)"
+  },
+  {
+    "label": "hasRole",
+    "slot": "7",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bool))"
+  },
+  {
+    "label": "roleStakes",
+    "slot": "8",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+  },
+  {
+    "label": "roleMembers",
+    "slot": "9",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_array(t_address)dyn_storage)"
+  },
+  {
+    "label": "roleMemberIndex",
+    "slot": "10",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+  },
+  {
+    "label": "roleSBTTokenIds",
+    "slot": "11",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+  },
+  {
+    "label": "roleMetadata",
+    "slot": "12",
+    "offset": 0,
+    "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bytes_storage))"
+  },
+  {
+    "label": "communityByName",
+    "slot": "13",
+    "offset": 0,
+    "type": "t_mapping(t_string_memory_ptr,t_address)"
+  },
+  {
+    "label": "communityByENS",
+    "slot": "14",
+    "offset": 0,
+    "type": "t_mapping(t_string_memory_ptr,t_address)"
+  },
+  {
+    "label": "userRoles",
+    "slot": "15",
+    "offset": 0,
+    "type": "t_mapping(t_address,t_array(t_bytes32)dyn_storage)"
+  },
+  {
+    "label": "userRoleCount",
+    "slot": "16",
+    "offset": 0,
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "globalReputation",
+    "slot": "17",
+    "offset": 0,
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "lastReputationEpoch",
+    "slot": "18",
+    "offset": 0,
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "creditTierConfig",
+    "slot": "19",
+    "offset": 0,
+    "type": "t_mapping(t_uint256,t_uint256)"
+  },
+  {
+    "label": "isReputationSource",
+    "slot": "20",
+    "offset": 0,
+    "type": "t_mapping(t_address,t_bool)"
+  },
+  {
+    "label": "executedProposals",
+    "slot": "21",
+    "offset": 0,
+    "type": "t_mapping(t_uint256,t_bool)"
+  },
+  {
+    "label": "levelThresholds",
+    "slot": "22",
+    "offset": 0,
+    "type": "t_array(t_uint256)dyn_storage"
+  },
+  {
+    "label": "blacklistNonce",
+    "slot": "23",
+    "offset": 0,
+    "type": "t_uint256"
+  },
+  {
+    "label": "__gap",
+    "slot": "24",
+    "offset": 0,
+    "type": "t_array(t_uint256)50_storage"
+  }
+]

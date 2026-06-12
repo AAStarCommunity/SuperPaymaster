@@ -183,6 +183,16 @@ contract DeployLive is Script {
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
 
+        // AUDIT D-H4: assert critical wiring took effect. Setters can silently
+        // no-op or run out of order, and the post-deploy Check scripts are
+        // non-blocking (|| true), so a broken wire would otherwise surface only
+        // AFTER config is written. Fail the deploy here instead, before config.
+        require(address(registry.GTOKEN_STAKING()) == address(staking), "wire: setStaking");
+        require(address(registry.MYSBT()) == address(mysbt), "wire: setMySBT");
+        require(registry.SUPER_PAYMASTER() == address(superPaymaster), "wire: setSuperPaymaster");
+        require(registry.blsAggregator() == address(aggregator), "wire: setBLSAggregator");
+        require(staking.authorizedSlashers(address(aggregator)), "wire: setAuthorizedSlasher");
+
         // ERC-8004 official agent registry addresses (CREATE2, deterministic across all EVM chains).
         // Mainnet chains: Ethereum, OP, Base, Arbitrum, Polygon, etc.
         // Testnet chains:  Sepolia, OP Sepolia, Base Sepolia, Arbitrum Sepolia, Polygon Amoy.
