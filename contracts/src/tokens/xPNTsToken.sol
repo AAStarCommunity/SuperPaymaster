@@ -381,6 +381,25 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             if ((value * 1e18) / _requireRate() > maxSingleTxLimit) {
                 revert SingleTxLimitExceeded();
             }
+
+            // AUDIT H-2 (2026-06-11): pulling a holder's funds to oneself via
+            // transferFrom is functionally equivalent to burn(victim, amount),
+            // yet the P0-7 emergency halt and P0-8 daily rate limit were only
+            // wired into the burn path — leaving this an unguarded drain route
+            // for a compromised autoApproved spender. Apply the SAME two guards
+            // to the self-pull case so emergencyDisabled is a true single-tx
+            // kill switch.
+            //
+            // Exemption: any pull whose destination is the SuperPaymaster is the
+            // legitimate settle/deposit path (e.g. SP.depositFor → transferFrom
+            // (operator, SP) where msg.sender == to == SP). SP is de-authorized
+            // separately on emergency via emergencyRevokePaymaster, mirroring
+            // burn()'s `msg.sender != from` carve-out for the protocol's own
+            // path. So guard ONLY a self-pull to a non-SP recipient.
+            if (to == msg.sender && to != SUPERPAYMASTER_ADDRESS) {
+                if (emergencyDisabled) revert EmergencyStop();
+                _checkAndConsumeRateLimit(msg.sender, value);
+            }
         }
 
         return super.transferFrom(from, to, value);
