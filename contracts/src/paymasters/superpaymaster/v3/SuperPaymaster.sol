@@ -703,16 +703,20 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         _requireSuperOperatorRole();
         // This might revert if Token blocks transferFrom (Secure Token)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
+        _creditDeposit(msg.sender, amount);
+    }
+
+    /// @dev Shared deposit accounting: overflow-check, credit operator balance,
+    ///      bump totalTrackedBalance, emit. Used by deposit/onTransferReceived/depositFor.
+    function _creditDeposit(address operator, uint256 amount) internal {
         // Check overflow for uint128
         if (amount > type(uint128).max) revert AmountExceedsUint128();
         // casting to 'uint128' is safe because of the check above
         // forge-lint: disable-next-line(unsafe-typecast)
-        operators[msg.sender].aPNTsBalance += uint128(amount);
-        
-        // Fix: Update tracked balance to prevent double counting in notifyDeposit
+        operators[operator].aPNTsBalance += uint128(amount);
+        // Update tracked balance to keep sync with manual transfers
         totalTrackedBalance += amount;
-        
-        emit OperatorDeposited(msg.sender, amount);
+        emit OperatorDeposited(operator, amount);
     }
 
     // ====================================
@@ -729,15 +733,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Ensure operator is registered
         _requireSuperOperatorRoleFor(from);
 
-
-        if (value > type(uint128).max) revert AmountExceedsUint128();
-        // casting to 'uint128' is safe because of the check above
-        // forge-lint: disable-next-line(unsafe-typecast)
-        operators[from].aPNTsBalance += uint128(value);
-        // Update tracked balance to keep sync with manual transfers
-        totalTrackedBalance += value;
-        
-        emit OperatorDeposited(from, value);
+        _creditDeposit(from, value);
 
         return this.onTransferReceived.selector;
     }
@@ -752,14 +748,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         _requireSuperOperatorRoleFor(targetOperator);
         // Transfer from sender (must approve first)
         IERC20(APNTS_TOKEN).safeTransferFrom(msg.sender, address(this), amount);
-        
-        if (amount > type(uint128).max) revert AmountExceedsUint128();
-        // casting to 'uint128' is safe because of the check above
-        // forge-lint: disable-next-line(unsafe-typecast)
-        operators[targetOperator].aPNTsBalance += uint128(amount);
-        totalTrackedBalance += amount;
-        
-        emit OperatorDeposited(targetOperator, amount);
+        _creditDeposit(targetOperator, amount);
     }
 
 
@@ -1452,6 +1441,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error InvalidX402Signature();
     error X402AuthExpired();
     error X402FeeExceedsMax();
+    // M-1: EIP-3009 path received less than `amount` (fee-on-transfer / deflationary asset)
+    error X402AmountMismatch();
     // P0-14
     error SlashCooldown();
     // P0-3
@@ -1620,23 +1611,56 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         }
     }
 
-    /// @notice Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
-    /// @dev    C-03: the final recipient is bound into the EIP-3009 nonce
-    ///         (`nonce = keccak256(to, salt)`). The payer signs the EIP-3009 authorization
-    ///         over that nonce, so a facilitator that swaps `to` produces a different nonce
-    ///         and the EIP-3009 signature no longer recovers `from` — the transfer reverts.
-    ///         This reuses the payer's existing token-level signature; no second signature.
+    /// @notice Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path)
+    /// @dev    C-03 + M-1: both the final recipient `to` AND the payer-approved fee cap
+    ///         `maxFee` are bound into the EIP-3009 nonce
+    ///         (`nonce = keccak256(to, maxFee, salt)`). The payer signs the EIP-3009
+    ///         authorization over that nonce, so an operator that swaps `to` OR raises
+    ///         `maxFee` produces a different nonce and the EIP-3009 signature no longer
+    ///         recovers `from` — the transfer reverts. This reuses the payer's existing
+    ///         token-level signature; no second signature. Without the `maxFee` binding the
+    ///         payer's EIP-3009 signature only authorizes moving `amount` and places no cap
+    ///         on the operator's facilitator fee (up to MAX_FACILITATOR_FEE), which the
+    ///         payer never consented to (M-1).
+    /// @dev    M-1: the path assumes the contract receives exactly `amount`. A fee-on-transfer
+    ///         / deflationary asset delivers less, so paying out `amount - fee` would overpay
+    ///         `to` from other settlements' reserves. We measure the actual delta and revert
+    ///         if it is short. EIP-3009 stablecoins (USDC) are not deflationary, so this only
+    ///         rejects assets that violate the path's amount==received assumption.
+    /// @dev    M-1 (front-run grief): we use `receiveWithAuthorization`, NOT
+    ///         `transferWithAuthorization`. The EIP-3009 spec requires the token to enforce
+    ///         `msg.sender == to` for the receive variant, so only this contract (the `to`)
+    ///         can submit the authorization. With the transfer variant, anyone who observes
+    ///         the payer's signature could call the token directly to pull `amount` into the
+    ///         SuperPaymaster outside of a settlement, burning the token-side nonce and
+    ///         leaving the funds stranded (the real settle would then revert). The receive
+    ///         variant closes that grief vector. EIP-3009's two variants share a nonce
+    ///         namespace but sign distinct typehashes (Transfer- vs ReceiveWithAuthorization);
+    ///         since the payer signs ONLY the receive typehash, the same signature cannot be
+    ///         replayed against `transferWithAuthorization` to burn the nonce (recovery would
+    ///         yield a different signer), so both nonce-burning paths are closed.
     /// @dev    settlementId uses abi.encode (fixed-size fields) for a collision-free id.
     function settleX402Payment(
-        address from, address to, address asset, uint256 amount,
+        address from, address to, address asset, uint256 amount, uint256 maxFee,
         uint256 validAfter, uint256 validBefore, bytes32 salt, bytes calldata signature
     ) external nonReentrant returns (bytes32 settlementId) {
-        bytes32 nonce = keccak256(abi.encode(to, salt));
+        bytes32 nonce = keccak256(abi.encode(to, maxFee, salt));
         uint256 fee = _validateX402AndComputeFee(asset, from, amount, nonce);
-        IERC3009(asset).transferWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
+        if (fee > maxFee) revert X402FeeExceedsMax();
+        uint256 balBefore = IERC20(asset).balanceOf(address(this));
+        IERC3009(asset).receiveWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, signature);
+        if (IERC20(asset).balanceOf(address(this)) - balBefore < amount) revert X402AmountMismatch();
+        settlementId = _payoutX402(from, to, asset, amount, fee, nonce);
+    }
+
+    /// @dev Shared x402 payout tail for both settle paths: push `amount - fee` to the
+    ///      final recipient, emit the settlement event, and derive the collision-free id.
+    function _payoutX402(
+        address from, address to, address asset, uint256 amount, uint256 fee, bytes32 nonce
+    ) internal returns (bytes32) {
         IERC20(asset).safeTransfer(to, amount - fee);
         emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
+        return keccak256(abi.encode(from, to, asset, amount, nonce));
     }
 
     /// @notice Settle x402 payment via direct transferFrom (xPNTs only)
@@ -1697,9 +1721,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // verified by _verifyX402Auth above, so the signature IS its authorization.
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset).safeTransferFrom(from, address(this), amount);
-        IERC20(asset).safeTransfer(to, amount - fee);
-        emit X402PaymentSettled(from, to, asset, amount, fee, nonce);
-        settlementId = keccak256(abi.encode(from, to, asset, amount, nonce));
+        settlementId = _payoutX402(from, to, asset, amount, fee, nonce);
     }
 
     // ====================================

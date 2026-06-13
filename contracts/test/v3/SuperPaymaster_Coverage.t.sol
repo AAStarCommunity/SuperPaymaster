@@ -91,14 +91,15 @@ contract CovMockERC3009 is ERC20 {
     constructor() ERC20("USDC", "USDC") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
 
-    function authorizationDigest(
+    function _authDigest(
+        bytes32 typeHash,
         address from,
         address to,
         uint256 value,
         uint256 validAfter,
         uint256 validBefore,
         bytes32 nonce
-    ) public view returns (bytes32) {
+    ) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -109,19 +110,41 @@ contract CovMockERC3009 is ERC20 {
             )
         );
         bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
-                ),
-                from,
-                to,
-                value,
-                validAfter,
-                validBefore,
-                nonce
-            )
+            abi.encode(typeHash, from, to, value, validAfter, validBefore, nonce)
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
+    }
+
+    function receiveAuthorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
     }
 
     function transferWithAuthorization(
@@ -137,6 +160,26 @@ contract CovMockERC3009 is ERC20 {
         require(block.timestamp < validBefore, "authorization expired");
         require(!authorizationUsed[from][nonce], "authorization used");
         bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
+        _transfer(from, to, value);
+    }
+
+    function receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external {
+        // EIP-3009 receive semantics: only the payee may submit the authorization.
+        require(msg.sender == to, "caller must be the payee");
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
         require(digest.recover(signature) == from, "bad signature");
         authorizationUsed[from][nonce] = true;
         _transfer(from, to, value);
@@ -282,7 +325,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         uint256 validBefore,
         bytes32 nonce
     ) internal view returns (bytes memory) {
-        bytes32 digest = token.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        bytes32 digest = token.receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -547,8 +590,9 @@ contract SuperPaymaster_Coverage_Test is Test {
         usdc.mint(user1, 100 ether);
 
         bytes32 salt = bytes32(uint256(42));
-        bytes32 nonce = keccak256(abi.encode(treasury, salt));
         uint256 amount = 10 ether;
+        uint256 maxFee = amount;
+        bytes32 nonce = keccak256(abi.encode(treasury, maxFee, salt));
         uint256 validAfter = 0;
         uint256 validBefore = type(uint256).max;
         bytes memory signature =
@@ -560,12 +604,12 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // First settle — success
         vm.prank(operator1);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, validAfter, validBefore, salt, signature);
+        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, maxFee, validAfter, validBefore, salt, signature);
 
         // Second settle with same (asset, from, nonce) — should revert
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, validAfter, validBefore, salt, signature);
+        paymaster.settleX402Payment(user1, treasury, address(usdc), amount, maxFee, validAfter, validBefore, salt, signature);
     }
 
     /**
@@ -577,10 +621,12 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         bytes32 salt = bytes32(uint256(1));
 
-        // user2 has no ROLE_PAYMASTER_SUPER → should revert Unauthorized
+        // user2 has no ROLE_PAYMASTER_SUPER → should revert Unauthorized.
+        // Role check (_requireSuperOperatorRole) runs first in _validateX402AndComputeFee,
+        // before the fee>maxFee check and the EIP-3009 transfer, so maxFee value is irrelevant here.
         vm.prank(user2);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), 10 ether, 0, type(uint256).max, salt, "");
+        paymaster.settleX402Payment(user1, treasury, address(usdc), 10 ether, 10 ether, 0, type(uint256).max, salt, "");
     }
 
     /**
@@ -593,7 +639,8 @@ contract SuperPaymaster_Coverage_Test is Test {
         usdc.mint(user2, 100 ether);
 
         bytes32 salt = bytes32(uint256(77));
-        bytes32 nonce = keccak256(abi.encode(treasury, salt));
+        uint256 maxFee = 5 ether;
+        bytes32 nonce = keccak256(abi.encode(treasury, maxFee, salt));
         bytes memory sig1 = _signEIP3009(usdc, user1Key, user1, address(paymaster), 5 ether, 0, type(uint256).max, nonce);
         bytes memory sig2 = _signEIP3009(usdc, user2Key, user2, address(paymaster), 5 ether, 0, type(uint256).max, nonce);
 
@@ -604,11 +651,11 @@ contract SuperPaymaster_Coverage_Test is Test {
 
         // Settle for user1
         vm.prank(operator1);
-        paymaster.settleX402Payment(user1, treasury, address(usdc), 5 ether, 0, type(uint256).max, salt, sig1);
+        paymaster.settleX402Payment(user1, treasury, address(usdc), 5 ether, maxFee, 0, type(uint256).max, salt, sig1);
 
         // Settle for user2 — same nonce but different from → different key, should succeed
         vm.prank(operator1);
-        paymaster.settleX402Payment(user2, treasury, address(usdc), 5 ether, 0, type(uint256).max, salt, sig2);
+        paymaster.settleX402Payment(user2, treasury, address(usdc), 5 ether, maxFee, 0, type(uint256).max, salt, sig2);
     }
 
     // ─── D5: settleX402PaymentDirect ──────────────────────────────────────────
