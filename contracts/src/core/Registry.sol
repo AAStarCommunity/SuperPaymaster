@@ -93,10 +93,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // regardless of xPNTs balance (Plan A), so a level-1 default of 0 would reject
         // every fresh user even when they hold tokens. The defaults below keep the tier
         // monotonic (level 1 ≤ 2 ≤ … ≤ 6) so higher reputation never *lowers* credit.
-        // NOTE: these are conservative bootstrap values — each deployment MUST call
-        // setCreditTier() to configure ceilings that actually cover its op charge and
-        // match its economic model (the live Sepolia instance runs level 1 = 1000).
-        // The final tier economics are a team decision (tracked in audit issue #245).
+        // NOTE: these are FRESH-INIT bootstrap values only — they apply when a new
+        // Registry is initialized, NOT to an already-initialized UUPS proxy (its stored
+        // tiers are untouched on upgrade; the live Sepolia proxy keeps level 1 = 1000,
+        // set via setCreditTier). 100 ether covers the MEASURED ~38 aPNTs per-op charge
+        // with margin, but a high-maxFeePerGas op can exceed it — every deployment MUST
+        // call setCreditTier() to cover its own worst-case charge + economic model.
+        // Final tier economics are a team decision (tracked in audit issue #245).
         creditTierConfig[1] = 100 ether;
         creditTierConfig[2] = 100 ether;
         creditTierConfig[3] = 300 ether;

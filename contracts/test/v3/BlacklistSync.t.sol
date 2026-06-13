@@ -184,7 +184,8 @@ contract BlacklistSyncTest is Test {
     function test_UnblockFlow() public {
         // AUDIT H-1: credit is now enforced in validation regardless of balance, so a
         // level-1 user needs a credit ceiling above this op's charge to pass. The fresh
-        // test Registry defaults creditTierConfig[1] to 0; set it well above the charge.
+        // test Registry bootstraps creditTierConfig[1] to 100 ether, which is below this
+        // op's high-gas charge; set it well above the charge.
         vm.prank(owner);
         registry.setCreditTier(1, 100000 ether);
 
