@@ -283,9 +283,13 @@ contract SuperPaymasterTest is Test {
     function testProtocolRevenueFlow() public {
         // 1. Setup Operator (Need significant balance for 1 ETH gas * 2000 price)
         vm.startPrank(owner);
-        apnts.mint(operator, 200000 ether); 
+        apnts.mint(operator, 200000 ether);
         apnts.mint(user, 200000 ether); // FIX: Mint user enough tokens to pay for the op
         vm.stopPrank();
+        // AUDIT H-1: credit is now enforced in validation regardless of balance, so a
+        // sponsored user needs a non-zero credit ceiling (this test exercises revenue
+        // flow, not the credit gate). Give ample credit so the op passes validation.
+        registry.setCreditForUser(user, 200000 ether);
 
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury);

@@ -244,61 +244,43 @@ contract SuperPaymaster_BurnRestore_Test is Test {
     // own UserOp. In postOp it now has 0 balance AND 0 credit. The fix must NOT
     // book this charge as collectible token debt (which had no credit check) —
     // it must isolate it in pendingDebts so it cannot bypass the credit ceiling.
-    function test_AuditH1_OverCeilingDebt_IsolatedToPendingDebts() public {
+    // ── AUDIT H-1 (Plan A): over-ceiling op rejected in validation ────────────
+    // The credit ceiling is enforced in validation REGARDLESS of balance. A
+    // zero-credit user is rejected up front even with ample xPNTs, so the op never
+    // reaches execution/postOp — the drain-between-validate-and-postOp window that
+    // H-1 exploited is closed at the source (covers SBT and agent paths alike).
+    function test_AuditH1_OverCeilingOp_RejectedInValidation() public {
         registry.setCreditLimitOverride(0); // zero-credit user
+        xpnts.mint(user1, 1_000 ether);     // user HAS balance (pre-H-1 this short-circuited the gate)
 
-        // Validation-time: user HAS balance, so _creditExceeded's balance
-        // short-circuit lets the op through — exactly the gap H-1 exploits.
-        xpnts.mint(user1, 1_000 ether);
-        bytes memory ctx = _runValidate();
-
-        // Execution-time: user drains its own xPNTs inside its UserOp (plain
-        // transfer is not gated by the autoApproved firewall).
-        uint256 bal = xpnts.balanceOf(user1);
-        vm.prank(user1);
-        xpnts.transfer(address(0xDEAD), bal);
-        assertEq(xpnts.balanceOf(user1), 0, "balance drained mid-UserOp");
-
-        // postOp: burn fails (0 balance) -> fallback -> over-ceiling -> isolated.
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-
-        assertEq(xpnts.burnSuccesses(), 0, "burn cannot succeed (drained)");
-        assertEq(xpnts.recordDebtCalls(), 0, "over-ceiling debt must NOT reach recordDebt (would bypass credit limit)");
-        assertGt(paymaster.pendingDebts(address(xpnts), user1), 0, "over-ceiling debt isolated in pendingDebts");
-        (, bool blocked) = paymaster.userOpState(operator1, user1);
-        assertTrue(blocked, "drained user must be blocked to stop repeat draining");
-    }
-
-    // ── AUDIT H-1: repeated drain is blocked after the first (Codex review) ───
-    // Isolating debt alone does NOT stop the attack — the op's gas is already
-    // spent, and without blocking the user could re-fund and re-drain endlessly,
-    // white-mailing one sponsored op per round. The fix blocks the user on the
-    // abuse signal so validation rejects every subsequent attempt.
-    function test_AuditH1_RepeatDrain_BlockedAfterFirstAttempt() public {
-        registry.setCreditLimitOverride(0);
-
-        // Round 1: validate passes on balance, user drains, postOp blocks.
-        xpnts.mint(user1, 1_000 ether);
-        bytes memory ctx = _runValidate();
-        uint256 bal = xpnts.balanceOf(user1);
-        vm.prank(user1);
-        xpnts.transfer(address(0xDEAD), bal);
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-
-        (, bool blocked) = paymaster.userOpState(operator1, user1);
-        assertTrue(blocked, "user blocked after first drain");
-
-        // Round 2: even fully re-funded, validation now rejects the user
-        // (isBlocked is channel-agnostic — gates SBT and agent paths alike).
-        xpnts.mint(user1, 1_000 ether);
         PackedUserOperation memory op;
         op.sender = user1;
         op.paymasterAndData = _buildPaymasterData();
         vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(uint256(2)), MAX_COST);
-        assertEq(uint160(validationData), 1, "blocked user must be rejected on repeat sponsorship attempt");
+        (bytes memory ctx, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(op, bytes32(uint256(1)), MAX_COST);
+
+        assertEq(uint160(validationData), 1, "H-1: over-ceiling op rejected in validation even with balance");
+        assertEq(ctx.length, 0, "no context returned for a rejected op");
+    }
+
+    // ── AUDIT H-1 (Plan A): zero-credit user rejected on EVERY attempt ────────
+    // No postOp drain-then-block dance is needed — because the op never passes
+    // validation, a re-funded zero-credit user is rejected again and again, so the
+    // "re-fund and re-drain one sponsored op per round" white-mail is impossible.
+    function test_AuditH1_ZeroCredit_RejectedEveryAttempt() public {
+        registry.setCreditLimitOverride(0);
+
+        for (uint256 i = 1; i <= 2; i++) {
+            xpnts.mint(user1, 1_000 ether); // always funded
+            PackedUserOperation memory op;
+            op.sender = user1;
+            op.paymasterAndData = _buildPaymasterData();
+            vm.prank(address(entryPoint));
+            (, uint256 validationData) =
+                paymaster.validatePaymasterUserOp(op, bytes32(i), MAX_COST);
+            assertEq(uint160(validationData), 1, "zero-credit op rejected every attempt regardless of balance");
+        }
     }
 
     // ── AUDIT H-1: no regression — within-ceiling debt is still recorded ───────
