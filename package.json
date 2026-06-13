@@ -1,0 +1,13 @@
+{
+  "name": "@aastar/superpaymaster-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SuperPaymaster contracts — ABI documentation generation tooling (consumes Foundry out/ artifacts).",
+  "scripts": {
+    "gen:abi-docs": "node scripts/gen-abi-docs.mjs",
+    "gen:abi-docs:check": "node scripts/gen-abi-docs.mjs --check"
+  },
+  "devDependencies": {
+    "viem": "^2.47.0"
+  }
+}
