@@ -1,0 +1,54 @@
+name: ABI Docs Drift
+
+# Regenerates the ABI reference from compiled artifacts and fails if the committed
+# docs/abi/ are stale. Runs whenever the contract surface, the generator, the docs,
+# or the package manifest changes — independent of the Solidity test workflow (which
+# skips docs-only PRs).
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'contracts/src/**'
+      - 'scripts/gen-abi-docs.mjs'
+      - 'docs/abi/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/abi-docs.yml'
+  pull_request:
+    paths:
+      - 'contracts/src/**'
+      - 'scripts/gen-abi-docs.mjs'
+      - 'docs/abi/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/abi-docs.yml'
+
+jobs:
+  abi-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: forge build (produces out/ artifacts)
+        run: forge build --skip test
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify ABI docs are up to date (pnpm gen:abi-docs:check)
+        run: pnpm gen:abi-docs:check
