@@ -34,6 +34,7 @@ const ERC20_ABI = [
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function mint(address to, uint256 amount) external',
+  'function transfer(address to, uint256 amount) returns (bool)',
   'function communityOwner() view returns (address)',
 ];
 
@@ -57,6 +58,7 @@ const APNTS_USD_PRICE_8DEC = 2_000000n;
 
 const SP_ABI = [
   'function operators(address) view returns (uint128 aPNTsBalance, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)',
+  'function APNTS_TOKEN() view returns (address)',
   'function deposit(uint256 amount) external',
   'function updatePrice() external',
   'function priceValidUntil() view returns (uint48)',
@@ -187,9 +189,7 @@ async function setupOnce(ctx) {
   check('Deployer xPNTsToken = aPNTs', deployerOp.xPNTsToken.toLowerCase() === APNTS.toLowerCase());
   if (deployerOp.aPNTsBalance < SP_OP_MIN) {
     console.log(`  ${WARN} Deployer aPNTs in SP ${ethers.formatEther(deployerOp.aPNTsBalance)} — depositing ${ethers.formatEther(SP_OP_TOPUP)}...`);
-    await ensureBalance(apntsRO, deployer, deployer.address, SP_OP_TOPUP, 'deployer aPNTs (for SP deposit)');
-    await ensureAllowance(apntsRO, deployer, SP, SP_OP_TOPUP, 'aPNTs→SuperPaymaster');
-    await sendAndWait(sp, 'deposit', [SP_OP_TOPUP], 'sp.deposit(deployer)');
+    await fundOperator(provider, deployer, sp, deployer, SP_OP_TOPUP, 'deployer', check);
     const up = await retryView(() => sp.operators(deployer.address), 'sp.operators(deployer)');
     check('Deployer aPNTs in SuperPaymaster', up.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(up.aPNTsBalance)} aPNTs`);
   } else {
@@ -202,19 +202,18 @@ async function setupOnce(ctx) {
   if (!anni) {
     check('Anni operator funded', false, 'PRIVATE_KEY_ANNI not set — cannot fund PNTs operator');
   } else {
-    const spAnni = new ethers.Contract(SP, SP_ABI, anni);
     const anniOp = await retryView(() => sp.operators(anni.address), 'sp.operators(anni)');
     check('Anni operator configured', anniOp.isConfigured);
     check('Anni xPNTsToken = PNTs', PNTS != null && anniOp.xPNTsToken.toLowerCase() === PNTS.toLowerCase());
-    if (anniOp.aPNTsBalance < SP_OP_MIN && PNTS) {
-      console.log(`  ${WARN} Anni PNTs in SP ${ethers.formatEther(anniOp.aPNTsBalance)} — minting + depositing ${ethers.formatEther(SP_OP_TOPUP)}...`);
-      await ensureMintedBalance(pntsRO, anni, anni.address, SP_OP_TOPUP, 'Anni PNTs (for SP deposit)');
-      await ensureAllowance(pntsRO, anni, SP, SP_OP_TOPUP, 'PNTs→SuperPaymaster');
-      await sendAndWait(spAnni, 'deposit', [SP_OP_TOPUP], 'sp.deposit(anni)');
+    // NB: an operator's SP balance is denominated in SP.APNTS_TOKEN (aPNTs), NOT
+    // the operator's xPNTsToken (PNTs). Fund it with the deposit token, not PNTs.
+    if (anniOp.aPNTsBalance < SP_OP_MIN) {
+      console.log(`  ${WARN} Anni operator balance ${ethers.formatEther(anniOp.aPNTsBalance)} — funding ${ethers.formatEther(SP_OP_TOPUP)} via APNTS_TOKEN...`);
+      await fundOperator(provider, deployer, sp, anni, SP_OP_TOPUP, 'anni', check);
       const up = await retryView(() => sp.operators(anni.address), 'sp.operators(anni)');
-      check('Anni PNTs in SuperPaymaster', up.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(up.aPNTsBalance)} PNTs`);
+      check('Anni aPNTs in SuperPaymaster', up.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(up.aPNTsBalance)} aPNTs`);
     } else {
-      check('Anni PNTs in SuperPaymaster', anniOp.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(anniOp.aPNTsBalance)} PNTs`);
+      check('Anni aPNTs in SuperPaymaster', anniOp.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(anniOp.aPNTsBalance)} aPNTs`);
     }
   }
   console.log();
@@ -266,18 +265,33 @@ async function ensureBalance(token, signer, owner, need, label) {
   await sendAndWait(token.connect(signer), 'mint', [owner, need], `mint ${label}`);
 }
 
-// Like ensureBalance but always mints (used for PNTs where Anni mints to self).
-async function ensureMintedBalance(token, signer, owner, need, label) {
-  const bal = await retryView(() => token.balanceOf(owner), `${label} balanceOf`);
-  if (bal >= need) return;
-  await sendAndWait(token.connect(signer), 'mint', [owner, need], `mint ${label}`);
-}
-
 // Ensure `spender` is approved for ≥ `need` of `token` from `signer`.
 async function ensureAllowance(token, signer, spender, need, label) {
   const cur = await retryView(() => token.allowance(signer.address, spender), `${label} allowance`);
   if (cur >= need) return;
   await sendAndWait(token.connect(signer), 'approve', [spender, ethers.MaxUint256], `approve ${label}`);
+}
+
+// Top up an operator's SuperPaymaster balance with `need` of the SP's deposit
+// token. SP.deposit() ALWAYS pulls SP.APNTS_TOKEN (the canonical aPNTs used to
+// price every operator's balance) — NOT the operator's own xPNTsToken, and NOT
+// necessarily config.aPNTs (they diverge after a factory upgrade: SP.APNTS_TOKEN
+// may still be the legacy token while config.aPNTs is the redeployed one). That
+// legacy token can't be minted, so the deployer (which holds a large balance)
+// transfers any shortfall to the operator before it approves + deposits.
+async function fundOperator(provider, deployer, sp, opSigner, need, label, check) {
+  const apntsTokenAddr = await retryView(() => sp.APNTS_TOKEN(), 'sp.APNTS_TOKEN');
+  const token = new ethers.Contract(apntsTokenAddr, ERC20_ABI, provider);
+  if (opSigner.address.toLowerCase() !== deployer.address.toLowerCase()) {
+    const opBal = await retryView(() => token.balanceOf(opSigner.address), `${label} APNTS_TOKEN bal`);
+    if (opBal < need) {
+      const short = need - opBal + ethers.parseUnits('100', 18); // small margin
+      await sendAndWait(token.connect(deployer), 'transfer', [opSigner.address, short], `transfer APNTS_TOKEN → ${label}`);
+    }
+  }
+  await ensureAllowance(token, opSigner, sp.target, need, `APNTS_TOKEN→SP (${label})`);
+  await sendAndWait(sp.connect(opSigner), 'deposit', [need], `sp.deposit(${label})`);
+  check(`${label} operator funded via APNTS_TOKEN`, true);
 }
 
 async function main() {
