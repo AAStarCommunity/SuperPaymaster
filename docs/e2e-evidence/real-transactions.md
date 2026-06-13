@@ -18,17 +18,16 @@
 **#28 Gasless: SuperPaymaster xPNTs2 (PNTs)**
 - `gasless PNTs UserOp (standalone-verified)` → https://sepolia.etherscan.io/tx/0x682cf0e63ecb34d027945e426da4edee1897601a3cce4eff47bca6ead61d1a95
 
-## Credit-based gas sponsorship — capability gated (no on-chain debt-path tx captured)
+## Credit-based gas sponsorship — debt path VERIFIED on-chain
 
-> ⚠️ **No definitive debt-path tx captured yet — do NOT cite #29 as debt evidence.**
-> The tx below took the **BURN path** this run (the AA account held 731 aPNTs, so
-> postOp burned tokens instead of recording debt). It proves gasless-burn, the same
-> capability as #27 — NOT credit/debt. See the verdicts table at the bottom. A real
-> debt-path tx requires re-running test-case-4 with the AA account drained below the
-> charge so postOp records debt instead of burning.
+When a user can't cover the gas charge from their xPNTs balance, postOp records debt
+(up to the user's credit ceiling) instead of burning — the operator extends credit.
 
-**#29 SP Credit/Debt Path — BURN PATH this run (not debt; see verdicts table)**
-- `gasless-burn (NOT debt)` → https://sepolia.etherscan.io/tx/0x2b8defdf9f351a1551c9d2411846c62797ed75d7a08c17d5b5137d8320b4691a
+**#29 SP Credit/Debt Path — DEBT PATH (operator extends credit, debt recorded)** ✅
+- `debt-path UserOp (AA drained to 0)` → https://sepolia.etherscan.io/tx/0x85b1aea61db0e6ed8ad5259a8dd84a61c25fb867c8e656e03d333647307ba88d
+  - On-chain: paymaster=SuperPaymaster paid 0.0008 ETH gas; **0 burn events**; aPNTs `DebtRecorded` + SP debt event emitted; debt grew **0 → 37.94 aPNTs**, available credit fell by the same. `UserOperationEvent success=false` (the user's transfer reverted at balance 0 — exactly the no-funds scenario credit sponsorship is for), yet postOp still recorded the debt.
+
+> A prior run's tx `0x2b8defdf…` took the **BURN path** (the AA account had balance), proving gasless-burn (= #27), not debt. The debt path above was produced by draining the AA account to 0 so postOp's `burnFromWithOpHash` fails and `recordDebtWithOpHash` fires.
 
 ## x402 Agent payment settlement — EIP-3009 (USDC) + C-02 direct (xPNTs, drain-proof)
 
@@ -164,6 +163,6 @@ Each core capability was independently decoded on-chain (logs via public Sepolia
 | x402 — EIP-3009 USDC (#31) | `0x82fd3396` | USDC payer→SP 1.0, SP→payee 0.99, 0.01 fee (facilitatorFeeBPS=100) | ✅ VERIFIED |
 | x402 — Direct C-02 (#32) | `0x1901c3eb`,`0xe48720cf` | xPNTs payer→SP 1.0, SP→payee 0.99 + 0.01 fee, both settles. Drain-protection (recipient-bound sig) is a `staticCall` negative test (test-case-3 Step 5a: redirect→InvalidX402Signature revert) — asserted off-chain, no tx. | ✅ positive VERIFIED + negative via staticCall |
 | MicroPayment channel (#30) | `0xb935b5a6`/`dca794fb`/`de9fbe02` | open locked 10 aPNTs; settle paid 3; close paid 4 to payee (cumulative 7) + refunded 3 to payer; 7+3=10 reconciles | ✅ VERIFIED |
-| **Credit/debt sponsorship (#29)** | `0x2b8defdf` | ⚠️ This run took the **BURN path** (AA_A held 731 aPNTs → `will use BURN PATH … no debt`), so this tx proves gasless-burn, NOT debt. The credit/debt path (recorded debt when balance is insufficient) requires a balance-starved scenario; its gate is exercised by test-case-4's dryRun credit check. | ⚠️ MISCLASSIFIED — not a debt tx |
+| **Credit/debt sponsorship (#29)** | `0x85b1aea6` | paymaster paid 0.0008 ETH gas; **0 burn events**; `DebtRecorded` (aPNTs) + SP debt event; debt **0 → 37.94 aPNTs**, available credit fell by the same. Produced by draining the AA account to 0 so postOp's `burnFromWithOpHash` fails → `recordDebtWithOpHash` fires. | ✅ VERIFIED — debt path |
 
-**Note on #29**: the credit/debt capability is gated and tested (dryRunValidation credit ceiling, C-01), but the captured tx happens to exercise the burn branch. A definitive debt-path tx requires running test-case-4 with the AA account drained below the charge so postOp records debt instead of burning.
+**Note on #29**: the earlier tx `0x2b8defdf…` (AA had balance) took the burn branch (= #27); the debt branch is captured separately above (`0x85b1aea6…`) by starving the AA account below the charge. **All 7 core capabilities now have on-chain evidence.**
