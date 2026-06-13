@@ -81,9 +81,14 @@ function initTestEnv() {
   const config = loadConfig();
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL not set');
-  // staticNetwork avoids the initial eth_chainId auto-detect call that can fail under RPC rate limiting
+  // staticNetwork avoids the initial eth_chainId auto-detect call that can fail under RPC rate limiting.
+  // FetchRequest timeout caps each request at 20s (ethers' default is 300s), so a hung view fails fast
+  // and _addProviderRetry can retry it — instead of blocking until the suite's 300s kill-switch fires
+  // (the E1 "TIMEOUT after 300s" we hit on a flaky RPC).
+  const _fr = new ethers.FetchRequest(rpcUrl);
+  _fr.timeout = 20000;
   const provider = _addProviderRetry(
-    new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true })
+    new ethers.JsonRpcProvider(_fr, 11155111, { staticNetwork: true })
   );
 
   const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -638,7 +643,9 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
     try {
       if (tx.wait) {
         const receipt = await tx.wait(1);
-        printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed})`);
+        // Print the on-chain tx hash + explorer link so every state-changing call
+        // leaves a verifiable, auditable trail (real-transaction evidence).
+        printInfo(`${label}: TX confirmed (gas: ${receipt.gasUsed}) tx=${tx.hash} https://sepolia.etherscan.io/tx/${tx.hash}`);
         return receipt;
       }
       return tx;

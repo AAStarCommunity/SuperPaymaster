@@ -27,6 +27,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { sendAndWait, makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 // Constants
@@ -62,7 +63,7 @@ async function main() {
   // Setup
   const config = loadConfig();
   const rpcUrl = process.env.RPC_URL;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const provider = makeProvider(rpcUrl);
 
   // Payer = deployer EOA (holds USDC)
   const payerKey = process.env.PRIVATE_KEY;
@@ -162,21 +163,13 @@ async function main() {
   const earningsBefore = await superPaymaster.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
 
   try {
-    const tx = await superPaymaster.settleX402Payment(
-      payer.address,
-      payee,
-      USDC_SEPOLIA,
-      amount,
-      validAfter,
-      validBefore,
-      salt,
-      signature,
-      { gasLimit: 500000 }
+    const receipt = await sendAndWait(
+      superPaymaster, 'settleX402Payment',
+      [payer.address, payee, USDC_SEPOLIA, amount, validAfter, validBefore, salt, signature],
+      'settleX402Payment', { gasLimit: 500000 }
     );
-    console.log(`  TX Hash: ${tx.hash}`);
-    console.log(`  Etherscan: https://sepolia.etherscan.io/tx/${tx.hash}`);
-
-    const receipt = await tx.wait();
+    console.log(`  TX Hash: ${receipt.hash}`);
+    console.log(`  Etherscan: https://sepolia.etherscan.io/tx/${receipt.hash}`);
     console.log(`  ✅ Settlement confirmed! Gas used: ${receipt.gasUsed}`);
 
     // Step 5: Verify results

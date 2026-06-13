@@ -2,12 +2,13 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 async function main() {
   const config = loadConfig();
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const provider = makeProvider(rpcUrl);
 
   const contracts = [
     { name: "Registry (UUPS Proxy)", address: config.registry },

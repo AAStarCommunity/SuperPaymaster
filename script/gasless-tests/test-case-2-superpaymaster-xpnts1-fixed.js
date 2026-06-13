@@ -22,6 +22,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const ERC20_ABI = [
@@ -74,7 +75,7 @@ async function main() {
   console.log(`  EntryPoint: ${ENTRYPOINT_ADDRESS}`);
   console.log(`  Operator: ${operatorAddress}\n`);
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
+  const provider = makeProvider(rpcUrl);
   const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
   const senderAAAccount = process.env.TEST_AA_ACCOUNT_ADDRESS_B || process.env.TEST_AA_ACCOUNT_ADDRESS_1;

@@ -24,6 +24,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 // ============================================================
@@ -181,6 +182,28 @@ async function classifyValidationFailure(sp, userOp, err) {
   }
 }
 
+// Same-operator UserOps are gated by the operator's minTxInterval (60s on
+// Sepolia). When earlier gasless tests just sponsored this operator+user, the
+// credit-path submit hits RATE_LIMITED — the test is valid, only too soon. So we
+// wait out the window and retry instead of SKIPping, making the suite order-
+// independent and robust to timing. dryRunValidation re-checks every cycle.
+async function waitOutRateLimit(sp, userOp, maxAttempts = 3) {
+  for (let i = 0; i < maxAttempts; i++) {
+    let ok, reasonCode;
+    try {
+      [ok, reasonCode] = await sp.dryRunValidation(userOp, computeMaxCost(userOp));
+    } catch (_) {
+      return; // cannot pre-check (network) — let the normal submit path decide
+    }
+    if (ok) return;                                       // validation passes now → submit
+    if (decodeReason(reasonCode) !== 'RATE_LIMITED') return; // other precondition → submit will classify
+    const waitMs = 65000;                                 // minTxInterval 60s + 5s margin
+    console.log(`  ⏳ RATE_LIMITED — waiting ${waitMs / 1000}s for the minTxInterval window (attempt ${i + 1}/${maxAttempts})...`);
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  console.log('  ⚠️  Still RATE_LIMITED after waiting — submit will SKIP if it persists.');
+}
+
 // ============================================================
 // Main
 // ============================================================
@@ -238,7 +261,7 @@ async function main() {
   // ── Provider / signers ────────────────────────────────────────
   let provider;
   try {
-    provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
+    provider = makeProvider(rpcUrl); // 20s/request timeout + read retry → survives RPC hiccups
   } catch (err) {
     console.warn('\n⚠️  SKIP: Cannot connect to RPC:', err.message);
     process.exit(2);
@@ -392,6 +415,10 @@ async function main() {
 
     console.log('\n🚀 Step 7: Submit UserOp to EntryPoint');
     const beneficiary = wallet.address;
+
+    // Wait out the operator's minTxInterval if a prior same-operator UserOp just
+    // ran (keeps the credit-path test order-independent instead of SKIPping).
+    await waitOutRateLimit(sp, userOp);
 
     try {
       const gasEstimate = await entryPoint.handleOps.estimateGas([userOp], beneficiary);
