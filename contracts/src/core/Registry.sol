@@ -88,12 +88,16 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         _initRole(ROLE_COMMUNITY, 0, 30 ether, 0, 0, 0, 0, 0, 0, _owner, 0);
         _initRole(ROLE_ENDUSER, 0, 0.3 ether, 0, 0, 0, 0, 0, 0, _owner, 0);
 
-        // AUDIT H-1: level-1 (new/zero-reputation users) MUST default to a non-zero
+        // AUDIT H-1: level-1 (new / zero-reputation users) MUST default to a NON-ZERO
         // credit ceiling. SuperPaymaster now enforces the ceiling in validation
         // regardless of xPNTs balance (Plan A), so a level-1 default of 0 would reject
-        // every fresh user even when they hold tokens. 1000 ether mirrors the live
-        // Sepolia config and lets a new user sponsor an op; tune per deployment.
-        creditTierConfig[1] = 1000 ether;
+        // every fresh user even when they hold tokens. The defaults below keep the tier
+        // monotonic (level 1 ≤ 2 ≤ … ≤ 6) so higher reputation never *lowers* credit.
+        // NOTE: these are conservative bootstrap values — each deployment MUST call
+        // setCreditTier() to configure ceilings that actually cover its op charge and
+        // match its economic model (the live Sepolia instance runs level 1 = 1000).
+        // The final tier economics are a team decision (tracked in audit issue #245).
+        creditTierConfig[1] = 50 ether;
         creditTierConfig[2] = 100 ether;
         creditTierConfig[3] = 300 ether;
         creditTierConfig[4] = 600 ether;
