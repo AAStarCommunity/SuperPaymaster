@@ -20,8 +20,15 @@
 
 ## Credit-based gas sponsorship — operator extends credit, debt recorded in postOp
 
-**#29 Gasless: SP Credit/Debt Path**
-- `tx` → https://sepolia.etherscan.io/tx/0x2b8defdf9f351a1551c9d2411846c62797ed75d7a08c17d5b5137d8320b4691a
+> ⚠️ **No definitive debt-path tx captured yet — do NOT cite #29 as debt evidence.**
+> The tx below took the **BURN path** this run (the AA account held 731 aPNTs, so
+> postOp burned tokens instead of recording debt). It proves gasless-burn, the same
+> capability as #27 — NOT credit/debt. See the verdicts table at the bottom. A real
+> debt-path tx requires re-running test-case-4 with the AA account drained below the
+> charge so postOp records debt instead of burning.
+
+**#29 SP Credit/Debt Path — BURN PATH this run (not debt; see verdicts table)**
+- `gasless-burn (NOT debt)` → https://sepolia.etherscan.io/tx/0x2b8defdf9f351a1551c9d2411846c62797ed75d7a08c17d5b5137d8320b4691a
 
 ## x402 Agent payment settlement — EIP-3009 (USDC) + C-02 direct (xPNTs, drain-proof)
 
