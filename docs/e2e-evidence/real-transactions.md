@@ -142,3 +142,21 @@
 - `restoreLevelThresholds` → https://sepolia.etherscan.io/tx/0x72b3eecbffe9b972b0828149d8b45f941701fe89fbddf7241c1aa089bd9b8dac
 - `setCreditTier(3, 350e18)` → https://sepolia.etherscan.io/tx/0xe88af54f42fb3f5990441c2523ef9e5dd2cad47ae6f4ce5c45eb5d84f605fb7c
 - `restoreCreditTier` → https://sepolia.etherscan.io/tx/0xaed01259e0251ec87b7462b624c854c7f456a6d9265f4b44e0ef1ed1874ee85b
+
+---
+
+## Adversarial verification verdicts (codex challenge + on-chain decode)
+
+Each core capability was independently decoded on-chain (logs via public Sepolia RPC) and adversarially judged by codex.
+
+| Capability | Tx | On-chain evidence | Verdict |
+|---|---|---|---|
+| Gasless — PaymasterV4 (#26) | `0x15d16ae3` | UserOperationEvent paymaster=`0x2118…`(PaymasterV4) paid 0.00047 ETH; user transferred 1 aPNTs; gas debited from PaymasterV4 deposit ledger (no burn event) | ✅ VERIFIED |
+| Gasless — SuperPaymaster aPNTs (#27) | `0x6cb1552d` | paymaster=SuperPaymaster paid 0.00065 ETH; AA burned 35.32 aPNTs for gas; AA EOA spent 0 ETH | ✅ VERIFIED |
+| Gasless — SuperPaymaster PNTs (#28) | `0x682cf0e6` | paymaster=SuperPaymaster paid 0.00064 ETH; AA burned 33.59 PNTs for gas; user transferred 1 PNTs | ✅ VERIFIED |
+| x402 — EIP-3009 USDC (#31) | `0x82fd3396` | USDC payer→SP 1.0, SP→payee 0.99, 0.01 fee (facilitatorFeeBPS=100) | ✅ VERIFIED |
+| x402 — Direct C-02 (#32) | `0x1901c3eb`,`0xe48720cf` | xPNTs payer→SP 1.0, SP→payee 0.99 + 0.01 fee, both settles. Drain-protection (recipient-bound sig) is a `staticCall` negative test (test-case-3 Step 5a: redirect→InvalidX402Signature revert) — asserted off-chain, no tx. | ✅ positive VERIFIED + negative via staticCall |
+| MicroPayment channel (#30) | `0xb935b5a6`/`dca794fb`/`de9fbe02` | open locked 10 aPNTs; settle paid 3; close paid 4 to payee (cumulative 7) + refunded 3 to payer; 7+3=10 reconciles | ✅ VERIFIED |
+| **Credit/debt sponsorship (#29)** | `0x2b8defdf` | ⚠️ This run took the **BURN path** (AA_A held 731 aPNTs → `will use BURN PATH … no debt`), so this tx proves gasless-burn, NOT debt. The credit/debt path (recorded debt when balance is insufficient) requires a balance-starved scenario; its gate is exercised by test-case-4's dryRun credit check. | ⚠️ MISCLASSIFIED — not a debt tx |
+
+**Note on #29**: the credit/debt capability is gated and tested (dryRunValidation credit ceiling, C-01), but the captured tx happens to exercise the burn branch. A definitive debt-path tx requires running test-case-4 with the AA account drained below the charge so postOp records debt instead of burning.
