@@ -274,6 +274,14 @@ sleep 5
 run_test "X1: xPNTs Token Admin (limits/spenders/exchange-rate)" "node $SCRIPT_DIR/test-group-X1-xpnts-admin.js"
 
 # ─────────────────────────────────────────────────────────────
+# Phase 13: Beta.3 Audit Fix Verification (H-1 Credit Ceiling + H-2 Emergency Halt)
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo -e "${CYAN}── Phase 13: Beta.3 Audit Fix Verification ──────────────────────────────────────${NC}"
+run_test "I1: Credit Ceiling H-1 Fix"              "node $SCRIPT_DIR/test-group-I1-credit-ceiling-h1.js"
+run_test "I2: Emergency Halt H-2 Fix"              "node $SCRIPT_DIR/test-group-I2-emergency-halt-h2.js"
+
+# ─────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────
 echo ""
