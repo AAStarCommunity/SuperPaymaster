@@ -18,7 +18,7 @@
 **#28 Gasless: SuperPaymaster xPNTs2 (PNTs)**
 - `gasless PNTs UserOp (standalone-verified)` → https://sepolia.etherscan.io/tx/0x682cf0e63ecb34d027945e426da4edee1897601a3cce4eff47bca6ead61d1a95
 
-## Credit-based gas sponsorship — operator extends credit, debt recorded in postOp
+## Credit-based gas sponsorship — capability gated (no on-chain debt-path tx captured)
 
 > ⚠️ **No definitive debt-path tx captured yet — do NOT cite #29 as debt evidence.**
 > The tx below took the **BURN path** this run (the AA account held 731 aPNTs, so
