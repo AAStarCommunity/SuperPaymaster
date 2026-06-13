@@ -97,7 +97,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // setCreditTier() to configure ceilings that actually cover its op charge and
         // match its economic model (the live Sepolia instance runs level 1 = 1000).
         // The final tier economics are a team decision (tracked in audit issue #245).
-        creditTierConfig[1] = 50 ether;
+        creditTierConfig[1] = 100 ether;
         creditTierConfig[2] = 100 ether;
         creditTierConfig[3] = 300 ether;
         creditTierConfig[4] = 600 ether;
