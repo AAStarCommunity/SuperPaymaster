@@ -22,6 +22,20 @@ async function main() {
   const sp = c.superPaymaster;
   const aPNTs = c.aPNTs;
 
+  // SP.withdraw() uses APNTS_TOKEN which may differ from config.aPNTs if the
+  // 7-day timelock update hasn't been applied yet.
+  const spApntsTokenAddr = await sp.APNTS_TOKEN();
+  const spApntsToken = new ethers.Contract(
+    spApntsTokenAddr,
+    ['function balanceOf(address) view returns (uint256)'],
+    deployer
+  );
+  const apntsTokenMatchesConfig = spApntsTokenAddr.toLowerCase() === (config.aPNTs || '').toLowerCase();
+  if (!apntsTokenMatchesConfig) {
+    printInfo(`SP.APNTS_TOKEN (${spApntsTokenAddr}) differs from config.aPNTs (${config.aPNTs})`);
+    printInfo('deposit/depositFor/withdraw use APNTS_TOKEN; ERC20 balance assertions track that token.');
+  }
+
   const deployerAddr = deployer.address;
 
   // Pre-check: operator must be configured
@@ -78,15 +92,15 @@ async function main() {
   // ──────────────────────────────────────────
   printStep(4, 'withdraw(3 ether)');
   const withdrawAmount = ethers.parseEther('3');
-  const aPNTsBeforeWithdraw = await aPNTs.balanceOf(deployerAddr);
+  const apntsTokenBalanceBefore = await spApntsToken.balanceOf(deployerAddr);
   await sendTxSafe(sp, 'withdraw', [withdrawAmount], 'withdraw(3)');
 
   const opAfterWithdraw = await sp.operators(deployerAddr);
   const expectedAfterWithdraw = expectedBalance + depositForAmount - withdrawAmount;
   assertEqual(opAfterWithdraw.aPNTsBalance, expectedAfterWithdraw, 'aPNTsBalance after withdraw');
 
-  const aPNTsAfterWithdraw = await aPNTs.balanceOf(deployerAddr);
-  assertEqual(aPNTsAfterWithdraw, aPNTsBeforeWithdraw + withdrawAmount, 'ERC20 balance after withdraw');
+  const apntsTokenBalanceAfter = await spApntsToken.balanceOf(deployerAddr);
+  assertEqual(apntsTokenBalanceAfter, apntsTokenBalanceBefore + withdrawAmount, `APNTS_TOKEN (${spApntsTokenAddr.slice(0, 10)}…) balance after withdraw`);
 
   // ──────────────────────────────────────────
   // Step 5: withdraw excess -> expect revert

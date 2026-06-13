@@ -113,7 +113,7 @@ async function main() {
     if (currentXPNTs && currentXPNTs !== ethers.ZeroAddress) {
       const op = await sp.operators(deployerAddr);
       assertTrue(op[1], 'isConfigured must be true (pre-existing config)');
-      assertTrue(op[0] >= 0n, 'aPNTsBalance readable');
+      assertTrue(op[0] !== undefined, 'aPNTsBalance readable');
       printInfo(`Existing config: xPNTsToken=${op[3]}, isConfigured=${op[1]}`);
       printSuccess('Existing operator config verified — 2-arg signature already active on-chain');
       printInfo('Full TX test requires operator to re-deploy community token via new xPNTsFactory.');

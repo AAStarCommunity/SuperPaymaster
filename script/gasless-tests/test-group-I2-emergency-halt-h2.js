@@ -312,8 +312,10 @@ async function main() {
         const finalSP = await aPNTsWithDeployer.SUPERPAYMASTER_ADDRESS();
         assertEqual(finalSP, originalSP, 'SUPERPAYMASTER_ADDRESS restored to original');
 
+        // setSuperPaymasterAddress() auto-adds the new address to autoApprovedSpenders.
+        // If this assertion fails in future, add explicit addAutoApprovedSpender(originalSP) before step C.
         const finalAutoApproved = await aPNTsWithDeployer.autoApprovedSpenders(originalSP);
-        assertTrue(finalAutoApproved, 'originalSP is autoApprovedSpender after restore');
+        assertTrue(finalAutoApproved, 'originalSP is autoApprovedSpender after restore (setSuperPaymasterAddress auto-adds)');
 
         restored = true;
         printSuccess('Emergency state fully restored — aPNTs token is operational again');

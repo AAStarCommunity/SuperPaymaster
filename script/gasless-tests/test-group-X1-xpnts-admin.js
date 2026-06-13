@@ -311,31 +311,46 @@ async function main() {
     if (balance < transferAmount) {
       printSkip(`Insufficient xPNTs balance (${ethers.formatEther(balance)} < 1) — skipping transferAndCall`);
     } else {
-      // Read operator aPNTs balance before
-      const opBefore = await sp.operators(deployerAddr);
-      printKeyValue('SP operator.aPNTsBalance before', opBefore.aPNTsBalance.toString());
+      // SP.onTransferReceived() checks msg.sender == APNTS_TOKEN.
+      // If this xPNTs token != SP.APNTS_TOKEN (e.g. after factory upgrade with 7-day timelock
+      // not yet applied), the push deposit will revert. Skip and document the state.
+      const spApntsTokenAddr = await sp.APNTS_TOKEN();
+      const xpntsAddr = config.aPNTs || '';
+      const pushDepositSupported = spApntsTokenAddr.toLowerCase() === xpntsAddr.toLowerCase();
 
-      printInfo('Calling transferAndCall(superPaymaster, 1 aPNTs)...');
-      const receipt = await sendTxSafe(
-        xpnts,
-        'transferAndCall',
-        [config.superPaymaster, transferAmount],
-        'transferAndCall→SP'
-      );
+      printKeyValue('SP.APNTS_TOKEN', spApntsTokenAddr);
+      printKeyValue('config.aPNTs', xpntsAddr);
 
-      if (receipt) {
-        const opAfter = await sp.operators(deployerAddr);
-        printKeyValue('SP operator.aPNTsBalance after', opAfter.aPNTsBalance.toString());
+      if (!pushDepositSupported) {
+        printInfo('APNTS_TOKEN mismatch: SP.onTransferReceived rejects calls from non-APNTS_TOKEN contracts.');
+        printInfo('To enable push deposits: call queueSetAPNTsToken(newAddr) then wait 7 days, then executeSetAPNTsToken().');
+        printSkip('transferAndCall→SP: skipped (SP.APNTS_TOKEN not yet updated to current factory token)');
+      } else {
+        // Read operator aPNTs balance before
+        const opBefore = await sp.operators(deployerAddr);
+        printKeyValue('SP operator.aPNTsBalance before', opBefore.aPNTsBalance.toString());
 
-        if (opAfter.isConfigured) {
-          // Operator configured — balance should have increased
-          assertTrue(
-            opAfter.aPNTsBalance >= opBefore.aPNTsBalance,
-            'SP operator aPNTsBalance >= before (onTransferReceived accepted push)'
-          );
-        } else {
-          printInfo('Deployer not configured as SP operator — SP may have rejected the push (expected)');
-          printSuccess('transferAndCall TX confirmed without revert');
+        printInfo('Calling transferAndCall(superPaymaster, 1 aPNTs)...');
+        const receipt = await sendTxSafe(
+          xpnts,
+          'transferAndCall',
+          [config.superPaymaster, transferAmount],
+          'transferAndCall→SP'
+        );
+
+        if (receipt) {
+          const opAfter = await sp.operators(deployerAddr);
+          printKeyValue('SP operator.aPNTsBalance after', opAfter.aPNTsBalance.toString());
+
+          if (opAfter.isConfigured) {
+            assertTrue(
+              opAfter.aPNTsBalance >= opBefore.aPNTsBalance,
+              'SP operator aPNTsBalance >= before (onTransferReceived accepted push)'
+            );
+          } else {
+            printInfo('Deployer not configured as SP operator — SP may have rejected the push (expected)');
+            printSuccess('transferAndCall TX confirmed without revert');
+          }
         }
       }
     }
