@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// AAStar.io contribution with love from 2023
 /**
  * Shared TX utilities for the raw-ethers E2E tests that do NOT go through
  * test-helpers' sendTxSafe (micropayment / x402 / bls). These tests historically
