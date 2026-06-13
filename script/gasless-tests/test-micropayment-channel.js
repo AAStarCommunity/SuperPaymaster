@@ -19,6 +19,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { sendAndWait, makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 // Addresses are loaded from deployments/config.sepolia.json (single source of truth)
@@ -58,7 +59,7 @@ async function main() {
   const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL;
   if (!rpcUrl) { console.error('Fatal: RPC_URL not set'); process.exit(1); }
   // staticNetwork avoids eth_chainId auto-detect call that fails under RPC rate limiting
-  const provider = new ethers.JsonRpcProvider(rpcUrl, CHAIN_ID, { staticNetwork: true });
+  const provider = makeProvider(rpcUrl);
 
   // Payer = deployer EOA
   const payerKey = process.env.PRIVATE_KEY;
@@ -97,8 +98,7 @@ async function main() {
   const currentAllowance = await apnts.allowance(payer.address, MPC_ADDRESS);
   if (currentAllowance < depositAmount) {
     console.log('  Approving MPC to spend aPNTs...');
-    const approveTx = await apnts.approve(MPC_ADDRESS, ethers.MaxUint256);
-    await approveTx.wait();
+    await sendAndWait(apnts, 'approve', [MPC_ADDRESS, ethers.MaxUint256], 'approve');
     console.log('  ✅ Approved');
   } else {
     console.log('  ✅ Already approved');
@@ -110,16 +110,12 @@ async function main() {
 
   const payeeBalanceBefore = await apnts.balanceOf(payee.address);
 
-  const openTx = await mpc.openChannel(
-    payee.address,
-    APNTS_ADDRESS,
-    depositAmount,
-    salt,
-    ethers.ZeroAddress, // no delegated signer
-    { gasLimit: 300000 }
+  const openReceipt = await sendAndWait(
+    mpc, 'openChannel',
+    [payee.address, APNTS_ADDRESS, depositAmount, salt, ethers.ZeroAddress], // no delegated signer
+    'openChannel', { gasLimit: 300000 }
   );
-  console.log(`  TX: ${openTx.hash}`);
-  const openReceipt = await openTx.wait();
+  console.log(`  TX: ${openReceipt.hash}`);
   console.log(`  ✅ Channel opened! Gas: ${openReceipt.gasUsed}`);
 
   // Get channelId from event
@@ -141,12 +137,12 @@ async function main() {
   const sig1 = await signVoucher(payer, channelId, cumulativeAmount1);
   console.log(`  Voucher signed: cumulative = 3 aPNTs`);
 
-  const settleTx = await mpcPayee.settleChannel(
-    channelId, cumulativeAmount1, sig1, { gasLimit: 200000 }
+  const settleReceipt = await sendAndWait(
+    mpcPayee, 'settleChannel', [channelId, cumulativeAmount1, sig1],
+    'settleChannel', { gasLimit: 200000 }
   );
-  const settleReceipt = await settleTx.wait();
   console.log(`  ✅ Settled! Gas: ${settleReceipt.gasUsed}`);
-  console.log(`  TX: ${settleTx.hash}`);
+  console.log(`  TX: ${settleReceipt.hash}`);
 
   const ch2 = await mpc.getChannel(channelId);
   console.log(`  Settled so far: ${ethers.formatUnits(ch2.settled, decimals)} aPNTs`);
@@ -157,12 +153,12 @@ async function main() {
   const cumulativeAmount2 = ethers.parseUnits('7', decimals);
   const sig2 = await signVoucher(payer, channelId, cumulativeAmount2);
 
-  const closeTx = await mpcPayee.closeChannel(
-    channelId, cumulativeAmount2, sig2, { gasLimit: 200000 }
+  const closeReceipt = await sendAndWait(
+    mpcPayee, 'closeChannel', [channelId, cumulativeAmount2, sig2],
+    'closeChannel', { gasLimit: 200000 }
   );
-  const closeReceipt = await closeTx.wait();
   console.log(`  ✅ Channel closed! Gas: ${closeReceipt.gasUsed}`);
-  console.log(`  TX: ${closeTx.hash}`);
+  console.log(`  TX: ${closeReceipt.hash}`);
 
   // Step 5: Verify results
   console.log('\n📊 Step 5: Verify Results');

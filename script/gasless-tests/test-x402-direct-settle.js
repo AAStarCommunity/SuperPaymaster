@@ -29,6 +29,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { sendAndWait, makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const CHAIN_ID = 11155111;
@@ -66,7 +67,7 @@ async function main() {
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   const config = loadConfig();
-  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+  const provider = makeProvider(process.env.RPC_URL);
 
   const ownerKey = process.env.PRIVATE_KEY;            // xPNTs community owner (mint + facilitator approve)
   const owner = new ethers.Wallet(ownerKey, provider);
@@ -102,14 +103,12 @@ async function main() {
     process.exit(2);
   }
   // Mint generous balance to the fresh payer (await each tx → safe under 7702 in-flight cap)
-  const mintTx = await xpntsOwner.mint(payer.address, amount * 10n);
-  await mintTx.wait();
+  await sendAndWait(xpntsOwner, 'mint', [payer.address, amount * 10n], 'mint');
   const payerBal = await xpntsOwner.balanceOf(payer.address);
   console.log(`  Payer xPNTs balance: ${ethers.formatUnits(payerBal, decimals)}`);
 
   if (!(await xpntsOwner.approvedFacilitators(facilitator.address))) {
-    const addTx = await xpntsOwner.addApprovedFacilitator(facilitator.address);
-    await addTx.wait();
+    await sendAndWait(xpntsOwner, 'addApprovedFacilitator', [facilitator.address], 'addApprovedFacilitator');
     console.log(`  Added facilitator to approvedFacilitators`);
   } else {
     console.log(`  Facilitator already approved`);
@@ -147,11 +146,12 @@ async function main() {
   console.log('\n🚀 Step 3: settleX402PaymentDirect (valid signature)');
   const payeeBefore = await xpntsOwner.balanceOf(payee);
   const earningsBefore = await sp.facilitatorEarnings(facilitator.address, asset);
-  const tx = await sp.settleX402PaymentDirect(
-    payer.address, payee, asset, amount, maxFee, validBefore, nonce, signature, { gasLimit: 500000 }
+  const tx = await sendAndWait(
+    sp, 'settleX402PaymentDirect',
+    [payer.address, payee, asset, amount, maxFee, validBefore, nonce, signature],
+    'settleX402PaymentDirect', { gasLimit: 500000 }
   );
   console.log(`  TX: https://sepolia.etherscan.io/tx/${tx.hash}`);
-  await tx.wait();
 
   const payeeReceived = (await xpntsOwner.balanceOf(payee)) - payeeBefore;
   const feeCollected = (await sp.facilitatorEarnings(facilitator.address, asset)) - earningsBefore;
@@ -203,10 +203,11 @@ async function main() {
 
   // 5b positive control: same signature, AUTHORIZED recipient → must settle.
   const payeeBefore2 = await xpntsOwner.balanceOf(payee);
-  const tx2 = await sp.settleX402PaymentDirect(
-    payer.address, payee, asset, amount, maxFee, validBefore, bindNonce, bindSig, { gasLimit: 500000 }
+  await sendAndWait(
+    sp, 'settleX402PaymentDirect',
+    [payer.address, payee, asset, amount, maxFee, validBefore, bindNonce, bindSig],
+    'settleX402PaymentDirect(5b)', { gasLimit: 500000 }
   );
-  await tx2.wait();
   const got2 = (await xpntsOwner.balanceOf(payee)) - payeeBefore2;
   got2 === amount - expectedFee
     ? pass('same signature settles to the AUTHORIZED recipient — binding isolated, C-02 verified')

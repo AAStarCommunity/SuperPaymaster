@@ -1,37 +1,30 @@
 #!/usr/bin/env node
 /**
- * Pre-flight Setup for Gasless Tests
+ * Pre-flight Setup for Gasless Tests — auto-funds EVERY prerequisite.
  *
- * Checks and fixes ALL prerequisites for test-case-1/2/3 before running them.
- * Safe to run repeatedly (idempotent checks, only acts when needed).
+ * Design goals (project requirement, 2026-06-13):
+ *   1. AUTO-FUND, never just check. Every AA test account is minted enough of
+ *      every token it needs (aPNTs by the deployer, PNTs by Anni). A test must
+ *      never SKIP for "zero balance" — the setup makes the balance true.
+ *   2. NETWORK-ROBUST. Every write goes through sendAndWait (fee-bumped, retried,
+ *      re-confirmed by hash); every read through retryView; and the whole setup
+ *      is wrapped in a retry so a single transient RPC error can't abort it.
+ *   3. IDEMPOTENT. Re-running is safe: each step only acts when under-funded.
  *
- * Prerequisites managed:
- *   Test 1 (PaymasterV4 + aPNTs):
- *     - PaymasterV4 deployed for deployer ✓ check
- *     - AA_A token deposit in PaymasterV4 ✓ check + auto-fund
- *     - PaymasterV4 ETH in EntryPoint ✓ check
+ * What it guarantees before test-case-1/2/3 run:
+ *   - SuperPaymaster + PaymasterV4 price caches fresh
+ *   - PaymasterV4 has AA_A token deposit + ETH in EntryPoint
+ *   - Deployer operator (aPNTs) and Anni operator (PNTs) funded in SP
+ *   - AA_A/B/C hold aPNTs; AA_A/B/C hold PNTs  (run-all maps TC2/TC3 onto AA_A,
+ *     so AA_A must carry BOTH — we fund all three with both to be safe.)
  *
- *   Test 2 (SuperPaymaster + aPNTs, deployer operator):
- *     - Deployer operator configured in SP ✓ check
- *     - Deployer operator aPNTs balance > 0 ✓ check + auto-deposit
- *     - Price cache fresh ✓ check + auto-refresh
- *
- *   Test 3 (SuperPaymaster + PNTs, Anni operator):
- *     - Anni operator configured in SP ✓ check
- *     - Anni operator PNTs balance > 0 ✓ check (Anni's private key needed for deposit)
- *     - Price cache fresh ✓ covered by Test 2 refresh
- *
- *   All tests:
- *     - AA accounts have token balance ✓ check (use transfer-tokens.js to fund)
- *
- * EXIT CODES:
- *   0 = all prerequisites met (or fixed successfully)
- *   1 = unrecoverable failure (manual intervention needed)
+ * EXIT CODES: 0 = all prerequisites met/fixed · 1 = unrecoverable failure.
  */
 
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { sendAndWait, retryView, isNetworkError, makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const ERC20_ABI = [
@@ -40,6 +33,8 @@ const ERC20_ABI = [
   'function decimals() view returns (uint8)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
+  'function mint(address to, uint256 amount) external',
+  'function communityOwner() view returns (address)',
 ];
 
 const ENTRYPOINT_ABI = [
@@ -53,7 +48,12 @@ const PAYMASTER_V4_ABI = [
   'function cachedPrice() view returns (uint208 price, uint48 updatedAt)',
   'function setCachedPrice(uint256 price, uint48 timestamp) external',
   'function priceStalenessThreshold() view returns (uint48)',
+  'function isTokenSupported(address token) view returns (bool)',
+  'function setTokenPrice(address token, uint256 price) external',
 ];
+
+// aPNTs gas-token USD price for PaymasterV4 (8 decimals): $0.02 = 2e6.
+const APNTS_USD_PRICE_8DEC = 2_000000n;
 
 const SP_ABI = [
   'function operators(address) view returns (uint128 aPNTsBalance, bool isConfigured, bool isPaused, address xPNTsToken, uint32 reputation, uint48 minTxInterval, address treasury, uint256 totalSpent, uint256 totalTxSponsored)',
@@ -63,13 +63,222 @@ const SP_ABI = [
   'function cachedPrice() view returns (int256 price, uint256 updatedAt, uint80 roundId, uint8 decimals)',
 ];
 
-const PM_FACTORY_ABI = [
-  'function paymasterByOperator(address) view returns (address)',
-];
+const PM_FACTORY_ABI = ['function paymasterByOperator(address) view returns (address)'];
 
 const PASS = '✅';
 const FAIL = '❌';
 const WARN = '⚠️ ';
+
+// Per-account funding targets. TARGET is the "enough to run" floor that also
+// gates re-minting; TOPUP is how much we mint when below it. TARGET is set below
+// TOPUP on purpose: a fresh mint can be partly consumed in the same tx by the
+// token's automatic debt settlement (mint → burn of the holder's pending aPNTs
+// debt), so requiring the full TOPUP would false-fail and re-mint every run.
+const AA_TOKEN_TARGET   = ethers.parseUnits('500', 18);  // ≥ this = funded (won't re-mint)
+const AA_TOKEN_TOPUP    = ethers.parseUnits('1000', 18); // mint this much when below target
+const V4_DEPOSIT_MIN    = ethers.parseUnits('200', 18);
+const V4_DEPOSIT_TOPUP  = ethers.parseUnits('500', 18);
+// A gasless UserOp's validation locks aPNTs by the maxFeePerGas worst-case (~150-200
+// aPNTs/op), refunded in postOp. The operator balance must clear that worst-case or
+// validatePaymasterUserOp returns sigFailed → AA34. Keep a healthy buffer so several
+// consecutive gasless ops (TC2/TC3 + credit path) never drain it below one op's need.
+const SP_OP_MIN         = ethers.parseUnits('800', 18);  // top up when below this
+const SP_OP_TOPUP       = ethers.parseUnits('2000', 18); // deposit this much
+
+async function setupOnce(ctx) {
+  const { provider, deployer, anni, config } = ctx;
+  const APNTS = config.aPNTs;
+  const PNTS  = config.pnts;
+  const SP    = config.superPaymaster;
+  const EP    = config.entryPoint;
+  const PMF   = config.paymasterFactory;
+  const AA = [
+    process.env.TEST_AA_ACCOUNT_ADDRESS_A,
+    process.env.TEST_AA_ACCOUNT_ADDRESS_B,
+    process.env.TEST_AA_ACCOUNT_ADDRESS_C,
+  ];
+  if (AA.some((a) => !a)) throw new Error('TEST_AA_ACCOUNT_ADDRESS_A/B/C not set in .env.sepolia');
+
+  const apntsRO = new ethers.Contract(APNTS, ERC20_ABI, provider);
+  const pntsRO  = PNTS ? new ethers.Contract(PNTS, ERC20_ABI, provider) : null;
+  const sp      = new ethers.Contract(SP, SP_ABI, deployer);
+  const ep      = new ethers.Contract(EP, ENTRYPOINT_ABI, provider);
+  const pmf     = new ethers.Contract(PMF, PM_FACTORY_ABI, provider);
+
+  let failures = 0;
+  const check = (label, ok, detail = '') => {
+    console.log(`  ${ok ? PASS : FAIL} ${label}${detail ? ': ' + detail : ''}`);
+    if (!ok) failures++;
+  };
+
+  // ── Step 1: SuperPaymaster price cache ──────────────────────────────────────
+  console.log('━━━ Step 1: SuperPaymaster Price Cache ━━━');
+  {
+    const validUntil = await retryView(() => sp.priceValidUntil(), 'sp.priceValidUntil');
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    if (validUntil === 0n || validUntil - now < 600n) {
+      console.log(`  ${WARN} Price cache ${validUntil === 0n ? 'not initialized' : `expires in ${validUntil - now}s`} — updatePrice()...`);
+      await sendAndWait(sp, 'updatePrice', [], 'sp.updatePrice');
+      const newUntil = await retryView(() => sp.priceValidUntil(), 'sp.priceValidUntil');
+      console.log(`  ${PASS} Price cache refreshed. Valid for ${newUntil - now}s`);
+    } else {
+      check('Price cache fresh', true, `valid for ${validUntil - now}s`);
+    }
+  }
+  console.log();
+
+  // ── Step 2: PaymasterV4 (Test 1) ────────────────────────────────────────────
+  console.log('━━━ Step 2: PaymasterV4 (Test 1) ━━━');
+  const pmV4Addr = await retryView(() => pmf.paymasterByOperator(deployer.address), 'pmf.paymasterByOperator');
+  if (pmV4Addr === ethers.ZeroAddress) {
+    check('PaymasterV4 deployed', false, 'run prepare-test sepolia first');
+  } else {
+    check('PaymasterV4 deployed', true, pmV4Addr);
+    const pmV4 = new ethers.Contract(pmV4Addr, PAYMASTER_V4_ABI, deployer);
+
+    const epInfo = await retryView(() => ep.getDepositInfo(pmV4Addr), 'ep.getDepositInfo');
+    check('PaymasterV4 ETH in EntryPoint', epInfo.deposit > 0n, `${ethers.formatEther(epInfo.deposit)} ETH`);
+
+    // PaymasterV4 stores Chainlink's updatedAt; force a fresh validUntil via setCachedPrice.
+    const v4Cache = await retryView(() => pmV4.cachedPrice(), 'pmV4.cachedPrice');
+    const v4Staleness = await retryView(() => pmV4.priceStalenessThreshold(), 'pmV4.priceStalenessThreshold');
+    const nowSec = BigInt(Math.floor(Date.now() / 1000));
+    if (v4Cache.updatedAt === 0n || v4Cache.updatedAt + v4Staleness < nowSec + 600n) {
+      console.log(`  ${WARN} PaymasterV4 price cache stale — setCachedPrice()...`);
+      const freshTs = BigInt(Math.floor(Date.now() / 1000) - 60);
+      await sendAndWait(pmV4, 'setCachedPrice', [v4Cache.price || 224913120000n, freshTs], 'pmV4.setCachedPrice');
+      console.log(`  ${PASS} PaymasterV4 price refreshed.`);
+    } else {
+      check('PaymasterV4 price cache fresh', true, `valid for ${v4Cache.updatedAt + v4Staleness - nowSec}s`);
+    }
+
+    // Ensure aPNTs is a supported gas token. beta.3 redeployed aPNTs, so the
+    // PaymasterV4 may still only know the OLD token → depositFor reverts with
+    // Paymaster__TokenNotSupported. Register it (owner-only) at $0.02 if missing.
+    const apntsSupported = await retryView(() => pmV4.isTokenSupported(APNTS), 'pmV4.isTokenSupported');
+    if (!apntsSupported) {
+      console.log(`  ${WARN} aPNTs not a supported gas token in PaymasterV4 — registering at $0.02...`);
+      await sendAndWait(pmV4, 'setTokenPrice', [APNTS, APNTS_USD_PRICE_8DEC], 'pmV4.setTokenPrice(aPNTs)');
+      check('aPNTs registered as PaymasterV4 gas token', true);
+    } else {
+      check('aPNTs is a supported PaymasterV4 gas token', true);
+    }
+
+    // AA_A token deposit in PaymasterV4 (Test 1 pays gas from this).
+    const aaADeposit = await retryView(() => pmV4.balances(AA[0], APNTS), 'pmV4.balances');
+    if (aaADeposit < V4_DEPOSIT_MIN) {
+      console.log(`  ${WARN} AA_A V4 deposit ${ethers.formatEther(aaADeposit)} aPNTs — funding ${ethers.formatEther(V4_DEPOSIT_TOPUP)}...`);
+      await ensureBalance(apntsRO, deployer, deployer.address, V4_DEPOSIT_TOPUP, 'deployer aPNTs (for V4 deposit)');
+      await ensureAllowance(apntsRO, deployer, pmV4Addr, V4_DEPOSIT_TOPUP, 'aPNTs→PaymasterV4');
+      await sendAndWait(pmV4, 'depositFor', [AA[0], APNTS, V4_DEPOSIT_TOPUP], 'pmV4.depositFor(AA_A)');
+      const nd = await retryView(() => pmV4.balances(AA[0], APNTS), 'pmV4.balances');
+      check('AA_A token deposit in PaymasterV4', nd >= V4_DEPOSIT_MIN, `${ethers.formatEther(nd)} aPNTs`);
+    } else {
+      check('AA_A token deposit in PaymasterV4', true, `${ethers.formatEther(aaADeposit)} aPNTs`);
+    }
+  }
+  console.log();
+
+  // ── Step 3: SuperPaymaster deployer operator (Test 2) ───────────────────────
+  console.log('━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━');
+  const deployerOp = await retryView(() => sp.operators(deployer.address), 'sp.operators(deployer)');
+  check('Deployer operator configured', deployerOp.isConfigured);
+  check('Deployer operator not paused', !deployerOp.isPaused);
+  check('Deployer xPNTsToken = aPNTs', deployerOp.xPNTsToken.toLowerCase() === APNTS.toLowerCase());
+  if (deployerOp.aPNTsBalance < SP_OP_MIN) {
+    console.log(`  ${WARN} Deployer aPNTs in SP ${ethers.formatEther(deployerOp.aPNTsBalance)} — depositing ${ethers.formatEther(SP_OP_TOPUP)}...`);
+    await ensureBalance(apntsRO, deployer, deployer.address, SP_OP_TOPUP, 'deployer aPNTs (for SP deposit)');
+    await ensureAllowance(apntsRO, deployer, SP, SP_OP_TOPUP, 'aPNTs→SuperPaymaster');
+    await sendAndWait(sp, 'deposit', [SP_OP_TOPUP], 'sp.deposit(deployer)');
+    const up = await retryView(() => sp.operators(deployer.address), 'sp.operators(deployer)');
+    check('Deployer aPNTs in SuperPaymaster', up.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(up.aPNTsBalance)} aPNTs`);
+  } else {
+    check('Deployer aPNTs in SuperPaymaster', true, `${ethers.formatEther(deployerOp.aPNTsBalance)} aPNTs`);
+  }
+  console.log();
+
+  // ── Step 4: SuperPaymaster Anni operator (Test 3, PNTs) ─────────────────────
+  console.log('━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━');
+  if (!anni) {
+    check('Anni operator funded', false, 'PRIVATE_KEY_ANNI not set — cannot fund PNTs operator');
+  } else {
+    const spAnni = new ethers.Contract(SP, SP_ABI, anni);
+    const anniOp = await retryView(() => sp.operators(anni.address), 'sp.operators(anni)');
+    check('Anni operator configured', anniOp.isConfigured);
+    check('Anni xPNTsToken = PNTs', PNTS != null && anniOp.xPNTsToken.toLowerCase() === PNTS.toLowerCase());
+    if (anniOp.aPNTsBalance < SP_OP_MIN && PNTS) {
+      console.log(`  ${WARN} Anni PNTs in SP ${ethers.formatEther(anniOp.aPNTsBalance)} — minting + depositing ${ethers.formatEther(SP_OP_TOPUP)}...`);
+      await ensureMintedBalance(pntsRO, anni, anni.address, SP_OP_TOPUP, 'Anni PNTs (for SP deposit)');
+      await ensureAllowance(pntsRO, anni, SP, SP_OP_TOPUP, 'PNTs→SuperPaymaster');
+      await sendAndWait(spAnni, 'deposit', [SP_OP_TOPUP], 'sp.deposit(anni)');
+      const up = await retryView(() => sp.operators(anni.address), 'sp.operators(anni)');
+      check('Anni PNTs in SuperPaymaster', up.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(up.aPNTsBalance)} PNTs`);
+    } else {
+      check('Anni PNTs in SuperPaymaster', anniOp.aPNTsBalance >= SP_OP_MIN, `${ethers.formatEther(anniOp.aPNTsBalance)} PNTs`);
+    }
+  }
+  console.log();
+
+  // ── Step 5: Fund AA accounts with BOTH tokens (auto-mint) ───────────────────
+  console.log('━━━ Step 5: Fund AA Account Token Balances ━━━');
+  // aPNTs to every AA account (deployer is aPNTs communityOwner → can mint).
+  for (let i = 0; i < AA.length; i++) {
+    await mintUpTo(apntsRO, deployer, AA[i], AA_TOKEN_TARGET, AA_TOKEN_TOPUP, `AA_${'ABC'[i]} aPNTs`, check);
+  }
+  // PNTs to every AA account (Anni is PNTs communityOwner → can mint).
+  if (PNTS && anni) {
+    for (let i = 0; i < AA.length; i++) {
+      await mintUpTo(pntsRO, anni, AA[i], AA_TOKEN_TARGET, AA_TOKEN_TOPUP, `AA_${'ABC'[i]} PNTs`, check);
+    }
+  } else {
+    check('AA PNTs funding', false, 'PNTs config or PRIVATE_KEY_ANNI missing');
+  }
+  console.log();
+
+  return failures;
+}
+
+// ── Funding helpers ───────────────────────────────────────────────────────────
+
+// Mint `topup` of `token` to `to` if its balance is below `target`. The signer
+// must be the token's communityOwner. Idempotent: no-op when already funded.
+async function mintUpTo(token, signer, to, target, topup, label, check) {
+  const [bal, decimals] = await Promise.all([
+    retryView(() => token.balanceOf(to), `${label} balanceOf`),
+    retryView(() => token.decimals(), `${label} decimals`),
+  ]);
+  if (bal >= target) {
+    check(label, true, `${ethers.formatUnits(bal, decimals)} (already funded)`);
+    return;
+  }
+  const tokenWithSigner = token.connect(signer);
+  await sendAndWait(tokenWithSigner, 'mint', [to, topup], `mint ${label}`);
+  const nb = await retryView(() => token.balanceOf(to), `${label} balanceOf`);
+  check(label, nb >= target, `${ethers.formatUnits(nb, decimals)} (minted ${ethers.formatUnits(topup, decimals)})`);
+}
+
+// Ensure `owner` holds ≥ `need` of `token`; mint to self if the signer is the
+// communityOwner, else just assert (cannot fund).
+async function ensureBalance(token, signer, owner, need, label) {
+  const bal = await retryView(() => token.balanceOf(owner), `${label} balanceOf`);
+  if (bal >= need) return;
+  // Try to mint to self (works when signer is communityOwner).
+  await sendAndWait(token.connect(signer), 'mint', [owner, need], `mint ${label}`);
+}
+
+// Like ensureBalance but always mints (used for PNTs where Anni mints to self).
+async function ensureMintedBalance(token, signer, owner, need, label) {
+  const bal = await retryView(() => token.balanceOf(owner), `${label} balanceOf`);
+  if (bal >= need) return;
+  await sendAndWait(token.connect(signer), 'mint', [owner, need], `mint ${label}`);
+}
+
+// Ensure `spender` is approved for ≥ `need` of `token` from `signer`.
+async function ensureAllowance(token, signer, spender, need, label) {
+  const cur = await retryView(() => token.allowance(signer.address, spender), `${label} allowance`);
+  if (cur >= need) return;
+  await sendAndWait(token.connect(signer), 'approve', [spender, ethers.MaxUint256], `approve ${label}`);
+}
 
 async function main() {
   console.log('╔═══════════════════════════════════════════════════════════╗');
@@ -77,231 +286,47 @@ async function main() {
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   const config = loadConfig();
-  const rpcUrl = process.env.SEPOLIA_RPC_URL;
-  const pk = process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
-  if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL not set');
-  if (!pk) throw new Error('OWNER_PRIVATE_KEY not set');
+  const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL;
+  const pk = process.env.PRIVATE_KEY || process.env.OWNER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
+  const anniPk = process.env.PRIVATE_KEY_ANNI || process.env.ANNI_PRIVATE_KEY;
+  if (!rpcUrl) throw new Error('SEPOLIA_RPC_URL / RPC_URL not set');
+  if (!pk) throw new Error('PRIVATE_KEY not set');
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
-  const wallet = new ethers.Wallet(pk, provider);
-  const deployer = wallet.address;
+  const provider = makeProvider(rpcUrl); // 20s/request timeout + read retry → survives RPC hiccups
+  const deployer = new ethers.Wallet(pk, provider);
+  const anni = anniPk ? new ethers.Wallet(anniPk, provider) : null;
 
-  console.log(`Deployer: ${deployer}`);
+  console.log(`Deployer: ${deployer.address}`);
+  console.log(`Anni:     ${anni ? anni.address : '(PRIVATE_KEY_ANNI not set)'}`);
   console.log(`Network:  Sepolia (chain 11155111)\n`);
 
-  const APNTS = config.aPNTs;
-  const PNTS  = config.pnts;
-  const SP    = config.superPaymaster;
-  const EP    = config.entryPoint;
-  const PMF   = config.paymasterFactory;
-  const AA_A  = process.env.TEST_AA_ACCOUNT_ADDRESS_A;
-  const AA_B  = process.env.TEST_AA_ACCOUNT_ADDRESS_B;
-  const AA_C  = process.env.TEST_AA_ACCOUNT_ADDRESS_C;
-  const ANNI  = process.env.OPERATOR_ADDRESS_PNTS || process.env.OPERATOR_ADDRESS || '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9';
+  const ctx = { provider, deployer, anni, config };
 
-  if (!AA_A || !AA_B || !AA_C) throw new Error('TEST_AA_ACCOUNT_ADDRESS_A/B/C not set in .env.sepolia');
-
-  const apnts   = new ethers.Contract(APNTS, ERC20_ABI, provider);
-  const pnts    = new ethers.Contract(PNTS,  ERC20_ABI, provider);
-  const sp      = new ethers.Contract(SP, SP_ABI, wallet);
-  const ep      = new ethers.Contract(EP, ENTRYPOINT_ABI, provider);
-  const pmf     = new ethers.Contract(PMF, PM_FACTORY_ABI, provider);
-
+  // Whole-setup retry: a transient RPC failure mid-setup re-runs from the top.
+  // setupOnce is idempotent (every step only acts when under-funded), so this is
+  // safe and is the last line of defense beyond per-call retries in sendAndWait.
+  const MAX_SETUP_ATTEMPTS = 3;
   let failures = 0;
-  const check = (label, ok, detail = '') => {
-    const icon = ok ? PASS : FAIL;
-    console.log(`  ${icon} ${label}${detail ? ': ' + detail : ''}`);
-    if (!ok) failures++;
-  };
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 1. Price cache refresh (needed for ALL SuperPaymaster tests)
-  // The cache has priceStalenessThreshold (default 4200s / 70min) validity.
-  // Call updatePrice() whenever the cache is expired or within 10 min of expiry.
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log('━━━ Step 1: SuperPaymaster Price Cache ━━━');
-  try {
-    const validUntil = await sp.priceValidUntil();
-    const now = BigInt(Math.floor(Date.now() / 1000));
-    const secsRemaining = validUntil - now;
-    const REFRESH_THRESHOLD = 600n; // refresh if < 10 min remaining
-    if (validUntil === 0n || secsRemaining < REFRESH_THRESHOLD) {
-      const label = validUntil === 0n ? 'not initialized' : `expires in ${secsRemaining}s`;
-      console.log(`  ${WARN} Price cache ${label} — calling updatePrice()...`);
-      const tx = await sp.updatePrice();
-      console.log(`  Sent updatePrice(): ${tx.hash}`);
-      await tx.wait();
-      const newUntil = await sp.priceValidUntil();
-      console.log(`  ${PASS} Price cache refreshed. Valid until: ${newUntil} (${newUntil - now}s from now)`);
-    } else {
-      check('Price cache fresh', true, `valid for ${secsRemaining}s`);
-    }
-  } catch (e) {
-    check('Price cache refresh', false, e.message.substring(0, 100));
-  }
-  console.log();
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 2. Test 1: PaymasterV4 setup
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log('━━━ Step 2: PaymasterV4 (Test 1) ━━━');
-  const pmV4Addr = await pmf.paymasterByOperator(deployer);
-  if (pmV4Addr === ethers.ZeroAddress) {
-    check('PaymasterV4 deployed', false, 'run prepare-test sepolia first');
-  } else {
-    check('PaymasterV4 deployed', true, pmV4Addr);
-    const pmV4 = new ethers.Contract(pmV4Addr, PAYMASTER_V4_ABI, wallet);
-
-    // ETH deposit in EntryPoint
-    const epInfo = await ep.getDepositInfo(pmV4Addr);
-    check('PaymasterV4 ETH in EntryPoint', epInfo.deposit > 0n,
-      `${ethers.formatEther(epInfo.deposit)} ETH`);
-
-    // Price cache for PaymasterV4
-    // PaymasterV4 stores Chainlink's updatedAt (not block.timestamp), so if Chainlink
-    // hasn't published a new round, calling updatePrice() leaves validUntil in the past.
-    // Fix: use setCachedPrice(price, block.timestamp - 60) to force a fresh validUntil.
+  for (let attempt = 1; attempt <= MAX_SETUP_ATTEMPTS; attempt++) {
     try {
-      const v4Cache = await pmV4.cachedPrice();
-      const v4Staleness = await pmV4.priceStalenessThreshold();
-      const nowSec = BigInt(Math.floor(Date.now() / 1000));
-      const v4ValidUntil = v4Cache.updatedAt + v4Staleness;
-      const REFRESH_THRESHOLD_V4 = 600n;
-      if (v4Cache.updatedAt === 0n || v4ValidUntil < nowSec + REFRESH_THRESHOLD_V4) {
-        const label = v4Cache.updatedAt === 0n ? 'not initialized' : `expires in ${v4ValidUntil - nowSec}s`;
-        console.log(`  ${WARN} PaymasterV4 price cache ${label} — calling setCachedPrice()...`);
-        // Use current price from cache (or 0 if uninitialized); owner must call this.
-        const freshTs = BigInt(Math.floor(Date.now() / 1000) - 60);
-        const setCacheTx = await pmV4.setCachedPrice(v4Cache.price || 224913120000n, freshTs);
-        console.log(`  Sent setCachedPrice(): ${setCacheTx.hash}`);
-        await setCacheTx.wait();
-        const v4CacheNew = await pmV4.cachedPrice();
-        const newValidUntil = v4CacheNew.updatedAt + v4Staleness;
-        console.log(`  ${PASS} PaymasterV4 price refreshed. Valid until: ${newValidUntil} (${newValidUntil - nowSec}s from now)`);
-      } else {
-        check('PaymasterV4 price cache fresh', true, `valid for ${v4ValidUntil - nowSec}s`);
-      }
+      failures = await setupOnce(ctx);
+      break;
     } catch (e) {
-      check('PaymasterV4 price cache', false, e.message.substring(0, 100));
-    }
-
-    // Token deposit for AA_A
-    const aa_a_deposit = await pmV4.balances(AA_A, APNTS);
-    // PaymasterV4 charges: gas_cost_wei * eth_usd * (1 + service_fee + validation_buffer) / token_price
-    // At 2 gwei × 680k gas × $2249/ETH / $0.02 per aPNTs ≈ 170 aPNTs per tx.
-    // Keep at least 500 to handle price fluctuations and multiple test runs.
-    const REQUIRED_DEPOSIT = ethers.parseUnits('200', 18); // 200 aPNTs minimum
-    if (aa_a_deposit < REQUIRED_DEPOSIT) {
-      const depositAmount = ethers.parseUnits('500', 18); // deposit 500 aPNTs
-      console.log(`  ${WARN} AA_A token deposit in PaymasterV4: ${ethers.formatEther(aa_a_deposit)} aPNTs — funding 500 aPNTs...`);
-      // Deployer must approve PaymasterV4 to spend their aPNTs, then call depositFor
-      const apntsWithSigner = new ethers.Contract(APNTS, ERC20_ABI, wallet);
-      const deployerBalance = await apnts.balanceOf(deployer);
-      if (deployerBalance < depositAmount) {
-        check('Deployer aPNTs for V4 deposit', false,
-          `only ${ethers.formatEther(deployerBalance)} aPNTs — need ${ethers.formatEther(depositAmount)}`);
-      } else {
-        const allowance = await apnts.allowance(deployer, pmV4Addr);
-        if (allowance < depositAmount) {
-          console.log(`  Approving PaymasterV4 to spend aPNTs...`);
-          const approveTx = await apntsWithSigner.approve(pmV4Addr, ethers.MaxUint256);
-          await approveTx.wait();
-          console.log(`  ${PASS} Approved.`);
-        }
-        const depositTx = await pmV4.depositFor(AA_A, APNTS, depositAmount);
-        console.log(`  Sent depositFor(AA_A, aPNTs, 500): ${depositTx.hash}`);
-        await depositTx.wait();
-        const newDeposit = await pmV4.balances(AA_A, APNTS);
-        check('AA_A token deposit in PaymasterV4', newDeposit >= REQUIRED_DEPOSIT,
-          `${ethers.formatEther(newDeposit)} aPNTs`);
+      if (isNetworkError(e) && attempt < MAX_SETUP_ATTEMPTS) {
+        console.log(`\n${WARN} setup hit a network error (${(e.message || '').slice(0, 70)}) — retrying whole setup ${attempt}/${MAX_SETUP_ATTEMPTS - 1} in 8s...\n`);
+        await new Promise((r) => setTimeout(r, 8000));
+        continue;
       }
-    } else {
-      check('AA_A token deposit in PaymasterV4', true,
-        `${ethers.formatEther(aa_a_deposit)} aPNTs`);
+      throw e;
     }
   }
-  console.log();
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // 3. Test 2: SuperPaymaster deployer operator
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log('━━━ Step 3: SuperPaymaster Deployer Operator (Test 2) ━━━');
-  const deployerOp = await sp.operators(deployer);
-  check('Deployer operator configured', deployerOp.isConfigured);
-  check('Deployer operator not paused', !deployerOp.isPaused);
-  check('Deployer xPNTsToken = aPNTs', deployerOp.xPNTsToken.toLowerCase() === APNTS.toLowerCase());
-
-  const MIN_OP_BALANCE = ethers.parseUnits('100', 18); // 100 aPNTs minimum
-  if (deployerOp.aPNTsBalance < MIN_OP_BALANCE) {
-    const depositAmount = ethers.parseUnits('1000', 18); // top up 1000 aPNTs
-    console.log(`  ${WARN} Deployer aPNTs in SP: ${ethers.formatEther(deployerOp.aPNTsBalance)} — depositing 1000 aPNTs...`);
-    const apntsWithSigner = new ethers.Contract(APNTS, ERC20_ABI, wallet);
-    const deployerBalance = await apnts.balanceOf(deployer);
-    if (deployerBalance < depositAmount) {
-      check('Deployer aPNTs balance for SP deposit', false,
-        `only ${ethers.formatEther(deployerBalance)} aPNTs available`);
-    } else {
-      const allowance = await apnts.allowance(deployer, SP);
-      if (allowance < depositAmount) {
-        console.log(`  Approving SuperPaymaster to spend aPNTs...`);
-        const approveTx = await apntsWithSigner.approve(SP, ethers.MaxUint256);
-        await approveTx.wait();
-        console.log(`  ${PASS} Approved.`);
-      }
-      const depositTx = await sp.deposit(depositAmount);
-      console.log(`  Sent deposit(1000 aPNTs): ${depositTx.hash}`);
-      await depositTx.wait();
-      const updatedOp = await sp.operators(deployer);
-      check('Deployer aPNTs in SuperPaymaster', updatedOp.aPNTsBalance >= MIN_OP_BALANCE,
-        `${ethers.formatEther(updatedOp.aPNTsBalance)} aPNTs`);
-    }
-  } else {
-    check('Deployer aPNTs in SuperPaymaster', true,
-      `${ethers.formatEther(deployerOp.aPNTsBalance)} aPNTs`);
-  }
-  console.log();
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 4. Test 3: SuperPaymaster Anni operator
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log('━━━ Step 4: SuperPaymaster Anni Operator (Test 3) ━━━');
-  const anniOp = await sp.operators(ANNI);
-  check('Anni operator configured', anniOp.isConfigured);
-  check('Anni xPNTsToken = PNTs', anniOp.xPNTsToken.toLowerCase() === PNTS.toLowerCase());
-  const anniBalance = anniOp.aPNTsBalance; // "aPNTs" field holds PNTs for Anni's operator
-  if (anniBalance < ethers.parseUnits('10', 18)) {
-    check('Anni PNTs in SuperPaymaster', false,
-      `${ethers.formatEther(anniBalance)} — needs manual top-up via PRIVATE_KEY_ANNI`);
-  } else {
-    check('Anni PNTs in SuperPaymaster', true, `${ethers.formatEther(anniBalance)} PNTs`);
-  }
-  console.log();
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 5. Token balances in AA accounts
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log('━━━ Step 5: AA Account Token Balances ━━━');
-  const AA_MIN = ethers.parseUnits('2', 18); // 2 tokens minimum to transfer
-  const aaBal = await apnts.balanceOf(AA_A);
-  const abBal = await apnts.balanceOf(AA_B);
-  const acBal = await pnts.balanceOf(AA_C);
-  check(`AA_A aPNTs balance (Test 1)`, aaBal >= AA_MIN,
-    `${ethers.formatEther(aaBal)} aPNTs${aaBal < AA_MIN ? ' — run: node transfer-tokens.js' : ''}`);
-  check(`AA_B aPNTs balance (Test 2)`, abBal >= AA_MIN,
-    `${ethers.formatEther(abBal)} aPNTs${abBal < AA_MIN ? ' — run: node transfer-tokens.js' : ''}`);
-  check(`AA_C PNTs balance (Test 3)`, acBal >= AA_MIN,
-    `${ethers.formatEther(acBal)} PNTs${acBal < AA_MIN ? ' — run: PRIVATE_KEY_ANNI=<key> node transfer-tokens.js' : ''}`);
-  console.log();
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Summary
-  // ──────────────────────────────────────────────────────────────────────────
   console.log('━━━ Summary ━━━');
   if (failures === 0) {
-    console.log(`${PASS} All prerequisites met. Ready to run gasless tests.`);
+    console.log(`${PASS} All prerequisites met & funded. Ready to run gasless tests.`);
     process.exit(0);
   } else {
-    console.log(`${FAIL} ${failures} prerequisite(s) not met. Fix the above issues before running tests.`);
+    console.log(`${FAIL} ${failures} prerequisite(s) not met. See above.`);
     process.exit(1);
   }
 }

@@ -32,6 +32,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 // ABIs (minimal for testing)
@@ -75,7 +76,7 @@ async function main() {
   if (!senderPrivateKey) throw new Error('OWNER_PRIVATE_KEY not found in .env.sepolia');
   if (!recipientAddress) throw new Error('OWNER2_ADDRESS not found in .env.sepolia');
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl, 11155111, { staticNetwork: true });
+  const provider = makeProvider(rpcUrl);
   const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
   // Look up PaymasterV4 instance for deployer via factory

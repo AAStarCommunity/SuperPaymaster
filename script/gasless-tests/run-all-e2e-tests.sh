@@ -48,6 +48,14 @@ set -a
 source "$ENV_FILE"
 set +a
 echo -e "${GREEN}Configuration loaded: $ENV_FILE${NC}"
+
+# Redundant tx-broadcast fallback. READS still use the primary RPC from .env
+# (e.g. Alchemy — the production endpoint we keep under test), but every tx is
+# ALSO pushed to this public RPC so a primary that accepts-but-doesn't-propagate
+# can't strand it (root cause of the "stuck in mempool" failures on 2026-06-13).
+# Override or clear with E2E_BROADCAST_RPCS="" to test the primary RPC in isolation.
+export E2E_BROADCAST_RPCS="${E2E_BROADCAST_RPCS:-https://ethereum-sepolia-rpc.publicnode.com}"
+echo -e "${GREEN}Tx broadcast fallback: ${E2E_BROADCAST_RPCS:-<primary only>}${NC}"
 echo ""
 
 # Results tracking
@@ -64,33 +72,126 @@ TOTAL=0
 PASSED=0
 FAILED=0
 SKIPPED=0
+INDEX=0  # display counter over ALL tests (incl. filtered) so [N] labels match the full suite
+
+# Staged-run controls — debug a subset without re-running all 37 tests (each ~30-90s).
+# A stuck/slow test no longer blocks iteration: run just the phase you care about.
+#   START_AT=30   run from test #30 onward (skip earlier ones)
+#   ONLY="x402"   run only tests whose name matches this substring (case-insensitive)
+# Both default to "run everything". Combine with TEST_TIMEOUT to bound each test.
+START_AT="${START_AT:-1}"
+ONLY="${ONLY:-}"
+
+# Idempotent skip-if-passed (project requirement): once a test passes against the
+# CURRENT deployment it need not re-run — a green on-chain result proves the
+# contract meets its design.
+#   SKIP_PASSED=1  skip tests already recorded green for this deployment (fast)
+#   FRESH=1        ignore + reset the cache, run everything from scratch
+# Default (neither set): run everything, but record each green so a later
+# SKIP_PASSED run can skip it.
+#
+# The cache is keyed by a hash of the ENTIRE deployment config (every contract
+# address), NOT just the SuperPaymaster address. A redeploy of any dependency
+# (aPNTs, PaymasterV4, Registry, …) that leaves SuperPaymaster's address unchanged
+# would otherwise silently reuse stale green results against incompatible
+# contracts. Any address/config change rotates the fingerprint → full re-run.
+SKIP_PASSED="${SKIP_PASSED:-}"
+FRESH="${FRESH:-}"
+DEPLOY_CONFIG="$PROJECT_ROOT/deployments/config.sepolia.json"
+DEPLOY_FINGERPRINT=$( { shasum -a 256 "$DEPLOY_CONFIG" 2>/dev/null || sha256sum "$DEPLOY_CONFIG" 2>/dev/null; } | awk '{print substr($1,1,16)}' )
+[ -z "$DEPLOY_FINGERPRINT" ] && DEPLOY_FINGERPRINT="unknown"
+PASSED_STATE_FILE="$SCRIPT_DIR/results/.passed-${DEPLOY_FINGERPRINT}.txt"
+mkdir -p "$SCRIPT_DIR/results"
+[ -n "$FRESH" ] && rm -f "$PASSED_STATE_FILE"
+
+# Per-test hard timeout (seconds). A single test whose TX gets stuck in the
+# Sepolia mempool must NOT hang the whole suite — see lesson 2026-06-13. macOS
+# ships no `timeout(1)`, so we use a perl alarm wrapper: fork the command, kill
+# it (TERM then KILL) when the alarm fires, and return 124 like GNU timeout.
+# Override per run with: TEST_TIMEOUT=420 ./run-all-e2e-tests.sh
+TEST_TIMEOUT="${TEST_TIMEOUT:-300}"
+
+run_with_timeout() {
+    local secs="$1"
+    local cmd="$2"
+    perl -e '
+        my $t = shift @ARGV;
+        my $pid = fork();
+        if (!defined $pid) { die "fork failed: $!\n"; }
+        if ($pid == 0) { exec(@ARGV); exit 127; }
+        local $SIG{ALRM} = sub {
+            kill("TERM", $pid);
+            sleep 3;
+            kill("KILL", $pid);
+            waitpid($pid, 0);
+            exit 124;
+        };
+        alarm($t);
+        waitpid($pid, 0);
+        alarm(0);
+        exit($? >> 8);
+    ' "$secs" /bin/sh -c "$cmd"
+}
 
 run_test() {
     local name="$1"
     local cmd="$2"
+    INDEX=$((INDEX + 1))
+
+    # Staged-run filters: skip tests before START_AT, or not matching ONLY.
+    if [ "$INDEX" -lt "$START_AT" ]; then return; fi
+    if [ -n "$ONLY" ] && ! echo "$name" | grep -qi "$ONLY"; then return; fi
+
+    # Idempotent cache: if this test already passed for the current contracts,
+    # skip it (counts as PASS) unless FRESH was requested.
+    if [ -n "$SKIP_PASSED" ] && [ -z "$FRESH" ] && grep -qxF "$name" "$PASSED_STATE_FILE" 2>/dev/null; then
+        TOTAL=$((TOTAL + 1))
+        TEST_NAMES+=("$name")
+        TEST_RESULTS+=("PASS")
+        PASSED=$((PASSED + 1))
+        echo ""
+        echo -e "${GREEN}  [$INDEX] $name: CACHED-PASS (verified earlier for these contracts; FRESH=1 to re-run)${NC}"
+        return
+    fi
+
     TOTAL=$((TOTAL + 1))
 
     echo ""
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}  [$TOTAL] $name${NC}"
+    echo -e "${CYAN}  [$INDEX] $name${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-    eval "$cmd"
+    # About to actually run: drop any stale green record so a regression never
+    # stays cached. It is re-added below only if the test passes again.
+    if [ -f "$PASSED_STATE_FILE" ] && grep -qxF "$name" "$PASSED_STATE_FILE" 2>/dev/null; then
+        grep -vxF "$name" "$PASSED_STATE_FILE" > "$PASSED_STATE_FILE.tmp" || true
+        mv "$PASSED_STATE_FILE.tmp" "$PASSED_STATE_FILE"
+    fi
+
+    run_with_timeout "$TEST_TIMEOUT" "$cmd"
     local exit_code=$?
 
     TEST_NAMES+=("$name")
     if [ $exit_code -eq 0 ]; then
         TEST_RESULTS+=("PASS")
         PASSED=$((PASSED + 1))
-        echo -e "${GREEN}  [$TOTAL] $name: PASSED${NC}"
+        # Record this green so a later SKIP_PASSED run can skip it.
+        grep -qxF "$name" "$PASSED_STATE_FILE" 2>/dev/null || echo "$name" >> "$PASSED_STATE_FILE"
+        echo -e "${GREEN}  [$INDEX] $name: PASSED${NC}"
     elif [ $exit_code -eq 2 ]; then
         TEST_RESULTS+=("SKIP")
         SKIPPED=$((SKIPPED + 1))
-        echo -e "${YELLOW}  [$TOTAL] $name: SKIPPED (precondition not met)${NC}"
+        echo -e "${YELLOW}  [$INDEX] $name: SKIPPED (precondition not met)${NC}"
+    elif [ $exit_code -eq 124 ]; then
+        # Hard timeout — treat as FAIL so it is never mistaken for a clean pass,
+        # but the suite continues to the next test instead of hanging forever.
+        TEST_RESULTS+=("FAIL")
+        FAILED=$((FAILED + 1))
+        echo -e "${RED}  [$INDEX] $name: TIMEOUT after ${TEST_TIMEOUT}s (killed; TX likely stuck in mempool)${NC}"
     else
         TEST_RESULTS+=("FAIL")
         FAILED=$((FAILED + 1))
-        echo -e "${RED}  [$TOTAL] $name: FAILED (exit $exit_code)${NC}"
+        echo -e "${RED}  [$INDEX] $name: FAILED (exit $exit_code)${NC}"
     fi
 }
 

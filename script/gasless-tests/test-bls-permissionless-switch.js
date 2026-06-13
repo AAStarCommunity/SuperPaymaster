@@ -23,6 +23,7 @@
 const { ethers } = require('ethers');
 const path = require('path');
 const { loadConfig } = require('./load-config');
+const { makeProvider } = require('./tx-utils');
 require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '../../.env.sepolia') });
 
 const BLS_ABI = [
@@ -44,7 +45,7 @@ async function main() {
   console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
   const config = loadConfig();
-  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+  const provider = makeProvider(process.env.RPC_URL);
 
   const callerKey = process.env.ANNI_PRIVATE_KEY || process.env.PRIVATE_KEY_ANNI || process.env.PRIVATE_KEY;
   const caller = new ethers.Wallet(callerKey, provider);
