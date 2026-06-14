@@ -5124,7 +5124,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## MicroPaymentChannel
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol`
-- **Functions:** 18 · **Events:** 8 · **Errors:** 21
+- **Functions:** 18 · **Events:** 8 · **Errors:** 22
 - **Title:** MicroPaymentChannel
 - Unidirectional payment channel for streaming micropayments.         Uses cumulative vouchers signed by the payer (or a delegated signer)         that the payee submits on-chain to settle accrued amounts.
 
@@ -5383,6 +5383,7 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0x9996b315` | `AddressEmptyCode(address)` |
 | `0xcd786059` | `AddressInsufficientBalance(address)` |
+| `0x0590fb9f` | `AmountOverflow()` |
 | `0x23b87dad` | `ChannelAlreadyClosed()` |
 | `0x0ec0f149` | `ChannelAlreadyExists()` |
 | `0xc9f3b559` | `ChannelFinalized()` |
