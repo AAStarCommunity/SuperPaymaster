@@ -119,8 +119,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x25073b3a` | `emergencyRevokePaymaster()` | xPNTsToken |
 | `0x2540c471` | `setFacilitatorFeeBPS(uint256)` | SuperPaymaster |
 | `0x2598c32a` | `updateAPNTsPrice(uint256)` | xPNTsFactory |
-| `0x2608c9e6` | `settleX402Payment(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | ISuperPaymaster |
-| `0x2608c9e6` | `settleX402Payment(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | SuperPaymaster |
 | `0x27d39a08` | `setReputation(uint256,uint64,int128)` | MockAgentReputationRegistry |
 | `0x2a5c792a` | `getAllTokens()` | xPNTsFactory |
 | `0x2ab09d14` | `nextProposalId()` | DVTValidator |
@@ -451,6 +449,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x8670d78d` | `getEffectiveFacilitatorFee(address)` | SuperPaymaster |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | IERC1363Receiver |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | SuperPaymaster |
+| `0x88b7ab63` | `receiveWithAuthorization(address,address,uint256,uint256,uint256,bytes32,bytes)` | IERC3009 |
 | `0x89ff9d78` | `requestCloseChannel(bytes32)` | MicroPaymentChannel |
 | `0x8ceebd8f` | `getActiveMemberships(uint256)` | MySBT |
 | `0x8d074547` | `needsApproval(address,address,uint256)` | xPNTsToken |
@@ -751,6 +750,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xf2fde38b` | `transferOwnership(address)` | GToken |
 | `0xf2fde38b` | `transferOwnership(address)` | GTokenAuthorization |
 | `0xf2fde38b` | `transferOwnership(address)` | xPNTsFactory |
+| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | ISuperPaymaster |
+| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | SuperPaymaster |
 | `0xf3bcebbd` | `hasImplementation(string)` | PaymasterFactory |
 | `0xf3fef3a3` | `withdraw(address,uint256)` | Paymaster |
 | `0xf3fef3a3` | `withdraw(address,uint256)` | PaymasterBase |
@@ -877,6 +878,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x74f8ff90` | `Paymaster__MaxTokensReached()` | Paymaster |
 | `0x752d88c0` | `InvalidAccountNonce(address,uint256)` | xPNTsToken |
 | `0x7554bad3` | `CommunityMismatch()` | MySBT |
+| `0x760a602d` | `X402AmountMismatch()` | SuperPaymaster |
 | `0x770d1ccb` | `SettlementExceedsDeposit()` | MicroPaymentChannel |
 | `0x77fc5689` | `Paymaster__InvalidGasCostCap()` | Paymaster |
 | `0x7d1bece7` | `Paymaster__PriceNotInitialized()` | Paymaster |

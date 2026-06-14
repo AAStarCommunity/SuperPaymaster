@@ -103,14 +103,15 @@ contract MockERC3009Token is ERC20, IERC3009 {
         _mint(to, amount);
     }
 
-    function authorizationDigest(
+    function _authDigest(
+        bytes32 typeHash,
         address from,
         address to,
         uint256 value,
         uint256 validAfter,
         uint256 validBefore,
         bytes32 nonce
-    ) public view returns (bytes32) {
+    ) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -121,19 +122,41 @@ contract MockERC3009Token is ERC20, IERC3009 {
             )
         );
         bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
-                ),
-                from,
-                to,
-                value,
-                validAfter,
-                validBefore,
-                nonce
-            )
+            abi.encode(typeHash, from, to, value, validAfter, validBefore, nonce)
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
+    }
+
+    function receiveAuthorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
     }
 
     function transferWithAuthorization(
@@ -147,6 +170,130 @@ contract MockERC3009Token is ERC20, IERC3009 {
         require(digest.recover(signature) == from, "bad signature");
         authorizationUsed[from][nonce] = true;
         _transfer(from, to, value);
+    }
+
+    function receiveWithAuthorization(
+        address from, address to, uint256 value,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external override {
+        // EIP-3009 receive semantics: only the payee may submit the authorization.
+        require(msg.sender == to, "caller must be the payee");
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
+        _transfer(from, to, value);
+    }
+}
+
+/// @dev M-1: deflationary / fee-on-transfer EIP-3009 token. Verifies the payer's
+///      authorization exactly like MockERC3009Token, but skims 1% on transfer so the
+///      recipient (`to`, i.e. the SuperPaymaster) receives LESS than `value`. This
+///      violates the EIP-3009 path's amount==received assumption and must be rejected
+///      by the contract's balance-delta check (X402AmountMismatch).
+contract MockDeflationaryERC3009Token is ERC20, IERC3009 {
+    using ECDSA for bytes32;
+
+    uint256 public constant SKIM_BPS = 100; // 1%
+    mapping(address => mapping(bytes32 => bool)) public authorizationUsed;
+
+    constructor() ERC20("Deflationary USDC", "dUSDC") {}
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function _authDigest(
+        bytes32 typeHash,
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) internal view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name())),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(typeHash, from, to, value, validAfter, validBefore, nonce)
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
+    }
+
+    function receiveAuthorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
+    }
+
+    function transferWithAuthorization(
+        address from, address to, uint256 value,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external override {
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
+        // Skim 1%: recipient receives value - fee, the rest is burned. The SuperPaymaster
+        // (the `to`) therefore sees a short balance delta.
+        uint256 skim = (value * SKIM_BPS) / 10000;
+        _transfer(from, to, value - skim);
+        _burn(from, skim);
+    }
+
+    function receiveWithAuthorization(
+        address from, address to, uint256 value,
+        uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes calldata signature
+    ) external override {
+        // EIP-3009 receive semantics: only the payee may submit the authorization.
+        require(msg.sender == to, "caller must be the payee");
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+        bytes32 digest = receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+        authorizationUsed[from][nonce] = true;
+        // Skim 1%: recipient receives value - fee, the rest is burned. The SuperPaymaster
+        // (the `to`) therefore sees a short balance delta.
+        uint256 skim = (value * SKIM_BPS) / 10000;
+        _transfer(from, to, value - skim);
+        _burn(from, skim);
     }
 }
 
@@ -297,7 +444,9 @@ contract SuperPaymasterV5Features_Test is Test {
         uint256 validBefore,
         bytes32 nonce
     ) internal view returns (bytes memory) {
-        bytes32 digest = usdc.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        // The contract now calls receiveWithAuthorization, so the payer signs the
+        // ReceiveWithAuthorization digest (msg.sender == to is the SuperPaymaster).
+        bytes32 digest = usdc.receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -415,7 +564,9 @@ contract SuperPaymasterV5Features_Test is Test {
         uint256 validAfter = 0;
         uint256 validBefore = block.timestamp + 1 hours;
         bytes32 salt = bytes32(uint256(1));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        // M-1: maxFee is bound into the EIP-3009 nonce. fee = amount*100/10000 = 10e6 <= maxFee.
+        uint256 maxFee = amount;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
 
         usdc.mint(payer, amount);
@@ -425,7 +576,7 @@ contract SuperPaymasterV5Features_Test is Test {
 
         vm.prank(operator1);
         bytes32 settlementId = paymaster.settleX402Payment(
-            payer, payee, address(usdc), amount,
+            payer, payee, address(usdc), amount, maxFee,
             validAfter, validBefore, salt, signature
         );
 
@@ -444,21 +595,129 @@ contract SuperPaymasterV5Features_Test is Test {
         uint256 validAfter = 0;
         uint256 validBefore = block.timestamp + 1 hours;
         bytes32 salt = bytes32(uint256(42));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 maxFee = amount;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), amount, validAfter, validBefore, salt, signature);
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, maxFee, validAfter, validBefore, salt, signature);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), amount, validAfter, validBefore, salt, signature);
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, maxFee, validAfter, validBefore, salt, signature);
     }
 
     function test_SettleEIP3009_Unauthorized() public {
+        // Role check (_requireSuperOperatorRole) runs before fee>maxFee / transfer,
+        // so maxFee value is irrelevant; Unauthorized is still the first revert reached.
         vm.prank(user1);
         vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402Payment(address(0x10), payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, bytes32(uint256(77)), "");
+        paymaster.settleX402Payment(address(0x10), payee, address(usdc), 100e6, 100e6, 0, block.timestamp + 1 hours, bytes32(uint256(77)), "");
+    }
+
+    // ====================================
+    // M-1: maxFee cap on the EIP-3009 settle path
+    // ====================================
+
+    /// @notice M-1: when the computed facilitator fee exceeds the payer-approved
+    ///         maxFee, the settle must revert X402FeeExceedsMax (before the transfer).
+    function test_M1_EIP3009_FeeExceedsMaxFee_Reverts() public {
+        uint256 amount = 1000e6;
+        uint256 payerKey = 0x10;
+        address payer = vm.addr(payerKey);
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(0x1A1)); // arbitrary salt
+        // Operator charges 5% → fee = 50e6, but payer caps maxFee at 1e6 (< fee).
+        uint256 maxFee = 1e6;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
+        bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
+        usdc.mint(payer, amount);
+
+        vm.prank(owner);
+        paymaster.setOperatorFacilitatorFee(operator1, 500); // 5%
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.X402FeeExceedsMax.selector);
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, maxFee, validAfter, validBefore, salt, signature);
+    }
+
+    /// @notice M-1: maxFee is committed into the EIP-3009 nonce. If an operator submits
+    ///         a maxFee (Y) different from the one the payer signed over (X), the contract
+    ///         recomputes the nonce with Y and the payer's signature no longer recovers
+    ///         `from` → the token's transferWithAuthorization reverts "bad signature".
+    function test_M1_EIP3009_MaxFeeBoundIntoNonce() public {
+        uint256 amount = 1000e6;
+        uint256 payerKey = 0x11;
+        address payer = vm.addr(payerKey);
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(0xBEE5));
+        // Payer authorizes maxFee = X. Both X and Y exceed the 0.3% fee (3e6) so the
+        // fee>maxFee guard passes and execution reaches the EIP-3009 transfer.
+        uint256 signedMaxFee = 500e6; // X
+        uint256 submittedMaxFee = 1000e6; // Y != X — operator tries to grab a higher cap
+        bytes32 signedNonce = keccak256(abi.encode(payee, signedMaxFee, salt));
+        bytes memory signature = _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, signedNonce);
+        usdc.mint(payer, amount);
+
+        vm.prank(operator1);
+        vm.expectRevert("bad signature");
+        paymaster.settleX402Payment(payer, payee, address(usdc), amount, submittedMaxFee, validAfter, validBefore, salt, signature);
+    }
+
+    /// @notice M-1: a fee-on-transfer / deflationary EIP-3009 asset delivers less than
+    ///         `amount` to the SuperPaymaster. Paying out `amount - fee` would overdraw
+    ///         other settlements' reserves, so the balance-delta check must revert
+    ///         X402AmountMismatch.
+    function test_M1_EIP3009_FeeOnTransfer_Reverts() public {
+        MockDeflationaryERC3009Token feeToken = new MockDeflationaryERC3009Token();
+
+        uint256 amount = 1000e6;
+        uint256 payerKey = 0x12;
+        address payer = vm.addr(payerKey);
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(0xDEF1));
+        uint256 maxFee = amount; // fee (3e6 at 0.3%) <= maxFee, so fee check passes
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
+        // Sign over the deflationary token's own EIP-712 domain (receive variant).
+        bytes32 digest = feeToken.receiveAuthorizationDigest(payer, address(paymaster), amount, validAfter, validBefore, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        feeToken.mint(payer, amount);
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.X402AmountMismatch.selector);
+        paymaster.settleX402Payment(payer, payee, address(feeToken), amount, maxFee, validAfter, validBefore, salt, signature);
+    }
+
+    /// @notice M-1 (front-run grief): the settle path uses EIP-3009 receiveWithAuthorization,
+    ///         which the token enforces with `msg.sender == to`. An attacker who observes the
+    ///         payer's valid signature cannot replay it directly on the token to pull funds
+    ///         into the SuperPaymaster outside of a settlement — the token reverts because the
+    ///         attacker is not the payee (`to` == the SuperPaymaster).
+    function test_M1_EIP3009_FrontRunReceiveBlocked() public {
+        uint256 amount = 1000e6;
+        uint256 payerKey = 0x13;
+        address payer = vm.addr(payerKey);
+        address attacker = address(0xBAD);
+        uint256 validAfter = 0;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 salt = bytes32(uint256(0xF00D));
+        uint256 maxFee = amount;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
+        // Payer signs a valid receive authorization with to == the SuperPaymaster.
+        bytes memory signature =
+            _signEIP3009(payerKey, payer, address(paymaster), amount, validAfter, validBefore, nonce);
+        usdc.mint(payer, amount);
+
+        // Attacker tries to submit the receive authorization directly on the token.
+        vm.prank(attacker);
+        vm.expectRevert("caller must be the payee");
+        usdc.receiveWithAuthorization(
+            payer, address(paymaster), amount, validAfter, validBefore, nonce, signature
+        );
     }
 
     // ====================================
@@ -530,7 +789,10 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         victim's nonce by submitting a dummy settlement on a junk asset.
     function test_Nonce_PerAssetIsolation() public {
         bytes32 salt = bytes32(uint256(0xCAFE));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        // EIP-3009 path now derives its nonce as keccak256(to, maxFee, salt). Use the
+        // same effective nonce value on the direct path so "same nonce" is preserved.
+        uint256 eipMaxFee = 100e6;
+        bytes32 nonce = keccak256(abi.encode(payee, eipMaxFee, salt));
         uint256 payerKey = 0x40;
         address payer = vm.addr(payerKey);
         usdc.mint(payer, 100e6);
@@ -542,7 +804,7 @@ contract SuperPaymasterV5Features_Test is Test {
 
         // Burn nonce on USDC.
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, eipMaxFee, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         // Same nonce, same payer, different asset must still be available.
         vm.prank(operator1);
@@ -555,7 +817,8 @@ contract SuperPaymasterV5Features_Test is Test {
     /// @notice Same nonce, same asset, different `from` must also be independent.
     function test_Nonce_PerPayerIsolation() public {
         bytes32 salt = bytes32(uint256(0xBEEF));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 maxFee = 100e6;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         uint256 payerAKey = 0x50;
         uint256 payerBKey = 0x51;
         address payerA = vm.addr(payerAKey);
@@ -568,18 +831,19 @@ contract SuperPaymasterV5Features_Test is Test {
             _signEIP3009(payerBKey, payerB, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, sigA);
+        paymaster.settleX402Payment(payerA, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, sigA);
 
         vm.prank(operator1);
         bytes32 sid =
-            paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, sigB);
+            paymaster.settleX402Payment(payerB, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, sigB);
         assertTrue(sid != bytes32(0), "same nonce on different payer must succeed");
     }
 
     /// @notice Replay on the exact (asset, from, nonce) triple must still revert.
     function test_Nonce_TripleReplayBlocked() public {
         bytes32 salt = bytes32(uint256(0xDEAD));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 maxFee = 100e6;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         uint256 payerKey = 0x60;
         address payer = vm.addr(payerKey);
         usdc.mint(payer, 200e6);
@@ -587,18 +851,21 @@ contract SuperPaymasterV5Features_Test is Test {
             _signEIP3009(payerKey, payer, address(paymaster), 100e6, 0, block.timestamp + 1 hours, nonce);
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, signature);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, signature);
     }
 
     /// @notice The public helper `x402NonceKey` must agree with what the
     ///         contract writes internally — SDKs depend on this.
     function test_Nonce_PublicKeyMatchesStorage() public {
         bytes32 salt = bytes32(uint256(0xBABE));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        uint256 maxFee = 100e6;
+        // The contract derives the effective nonce as keccak256(to, maxFee, salt);
+        // x402NonceKey must be computed over that same nonce for the assertion to hold.
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         uint256 payerKey = 0x70;
         address payer = vm.addr(payerKey);
         usdc.mint(payer, 100e6);
@@ -609,7 +876,7 @@ contract SuperPaymasterV5Features_Test is Test {
         assertFalse(paymaster.x402SettlementNonces(key), "key should be unused before settle");
 
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, signature);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, signature);
 
         assertTrue(paymaster.x402SettlementNonces(key), "key should be set after settle");
     }
@@ -620,7 +887,10 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         vice-versa.
     function test_Nonce_CrossPath_EIP3009ThenDirectBlocked() public {
         bytes32 salt = bytes32(uint256(0xC0FFEE));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        // EIP-3009 path consumes nonce keccak256(to, maxFee, salt); the direct path must
+        // reference that exact nonce value for the cross-path block to be exercised.
+        uint256 eipMaxFee = 100e6;
+        bytes32 nonce = keccak256(abi.encode(payee, eipMaxFee, salt));
         uint256 payerKey = 0x80;
         address payer = vm.addr(payerKey);
         usdc.mint(payer, 200e6);
@@ -631,7 +901,7 @@ contract SuperPaymasterV5Features_Test is Test {
 
         // Step 1: consume nonce via EIP-3009 path (USDC).
         vm.prank(operator1);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, eipMaxFee, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         // Step 2: same nonce, same payer, same asset via Direct path must revert.
         vm.prank(operator1);
@@ -645,7 +915,10 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         by the EIP-3009 path for the same (asset, from, nonce) triple.
     function test_Nonce_CrossPath_DirectThenEIP3009Blocked() public {
         bytes32 salt = bytes32(uint256(0xDECAF));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        // EIP-3009 path derives nonce keccak256(to, maxFee, salt). The direct path
+        // consumes that exact nonce value first so the cross-path block is exercised.
+        uint256 eipMaxFee = 100 ether;
+        bytes32 nonce = keccak256(abi.encode(payee, eipMaxFee, salt));
         uint256 payerKey = 0x81;
         address payer = vm.addr(payerKey);
         xpnts.mint(payer, 200 ether);
@@ -661,7 +934,7 @@ contract SuperPaymasterV5Features_Test is Test {
         // Step 2: same nonce, same payer, same asset via EIP-3009 path must revert.
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(xpnts), 100 ether, 0, block.timestamp + 1 hours, salt, "");
+        paymaster.settleX402Payment(payer, payee, address(xpnts), 100 ether, eipMaxFee, 0, block.timestamp + 1 hours, salt, "");
     }
 
     /// @notice Pre-upgrade (pre-P0-13) settlements were keyed by the raw nonce
@@ -669,7 +942,10 @@ contract SuperPaymasterV5Features_Test is Test {
     ///         slot directly, then verifying the new code refuses to reuse the nonce.
     function test_Nonce_LegacyRawNonceReplayBlocked() public {
         bytes32 salt = bytes32(uint256(0xABCDEF));
-        bytes32 nonce = keccak256(abi.encode(payee, salt));
+        // The contract derives the EIP-3009 effective nonce as keccak256(to, maxFee, salt).
+        // Pre-seed that exact value as the legacy raw-nonce slot so the legacy guard fires.
+        uint256 maxFee = 100e6;
+        bytes32 nonce = keccak256(abi.encode(payee, maxFee, salt));
         bytes32 directNonce = bytes32(uint256(0xABCDF0));
         uint256 payerKey = 0x82;
         address payer = vm.addr(payerKey);
@@ -695,7 +971,7 @@ contract SuperPaymasterV5Features_Test is Test {
         // Both settle paths must now revert even though the NEW triple-key slot is clear.
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, 0, block.timestamp + 1 hours, salt, eip3009Sig);
+        paymaster.settleX402Payment(payer, payee, address(usdc), 100e6, maxFee, 0, block.timestamp + 1 hours, salt, eip3009Sig);
 
         vm.prank(operator1);
         vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);

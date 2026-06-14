@@ -52,14 +52,15 @@ contract MockERC20WithAuthorization is ERC20 {
         _mint(to, amount);
     }
 
-    function authorizationDigest(
+    function _authDigest(
+        bytes32 typeHash,
         address from,
         address to,
         uint256 value,
         uint256 validAfter,
         uint256 validBefore,
         bytes32 nonce
-    ) public view returns (bytes32) {
+    ) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -70,19 +71,41 @@ contract MockERC20WithAuthorization is ERC20 {
             )
         );
         bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
-                ),
-                from,
-                to,
-                value,
-                validAfter,
-                validBefore,
-                nonce
-            )
+            abi.encode(typeHash, from, to, value, validAfter, validBefore, nonce)
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function authorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
+    }
+
+    function receiveAuthorizationDigest(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce
+    ) public view returns (bytes32) {
+        return _authDigest(
+            keccak256(
+                "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+            ),
+            from, to, value, validAfter, validBefore, nonce
+        );
     }
 
     function transferWithAuthorization(
@@ -99,6 +122,28 @@ contract MockERC20WithAuthorization is ERC20 {
         require(!authorizationUsed[from][nonce], "authorization used");
 
         bytes32 digest = authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        require(digest.recover(signature) == from, "bad signature");
+
+        authorizationUsed[from][nonce] = true;
+        _transfer(from, to, value);
+    }
+
+    function receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external {
+        // EIP-3009 receive semantics: only the payee may submit the authorization.
+        require(msg.sender == to, "caller must be the payee");
+        require(block.timestamp > validAfter, "authorization not yet valid");
+        require(block.timestamp < validBefore, "authorization expired");
+        require(!authorizationUsed[from][nonce], "authorization used");
+
+        bytes32 digest = receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
         require(digest.recover(signature) == from, "bad signature");
 
         authorizationUsed[from][nonce] = true;
@@ -156,7 +201,7 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         uint256 validBefore,
         bytes32 nonce
     ) internal view returns (bytes memory) {
-        bytes32 digest = asset.authorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        bytes32 digest = asset.receiveAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -165,8 +210,9 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         uint256 amount = 100 ether;
         uint256 validAfter = block.timestamp - 1;
         uint256 validBefore = block.timestamp + 1 hours;
+        uint256 maxFee = amount;
         bytes32 salt = bytes32(uint256(0xC03));
-        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, salt));
+        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, maxFee, salt));
         bytes memory signature =
             _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
 
@@ -177,6 +223,7 @@ contract PoC_C03_RecipientRedirect_Test is Test {
             attackerRecipient,
             address(asset),
             amount,
+            maxFee,
             validAfter,
             validBefore,
             salt,
@@ -192,8 +239,9 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         uint256 amount = 100 ether;
         uint256 validAfter = block.timestamp - 1;
         uint256 validBefore = block.timestamp + 1 hours;
+        uint256 maxFee = amount;
         bytes32 salt = bytes32(uint256(0xC0302));
-        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, salt));
+        bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, maxFee, salt));
         bytes memory signature =
             _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
 
@@ -203,6 +251,7 @@ contract PoC_C03_RecipientRedirect_Test is Test {
             expectedRecipient,
             address(asset),
             amount,
+            maxFee,
             validAfter,
             validBefore,
             salt,
