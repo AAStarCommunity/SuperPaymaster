@@ -7,6 +7,39 @@
 `cast tx <hash> --rpc-url <sepolia>` and `cast receipt <hash>` — check status=1, decode logs.
 
 
+## v5.3.3-beta.5 (2026-06-14) — Post-Upgrade Full Run: 37/37 PASS, 0 FAIL, 0 SKIP
+
+> Run AFTER the beta.5 contract upgrade. Validates the audit 2nd-pass fixes (H-1 credit
+> ceiling, M-1 x402 receiveWithAuthorization + maxFee, M-6 exitRole, L-9 channel
+> fee-on-transfer) on the live upgraded contracts.
+> New impls: SuperPaymaster `0x4e2b4231186C24A8fa4d58A58668440c32E4dda3`, Registry
+> `0x79be84A635267A85b0ce6DBEeeE337d8494673D7`, MicroPaymentChannel
+> `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` (v1.3.0). 79 confirmed on-chain txns total.
+
+### Gasless gas sponsorship
+- **PaymasterV4 (AOA)** → https://sepolia.etherscan.io/tx/0x02fa21bc662b8e06afc63a1154a5b892f1a0e6dc10e96024a00914520230713d
+- **SuperPaymaster xPNTs #1 (AOA+)** → https://sepolia.etherscan.io/tx/0x616cdc5c411c9d005cd47898743d6856f4a30937fb53198028305b59e0310792
+- **SuperPaymaster xPNTs #2** → https://sepolia.etherscan.io/tx/0xffc281eea3b8c7221dd239d2f78e5d2f774cc50d26b78b2cc63a518dca904f2a
+
+### Credit / Debt path
+- **Gasless Credit/Debt UserOp (zero-balance → debt)** → https://sepolia.etherscan.io/tx/0x59c72efcfd92688d43dc3755542cffc66b478bf195caa192f5226514b48a1575
+- **setCreditTier** → https://sepolia.etherscan.io/tx/0x6d081624a1e215dca31f5c77b164f899e1013b0210dbbcf2a5e8e76de2660e7d
+
+### Agent payment (ERC-8004)
+- **setAgentRegistries (agent identity/reputation wiring)** → https://sepolia.etherscan.io/tx/0x83967d5c490756ceed417938483be5826982d6543fc9ef81950538a87fb7ec39
+- G2 Agent Identity Sponsorship: eligibility verified (dual-channel SBT OR agent NFT); agent gas sponsorship rides the gasless path above.
+
+### MicroPayment Channel (L-9 new contract `0xfCC95340` / v1.3.0)
+- **openChannel** → https://sepolia.etherscan.io/tx/0x27189d4d928bd89cafd22d204ce2a57f381386faaea9b704e1f496dabd5996f4
+- **settleChannel** → https://sepolia.etherscan.io/tx/0x989a0f1267009bcd6d27aabfa7678b56bfefb827139c205f8599ff4895766432
+- **closeChannel** → https://sepolia.etherscan.io/tx/0x5bb459e9810e38f29d75d51ccf8c0e1ea05dfeae562bd8a929f7c716f51f2658
+
+### x402 settlement
+- **EIP-3009 (M-1 fix: receiveWithAuthorization + payer-signed maxFee)** → https://sepolia.etherscan.io/tx/0x3d280afd6874f473ac3bdf9e3bbe30f35e08f2f5a2c56f3e94a0aaa71fc4a028
+- **Direct Settle (C-02 signed authorization)** → https://sepolia.etherscan.io/tx/0x1d1bb36b2b4636a961d5eefa3a0f34d7fcba9276df8b23e6801455e77e81395f
+
+---
+
 ## Gasless gas sponsorship — paymaster pays ETH gas, user pays community token (aPNTs/PNTs)
 
 **#26 Gasless: PaymasterV4**
