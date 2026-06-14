@@ -1145,6 +1145,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xee0396c067d25a2fde86b8e1c13e3995b0940b5f98651052d79fada14ea7dba5` | `MembershipDeactivated(uint256,address,uint256)` | MySBT |
 | `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` | SuperPaymaster |
 | `0xf0d0e99cae184d0187b093b48894117462462379674a6e11d89c3fbb618e96b0` | `FundsDeposited(address,address,uint256)` | Paymaster |
+| `0xf2aa93d5b018c6d050bb3a6597b9d4a3cd7a9222079c7ce596ecf6c701216290` | `ProposalMarkedExecuted(uint256,address)` | Registry |
 | `0xf2d0bf91625d9d6f0875b7d42914fd44597c078083d98cb3619c009136be9f6a` | `DefaultVersionChanged(string,string)` | PaymasterFactory |
 | `0xf5491bdb765a4be5a1bdc9bfd09cf61e1b89962ac33ed2e928f11a59a5e72331` | `SBTMinted(address,uint256,address,uint256)` | MySBT |
 | `0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b` | `RoleRevoked(bytes32,address,address)` | Registry |

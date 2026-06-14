@@ -451,10 +451,18 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);
     }
 
+    /// @notice Emitted when the BLS aggregator marks a proposal id executed.
+    /// @dev    L-7: gives off-chain monitors an auditable signal for every
+    ///         executedProposals write on this path, so a trusted-but-misbehaving
+    ///         aggregator pre-locking a proposal id is observable (the call is
+    ///         already gated to `blsAggregator`; this adds visibility, not a gate).
+    event ProposalMarkedExecuted(uint256 indexed proposalId, address indexed by);
+
     function markProposalExecuted(uint256 proposalId) external {
         if (msg.sender != blsAggregator) revert UnauthorizedSource();
         if (proposalId == 0) revert InvalidProposalId();
         executedProposals[proposalId] = true;
+        emit ProposalMarkedExecuted(proposalId, msg.sender);
     }
 
     function setCreditTier(uint256 level, uint256 limit) external onlyOwner {

@@ -508,7 +508,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 42 · **Events:** 18 · **Errors:** 33
+- **Functions:** 42 · **Events:** 19 · **Errors:** 33
 
 ### Function selector index
 
@@ -1030,6 +1030,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x171f7dbde35aed7cddf3ece2dad8f4eb62443a3d6bf8616586da6fd03c6b4ed9` | `MySBTContractUpdated(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0xf2aa93d5b018c6d050bb3a6597b9d4a3cd7a9222079c7ce596ecf6c701216290` | `ProposalMarkedExecuted(uint256,address)` |
 | `0x6be30291a8f228c9342613e5e66df1a1b85aa570ac1bca9219f3ac7b7f73bbf3` | `ReputationSourceUpdated(address,bool)` |
 | `0x287e005099116032e1bba9482a5b0df09cc99f7e82a4482fa2810c52158d473d` | `RoleConfigured(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256),uint256)` |
 | `0x0d9361411a652b66cd4aed24a96d36c0b048899896c927d879a9d3ba2790d9c6` | `RoleExited(bytes32,address,uint256,uint256)` |
