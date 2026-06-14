@@ -83,6 +83,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
     error OnlyPayer();
     error OnlyPayee();
     error InvalidAmount();
+    error AmountOverflow();
     error InvalidSignature();
     error CloseNotRequested();
     error CloseTimeoutNotElapsed();
@@ -197,20 +198,31 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         if (_channels[channelId].payer != address(0)) revert ChannelAlreadyExists();
         if (closedChannels[channelId]) revert ChannelAlreadyClosed();
 
+        // L-9 fix: credit the ACTUAL received amount (balanceOf delta) instead of the
+        // nominal `deposit`. Fee-on-transfer / deflationary tokens deliver LESS than the
+        // nominal amount; recording the nominal amount would over-credit the channel and
+        // let it drain the contract's pooled balance (other honest channels' funds).
+        // Existence checks above run BEFORE the transfer so a duplicate channel can never
+        // be overwritten via reentrancy.
+        uint256 balBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransferFrom(msg.sender, address(this), deposit);
+        uint256 received = IERC20(token).balanceOf(address(this)) - balBefore;
+        if (received == 0) revert InvalidAmount();
+        if (received > type(uint128).max) revert AmountOverflow();
+        uint128 credited = uint128(received);
+
         _channels[channelId] = Channel({
             payer: msg.sender,
             payee: payee,
             token: token,
             authorizedSigner: authorizedSigner,
-            deposit: deposit,
+            deposit: credited,
             settled: 0,
             closeRequestedAt: 0,
             finalized: false
         });
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), deposit);
-
-        emit ChannelOpened(channelId, msg.sender, payee, token, deposit);
+        emit ChannelOpened(channelId, msg.sender, payee, token, credited);
     }
 
     /**
@@ -257,11 +269,19 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
         if (msg.sender != ch.payer) revert OnlyPayer();
         if (amount == 0) revert InvalidAmount();
 
-        ch.deposit += amount;
-
+        // L-9 fix: credit the ACTUAL received amount (balanceOf delta). Guard the
+        // uint256->uint128 cast BEFORE adding to avoid silent truncation; `ch.deposit += ...`
+        // then reverts natively on uint128 overflow under Solidity 0.8.
+        uint256 balBefore = IERC20(ch.token).balanceOf(address(this));
         IERC20(ch.token).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = IERC20(ch.token).balanceOf(address(this)) - balBefore;
+        if (received == 0) revert InvalidAmount();
+        if (received > type(uint128).max) revert AmountOverflow();
+        uint128 credited = uint128(received);
 
-        emit ChannelTopUp(channelId, amount, ch.deposit);
+        ch.deposit += credited;
+
+        emit ChannelTopUp(channelId, credited, ch.deposit);
     }
 
     /**
@@ -386,7 +406,7 @@ contract MicroPaymentChannel is EIP712, ReentrancyGuard, Ownable {
      * @return Version identifier.
      */
     function version() external pure returns (string memory) {
-        return "MicroPaymentChannel-1.2.0";
+        return "MicroPaymentChannel-1.3.0";
     }
 
     // ====================================

@@ -15,6 +15,35 @@ contract MockERC20 is ERC20 {
     }
 }
 
+/// @dev Fee-on-transfer (deflationary) ERC20 mock: skims `feeBps` on every transfer/transferFrom.
+///      Used to exercise the L-9 fix (credit actual received amount, not nominal).
+contract MockFeeOnTransferERC20 is ERC20 {
+    uint256 public feeBps; // e.g. 100 = 1%
+
+    constructor(string memory name_, string memory symbol_, uint256 feeBps_) ERC20(name_, symbol_) {
+        feeBps = feeBps_;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    /// @dev Override the internal transfer hook so the recipient receives `amount - fee`.
+    ///      The fee is burned. Applies to both transfer and transferFrom.
+    function _update(address from, address to, uint256 value) internal override {
+        // Mints/burns (from or to == address(0)) pass through unaltered.
+        if (from == address(0) || to == address(0) || value == 0) {
+            super._update(from, to, value);
+            return;
+        }
+        uint256 fee = (value * feeBps) / 10_000;
+        if (fee > 0) {
+            super._update(from, address(0), fee); // burn the fee
+        }
+        super._update(from, to, value - fee);
+    }
+}
+
 /**
  * @title MicroPaymentChannelTest
  * @notice Foundry test suite for the MicroPaymentChannel contract.
@@ -421,7 +450,7 @@ contract MicroPaymentChannelTest is Test {
     // ====================================
 
     function testVersion() public view {
-        assertEq(channel.version(), "MicroPaymentChannel-1.2.0");
+        assertEq(channel.version(), "MicroPaymentChannel-1.3.0");
     }
 
     // ====================================
@@ -496,5 +525,100 @@ contract MicroPaymentChannelTest is Test {
         vm.expectRevert(MicroPaymentChannel.ChannelAlreadyClosed.selector);
         channel.openChannel(payee, address(token), 1000e18, salt, address(0));
         vm.stopPrank();
+    }
+
+    // ====================================
+    // Tests: L-9 fee-on-transfer (deflationary) token handling
+    // ====================================
+
+    /// @dev Deploy a 1% FoT token, fund the payer, and approve the channel.
+    function _setupFotToken() internal returns (MockFeeOnTransferERC20 fot) {
+        fot = new MockFeeOnTransferERC20("Fee USDC", "fUSDC", 100); // 1% fee
+        fot.mint(payer, 1_000_000e18);
+        vm.prank(payer);
+        fot.approve(address(channel), type(uint256).max);
+    }
+
+    /// @dev openChannel must credit the ACTUAL received amount (990), not the nominal (1000).
+    function test_L9_OpenChannel_FeeOnTransfer_CreditsActual() public {
+        MockFeeOnTransferERC20 fot = _setupFotToken();
+
+        vm.prank(payer);
+        bytes32 channelId = channel.openChannel(
+            payee, address(fot), 1000e18, bytes32(uint256(7)), address(0)
+        );
+
+        MicroPaymentChannel.Channel memory ch = channel.getChannel(channelId);
+        // 1% fee skimmed -> contract received 990, deposit must equal actual received.
+        assertEq(ch.deposit, 990e18, "deposit must be actual received (990), not nominal (1000)");
+        assertEq(fot.balanceOf(address(channel)), 990e18, "contract balance must match credited deposit");
+    }
+
+    /// @dev topUpChannel must increase deposit by the ACTUAL received amount (990), not nominal.
+    function test_L9_TopUp_FeeOnTransfer_CreditsActual() public {
+        MockFeeOnTransferERC20 fot = _setupFotToken();
+
+        vm.prank(payer);
+        bytes32 channelId = channel.openChannel(
+            payee, address(fot), 1000e18, bytes32(uint256(8)), address(0)
+        );
+
+        // Open credited 990; now top up 1000 nominal -> +990 credited.
+        vm.prank(payer);
+        channel.topUpChannel(channelId, 1000e18);
+
+        MicroPaymentChannel.Channel memory ch = channel.getChannel(channelId);
+        assertEq(ch.deposit, 990e18 + 990e18, "top-up must add actual received (990), not nominal");
+        assertEq(fot.balanceOf(address(channel)), 1980e18, "contract balance must match credited total");
+    }
+
+    /// @dev Channel A's payee must not be able to settle/withdraw more than channel A actually
+    ///      funded. Before the fix, A's deposit was over-credited (1000 nominal while only 990 held),
+    ///      so settling A's full nominal deposit would have stolen from channel B's pooled funds.
+    function test_L9_NoCrossChannelDrain() public {
+        MockFeeOnTransferERC20 fot = _setupFotToken();
+
+        // Second payer/payee pair for channel B.
+        uint256 payerB_key = 0xBEEF;
+        address payerB = vm.addr(payerB_key);
+        address payeeB = makeAddr("payeeB");
+        fot.mint(payerB, 1_000_000e18);
+        vm.prank(payerB);
+        fot.approve(address(channel), type(uint256).max);
+
+        // Channel A: payer -> payee, nominal 1000 -> credited 990.
+        vm.prank(payer);
+        bytes32 chA = channel.openChannel(payee, address(fot), 1000e18, bytes32(uint256(101)), address(0));
+
+        // Channel B: payerB -> payeeB, nominal 1000 -> credited 990.
+        vm.prank(payerB);
+        bytes32 chB = channel.openChannel(payeeB, address(fot), 1000e18, bytes32(uint256(102)), address(0));
+
+        MicroPaymentChannel.Channel memory chAState = channel.getChannel(chA);
+        assertEq(chAState.deposit, 990e18, "channel A deposit must be 990 (actual)");
+
+        // Contract holds 990 + 990 = 1980 total.
+        assertEq(fot.balanceOf(address(channel)), 1980e18, "pooled balance 1980");
+
+        // Payee A tries to settle 1000 (channel A's *nominal* deposit). With the fix, A.deposit is 990,
+        // so anything above 990 must revert with SettlementExceedsDeposit — A cannot reach into B's funds.
+        bytes memory sigOver = _signVoucher(PAYER_KEY, chA, 1000e18);
+        vm.prank(payee);
+        vm.expectRevert(MicroPaymentChannel.SettlementExceedsDeposit.selector);
+        channel.settleChannel(chA, 1000e18, sigOver);
+
+        // Payee A settles exactly its real funding (990) -> succeeds, draws only A's own funds.
+        bytes memory sigOk = _signVoucher(PAYER_KEY, chA, 990e18);
+        vm.prank(payee);
+        channel.settleChannel(chA, 990e18, sigOk);
+        assertEq(fot.balanceOf(payee), 990e18 - (990e18 / 100), "payee A nets 990 minus FoT fee on payout");
+
+        // Channel B remains fully funded: payeeB can still settle its full 990 (nothing was stolen).
+        bytes memory sigB = _signVoucher(payerB_key, chB, 990e18);
+        vm.prank(payeeB);
+        channel.settleChannel(chB, 990e18, sigB);
+
+        MicroPaymentChannel.Channel memory chBState = channel.getChannel(chB);
+        assertEq(chBState.settled, 990e18, "channel B fully settled, unaffected by channel A");
     }
 }
