@@ -258,7 +258,12 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
 
-        bool hasStake = roleStakes[roleId][msg.sender] > 0;
+        // M-6: gate real fund release on Staking's source-of-truth, NOT the local
+        // `roleStakes` cache. The cache is synced best-effort (try/catch in
+        // GTokenStaking._syncRegistry); if a sync ever failed it could be stale,
+        // and gating on it would either strand a real lock (cache 0, lock > 0) or
+        // brick exit via NoLockFound (cache > 0, lock already cleared).
+        bool hasStake = GTOKEN_STAKING.getLockedStake(msg.sender, roleId) > 0;
 
         hasRole[roleId][msg.sender] = false;
         _removeFromRoleMembers(roleId, msg.sender);
