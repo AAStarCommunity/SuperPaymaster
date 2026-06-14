@@ -783,6 +783,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x027d3798` | `DoesNotHoldNFT()` | ReputationSystem |
 | `0x03a16256` | `TotalStakeExceedsCap()` | GTokenStaking |
 | `0x0418cb66` | `ProposalExecutionFailed(uint256,bytes)` | BLSAggregator |
+| `0x0590fb9f` | `AmountOverflow()` | MicroPaymentChannel |
 | `0x07df4537` | `BurnExceedsAllowance()` | xPNTsToken |
 | `0x0992f7ad` | `InvalidProposalId()` | Registry |
 | `0x0b161e70` | `ActivityTooSoon()` | MySBT |
