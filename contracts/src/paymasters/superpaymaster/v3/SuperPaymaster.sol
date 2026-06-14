@@ -810,17 +810,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
     }
 
-    /// @dev C-01: single consolidated credit gate — validation and dryRun both call it.
-    ///      Returns true only when this op would push the user PAST their credit ceiling.
-    ///      A user who can settle the charge from their own xPNTs balance incurs no debt
-    ///      and is always allowed (credit only governs the overdraft/debt path); otherwise
-    ///      (recorded debt + pending debt + this charge) must stay within getCreditLimit,
-    ///      so an operator is never drained by a non-paying user accumulating debt.
+    /// @dev C-01 / AUDIT H-1: single consolidated credit gate — validation and dryRun
+    ///      both call it. Returns true only when this op would push the user PAST their
+    ///      credit ceiling: (recorded debt + pending debt + this charge) must stay within
+    ///      getCreditLimit, so an operator is never drained by a user accumulating debt.
+    ///
+    ///      H-1 FIX: the gate must NOT short-circuit on "balance covers the charge". A
+    ///      balance-sufficient eligible user can empty their xPNTs between validate and
+    ///      postOp — ERC-4337 runs the account's own calldata in between, and a plain
+    ///      `transfer` bypasses the autoApprovedSpenders firewall (which only guards
+    ///      `transferFrom`). postOp then takes the debt path, and without this gate the
+    ///      recorded debt is unbounded → operator drain. Enforcing the ceiling in
+    ///      validation closes that window for BOTH the SBT and agent eligibility paths.
     function _creditExceeded(address token, address user, uint256 charge) internal view returns (bool) {
-        // Can the user pay this charge from xPNTs balance? Then postOp burns it → no debt.
-        uint256 xPNTsCharge = Math.mulDiv(charge, IxPNTsToken(token).exchangeRate(), 1e18, Math.Rounding.Ceil);
-        if (IERC20(token).balanceOf(user) >= xPNTsCharge) return false;
-        // Otherwise it falls to debt — total owed must fit the credit ceiling.
         uint256 used = IxPNTsToken(token).getDebt(user) + pendingDebts[token][user];
         return used + charge > REGISTRY.getCreditLimit(user);
     }

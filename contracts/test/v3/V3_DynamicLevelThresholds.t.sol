@@ -137,7 +137,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         registry.batchUpdateGlobalReputation(1, users, scores, 100, _dummyProof());
         
         uint256 creditLimit = registry.getCreditLimit(user1);
-        assertEq(creditLimit, 0); // Level 1 has 0 credit
+        assertEq(creditLimit, 100 ether); // AUDIT H-1: Level 1 default credit now 100 = level 2 (was 0; covers per-op charge)
     }
 
     function test_GetCreditLimit_Level2() public {
@@ -187,8 +187,8 @@ contract V3_DynamicLevelThresholds_Test is Test {
         registry.setLevelThresholds(t);
 
         // Now user with rep=15 should be Level 1
-        assertEq(registry.getCreditLimit(user1), 0); // Level 1
-        
+        assertEq(registry.getCreditLimit(user1), 100 ether); // AUDIT H-1: Level 1 default credit now 100 = level 2 (was 0; covers per-op charge)
+
         vm.stopPrank();
     }
 
@@ -230,8 +230,8 @@ contract V3_DynamicLevelThresholds_Test is Test {
         registry.batchUpdateGlobalReputation(1, users, scores, 105, _dummyProof());
         
         assertEq(registry.getCreditLimit(user1), 100 ether); // Level 2
-        assertEq(registry.getCreditLimit(user2), 0); // Level 1
-        
+        assertEq(registry.getCreditLimit(user2), 100 ether); // AUDIT H-1: Level 1 default credit now 100 = level 2 (was 0; covers per-op charge)
+
         vm.stopPrank();
     }
 

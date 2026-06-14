@@ -283,9 +283,13 @@ contract SuperPaymasterTest is Test {
     function testProtocolRevenueFlow() public {
         // 1. Setup Operator (Need significant balance for 1 ETH gas * 2000 price)
         vm.startPrank(owner);
-        apnts.mint(operator, 200000 ether); 
+        apnts.mint(operator, 200000 ether);
         apnts.mint(user, 200000 ether); // FIX: Mint user enough tokens to pay for the op
         vm.stopPrank();
+        // AUDIT H-1: credit is now enforced in validation regardless of balance, so a
+        // sponsored user needs a non-zero credit ceiling (this test exercises revenue
+        // flow, not the credit gate). Give ample credit so the op passes validation.
+        registry.setCreditForUser(user, 200000 ether);
 
         vm.startPrank(operator);
         paymaster.configureOperator(address(apnts), treasury);
@@ -550,7 +554,12 @@ contract SuperPaymasterTest is Test {
     /// @notice C-01d (positive control): a user with NO credit but enough xPNTs
     ///         to settle the charge from balance is allowed — credit only governs
     ///         the overdraft/debt path, never balance-backed payment.
-    function test_C01_NoCredit_WithBalance_Allowed() public {
+    function test_C01_NoCredit_WithBalance_Rejected() public {
+        // AUDIT H-1: the credit ceiling is now enforced in validation regardless of
+        // xPNTs balance. A zero-credit user is rejected even with sufficient balance,
+        // because a balance-backed op could empty its balance between validate and
+        // postOp (plain transfer bypasses the autoApprovedSpenders firewall) and
+        // force the debt path with unbounded recorded debt.
         _setupV3Env();
         registry.setCreditForUser(user, 0);
         // setUp already minted the user 1000 ether xPNTs; ensure it's intact.
@@ -562,6 +571,6 @@ contract SuperPaymasterTest is Test {
         (, uint256 validationData) =
             paymaster.validatePaymasterUserOp(op, keccak256("c01d"), 0.001 ether);
 
-        assertEq(uint160(validationData), 0, "C-01d: balance-backed op must pass even with zero credit");
+        assertEq(uint160(validationData), 1, "C-01d (H-1): zero-credit op rejected even with balance");
     }
 }
