@@ -118,6 +118,52 @@ if (balance.lt(threshold)) {
 }
 ```
 
+## 🔐 Governance & Security — communityOwner Multisig + Rate-Change Proposal (Required)
+
+> ⚠️ **Strongly recommended for every community running an xPNTs token under SuperPaymaster.**
+
+### Why this matters
+
+Your community's `xPNTsToken.communityOwner` controls `setExchangeRate` — the xPNTs↔aPNTs rate
+that determines how many xPNTs a user burns per sponsored op. If `communityOwner` is a single
+EOA, a leaked key (or a malicious operator) could in principle raise the rate inside the
+validate→postOp window of an EntryPoint bundle and over-burn users' xPNTs beyond the `maxRate`
+they signed (audit finding H-6 / issue #208).
+
+**This is a governance concern, not a contract bug.** The governance setup below **reduces it to an
+accepted, low risk** — it does NOT make the attack technically impossible (see the honest note under
+step 1); it raises the bar to multisig collusion and removes any single-party / leaked-key path.
+Note the economic reality: raising the rate would burn your own users' tokens and drive them away,
+destroying the very stickiness the points program exists for — there is no rational operator motive.
+
+### Required setup
+
+1. **`communityOwner` MUST be a Safe (Gnosis Safe) multisig — never a single EOA.**
+   - This raises the bar from "a single EOA / leaked key changes the rate instantly" to "a quorum
+     of multisig signers must collude". A single operator or a single leaked key can no longer move
+     the rate at all.
+   - ⚠️ **Honest note — this is risk reduction, NOT a full technical fix.** A multisig does not make
+     the H-6 window technically impossible: Safe's `execTransaction` submits PRE-COLLECTED off-chain
+     signatures, so a colluding signer quorum could in principle still execute `setExchangeRate`
+     inside a bundle's validate→postOp window. What the multisig buys is (a) no single party /
+     leaked key can do it, and (b) it requires provable collusion of multiple community signers.
+     Combined with the governance flow below and the absence of any rational motive, this reduces
+     H-6 to an accepted low risk. A FULL technical elimination would require the postOp
+     snapshot-rate contract change (tracked as a v5.4 option on #208).
+
+2. **`setExchangeRate` MUST go through a full governance flow — never a silent/instant admin toggle:**
+
+   **propose → notify community → vote → execute via multisig**
+
+   - **Propose**: post a proposal announcing the intended rate change, with rationale.
+   - **Notify**: give community members advance notice (at minimum a public announcement).
+   - **Vote**: hold the community discussion / vote period.
+   - **Execute**: only after the vote passes, execute `setExchangeRate` through the Safe multisig.
+
+Rate changes are infrequent, deliberate, pre-announced economic decisions — treat them as
+governance actions, not admin switches. This is both correct decentralization and the de-facto
+mitigation for audit H-6 (#208): no rate change is ever one person's instant decision.
+
 ## 📊 Business Analytics
 
 ### Key Metrics to Track

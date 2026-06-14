@@ -33,6 +33,17 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  *       a registry/lock mechanism (out of scope for this contract).
  *       If mySBT has not been set yet, RC-2 falls back to xPNTs path only.
  *
+ *       ⚠️ DEPRECATED (2026-06-14, team decision): RC-2 is ABANDONED as a security
+ *       control and slated for REMOVAL in the v5.4 redeploy. Rationale: GToken is a
+ *       freely-transferable ERC20 — every holder has the right to dispose of their
+ *       own asset, so requiring the RECIPIENT to hold some other asset (SBT/xPNTs)
+ *       is a decentralization violation. It also carries no security value: the
+ *       standard ERC20 `transfer`/`transferFrom` path has no such gate, so RC-2 on
+ *       the gasless path is trivially bypassed (at most it was a gasless-relay
+ *       anti-abuse hint, never a recipient-security control — see closed #207).
+ *       Until v5.4 removes it, RC-2 stays in bytecode but MUST NOT be relied on
+ *       for security.
+ *
  * Execution order (gas-optimal)
  * ─────────────────────────────
  * 1. Time-window checks  (pure arithmetic, cheapest)
