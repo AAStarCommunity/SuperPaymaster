@@ -118,6 +118,44 @@ if (balance.lt(threshold)) {
 }
 ```
 
+## 🔐 Governance & Security — communityOwner Multisig + Rate-Change Proposal (Required)
+
+> ⚠️ **Strongly recommended for every community running an xPNTs token under SuperPaymaster.**
+
+### Why this matters
+
+Your community's `xPNTsToken.communityOwner` controls `setExchangeRate` — the xPNTs↔aPNTs rate
+that determines how many xPNTs a user burns per sponsored op. If `communityOwner` is a single
+EOA, a leaked key (or a malicious operator) could in principle raise the rate inside the
+validate→postOp window of an EntryPoint bundle and over-burn users' xPNTs beyond the `maxRate`
+they signed (audit finding H-6 / issue #208).
+
+**This is a governance concern, not a contract bug** — and the governance structure below closes
+it completely. Note the economic reality: raising the rate would burn your own users' tokens and
+drive them away, destroying the very stickiness the points program exists for — there is no rational
+operator motive. The setup below additionally neutralizes the leaked-key case.
+
+### Required setup
+
+1. **`communityOwner` MUST be a Safe (Gnosis Safe) multisig — never a single EOA.**
+   - A multisig **cannot** execute an instant, single-party rate change inside one bundle's
+     validate→postOp window: collecting signatures + submitting the multisig tx is not atomic
+     with a UserOp. This **removes the H-6 attack window entirely**, and also protects against a
+     single leaked key.
+
+2. **`setExchangeRate` MUST go through a full governance flow — never a silent/instant admin toggle:**
+
+   **propose → notify community → vote → execute via multisig**
+
+   - **Propose**: post a proposal announcing the intended rate change, with rationale.
+   - **Notify**: give community members advance notice (at minimum a public announcement).
+   - **Vote**: hold the community discussion / vote period.
+   - **Execute**: only after the vote passes, execute `setExchangeRate` through the Safe multisig.
+
+Rate changes are infrequent, deliberate, pre-announced economic decisions — treat them as
+governance actions, not admin switches. This is both correct decentralization and the de-facto
+mitigation for audit H-6 (#208): no rate change is ever one person's instant decision.
+
 ## 📊 Business Analytics
 
 ### Key Metrics to Track
