@@ -1310,7 +1310,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — |  |
 | `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
-| `0x2608c9e6` | `settleX402Payment(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
+| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
 | `0x7344209c` | `settleX402PaymentDirect(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
 | `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — |  |
 | `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — |  |
@@ -1412,9 +1412,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `totalSpent` | `uint256` |  |
 | `totalTxSponsored` | `uint256` |  |
 
-#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
+#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
 
-`0x2608c9e6` · nonpayable · access: —
+`0xf3a729da` · nonpayable · access: —
 
 | param | type | description |
 |---|---|---|
@@ -1422,6 +1422,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `to` | `address` |  |
 | `asset` | `address` |  |
 | `amount` | `uint256` |  |
+| `maxFee` | `uint256` |  |
 | `validAfter` | `uint256` |  |
 | `validBefore` | `uint256` |  |
 | `salt` | `bytes32` |  |
@@ -1998,7 +1999,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IERC3009
 
 - **Source:** `contracts/src/interfaces/v3/IERC3009.sol`
-- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- **Functions:** 2 · **Events:** 0 · **Errors:** 0
 - **Title:** IERC3009 - EIP-3009 Transfer With Authorization Interface
 - Minimal interface for EIP-3009 compliant tokens (e.g., USDC v2.2+)
 
@@ -2006,9 +2007,26 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0x88b7ab63` | `receiveWithAuthorization(address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — | Receiver-driven EIP-3009 transfer. The token MUST enforce         `msg.sender == to`, so only the intended recipient (the         SuperPaymaster) can submit the authorization. This prevents a         front-runner from replaying the payer's signature directly on the         token to pull funds into the SuperPaymaster outside of a settlement. |
 | `0xcf092995` | `transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
 
 ### Functions
+
+#### `receiveWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)`
+
+`0x88b7ab63` · nonpayable · access: —
+
+> Receiver-driven EIP-3009 transfer. The token MUST enforce         `msg.sender == to`, so only the intended recipient (the         SuperPaymaster) can submit the authorization. This prevents a         front-runner from replaying the payer's signature directly on the         token to pull funds into the SuperPaymaster outside of a settlement.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+| `validAfter` | `uint256` |  |
+| `validBefore` | `uint256` |  |
+| `nonce` | `bytes32` |  |
+| `signature` | `bytes` |  |
 
 #### `transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature)`
 
@@ -5388,7 +5406,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 96 · **Events:** 41 · **Errors:** 38
+- **Functions:** 96 · **Events:** 41 · **Errors:** 39
 - **Title:** SuperPaymaster
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -5464,7 +5482,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xfc347007` | `setOperatorLimits(uint48)` | nonpayable | — |  |
 | `0xe8ade1a9` | `setOperatorPaused(address,bool)` | nonpayable | onlyOwner | Pause/Unpause an operator (Owner Only) |
 | `0x787dce3d` | `setProtocolFee(uint256)` | nonpayable | onlyOwner | Set the protocol fee basis points (Owner Only) |
-| `0x2608c9e6` | `settleX402Payment(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path) |
+| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path) |
 | `0x7344209c` | `settleX402PaymentDirect(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via direct transferFrom (xPNTs only) |
 | `0xf0f44260` | `setTreasury(address)` | nonpayable | onlyOwner | Set the protocol treasury address (Owner Only) |
 | `0x58a2570a` | `setXPNTsFactory(address)` | nonpayable | onlyOwner |  |
@@ -6210,13 +6228,13 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `newFeeBPS` | `uint256` |  |
 
-#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
+#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
 
-`0x2608c9e6` · nonpayable · access: nonReentrant
+`0xf3a729da` · nonpayable · access: nonReentrant
 
-> Settle x402 payment via EIP-3009 transferWithAuthorization (USDC native path)
+> Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path)
 
-*@dev* C-03: the final recipient is bound into the EIP-3009 nonce         (`nonce = keccak256(to, salt)`). The payer signs the EIP-3009 authorization         over that nonce, so a facilitator that swaps `to` produces a different nonce         and the EIP-3009 signature no longer recovers `from` — the transfer reverts.         This reuses the payer's existing token-level signature; no second signature.settlementId uses abi.encode (fixed-size fields) for a collision-free id.
+*@dev* C-03 + M-1: both the final recipient `to` AND the payer-approved fee cap         `maxFee` are bound into the EIP-3009 nonce         (`nonce = keccak256(to, maxFee, salt)`). The payer signs the EIP-3009         authorization over that nonce, so an operator that swaps `to` OR raises         `maxFee` produces a different nonce and the EIP-3009 signature no longer         recovers `from` — the transfer reverts. This reuses the payer's existing         token-level signature; no second signature. Without the `maxFee` binding the         payer's EIP-3009 signature only authorizes moving `amount` and places no cap         on the operator's facilitator fee (up to MAX_FACILITATOR_FEE), which the         payer never consented to (M-1).M-1: the path assumes the contract receives exactly `amount`. A fee-on-transfer         / deflationary asset delivers less, so paying out `amount - fee` would overpay         `to` from other settlements' reserves. We measure the actual delta and revert         if it is short. EIP-3009 stablecoins (USDC) are not deflationary, so this only         rejects assets that violate the path's amount==received assumption.M-1 (front-run grief): we use `receiveWithAuthorization`, NOT         `transferWithAuthorization`. The EIP-3009 spec requires the token to enforce         `msg.sender == to` for the receive variant, so only this contract (the `to`)         can submit the authorization. With the transfer variant, anyone who observes         the payer's signature could call the token directly to pull `amount` into the         SuperPaymaster outside of a settlement, burning the token-side nonce and         leaving the funds stranded (the real settle would then revert). The receive         variant closes that grief vector. EIP-3009's two variants share a nonce         namespace but sign distinct typehashes (Transfer- vs ReceiveWithAuthorization);         since the payer signs ONLY the receive typehash, the same signature cannot be         replayed against `transferWithAuthorization` to burn the nonce (recovery would         yield a different signer), so both nonce-burning paths are closed.settlementId uses abi.encode (fixed-size fields) for a collision-free id.
 
 | param | type | description |
 |---|---|---|
@@ -6224,6 +6242,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `to` | `address` |  |
 | `asset` | `address` |  |
 | `amount` | `uint256` |  |
+| `maxFee` | `uint256` |  |
 | `validAfter` | `uint256` |  |
 | `validBefore` | `uint256` |  |
 | `salt` | `bytes32` |  |
@@ -6629,6 +6648,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+| `0x760a602d` | `X402AmountMismatch()` |
 | `0x483a32fe` | `X402AuthExpired()` |
 | `0xfdc8ad38` | `X402FeeExceedsMax()` |
 
