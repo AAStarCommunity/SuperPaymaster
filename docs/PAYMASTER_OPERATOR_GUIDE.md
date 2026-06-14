@@ -130,18 +130,26 @@ EOA, a leaked key (or a malicious operator) could in principle raise the rate in
 validate→postOp window of an EntryPoint bundle and over-burn users' xPNTs beyond the `maxRate`
 they signed (audit finding H-6 / issue #208).
 
-**This is a governance concern, not a contract bug** — and the governance structure below closes
-it completely. Note the economic reality: raising the rate would burn your own users' tokens and
-drive them away, destroying the very stickiness the points program exists for — there is no rational
-operator motive. The setup below additionally neutralizes the leaked-key case.
+**This is a governance concern, not a contract bug.** The governance setup below **reduces it to an
+accepted, low risk** — it does NOT make the attack technically impossible (see the honest note under
+step 1); it raises the bar to multisig collusion and removes any single-party / leaked-key path.
+Note the economic reality: raising the rate would burn your own users' tokens and drive them away,
+destroying the very stickiness the points program exists for — there is no rational operator motive.
 
 ### Required setup
 
 1. **`communityOwner` MUST be a Safe (Gnosis Safe) multisig — never a single EOA.**
-   - A multisig **cannot** execute an instant, single-party rate change inside one bundle's
-     validate→postOp window: collecting signatures + submitting the multisig tx is not atomic
-     with a UserOp. This **removes the H-6 attack window entirely**, and also protects against a
-     single leaked key.
+   - This raises the bar from "a single EOA / leaked key changes the rate instantly" to "a quorum
+     of multisig signers must collude". A single operator or a single leaked key can no longer move
+     the rate at all.
+   - ⚠️ **Honest note — this is risk reduction, NOT a full technical fix.** A multisig does not make
+     the H-6 window technically impossible: Safe's `execTransaction` submits PRE-COLLECTED off-chain
+     signatures, so a colluding signer quorum could in principle still execute `setExchangeRate`
+     inside a bundle's validate→postOp window. What the multisig buys is (a) no single party /
+     leaked key can do it, and (b) it requires provable collusion of multiple community signers.
+     Combined with the governance flow below and the absence of any rational motive, this reduces
+     H-6 to an accepted low risk. A FULL technical elimination would require the postOp
+     snapshot-rate contract change (tracked as a v5.4 option on #208).
 
 2. **`setExchangeRate` MUST go through a full governance flow — never a silent/instant admin toggle:**
 
