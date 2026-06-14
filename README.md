@@ -7,8 +7,8 @@
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **v5.3.3-beta.2** (Security-Hardened Beta · Core Gasless) — Sepolia Testnet Live
-> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.3.3-beta.2)
+> **v5.3.3-beta.5** (Security-Hardened Beta · Core Gasless) — Sepolia Testnet Live
+> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.3.3-beta.5)
 > · [Integration Guide](./docs/integration/v5.3.3-beta.2-integration-guide.md)
 > · [Coverage Report](./docs/coverage-report-2026-06-02.md)
 
@@ -155,6 +155,11 @@ Announcement copy (Twitter / Discord / blog): [`docs/announcements/`](./docs/ann
 - **C-01** balance-aware credit ceiling · **C-02** signed x402 direct settle (EIP-712 `X402PaymentAuthorization`)
 - **C-03** recipient-bound EIP-3009 nonce · **C-04** postOp out-of-gas floor (`MIN_POST_OP_GAS`)
 - **H-01** chunked `retryPendingDebt` · **H-02** PoP-gated permissionless BLS registration (switch default OFF)
+
+**v5.3.3-beta.4/.5 audit 2nd-pass** (`comprehensive-audit-2026-06-11`, Opus adversarial review — 14 findings triaged, 4 fixed + 10 wontfix/deferred):
+- **H-1** credit ceiling enforced in validation regardless of balance (Plan A) · **M-1** x402 EIP-3009 payer-signed `maxFee` + fee-on-transfer guard + front-run fix (`receiveWithAuthorization`)
+- **M-6** `exitRole` fund release gated on Staking source-of-truth · **L-9** `MicroPaymentChannel` fee-on-transfer delta-credit · **L-7** `ProposalMarkedExecuted` audit event
+- 10 findings closed as permissionless-by-design / trusted-boundary / unreachable after Opus challenge; RC-2 deprecated, H-6 reduced via governance (operator Safe multisig + rate-change proposal flow). Full triage: [`docs/planning/backlog-triage-2026-06-14.md`](./docs/planning/backlog-triage-2026-06-14.md)
 
 ---
 
