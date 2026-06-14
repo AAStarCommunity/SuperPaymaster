@@ -5,16 +5,19 @@
  *
  * Tests settleX402Payment on SuperPaymaster V5.3.0
  *
- * C-03 (aastar-sdk#39): settleX402Payment binds the final recipient into the EIP-3009
- * nonce (on-chain nonce = keccak256(abi.encode(payee, salt))) and the call takes `salt`
- * instead of a raw nonce. The payer signs EIP-3009 over that derived nonce, so a
- * facilitator that swaps the recipient produces a different nonce and the signature no
- * longer recovers `from` — the transfer reverts. This script's signing step now derives
- * the nonce directly (Step 3); the @aastar/x402 SDK must expose the same salt scheme.
+ * M-1 (audit): settleX402Payment now takes `maxFee` (the 5th arg, right after `amount`)
+ * and binds BOTH the final recipient AND maxFee into the EIP-3009 nonce
+ * (on-chain nonce = keccak256(abi.encode(payee, maxFee, salt))). The contract caps the
+ * facilitator fee at `maxFee` (revert X402FeeExceedsMax if fee > maxFee) so the payer
+ * consents to the fee ceiling. It also now calls the token's `receiveWithAuthorization`
+ * (NOT `transferWithAuthorization`) to close a front-run grief vector, so the payer must
+ * sign the token's **ReceiveWithAuthorization** EIP-712 struct (same fields, different
+ * type name). An operator that swaps `payee` OR raises `maxFee` derives a different nonce
+ * and the EIP-3009 signature no longer recovers `from` — the transfer reverts.
  *
  * Flow:
- *   1. Payer signs EIP-3009 transferWithAuthorization over nonce = keccak256(to, salt)
- *   2. Facilitator calls settleX402Payment(..., salt, signature)
+ *   1. Payer signs EIP-3009 ReceiveWithAuthorization over nonce = keccak256(payee, maxFee, salt)
+ *   2. Facilitator calls settleX402Payment(..., maxFee, ..., salt, signature)
  *   3. Verify: payee received USDC - fee, facilitator earnings tracked
  *   4. Test replay protection
  *
@@ -45,8 +48,10 @@ const ERC20_ABI = [
 ];
 
 const SUPERPAYMASTER_ABI = [
-  'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) external returns (bytes32)',
+  // M-1: 9-arg form — `maxFee` inserted right after `amount`.
+  'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) external returns (bytes32)',
   'function facilitatorFeeBPS() view returns (uint256)',
+  'function getEffectiveFacilitatorFee(address operator) view returns (uint256)',
   'function facilitatorEarnings(address operator, address token) view returns (uint256)',
   // P0-13: x402SettlementNonces is keyed by keccak256(abi.encode(asset, from, nonce)),
   // not the raw nonce alone. Use x402NonceKey() to derive the composite key.
@@ -102,23 +107,34 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 2: Check facilitator fee
+  // Step 2: Check facilitator fee (per-operator override falls back to global default)
   console.log('\n📊 Step 2: Check Facilitator Fee');
-  const feeBPS = await superPaymaster.facilitatorFeeBPS();
-  console.log(`  facilitatorFeeBPS: ${feeBPS} (${Number(feeBPS) / 100}%)`);
+  const globalFeeBPS = await superPaymaster.facilitatorFeeBPS();
+  const feeBPS = await superPaymaster.getEffectiveFacilitatorFee(facilitator.address);
+  console.log(`  facilitatorFeeBPS (global): ${globalFeeBPS} (${Number(globalFeeBPS) / 100}%)`);
+  console.log(`  effective fee for facilitator: ${feeBPS} (${Number(feeBPS) / 100}%)`);
   const expectedFee = (amount * feeBPS) / 10000n;
   console.log(`  Expected fee on 1 USDC: ${ethers.formatUnits(expectedFee, decimals)} USDC`);
 
-  // Step 3: Sign EIP-3009 transferWithAuthorization
-  console.log('\n✍️  Step 3: Sign EIP-3009 TransferWithAuthorization');
+  // M-1: maxFee is the payer-consented fee ceiling. The contract reverts with
+  // X402FeeExceedsMax if (amount * effectiveFeeBPS / 10000) > maxFee. We set
+  // maxFee = amount: it is always >= the actual fee (fee <= MAX_FACILITATOR_FEE = 5%
+  // of amount) so the cap never trips, while still proving the maxFee binding works
+  // end-to-end (nonce + on-chain check + signature recovery).
+  const maxFee = amount;
 
-  // C-03: the final recipient (payee) is bound into the EIP-3009 nonce.
-  // salt is random; the on-chain nonce = keccak256(abi.encode(payee, salt)),
+  // Step 3: Sign EIP-3009 ReceiveWithAuthorization
+  console.log('\n✍️  Step 3: Sign EIP-3009 ReceiveWithAuthorization');
+
+  // M-1: the final recipient (payee) AND maxFee are bound into the EIP-3009 nonce.
+  // salt is random; the on-chain nonce = keccak256(abi.encode(payee, maxFee, salt)),
   // and the payer signs the EIP-3009 authorization over that derived nonce.
   // settleX402Payment takes `salt` (not the raw nonce) and re-derives it.
   const salt = ethers.hexlify(ethers.randomBytes(32));
   const nonce = ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(['address', 'bytes32'], [payee, salt])
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ['address', 'uint256', 'bytes32'], [payee, maxFee, salt]
+    )
   );
   const validAfter = 0n;
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
@@ -131,8 +147,11 @@ async function main() {
     verifyingContract: USDC_SEPOLIA,
   };
 
+  // M-1: the contract calls token.receiveWithAuthorization (not transferWithAuthorization),
+  // so the payer must sign the ReceiveWithAuthorization typehash. Same fields; only the
+  // struct (primaryType) name differs from Transfer -> Receive. Same domain.
   const types = {
-    TransferWithAuthorization: [
+    ReceiveWithAuthorization: [
       { name: 'from', type: 'address' },
       { name: 'to', type: 'address' },
       { name: 'value', type: 'uint256' },
@@ -165,7 +184,7 @@ async function main() {
   try {
     const receipt = await sendAndWait(
       superPaymaster, 'settleX402Payment',
-      [payer.address, payee, USDC_SEPOLIA, amount, validAfter, validBefore, salt, signature],
+      [payer.address, payee, USDC_SEPOLIA, amount, maxFee, validAfter, validBefore, salt, signature],
       'settleX402Payment', { gasLimit: 500000 }
     );
     console.log(`  TX Hash: ${receipt.hash}`);
@@ -210,9 +229,10 @@ async function main() {
     // Step 6: Test replay protection
     console.log('\n🛡️  Step 6: Test Replay Protection');
     try {
+      // Replay the SAME (payee, maxFee, salt) -> re-derives the consumed nonce.
       await superPaymaster.settleX402Payment.staticCall(
-        payer.address, payee, USDC_SEPOLIA, amount,
-        validAfter, validBefore, nonce, signature
+        payer.address, payee, USDC_SEPOLIA, amount, maxFee,
+        validAfter, validBefore, salt, signature
       );
       console.log('  ❌ FAIL: Replay should have reverted!');
     } catch (e) {
