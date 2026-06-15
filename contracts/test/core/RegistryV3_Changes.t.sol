@@ -114,6 +114,31 @@ contract RegistryV3_Changes_Test is Test {
         vm.chainId(31337);
     }
 
+    /// @notice L-C (#211): epoch=0 must revert InvalidParam BEFORE the proposalId is
+    ///         marked executed — otherwise the proposalId is permanently burned (all
+    ///         users skipped by `epoch <= lastReputationEpoch`, yet executedProposals set).
+    function test_LC_Epoch0_Reverts_WithoutBurningProposalId() public {
+        vm.startPrank(admin);
+        registry.setReputationSource(ReputationSource, true);
+        registry.setBLSAggregator(address(0xB15)); // non-zero: pass the BLSNotConfigured guard
+        vm.stopPrank();
+
+        address[] memory users = new address[](1);
+        users[0] = user;
+        uint256[] memory scores = new uint256[](1);
+        scores[0] = 100;
+        bytes memory proof = abi.encode(new bytes(96), new bytes(192), new bytes(192), uint256(0xF));
+
+        // epoch=0 must revert InvalidParam. The guard (Registry.sol) sits at L405 —
+        // BEFORE `executedProposals[proposalId] = true` (L409) — so the EVM revert rolls
+        // back the whole call and the proposalId is never marked executed: it stays
+        // resubmittable with a valid epoch. (Pre-fix, the proposalId was burned: marked
+        // executed yet every user skipped by `epoch <= lastReputationEpoch`.)
+        vm.prank(ReputationSource);
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.batchUpdateGlobalReputation(7, users, scores, 0, proof);
+    }
+
     function test_O1_Removal() public {
         // Use an operator role (KMS) to test O(1) removal, since non-operator roles cannot exit
         bytes32 ROLE_KMS = keccak256("KMS");

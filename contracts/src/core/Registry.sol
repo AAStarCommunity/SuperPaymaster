@@ -403,6 +403,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (proof.length == 0) revert BLSProofRequired();
         if (blsAggregator == address(0)) revert BLSNotConfigured();
         if (proposalId == 0) revert InvalidProposalId();
+        // L-C: epoch=0 would skip every user (epoch <= lastReputationEpoch, default 0)
+        // yet still burn the proposalId below — a permanently wasted, un-retryable proposal.
+        if (epoch == 0) revert InvalidParam();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
 
         executedProposals[proposalId] = true;
