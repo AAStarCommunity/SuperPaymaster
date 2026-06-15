@@ -148,18 +148,24 @@ async function main() {
   // Step 7: facilitatorFeeBPS — x402 fee check
   // ──────────────────────────────────────────
   printStep(7, 'facilitatorFeeBPS — default x402 fee');
-  try {
-    const feeBPS = await sp.facilitatorFeeBPS();
-    const opFee = await sp.operatorFacilitatorFees(deployerAddr);
+  // v5.4 god-split: x402 facilitator-fee config moved from SuperPaymaster to X402Facilitator.
+  const x402 = c.x402Facilitator;
+  if (!x402) {
+    printSkip('X402Facilitator not configured (config.x402Facilitator / X402_FACILITATOR) — deploy v5.4 first');
+  } else {
+    try {
+      const feeBPS = await x402.facilitatorFeeBPS();
+      const opFee = await x402.operatorFacilitatorFees(deployerAddr);
 
-    printKeyValue('Default facilitatorFeeBPS', feeBPS.toString());
-    printKeyValue('Default fee', `${Number(feeBPS) / 100}%`);
-    printKeyValue('Operator override fee', opFee === 0n ? '(none — uses default)' : `${Number(opFee) / 100}%`);
+      printKeyValue('Default facilitatorFeeBPS', feeBPS.toString());
+      printKeyValue('Default fee', `${Number(feeBPS) / 100}%`);
+      printKeyValue('Operator override fee', opFee === 0n ? '(none — uses default)' : `${Number(opFee) / 100}%`);
 
-    assertGte(feeBPS, 0n, 'facilitatorFeeBPS is non-negative');
-    printSuccess('Facilitator fee configuration verified');
-  } catch (e) {
-    catchStep(`facilitatorFeeBPS`, e);
+      assertGte(feeBPS, 0n, 'facilitatorFeeBPS is non-negative');
+      printSuccess('Facilitator fee configuration verified');
+    } catch (e) {
+      catchStep(`facilitatorFeeBPS`, e);
+    }
   }
 
   process.exit(finishTest('G2: Agent Identity Sponsorship (ERC-8004)'));

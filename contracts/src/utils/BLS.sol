@@ -266,10 +266,11 @@ library BLS {
     function hashToG2(bytes memory message) internal view returns (G2Point memory result) {
         assembly ("memory-safe") {
             function dstPrime(o_, i_) -> _o {
-                mstore8(o_, i_) // byte 0: i
-                mstore(add(o_, 0x01), "BLS12381G2_XMD:SHA-256_SSWU_RO_N") // bytes 1..32
-                mstore(add(o_, 0x21), "UL_\x23") // bytes 33..36. idx 36 is 0x23 (length 35)
-                _o := add(0x25, o_) // total 37 bytes
+                // DST = "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_" (43 bytes, BLS-sig PoP scheme)
+                mstore8(o_, i_) // byte 0: i (I2OSP(i,1) counter)
+                mstore(add(o_, 0x01), "BLS_SIG_BLS12381G2_XMD:SHA-256_S") // DST bytes 0..31 -> mem 1..32
+                mstore(add(o_, 0x21), "SWU_RO_POP_\x2b") // DST bytes 32..42 ("SWU_RO_POP_") + len byte 0x2b (43) at idx 44
+                _o := add(0x2d, o_) // total 45 bytes (1 counter + 43 DST + 1 length)
             }
 
             function sha2(data_, n_) -> _h {

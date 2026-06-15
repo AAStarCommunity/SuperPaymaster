@@ -190,17 +190,9 @@ const ABI = {
     "function setAgentPolicies(tuple(uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)[] policies)",
     "function setAgentRegistries(address identity, address reputation)",
     "function agentPolicies(address operator, uint256 index) view returns (uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)",
-    // V5.3: x402 Facilitator
-    "function facilitatorFeeBPS() view returns (uint256)",
-    "function operatorFacilitatorFees(address operator) view returns (uint256)",
-    "function x402SettlementNonces(bytes32 nonce) view returns (bool)",
-    "function facilitatorEarnings(address operator, address asset) view returns (uint256)",
-    "function setFacilitatorFeeBPS(uint256 _fee)",
-    "function setOperatorFacilitatorFee(address operator, uint256 _fee)",
-    "function withdrawFacilitatorEarnings(address asset)",
-    // C-02/C-03: settlement now requires a payer EIP-712 signature; see aastar-sdk#39 for the signing flow.
-    "function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) returns (bytes32)",
-    "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature) returns (bytes32)",
+    // V5.4 god-split: the x402 Facilitator layer (facilitatorFeeBPS / operatorFacilitatorFees /
+    // facilitatorEarnings / settleX402* / set*/withdraw*) was extracted out of SuperPaymaster
+    // into the standalone X402Facilitator contract — see the X402Facilitator ABI below.
     // V5.3: Credit
     "function getAvailableCredit(address user, address token) view returns (uint256)",
     // Governance / Admin (covered by B4)
@@ -226,6 +218,25 @@ const ABI = {
     "function withdrawChannel(bytes32 channelId)",
     "function getChannel(bytes32 channelId) view returns (tuple(address payer, address payee, address token, address authorizedSigner, uint128 deposit, uint128 settled, uint64 closeRequestedAt, bool finalized))",
     "function VOUCHER_TYPEHASH() view returns (bytes32)",
+  ],
+
+  // V5.4 god-split: standalone x402 settlement layer extracted from SuperPaymaster.
+  // Same function signatures as the pre-v5.4 SuperPaymaster x402 surface (the funcs moved
+  // verbatim), now hosted on the X402Facilitator contract (config.x402Facilitator).
+  X402Facilitator: [
+    "function version() view returns (string)",
+    "function facilitatorFeeBPS() view returns (uint256)",
+    "function operatorFacilitatorFees(address operator) view returns (uint256)",
+    "function getEffectiveFacilitatorFee(address operator) view returns (uint256)",
+    "function facilitatorEarnings(address operator, address asset) view returns (uint256)",
+    "function x402SettlementNonces(bytes32 key) view returns (bool)",
+    "function x402NonceKey(address asset, address from, bytes32 nonce) pure returns (bytes32)",
+    "function setFacilitatorFeeBPS(uint256 _fee)",
+    "function setOperatorFacilitatorFee(address operator, uint256 _fee)",
+    "function withdrawFacilitatorEarnings(address asset)",
+    // M-1: settleX402Payment takes `maxFee` right after `amount` (9-arg form).
+    "function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) returns (bytes32)",
+    "function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature) returns (bytes32)",
   ],
 
   GTokenStaking: [
@@ -683,6 +694,13 @@ function getContracts(config, signerOrProvider) {
   // V5.3 contracts (optional — only present after V5.3 deployment)
   if (config.microPaymentChannel) {
     contracts.microPaymentChannel = new ethers.Contract(config.microPaymentChannel, ABI.MicroPaymentChannel, signerOrProvider);
+  }
+  // V5.4 god-split: x402 settlement layer is a standalone contract. Address sourced from
+  // config.x402Facilitator (deployments/config.sepolia.json) with an X402_FACILITATOR env
+  // override; only present after the v5.4 redeploy. Callers should null-check + SKIP.
+  const x402Addr = config.x402Facilitator || process.env.X402_FACILITATOR;
+  if (x402Addr) {
+    contracts.x402Facilitator = new ethers.Contract(x402Addr, ABI.X402Facilitator, signerOrProvider);
   }
   return contracts;
 }

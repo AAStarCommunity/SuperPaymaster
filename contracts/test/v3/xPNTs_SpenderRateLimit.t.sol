@@ -343,4 +343,104 @@ contract xPNTs_SpenderRateLimitTest is Test {
         vm.expectRevert();
         token.burn(user2, 1);
     }
+
+    // ==================================================================
+    // P0-12c: per-spender daily cap override (setSpenderDailyCapFor)
+    //   Motivation: after the v5.4 god-split, the standalone X402Facilitator
+    //   joins autoApprovedSpenders. Being newer / less-audited than SP, the
+    //   community can pin a TIGHTER daily cap on it than the SP-shared global.
+    // ==================================================================
+
+    /// @notice A non-zero override takes precedence over the global cap for that
+    ///         one spender, while a spender WITHOUT an override keeps the global.
+    function test_PerSpenderOverride_TighterThanGlobal() public {
+        // Global stays at the default 50_000 ether; pin facilitator to 1_000.
+        vm.prank(community);
+        token.setSpenderDailyCapFor(facilitator, 1_000 ether);
+        assertEq(token.spenderDailyCapOverride(facilitator), 1_000 ether);
+
+        // facilitator burns up to its OVERRIDE cap.
+        vm.prank(facilitator);
+        token.burn(user, 1_000 ether);
+
+        // One wei more busts the override (not the global 50k).
+        vm.prank(facilitator);
+        vm.expectRevert(
+            abi.encodeWithSelector(xPNTsToken.SpenderDailyCapExceeded.selector, facilitator, 1, 0)
+        );
+        token.burn(user2, 1);
+
+        // otherFacil (no override) still enjoys the full global 50_000 ether.
+        vm.prank(otherFacil);
+        token.burn(user3, 40_000 ether);
+        (uint128 otherTotal,,) = token.spenderRateLimit(otherFacil);
+        assertEq(otherTotal, 40_000 ether, "no-override spender uses global cap");
+    }
+
+    /// @notice override == 0 means "fall back to global", NOT "disable" — the
+    ///         disable path is removeAutoApprovedSpender, so the two never collide.
+    function test_PerSpenderOverride_ZeroFallsBackToGlobal() public {
+        vm.prank(community);
+        token.setSpenderDailyCapFor(facilitator, 1_000 ether);
+
+        // Clear it.
+        vm.prank(community);
+        token.setSpenderDailyCapFor(facilitator, 0);
+        assertEq(token.spenderDailyCapOverride(facilitator), 0);
+
+        // facilitator now uses the global 50_000 ether — a 40_000 burn succeeds.
+        vm.prank(facilitator);
+        token.burn(user, 40_000 ether);
+        (uint128 total,,) = token.spenderRateLimit(facilitator);
+        assertEq(total, 40_000 ether, "cleared override -> global cap");
+    }
+
+    /// @notice An override may also be set HIGHER than a tightened global
+    ///         (community's choice) — non-zero override always wins.
+    function test_PerSpenderOverride_CanBeLooserThanGlobal() public {
+        vm.prank(community);
+        token.setSpenderDailyCap(1_000 ether);          // tight global
+        vm.prank(community);
+        token.setSpenderDailyCapFor(facilitator, 10_000 ether); // looser override
+
+        // facilitator burns 10_000 (its override), exceeding the global 1_000.
+        vm.prank(facilitator);
+        token.burn(user, 10_000 ether);
+
+        // otherFacil (no override) is bound by the tight global 1_000.
+        vm.prank(otherFacil);
+        token.burn(user2, 1_000 ether);
+        vm.prank(otherFacil);
+        vm.expectRevert();
+        token.burn(user3, 1);
+    }
+
+    /// @notice Only communityOwner can set a per-spender override.
+    function test_PerSpenderOverride_OnlyCommunityOwner() public {
+        vm.prank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.Unauthorized.selector, attacker));
+        token.setSpenderDailyCapFor(facilitator, 1 ether);
+    }
+
+    /// @notice Zero-address spender is rejected.
+    function test_PerSpenderOverride_RejectsZeroAddress() public {
+        vm.prank(community);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.InvalidAddress.selector, address(0)));
+        token.setSpenderDailyCapFor(address(0), 1 ether);
+    }
+
+    /// @notice override > uint128.max reverts (same storage-type guard as global).
+    function test_PerSpenderOverride_RejectsAboveUint128Max() public {
+        vm.prank(community);
+        vm.expectRevert(xPNTsToken.SingleTxLimitExceeded.selector);
+        token.setSpenderDailyCapFor(facilitator, uint256(type(uint128).max) + 1);
+    }
+
+    /// @notice setSpenderDailyCapFor emits SpenderDailyCapForUpdated(spender,old,new).
+    function test_PerSpenderOverride_EmitsEvent() public {
+        vm.prank(community);
+        vm.expectEmit(true, false, false, true, address(token));
+        emit xPNTsToken.SpenderDailyCapForUpdated(facilitator, 0, 2_000 ether);
+        token.setSpenderDailyCapFor(facilitator, 2_000 ether);
+    }
 }

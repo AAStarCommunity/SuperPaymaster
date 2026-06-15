@@ -3,8 +3,10 @@
 import { Hono } from "hono";
 import { type Config } from "../lib/config.js";
 import { getPublicClient, getWalletClient, getAccount } from "../lib/chain.js";
-import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
+import { X402_FACILITATOR_ABI } from "../lib/contracts.js";
 import { validatePaymentFields, validateHex } from "../lib/validate.js";
+import { rejectUnsupportedScheme } from "../lib/scheme.js";
+import { buildEIP3009SettleArgs, buildDirectSettleArgs } from "../lib/settle-args.js";
 import type { SettleRequest, SettleResponse } from "../types.js";
 
 export function settleRoute(config: Config) {
@@ -21,6 +23,14 @@ export function settleRoute(config: Config) {
     const validationError = validatePaymentFields(body.payment);
     if (validationError) {
       return c.json({ success: false, error: validationError } satisfies SettleResponse, 400);
+    }
+
+    // Scheme routing must match verify.ts exactly: both routes funnel through the SAME shared
+    // guard (rejectUnsupportedScheme), so settle can never settle a scheme verify rejected.
+    // Only "direct" and "eip-3009" are settled; "permit2" and unknown schemes are rejected.
+    const schemeReason = rejectUnsupportedScheme(body.scheme);
+    if (schemeReason) {
+      return c.json({ success: false, error: schemeReason } satisfies SettleResponse, 400);
     }
 
     // Validate signature for non-direct schemes
@@ -47,19 +57,20 @@ export function settleRoute(config: Config) {
         // settleX402PaymentDirect — for xPNTs and pre-approved tokens
         const { request } = await publicClient.simulateContract({
           account: account,
-          address: config.superPaymasterAddress,
-          abi: SUPER_PAYMASTER_ABI,
+          address: config.x402FacilitatorAddress,
+          abi: X402_FACILITATOR_ABI,
           functionName: "settleX402PaymentDirect",
-          args: [
-            from as `0x${string}`,
-            to as `0x${string}`,
-            asset as `0x${string}`,
-            BigInt(amount),
-            BigInt(maxFee ?? amount), // C-02: fee cap; SDK supplies the signed maxFee
-            BigInt(validBefore),
-            nonce as `0x${string}`,
-            signature as `0x${string}`, // C-02: payer X402PaymentAuthorization signature
-          ],
+          // Arg order is locked in buildDirectSettleArgs + tested against the ABI.
+          args: buildDirectSettleArgs({
+            from: from as `0x${string}`,
+            to: to as `0x${string}`,
+            asset: asset as `0x${string}`,
+            amount: BigInt(amount),
+            maxFee: BigInt(maxFee ?? amount), // C-02: fee cap; SDK supplies the signed maxFee
+            validBefore: BigInt(validBefore),
+            nonce: nonce as `0x${string}`,
+            signature: signature as `0x${string}`, // C-02: payer X402PaymentAuthorization signature
+          }),
         });
 
         const txHash = await walletClient.writeContract(request);
@@ -75,19 +86,21 @@ export function settleRoute(config: Config) {
       // Default: EIP-3009 settlement
       const { request } = await publicClient.simulateContract({
         account: account,
-        address: config.superPaymasterAddress,
-        abi: SUPER_PAYMASTER_ABI,
+        address: config.x402FacilitatorAddress,
+        abi: X402_FACILITATOR_ABI,
         functionName: "settleX402Payment",
-        args: [
-          from as `0x${string}`,
-          to as `0x${string}`,
-          asset as `0x${string}`,
-          BigInt(amount),
-          BigInt(validAfter),
-          BigInt(validBefore),
-          salt as `0x${string}`, // C-03: on-chain nonce = keccak256(to, salt)
-          signature as `0x${string}`,
-        ],
+        // Arg order is locked in buildEIP3009SettleArgs + tested against the ABI.
+        args: buildEIP3009SettleArgs({
+          from: from as `0x${string}`,
+          to: to as `0x${string}`,
+          asset: asset as `0x${string}`,
+          amount: BigInt(amount),
+          maxFee: BigInt(maxFee ?? amount), // M-1: fee cap bound into nonce = keccak256(to, maxFee, salt)
+          validAfter: BigInt(validAfter),
+          validBefore: BigInt(validBefore),
+          salt: salt as `0x${string}`, // C-03/M-1: on-chain nonce = keccak256(to, maxFee, salt)
+          signature: signature as `0x${string}`,
+        }),
       });
 
       const txHash = await walletClient.writeContract(request);

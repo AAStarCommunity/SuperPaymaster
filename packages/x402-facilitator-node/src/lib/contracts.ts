@@ -1,16 +1,21 @@
 // Contract ABIs and interaction helpers
 //
 // @deprecated This in-repo facilitator node is superseded by the @aastar/x402 SDK.
-// The x402 settlement ABI below tracks SuperPaymaster's C-02/C-03 signature-required
-// settlement (commit d7df0c3e): settleX402PaymentDirect now needs the payer's EIP-712
-// X402PaymentAuthorization signature; settleX402Payment binds the recipient via
-// nonce = keccak256(to, salt). Full signing-flow integration lives in the SDK —
+// v5.4 god-split: x402 settlement moved OUT of SuperPaymaster into the standalone
+// X402Facilitator contract (contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol).
+// Function signatures are unchanged (moved verbatim) but the target address and the
+// EIP-712 domain are now the facilitator's: domain name = "X402Facilitator",
+// verifyingContract = the facilitator address.
+// The settlement ABI below tracks the C-02/C-03/M-1 signature-required settlement:
+// settleX402PaymentDirect needs the payer's EIP-712 X402PaymentAuthorization signature;
+// settleX402Payment binds the recipient AND fee cap via nonce = keccak256(to, maxFee, salt).
+// Full signing-flow integration lives in the SDK —
 // see https://github.com/AAStarCommunity/aastar-sdk/issues/39.
 
 import { type Abi } from "viem";
 
-// Minimal ABI for SuperPaymaster x402 functions
-export const SUPER_PAYMASTER_ABI = [
+// Minimal ABI for X402Facilitator x402 functions
+export const X402_FACILITATOR_ABI = [
   {
     name: "settleX402Payment",
     type: "function",
@@ -20,9 +25,11 @@ export const SUPER_PAYMASTER_ABI = [
       { name: "to", type: "address" },
       { name: "asset", type: "address" },
       { name: "amount", type: "uint256" },
+      // M-1: payer-approved fee cap, bound into nonce = keccak256(to, maxFee, salt).
+      { name: "maxFee", type: "uint256" },
       { name: "validAfter", type: "uint256" },
       { name: "validBefore", type: "uint256" },
-      // C-03: recipient bound via on-chain nonce = keccak256(to, salt). Pass `salt`.
+      // C-03/M-1: recipient + fee bound via on-chain nonce = keccak256(to, maxFee, salt). Pass `salt`.
       { name: "salt", type: "bytes32" },
       { name: "signature", type: "bytes" },
     ],
@@ -72,16 +79,9 @@ export const SUPER_PAYMASTER_ABI = [
   {
     name: "version",
     type: "function",
-    stateMutability: "view",
+    stateMutability: "pure",
     inputs: [],
     outputs: [{ name: "", type: "string" }],
-  },
-  {
-    name: "isEligibleForSponsorship",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ name: "", type: "bool" }],
   },
 ] as const satisfies Abi;
 

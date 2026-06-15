@@ -3,33 +3,26 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "src/paymasters/superpaymaster/v3/X402Facilitator.sol";
 import "src/core/Registry.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
+import "src/interfaces/IxPNTsFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /// @notice P0-12b (D4): each xPNTs token now carries a community-controlled
 ///         `approvedFacilitators` whitelist. Without this, a single global
 ///         facilitator compromise blasts across every community's xPNTs;
 ///         with it, a community can yank a compromised facilitator instantly
-///         without redeploying or upgrading SuperPaymaster. The whitelist is
+///         without redeploying or upgrading the facilitator. The whitelist is
 ///         orthogonal to `autoApprovedSpenders` (which is the ERC20
 ///         transferFrom firewall) — `approvedFacilitators` gates the
 ///         settle-call invocation, not allowance.
-contract MockEntryPoint {
-    function depositTo(address) external payable {}
-}
-
-contract MockOracle {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000e8, 0, block.timestamp, 1);
-    }
-    function decimals() external pure returns (uint8) { return 8; }
-}
-
+///
+/// @dev v5.4 god-split phase 1: retargeted from SuperPaymaster to the standalone
+///      X402Facilitator. The factory's auto-approved settler now points at
+///      X402Facilitator so the Direct-path transferFrom pulls into it.
 contract MockAPNTs is ERC20 {
     constructor() ERC20("aPNTs", "aPNTs") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
@@ -38,7 +31,7 @@ contract MockAPNTs is ERC20 {
 contract X402Direct_FacilitatorWhitelistTest is Test {
     using stdStorage for StdStorage;
 
-    SuperPaymaster paymaster;
+    X402Facilitator x402;
     Registry registry;
     xPNTsFactory factory;
     MockAPNTs apnts;
@@ -60,28 +53,19 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0xDEAD), address(0xBEEF));
         apnts = new MockAPNTs();
 
-        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(address(new MockEntryPoint())),
-            registry,
-            address(new MockOracle()),
-            owner,
-            address(apnts),
-            owner,
-            3600
-        );
-
-        factory = new xPNTsFactory(address(paymaster), address(registry));
-        paymaster.setXPNTsFactory(address(factory));
-
-        vm.warp(block.timestamp + 2 hours);
-        paymaster.updatePrice();
+        // Deploy factory first (SUPERPAYMASTER unset), then the facilitator, then point
+        // the factory's auto-approved settler at the facilitator so xPNTs deployed AFTER
+        // grant the transferFrom auto-allowance to X402Facilitator.
+        factory = new xPNTsFactory(address(0), address(registry));
+        x402 = new X402Facilitator(registry, IxPNTsFactory(address(factory)));
+        factory.setSuperPaymasterAddress(address(x402));
 
         // Grant `community` ROLE_COMMUNITY (so it can deploy via factory).
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
             .with_key(ROLE_COMMUNITY).with_key(community).checked_write(true);
 
         // Grant operator + otherOp ROLE_PAYMASTER_SUPER (global facilitator
-        // role at the SP layer; the per-token whitelist narrows further).
+        // role at the facilitator layer; the per-token whitelist narrows further).
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
             .with_key(ROLE_PAYMASTER_SUPER).with_key(operator).checked_write(true);
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
@@ -89,14 +73,10 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
         vm.stopPrank();
 
-        // Community deploys its xPNTs.
+        // Community deploys its xPNTs (auto-approves X402Facilitator as spender).
         vm.prank(community);
         address tokenAddr = factory.deployxPNTsToken("CPNTs", "cP", "C", "c.eth", 1 ether, address(0));
         token = xPNTsToken(tokenAddr);
-
-        // For settle-time `safeTransferFrom` to land we still need the SP to
-        // be allowed to move funds; the autoApproved spender added by the
-        // factory at deploy time covers that.
     }
 
     // -----------------------------------------------------------------------
@@ -116,10 +96,10 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("SuperPaymaster"),
+                keccak256("X402Facilitator"),
                 keccak256("1"),
                 block.chainid,
-                address(paymaster)
+                address(x402)
             )
         );
         bytes32 structHash = keccak256(
@@ -156,8 +136,8 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         token.mint(user, 100 ether);
 
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.Unauthorized.selector);
+        x402.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
 
         // Balance untouched — gate fired before transfer.
         assertEq(token.balanceOf(user), 100 ether);
@@ -177,14 +157,14 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
         // Community explicitly approves operator as facilitator.
         // The actual transferFrom inside settleX402PaymentDirect is executed by
-        // the SuperPaymaster contract (msg.sender = SP), which is already in
-        // autoApprovedSpenders via factory setup. The facilitator only needs
-        // to be in approvedFacilitators to pass the invocation gate.
+        // the X402Facilitator contract (msg.sender = facilitator contract), which is
+        // already in autoApprovedSpenders via factory setup. The facilitator operator
+        // only needs to be in approvedFacilitators to pass the invocation gate.
         vm.prank(community);
         token.addApprovedFacilitator(operator);
 
         vm.prank(operator);
-        bytes32 sid = paymaster.settleX402PaymentDirect(
+        bytes32 sid = x402.settleX402PaymentDirect(
             user, payee, address(token), amount, maxFee, validBefore, nonce, signature
         );
         assertTrue(sid != bytes32(0));
@@ -221,8 +201,8 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         tokenB.mint(user, 100 ether);
 
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(tokenB), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.Unauthorized.selector);
+        x402.settleX402PaymentDirect(user, payee, address(tokenB), amount, maxFee, validBefore, nonce, signature);
     }
 
     // -----------------------------------------------------------------------
@@ -230,7 +210,7 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
     // -----------------------------------------------------------------------
 
     function test_AddApprovedFacilitator_OnlyCommunity() public {
-        // Owner of SP cannot add — must be xPNTs communityOwner.
+        // Owner cannot add — must be xPNTs communityOwner.
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(xPNTsToken.Unauthorized.selector, owner));
         token.addApprovedFacilitator(operator);
@@ -290,7 +270,7 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
 
         // Works once.
         vm.prank(operator);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce1, signature1);
+        x402.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce1, signature1);
         assertTrue(token.approvedFacilitators(operator));
 
         // Community revokes.
@@ -301,8 +281,8 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         // Subsequent settle must revert immediately, even with the same
         // allowance + autoApproved spender state.
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce2, signature2);
+        vm.expectRevert(X402Facilitator.Unauthorized.selector);
+        x402.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce2, signature2);
     }
 
     function test_RemoveApprovedFacilitator_OnlyCommunity() public {
@@ -322,12 +302,13 @@ contract X402Direct_FacilitatorWhitelistTest is Test {
         // deployment. New community xPNTs must explicitly add facilitators.
         assertFalse(token.approvedFacilitators(owner), "owner should not be auto-approved");
         assertFalse(token.approvedFacilitators(operator), "operator should not be auto-approved");
-        assertFalse(token.approvedFacilitators(address(paymaster)), "SP should not be auto-approved");
+        assertFalse(token.approvedFacilitators(address(x402)), "facilitator contract should not be in the approvedFacilitators whitelist");
     }
 
     /// @notice Confirm facilitators do NOT get autoApprovedSpender — the two
-    ///         mappings are orthogonal. SP is already in autoApprovedSpenders
-    ///         (added by factory); facilitators only need approvedFacilitators.
+    ///         mappings are orthogonal. The X402Facilitator contract is already in
+    ///         autoApprovedSpenders (added by factory); facilitator operators only
+    ///         need approvedFacilitators.
     function test_AddApprovedFacilitator_DoesNotGrantAutoSpender() public {
         assertFalse(token.autoApprovedSpenders(operator));
         vm.prank(community);

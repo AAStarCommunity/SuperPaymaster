@@ -3,7 +3,7 @@
 import { Hono } from "hono";
 import { type Config } from "../lib/config.js";
 import { getPublicClient } from "../lib/chain.js";
-import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
+import { X402_FACILITATOR_ABI } from "../lib/contracts.js";
 import type { QuoteResponse } from "../types.js";
 
 export function quoteRoute(config: Config) {
@@ -14,8 +14,8 @@ export function quoteRoute(config: Config) {
       const client = getPublicClient();
 
       const feeBPS = await client.readContract({
-        address: config.superPaymasterAddress,
-        abi: SUPER_PAYMASTER_ABI,
+        address: config.x402FacilitatorAddress,
+        abi: X402_FACILITATOR_ABI,
         functionName: "facilitatorFeeBPS",
       }) as bigint;
 

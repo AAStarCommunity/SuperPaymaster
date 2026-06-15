@@ -30,6 +30,10 @@ async function main() {
   const deployerAddr = deployer.address;
   // All governance/admin functions are now in test-helpers ABI.SuperPaymaster
   const sp = c.superPaymaster;
+  // v5.4 god-split: x402 facilitator-fee admin (setFacilitatorFeeBPS / setOperatorFacilitatorFee /
+  // withdrawFacilitatorEarnings / facilitatorEarnings) moved to the standalone X402Facilitator.
+  // null until the v5.4 redeploy populates config.x402Facilitator / X402_FACILITATOR.
+  const x402 = c.x402Facilitator;
 
   // Optional: TEST_AA_ACCOUNT_ADDRESS_A from env, fallback to deployer
   const testUser = process.env.TEST_AA_ACCOUNT_ADDRESS_A || deployerAddr;
@@ -130,18 +134,20 @@ async function main() {
   // ──────────────────────────────────────────────────────────────
   printStep(5, 'setFacilitatorFeeBPS — set 100 (1%) + verify + restore');
   let currentFacFee = 0n;
-  try {
-    currentFacFee = await sp.facilitatorFeeBPS();
+  if (!x402) {
+    printSkip('X402Facilitator not configured (config.x402Facilitator / X402_FACILITATOR) — deploy v5.4 first');
+  } else try {
+    currentFacFee = await x402.facilitatorFeeBPS();
     printKeyValue('facilitatorFeeBPS before', currentFacFee.toString());
 
-    const receipt = await sendTxSafe(sp, 'setFacilitatorFeeBPS', [100n], 'setFacilitatorFeeBPS(100)');
+    const receipt = await sendTxSafe(x402, 'setFacilitatorFeeBPS', [100n], 'setFacilitatorFeeBPS(100)');
     if (receipt) {
-      const feeAfter = await sp.facilitatorFeeBPS();
+      const feeAfter = await x402.facilitatorFeeBPS();
       assertEqual(feeAfter, 100n, 'facilitatorFeeBPS == 100');
 
       // Restore
-      await sendTxSafe(sp, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
-      const feeRestored = await sp.facilitatorFeeBPS();
+      await sendTxSafe(x402, 'setFacilitatorFeeBPS', [currentFacFee], 'setFacilitatorFeeBPS(restore)', { critical: false });
+      const feeRestored = await x402.facilitatorFeeBPS();
       assertEqual(feeRestored, currentFacFee, 'facilitatorFeeBPS restored');
     }
   } catch (e) {
@@ -153,26 +159,28 @@ async function main() {
   // ──────────────────────────────────────────────────────────────
   printStep(6, 'setOperatorFacilitatorFee — set 50 + verify + restore');
   let currentOpFacFee = 0n;
-  try {
-    currentOpFacFee = await sp.operatorFacilitatorFees(deployerAddr);
+  if (!x402) {
+    printSkip('X402Facilitator not configured (config.x402Facilitator / X402_FACILITATOR) — deploy v5.4 first');
+  } else try {
+    currentOpFacFee = await x402.operatorFacilitatorFees(deployerAddr);
     printKeyValue('operatorFacilitatorFees(deployer) before', currentOpFacFee.toString());
 
     const receipt = await sendTxSafe(
-      sp, 'setOperatorFacilitatorFee',
+      x402, 'setOperatorFacilitatorFee',
       [deployerAddr, 50n],
       'setOpFacFee(50)'
     );
     if (receipt) {
-      const opFeeAfter = await sp.operatorFacilitatorFees(deployerAddr);
+      const opFeeAfter = await x402.operatorFacilitatorFees(deployerAddr);
       assertEqual(opFeeAfter, 50n, 'operatorFacilitatorFees(deployer) == 50');
 
       // Restore
       await sendTxSafe(
-        sp, 'setOperatorFacilitatorFee',
+        x402, 'setOperatorFacilitatorFee',
         [deployerAddr, currentOpFacFee],
         'setOpFacFee(restore)'
       );
-      const opFeeRestored = await sp.operatorFacilitatorFees(deployerAddr);
+      const opFeeRestored = await x402.operatorFacilitatorFees(deployerAddr);
       assertEqual(opFeeRestored, currentOpFacFee, 'operatorFacilitatorFees restored');
     }
   } catch (e) {
@@ -307,18 +315,20 @@ async function main() {
   // Step 10: withdrawFacilitatorEarnings — check + withdraw if available
   // ──────────────────────────────────────────────────────────────
   printStep(10, 'withdrawFacilitatorEarnings — check earnings + withdraw if available');
-  try {
-    const earnings = await sp.facilitatorEarnings(deployerAddr, config.aPNTs);
+  if (!x402) {
+    printSkip('X402Facilitator not configured (config.x402Facilitator / X402_FACILITATOR) — deploy v5.4 first');
+  } else try {
+    const earnings = await x402.facilitatorEarnings(deployerAddr, config.aPNTs);
     printKeyValue(`facilitatorEarnings(deployer, aPNTs)`, ethers.formatEther(earnings));
 
     if (earnings > 0n) {
       const receipt = await sendTxSafe(
-        sp, 'withdrawFacilitatorEarnings',
+        x402, 'withdrawFacilitatorEarnings',
         [config.aPNTs],
         'withdraw facilitator earnings'
       );
       if (receipt) {
-        const earningsAfter = await sp.facilitatorEarnings(deployerAddr, config.aPNTs);
+        const earningsAfter = await x402.facilitatorEarnings(deployerAddr, config.aPNTs);
         assertTrue(earningsAfter < earnings, 'facilitatorEarnings decreased after withdrawal');
       }
     } else {

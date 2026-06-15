@@ -3,9 +3,10 @@
 import { Hono } from "hono";
 import { type Config } from "../lib/config.js";
 import { getPublicClient } from "../lib/chain.js";
-import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
-import { verifyEIP3009Signature } from "../lib/verify-sig.js";
+import { X402_FACILITATOR_ABI } from "../lib/contracts.js";
+import { verifyEIP3009Signature, verifyX402AuthSignature, computeX402NonceKey, computeEIP3009Nonce } from "../lib/verify-sig.js";
 import { validatePaymentFields, validateHex } from "../lib/validate.js";
+import { rejectUnsupportedScheme } from "../lib/scheme.js";
 import type { VerifyRequest, VerifyResponse } from "../types.js";
 
 export function verifyRoute(config: Config) {
@@ -26,26 +27,77 @@ export function verifyRoute(config: Config) {
 
     const { from, to, asset, amount, nonce, validAfter, validBefore, signature } = body.payment;
 
-    // Only support EIP-3009 and direct for now
-    if (body.scheme === "permit2") {
-      return c.json({ valid: false, reason: "Permit2 scheme not yet supported in verify" } satisfies VerifyResponse, 400);
+    // Scheme routing uses the SAME shared guard as settle.ts so the two paths cannot diverge.
+    // Only "eip-3009" and "direct" are supported; "permit2" and unknown schemes are rejected.
+    const schemeReason = rejectUnsupportedScheme(body.scheme);
+    if (schemeReason) {
+      return c.json({ valid: false, reason: schemeReason } satisfies VerifyResponse, 400);
     }
 
-    // Check nonce replay on-chain
-    const client = getPublicClient();
-    const nonceUsed = await client.readContract({
-      address: config.superPaymasterAddress,
-      abi: SUPER_PAYMASTER_ABI,
-      functionName: "x402SettlementNonces",
-      args: [nonce],
-    });
+    // C-02/C-03/M-1: maxFee and salt are read with the SAME fallbacks settle.ts uses, so the
+    // off-chain check is byte-identical to what settle.ts submits and the contract enforces.
+    const maxFee = (body.payment as { maxFee?: string | number | bigint }).maxFee;
+    const salt = (body.payment as { salt?: `0x${string}` }).salt ?? nonce;
 
-    if (nonceUsed) {
+    // Derive the EFFECTIVE on-chain nonce per scheme, identically to settle.ts + the contract:
+    //   - direct:   X402PaymentAuthorization nonce is used raw (settle passes `nonce`; the
+    //               contract keys replay/signature on it directly).
+    //   - eip-3009: the token-level nonce is keccak256(to, maxFee, salt) — settle passes `salt`
+    //               and the contract derives it (X402Facilitator.settleX402Payment), so the
+    //               payer's EIP-3009 signature and the replay slot are BOTH keyed on this
+    //               derived value, NOT on the raw request `nonce`. Mirror that derivation here.
+    const effectiveNonce =
+      body.scheme === "direct"
+        ? nonce
+        : computeEIP3009Nonce(to, BigInt(maxFee ?? amount), salt);
+
+    // Check nonce replay on-chain (X402Facilitator post v5.4 god-split).
+    // The contract records spent nonces at the (asset, from, nonce) TRIPLE key
+    // (x402SettlementNonces[keccak256(abi.encode(asset, from, nonce))]), and only checks
+    // the raw nonce slot for legacy pre-V5.4 entries. We mirror BOTH lookups against the
+    // EFFECTIVE nonce so a replay is detected exactly when
+    // X402Facilitator._validateX402AndComputeFee would revert NonceAlreadyUsed.
+    const client = getPublicClient();
+    const nonceKey = computeX402NonceKey(asset, from, effectiveNonce);
+    const [keyUsed, legacyUsed] = await Promise.all([
+      client.readContract({
+        address: config.x402FacilitatorAddress,
+        abi: X402_FACILITATOR_ABI,
+        functionName: "x402SettlementNonces",
+        args: [nonceKey],
+      }),
+      client.readContract({
+        address: config.x402FacilitatorAddress,
+        abi: X402_FACILITATOR_ABI,
+        functionName: "x402SettlementNonces",
+        args: [effectiveNonce],
+      }),
+    ]);
+
+    if (keyUsed || legacyUsed) {
       return c.json({ valid: false, reason: "Nonce already used" } satisfies VerifyResponse, 400);
     }
 
     if (body.scheme === "direct") {
-      // Direct scheme: no signature to verify, just validate params
+      // Direct scheme (xPNTs): payer must sign an X402PaymentAuthorization bound to the
+      // X402Facilitator EIP-712 domain. C-02: verify it off-chain before settle.
+      const directResult = await verifyX402AuthSignature({
+        from,
+        to,
+        asset,
+        amount: BigInt(amount),
+        maxFee: BigInt(maxFee ?? amount),
+        validBefore: BigInt(validBefore),
+        nonce,
+        signature,
+        chainId: config.chainId,
+        facilitatorAddress: config.x402FacilitatorAddress,
+      });
+
+      if (!directResult.valid) {
+        return c.json({ valid: false, reason: directResult.reason } satisfies VerifyResponse, 400);
+      }
+
       return c.json({
         valid: true,
         payer: from,
@@ -54,14 +106,16 @@ export function verifyRoute(config: Config) {
       } satisfies VerifyResponse);
     }
 
-    // EIP-3009: verify signature off-chain
+    // EIP-3009: verify signature off-chain. v5.4 god-split: the receiveWithAuthorization
+    // recipient (value.to) is the X402Facilitator contract, which pulls USDC in before
+    // forwarding to the final recipient.
     const result = await verifyEIP3009Signature({
       from,
-      to: config.superPaymasterAddress, // USDC goes to SuperPaymaster first
+      to: config.x402FacilitatorAddress, // USDC goes to X402Facilitator first
       amount: BigInt(amount),
       validAfter: BigInt(validAfter),
       validBefore: BigInt(validBefore),
-      nonce,
+      nonce: effectiveNonce, // token nonce = keccak256(to, maxFee, salt), as the contract derives
       signature,
       chainId: config.chainId,
       usdcAddress: config.usdcAddress,

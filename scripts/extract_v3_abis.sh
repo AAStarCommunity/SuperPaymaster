@@ -17,6 +17,7 @@ mkdir -p "$OUTPUT_DIR"
 CONTRACTS=(
     "Registry"
     "SuperPaymaster"
+    "X402Facilitator"
     "GToken"
     "GTokenStaking"
     "MySBT"

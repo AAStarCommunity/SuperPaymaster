@@ -3,13 +3,16 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "src/paymasters/superpaymaster/v3/X402Facilitator.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/IxPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
-import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+
+// v5.4 god-split phase 1: retargeted from SuperPaymaster to the standalone
+// X402Facilitator. The xPNTs auto-allowance now points at X402Facilitator.
 
 contract C02Registry {
     mapping(bytes32 => mapping(address => bool)) public roles;
@@ -27,26 +30,10 @@ contract C02Registry {
     }
 }
 
-contract C02EntryPoint {}
-
-contract C02PriceFeed {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000 * 1e8, 0, block.timestamp, 1);
-    }
-
-    function decimals() external pure returns (uint8) {
-        return 8;
-    }
-}
-
-contract C02APNTs is ERC20 {
-    constructor() ERC20("aPNTs", "aPNT") {}
-}
-
 contract PoC_C02_UnsignedDrain_Test is Test {
     using Clones for address;
 
-    SuperPaymaster public paymaster;
+    X402Facilitator public x402;
     C02Registry public registry;
     xPNTsToken public xpnts;
 
@@ -63,30 +50,20 @@ contract PoC_C02_UnsignedDrain_Test is Test {
         vm.startPrank(owner);
 
         registry = new C02Registry();
-        C02EntryPoint entryPoint = new C02EntryPoint();
-        C02PriceFeed priceFeed = new C02PriceFeed();
-        C02APNTs apnts = new C02APNTs();
+        MockXPNTsFactory mockFactory = new MockXPNTsFactory();
 
-        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(address(entryPoint)),
-            IRegistry(address(registry)),
-            address(priceFeed),
-            owner,
-            address(apnts),
-            treasury,
-            3600
-        );
+        x402 = new X402Facilitator(IRegistry(address(registry)), IxPNTsFactory(address(mockFactory)));
 
         address xImpl = address(new xPNTsToken());
         xpnts = xPNTsToken(xImpl.clone());
         xpnts.initialize("Community Points", "xPNT", owner, "Community", "community.eth", 1e18);
-        xpnts.setSuperPaymasterAddress(address(paymaster));
+        // Point the xPNTs auto-allowance at the facilitator contract so the Direct-path
+        // transferFrom (executed by X402Facilitator) lands.
+        xpnts.setSuperPaymasterAddress(address(x402));
         xpnts.addApprovedFacilitator(facilitator);
         xpnts.mint(victim, 1_000 ether);
 
-        MockXPNTsFactory mockFactory = new MockXPNTsFactory();
-        paymaster.setXPNTsFactory(address(mockFactory));
-        paymaster.setOperatorFacilitatorFee(facilitator, 100);
+        x402.setOperatorFacilitatorFee(facilitator, 100);
         registry.setRole(C02_ROLE_PAYMASTER_SUPER, facilitator, true);
 
         vm.stopPrank();
@@ -105,10 +82,10 @@ contract PoC_C02_UnsignedDrain_Test is Test {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("SuperPaymaster"),
+                keccak256("X402Facilitator"),
                 keccak256("1"),
                 block.chainid,
-                address(paymaster)
+                address(x402)
             )
         );
         bytes32 structHash = keccak256(
@@ -140,8 +117,8 @@ contract PoC_C02_UnsignedDrain_Test is Test {
         uint256 payeeBefore = xpnts.balanceOf(legitimatePayee);
 
         vm.prank(facilitator);
-        vm.expectRevert(SuperPaymaster.InvalidX402Signature.selector);
-        paymaster.settleX402PaymentDirect(
+        vm.expectRevert(X402Facilitator.InvalidX402Signature.selector);
+        x402.settleX402PaymentDirect(
             victim, legitimatePayee, address(xpnts), amount, maxFee, validBefore, nonce, ""
         );
 
@@ -161,7 +138,7 @@ contract PoC_C02_UnsignedDrain_Test is Test {
         uint256 victimBefore = xpnts.balanceOf(victim);
 
         vm.prank(facilitator);
-        bytes32 settlementId = paymaster.settleX402PaymentDirect(
+        bytes32 settlementId = x402.settleX402PaymentDirect(
             victim, legitimatePayee, address(xpnts), amount, maxFee, validBefore, nonce, signature
         );
 
