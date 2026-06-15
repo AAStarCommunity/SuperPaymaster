@@ -3,11 +3,16 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "src/paymasters/superpaymaster/v3/X402Facilitator.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/IxPNTsFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+
+// v5.4 god-split phase 1: retargeted from SuperPaymaster to the standalone
+// X402Facilitator. The EIP-3009 settle path does not touch the factory; a
+// non-zero factory is supplied only to satisfy the constructor.
 
 contract C03Registry {
     mapping(bytes32 => mapping(address => bool)) public roles;
@@ -23,22 +28,6 @@ contract C03Registry {
     function getCreditLimit(address) external pure returns (uint256) {
         return 0;
     }
-}
-
-contract C03EntryPoint {}
-
-contract C03PriceFeed {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000 * 1e8, 0, block.timestamp, 1);
-    }
-
-    function decimals() external pure returns (uint8) {
-        return 8;
-    }
-}
-
-contract C03APNTs is ERC20 {
-    constructor() ERC20("aPNTs", "aPNT") {}
 }
 
 contract MockERC20WithAuthorization is ERC20 {
@@ -152,7 +141,7 @@ contract MockERC20WithAuthorization is ERC20 {
 }
 
 contract PoC_C03_RecipientRedirect_Test is Test {
-    SuperPaymaster public paymaster;
+    X402Facilitator public x402;
     C03Registry public registry;
     MockERC20WithAuthorization public asset;
 
@@ -170,22 +159,12 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         vm.startPrank(owner);
 
         registry = new C03Registry();
-        C03EntryPoint entryPoint = new C03EntryPoint();
-        C03PriceFeed priceFeed = new C03PriceFeed();
-        C03APNTs apnts = new C03APNTs();
+        MockXPNTsFactory mockFactory = new MockXPNTsFactory();
         asset = new MockERC20WithAuthorization();
 
-        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(address(entryPoint)),
-            IRegistry(address(registry)),
-            address(priceFeed),
-            owner,
-            address(apnts),
-            treasury,
-            3600
-        );
+        x402 = new X402Facilitator(IRegistry(address(registry)), IxPNTsFactory(address(mockFactory)));
 
-        paymaster.setOperatorFacilitatorFee(facilitator, 0);
+        x402.setOperatorFacilitatorFee(facilitator, 0);
         registry.setRole(C03_ROLE_PAYMASTER_SUPER, facilitator, true);
         asset.mint(victim, 1_000 ether);
 
@@ -214,11 +193,11 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         bytes32 salt = bytes32(uint256(0xC03));
         bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, maxFee, salt));
         bytes memory signature =
-            _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
+            _signEIP3009(victimKey, victim, address(x402), amount, validAfter, validBefore, expectedNonce);
 
         vm.prank(facilitator);
         vm.expectRevert("bad signature");
-        paymaster.settleX402Payment(
+        x402.settleX402Payment(
             victim,
             attackerRecipient,
             address(asset),
@@ -243,10 +222,10 @@ contract PoC_C03_RecipientRedirect_Test is Test {
         bytes32 salt = bytes32(uint256(0xC0302));
         bytes32 expectedNonce = keccak256(abi.encode(expectedRecipient, maxFee, salt));
         bytes memory signature =
-            _signEIP3009(victimKey, victim, address(paymaster), amount, validAfter, validBefore, expectedNonce);
+            _signEIP3009(victimKey, victim, address(x402), amount, validAfter, validBefore, expectedNonce);
 
         vm.prank(facilitator);
-        bytes32 settlementId = paymaster.settleX402Payment(
+        bytes32 settlementId = x402.settleX402Payment(
             victim,
             expectedRecipient,
             address(asset),
