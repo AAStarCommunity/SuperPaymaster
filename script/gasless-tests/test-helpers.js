@@ -181,15 +181,16 @@ const ABI = {
     "function getSlashCount(address operator) view returns (uint256)",
     "function getSlashHistory(address operator) view returns (tuple(uint256 timestamp, uint256 amount, uint256 reputationLoss, string reason, uint8 level)[])",
     "function updateReputation(address operator, uint256 newScore)",
-    // V5.3: Agent Sponsorship
+    // V5.3: Agent Sponsorship (dual-channel: SBT OR registered agent NFT).
+    // NOTE: the tiered AgentSponsorshipPolicy F1 design (getAgentSponsorshipRate /
+    // setAgentPolicies / agentPolicies) was a V5.3 worktree experiment that was
+    // NEVER merged into the deployed SuperPaymaster — those selectors do not exist
+    // on-chain, so they are intentionally absent from this ABI.
     "function agentIdentityRegistry() view returns (address)",
     "function agentReputationRegistry() view returns (address)",
     "function isEligibleForSponsorship(address user) view returns (bool)",
     "function isRegisteredAgent(address account) view returns (bool)",
-    "function getAgentSponsorshipRate(address agent, address operator) view returns (uint256 bps)",
-    "function setAgentPolicies(tuple(uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)[] policies)",
     "function setAgentRegistries(address identity, address reputation)",
-    "function agentPolicies(address operator, uint256 index) view returns (uint128 minReputationScore, uint64 sponsorshipBPS, uint64 maxDailyUSD)",
     // V5.4 god-split: the x402 Facilitator layer (facilitatorFeeBPS / operatorFacilitatorFees /
     // facilitatorEarnings / settleX402* / set*/withdraw*) was extracted out of SuperPaymaster
     // into the standalone X402Facilitator contract — see the X402Facilitator ABI below.

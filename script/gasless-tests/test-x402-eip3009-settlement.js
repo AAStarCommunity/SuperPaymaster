@@ -103,6 +103,11 @@ async function main() {
   console.log(`  Payee: ${payee}`);
   console.log();
 
+  // Function-level failure flag: ANY assertion or replay-check failure flips it,
+  // and main() exits non-zero at the end. Without this, the script printed FAIL
+  // lines but still ran to completion and exited 0 (false-green).
+  let failed = false;
+
   // Step 1: Check USDC balance
   console.log('📊 Step 1: Check USDC Balance');
   const decimals = await usdc.decimals();
@@ -233,6 +238,8 @@ async function main() {
     }
     if (pass) {
       console.log('  ✅ All assertions passed!');
+    } else {
+      failed = true;
     }
 
     // Step 6: Test replay protection
@@ -244,6 +251,7 @@ async function main() {
         validAfter, validBefore, salt, signature
       );
       console.log('  ❌ FAIL: Replay should have reverted!');
+      failed = true;
     } catch (e) {
       console.log('  ✅ Replay correctly rejected');
     }
@@ -253,6 +261,13 @@ async function main() {
     if (err.data) {
       console.log(`  Error data: ${err.data}`);
     }
+    process.exit(1);
+  }
+
+  if (failed) {
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║              Test FAILED — one or more assertions         ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝');
     process.exit(1);
   }
 

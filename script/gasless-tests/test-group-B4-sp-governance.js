@@ -232,9 +232,12 @@ async function main() {
       if (ok) {
         printSuccess('dryRunValidation returned ok=true (validation would pass)');
       } else {
-        // Not a test failure — just report the reason code for diagnostic purposes
-        printInfo(`dryRunValidation returned ok=false, reasonCode=${reasonCode}`);
-        printSuccess('dryRunValidation staticCall completed without revert');
+        // FALSE-GREEN FIX: ok=false means validation would NOT pass for this minimal
+        // (unsigned, empty-callData) UserOp. It is the expected result here, but it is
+        // NOT a positive assertion — counting it as PASS inflated the pass count and
+        // masked the fact that nothing was actually verified. Report it as a SKIP with
+        // the reason code instead, so it neither falsely passes nor falsely fails.
+        printSkip(`dryRunValidation returned ok=false (reasonCode=${reasonCode}) — minimal UserOp not expected to validate; not asserting`);
       }
     } catch (innerErr) {
       // dryRunValidation is a `view` that RETURNS (ok, reasonCode) — it should not
