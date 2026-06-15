@@ -11,11 +11,18 @@
 //   - SuperPaymaster contracts/src/utils/BLS.sol  (on-chain hash_to_field, step 1)
 //   - YetAnotherAA-Validator src/utils/bls.util.ts (BLS_DST, bls.G2.hashToCurve)
 //
-// SuperPaymaster's cancun EVM has NO EIP-2537 precompiles, so BLS.sol can only
-// compute step 1 of hash-to-curve (hash_to_field -> two Fp2 elements). It cannot
-// run map_to_curve / clear_cofactor. Therefore the cross-repo golden surface that
-// SP can verify on-chain is the (u0, u1) hash_to_field output — that is what this
-// script freezes and what contracts/test/modules/BLSGoldenVectors.t.sol asserts.
+// TWO golden layers (Blocker-2 resolution, #283 / #42):
+//   1. (u0, u1) = hash_to_field(msg, DST, 2)  — step 1. SuperPaymaster's cancun EVM
+//      has NO EIP-2537 precompiles, so BLS.sol can only compute this. SP CI asserts
+//      it (contracts/test/modules/BLSGoldenVectors.t.sol).
+//   2. g2Affine = full G2 point (x, y) after map_to_curve + clear_cofactor — step 2.
+//      SP cannot compute this on-chain, but YetAnotherAA-Validator uses noble v2,
+//      which does NOT expose hash_to_field and can only produce this full point.
+//      So the validator CI asserts g2Affine.
+//   Both layers come from the SAME noble v1.2.0 reference and the SAME DST, so they
+//   are equivalent evidence (g2Affine == step2(u0,u1)) and cross-version-consistent
+//   with the validator's noble v2 (RFC-9380 is a fixed standard). Neither side has to
+//   reimplement the other's layer: SP keeps (u0,u1), the validator keeps g2Affine.
 //
 // Reference impl: @noble/curves v1.2.0 (bls12_381 / hash_to_field).
 //   The same noble version is vendored in the repo node_modules, so this is
@@ -65,12 +72,27 @@ const vectors = MESSAGES.map(([label, msg]) => {
   const u0c1 = fpSplit(u[0][1]);
   const u1c0 = fpSplit(u[1][0]);
   const u1c1 = fpSplit(u[1][1]);
+
+  // FULL G2 point — step 2 (map_to_curve + clear_cofactor) applied to (u0,u1).
+  // SuperPaymaster CANNOT compute this on-chain (cancun lacks EIP-2537), but the
+  // YetAnotherAA-Validator side (noble v2, which does NOT expose hash_to_field)
+  // CAN only produce this full point. So we emit BOTH layers from the same noble
+  // v1.2.0 reference: SP CI asserts (u0,u1); the validator CI asserts the affine
+  // G2 (x,y). Same DST + same RFC-9380 standard => the two layers are equivalent
+  // evidence and cross-version-consistent (v1.2.0 here vs v2 there).
+  const aff = bls12_381.G2.hashToCurve(msg, { DST }).toAffine();
+  const g2 = {
+    x: { c0: fpSplit(aff.x.c0), c1: fpSplit(aff.x.c1) },
+    y: { c0: fpSplit(aff.y.c0), c1: fpSplit(aff.y.c1) },
+  };
+
   return {
     label,
     msgHex: "0x" + Buffer.from(msg).toString("hex"),
     msgLen: msg.length,
     u0: { c0: u0c0, c1: u0c1 },
     u1: { c0: u1c0, c1: u1c1 },
+    g2Affine: g2,
   };
 });
 

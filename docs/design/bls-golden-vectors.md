@@ -46,6 +46,31 @@ Each `Fp` coordinate is a 48-byte big-endian value. In the `BLS.Fp` struct it is
 split into `a` (upper 32 bytes; the top 16 bytes are always zero) and `b` (lower
 32 bytes).
 
+## 2b. Two golden layers — cross-repo equivalence (Blocker-2 resolution)
+
+YetAnotherAA-Validator runs off-chain on **noble v2**, which does **not** expose
+`hash_to_field` and can only produce the **full G2 point** (after `map_to_curve` +
+`clear_cofactor`). SuperPaymaster is the inverse: on cancun it can ONLY produce
+`(u0, u1)`. The two sides verify at **different layers** — that is intrinsic to the
+environments, not a defect, and forcing a byte-for-byte match at one shared layer
+would mean one side reimplementing the other's missing half.
+
+**Resolution (SP authority, #283/#42): SuperPaymaster ACCEPTS the full G2 point as
+equivalent evidence.** The generator therefore emits BOTH layers from the same
+noble **v1.2.0** reference and the same DST:
+
+| Layer | Field | Verified by | Notes |
+|---|---|---|---|
+| step 1 | `u0`, `u1` | SuperPaymaster on-chain (`BLSGoldenVectors.t.sol`) | all SP can compute on cancun |
+| step 2 | `g2Affine.{x,y}.{c0,c1}` | YetAnotherAA-Validator off-chain (noble v2) | full point; what noble v2 can produce |
+
+Because `g2Affine == step2(u0, u1)` for the same `(msg, DST)` and RFC-9380 is a
+fixed standard, the two layers are **equivalent evidence** and the v1.2.0-vs-v2
+cross-version match IS the cross-implementation consistency proof. **Neither side
+must reimplement the other's layer** — the validator does NOT need to backport an
+RFC-9380 `hash_to_field` extraction. The full machine-readable set (both layers,
+all 5 vectors) is committed at [`bls-golden-vectors.json`](./bls-golden-vectors.json).
+
 ## 3. The vector set
 
 5 messages (canonical + 4 edge cases). Full `(u0, u1)` values are hard-coded in
