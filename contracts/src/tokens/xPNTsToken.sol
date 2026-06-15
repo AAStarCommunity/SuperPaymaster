@@ -138,6 +138,16 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @dev    Default 50_000 ether (~$1000 at $0.02/xPNTs). Community owner can adjust.
     uint256 public spenderDailyCapTokens;
 
+    /// @notice P0-12c: optional per-spender override of `spenderDailyCapTokens`.
+    /// @dev    0 = no override (the spender falls back to the global cap). Lets a
+    ///         community pin a TIGHTER daily cap on a specific autoApproved spender —
+    ///         e.g. the standalone X402Facilitator, a newer / less-audited contract
+    ///         than the core SuperPaymaster — without lowering the global cap the SP
+    ///         burn path relies on. communityOwner-only. To fully disable a single
+    ///         spender, use `removeAutoApprovedSpender` (0 here means "fall back",
+    ///         not "disable", so the two semantics never collide).
+    mapping(address => uint256) public spenderDailyCapOverride;
+
     /// @notice P1-17: opHash replay guard for the recordDebt fallback path.
     ///         Prevents double-debt when the burnFromWithOpHash path fails
     ///         (e.g. insufficient balance) and recordDebtWithOpHash is called
@@ -179,6 +189,7 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event EmergencyDisabledCleared(address indexed by);
     /// @notice P0-8: emitted when the per-spender daily burn cap is updated.
     event SpenderDailyCapUpdated(uint256 oldCap, uint256 newCap);
+    event SpenderDailyCapForUpdated(address indexed spender, uint256 oldCap, uint256 newCap);
     /// @notice P0-8: emitted when a spender's daily window rolls over and counter resets.
     event SpenderRateLimitWindowReset(address indexed spender, uint64 newWindowStart);
     event FacilitatorApproved(address indexed facilitator);
@@ -738,6 +749,24 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         emit SpenderDailyCapUpdated(oldCap, newCap);
     }
 
+    /// @notice P0-12c: pin a per-spender daily burn cap that overrides the global
+    ///         `spenderDailyCapTokens` for one autoApproved spender.
+    /// @dev    Community-owner only. Intended to give a newer / less-audited
+    ///         autoApproved spender (e.g. the standalone X402Facilitator) a TIGHTER
+    ///         daily cap than the SP-shared global, shrinking the worst-case drain if
+    ///         that spender is compromised. `newCap == 0` clears the override (the
+    ///         spender reverts to the global cap); it does NOT disable the spender —
+    ///         use `removeAutoApprovedSpender` for that. Same uint128 ceiling as the
+    ///         global setter (storage type of `SpenderRateLimit.dailyBurnTotal`).
+    function setSpenderDailyCapFor(address spender, uint256 newCap) external {
+        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
+        if (spender == address(0)) revert InvalidAddress(spender);
+        if (newCap > type(uint128).max) revert SingleTxLimitExceeded();
+        uint256 oldCap = spenderDailyCapOverride[spender];
+        spenderDailyCapOverride[spender] = newCap;
+        emit SpenderDailyCapForUpdated(spender, oldCap, newCap);
+    }
+
     /// @dev P0-8: rolling 24-hour window per spender. Resets `dailyBurnTotal`
     ///      when the previous window has expired, then enforces the cap.
     ///      Self-burn (msg.sender == from) is NOT routed through here —
@@ -769,7 +798,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
         // newCap <= type(uint128).max, and MAX_SINGLE_TX_LIMIT = 5_000 ether
         // means a single call cannot push newTotal above uint128.max.
         uint256 newTotal = uint256(rl.dailyBurnTotal) + amount;
-        uint256 cap = spenderDailyCapTokens;
+        // P0-12c: a non-zero per-spender override takes precedence over the global
+        // cap — lets the community pin a tighter limit on a specific autoApproved
+        // spender (e.g. X402Facilitator) than the SP-shared global default.
+        uint256 cap = spenderDailyCapOverride[spender];
+        if (cap == 0) cap = spenderDailyCapTokens;
         if (newTotal > cap) {
             revert SpenderDailyCapExceeded(
                 spender,
@@ -808,10 +841,15 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
      *         A facilitator that is not in this set will be rejected by
      *         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.
      * @dev    Role separation: `approvedFacilitators` gates settle-call invocation
-     *         only. The actual `transferFrom` inside `settleX402PaymentDirect` is
-     *         executed by the SuperPaymaster contract (msg.sender = SP), which is
-     *         already in `autoApprovedSpenders` via factory setup. Facilitators do
-     *         NOT need to be in `autoApprovedSpenders` for the settle flow to work.
+     *         only — it is NOT the allowance grant. Since v5.4 god-split, x402 lives
+     *         in the standalone `X402Facilitator` contract, so the `transferFrom`
+     *         inside `settleX402PaymentDirect` runs with `msg.sender = X402Facilitator`
+     *         (not SP). The facilitator therefore MUST also be in `autoApprovedSpenders`
+     *         to pull `from`'s xPNTs, and is bound by the same firewall (can only pull
+     *         to itself, single-tx limit, emergencyDisabled, and the per-spender daily
+     *         cap — `setSpenderDailyCapFor` can pin it tighter than the SP-shared
+     *         global). The two whitelists are complementary: `approvedFacilitators`
+     *         authorises the settle call, `autoApprovedSpenders` authorises the pull.
      * @dev SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).
      *      A compromised single-EOA communityOwner can add arbitrary facilitators,
      *      enabling unauthorized token extraction. This contract cannot enforce
