@@ -164,6 +164,28 @@ Rate changes are infrequent, deliberate, pre-announced economic decisions — tr
 governance actions, not admin switches. This is both correct decentralization and the de-facto
 mitigation for audit H-6 (#208): no rate change is ever one person's instant decision.
 
+### On-chain guardrails already bounding H-6 (#208 — accepted as mitigated, v5.4)
+
+Beyond the social governance flow above, `xPNTsToken.updateExchangeRate` enforces **contract-level**
+limits that cap the worst-case of a compromised / colluding owner racing the validate→postOp window:
+
+- **±20% per-update drift cap** (`EXCHANGE_RATE_DELTA_BPS = 2000`) — a single update can move the rate
+  at most 20% in either direction.
+- **1-hour cooldown** (`EXCHANGE_RATE_COOLDOWN`) — consecutive updates are rate-limited, so the delta
+  cap cannot be compounded rapidly.
+- **Absolute MIN/MAX** (`EXCHANGE_RATE_MIN = 1e14` .. `EXCHANGE_RATE_MAX = 1e22`).
+- **User-signed slippage ceiling** — `validatePaymasterUserOp` already rejects any op where the live
+  `exchangeRate() > maxRate` (the cap the user signed in `paymasterAndData`). A user is never charged
+  above the rate they committed to *at validate time*.
+
+**Residual risk (accepted):** a community owner could, in the seconds between validate and postOp,
+raise the rate by at most +20% (and only once per hour), so a single op may settle xPNTs up to ~20%
+above the validate-time rate — and only when that +20% still clears the user's signed `maxRate` it
+does no harm at all. The motive is weak (a community attacking its own users) and the blast is bounded
+by the four guardrails above plus `maxSingleTxLimit`. **Decision (v5.4): accept as mitigated** — a full
+technical elimination (snapshotting the rate into postOp context + capping the burn rate) was evaluated
+and deliberately deferred; the marginal residual does not justify the xPNTsToken interface change.
+
 ## 📊 Business Analytics
 
 ### Key Metrics to Track
