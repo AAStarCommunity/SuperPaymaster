@@ -25,6 +25,32 @@ export function computeX402NonceKey(
   );
 }
 
+/**
+ * Mirror X402Facilitator.settleX402Payment's on-chain EIP-3009 nonce derivation:
+ *   nonce = keccak256(abi.encode(address to, uint256 maxFee, bytes32 salt))   (X402Facilitator.sol)
+ *
+ * C-03/M-1: the EIP-3009 path binds the final recipient `to` AND the payer-approved fee cap
+ * `maxFee` into the token-level nonce. The contract takes the preimage `salt` and computes this
+ * nonce itself, then submits it to receiveWithAuthorization, so the payer's EIP-3009 signature
+ * and the on-chain replay key are BOTH keyed on this derived value — NOT on the raw `salt`.
+ * verify.ts MUST therefore verify the signature and the replay slot against this same derived
+ * nonce, exactly as settle.ts lets the contract derive it. `to` here is the FINAL recipient
+ * (the function `to` param), distinct from the EIP-3009 token recipient (= the facilitator).
+ * Must stay byte-for-byte identical to the Solidity `abi.encode(address,uint256,bytes32)`.
+ */
+export function computeEIP3009Nonce(
+  to: Address,
+  maxFee: bigint,
+  salt: `0x${string}`,
+): `0x${string}` {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }, { type: "bytes32" }],
+      [to, maxFee, salt],
+    ),
+  );
+}
+
 // EIP-712 domain for USDC (Circle's implementation)
 export function getUsdcDomain(chainId: number, usdcAddress: Address) {
   return {

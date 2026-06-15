@@ -23,6 +23,13 @@ export function settleRoute(config: Config) {
       return c.json({ success: false, error: validationError } satisfies SettleResponse, 400);
     }
 
+    // Scheme routing must match verify.ts exactly: verify rejects "permit2", so settle MUST
+    // reject it too — otherwise a request verify never validated could be settled here as if it
+    // were EIP-3009 (the else-branch fallthrough below). Only "direct" and "eip-3009" are settled.
+    if (body.scheme === "permit2") {
+      return c.json({ success: false, error: "Permit2 scheme not supported" } satisfies SettleResponse, 400);
+    }
+
     // Validate signature for non-direct schemes
     if (body.scheme !== "direct") {
       const sigResult = validateHex(body.payment.signature, "signature");
