@@ -7,8 +7,8 @@
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **v5.3.3-beta.5** (Security-Hardened Beta · Core Gasless) — Sepolia Testnet Live
-> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.3.3-beta.5)
+> **v5.4.0-beta.1** (God-Split Beta · X402Facilitator + PolicyRegistry + Timelock) — Sepolia Testnet Live
+> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.4.0-beta.1)
 > · [Integration Guide](./docs/integration/v5.3.3-beta.2-integration-guide.md)
 > · [Coverage Report](./docs/coverage-report-2026-06-02.md)
 
@@ -94,7 +94,10 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 
 | Contract | Version | Type | Role |
 |----------|---------|------|------|
-| **SuperPaymaster** | 5.3.0 | UUPS Proxy | AOA+ shared paymaster — gas sponsorship, x402, agent policies, credit/debt |
+| **SuperPaymaster** | 5.3.3¹ | UUPS Proxy | AOA+ shared paymaster — gas sponsorship, x402, agent policies, credit/debt |
+| **X402Facilitator** | 1.0.0 | Standalone | x402 settlement split out of SuperPaymaster — EIP-3009 USDC + xPNTs direct settle, fee model |
+| **PolicyRegistry** | 1.0.0 | Standalone | Shared on-chain governance-gated spend policy (checkPolicy / recordSpend) |
+| **TimelockController** | OZ v5.0.2 | Governance | Delayed-execution governor for upgrades & privileged ops |
 | **Registry** | 4.1.0 | UUPS Proxy | Community/node registration, role management, BLS replay protection, slashing |
 | **PaymasterV4** | 4.3.0 | EIP-1167 Proxy | AOA independent paymaster per community |
 | **GToken** | 2.0.0 | ERC20 | Governance token (21M cap, mintable, burnable) |
@@ -105,6 +108,8 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 | **BLSAggregator** | 1.0.0 | — | BLS12-381 threshold signature aggregation |
 | **DVTValidator** | 1.0.0 | — | Distributed validator consensus (7-of-13 quorum) |
 | **PaymasterFactory** | 1.0.0 | — | EIP-1167 proxy factory for PaymasterV4 instances |
+
+> ¹ The v5.4.0-beta.1 implementation content is **v5.4** (god-split: settlement + policy extracted to standalone contracts). The on-chain `version()` string is still `SuperPaymaster-5.3.3`; the bump to `5.4.0` is **deferred to GA**.
 
 ### V5 Feature Highlights
 
@@ -217,22 +222,25 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 
 ## Contract Addresses (Sepolia)
 
-> `v5.3.3-beta.2` deployment. Always read live addresses from
+> `v5.4.0-beta.1` deployment. Always read live addresses from
 > [`deployments/config.sepolia.json`](./deployments/config.sepolia.json).
 
 | Contract | Proxy | Implementation |
 |----------|-------|----------------|
-| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0xC931F91D134A16cCDfe4bf37EdEff217c9f193F1` |
-| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0x52C1E6f039eb9BA50ac9Ad0D041cB07Dcf4C9AA0` |
+| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0x0B5ce7032804aEFA698bddeB355D1FDDc553c14A` |
+| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
+| X402Facilitator | — | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
+| PolicyRegistry | — | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
+| TimelockController | — | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
 | ReputationSystem | — | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
 | GToken | — | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` |
 | GTokenStaking | — | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
 | MySBT | — | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
-| xPNTsFactory | — | `0xC4f5A121c426734CC1c0DbE57f6A2Dd764E278e4` |
+| xPNTsFactory | — | `0xc312CAFcb49dFe3aB76bFB2F3e37CaEdBa65ccd9` |
 | PaymasterFactory | — | `0x60B8f728Abca14B82a4EC72f00Ff5437e0702e90` |
 | BLSAggregator | — | `0x7ec72505220a13040c80EF2B895Bf3405b6ed3e9` |
 | DVTValidator | — | `0xB60C82158734def92D0d2163C93927cf19b86a95` |
-| MicroPaymentChannel | — | `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed` |
+| MicroPaymentChannel | — | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
 
 **EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
@@ -282,7 +290,7 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 - [Paymaster Operator Guide](./docs/PAYMASTER_OPERATOR_GUIDE.md) — Operating AOA/AOA+ paymasters
 
 ### API References
-- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (V5.3.0)
+- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (v5.4.0-beta.1)
 - [Registry API](./docs/API_REGISTRY.md) (V4.1.0)
 - [MySBT API](./docs/API_MYSBT.md)
 
@@ -382,7 +390,7 @@ See [NOTICE](./NOTICE) · [TRADEMARK.md](./TRADEMARK.md) · [LICENSE-zh.md](./LI
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **Beta 0.22** (内部版本: V5.3) — Sepolia 测试网运行中
+> **v5.4.0-beta.1**（God-Split Beta · X402Facilitator + PolicyRegistry + Timelock）— Sepolia 测试网运行中
 
 ## SuperPaymaster 是什么？
 
@@ -419,7 +427,10 @@ SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**
 
 | 合约 | 版本 | 类型 | 职责 |
 |------|------|------|------|
-| **SuperPaymaster** | 5.3.0 | UUPS 代理 | AOA+ 共享 Paymaster — Gas 赞助、x402、Agent 策略、信用/债务 |
+| **SuperPaymaster** | 5.3.3¹ | UUPS 代理 | AOA+ 共享 Paymaster — Gas 赞助、x402、Agent 策略、信用/债务 |
+| **X402Facilitator** | 1.0.0 | 独立合约 | 从 SuperPaymaster 拆分的 x402 结算 — EIP-3009 USDC + xPNTs 直接结算、费用模型 |
+| **PolicyRegistry** | 1.0.0 | 独立合约 | 共享的链上、受治理门控的消费策略（checkPolicy / recordSpend） |
+| **TimelockController** | OZ v5.0.2 | 治理 | 升级与特权操作的延时执行治理器 |
 | **Registry** | 4.1.0 | UUPS 代理 | 社区/节点注册、角色管理、BLS 重放保护、惩罚 |
 | **PaymasterV4** | 4.3.0 | EIP-1167 代理 | AOA 独立 Paymaster |
 | **GToken** | 2.0.0 | ERC20 | 治理代币（2100 万上限，限量发行） |
@@ -429,6 +440,8 @@ SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**
 | **ReputationSystem** | 1.0.0 | — | 基于社区规则的声誉评分 |
 | **BLSAggregator** | 1.0.0 | — | BLS12-381 阈值签名聚合 |
 | **DVTValidator** | 1.0.0 | — | 分布式验证者共识（7/13 拜占庭法定人数） |
+
+> ¹ v5.4.0-beta.1 的实现内容已是 **v5.4**（god-split：结算与策略拆分为独立合约）。链上 `version()` 字符串仍为 `SuperPaymaster-5.3.3`；升至 `5.4.0` **推迟到 GA**。
 
 ---
 
@@ -473,11 +486,20 @@ forge test
 
 ## 合约地址（Sepolia 测试网）
 
+> `v5.4.0-beta.1` 部署。请始终从 [`deployments/config.sepolia.json`](./deployments/config.sepolia.json) 读取实时地址。
+
 | 合约 | 代理地址 | 实现地址 |
 |------|----------|----------|
-| Registry | `0xD88CF531...` | `0x84bB9e3C...` |
-| SuperPaymaster | `0x829C3178...` | `0xf4d022Ea...` |
-| ReputationSystem | — | `0x3384317D...` |
+| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0x0B5ce7032804aEFA698bddeB355D1FDDc553c14A` |
+| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
+| X402Facilitator | — | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
+| PolicyRegistry | — | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
+| TimelockController | — | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
+| ReputationSystem | — | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
+| GToken | — | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` |
+| GTokenStaking | — | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
+| MySBT | — | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
+| MicroPaymentChannel | — | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
 
 **EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
@@ -525,7 +547,7 @@ forge test
 - [Paymaster 运营指南](./docs/PAYMASTER_OPERATOR_GUIDE.md) — 运营 AOA/AOA+ Paymaster
 
 ### API 参考
-- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (V5.3.0)
+- [SuperPaymaster API](./docs/API_SUPERPAYMASTER.md) (v5.4.0-beta.1)
 - [Registry API](./docs/API_REGISTRY.md) (V4.1.0)
 - [MySBT API](./docs/API_MYSBT.md)
 

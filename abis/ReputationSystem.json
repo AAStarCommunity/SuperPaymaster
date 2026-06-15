@@ -1,744 +1,747 @@
-[
-  {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "_registry",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "MAX_BOOSTED_COLLECTIONS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "REGISTRY",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IRegistry"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "boostedCollections",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "calculateReputation",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "communityScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "globalScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityActiveRules",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityReputations",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "communityRules",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "baseScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "activityBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "maxBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "description",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "computeScore",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "communities",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "ruleIds",
-        "type": "bytes32[][]",
-        "internalType": "bytes32[][]"
-      },
-      {
-        "name": "activities",
-        "type": "uint256[][]",
-        "internalType": "uint256[][]"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "totalScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "defaultRule",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "baseScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "activityBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "maxBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "description",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "entropyFactors",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getActiveRules",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "ruleIds",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getReputationBreakdown",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "baseScore",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "nftBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "activityBonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "multiplier",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "nftCollectionBoost",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "nftHoldStart",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setCommunityReputation",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "score",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setEntropyFactor",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "factor",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setNFTBoost",
-    "inputs": [
-      {
-        "name": "collection",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "boost",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setRule",
-    "inputs": [
-      {
-        "name": "ruleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "base",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "bonus",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "desc",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "syncToRegistry",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "communities",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "ruleIds",
-        "type": "bytes32[][]",
-        "internalType": "bytes32[][]"
-      },
-      {
-        "name": "activities",
-        "type": "uint256[][]",
-        "internalType": "uint256[][]"
-      },
-      {
-        "name": "epoch",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "proof",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "updateNFTHoldStart",
-    "inputs": [
-      {
-        "name": "collection",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "version",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "event",
-    "name": "CommunityReputationUpdated",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "score",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "EntropyFactorUpdated",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "factor",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "NFTBoostAdded",
-    "inputs": [
-      {
-        "name": "collection",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "boost",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ReputationComputed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "score",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RuleUpdated",
-    "inputs": [
-      {
-        "name": "community",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "ruleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "base",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "bonus",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "error",
-    "name": "DoesNotHoldNFT",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidCollection",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidInput",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "MaxBoostedReached",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotAuthorized",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OwnableInvalidOwner",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "OwnableUnauthorizedAccount",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "Unauthorized",
-    "inputs": []
-  }
-]
+{
+  "abi": [
+    {
+      "type": "constructor",
+      "inputs": [
+        {
+          "name": "_registry",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "MAX_BOOSTED_COLLECTIONS",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "REGISTRY",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "boostedCollections",
+      "inputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "calculateReputation",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "community",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "communityScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "globalScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "communityActiveRules",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "communityReputations",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "communityRules",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "baseScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "activityBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "maxBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "computeScore",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "communities",
+          "type": "address[]",
+          "internalType": "address[]"
+        },
+        {
+          "name": "ruleIds",
+          "type": "bytes32[][]",
+          "internalType": "bytes32[][]"
+        },
+        {
+          "name": "activities",
+          "type": "uint256[][]",
+          "internalType": "uint256[][]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "totalScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "defaultRule",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "baseScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "activityBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "maxBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "entropyFactors",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getActiveRules",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ruleIds",
+          "type": "bytes32[]",
+          "internalType": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getReputationBreakdown",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "community",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "baseScore",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "nftBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "activityBonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "multiplier",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "nftCollectionBoost",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "nftHoldStart",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "renounceOwnership",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setCommunityReputation",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setEntropyFactor",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "factor",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setNFTBoost",
+      "inputs": [
+        {
+          "name": "collection",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "boost",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setRule",
+      "inputs": [
+        {
+          "name": "ruleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "base",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "bonus",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "max",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "desc",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "syncToRegistry",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "communities",
+          "type": "address[]",
+          "internalType": "address[]"
+        },
+        {
+          "name": "ruleIds",
+          "type": "bytes32[][]",
+          "internalType": "bytes32[][]"
+        },
+        {
+          "name": "activities",
+          "type": "uint256[][]",
+          "internalType": "uint256[][]"
+        },
+        {
+          "name": "epoch",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "proof",
+          "type": "bytes",
+          "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "inputs": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "updateNFTHoldStart",
+      "inputs": [
+        {
+          "name": "collection",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "version",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "event",
+      "name": "CommunityReputationUpdated",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "EntropyFactorUpdated",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "factor",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "NFTBoostAdded",
+      "inputs": [
+        {
+          "name": "collection",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "boost",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "OwnershipTransferred",
+      "inputs": [
+        {
+          "name": "previousOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ReputationComputed",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "score",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RuleUpdated",
+      "inputs": [
+        {
+          "name": "community",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "ruleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "base",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "bonus",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "DoesNotHoldNFT",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidAddress",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidCollection",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidInput",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "MaxBoostedReached",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotAuthorized",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OwnableInvalidOwner",
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "OwnableUnauthorizedAccount",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "Unauthorized",
+      "inputs": []
+    }
+  ],
+  "bytecode": "0x60a0604052346102c557604051601f611e4e38819003918201601f19168301916001600160401b0383118484101761029e578084926020946040528339810103126102c557516001600160a01b038116908190036102c55733156102b2575f8054336001600160a01b0319821681178355916001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a360809081526040519081016001600160401b0381118282101761029e57604052600a81526020810160018152604082019060648252604051926040840184811060018060401b0382111761029e576040526007845266111959985d5b1d60ca1b60208501526060810184905251600355516004555160055580516001600160401b03811161029e57600654600181811c91168015610294575b602082101461028057601f8111610212575b50602091601f82116001146101b2579181925f926101a7575b50508160011b915f199060031b1c1916176006555b604051611b8490816102ca823960805181818161094c01528181610c9d015281816113af015261142a0152f35b015190505f80610165565b601f1982169260065f52805f20915f5b8581106101fa575083600195106101e2575b505050811b0160065561017a565b01515f1960f88460031b161c191690555f80806101d4565b919260206001819286850151815501940192016101c2565b8181111561014c5760065f52601f820160051c7ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f60208410610278575b81601f9101920160051c03905f5b82811061026b57505061014c565b5f8282015560010161025d565b5f915061024f565b634e487b7160e01b5f52602260045260245ffd5b90607f169061013a565b634e487b7160e01b5f52604160045260245ffd5b631e4fbdf760e01b5f525f60045260245ffd5b5f80fdfe6080806040526004361015610012575f80fd5b5f905f3560e01c90816306433b1b1461140d57508063097f6b7c1461130c5780632f4468811461121e57806330cd71a81461110c5780633425bfae146110b85780634a2357b91461105057806354fd4d5014610ff15780635db8b75b14610fd65780636df80b4e14610c16578063715018a614610bb257806374f9924414610b225780638da5cb5b14610afd5780638dbda2eb14610ac55780639172ff45146107fd5780639c4b3436146106bb578063a00e8f8114610659578063a981c9f514610602578063bcd3697c14610512578063ce26b0e01461045d578063cf1c545614610425578063f2fde38b14610392578063fb42a9bf14610344578063fc193b49146103015763ff61c64e14610126575f80fd5b346102fe576101343661147a565b5090916001600160a01b038192168082526002602052604082206040518082602082945493848152019086526020862092865b8181106102e557505061017c92500382611522565b8051156102d757818352600160205261019860408420916117f4565b5183526020526101aa60408320611815565b9260208451940151915b8352600760205260408320549283156102c7575b94856001600160a01b03600b549216965b8281106101fe5750505060809450604051938452602084015260408301526060820152f35b602460206001600160a01b036102138461179b565b90549060031b1c16604051928380926370a0823160e01b82528d60048301525afa839181610290575b5061024b575b506001016101d9565b610256575b5f610242565b926102886001916001600160a01b0361026e8761179b565b90549060031b1c1684526009602052604084205490611875565b939050610250565b9091506020813d82116102bf575b816102ab60209383611522565b810103126102bb5751905f61023c565b5f80fd5b3d915061029e565b670de0b6b3a764000093506101c8565b5060035492600454916101b4565b8454835260019485019486945060209093019201610167565b80fd5b50346102fe5760203660031901126102fe5760043590600b548210156102fe5760206001600160a01b036103348461179b565b90549060031b1c16604051908152f35b50346102fe5760403660031901126102fe576001600160a01b03604061036861144e565b9282610372611464565b9416815260086020522091165f52602052602060405f2054604051908152f35b50346102fe5760203660031901126102fe576001600160a01b036103b461144e565b6103bc611b51565b16801561041157815473ffffffffffffffffffffffffffffffffffffffff198116821783556001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08380a380f35b631e4fbdf760e01b82526004829052602482fd5b50346102fe5760203660031901126102fe5760406020916001600160a01b0361044c61144e565b168152600983522054604051908152f35b50346102fe5760203660031901126102fe576001600160a01b0361047f61144e565b168152600260205260408120604051908160208254918281520190819285526020852090855b8181106104fc57505050826104bb910383611522565b604051928392602084019060208552518091526040840192915b8181106104e3575050500390f35b82518452859450602093840193909201916001016104d5565b82548452602090930192600192830192016104a5565b50346102fe57806003193601126102fe576003546004549160055460405191806006549061053f8261169d565b80865291600181169081156105db575060011461057a575b50509061056a8361057694930383611522565b60405194859485611775565b0390f35b600681527ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f94939250905b8082106105bf575091925090820160200161056a83610557565b91929360018160209254838589010152019101909392916105a5565b60ff191660208088019190915292151560051b8601909201925061056a9150849050610557565b50346102fe5760403660031901126102fe5761061c61144e565b6001600160a01b03168152600260205260408120805460243592908310156102fe57602061064a84846117c7565b90549060031b1c604051908152f35b50346102fe5760403660031901126102fe576040906001600160a01b0361067e61144e565b168152600160205281812060243582526020522080546105766001830154926106ae6003600283015492016116d5565b9060405194859485611775565b50346102fe576001600160a01b036106d23661147a565b5091909116918281526002602052604081209260405191826020865491828152019582526020822090825b8181106107e757505050610717836107da95960384611522565b6040948551926107278785611522565b60018452601f1987019261073e8460208701611b35565b85610748866117f4565b52610752856117f4565b508751956107608988611522565b600187526107718560208901611b35565b51905061077d81611544565b9061078a89519283611522565b808252610799601f1991611544565b013660208301376107a9866117f4565b526107b3856117f4565b508651926107c18885611522565b600184523660208501376107d4836117f4565b52611882565b8151908082526020820152f35b82548852602090970196600192830192016106fd565b50346102bb5760c03660031901126102bb5761081761144e565b60243567ffffffffffffffff81116102bb5761083790369060040161155c565b60443567ffffffffffffffff81116102bb576108579036906004016115ca565b60643567ffffffffffffffff81116102bb576108779036906004016115ca565b906084359160a4359067ffffffffffffffff82116102bb576108a06108a99236906004016114d8565b93909587611882565b926040928351926108ba8585611522565b600184526020840192601f19860192833686376001600160a01b036108de876117f4565b99168099528651946108f08887611522565b60018652602086019436863788610906876117f4565b5287516020810190606082526002608082015261525360f01b60a08201528b8a82015283606082015260a0815261093e60c082611522565b519020956001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001696873b156102bb578951631b02e44f60e01b8152600481019190915260a06024820152975160a4890181905288969594939260c4880192915f5b818110610aa35750505060209060031988840301604489015251918281520194905f5b818110610a8a57505050845f969484829589956020956064860152600319858503016084860152818452858401378181018401859052601f01601f1916010301925af18015610a8057610a45575b507fdb8ed69eccdb6ff5105e3934ba9b515bb1b9d366e3a0c25a5f852ee20b6783e29160209151908152a280f35b602091945091610a765f7fdb8ed69eccdb6ff5105e3934ba9b515bb1b9d366e3a0c25a5f852ee20b6783e294611522565b5f94915091610a17565b82513d5f823e3d90fd5b82518752899750602096870196909201916001016109c9565b82516001600160a01b031685528b9950602094850194909201916001016109a6565b346102bb5760203660031901126102bb576001600160a01b03610ae661144e565b165f526007602052602060405f2054604051908152f35b346102bb575f3660031901126102bb5760206001600160a01b035f5416604051908152f35b346102bb5760803660031901126102bb57610b3b61144e565b60243567ffffffffffffffff81116102bb57610b5b90369060040161155c565b9060443567ffffffffffffffff81116102bb57610b7c9036906004016115ca565b906064359167ffffffffffffffff83116102bb57602093610ba4610baa9436906004016115ca565b92611882565b604051908152f35b346102bb575f3660031901126102bb57610bca611b51565b5f805473ffffffffffffffffffffffffffffffffffffffff19811682556001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a3005b346102bb5760a03660031901126102bb5760043560243560443560643560843567ffffffffffffffff81116102bb57610c539036906004016114d8565b91604051632474521560e21b81527fe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c07460048201523360248201526020816044816001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000165afa908115610fcb575f91610f9c575b501580610f88575b610f795761271085118015610f6e575b8015610f62575b610f5357335f52600160205260405f20865f5260205260405f20541580610f4a575b610f03575b60405190610d2082611506565b858252602082018581526040830191825267ffffffffffffffff8511610eef5760405194610d58601f8201601f191660200187611522565b80865236818601116102bb576020815f92600397838a01378701015260608301948552335f52600160205260405f20885f5260205260405f209251835551600183015551600282015501905180519067ffffffffffffffff8211610eef578190610dc2845461169d565b601f8111610e96575b50602090601f8311600114610e33575f92610e28575b50508160011b915f199060031b1c19161790555b60405191825260208201527f868a11f79934bfa7243fd979d39bf00f37050e24b3ffc20a11f12a8b7e48d99560403392a3005b015190508680610de1565b5f8581528281209350601f198516905b818110610e7e5750908460019594939210610e66575b505050811b019055610df5565b01515f1960f88460031b161c19169055868080610e59565b92936020600181928786015181550195019301610e43565b82811115610dcb57909150835f5260205f20601f840160051c9060208510610ee7575b849392601f0160051c82900391015f5b828110610ed7575050610dcb565b5f81830155859450600101610ec9565b5f9150610eb9565b634e487b7160e01b5f52604160045260245ffd5b335f52600260205260405f20805468010000000000000000811015610eef57610f31916001820181556117c7565b81549060031b9088821b915f19901b1916179055610d13565b50841515610d0e565b63b4fa3fb360e01b5f5260045ffd5b50620186a08111610cec565b506127108411610ce5565b63ea8e4eb560e01b5f5260045ffd5b50336001600160a01b035f54161415610cd5565b610fbe915060203d602011610fc4575b610fb68183611522565b8101906117dc565b87610ccd565b503d610fac565b6040513d5f823e3d90fd5b346102bb575f3660031901126102bb57602060405160328152f35b346102bb575f3660031901126102bb57610576604051611012604082611522565b601081527f52657075746174696f6e2d302e332e320000000000000000000000000000000060208201526040519182916020835260208301906114b4565b346102bb5760403660031901126102bb5761106961144e565b7f21281390931aaf470d02c340b1ca10fabd02c8d7cdd1efcdbb3dc3fe5a0d074960206001600160a01b03602435936110a0611b51565b1692835f52600782528060405f2055604051908152a2005b346102bb5760403660031901126102bb576110d161144e565b6001600160a01b036110e1611464565b91165f52600a6020526001600160a01b0360405f2091165f52602052602060405f2054604051908152f35b346102bb5760403660031901126102bb5761112561144e565b6001600160a01b0360243591611139611b51565b1690811561120f57815f52600960205260405f20541561118e575b60207fcde4878b12c6b6c93c3eb3433ffbfdb24eb29698d8ac6ac98caf5db49d82345791835f52600982528060405f2055604051908152a2005b600b5460328110156112005768010000000000000000811015610eef577fcde4878b12c6b6c93c3eb3433ffbfdb24eb29698d8ac6ac98caf5db49d823457916111df82600160209401600b5561179b565b81549060031b906001600160a01b0387831b921b1916179055915050611154565b6310acf9a960e31b5f5260045ffd5b63e6c4247b60e01b5f5260045ffd5b346102bb5760203660031901126102bb5761123761144e565b6040516370a0823160e01b81523360048201526020816024816001600160a01b0386165afa5f91816112d8575b506112785763517172a160e11b5f5260045ffd5b156112ca57335f52600a60205260405f206001600160a01b0382165f5260205260405f2054156112a457005b335f52600a6020526001600160a01b0360405f2091165f5260205260405f204290555f80f35b624fa6f360e31b5f5260045ffd5b9091506020813d602011611304575b816112f460209383611522565b810103126102bb57519083611264565b3d91506112e7565b346102bb5761131a3661147a565b916001600160a01b035f541633141580611393575b6113855760206001600160a01b03807f6c1649831c4a2bebf79dfe8a2623ce1f5c65c9ab62903600dc011ee60a11c408931693845f526008835260405f208282165f5283528560405f20556040519586521693a3005b6282b42960e81b5f5260045ffd5b50604051635f9464c560e11b81523360048201526020816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610fcb575f916113ee575b501561132f565b611407915060203d602011610fc457610fb68183611522565b846113e7565b346102bb575f3660031901126102bb576020906001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b600435906001600160a01b03821682036102bb57565b602435906001600160a01b03821682036102bb57565b60609060031901126102bb576004356001600160a01b03811681036102bb57906024356001600160a01b03811681036102bb579060443590565b805180835260209291819084018484015e5f828201840152601f01601f1916010190565b9181601f840112156102bb5782359167ffffffffffffffff83116102bb57602083818601950101116102bb57565b6080810190811067ffffffffffffffff821117610eef57604052565b90601f8019910116810190811067ffffffffffffffff821117610eef57604052565b67ffffffffffffffff8111610eef5760051b60200190565b9080601f830112156102bb5781359061157482611544565b926115826040519485611522565b82845260208085019360051b8201019182116102bb57602001915b8183106115aa5750505090565b82356001600160a01b03811681036102bb5781526020928301920161159d565b9080601f830112156102bb578135906115e282611544565b926115f06040519485611522565b82845260208085019360051b820101908282116102bb5760208101935b82851061161c57505050505090565b843567ffffffffffffffff81116102bb57820184603f820112156102bb5760208101359061164982611544565b916116576040519384611522565b8083526020808085019260051b84010101918783116102bb57604001905b82821061168d5750505081526020948501940161160d565b8135815260209182019101611675565b90600182811c921680156116cb575b60208310146116b757565b634e487b7160e01b5f52602260045260245ffd5b91607f16916116ac565b9060405191825f8254926116e88461169d565b8084529360018116908115611753575060011461170f575b5061170d92500383611522565b565b90505f9291925260205f20905f915b81831061173757505090602061170d928201015f611700565b602091935080600191548385890101520191019091849261171e565b90506020925061170d94915060ff191682840152151560051b8201015f611700565b9092608092611798959483526020830152604082015281606082015201906114b4565b90565b600b548110156117b357600b5f5260205f2001905f90565b634e487b7160e01b5f52603260045260245ffd5b80548210156117b3575f5260205f2001905f90565b908160209103126102bb575180151581036102bb5790565b8051156117b35760200190565b80518210156117b35760209160051b010190565b9060405161182281611506565b606061184960038395805485526001810154602086015260028101546040860152016116d5565b910152565b8181029291811591840414171561186157565b634e487b7160e01b5f52601160045260245ffd5b9190820180921161186157565b939290935f938351865180911490811591611b29575b50610f5357925f915b8651831015611a11576001600160a01b036118bc8489611801565b5116965f91825b6118cd8686611801565b51518410156119c25761195a6001916118f0866118ea8a8a611801565b51611801565b518c5f528360205260405f20905f526020528561190f60405f20611815565b8a8a825115806119ba575b61196a575b611954936118ea6119339261193f94611801565b5160208301519061184e565b906040810151808311611962575b5051611875565b90611875565b9301926118c3565b91505f61194d565b505050506119548961193f611933896118ea8d60405161198981611506565b6003548152600454602082015260055460408201526119a860066116d5565b6060820152959450925050935061191f565b50831561191a565b600193506119f7670de0b6b3a7640000916119fe949b9a93979a9996995f52600760205260405f2054908115611a095761184e565b0490611875565b9501919390936118a1565b83915061184e565b939495505050505f90600b54915b828110611a2b57505050565b6001600160a01b03611a3c8261179b565b90549060031b1c166001600160a01b038316805f52600a60205260405f206001600160a01b0383165f5260205260405f20548015159081611b11575b50611a88575b5050600101611a1f565b604051906370a0823160e01b82526004820152602081602481855afa5f9181611ade575b5015611a7e57611abd575b80611a7e565b60019195611ad7915f52600960205260405f205490611875565b9490611ab7565b9091506020813d8211611b09575b81611af960209383611522565b810103126102bb5751905f611aac565b3d9150611aec565b905062093a808101809111611861574210155f611a78565b9050835114155f611898565b5f5b828110611b4357505050565b606082820152602001611b37565b6001600160a01b035f54163303611b6457565b63118cdaa760e01b5f523360045260245ffdfea164736f6c6343000821000a"
+}

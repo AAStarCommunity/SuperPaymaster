@@ -18,6 +18,8 @@ CONTRACTS=(
     "Registry"
     "SuperPaymaster"
     "X402Facilitator"
+    "PolicyRegistry"
+    "TimelockController"
     "GToken"
     "GTokenStaking"
     "MySBT"

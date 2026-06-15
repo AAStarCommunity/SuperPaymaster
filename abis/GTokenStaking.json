@@ -1,1093 +1,1096 @@
-[
-  {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "_gtoken",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_treasury",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_registry",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "GTOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_TOTAL_STAKE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "REGISTRY",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "authorizedSlashers",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "availableBalance",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "balanceOf",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getLockedStake",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getStakeInfo",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "internalType": "struct IGTokenStaking.StakeInfo",
-        "components": [
-          {
-            "name": "amount",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "slashedAmount",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "stakedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "unstakeRequestedAt",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getUserRoleLocks",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple[]",
-        "internalType": "struct IGTokenStaking.RoleLock[]",
-        "components": [
-          {
-            "name": "amount",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "ticketPrice",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "lockedAt",
-            "type": "uint48",
-            "internalType": "uint48"
-          },
-          {
-            "name": "roleId",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "metadata",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "hasRoleLock",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "lockStakeWithTicket",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "stakeAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "ticketPrice",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "payer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "lockId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "previewExitFee",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "fee",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "netAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "roleExitConfigs",
-    "inputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "feePercent",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "minFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "roleLocks",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "amount",
-        "type": "uint128",
-        "internalType": "uint128"
-      },
-      {
-        "name": "ticketPrice",
-        "type": "uint128",
-        "internalType": "uint128"
-      },
-      {
-        "name": "lockedAt",
-        "type": "uint48",
-        "internalType": "uint48"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "metadata",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "setAuthorizedSlasher",
-    "inputs": [
-      {
-        "name": "slasher",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "authorized",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setRoleExitFee",
-    "inputs": [
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "feePercent",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "minFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setTreasury",
-    "inputs": [
-      {
-        "name": "_treasury",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "slash",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "slashedAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "slashByDVT",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "penaltyAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "stakes",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "slashedAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "stakedAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "unstakeRequestedAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "topUpStake",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "stakeAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "payer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "totalStaked",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "treasury",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "unlockAndTransfer",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "netAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "userActiveRoles",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "version",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoleExitFeeUpdated",
-    "inputs": [
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "feePercent",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "minFee",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SlasherAuthorizationUpdated",
-    "inputs": [
-      {
-        "name": "slasher",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "authorized",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "StakeLocked",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "ticketPrice",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "StakeSlashed",
-    "inputs": [
-      {
-        "name": "operator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "StakeUnlocked",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "grossAmount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "exitFee",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "netAmount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SyncFailed",
-    "inputs": [
-      {
-        "name": "registry",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "reason",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TicketBurned",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "roleId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "ticketPrice",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "payer",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TreasuryUpdated",
-    "inputs": [
-      {
-        "name": "oldTreasury",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newTreasury",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "UserSlashed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "reason",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "timestamp",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "error",
-    "name": "AddressEmptyCode",
-    "inputs": [
-      {
-        "name": "target",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "AddressInsufficientBalance",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "AmountExceedsUint128",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "FailedInnerCall",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "FeeTooHigh",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InsufficientStake",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidAddress",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NoLockFound",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotAuthorizedSlasher",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OnlyRegistry",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OnlyRegistryOrAuthorized",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OwnableInvalidOwner",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "OwnableUnauthorizedAccount",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ReentrancyGuardReentrantCall",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "RoleAlreadyLocked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "RoleNotLocked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SafeERC20FailedOperation",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "TotalStakeExceedsCap",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "Unauthorized",
-    "inputs": []
-  }
-]
+{
+  "abi": [
+    {
+      "type": "constructor",
+      "inputs": [
+        {
+          "name": "_gtoken",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "_treasury",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "_registry",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "GTOKEN",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "contract IERC20"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "MAX_TOTAL_STAKE",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "REGISTRY",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "authorizedSlashers",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "availableBalance",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "function",
+      "name": "balanceOf",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getLockedStake",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getStakeInfo",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "tuple",
+          "internalType": "struct IGTokenStaking.StakeInfo",
+          "components": [
+            {
+              "name": "amount",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "slashedAmount",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "stakedAt",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "unstakeRequestedAt",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getUserRoleLocks",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "tuple[]",
+          "internalType": "struct IGTokenStaking.RoleLock[]",
+          "components": [
+            {
+              "name": "amount",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "ticketPrice",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "lockedAt",
+              "type": "uint48",
+              "internalType": "uint48"
+            },
+            {
+              "name": "roleId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "metadata",
+              "type": "bytes",
+              "internalType": "bytes"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "hasRoleLock",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "lockStakeWithTicket",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "stakeAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "ticketPrice",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "lockId",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "previewExitFee",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "fee",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "netAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "renounceOwnership",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "roleExitConfigs",
+      "inputs": [
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "feePercent",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "minFee",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "roleLocks",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "amount",
+          "type": "uint128",
+          "internalType": "uint128"
+        },
+        {
+          "name": "ticketPrice",
+          "type": "uint128",
+          "internalType": "uint128"
+        },
+        {
+          "name": "lockedAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "metadata",
+          "type": "bytes",
+          "internalType": "bytes"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "setAuthorizedSlasher",
+      "inputs": [
+        {
+          "name": "slasher",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "authorized",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setRoleExitFee",
+      "inputs": [
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "feePercent",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "minFee",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setTreasury",
+      "inputs": [
+        {
+          "name": "_treasury",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "slash",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "slashedAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "slashByDVT",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "penaltyAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "stakes",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "slashedAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "stakedAt",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "unstakeRequestedAt",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "topUpStake",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "stakeAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "totalStaked",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "inputs": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "treasury",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "unlockAndTransfer",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "netAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "userActiveRoles",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "version",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "event",
+      "name": "OwnershipTransferred",
+      "inputs": [
+        {
+          "name": "previousOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RoleExitFeeUpdated",
+      "inputs": [
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "feePercent",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "minFee",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SlasherAuthorizationUpdated",
+      "inputs": [
+        {
+          "name": "slasher",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "authorized",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "StakeLocked",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "ticketPrice",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "timestamp",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "StakeSlashed",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "timestamp",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "StakeUnlocked",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "grossAmount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "exitFee",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "netAmount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "timestamp",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SyncFailed",
+      "inputs": [
+        {
+          "name": "registry",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "reason",
+          "type": "bytes",
+          "indexed": false,
+          "internalType": "bytes"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "TicketBurned",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "roleId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "ticketPrice",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "TreasuryUpdated",
+      "inputs": [
+        {
+          "name": "oldTreasury",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newTreasury",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "UserSlashed",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "timestamp",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "AddressEmptyCode",
+      "inputs": [
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "AddressInsufficientBalance",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "AmountExceedsUint128",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "FailedInnerCall",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "FeeTooHigh",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InsufficientStake",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidAddress",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NoLockFound",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotAuthorizedSlasher",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OnlyRegistry",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OnlyRegistryOrAuthorized",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OwnableInvalidOwner",
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "OwnableUnauthorizedAccount",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "ReentrancyGuardReentrantCall",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "RoleAlreadyLocked",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "RoleNotLocked",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SafeERC20FailedOperation",
+      "inputs": [
+        {
+          "name": "token",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "TotalStakeExceedsCap",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "Unauthorized",
+      "inputs": []
+    }
+  ],
+  "bytecode": "0x60c03461019e57601f61253038819003918201601f19168301916001600160401b038311848410176101a25780849260609460405283398101031261019e57610047816101b6565b906100606040610059602084016101b6565b92016101b6565b9060015f55331561018b5760018054336001600160a01b0319821681179092556040519491906001600160a01b03167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a36001600160a01b031690811561017c576001600160a01b031690811561017c576001600160a01b0383161561017c57608052600280546001600160a01b03191691909117905560a05261236590816101cb82396080518181816109c701528181610abb01528181610edb0152818161127f015281816115530152818161158e01528181611bef0152611c58015260a0518181816103c9015281816105ca01528181610cab0152818161121e015281816113b2015281816117c0015281816120e101526121b40152f35b63e6c4247b60e01b5f5260045ffd5b631e4fbdf760e01b5f525f60045260245ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b038216820361019e5756fe6080806040526004361015610012575f80fd5b5f3560e01c90816306433b1b146117a35750806316934fc41461173d57806330b039ee146116aa57806336cb2b821461162c578063374e4d73146113845780634bcb80a2146111d957806354fd4d501461118657806361d027b314611160578063678b3ee214610c5a5780636d265c1114610c0b5780636da12d0c14610bb657806370a0823114610b7e578063715018a614610b2c5780637c50309f14610adf5780637f6b337b14610a9c578063817b1cd214610a7f57806384747ba814610a5a5780638da5cb5b14610a345780638f7648481461087f57806391b65cd61461065657806394e2b21e146106235780639e9093da1461058b578063a0821be314610567578063aed2d9081461052a578063b4d81fb314610476578063d64c66aa146103a5578063f0f4426014610317578063f2fde38b146102995763f50102c01461015b575f80fd5b346102955760403660031901126102955760806001600160a01b0361017e6117e4565b5f606060405161018d8161187e565b828152826020820152826040820152015216805f52600460205260405f206024355f5260205260405f2090604051906101c582611862565b82546001600160801b0381168352841c6020830152610204600365ffffffffffff600186015416946040850195865260028101546060860152016118bc565b848301525f52600360205265ffffffffffff6001600160801b0360405f209260405161022f8161187e565b8454815260606003600187015496876020850152600281015460408501520154910152511692511660606040516102658161187e565b848152602081019384526040810192835201915f8352604051938452516020840152516040830152516060820152f35b5f80fd5b34610295576020366003190112610295576001600160a01b036102ba6117e4565b6102c2611f60565b168015610304576001600160a01b03600154828219821617600155167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a3005b631e4fbdf760e01b5f525f60045260245ffd5b34610295576020366003190112610295576001600160a01b036103386117e4565b610340611f60565b16801561039657600254816001600160a01b0382167f4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a5f80a373ffffffffffffffffffffffffffffffffffffffff191617600255005b63e6c4247b60e01b5f5260045ffd5b34610295576060366003190112610295576004356024356044356001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001633141580610461575b610453576107d08211610444577fc80e6b66eb58558814d2cbd504bae3d3ed4eb316287800124c793081728599ad91604091845f526006602052806001845f20848155015582519182526020820152a2005b63cd4e616760e01b5f5260045ffd5b6282b42960e81b5f5260045ffd5b506001600160a01b03600154163314156103f2565b346102955760403660031901126102955760406104916117e4565b6001600160a01b0360243591165f526004602052815f20815f526020526001600160801b03825f205416905f526006602052815f20906127106104f08451936104d985611832565b6020600182549283885201549501948552836119f2565b049151808310610522575b5080821161051a575b8161050e91611a05565b82519182526020820152f35b905080610504565b9150836104fb565b34610295576020366003190112610295576001600160a01b0361054b6117e4565b165f526008602052602060ff60405f2054166040519015158152f35b34610295576020366003190112610295576105806117e4565b5060206040515f8152f35b346102955760a0366003190112610295576105a46117e4565b608435906001600160a01b0382168203610295576105c0611f87565b6001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001633036106145760209161060891606435906044359060243590611a9e565b60015f55604051908152f35b6310f5403960e31b5f5260045ffd5b34610295576020366003190112610295576004355f5260066020526040805f206001815491015482519182526020820152f35b34610295576020366003190112610295576001600160a01b036106776117e4565b16805f52600560205260405f2090604051808360208295549384815201905f5260205f20925f5b8181106108665750506106b39250038361189a565b8151916106bf83611a1f565b926106cd604051948561189a565b8084526106dc601f1991611a1f565b015f5b8181106108305750505f5b815181101561078057600190835f52600460205260405f2061070c8285611a57565b515f5260205260405f2061075f60036040519261072884611862565b80546001600160801b038116855260801c602085015265ffffffffffff8682015416604085015260028101546060850152016118bc565b608082015261076e8287611a57565b526107798186611a57565b50016106ea565b836040518091602082016020835281518091526040830190602060408260051b8601019301915f905b8282106107b857505050500390f35b919360019193955060206108208192603f198a820301865260a060808a516001600160801b0381511684526001600160801b0386820151168685015265ffffffffffff604082015116604085015260608101516060850152015191816080820152019061195c565b96019201920185949391926107a9565b60209060405161083f81611862565b5f81525f838201525f60408201525f606082015260606080820152828288010152016106df565b845483526001948501948794506020909301920161069e565b34610295576080366003190112610295576108986117e4565b60443560243560643567ffffffffffffffff8111610295576108be903690600401611980565b6108c9949194611f87565b335f52600860205260ff60405f20541615610a25576001600160a01b03821690815f52600460205260405f20845f5260205260405f20906001600160801b03825416868110610a16576109276001600160801b039182891690611a37565b166001600160801b0319835416178255825f52600360205260405f2096875497878910610a16576001600160801b037f6951689eba99e77d7e3b622f276c0ad8e36126c3c510f181b86d05d685eaa074948261099a8b610a019d60016109f99701610993838254611a12565b9055611a05565b90556109a88a600754611a05565b6007555416978815610a07575b6109eb816001600160a01b03600254167f000000000000000000000000000000000000000000000000000000000000000061205c565b604051938493429285611a6b565b0390a26121a8565b60015f55005b610a118888611fe0565b6109b5565b6378de4a6960e11b5f5260045ffd5b63a4bc77a760e01b5f5260045ffd5b34610295575f3660031901126102955760206001600160a01b0360015416604051908152f35b34610295575f3660031901126102955760206040516a115eec47f6cf7e350000008152f35b34610295575f366003190112610295576020600754604051908152f35b34610295575f3660031901126102955760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b34610295576040366003190112610295576001600160a01b03610b006117e4565b165f52600460205260405f206024355f5260205260206001600160801b0360405f205416604051908152f35b34610295575f36600319011261029557610b44611f60565b5f6001600160a01b0360015481198116600155167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a3005b34610295576020366003190112610295576001600160a01b03610b9f6117e4565b165f526003602052602060405f2054604051908152f35b3461029557604036600319011261029557610bcf6117e4565b6001600160a01b0360243591165f52600560205260405f20805482101561029557602091610bfc916119ae565b90549060031b1c604051908152f35b34610295576040366003190112610295576001600160a01b03610c2c6117e4565b165f52600460205260405f206024355f5260205260206001600160801b0360405f2054161515604051908152f35b3461029557606036600319011261029557610c736117e4565b60243560443567ffffffffffffffff811161029557610c96903690600401611980565b610ca1939193611f87565b6001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001633141580611149575b61113a576001600160a01b03821691825f52600360205260405f20908154948581115f146111345750845b85610d4e575b5050506020937f6951689eba99e77d7e3b622f276c0ad8e36126c3c510f181b86d05d685eaa07491610d3f60405192839242918885611a6b565b0390a260015f55604051908152f35b85610d6791600185989796949501610993838254611a12565b8555610d7584600754611a05565b600755825f526005602052610d8f8460405f209654611a12565b855490610d9b82611a1f565b96610da9604051988961189a565b828852601f19610db884611a1f565b013660208a0137610dc883611a1f565b92610dd6604051948561189a565b808452610de5601f1991611a1f565b0136602085013781158015610f66575b505050835f52600560205260405f20955f955b875480881015610ebf57865f52600460205260405f20610e28898b6119ae565b90549060031b1c5f526020526001600160801b0360405f205416155f14610eac575f198101908111610e9857610e5e90896119ae565b90549060031b1c610e88610e72898b6119ae565b819391549060031b91821b915f19901b19161790565b9055610e9388611fa5565b610e08565b634e487b7160e01b5f52601160045260245ffd5b50955f198114610e985760010195610e08565b50939791955093919550610eff836001600160a01b03600254167f000000000000000000000000000000000000000000000000000000000000000061205c565b5f5b8451811015610f335780610f2d610f1a60019388611a57565b51610f25838a611a57565b51908b6121a8565b01610f01565b50955090939092509050837f6951689eba99e77d7e3b622f276c0ad8e36126c3c510f181b86d05d685eaa0746020610d05565b9296989791949590935f965f5b8654811015611043578b90845f52600460205260405f20610f94828a6119ae565b90549060031b1c5f5260205260405f2099610fba6001600160801b038c541693846119f2565b8861102f576001936001600160801b03928d8d610ff7940492808411611027575b610fe9869182861690611a37565b168519825416179055611a12565b9a611002838b6119ae565b90549060031b1c611013848a611a57565b525416611020828d611a57565b5201610f73565b925082610fdb565b634e487b7160e01b5f52601260045260245ffd5b5096909992935061105991955097939782611a05565b9487545b8015158061112b575b1561111857855f52600460205260405f205f19820190828211610e985761108d828c6119ae565b90549060031b1c5f5260205260405f20906001600160801b0382541691826110c1575b5050508015610e98575f190161105d565b906110ff6001600160801b03611105959b93858511155f1461110e57816110ed86975b82891690611a37565b1682198254161781555416918c611a57565b52611a05565b958a80806110b0565b816110ed876110e4565b5093945094909550959095878080610df5565b50861515611066565b94610cff565b6338796dcd60e11b5f5260045ffd5b50335f52600860205260ff60405f20541615610cd4565b34610295575f3660031901126102955760206001600160a01b0360025416604051908152f35b34610295575f366003190112610295576111d56040516111a760408261189a565b600d81526c05374616b696e672d342e322e3609c1b602082015260405191829160208352602083019061195c565b0390f35b34610295576080366003190112610295576111f26117e4565b604435906024356064356001600160a01b038116810361029557611214611f87565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610614576001600160a01b03831690815f52600460205260405f20835f5260205260405f20906001600160801b038254161561137557856112a39130907f0000000000000000000000000000000000000000000000000000000000000000612248565b6112af85600754611a12565b946a115eec47f6cf7e350000008611611366576001600160801b0381166001600160801b0383541601926001600160801b038411610e98577fe4c76dcad70ec0bf6b921afbe6bb7b4950aedf705245ec68942ea9ecf00f8a0c60608693610a01996001600160801b038098168819885416178755845f52600360205260405f2061133a838254611a12565b905560075565ffffffffffff6001870154166040519182525f60208301526040820152a35416916121a8565b6301d0b12b60e11b5f5260045ffd5b63454c458960e11b5f5260045ffd5b346102955760403660031901126102955761139d6117e4565b6024356113a8611f87565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610614576001600160a01b038216805f52600460205260405f20825f5260205260405f209165ffffffffffff6001840154161561161d5760209381610608937f9cadbc33680e22a2f04ed8eb0d7cc7f218ee9231b3473ed05904c7ec5e2d483d6001600160801b03611544975416825f526004895260405f20845f528952600360405f205f81555f60018201555f60028201550161147281546117fa565b90816115db575b50506114858486611fe0565b825f526003895260405f2061149b828254611a05565b9055825f526003895260405f2054156115c6575b6114bb81600754611a05565b600755835f526006895260405f206127106114f2604051926114dc84611832565b8c600182549283875201549401938452846119f2565b0490518082106115be575b508181116115b7575b6115108183611a05565b9889928261157c575b8361154c575b6040519384934292859094939260609260808301968352602083015260408201520152565b0390a36120d7565b61157784897f000000000000000000000000000000000000000000000000000000000000000061205c565b61151f565b6115b2836001600160a01b03600254167f000000000000000000000000000000000000000000000000000000000000000061205c565b611519565b5080611506565b90508a6114fd565b825f52600389525f60016040822001556114af565b81601f5f93116001146115f25750555b8980611479565b8183528b832061160e91601f0160051c841901906001016119d7565b808252818b81209155556115eb565b63f90e998d60e01b5f5260045ffd5b34610295576040366003190112610295576116456117e4565b602435908115158092036102955760206001600160a01b037fe0a56452e1e2337147f048c582bc931e7c341d221b44961f32dec8b73fd669bc92611687611f60565b1692835f526008825260405f2060ff1981541660ff8316179055604051908152a2005b34610295576040366003190112610295576001600160a01b036116cb6117e4565b165f52600460205260405f206024355f5260205260405f2080546111d565ffffffffffff600184015416926117076003600283015492016118bc565b9060405194846001600160801b03879616865260801c60208601526040850152606084015260a0608084015260a083019061195c565b34610295576020366003190112610295576001600160a01b0361175e6117e4565b165f52600360205260405f2080546111d56001830154926003600282015491015490604051948594859094939260609260808301968352602083015260408201520152565b34610295575f366003190112610295576020906001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b600435906001600160a01b038216820361029557565b90600182811c92168015611828575b602083101461181457565b634e487b7160e01b5f52602260045260245ffd5b91607f1691611809565b6040810190811067ffffffffffffffff82111761184e57604052565b634e487b7160e01b5f52604160045260245ffd5b60a0810190811067ffffffffffffffff82111761184e57604052565b6080810190811067ffffffffffffffff82111761184e57604052565b90601f8019910116810190811067ffffffffffffffff82111761184e57604052565b9060405191825f8254926118cf846117fa565b808452936001811690811561193a57506001146118f6575b506118f49250038361189a565b565b90505f9291925260205f20905f915b81831061191e5750509060206118f4928201015f6118e7565b6020919350806001915483858901015201910190918492611905565b9050602092506118f494915060ff191682840152151560051b8201015f6118e7565b805180835260209291819084018484015e5f828201840152601f01601f1916010190565b9181601f840112156102955782359167ffffffffffffffff8311610295576020838186019501011161029557565b80548210156119c3575f5260205f2001905f90565b634e487b7160e01b5f52603260045260245ffd5b5f5b8281106119e557505050565b5f828201556001016119d9565b81810292918115918404141715610e9857565b91908203918211610e9857565b91908201809211610e9857565b67ffffffffffffffff811161184e5760051b60200190565b906001600160801b03809116911603906001600160801b038211610e9857565b80518210156119c35760209160051b010190565b94939280604093608093885260606020890152816060890152838801375f828288010152601f8019910116850101930152565b9390809392611aad8482611a12565b93811594851594859182611c81575b80611be4575b5082611b9d575b50611b55575b505050611b1d575b611b1757600754604051916001600160a01b0360208401941684526040830152436060830152608082015260808152611b1160a08261189a565b51902090565b50505f90565b6001600160a01b0383165f52600460205260405f20825f52602052611b506001600160801b0360405f20541683856121a8565b611ad7565b60405191825260208201524260408201527fe4c76dcad70ec0bf6b921afbe6bb7b4950aedf705245ec68942ea9ecf00f8a0c60606001600160a01b03881692a3825f80611acf565b846001600160a01b036040519285845216917ffd8455407fc2a5f2a6f1ea576385d9201fe1b9bd1b3ecb8bdab57d320cfbb47560206001600160a01b038d1692a45f611ac9565b8215611c4457611c177f000000000000000000000000000000000000000000000000000000000000000091308484612248565b8380611c27575b50505b5f611ac2565b611c3d916001600160a01b03600254169061205c565b5f83611c1e565b50611c7c836001600160a01b0360025416837f0000000000000000000000000000000000000000000000000000000000000000612248565b611c21565b915093506001600160a01b038816805f52600460205260405f20885f526020526001600160801b0360405f205416611f51576001600160801b038411611f42576001600160801b038311611f4257611cdb84600754611a12565b6a115eec47f6cf7e35000000811161136657600755805f52600360205260405f20611d07858254611a12565b9055805f526003602052600260405f20015415611f2c575b60405190611d2c82611862565b6001600160801b038516825288600360208401936001600160801b03871685526040810165ffffffffffff42168152606082019084825260209660405195611d74898861189a565b5f808852608086810198895289825260048b526040808320938352928b5291902094519151901b6fffffffffffffffffffffffffffffffff19166001600160801b03919091161783555160018301805465ffffffffffff191665ffffffffffff9290921691909117905551600282015591518051919092019167ffffffffffffffff821161184e57611e0683546117fa565b601f8111611eeb575b508490601f8311600114611e8457600595949392915f9183611e79575b50508160011b915f199060031b1c19161790555b5f525260405f20938454916801000000000000000083101561184e5788611e72610e7285839960018c980181556119ae565b9055611abc565b015190505f80611e2c565b90601f19831691845f52865f20925f5b818110611ed457509160019391856005999897969410611ebc575b505050811b019055611e40565b01515f1960f88460031b161c191690555f8080611eaf565b929388600181928786015181550195019301611e94565b82811115611e0f57611f1e90845f52865f2090601f850160051c90888610611f24575b601f82910160051c0391016119d7565b5f611e0f565b5f9150611f0e565b805f52600360205242600260405f200155611d1f565b6354ada05560e01b5f5260045ffd5b631c9493ab60e31b5f5260045ffd5b6001600160a01b03600154163303611f7457565b63118cdaa760e01b5f523360045260245ffd5b60025f5414611f965760025f55565b633ee5aeb560e01b5f5260045ffd5b80548015611fcc575f190190611fbb82826119ae565b8154905f199060031b1b1916905555565b634e487b7160e01b5f52603160045260245ffd5b6001600160a01b03165f52600560205260405f20905f5b825480821015612056578261200c83866119ae565b90549060031b1c146120215750600101611ff7565b5f1981019392508311610e985761204f610e726120416118f495856119ae565b90549060031b1c92846119ae565b9055611fa5565b50505050565b6118f4926001600160a01b036040519363a9059cbb60e01b602086015216602484015260448301526044825261209360648361189a565b612289565b3d156120d2573d9067ffffffffffffffff821161184e57604051916120c7601f8201601f19166020018461189a565b82523d5f602084013e565b606090565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000169182156121a357823b15610295576001600160a01b0360405192637d960e3760e01b845216600483015260248201525f60448201525f8160648183865af19081612193575b50612190577fb095d4d7990b498e886fe544495d08fafb40e2675fd41d78e8abf3778ebcada461218b612177612098565b60405191829160208352602083019061195c565b0390a2565b50565b5f61219d9161189a565b5f612146565b505050565b90916001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001692831561205657833b15610295576001600160a01b0360405193637d960e3760e01b8552166004840152602483015260448201525f8160648183865af190816121935750612190577fb095d4d7990b498e886fe544495d08fafb40e2675fd41d78e8abf3778ebcada461218b612177612098565b9091926001600160a01b036118f49481604051956323b872dd60e01b602088015216602486015216604484015260648301526064825261209360848361189a565b5f806001600160a01b036122b293169360208151910182865af16122ab612098565b90836122fe565b80519081151591826122da575b50506122c85750565b635274afe760e01b5f5260045260245ffd5b81925090602091810103126102955760200151801590811503610295575f806122bf565b90612322575080511561231357805190602001fd5b630a12f52160e11b5f5260045ffd5b8151158061234f575b612333575090565b6001600160a01b0390639996b31560e01b5f521660045260245ffd5b50803b1561232b56fea164736f6c6343000821000a"
+}
