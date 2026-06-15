@@ -201,6 +201,17 @@ interface IPolicyRegistry {
     ///      Belt-and-suspenders: even though validation saw a slightly-stale counter, this
     ///      authoritative debit closes the drain-then-bypass window (same mitigation philosophy
     ///      as SP's postOp credit reconciliation).
+    /// @dev KNOWN LIMITATION — TOCTOU (accepted carry-forward, PR #285 round-3): the CUMULATIVE
+    ///      checks (`dailyLimit`, `velocityLimit`) are read at validation and debited here at
+    ///      postOp, so multiple ops from the SAME sender in ONE bundle each observe the pre-debit
+    ///      counter and can collectively overshoot by up to a single bundle's worth — BOUNDED,
+    ///      since the next bundle rejects. The PER-TX guards are UNAFFECTED: `perTxHardCap` and
+    ///      `dvtTriggerAmount` are single-tx comparisons evaluated per op and cannot be bypassed
+    ///      by bundling (a high-value op still trips its hard cap / still requires DVT). This is
+    ///      inherent to the ERC-4337 validation/execution split (identical to SP's credit
+    ///      ceiling). An atomic check-and-debit was evaluated and DEFERRED: it would need a
+    ///      state-writing validation-time call (ERC-7562 associated-storage risk) plus on-revert
+    ///      refund logic, and the bounded residual does not justify that complexity.
     /// @param sender   the AA account (counter key).
     /// @param target   the contract that was called.
     /// @param asset    the asset spent (native units; ETH sentinel 0xEee…EEeE = ETH; address(0) invalid).
@@ -237,6 +248,12 @@ interface IPolicyRegistry {
 
     /// @notice Set a (sender, target) scope and ADD the listed selectors to the allow set
     ///         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
+    /// @dev ADDITIVE semantics (Q3, by design — accepted carry-forward, PR #285 round-3):
+    ///      re-calling UNIONS the new `selectorAllowlist` with whatever is already allowed; it
+    ///      does NOT replace. To REMOVE selectors (a tightening) use {tightenContractScope}.
+    ///      There is intentionally no single-call "replace": loosen adds, tighten removes — so
+    ///      "swap the selector set" = tighten away the stale ones, then set the new ones. This
+    ///      keeps loosen/tighten direction unambiguous for the timelock-vs-guardian split.
     function setContractScope(
         address sender,
         address target,
