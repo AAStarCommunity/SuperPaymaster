@@ -364,6 +364,22 @@ contract PolicyRegistryTest is Test {
         reg.tightenAssetPolicy(sender, asset, _ap(1, 1, 1, 1 days));
     }
 
+    /// @notice GOVERNANCE INVARIANT (Codex PR #285 re-review): dvtTriggerAmount==0 is the
+    ///         "DVT disabled" sentinel = LOOSEST value. Tightening a configured non-zero trigger
+    ///         to 0 DISABLES DVT — a loosening that must go through the 2-day timelock, never the
+    ///         guardian's instant path. The immediate tighten path must reject it.
+    function testTightenCannotDisableDvtTriggerViaZero() public {
+        // setUp configured dvtTriggerAmount = 100e18. Set it to 0 (disable) holding every other
+        // dimension == current, so the ONLY change is the loosening-via-zero. Must revert.
+        vm.prank(guardian);
+        vm.expectRevert(IPolicyRegistry.NotStrictlyTighter.selector);
+        reg.tightenAssetPolicy(sender, asset, _ap(0, 500e18, 1000e18, 1 days));
+
+        // A genuine tighten — lower NON-zero trigger (DVT fires sooner) — still works.
+        vm.prank(guardian);
+        reg.tightenAssetPolicy(sender, asset, _ap(50e18, 500e18, 1000e18, 1 days));
+    }
+
     function testTightenContractScopeRemovesSelector() public {
         // Tighten path removes the listed selector (the tighten direction of the additive set).
         bytes4[] memory sels = new bytes4[](1);

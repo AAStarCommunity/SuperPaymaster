@@ -307,6 +307,13 @@ contract PolicyRegistry is IPolicyRegistry {
         _requireValidAsset(asset);
         AssetPolicy storage cur = _assetPolicy[sender][asset];
         if (!cur.configured) revert NotStrictlyTighter();
+        // GOVERNANCE INVARIANT: dvtTriggerAmount==0 is the "DVT disabled" sentinel
+        // (checkPolicy treats 0 as "no amount-based trigger"), so 0 is the LOOSEST value,
+        // not the tightest. Setting a configured non-zero trigger to 0 via this IMMEDIATE
+        // guardian path would DISABLE DVT — a LOOSENING that must go through the 2-day
+        // timelock, never the instant path. Treat 0 as +infinity: reject tightening a live
+        // trigger down to 0. (Without this, the "instant path only tightens" invariant breaks.)
+        if (cur.dvtTriggerAmount != 0 && params.dvtTriggerAmount == 0) revert NotStrictlyTighter();
         // Lower dvtTriggerAmount ⇒ DVT required sooner ⇒ tighter. Lower caps/limit ⇒ tighter.
         if (
             params.dvtTriggerAmount > cur.dvtTriggerAmount || params.perTxHardCap > cur.perTxHardCap
