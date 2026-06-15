@@ -380,6 +380,95 @@ contract PolicyRegistryTest is Test {
         reg.tightenAssetPolicy(sender, asset, _ap(50e18, 500e18, 1000e18, 1 days));
     }
 
+    /// @notice The MISSING HALF of the sentinel fix: tightening FROM a DISABLED (0) trigger TO a
+    ///         concrete one is a genuine TIGHTEN (DVT now fires) and must SUCCEED. The naive
+    ///         `params > cur` ordering wrongly rejected this because `50e18 > 0` looks like a
+    ///         loosening; the sentinel map (0 → +∞) fixes it.
+    function testTightenCanEnableDvtTriggerFromDisabledZero() public {
+        // Move the asset to a DISABLED trigger via the (unconstrained) timelock loosening path.
+        _setAssetPolicy(sender, asset, _ap(0, 500e18, 1000e18, 1 days));
+        IPolicyRegistry.AssetPolicy memory disabled = reg.getAssetPolicy(sender, asset);
+        assertEq(disabled.dvtTriggerAmount, 0);
+        // While disabled, even a huge amount stays ALLOW (no amount-based DVT).
+        (IPolicyRegistry.PolicyDecision dPre,) = _check(400e18);
+        assertEq(uint8(dPre), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+
+        // Guardian instantly tightens from disabled (0) to a concrete 50e18 trigger — must work.
+        vm.prank(guardian);
+        reg.tightenAssetPolicy(sender, asset, _ap(50e18, 500e18, 1000e18, 1 days));
+        IPolicyRegistry.AssetPolicy memory enabled = reg.getAssetPolicy(sender, asset);
+        assertEq(enabled.dvtTriggerAmount, 50e18);
+
+        // checkPolicy now REQUIRE_DVTs at/above 50e18, and ALLOWs just below.
+        (IPolicyRegistry.PolicyDecision dAt,) = _check(50e18);
+        assertEq(uint8(dAt), uint8(IPolicyRegistry.PolicyDecision.REQUIRE_DVT));
+        (IPolicyRegistry.PolicyDecision dBelow,) = _check(50e18 - 1);
+        assertEq(uint8(dBelow), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+    }
+
+    /// @notice Normal non-zero ordering still holds: lowering a live trigger tightens, raising it
+    ///         loosens (revert). Pinned alongside the sentinel cases to lock the full ordering.
+    function testTightenDvtTriggerNonZeroOrderingUnchanged() public {
+        // Lower 100e18 → 40e18: genuine tighten, OK.
+        vm.prank(guardian);
+        reg.tightenAssetPolicy(sender, asset, _ap(40e18, 500e18, 1000e18, 1 days));
+        assertEq(reg.getAssetPolicy(sender, asset).dvtTriggerAmount, 40e18);
+        // Raise 40e18 → 120e18: loosening (DVT fires later), must revert.
+        vm.prank(guardian);
+        vm.expectRevert(IPolicyRegistry.NotStrictlyTighter.selector);
+        reg.tightenAssetPolicy(sender, asset, _ap(120e18, 500e18, 1000e18, 1 days));
+    }
+
+    /// @notice A no-op tighten (params == cur on every dimension) must NOT revert — including the
+    ///         sentinel corner case cur=0 → params=0 (disabled → disabled), where the 0→+∞ map
+    ///         yields max == max (not strictly greater).
+    function testTightenNoOpDoesNotRevert() public {
+        // (1) no-op with a live non-zero trigger.
+        vm.prank(guardian);
+        reg.tightenAssetPolicy(sender, asset, _ap(100e18, 500e18, 1000e18, 1 days));
+        assertEq(reg.getAssetPolicy(sender, asset).dvtTriggerAmount, 100e18);
+
+        // (2) no-op with the DISABLED (0) sentinel: first disable via timelock, then 0→0 tighten.
+        _setAssetPolicy(sender, asset, _ap(0, 500e18, 1000e18, 1 days));
+        vm.prank(guardian);
+        reg.tightenAssetPolicy(sender, asset, _ap(0, 500e18, 1000e18, 1 days));
+        assertEq(reg.getAssetPolicy(sender, asset).dvtTriggerAmount, 0);
+    }
+
+    /// @notice velocityWindow is a SENTINEL (0 = velocity DISABLED = loosest) but is deliberately
+    ///         IMMUTABLE on the instant tighten path: `params.velocityWindow` is IGNORED and the
+    ///         stored window is preserved. Passing window=0 cannot disable velocity here.
+    function testTightenContractScopeVelocityWindowImmutable() public {
+        // setUp: target velocityWindow = 1 hours, velocityLimit = 800e18 (velocity ACTIVE).
+        // Attempt to "tighten" while passing velocityWindow = 0 (which, if honored, would DISABLE
+        // velocity = a loosening). The field must be ignored; the 1h window must survive.
+        bytes4[] memory none = new bytes4[](0);
+        vm.prank(guardian);
+        reg.tightenContractScope(sender, target, _cs(true, false, 800e18, 0, none));
+        IPolicyRegistry.ContractScope memory cs = reg.getContractScope(sender, target);
+        assertEq(cs.velocityWindow, 1 hours); // preserved, NOT disabled
+        assertEq(cs.velocityLimit, 800e18);
+
+        // Velocity is still enforced: spend up to the limit, then a push over it REJECTs.
+        _record(750e18);
+        (IPolicyRegistry.PolicyDecision d,) = _check(100e18); // 750+100 > 800 → REJECT
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REJECT));
+    }
+
+    /// @notice velocityLimit has NO sentinel (0 = strictest), so lowering it tightens and raising
+    ///         it reverts — independent of the (immutable-here) window.
+    function testTightenContractScopeVelocityLimitOrdering() public {
+        bytes4[] memory none = new bytes4[](0);
+        // Lower 800e18 → 300e18: genuine tighten, OK.
+        vm.prank(guardian);
+        reg.tightenContractScope(sender, target, _cs(true, false, 300e18, 1 hours, none));
+        assertEq(reg.getContractScope(sender, target).velocityLimit, 300e18);
+        // Raise 300e18 → 900e18: loosening, must revert.
+        vm.prank(guardian);
+        vm.expectRevert(IPolicyRegistry.NotStrictlyTighter.selector);
+        reg.tightenContractScope(sender, target, _cs(true, false, 900e18, 1 hours, none));
+    }
+
     function testTightenContractScopeRemovesSelector() public {
         // Tighten path removes the listed selector (the tighten direction of the additive set).
         bytes4[] memory sels = new bytes4[](1);

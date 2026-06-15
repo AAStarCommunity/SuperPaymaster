@@ -6,6 +6,7 @@ import { getPublicClient } from "../lib/chain.js";
 import { X402_FACILITATOR_ABI } from "../lib/contracts.js";
 import { verifyEIP3009Signature, verifyX402AuthSignature, computeX402NonceKey, computeEIP3009Nonce } from "../lib/verify-sig.js";
 import { validatePaymentFields, validateHex } from "../lib/validate.js";
+import { rejectUnsupportedScheme } from "../lib/scheme.js";
 import type { VerifyRequest, VerifyResponse } from "../types.js";
 
 export function verifyRoute(config: Config) {
@@ -26,9 +27,11 @@ export function verifyRoute(config: Config) {
 
     const { from, to, asset, amount, nonce, validAfter, validBefore, signature } = body.payment;
 
-    // Only support EIP-3009 and direct for now
-    if (body.scheme === "permit2") {
-      return c.json({ valid: false, reason: "Permit2 scheme not yet supported in verify" } satisfies VerifyResponse, 400);
+    // Scheme routing uses the SAME shared guard as settle.ts so the two paths cannot diverge.
+    // Only "eip-3009" and "direct" are supported; "permit2" and unknown schemes are rejected.
+    const schemeReason = rejectUnsupportedScheme(body.scheme);
+    if (schemeReason) {
+      return c.json({ valid: false, reason: schemeReason } satisfies VerifyResponse, 400);
     }
 
     // C-02/C-03/M-1: maxFee and salt are read with the SAME fallbacks settle.ts uses, so the

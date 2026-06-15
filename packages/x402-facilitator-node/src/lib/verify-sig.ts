@@ -77,7 +77,7 @@ export function getX402FacilitatorDomain(chainId: number, facilitatorAddress: Ad
 
 // Matches X402Facilitator.X402_AUTH_TYPEHASH:
 // "X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)"
-const X402_AUTH_TYPES = {
+export const X402_AUTH_TYPES = {
   X402PaymentAuthorization: [
     { name: "from", type: "address" },
     { name: "to", type: "address" },
@@ -151,7 +151,7 @@ export async function verifyX402AuthSignature(params: {
 // signature recovers `from` only when verified against the ReceiveWithAuthorization typehash.
 // Verifying against TransferWithAuthorization would recover a different address and reject
 // every valid receive signature.
-const RECEIVE_WITH_AUTH_TYPES = {
+export const RECEIVE_WITH_AUTH_TYPES = {
   ReceiveWithAuthorization: [
     { name: "from", type: "address" },
     { name: "to", type: "address" },

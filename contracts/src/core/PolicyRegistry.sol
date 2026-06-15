@@ -307,16 +307,26 @@ contract PolicyRegistry is IPolicyRegistry {
         _requireValidAsset(asset);
         AssetPolicy storage cur = _assetPolicy[sender][asset];
         if (!cur.configured) revert NotStrictlyTighter();
-        // GOVERNANCE INVARIANT: dvtTriggerAmount==0 is the "DVT disabled" sentinel
-        // (checkPolicy treats 0 as "no amount-based trigger"), so 0 is the LOOSEST value,
-        // not the tightest. Setting a configured non-zero trigger to 0 via this IMMEDIATE
-        // guardian path would DISABLE DVT — a LOOSENING that must go through the 2-day
-        // timelock, never the instant path. Treat 0 as +infinity: reject tightening a live
-        // trigger down to 0. (Without this, the "instant path only tightens" invariant breaks.)
-        if (cur.dvtTriggerAmount != 0 && params.dvtTriggerAmount == 0) revert NotStrictlyTighter();
-        // Lower dvtTriggerAmount ⇒ DVT required sooner ⇒ tighter. Lower caps/limit ⇒ tighter.
+        // GOVERNANCE INVARIANT — SENTINEL-AWARE ORDERING for dvtTriggerAmount.
+        // checkPolicy gates DVT on `dvtTriggerAmount != 0 && amount >= dvtTriggerAmount`, so
+        // `dvtTriggerAmount == 0` means the amount-based DVT trigger is DISABLED — i.e. 0 is the
+        // LOOSEST value (effectively +∞: DVT never fires), NOT the tightest. A naive numeric
+        // `params > cur` comparison gets this backwards in BOTH directions:
+        //   - loosen-to-0  (cur=100 → params=0): naive `0 > 100` is false ⇒ wrongly allowed,
+        //       silently DISABLING DVT via the instant guardian path (must go through timelock);
+        //   - tighten-from-0 (cur=0 → params=50): naive `50 > 0` is true ⇒ wrongly rejected,
+        //       even though enabling a live trigger from "disabled" is a genuine TIGHTEN.
+        // Fix: map the sentinel 0 → type(uint256).max on BOTH operands, then "looser = larger"
+        // holds uniformly. loosen-to-0 (cur≠0→0) reverts; tighten-from-0 (0→concrete) passes;
+        // normal lower-non-zero still tightens; cur=0→0 (no-op) passes.
+        uint256 curTrig =
+            cur.dvtTriggerAmount == 0 ? type(uint256).max : uint256(cur.dvtTriggerAmount);
+        uint256 newTrig =
+            params.dvtTriggerAmount == 0 ? type(uint256).max : uint256(params.dvtTriggerAmount);
+        // perTxHardCap / dailyLimit have NO sentinel: 0 there means "reject any non-zero amount"
+        // = STRICTEST, so larger is looser and the plain `params.X > cur.X` ordering is correct.
         if (
-            params.dvtTriggerAmount > cur.dvtTriggerAmount || params.perTxHardCap > cur.perTxHardCap
+            newTrig > curTrig || params.perTxHardCap > cur.perTxHardCap
                 || params.dailyLimit > cur.dailyLimit
         ) revert NotStrictlyTighter();
         cur.dvtTriggerAmount = params.dvtTriggerAmount;
@@ -344,14 +354,25 @@ contract PolicyRegistry is IPolicyRegistry {
         if (params.allowed && !cur.allowed) revert NotStrictlyTighter();
         // Cannot drop a requireDVTAlways flag via the immediate path.
         if (cur.requireDVTAlways && !params.requireDVTAlways) revert NotStrictlyTighter();
-        // Cannot raise velocity via the immediate path.
+        // velocityLimit has NO sentinel: checkPolicy enforces `targetSpent + amount >
+        // velocityLimit` only while the window is active, so 0 = STRICTEST (reject any non-zero
+        // amount) and larger = looser. Plain `params > cur` is the correct tighten ordering.
+        // (When the window is disabled this is conservative — raising the limit is a no-op in
+        // checkPolicy yet still reverts — but never unsafe, and the window cannot be re-enabled
+        // here anyway; see below.)
         if (params.velocityLimit > cur.velocityLimit) revert NotStrictlyTighter();
 
         cur.allowed = params.allowed;
         cur.requireDVTAlways = params.requireDVTAlways;
         cur.velocityLimit = params.velocityLimit;
-        // velocityWindow left unchanged: setting it to 0 would DISABLE the velocity check
-        // (a loosening), which must not be reachable via the immediate path.
+        // velocityWindow is the one SENTINEL field here (checkPolicy gates the whole velocity
+        // check on `velocityWindow != 0`, so 0 = velocity DISABLED = LOOSEST = +∞). It is
+        // deliberately NOT mutated by this immediate path: `params.velocityWindow` is ignored
+        // and `cur.velocityWindow` is preserved. Therefore the sentinel-ordering bug fixed in
+        // tightenAssetPolicy.dvtTriggerAmount cannot arise here — the field is immutable on the
+        // instant path. Tightening to window=0 would DISABLE velocity (a loosening, timelock-
+        // only); enabling/shrinking a window is not monotone in safety. Both must route through
+        // the 2-day timelock via setContractScope, never the guardian.
         emit ContractScopeSet(
             sender, target, params.allowed, params.requireDVTAlways, params.velocityLimit, cur.velocityWindow
         );
