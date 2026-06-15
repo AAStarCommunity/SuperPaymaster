@@ -168,7 +168,10 @@ async function main() {
       console.log(`  Sender: ${ethers.formatUnits(newBalance, decimals)} ${symbol}`);
       console.log(`  Recipient: ${ethers.formatUnits(recipientBalance, decimals)} ${symbol}`);
     } else {
-      console.log('  ❌ Transaction failed\n');
+      // FALSE-GREEN FIX: a status==0 receipt means the on-chain UserOp reverted.
+      // Previously this only logged and fell through to exit 0; now FAIL loudly.
+      console.log('  ❌ Transaction failed (receipt.status=0 — UserOp reverted on-chain)\n');
+      process.exit(1);
     }
 
   } catch (error) {

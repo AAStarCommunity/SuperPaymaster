@@ -498,19 +498,43 @@ async function main() {
     console.log('📊 Step 8: Read post-TX credit/debt state');
 
     let xPNTsBalanceAfter, debtAfter, creditAfter;
-    try {
-      [xPNTsBalanceAfter, debtAfter, creditAfter] = await Promise.all([
-        xPNTs.balanceOf(senderAAAccount),
-        xPNTs.getDebt(senderAAAccount),
-        sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS),
-      ]);
-    } catch (err) {
-      if (isNetworkError(err)) {
-        console.warn('\n⚠️  Note: Network error reading post-TX state — TX already confirmed.');
-        // TX succeeded; don't fail the test just because post-read had a network hiccup
-        process.exit(0);
+    // FALSE-GREEN FIX: the TX confirmed, but the accounting assertions (Step 9) have
+    // NOT run yet. Previously a network hiccup here exited 0 (PASS) before any
+    // verification — a green run that proved nothing. The post-state reads are
+    // idempotent views, so retry transient errors; if they still fail, report
+    // INCONCLUSIVE (exit 2 = SKIP), never exit 0 with the assertions unrun.
+    {
+      const POST_READ_RETRIES = 4;
+      let postReadErr = null;
+      for (let attempt = 1; attempt <= POST_READ_RETRIES; attempt++) {
+        try {
+          [xPNTsBalanceAfter, debtAfter, creditAfter] = await Promise.all([
+            xPNTs.balanceOf(senderAAAccount),
+            xPNTs.getDebt(senderAAAccount),
+            sp.getAvailableCredit(senderAAAccount, XPNTS_TOKEN_ADDRESS),
+          ]);
+          postReadErr = null;
+          break;
+        } catch (err) {
+          postReadErr = err;
+          if (isNetworkError(err) && attempt < POST_READ_RETRIES) {
+            console.warn(`  ⚠️  Network error reading post-TX state (attempt ${attempt}/${POST_READ_RETRIES - 1}) — retrying in ${attempt * 3}s...`);
+            await new Promise(r => setTimeout(r, attempt * 3000));
+            continue;
+          }
+          break;
+        }
       }
-      throw err;
+      if (postReadErr) {
+        if (isNetworkError(postReadErr)) {
+          // TX confirmed but post-state could not be read after retries → accounting
+          // NOT verified. Inconclusive (exit 2), NOT a green PASS.
+          console.warn('\n⚠️  SKIP (inconclusive): TX confirmed but post-TX state read failed after retries — accounting NOT verified. Re-run to confirm.');
+          await restoreCreditTier();
+          process.exit(2);
+        }
+        throw postReadErr;
+      }
     }
 
     const balanceDelta = xPNTsBalance - xPNTsBalanceAfter;

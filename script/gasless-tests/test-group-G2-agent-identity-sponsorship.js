@@ -3,17 +3,17 @@
  * Test Group G2: Agent Identity Sponsorship (ERC-8004 Dual-Channel)
  *
  * Scenario: An AI agent (ERC-8004) is recognized by SuperPaymaster's dual-channel
- * eligibility gate (SBT OR registered agent). Operators can define tiered BPS
- * discount policies for agents with different reputation scores.
+ * eligibility gate (SBT OR registered agent).
+ *
+ * NOTE: the tiered AgentSponsorshipPolicy F1 design (setAgentPolicies / agentPolicies
+ * / getAgentSponsorshipRate) was a V5.3 worktree experiment that was never merged into
+ * the deployed contract — those selectors do not exist on-chain and are NOT tested here.
  *
  * Tests:
  *   1. agentIdentityRegistry and agentReputationRegistry addresses
  *   2. isRegisteredAgent — EOA vs known agent NFT holder
  *   3. isEligibleForSponsorship — SBT-only path and agent-only path
- *   4. setAgentPolicies — operator sets tiered sponsorship rates
- *   5. agentPolicies — read policies back from storage
- *   6. getAgentSponsorshipRate — rate for agent at current reputation
- *   7. facilitatorFeeBPS — x402 facilitator fee configuration
+ *   4. facilitatorFeeBPS — x402 facilitator fee configuration
  *
  * Prerequisites:
  *   - SuperPaymaster V5.3.0 deployed
@@ -122,32 +122,20 @@ async function main() {
   }
 
   // ──────────────────────────────────────────
-  // Step 4: setAgentPolicies — define tiered BPS rates
+  // Tiered AgentSponsorshipPolicy (F1) is NOT IMPLEMENTED.
   // ──────────────────────────────────────────
-  printStep(4, 'setAgentPolicies — operator defines tiered sponsorship');
-  // NOTE: setAgentPolicies, agentPolicies, and getAgentSponsorshipRate are V5.3
-  // feature-branch additions not yet merged into SuperPaymaster-5.3.1 (main branch).
-  // These steps are skipped until the V5.4+ upgrade lands.
-  printSkip('setAgentPolicies not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
+  // The original Steps 4-6 here probed setAgentPolicies / agentPolicies /
+  // getAgentSponsorshipRate. Those were a V5.3 worktree design (tiered per-operator
+  // BPS discounts keyed by agent reputation) that was never merged into the deployed
+  // SuperPaymaster — the selectors do not exist on-chain. The blocks were removed
+  // rather than left as "pending V5.4+" skips, which falsely implied the feature was
+  // built and merely awaiting deployment. The dual-channel eligibility gate that DID
+  // ship (Steps 1-3 above: SBT OR registered agent) is the real, tested surface.
 
   // ──────────────────────────────────────────
-  // Step 5: Read agentPolicies back from storage
+  // Step 4: facilitatorFeeBPS — x402 fee check
   // ──────────────────────────────────────────
-  printStep(5, 'Read agentPolicies from storage');
-  printSkip('agentPolicies not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
-
-  // ──────────────────────────────────────────
-  // Step 6: getAgentSponsorshipRate
-  // ──────────────────────────────────────────
-  printStep(6, 'getAgentSponsorshipRate — BPS for agent at current reputation');
-  printSkip('getAgentSponsorshipRate not in SuperPaymaster-5.3.1 — pending V5.4+ upgrade');
-  if (false) { // dead branch — kept for reference
-  }
-
-  // ──────────────────────────────────────────
-  // Step 7: facilitatorFeeBPS — x402 fee check
-  // ──────────────────────────────────────────
-  printStep(7, 'facilitatorFeeBPS — default x402 fee');
+  printStep(4, 'facilitatorFeeBPS — default x402 fee');
   // v5.4 god-split: x402 facilitator-fee config moved from SuperPaymaster to X402Facilitator.
   const x402 = c.x402Facilitator;
   if (!x402) {
