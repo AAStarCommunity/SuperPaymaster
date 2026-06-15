@@ -135,8 +135,15 @@ contract PolicyRegistry is IPolicyRegistry {
     /// @inheritdoc IPolicyRegistry
     /// @dev Reads ONLY `sender`-keyed slots so a staked consumer may call it inside
     ///      `validatePaymasterUserOp` / `validateUserOp`. Mirrors SP `_creditExceeded`'s
-    ///      sender-keyed ceiling pattern. Default-DENY: an unconfigured asset or an un-allowed
-    ///      target ⇒ REJECT.
+    ///      sender-keyed ceiling pattern.
+    ///
+    ///      OPT-IN, default-ALLOW. This registry is an OPT-IN DVT layer, NOT a global
+    ///      allowlist: a sender with nothing configured for an (asset, target) is UNRESTRICTED
+    ///      and resolves to ALLOW with `remainingDaily == type(uint256).max`. An explicit
+    ///      `freeze` is the one hard block (highest priority). Each dimension is enforced ONLY
+    ///      when it is `configured`; an unconfigured dimension imposes no constraint and never
+    ///      triggers DVT. Combine: any configured dimension yielding REJECT ⇒ REJECT; else any
+    ///      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
     function checkPolicy(
         address sender,
         address target,
@@ -146,37 +153,49 @@ contract PolicyRegistry is IPolicyRegistry {
     ) external view returns (PolicyDecision decision, uint256 remainingDaily) {
         _requireValidAsset(asset);
 
-        // (a) frozen sender ⇒ hard REJECT.
+        // (a) frozen sender ⇒ hard REJECT (explicit freeze is the one hard block, top priority).
         if (_frozen[sender]) return (PolicyDecision.REJECT, 0);
 
-        // (b) asset must have a policy (default-deny).
+        // Opt-in default: nothing configured ⇒ unrestricted (unlimited headroom). Configured
+        // dimensions narrow this below; an unconfigured dimension imposes no constraint.
+        remainingDaily = type(uint256).max;
+        bool requireDVT;
+
+        // (b) ASSET dimension — enforced ONLY when configured (else asset is UNRESTRICTED).
         AssetPolicy storage ap = _assetPolicy[sender][asset];
-        if (!ap.configured) return (PolicyDecision.REJECT, 0);
+        if (ap.configured) {
+            // per-tx hard cap.
+            if (amount > ap.perTxHardCap) return (PolicyDecision.REJECT, 0);
+            // daily (asset) window: would posting `amount` exceed dailyLimit?
+            uint256 assetSpent = _effectiveSpent(_assetSpend[sender][asset], ap.windowSeconds);
+            uint256 projected = assetSpent + amount;
+            if (projected > ap.dailyLimit) return (PolicyDecision.REJECT, 0);
+            remainingDaily = ap.dailyLimit - projected;
+            // DVT trigger by amount: `dvtTriggerAmount == 0` ⇒ DISABLED (no amount-based trigger).
+            if (ap.dvtTriggerAmount != 0 && amount >= ap.dvtTriggerAmount) {
+                requireDVT = true;
+            }
+        }
 
-        // (c) per-tx hard cap.
-        if (amount > ap.perTxHardCap) return (PolicyDecision.REJECT, 0);
-
-        // (d) target must be on the call-target allowlist, and the selector allowed.
+        // (c) CONTRACT-SCOPE dimension — enforced ONLY when configured (else target UNRESTRICTED).
         ContractScope storage cs = _contractScope[sender][target];
-        if (!cs.allowed) return (PolicyDecision.REJECT, 0);
-        if (!_selectorAllowed[sender][target][selector]) return (PolicyDecision.REJECT, 0);
-
-        // (e) daily (asset) window: would posting `amount` exceed dailyLimit?
-        uint256 assetSpent = _effectiveSpent(_assetSpend[sender][asset], ap.windowSeconds);
-        uint256 projected = assetSpent + amount;
-        if (projected > ap.dailyLimit) return (PolicyDecision.REJECT, 0);
-        remainingDaily = ap.dailyLimit - projected;
-
-        // (f) per-target velocity window (0 window ⇒ no velocity limit).
-        if (cs.velocityWindow != 0) {
-            uint256 targetSpent = _effectiveSpent(_targetSpend[sender][target], cs.velocityWindow);
-            if (targetSpent + amount > cs.velocityLimit) return (PolicyDecision.REJECT, 0);
+        if (cs.configured) {
+            // target must be on the call-target allowlist, and the selector allowed.
+            if (!cs.allowed) return (PolicyDecision.REJECT, 0);
+            if (!_selectorAllowed[sender][target][selector]) return (PolicyDecision.REJECT, 0);
+            // per-target velocity window (0 window ⇒ no velocity limit).
+            if (cs.velocityWindow != 0) {
+                uint256 targetSpent =
+                    _effectiveSpent(_targetSpend[sender][target], cs.velocityWindow);
+                if (targetSpent + amount > cs.velocityLimit) return (PolicyDecision.REJECT, 0);
+            }
+            // target flagged requireDVTAlways ⇒ REQUIRE_DVT regardless of amount.
+            if (cs.requireDVTAlways) {
+                requireDVT = true;
+            }
         }
 
-        // (g) DVT trigger: amount at/above trigger OR target flagged requireDVTAlways.
-        if (cs.requireDVTAlways || amount >= ap.dvtTriggerAmount) {
-            return (PolicyDecision.REQUIRE_DVT, remainingDaily);
-        }
+        if (requireDVT) return (PolicyDecision.REQUIRE_DVT, remainingDaily);
         return (PolicyDecision.ALLOW, remainingDaily);
     }
 

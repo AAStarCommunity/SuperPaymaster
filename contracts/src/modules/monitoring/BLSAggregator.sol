@@ -229,6 +229,33 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @param  popSignature proof-of-possession (G2): the validator's BLS signature over
     ///                    their own public key. Ignored on the owner path; REQUIRED and
     ///                    verified on the permissionless self-registration path.
+    ///
+    /// @dev    SECURITY / TRUST ASSUMPTION — owner path deliberately skips PoP.
+    ///         There are exactly two registration paths and only ONE of them omits the
+    ///         proof-of-possession check:
+    ///           • Owner path (`msg.sender == owner()`): PoP is NOT verified. This is
+    ///             intentional and safe under the protocol trust model. `owner` is the
+    ///             trusted bootstrap authority (deployer → DAO / governance multisig /
+    ///             timelock) that curates the known-good validator set during onboarding
+    ///             and vets each key's proof-of-possession OFF-CHAIN before calling. A
+    ///             compromised owner is already game-over for BLS consensus by design —
+    ///             it can register/revoke ANY key at ANY slot, move `setSuperPaymaster`,
+    ///             `setDVTValidator`, and the thresholds — so skipping PoP grants it NO
+    ///             extra power it doesn't already hold. The rogue-key attack
+    ///             (`Pm = xG − Σ pk_honest`) is therefore NOT reachable by an untrusted
+    ///             party through this path: an attacker cannot satisfy the `owner()` gate.
+    ///           • Permissionless path (`permissionlessBLSRegistration == true`, off by
+    ///             default): an untrusted staked ROLE_DVT validator self-registers its OWN
+    ///             key, and PoP IS enforced here precisely because the caller is untrusted.
+    ///         Defense-in-depth: even a key inserted via the owner path can only contribute
+    ///         to an aggregate if its validator address still holds ROLE_DVT with locked
+    ///         stake >= minStake at verification time (re-checked live in
+    ///         `_reconstructPkAgg`); a key registered for an address lacking the role/stake
+    ///         can never enter a slash/reputation proof.
+    ///         Deploy runbook: after launch, transfer ownership to the governance
+    ///         multisig/timelock and onboard validators owner-side (off-chain PoP vetting)
+    ///         OR flip `setPermissionlessBLSRegistration(true)` to require on-chain PoP for
+    ///         self-service onboarding. See docs/architecture/dvt-validator-workflow.md.
     function registerBLSPublicKey(
         address validator,
         BLS.G1Point calldata publicKey,
@@ -259,7 +286,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // minStake per identity and remains owner-revocable.)
             slot = _assignSlot(validator);
         } else {
-            // Validate on-curve + prime-order subgroup membership for the owner path too.
+            // Owner (trusted bootstrap authority) path: PoP is intentionally NOT verified —
+            // see the SECURITY / TRUST ASSUMPTION note on this function. The owner vets each
+            // key's proof-of-possession off-chain; a compromised owner already controls the
+            // whole validator set, so on-chain PoP here would add no security. On-curve +
+            // prime-order subgroup membership is still validated to block small-subgroup /
+            // key-cancellation contamination of the reconstructed pkAgg.
             _validateG1Point(publicKey);
         }
 

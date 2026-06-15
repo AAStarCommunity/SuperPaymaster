@@ -57,14 +57,21 @@ interface IPolicyRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// @notice Tri-state result of a validation-time policy read.
-    /// @dev The consumer maps this to its own action:
-    ///        ALLOW       → proceed with normal validation (single KMS/owner signature).
-    ///        REQUIRE_DVT → within the hard ceiling but past the DVT trigger threshold (or the
-    ///                      target is flagged `requireDVTAlways`): the consumer MUST additionally
-    ///                      verify a ≥threshold DVT BLS aggregate co-sign bound to this userOpHash
-    ///                      (SuperPaymaster #283 / AirAccount #70). If absent → reject.
-    ///        REJECT      → over the per-tx hard cap, not on the contract/selector allowlist,
-    ///                      velocity window exhausted, or the sender is frozen → fail validation.
+    /// @dev OPT-IN, default-ALLOW: a sender with NO policy configured for the (asset, target) is
+    ///      UNRESTRICTED and resolves to ALLOW (this is an opt-in DVT layer, NOT a global
+    ///      allowlist). The consumer maps the result to its own action:
+    ///        ALLOW       → proceed with normal validation (single KMS/owner signature). Returned
+    ///                      when nothing relevant is configured, or every configured dimension is
+    ///                      satisfied below its DVT trigger.
+    ///        REQUIRE_DVT → within the hard ceiling but past a *configured* DVT trigger threshold
+    ///                      (`dvtTriggerAmount != 0 && amount >= dvtTriggerAmount`) or the target is
+    ///                      a *configured* scope flagged `requireDVTAlways`: the consumer MUST
+    ///                      additionally verify a ≥threshold DVT BLS aggregate co-sign bound to this
+    ///                      userOpHash (SuperPaymaster #283 / AirAccount #70). If absent → reject.
+    ///        REJECT      → the sender is frozen (explicit hard block, highest priority), OR a
+    ///                      *configured* dimension is violated: over the per-tx hard cap, projected
+    ///                      over the daily limit, target/selector not on a configured allowlist, or
+    ///                      a configured velocity window exhausted → fail validation.
     enum PolicyDecision {
         ALLOW,
         REQUIRE_DVT,
@@ -79,16 +86,21 @@ interface IPolicyRegistry {
     ///         resolved (per cross-repo Q1) to a SINGLE DVT-trigger + a hard cap (no tier1/tier2,
     ///         no REQUIRE_EXTRA tier).
     /// @dev `dvtTriggerAmount` (single-tx amount at/above which DVT co-sign is required);
+    ///      `0` ⇒ the amount-based DVT trigger is DISABLED (no amount alone forces DVT — matching
+    ///      the "0 = unlimited / unset" convention; `requireDVTAlways` on a configured contract
+    ///      scope still forces DVT independently).
     ///      `perTxHardCap` is the immutable-by-CA upper bound (over → REJECT);
     ///      `dailyLimit` is the cumulative per-asset ceiling over `windowSeconds`.
     ///      `windowSeconds` (Q2) is the configurable daily-limit window; 0 ⇒ DEFAULT_WINDOW (1 day).
     ///      All amounts are in the asset's native units (no USD conversion).
+    ///      `configured == false` ⇒ this (sender, asset) is UNRESTRICTED (opt-in): no cap, no
+    ///      daily limit, no amount-based DVT trigger.
     struct AssetPolicy {
-        uint128 dvtTriggerAmount; // single-tx amount ≥ this → REQUIRE_DVT
-        uint128 perTxHardCap;     // single-tx amount  > this → REJECT
+        uint128 dvtTriggerAmount; // single-tx amount ≥ this → REQUIRE_DVT; 0 ⇒ trigger DISABLED
+        uint128 perTxHardCap;     // single-tx amount  > this → REJECT (only when configured)
         uint256 dailyLimit;       // cumulative spend over `windowSeconds` → REJECT when exceeded
         uint64 windowSeconds;     // daily-limit window length (Q2); 0 ⇒ DEFAULT_WINDOW (1 day)
-        bool configured;          // false ⇒ no policy set for this (sender, asset)
+        bool configured;          // false ⇒ no policy set for this (sender, asset) ⇒ UNRESTRICTED
     }
 
     /// @notice Input form of {AssetPolicy} for governance setters (no `configured` flag).
@@ -150,6 +162,13 @@ interface IPolicyRegistry {
     /// @notice Validation-time policy decision for one intended action. MUST be `view` and
     ///         read only `sender`-associated storage so a staked consumer can call it inside
     ///         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation.
+    /// @dev OPT-IN, default-ALLOW (NOT a global allowlist). An explicit `freeze` ⇒ REJECT (the one
+    ///      hard block, top priority). Otherwise each dimension is enforced ONLY when `configured`:
+    ///      an unconfigured asset is UNRESTRICTED (no cap / daily / amount-DVT; `remainingDaily ==
+    ///      type(uint256).max`) and an unconfigured target is UNRESTRICTED (no allow-list / selector
+    ///      / velocity / requireDVTAlways check). Combine: any configured dimension ⇒ REJECT wins;
+    ///      else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING
+    ///      configured ⇒ ALLOW with `remainingDaily == type(uint256).max`.
     /// @param sender   the AA account address (the policy + counter key).
     /// @param target   the contract the op will call.
     /// @param asset    the ERC-20 whose `amount` is being moved (native units; the ETH sentinel
@@ -159,8 +178,9 @@ interface IPolicyRegistry {
     /// @param selector the function selector being invoked on `target`.
     /// @return decision ALLOW / REQUIRE_DVT / REJECT (see {PolicyDecision}).
     /// @return remainingDaily the asset's remaining native-unit allowance in the current window
-    ///         AFTER this `amount` would post (0 when REJECT due to a cap). Lets the consumer
-    ///         surface "how much headroom is left" without a second call.
+    ///         AFTER this `amount` would post (0 when REJECT due to a cap; `type(uint256).max` when
+    ///         the asset is UNRESTRICTED / not configured). Lets the consumer surface "how much
+    ///         headroom is left" without a second call.
     function checkPolicy(
         address sender,
         address target,

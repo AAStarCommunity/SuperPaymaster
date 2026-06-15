@@ -5,7 +5,11 @@ export interface Config {
   chainId: number;
   rpcUrl: string;
   operatorPrivateKey: `0x${string}`;
-  superPaymasterAddress: `0x${string}`;
+  // v5.4 god-split: x402 settlement moved OUT of SuperPaymaster into the standalone
+  // X402Facilitator contract. All x402 reads/writes (settle, fee, nonce, version)
+  // target this address now. Its EIP-712 domain name is "X402Facilitator" and the
+  // verifyingContract is this address (see X402Facilitator._x402DomainSeparator).
+  x402FacilitatorAddress: `0x${string}`;
   usdcAddress: `0x${string}`;
   network: string;
   baseUrl: string;
@@ -32,7 +36,7 @@ export function loadConfig(): Config {
     chainId,
     rpcUrl: requireEnv("RPC_URL"),
     operatorPrivateKey: requireEnv("OPERATOR_PRIVATE_KEY") as `0x${string}`,
-    superPaymasterAddress: requireEnv("SUPER_PAYMASTER_ADDRESS") as `0x${string}`,
+    x402FacilitatorAddress: requireEnv("X402_FACILITATOR_ADDRESS") as `0x${string}`,
     usdcAddress: (() => {
       const addr = process.env.USDC_ADDRESS || usdcDefaults[chainId];
       if (!addr) throw new Error(`No USDC address for chainId ${chainId}. Set USDC_ADDRESS env var.`);

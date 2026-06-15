@@ -144,12 +144,6 @@ contract PolicyRegistryTest is Test {
         assertEq(rem, 0);
     }
 
-    function testReject_targetNotAllowed() public {
-        address t2 = makeAddr("unknownTarget");
-        (IPolicyRegistry.PolicyDecision d,) = reg.checkPolicy(sender, t2, asset, 10e18, SEL);
-        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REJECT));
-    }
-
     function testReject_selectorNotAllowed() public view {
         (IPolicyRegistry.PolicyDecision d,) =
             reg.checkPolicy(sender, target, asset, 10e18, bytes4(0xdeadbeef));
@@ -171,6 +165,98 @@ contract PolicyRegistryTest is Test {
         _record(250e18); // targetSpent = 250 (and assetSpent = 250, well under daily 1000)
         (IPolicyRegistry.PolicyDecision d,) = _check(100e18); // velocity 250+100 > 300
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REJECT));
+    }
+
+    // ───────────────────────── opt-in default-ALLOW semantics (#110 owner decision) ─────────────────────────
+
+    /// (a) A sender with NOTHING configured ⇒ ALLOW with unlimited headroom (pure opt-in).
+    function testUnconfiguredSenderAllowsWithMaxRemaining() public {
+        address s2 = makeAddr("freshSender");
+        address t2 = makeAddr("freshTarget");
+        address a2 = makeAddr("freshAsset");
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
+            reg.checkPolicy(s2, t2, a2, 1_000_000e18, SEL);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+        assertEq(rem, type(uint256).max);
+    }
+
+    /// (b) Asset configured but target unconfigured ⇒ asset cap/daily enforced, target UNRESTRICTED.
+    function testAssetConfiguredTargetUnconfigured() public {
+        address t2 = makeAddr("unconfiguredTarget");
+        // Target unconfigured ⇒ no allow-list / selector check (deadbeef selector is irrelevant).
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
+            reg.checkPolicy(sender, t2, asset, 10e18, bytes4(0xdeadbeef));
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+        assertEq(rem, 1000e18 - 10e18); // asset daily still bounds the headroom
+        // The configured asset's hard cap is STILL enforced regardless of the target being open.
+        (IPolicyRegistry.PolicyDecision d2, uint256 rem2) =
+            reg.checkPolicy(sender, t2, asset, 600e18, bytes4(0xdeadbeef));
+        assertEq(uint8(d2), uint8(IPolicyRegistry.PolicyDecision.REJECT)); // > cap 500e18
+        assertEq(rem2, 0);
+    }
+
+    /// (c) Target configured but asset unconfigured ⇒ target scope enforced, asset UNLIMITED.
+    function testTargetConfiguredAssetUnconfigured() public {
+        address s2 = makeAddr("scopeOnlySender");
+        bytes4[] memory sels = new bytes4[](1);
+        sels[0] = SEL;
+        // velocityWindow 0 ⇒ no velocity limit, to isolate the "asset unlimited" behavior.
+        _setContractScope(s2, target, _cs(true, false, 0, 0, sels));
+        // asset unconfigured ⇒ unlimited headroom; target scope still allows this selector.
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
+            reg.checkPolicy(s2, target, asset, 1_000_000e18, SEL);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+        assertEq(rem, type(uint256).max); // asset side imposes no limit
+        // The configured target scope is STILL enforced: a non-allowed selector → REJECT.
+        (IPolicyRegistry.PolicyDecision d2,) =
+            reg.checkPolicy(s2, target, asset, 1e18, bytes4(0xdeadbeef));
+        assertEq(uint8(d2), uint8(IPolicyRegistry.PolicyDecision.REJECT));
+    }
+
+    /// (d) `dvtTriggerAmount == 0` ⇒ amount-based DVT trigger DISABLED (ALLOW even for huge amount).
+    function testDvtTriggerZeroDisablesAmountTrigger() public {
+        // Reconfigure the asset with dvtTriggerAmount == 0, huge cap & daily.
+        _setAssetPolicy(sender, asset, _ap(0, 1_000_000e18, 2_000_000e18, 1 days));
+        // Unconfigured target isolates the asset amount→DVT path.
+        address t2 = makeAddr("freeTarget");
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
+            reg.checkPolicy(sender, t2, asset, 999_999e18, SEL);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW)); // 0-trigger ⇒ no DVT
+        assertEq(rem, 2_000_000e18 - 999_999e18);
+    }
+
+    /// (e) `dvtTriggerAmount > 0` boundary: amount EXACTLY at the trigger still fires REQUIRE_DVT.
+    function testDvtTriggerBoundaryStillTriggers() public view {
+        // trigger == 100e18 (setUp). Exactly at trigger → REQUIRE_DVT; one wei below → ALLOW.
+        (IPolicyRegistry.PolicyDecision d,) = _check(100e18);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REQUIRE_DVT));
+        (IPolicyRegistry.PolicyDecision d2,) = _check(100e18 - 1);
+        assertEq(uint8(d2), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
+    }
+
+    /// (f) An explicit freeze ⇒ REJECT even for an otherwise-unconfigured (opt-in) sender.
+    function testFrozenRejectsEvenWhenUnconfigured() public {
+        address s2 = makeAddr("frozenFreshSender");
+        vm.prank(guardian);
+        reg.freezeSender(s2);
+        address t2 = makeAddr("freshTarget2");
+        address a2 = makeAddr("freshAsset2");
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(s2, t2, a2, 1e18, SEL);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REJECT));
+        assertEq(rem, 0);
+    }
+
+    /// (g) `requireDVTAlways` on a configured target forces REQUIRE_DVT even with asset UNCONFIGURED.
+    function testRequireDVTAlwaysWithUnconfiguredAsset() public {
+        address s2 = makeAddr("dvtAlwaysSender");
+        bytes4[] memory sels = new bytes4[](1);
+        sels[0] = SEL;
+        _setContractScope(s2, target, _cs(true, true, 0, 0, sels)); // requireDVTAlways, no velocity
+        // asset unconfigured ⇒ unlimited headroom; requireDVTAlways still forces REQUIRE_DVT.
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
+            reg.checkPolicy(s2, target, asset, 1e18, SEL);
+        assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REQUIRE_DVT));
+        assertEq(rem, type(uint256).max);
     }
 
     // ───────────────────────── remainingDaily math + recordSpend ─────────────────────────

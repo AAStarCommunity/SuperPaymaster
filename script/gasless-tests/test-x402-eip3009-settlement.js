@@ -47,7 +47,9 @@ const ERC20_ABI = [
   'function nonces(address owner) view returns (uint256)',
 ];
 
-const SUPERPAYMASTER_ABI = [
+// v5.4 god-split: x402 settlement moved out of SuperPaymaster into the standalone
+// X402Facilitator contract. Same function signatures, different target contract.
+const X402_FACILITATOR_ABI = [
   // M-1: 9-arg form — `maxFee` inserted right after `amount`.
   'function settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature) external returns (bytes32)',
   'function facilitatorFeeBPS() view returns (uint256)',
@@ -81,13 +83,20 @@ async function main() {
   // Payee = burn address for testing
   const payee = '0x000000000000000000000000000000000000dEaD';
 
-  const spAddr = config.superPaymaster;
-  const superPaymaster = new ethers.Contract(spAddr, SUPERPAYMASTER_ABI, facilitator);
+  // v5.4 god-split: settlement now targets X402Facilitator, not SuperPaymaster.
+  // Address sourced from deployments/config.sepolia.json (key: x402Facilitator),
+  // with an X402_FACILITATOR env override; populated at the v5.4 redeploy stage.
+  const x402Addr = config.x402Facilitator || process.env.X402_FACILITATOR;
+  if (!x402Addr) {
+    console.log('⚠️  SKIP: X402Facilitator address not set (config.x402Facilitator / X402_FACILITATOR). Deploy v5.4 first.');
+    process.exit(2);
+  }
+  const x402 = new ethers.Contract(x402Addr, X402_FACILITATOR_ABI, facilitator);
   const usdc = new ethers.Contract(USDC_SEPOLIA, ERC20_ABI, payer);
 
   console.log('📌 Configuration:');
-  console.log(`  SuperPaymaster: ${spAddr}`);
-  console.log(`  Version: ${await superPaymaster.version()}`);
+  console.log(`  X402Facilitator: ${x402Addr}`);
+  console.log(`  Version: ${await x402.version()}`);
   console.log(`  USDC: ${USDC_SEPOLIA}`);
   console.log(`  Payer: ${payer.address}`);
   console.log(`  Facilitator: ${facilitator.address}`);
@@ -109,8 +118,8 @@ async function main() {
 
   // Step 2: Check facilitator fee (per-operator override falls back to global default)
   console.log('\n📊 Step 2: Check Facilitator Fee');
-  const globalFeeBPS = await superPaymaster.facilitatorFeeBPS();
-  const feeBPS = await superPaymaster.getEffectiveFacilitatorFee(facilitator.address);
+  const globalFeeBPS = await x402.facilitatorFeeBPS();
+  const feeBPS = await x402.getEffectiveFacilitatorFee(facilitator.address);
   console.log(`  facilitatorFeeBPS (global): ${globalFeeBPS} (${Number(globalFeeBPS) / 100}%)`);
   console.log(`  effective fee for facilitator: ${feeBPS} (${Number(feeBPS) / 100}%)`);
   const expectedFee = (amount * feeBPS) / 10000n;
@@ -163,7 +172,7 @@ async function main() {
 
   const value = {
     from: payer.address,
-    to: spAddr,  // SuperPaymaster receives the USDC first
+    to: x402Addr,  // X402Facilitator receives the USDC first (receiveWithAuthorization → address(this))
     value: amount,
     validAfter: validAfter,
     validBefore: validBefore,
@@ -179,11 +188,11 @@ async function main() {
   console.log('\n🚀 Step 4: Execute Settlement');
 
   const payeeBalanceBefore = await usdc.balanceOf(payee);
-  const earningsBefore = await superPaymaster.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
+  const earningsBefore = await x402.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
 
   try {
     const receipt = await sendAndWait(
-      superPaymaster, 'settleX402Payment',
+      x402, 'settleX402Payment',
       [payer.address, payee, USDC_SEPOLIA, amount, maxFee, validAfter, validBefore, salt, signature],
       'settleX402Payment', { gasLimit: 500000 }
     );
@@ -195,10 +204,10 @@ async function main() {
     console.log('\n📊 Step 5: Verify Results');
 
     const payeeBalanceAfter = await usdc.balanceOf(payee);
-    const earningsAfter = await superPaymaster.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
+    const earningsAfter = await x402.facilitatorEarnings(facilitator.address, USDC_SEPOLIA);
     // P0-13: derive composite key (asset, from, nonce) instead of using raw nonce
-    const nonceKey = await superPaymaster.x402NonceKey(USDC_SEPOLIA, payer.address, nonce);
-    const nonceUsed = await superPaymaster.x402SettlementNonces(nonceKey);
+    const nonceKey = await x402.x402NonceKey(USDC_SEPOLIA, payer.address, nonce);
+    const nonceUsed = await x402.x402SettlementNonces(nonceKey);
 
     const payeeReceived = payeeBalanceAfter - payeeBalanceBefore;
     const feeCollected = earningsAfter - earningsBefore;
@@ -230,7 +239,7 @@ async function main() {
     console.log('\n🛡️  Step 6: Test Replay Protection');
     try {
       // Replay the SAME (payee, maxFee, salt) -> re-derives the consumed nonce.
-      await superPaymaster.settleX402Payment.staticCall(
+      await x402.settleX402Payment.staticCall(
         payer.address, payee, USDC_SEPOLIA, amount, maxFee,
         validAfter, validBefore, salt, signature
       );

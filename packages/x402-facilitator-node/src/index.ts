@@ -51,7 +51,7 @@ app.get("/", (c) =>
 const port = config.port;
 console.log(`x402 Facilitator Node starting on port ${port}`);
 console.log(`  Network: ${config.network} (chainId: ${config.chainId})`);
-console.log(`  SuperPaymaster: ${config.superPaymasterAddress}`);
+console.log(`  X402Facilitator: ${config.x402FacilitatorAddress}`);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`  Listening on http://localhost:${info.port}`);

@@ -45,7 +45,9 @@ const XPNTS_ABI = [
   'function autoApprovedSpenders(address) view returns (bool)',
 ];
 
-const SUPERPAYMASTER_ABI = [
+// v5.4 god-split: x402 settlement moved out of SuperPaymaster into the standalone
+// X402Facilitator contract. Same function signatures, different target contract.
+const X402_FACILITATOR_ABI = [
   'function settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature) external returns (bytes32)',
   'function facilitatorFeeBPS() view returns (uint256)',
   'function operatorFacilitatorFees(address operator) view returns (uint256)',
@@ -79,13 +81,20 @@ async function main() {
   const payer = ethers.Wallet.createRandom().connect(provider);
   const payee = '0x000000000000000000000000000000000000dEaD';
 
-  const spAddr = config.superPaymaster;
+  // v5.4 god-split: settlement now targets X402Facilitator, not SuperPaymaster.
+  // Address sourced from deployments/config.sepolia.json (key: x402Facilitator),
+  // with an X402_FACILITATOR env override; populated at the v5.4 redeploy stage.
+  const x402Addr = config.x402Facilitator || process.env.X402_FACILITATOR;
+  if (!x402Addr) {
+    console.log('⚠️  SKIP: X402Facilitator address not set (config.x402Facilitator / X402_FACILITATOR). Deploy v5.4 first.');
+    process.exit(2);
+  }
   const asset = config.aPNTs;
-  const sp = new ethers.Contract(spAddr, SUPERPAYMASTER_ABI, facilitator);
+  const sp = new ethers.Contract(x402Addr, X402_FACILITATOR_ABI, facilitator);
   const xpntsOwner = new ethers.Contract(asset, XPNTS_ABI, owner);
 
   console.log('📌 Configuration:');
-  console.log(`  SuperPaymaster: ${spAddr}  (${await sp.version()})`);
+  console.log(`  X402Facilitator: ${x402Addr}  (${await sp.version()})`);
   console.log(`  xPNTs (asset):  ${asset}`);
   console.log(`  Community owner:${owner.address}`);
   console.log(`  Facilitator:    ${facilitator.address}`);
@@ -113,8 +122,10 @@ async function main() {
   } else {
     console.log(`  Facilitator already approved`);
   }
-  const spAutoApproved = await xpntsOwner.autoApprovedSpenders(spAddr);
-  console.log(`  SP autoApprovedSpender: ${spAutoApproved}`);
+  // v5.4 god-split: X402Facilitator now executes transferFrom(from, address(this), ...),
+  // so the auto-allowance firewall must recognize the facilitator as an approved spender.
+  const spAutoApproved = await xpntsOwner.autoApprovedSpenders(x402Addr);
+  console.log(`  X402Facilitator autoApprovedSpender: ${spAutoApproved}`);
 
   // Step 2: Compute fee + maxFee, build EIP-712 authorization
   console.log('\n✍️  Step 2: Sign EIP-712 X402PaymentAuthorization');
@@ -125,7 +136,10 @@ async function main() {
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600);
   const nonce = ethers.hexlify(ethers.randomBytes(32));
 
-  const domain = { name: 'SuperPaymaster', version: '1', chainId: CHAIN_ID, verifyingContract: spAddr };
+  // v5.4 god-split: the X402Facilitator EIP-712 domain name is "X402Facilitator"
+  // (see X402Facilitator._x402DomainSeparator), and verifyingContract is the
+  // facilitator contract that recovers the payer's X402PaymentAuthorization signature.
+  const domain = { name: 'X402Facilitator', version: '1', chainId: CHAIN_ID, verifyingContract: x402Addr };
   const types = {
     X402PaymentAuthorization: [
       { name: 'from', type: 'address' },

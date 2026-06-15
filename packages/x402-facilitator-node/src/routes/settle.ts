@@ -3,7 +3,7 @@
 import { Hono } from "hono";
 import { type Config } from "../lib/config.js";
 import { getPublicClient, getWalletClient, getAccount } from "../lib/chain.js";
-import { SUPER_PAYMASTER_ABI } from "../lib/contracts.js";
+import { X402_FACILITATOR_ABI } from "../lib/contracts.js";
 import { validatePaymentFields, validateHex } from "../lib/validate.js";
 import type { SettleRequest, SettleResponse } from "../types.js";
 
@@ -47,8 +47,8 @@ export function settleRoute(config: Config) {
         // settleX402PaymentDirect — for xPNTs and pre-approved tokens
         const { request } = await publicClient.simulateContract({
           account: account,
-          address: config.superPaymasterAddress,
-          abi: SUPER_PAYMASTER_ABI,
+          address: config.x402FacilitatorAddress,
+          abi: X402_FACILITATOR_ABI,
           functionName: "settleX402PaymentDirect",
           args: [
             from as `0x${string}`,
@@ -75,17 +75,18 @@ export function settleRoute(config: Config) {
       // Default: EIP-3009 settlement
       const { request } = await publicClient.simulateContract({
         account: account,
-        address: config.superPaymasterAddress,
-        abi: SUPER_PAYMASTER_ABI,
+        address: config.x402FacilitatorAddress,
+        abi: X402_FACILITATOR_ABI,
         functionName: "settleX402Payment",
         args: [
           from as `0x${string}`,
           to as `0x${string}`,
           asset as `0x${string}`,
           BigInt(amount),
+          BigInt(maxFee ?? amount), // M-1: fee cap bound into nonce = keccak256(to, maxFee, salt)
           BigInt(validAfter),
           BigInt(validBefore),
-          salt as `0x${string}`, // C-03: on-chain nonce = keccak256(to, salt)
+          salt as `0x${string}`, // C-03/M-1: on-chain nonce = keccak256(to, maxFee, salt)
           signature as `0x${string}`,
         ],
       });

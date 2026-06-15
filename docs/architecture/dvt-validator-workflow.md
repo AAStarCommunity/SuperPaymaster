@@ -95,6 +95,21 @@ sequenceDiagram
 
 **注意：步骤 2 的 stake 检查只在 `addValidator` 调用瞬间发生**。后续运行期间，validator 如果偷偷 `exitRole`，`isValidator` 不会自动变 `false`。但是——见 §5，下游执行路径会**实时回查** `hasRole` + `roleLocks`，所以退押 validator 即便仍在 `isValidator` 名单里，也无法继续投票。
 
+### Step 3 的两条注册路径与 PoP（Proof-of-Possession）信任假设
+
+`registerBLSPublicKey` 有**两条**路径，只有其中一条做 PoP 校验：
+
+| 路径 | 触发条件 | PoP 校验 | slot | 信任前提 |
+|---|---|---|---|---|
+| **Owner 路径** | `msg.sender == owner()` | **不校验**（故意跳过） | 调用方指定 | owner 是受信引导方（部署者 → 治理多签 / timelock），上链前已**链下**核验每把 key 的 PoP |
+| **Permissionless 路径** | `permissionlessBLSRegistration == true`（默认关） | **强制校验** `_verifyPoP` | 合约自动分配最低空槽 | 调用方是不受信的自助质押 validator，因此必须链上证明持有私钥 |
+
+**为什么 owner 路径跳过 PoP 是安全的（trusted-by-design）**：rogue-key 攻击（`Pm = xG − Σ pk_honest`）要求攻击者把一把构造好的 rogue key 注册进 validator 集合。但 owner 路径有 `msg.sender == owner()` 门禁，不受信方根本无法触发；而能触发的 owner 一旦被攻陷，本就能注册/撤销任意 key、改 `setSuperPaymaster` / `setDVTValidator` / 阈值——已经完全掌控共识，跳过 PoP 不给它任何额外能力。真正需要 PoP 防御的是不受信的 permissionless 自注册路径，而那条路径**已经**强制 PoP。
+
+**纵深防御**：即便一把 key 经 owner 路径注册进来，它也只有在其 validator 地址**仍持有 ROLE_DVT 且锁仓 ≥ minStake**（`_reconstructPkAgg` 验证时实时回查）的前提下才能参与聚合——为缺角色/缺质押地址注册的 key 永远进不了 slash/reputation proof。
+
+**部署 runbook**：上线后将 owner 转移给治理多签 / timelock，validator 走 owner 侧 onboarding（链下核验 PoP）；或翻开 `setPermissionlessBLSRegistration(true)` 改用链上 PoP 自助注册。对应代码 NatSpec：`BLSAggregator.registerBLSPublicKey` 的 "SECURITY / TRUST ASSUMPTION" 段。
+
 ---
 
 ## 3. 运行流程（按时序）

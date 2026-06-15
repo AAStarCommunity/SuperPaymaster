@@ -1406,10 +1406,19 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     address public agentIdentityRegistry;
     address public agentReputationRegistry;
 
-    // v5.4 god-split phase 1: the x402 settlement layer (facilitatorFeeBPS,
-    // operatorFacilitatorFees, x402SettlementNonces, facilitatorEarnings — 4 slots)
-    // was extracted into the standalone X402Facilitator contract. Those 4 storage
-    // slots are removed here; see __gap accounting at the end of this contract.
+    // v5.4 god-split phase 1: the x402 settlement layer (setters + settle logic) was
+    // extracted into the standalone X402Facilitator contract. Its 4 storage slots are
+    // KEPT here as `private __deprecated_*` placeholders — NOT deleted — so this UUPS
+    // proxy's storage layout stays BYTE-IDENTICAL to the pre-split (deployed) layout.
+    // Deleting them would shift every following variable (pendingAPNTsToken, timelock,
+    // BLS-aggregator, etc.) down by 4 slots and brick any in-place upgrade of the live
+    // proxy. `private` => no getter => zero runtime bytecode (the size win came from
+    // deleting the x402 FUNCTIONS, not these slots). Original names/types/order:
+    //   facilitatorFeeBPS, operatorFacilitatorFees, x402SettlementNonces, facilitatorEarnings.
+    uint256 private __deprecated_x402_facilitatorFeeBPS;
+    mapping(address => uint256) private __deprecated_x402_operatorFacilitatorFees;
+    mapping(bytes32 => bool) private __deprecated_x402_settlementNonces;
+    mapping(address => mapping(address => uint256)) private __deprecated_x402_facilitatorEarnings;
 
     // P0-9: Timelock variables — appended after all V5 storage to avoid slot collisions.
     /// @notice Pending APNTS_TOKEN swap; address(0) when none queued.
@@ -1508,14 +1517,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         cross-checks alone cannot prevent.
     mapping(bytes32 => bool) internal _settledDebtOps;
 
-    // v5.4 god-split phase 1 (REDEPLOY, no UUPS storage-compat constraint): the 4 x402
-    // storage slots (facilitatorFeeBPS, operatorFacilitatorFees, x402SettlementNonces,
-    // facilitatorEarnings) were removed and extracted to X402Facilitator.sol. Those 4
-    // freed slots are folded back into __gap (31 -> 35) so this contract's total reserved
-    // storage footprint is unchanged. All storage AFTER the removed x402 block
-    // (pendingAPNTsToken, pendingAPNTsTokenEta, _slashCd, pendingBLSAgg/Eta,
-    // _settledDebtOps) shifts down by 4 slots vs. the pre-split layout — acceptable
-    // because this release redeploys SuperPaymaster fresh (no in-place upgrade).
+    // v5.4 god-split phase 1: the x402 settle/admin LOGIC moved to X402Facilitator, but
+    // the 4 x402 storage slots are RETAINED above as `private __deprecated_*` placeholders
+    // to keep this UUPS proxy's layout byte-identical to the pre-split deployed layout.
+    // Therefore __gap is UNCHANGED at [31] (it never grew to [35]); every variable keeps
+    // its original slot, so an in-place upgrade of the live proxy stays storage-safe.
     // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps = 21.
-    uint256[35] private __gap;
+    // (The 4 deprecated x402 slots are accounted in the "18 original"+V5 block, not here.)
+    uint256[31] private __gap;
 }
