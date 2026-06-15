@@ -1,0 +1,896 @@
+{
+  "abi": [
+    {
+      "type": "constructor",
+      "inputs": [
+        {
+          "name": "timelock_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "guardian_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "initialConsumer",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "DEFAULT_WINDOW",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint64",
+          "internalType": "uint64"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "ETH_SENTINEL",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "checkPolicy",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "selector",
+          "type": "bytes4",
+          "internalType": "bytes4"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "decision",
+          "type": "uint8",
+          "internalType": "enum IPolicyRegistry.PolicyDecision"
+        },
+        {
+          "name": "remainingDaily",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "freezeSender",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "getAssetPolicy",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.AssetPolicy",
+          "components": [
+            {
+              "name": "dvtTriggerAmount",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "perTxHardCap",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailyLimit",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "windowSeconds",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "configured",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getAssetSpend",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "spentInWindow",
+          "type": "uint128",
+          "internalType": "uint128"
+        },
+        {
+          "name": "windowStart",
+          "type": "uint64",
+          "internalType": "uint64"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getContractScope",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.ContractScope",
+          "components": [
+            {
+              "name": "allowed",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "requireDVTAlways",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "velocityLimit",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "velocityWindow",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "configured",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "guardian",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "isAuthorizedConsumer",
+      "inputs": [
+        {
+          "name": "consumer",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "isFrozen",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "isSelectorAllowed",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "selector",
+          "type": "bytes4",
+          "internalType": "bytes4"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "recordSpend",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "selector",
+          "type": "bytes4",
+          "internalType": "bytes4"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setAssetPolicy",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "params",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.AssetPolicyInput",
+          "components": [
+            {
+              "name": "dvtTriggerAmount",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "perTxHardCap",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailyLimit",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "windowSeconds",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setConsumerAuthorization",
+      "inputs": [
+        {
+          "name": "consumer",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "authorized",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setContractScope",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "params",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.ContractScopeInput",
+          "components": [
+            {
+              "name": "allowed",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "requireDVTAlways",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "velocityLimit",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "velocityWindow",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "selectorAllowlist",
+              "type": "bytes4[]",
+              "internalType": "bytes4[]"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setGuardian",
+      "inputs": [
+        {
+          "name": "newGuardian",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "tightenAssetPolicy",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "params",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.AssetPolicyInput",
+          "components": [
+            {
+              "name": "dvtTriggerAmount",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "perTxHardCap",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailyLimit",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "windowSeconds",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "tightenContractScope",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "params",
+          "type": "tuple",
+          "internalType": "struct IPolicyRegistry.ContractScopeInput",
+          "components": [
+            {
+              "name": "allowed",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "requireDVTAlways",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "velocityLimit",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "velocityWindow",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "selectorAllowlist",
+              "type": "bytes4[]",
+              "internalType": "bytes4[]"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "timelock",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "unfreezeSender",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "version",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "event",
+      "name": "AssetPolicySet",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "dvtTriggerAmount",
+          "type": "uint128",
+          "indexed": false,
+          "internalType": "uint128"
+        },
+        {
+          "name": "perTxHardCap",
+          "type": "uint128",
+          "indexed": false,
+          "internalType": "uint128"
+        },
+        {
+          "name": "dailyLimit",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ConsumerAuthorizationSet",
+      "inputs": [
+        {
+          "name": "consumer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "authorized",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ContractScopeSet",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "allowed",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        },
+        {
+          "name": "requireDVTAlways",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        },
+        {
+          "name": "velocityLimit",
+          "type": "uint128",
+          "indexed": false,
+          "internalType": "uint128"
+        },
+        {
+          "name": "velocityWindow",
+          "type": "uint64",
+          "indexed": false,
+          "internalType": "uint64"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "GuardianUpdated",
+      "inputs": [
+        {
+          "name": "oldGuardian",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newGuardian",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "PolicyTightened",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "actor",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SelectorScopeSet",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "selector",
+          "type": "bytes4",
+          "indexed": true,
+          "internalType": "bytes4"
+        },
+        {
+          "name": "allowed",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SenderFrozen",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "actor",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SenderUnfrozen",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SpendRecorded",
+      "inputs": [
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "asset",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "target",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "selector",
+          "type": "bytes4",
+          "indexed": false,
+          "internalType": "bytes4"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "NotAuthorizedConsumer",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotGuardianOrTimelock",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotStrictlyTighter",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotTimelock",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SafeCastOverflowedUintDowncast",
+      "inputs": [
+        {
+          "name": "bits",
+          "type": "uint8",
+          "internalType": "uint8"
+        },
+        {
+          "name": "value",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SenderIsFrozen",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ZeroAddress",
+      "inputs": []
+    }
+  ],
+  "bytecode": "0x60a03461018957601f611a8338819003918201601f19168301916001600160401b0383118484101761018d5780849260609460405283398101031261018957610047816101a1565b906100606040610059602084016101a1565b92016101a1565b916001600160a01b038116158015610178575b61016957608052600780546001600160a01b0319166001600160a01b0392909216918217905560405191905f7f064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad9098180a36001600160a01b03169081610123575b6040516118cd90816101b6823960805181818161016001528181610466015281816104a7015281816108630152818161095801528181610a5d01528181610b9d01528181610c6301526112bd0152f35b60207f5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd4591835f526006825260405f20600160ff1982541617905560018152a25f806100d3565b63d92e233d60e01b5f5260045ffd5b506001600160a01b03821615610073565b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b03821682036101895756fe60806040526004361015610011575f80fd5b5f3560e01c8063055b8e7b146110b857806329210a4b14610fe357806335cefaa814610f0d5780633ef43aff14610c4957806343a0c39f14610c2c578063452a932014610c0657806353d8cb6814610b7a57806354fd4d5014610ae05780636ef778ee14610a2b578063715904dd146109bd5780637df732ea146109805780637e19482e146108d35780638a0dac4a14610840578063969cb5da146107f9578063a1a4a180146106e4578063b16559191461066d578063b743be941461063f578063be29f4911461048e578063ccd7129f14610184578063d33219b4146101415763e583983614610100575f80fd5b3461013d57602036600319011261013d576001600160a01b036101216112e5565b165f526003602052602060ff60405f2054166040519015158152f35b5f80fd5b3461013d575f36600319011261013d5760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b3461013d5761019236611356565b906001600160a01b03600754163314158061045b575b61044c576001600160a01b031691821561043d576001600160a01b031691825f52600160205260405f20815f5260205260405f20805460ff8160d01c1615610410576101f38461146f565b80610432575b6104105760ff8160081c168061041f575b6104105760408401906001600160801b038061022584611415565b9260101c16911611610410577f92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc859184936102746102628861146f565b829060ff801983541691151516179055565b610347602088019161029e6102888461146f565b825461ff00191690151560081b61ff0016178255565b6102e06102aa85611415565b825471ffffffffffffffffffffffffffffffff0000191660109190911b71ffffffffffffffffffffffffffffffff000016178255565b67ffffffffffffffff6103046102fe6102f88c61146f565b9561146f565b95611415565b915460901c16906040519485948592936001600160801b0367ffffffffffffffff9296956060946080870198151587521515602087015216604085015216910152565b0390a3608082016103588184611491565b9390505f5b84811061038c5733867f4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e65f80a3005b806103ab6103a66001936103a08787611491565b906114c7565b6114eb565b875f52600260205260405f20865f5260205260405f209063ffffffff60e01b1690815f5260205260405f2060ff19815416905585887fdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e6278060206040515f8152a40161035d565b63c892292160e01b5f5260045ffd5b5061042c6020850161146f565b1561020a565b5060ff8116156101f9565b63d92e233d60e01b5f5260045ffd5b63954afe2760e01b5f5260045ffd5b506001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163314156101a8565b3461013d5761049c36611311565b916001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610630576104d682611779565b6104df83611415565b9160208401936104ee85611415565b936040820135936105016060840161147c565b9161050a611429565b6001600160801b03918216815296811660208089019182526040808a0189815267ffffffffffffffff90961660608b0190815260016080808d019182526001600160a01b039788165f818152808752858120998d16815298909552929096209a51935190911b6fffffffffffffffffffffffffffffffff191692909316919091178855969092516001820155600201915167ffffffffffffffff1682549151151560401b68ff0000000000000000169168ffffffffffffffffff1916171790556105d390611415565b936105dd90611415565b604080516001600160801b039687168152919095166020820152938401919091526001600160a01b0316917f9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe90606090a3005b63656a6d1560e11b5f5260045ffd5b3461013d575f36600319011261013d57602060405173eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee8152f35b3461013d57606036600319011261013d576106866112e5565b61068e6112fb565b6044359163ffffffff60e01b831680930361013d576001600160a01b03165f5260026020526001600160a01b0360405f2091165f5260205260405f20905f52602052602060ff60405f2054166040519015158152f35b3461013d576106f2366113b2565b9193929092335f52600660205260ff60405f205416156107ea576001600160a01b03807fc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f8893816040946107448a611779565b1695865f525f602052845f20838a165f5260205261078a88865f20895f526004602052875f20868d165f5260205267ffffffffffffffff6002895f2092015416906117ce565b865f526001602052845f208383165f526020526107cf88865f20895f526005602052875f208686165f5260205267ffffffffffffffff885f20915460901c16906117ce565b84519788526001600160e01b031916602088015216951693a4005b634b95b20b60e11b5f5260045ffd5b3461013d5761081361080a366113b2565b93929092611521565b60405190600383101561082c5760409282526020820152f35b634e487b7160e01b5f52602160045260245ffd5b3461013d57602036600319011261013d576108596112e5565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610630576001600160a01b0316801561043d576001600160a01b03600754828219821617600755167f064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad9095f80a3005b3461013d57602036600319011261013d576108ec6112e5565b6001600160a01b03600754163314158061094d575b61044c576001600160a01b0316805f52600360205260405f20600160ff1982541617905533907fbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb85f80a3005b506001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016331415610901565b3461013d57602036600319011261013d576001600160a01b036109a16112e5565b165f526006602052602060ff60405f2054166040519015158152f35b3461013d57604036600319011261013d576109d66112e5565b6001600160a01b036109e66112fb565b91165f5260046020526001600160a01b0360405f2091165f526020526040805f205467ffffffffffffffff8251916001600160801b038116835260801c166020820152f35b3461013d57604036600319011261013d57610a446112e5565b602435908115159081830361013d576001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610630576001600160a01b031691821561043d577f5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd4591610ad7602092855f526006845260405f209060ff801983541691151516179055565b604051908152a2005b3461013d575f36600319011261013d576040516040810181811067ffffffffffffffff821117610b665760405260148152604060208201917f506f6c69637952656769737472792d312e302e3000000000000000000000000083528151928391602083525180918160208501528484015e5f828201840152601f01601f19168101030190f35b634e487b7160e01b5f52604160045260245ffd5b3461013d57602036600319011261013d57610b936112e5565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610630576001600160a01b0316805f52600360205260405f2060ff1981541690557ff70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee117655f80a2005b3461013d575f36600319011261013d5760206001600160a01b0360075416604051908152f35b3461013d575f36600319011261013d576020604051620151808152f35b3461013d57610c5736611356565b91906001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163303610630576001600160a01b031690811561043d5781807f92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc610cc58661146f565b60208701610e72610cd58261146f565b9660408a0193610ce485611415565b9160608c0192610dc46001600160801b03610cfe8661147c565b92610d07611429565b951515865260208601809e1515905281604087019116815267ffffffffffffffff6060870194168452610d8e6001600160a01b03608088019660018852169e8f9d8e5f52600160205260405f20905f52602052610d7760405f2098511515899060ff801983541691151516179055565b51875461ff00191690151560081b61ff0016178755565b51855471ffffffffffffffffffffffffffffffff00001916911660101b71ffffffffffffffffffffffffffffffff000016178455565b51907fffffffffff000000000000000000ffffffffffffffffffffffffffffffffffff79ffffffffffffffff00000000000000000000000000000000000084549260ff60d01b9051151560d01b169360901b16911617179055610e35610e2f6102fe6102f88d61146f565b9161147c565b906040519485948592936001600160801b0367ffffffffffffffff9296956060946080870198151587521515602087015216604085015216910152565b0390a36080830191610e848385611491565b9390505f5b848110610e9257005b80610ea66103a66001936103a0868b611491565b855f52600260205260405f20855f5260205260405f209063ffffffff60e01b1690815f5260205260405f208360ff1982541617905584867fdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e627806020604051878152a401610e89565b3461013d57604036600319011261013d57610f266112e5565b6001600160a01b03610f366112fb565b91610f3f611449565b50165f5260016020526001600160a01b0360405f2091165f5260205260a060405f20610f69611429565b905467ffffffffffffffff60ff82161515928381526001600160801b036020820160ff8560081c16151581526040830190828660101c16825260ff60806060860195878960901c168752019660d01c1615158652604051968752511515602087015251166040850152511660608301525115156080820152f35b3461013d57604036600319011261013d57610ffc6112e5565b6001600160a01b0361100c6112fb565b91611015611449565b50165f525f6020526001600160a01b0360405f2091165f5260205260a060405f2061103e611429565b67ffffffffffffffff8254916001600160801b03831693848252602082019360801c84526001600160801b0360026001830154926040850193845201549460ff608060608601958789168752019660401c161515865260405196875251166020860152516040850152511660608301525115156080820152f35b3461013d576110c636611311565b916001600160a01b0360075416331415806112b2575b61044c576001600160a01b03906110f283611779565b1691825f525f60205260405f206001600160a01b0383165f5260205260405f209160ff600284015460401c16156104105782546001600160801b038116806112ad57505f195b6001600160801b0361114985611415565b16611296575f195b11908115611273575b508015611262575b610410576001600160a01b037f9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe91611237600161120d611207876001600160801b036111ae8c9a611415565b166001600160801b03198b5416178a5560208101996111f86111cf8c611415565b82546001600160801b031660809190911b6fffffffffffffffffffffffffffffffff1916178255565b60408201359485910155611415565b97611415565b6040519485941697846001600160801b036040929594938160608401971683521660208201520152565b0390a333907f4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e65f80a3005b506001830154604083013511611162565b90506001600160801b0361128960208501611415565b9160801c9116118561115a565b6001600160801b036112a785611415565b16611151565b611138565b506001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000163314156110dc565b600435906001600160a01b038216820361013d57565b602435906001600160a01b038216820361013d57565b60c060031982011261013d576004356001600160a01b038116810361013d57916024356001600160a01b038116810361013d5760809092604319011261013d57604490565b606060031982011261013d576004356001600160a01b038116810361013d57916024356001600160a01b038116810361013d57916044359067ffffffffffffffff821161013d5760a090829003600319011261013d5760040190565b60a090600319011261013d576004356001600160a01b038116810361013d57906024356001600160a01b038116810361013d57906044356001600160a01b038116810361013d5790606435906084356001600160e01b03198116810361013d5790565b356001600160801b038116810361013d5790565b6040519060a0820182811067ffffffffffffffff821117610b6657604052565b611451611429565b905f82525f60208301525f60408301525f60608301525f6080830152565b35801515810361013d5790565b3567ffffffffffffffff8116810361013d5790565b903590601e198136030182121561013d570180359067ffffffffffffffff821161013d57602001918160051b3603831361013d57565b91908110156114d75760051b0190565b634e487b7160e01b5f52603260045260245ffd5b356001600160e01b03198116810361013d5790565b9190820180921161150d57565b634e487b7160e01b5f52601160045260245ffd5b6001600160a01b039095949293919561153985611779565b16805f52600360205260ff60405f20541661176c575f19955f94825f525f60205260405f206001600160a01b0382165f5260205260405f20600281015460ff8160401c166116b5575b505050815f52600160205260405f206001600160a01b0382165f5260205260405f20549360ff8560d01c166115c6575b50505050506115c0575f9190565b60019190565b60ff8516156116a657825f52600260205260405f206001600160a01b0383165f5260205260405f209063ffffffff60e01b165f5260205260ff60405f205416156116985767ffffffffffffffff8460901c169182611640575b5050505060081c60ff16611638575b5f808080806115b2565b50600161162e565b9161166d9161167294935f5260056020526001600160a01b0360405f2091165f5260205260405f20611789565b611500565b6001600160801b038260101c161061168d575f80808061161f565b505090506002905f90565b505050505090506002905f90565b50505050505090506002905f90565b908092995054988960801c861161175b578561166d60019361170193885f5260046020526001600160a01b0360405f2091165f5260205267ffffffffffffffff60405f20911690611789565b9101549081811161174b57810390811161150d57966001600160801b03168015159081611740575b50611737575b5f8080611582565b6001945061172f565b90508310155f611729565b5050505050505090506002905f90565b505050505050505090506002905f90565b5050505090506002905f90565b6001600160a01b03161561043d57565b9067ffffffffffffffff61179f6117b6926118a6565b9254921667ffffffffffffffff8360801c16611500565b4210156117c9576001600160801b031690565b505f90565b916117db61184d926118a6565b6117fe67ffffffffffffffff8554921667ffffffffffffffff8360801c16611500565b4210611898577fffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff164260801b77ffffffffffffffff00000000000000000000000000000000161783555f611500565b6001600160801b0381116118815781546fffffffffffffffffffffffffffffffff19166001600160801b0391909116179055565b6306dfcc6560e41b5f52608060045260245260445ffd5b6001600160801b0316611500565b67ffffffffffffffff81166118bd57506201518090565b9056fea164736f6c6343000821000a"
+}
