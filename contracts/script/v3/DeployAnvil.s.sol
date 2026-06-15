@@ -9,7 +9,11 @@ import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 // Core Imports
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
-import "src/tokens/GTokenAuthorization.sol";
+// Named import: avoid leaking GTokenAuthorization's transitive EIP712 symbol into
+// this file's scope. Once V54Bootstrap (X402Facilitator / PolicyRegistry) is also
+// in the closure, a plain import collides with MicroPaymentChannel's EIP712
+// ("Identifier already declared"). Mirrors DeployLive.s.sol.
+import {GTokenAuthorization} from "src/tokens/GTokenAuthorization.sol";
 import "src/tokens/MySBT.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
@@ -23,7 +27,8 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
-import "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
+// Named import (same EIP712-collision reason as GTokenAuthorization above).
+import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // MockBLSValidator removed in P0-1 — Registry verifies via BLSAggregator only.
 
 // Agent Registry Mocks (Anvil/local only — production uses AgentRegistry deployed by AirAccount)
@@ -34,6 +39,9 @@ import "src/mocks/MockAgentReputationRegistry.sol";
 import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import {SimpleAccountFactory} from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+
+// v5.4 god-split + DVT policy (X402Facilitator + TimelockController + PolicyRegistry + wiring)
+import {V54Bootstrap} from "./V54Bootstrap.sol";
 
 contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
@@ -46,12 +54,17 @@ contract MockPriceFeed {
  * @title DeployAnvil
  * @notice Standardized Local Deployment Script with Atomic Initialization
  */
-contract DeployAnvil is Script {
+contract DeployAnvil is V54Bootstrap {
     using Clones for address;
-    uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80; 
+    uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     address deployer;
     address entryPointAddr;
     address priceFeedAddr;
+
+    // v5.4 god-split addresses (deployed in Step 10, written to config)
+    address x402FacilitatorAddr;
+    address policyRegistryAddr;
+    address timelockControllerAddr;
 
     GTokenAuthorization gtoken;
     GTokenStaking staking;
@@ -220,6 +233,25 @@ contract DeployAnvil is Script {
         console.log("=== Step 9: Final Verification ===");
         _verifyWiring();
 
+        console.log("=== Step 10: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===");
+        // Deployer is governor + guardian on anvil (envOr defaults). Exercises the
+        // god-split x402 + DVT policy stack locally so run_full_regression / CI cover it.
+        {
+            (address governor, address guardian) = _resolveGovernance(deployer);
+            V54Addresses memory v54 = _deployV54Contracts(
+                address(registry),
+                address(superPaymaster),
+                address(xpntsFactory),
+                governor,
+                guardian,
+                address(0) // fresh timelock
+            );
+            x402FacilitatorAddr    = v54.facilitator;
+            policyRegistryAddr     = v54.policyRegistry;
+            timelockControllerAddr = v54.timelock;
+            _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
+        }
+
         vm.stopBroadcast();
         _generateConfig();
     }
@@ -275,6 +307,10 @@ contract DeployAnvil is Script {
         vm.serializeAddress(jsonObj, "agentReputationRegistry", address(mockAgentReputation));
         vm.serializeAddress(jsonObj, "agentValidationRegistry", address(0)); // no mock for Anvil; ERC-8004 validation is TEE-based
         vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
+        // v5.4 god-split contracts — deployed in Step 10
+        vm.serializeAddress(jsonObj, "x402Facilitator", x402FacilitatorAddr);
+        vm.serializeAddress(jsonObj, "policyRegistry", policyRegistryAddr);
+        vm.serializeAddress(jsonObj, "timelockController", timelockControllerAddr);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);

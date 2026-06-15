@@ -137,7 +137,7 @@ if [ "$SHOULD_RUN_DEPLOY" = true ]; then
 
     # Sync ABI JSONs from compiled artifacts (keeps abis/ in sync with deployed bytecode)
     echo "  📄 Syncing ABI JSONs from out/..."
-    for contract in SuperPaymaster Registry xPNTsToken xPNTsFactory GToken GTokenStaking MySBT MicroPaymentChannel; do
+    for contract in SuperPaymaster Registry xPNTsToken xPNTsFactory GToken GTokenStaking MySBT MicroPaymentChannel X402Facilitator PolicyRegistry TimelockController; do
         artifact=$(find out -name "${contract}.json" -not -path "*test*" 2>/dev/null | head -1)
         if [ -n "$artifact" ]; then
             jq '.abi' "$artifact" > "abis/${contract}.json" 2>/dev/null && echo "    ✓ $contract" || true

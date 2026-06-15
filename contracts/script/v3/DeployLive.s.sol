@@ -34,11 +34,15 @@ import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
+// v5.4 god-split + DVT policy (X402Facilitator + TimelockController + PolicyRegistry + wiring)
+import {V54Bootstrap} from "./V54Bootstrap.sol";
+
 /**
  * @title DeployLive
- * @notice Full Infrastructure Deployment (Steps 1-5 AAStar + Step 6 Mycelium Community)
+ * @notice Full Infrastructure Deployment (Steps 1-5 AAStar + Step 6 Mycelium Community).
+ *         Step 8 deploys the v5.4 god-split contracts so a fresh GA deploy is v5.4-complete.
  */
-contract DeployLive is Script {
+contract DeployLive is V54Bootstrap {
     using Clones for address;
 
 
@@ -64,6 +68,11 @@ contract DeployLive is Script {
     PaymasterFactory pmFactory;
     Paymaster pmV4Impl;
     address pntsAddr; // Mycelium Community PNTs
+
+    // v5.4 god-split addresses (deployed in Step 8, written to config)
+    address x402FacilitatorAddr;
+    address policyRegistryAddr;
+    address timelockControllerAddr;
 
     function setUp() public {
         // System / External Infrastructure (Remains in ENV)
@@ -163,8 +172,33 @@ contract DeployLive is Script {
         console.log("=== Step 7: Mycelium Community (Anni) ===");
         _setupMyceliumCommunity();
 
+        console.log("=== Step 8: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===");
+        _deployV54Stack();
+
         vm.stopBroadcast();
         _generateConfig();
+    }
+
+    /// @dev Deploy the three NEW v5.4 contracts and wire X402Facilitator on the
+    ///      deployer-owned xPNTs tokens. Runs under the deployer broadcast (Step 8,
+    ///      after all factory tokens exist). On a fresh GA deploy the deployer-owned
+    ///      aPNTs clone is new-bytecode so the cap-setter wiring succeeds; community
+    ///      operator tokens (Anni's PNTs) are skipped+logged and wired by prepare-test.
+    function _deployV54Stack() internal {
+        (address governor, address guardian) = _resolveGovernance(deployer);
+        V54Addresses memory v54 = _deployV54Contracts(
+            address(registry),
+            address(superPaymaster),
+            address(xpntsFactory),
+            governor,
+            guardian,
+            address(0) // fresh timelock
+        );
+        x402FacilitatorAddr    = v54.facilitator;
+        policyRegistryAddr     = v54.policyRegistry;
+        timelockControllerAddr = v54.timelock;
+
+        _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
     }
 
     function _executeWiring() internal {
@@ -380,6 +414,10 @@ contract DeployLive is Script {
         vm.serializeAddress(jsonObj, "registryImpl", registryImplAddr);
         // MicroPaymentChannel — deployed in Step 4
         vm.serializeAddress(jsonObj, "microPaymentChannel", address(microPaymentCh));
+        // v5.4 god-split contracts — deployed in Step 8
+        vm.serializeAddress(jsonObj, "x402Facilitator", x402FacilitatorAddr);
+        vm.serializeAddress(jsonObj, "policyRegistry", policyRegistryAddr);
+        vm.serializeAddress(jsonObj, "timelockController", timelockControllerAddr);
         vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);

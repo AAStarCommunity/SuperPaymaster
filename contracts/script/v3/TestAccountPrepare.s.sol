@@ -13,6 +13,7 @@ import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import {V54Bootstrap} from "./V54Bootstrap.sol";
 
 /**
  * @title TestAccountPrepare
@@ -21,9 +22,12 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
  *      - ROLE_PAYMASTER_AOA (required by Check09_TestAccounts)
  *      - A deployed V4 (AOA) Paymaster proxy via PaymasterFactory
  *      - Sufficient EntryPoint deposit for the V4 paymaster
+ *      - X402Facilitator wiring on every prepared xPNTs token (so x402 tests work
+ *        against freshly-prepared communities — addAutoApprovedSpender +
+ *        setSpenderDailyCapFor + addApprovedFacilitator). Idempotent + staticcall-gated.
  *      Idempotent: each step is guarded by an existence/balance check.
  */
-contract TestAccountPrepare is Script {
+contract TestAccountPrepare is V54Bootstrap {
     // Anvil fallback keys (used when env vars are not set)
     uint256 constant ANVIL_ANNI_PK     = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
     uint256 constant ANVIL_DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
@@ -60,6 +64,8 @@ contract TestAccountPrepare is Script {
         address priceFeedAddr        = stdJson.readAddress(json, ".priceFeed");
         address stakingAddr          = stdJson.readAddress(json, ".staking");
         xPNTsToken apnts             = xPNTsToken(stdJson.readAddress(json, ".aPNTs"));
+        // v5.4: X402Facilitator (absent on pre-v5.4 configs → wiring is skipped).
+        address facilitator          = _optAddr(json, ".x402Facilitator");
 
         // -----------------------------------------------------------------------
         // Phase 2.0: Deployer registers Anni as COMMUNITY + PAYMASTER_SUPER
@@ -135,6 +141,12 @@ contract TestAccountPrepare is Script {
             console.log("[Phase 2.0] Transferring 1000 aPNTs to Anni...");
             apnts.transfer(anniAddr, 1000 ether);
         }
+        // Phase 2.0.4: Wire X402Facilitator on the deployer's aPNTs (communityOwner = deployer).
+        // Idempotent + staticcall-gated: enables x402 settlement tests against aPNTs.
+        if (facilitator != address(0)) {
+            bool ok = _wireFacilitatorForToken(address(apnts), facilitator);
+            console.log("[Phase 2.0.4] aPNTs X402Facilitator wiring complete:", ok);
+        }
         vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
@@ -168,6 +180,13 @@ contract TestAccountPrepare is Script {
             );
             console.log("  PNTs deployed:", pntsAddr);
         }
+        // Wire X402Facilitator on Anni's PNTs (communityOwner = Anni; broadcast is anniPK).
+        // Idempotent + staticcall-gated: enables x402 settlement tests against PNTs.
+        if (facilitator != address(0) && pntsAddr != address(0)) {
+            bool okPnts = _wireFacilitatorForToken(pntsAddr, facilitator);
+            console.log("[Phase 2.2] PNTs X402Facilitator wiring complete:", okPnts);
+        }
+
         (uint128 anniBal, bool isCfgAnni,,,,,,,) = superPaymaster.operators(anniAddr);
         if (!isCfgAnni) {
             console.log("[Phase 2.2] Configuring Anni as SuperPaymaster operator...");
