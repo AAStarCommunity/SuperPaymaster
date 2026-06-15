@@ -100,6 +100,12 @@ abstract contract V54Bootstrap is Script {
         console.log("         version:", facilitator.version());
         console.log("         owner:  ", facilitator.owner());
 
+        // Hand ownership to the resolved governor ATOMICALLY at deploy time when
+        // governance-at-deploy is configured. Leaving X402Facilitator owned by a single
+        // deployer EOA on mainnet is a security hole; this closes it for the
+        // GOVERNOR_ADDRESS path. Bootstrap (governor == deployer) is a no-op.
+        _transferFacilitatorOwnership(a.facilitator, governor);
+
         // --- 2. TimelockController (NEW unless reusing existing). minDelay = 2 days. ---
         if (existingTimelock != address(0)) {
             a.timelock = existingTimelock;
@@ -133,6 +139,24 @@ abstract contract V54Bootstrap is Script {
         console.log("         timelock:", policyRegistry.timelock());
         console.log("         guardian:", policyRegistry.guardian());
         console.log("         SP authorized:", policyRegistry.isAuthorizedConsumer(spProxy));
+    }
+
+    /// @dev Transfer X402Facilitator ownership to `governor` when governance-at-deploy is
+    ///      configured (governor set AND != the current owner / deployer). MUST run inside the
+    ///      active broadcast by the current owner. On bootstrap (governor == deployer, i.e.
+    ///      GOVERNOR_ADDRESS unset) it is a no-op and ownership stays on the deployer, to be
+    ///      handed to the multisig post-deploy per docs/deployment/v5.4-launch-operations.md.
+    ///      Shared by every deploy path (DeployLive / DeployAnvil / DeployV54 via
+    ///      _deployV54Contracts, and UpgradeLive's first-deploy needFac branch) so they cannot
+    ///      drift and a mainnet deploy never leaves the facilitator on a single deployer EOA.
+    function _transferFacilitatorOwnership(address facilitator, address governor) internal {
+        address current = X402Facilitator(facilitator).owner();
+        if (governor != address(0) && governor != current) {
+            X402Facilitator(facilitator).transferOwnership(governor);
+            console.log("  [v5.4] X402Facilitator owner -> governor (atomic at deploy):", governor);
+        } else {
+            console.log("  [v5.4] X402Facilitator owner kept on deployer (no GOVERNOR_ADDRESS):", current);
+        }
     }
 
     /// @dev Best-effort wiring loop. Authorizes `facilitator` on every factory-minted xPNTs

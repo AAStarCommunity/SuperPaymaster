@@ -167,6 +167,10 @@ contract UpgradeLive is V54Bootstrap {
             facCfg = address(newFac);
             console.log("  X402Facilitator deployed:", facCfg);
             console.log("    version:", newFac.version());
+            // Atomically hand ownership to the resolved governor (multisig) when
+            // GOVERNOR_ADDRESS is set, so a mainnet first-deploy never leaves the
+            // facilitator on the deployer EOA. Bootstrap (governor == deployer) is a no-op.
+            _transferFacilitatorOwnership(facCfg, governor);
         }
         if (needPol) {
             // initialConsumer = SP proxy (staked consumer that calls recordSpend)
@@ -219,7 +223,11 @@ contract UpgradeLive is V54Bootstrap {
         if (needFac || needPol || needTl) {
             console.log("");
             console.log("  v5.4 POST-DEPLOY MANUAL STEPS (see docs/deployment/v5.4-launch-operations.md):");
-            console.log("    - X402Facilitator owner   -> multisig (transferOwnership)");
+            if (needFac && governor != deployer) {
+                console.log("    - X402Facilitator owner   -> ALREADY transferred to governor at deploy (done)");
+            } else {
+                console.log("    - X402Facilitator owner   -> multisig (transferOwnership) [STILL ON DEPLOYER - DO THIS]");
+            }
             console.log("    - PolicyRegistry guardian -> multisig (setGuardian, via timelock)");
             console.log("    - Timelock roles          -> multisig, then renounce deployer admin");
             console.log("    - Hand POLICY_REGISTRY_ADDRESS to airaccount-contract#110");

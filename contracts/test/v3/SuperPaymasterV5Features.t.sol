@@ -538,6 +538,6 @@ contract SuperPaymasterV5Features_Test is Test {
     // The cache integration is tested implicitly via validatePaymasterUserOp.
 
     function test_Version() public {
-        assertEq(paymaster.version(), "SuperPaymaster-5.3.3");
+        assertEq(paymaster.version(), "SuperPaymaster-5.4.0");
     }
 }
