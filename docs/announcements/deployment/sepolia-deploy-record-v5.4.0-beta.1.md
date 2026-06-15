@@ -77,7 +77,17 @@ EntryPoint v0.7 `0x0000000071727De22E5E9d8BAf0edAc6f37da032` · SimpleAccountFac
 - **x402 结算路径迁移**：x402 结算从 SuperPaymaster 内嵌函数迁至独立 `X402Facilitator`；调用方需把 facilitator 目标从 SP proxy 切到 `0xFe95a77e…`，并按新签名携带 `maxFee`（EIP-3009 `receiveWithAuthorization`）。E2E x402 用例随 SDK 切换更新后重跑。
 - **网络容错**：E2E 套件已包含 PR #267 的冗余广播 + 网络重试改造（Alchemy 读 + publicnode 广播），与本次部署广播策略一致。
 
-> 后续：在 SDK x402 client 指向新 facilitator 后，跑 `script/gasless-tests/run-all-tests.sh` 全套并把链上 TX 哈希补录到本记录的 E2E 表。
+### 链上 E2E 验证（已跑，真实交易）
+
+部署后已在 Sepolia 实跑 E2E，所有交易链上确认（publicnode 冗余广播，无 Alchemy 幽灵 nonce）。测试脚本经 Codex 对抗挑战，false-green（断言失败仍 exit 0）已修复——下表为**退出码可靠后重跑**的结果：
+
+| E2E 用例 | 结果 | 链上交易 |
+|---|---|---|
+| 核心 gasless（PaymasterV4 + SuperPaymaster×2 + credit/debt） | ✅ PASS（xPNTs burn 487→444，debt 不变） | [`0x1314974448…`](https://sepolia.etherscan.io/tx/0x1314974448fbcf6e9d9fadaf4b3e722f397b67a6a1af0b2ae8467e0f700ed324) |
+| x402 direct settle（xPNTs，含重放拒 + C-02 recipient binding） | ✅ PASS（payee +1 xPNTs，NonceAlreadyUsed，redirect→InvalidX402Signature） | [`0x3bb790b6…`](https://sepolia.etherscan.io/tx/0x3bb790b6c7e82e4c1e5ff4609c9737aff089671b60e2fd43f44dc852547b317f) |
+| EIP-3009 settle（USDC `receiveWithAuthorization`，含重放拒） | ✅ PASS（payee +1 USDC，ReceiveWithAuthorization typehash，nonce consumed） | [`0x878dbb0b…`](https://sepolia.etherscan.io/tx/0x878dbb0b236c3ed9e300092ebb8a3d7e9f7f99b55690ebc0d5ebd7ffea2af0bd) |
+
+> 重放保护 + C-02 + ReceiveWithAuthorization typehash 链上 PASS——验证了 god-split 后 X402Facilitator 的 nonce/签名一致性修复有效（经 Codex 多轮挑战）。
 
 ---
 
