@@ -59,7 +59,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.3.3"; // unified aPNTs debt accounting
+        return "SuperPaymaster-5.4.0"; // v5.4 god-split (settlement + policy extracted) + DVT + security
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes

@@ -94,11 +94,11 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 
 | Contract | Version | Type | Role |
 |----------|---------|------|------|
-| **SuperPaymaster** | 5.3.3¹ | UUPS Proxy | AOA+ shared paymaster — gas sponsorship, x402, agent policies, credit/debt |
+| **SuperPaymaster** | 5.4.0¹ | UUPS Proxy | AOA+ shared paymaster — gas sponsorship, x402, agent policies, credit/debt |
 | **X402Facilitator** | 1.0.0 | Standalone | x402 settlement split out of SuperPaymaster — EIP-3009 USDC + xPNTs direct settle, fee model |
 | **PolicyRegistry** | 1.0.0 | Standalone | Shared on-chain governance-gated spend policy (checkPolicy / recordSpend) |
 | **TimelockController** | OZ v5.0.2 | Governance | Delayed-execution governor for upgrades & privileged ops |
-| **Registry** | 4.1.0 | UUPS Proxy | Community/node registration, role management, BLS replay protection, slashing |
+| **Registry** | 5.4.0 | UUPS Proxy | Community/node registration, role management, BLS replay protection, slashing |
 | **PaymasterV4** | 4.3.0 | EIP-1167 Proxy | AOA independent paymaster per community |
 | **GToken** | 2.0.0 | ERC20 | Governance token (21M cap, mintable, burnable) |
 | **GTokenStaking** | 3.2.0 | Immutable | Role-based staking with burn mechanism, DVT/governance slashing |
@@ -109,7 +109,7 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 | **DVTValidator** | 1.0.0 | — | Distributed validator consensus (7-of-13 quorum) |
 | **PaymasterFactory** | 1.0.0 | — | EIP-1167 proxy factory for PaymasterV4 instances |
 
-> ¹ The v5.4.0-beta.1 implementation content is **v5.4** (god-split: settlement + policy extracted to standalone contracts). The on-chain `version()` string is still `SuperPaymaster-5.3.3`; the bump to `5.4.0` is **deferred to GA**.
+> ¹ The v5.4 GA bump is **applied**: the on-chain `version()` strings are now `SuperPaymaster-5.4.0` and `Registry-5.4.0` (god-split: settlement + policy extracted to standalone `X402Facilitator` / `PolicyRegistry`). The standalone contracts keep their own `1.0.0` versions.
 
 ### V5 Feature Highlights
 
@@ -427,11 +427,11 @@ SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**
 
 | 合约 | 版本 | 类型 | 职责 |
 |------|------|------|------|
-| **SuperPaymaster** | 5.3.3¹ | UUPS 代理 | AOA+ 共享 Paymaster — Gas 赞助、x402、Agent 策略、信用/债务 |
+| **SuperPaymaster** | 5.4.0¹ | UUPS 代理 | AOA+ 共享 Paymaster — Gas 赞助、x402、Agent 策略、信用/债务 |
 | **X402Facilitator** | 1.0.0 | 独立合约 | 从 SuperPaymaster 拆分的 x402 结算 — EIP-3009 USDC + xPNTs 直接结算、费用模型 |
 | **PolicyRegistry** | 1.0.0 | 独立合约 | 共享的链上、受治理门控的消费策略（checkPolicy / recordSpend） |
 | **TimelockController** | OZ v5.0.2 | 治理 | 升级与特权操作的延时执行治理器 |
-| **Registry** | 4.1.0 | UUPS 代理 | 社区/节点注册、角色管理、BLS 重放保护、惩罚 |
+| **Registry** | 5.4.0 | UUPS 代理 | 社区/节点注册、角色管理、BLS 重放保护、惩罚 |
 | **PaymasterV4** | 4.3.0 | EIP-1167 代理 | AOA 独立 Paymaster |
 | **GToken** | 2.0.0 | ERC20 | 治理代币（2100 万上限，限量发行） |
 | **GTokenStaking** | 3.2.0 | 不可变 | 基于角色的质押 + 燃烧机制，DVT/治理惩罚 |
@@ -441,7 +441,7 @@ SuperPaymaster 是 ERC-4337 账户抽象生态的**多模式支付基础设施**
 | **BLSAggregator** | 1.0.0 | — | BLS12-381 阈值签名聚合 |
 | **DVTValidator** | 1.0.0 | — | 分布式验证者共识（7/13 拜占庭法定人数） |
 
-> ¹ v5.4.0-beta.1 的实现内容已是 **v5.4**（god-split：结算与策略拆分为独立合约）。链上 `version()` 字符串仍为 `SuperPaymaster-5.3.3`；升至 `5.4.0` **推迟到 GA**。
+> ¹ v5.4 GA 版本号已**落地**：链上 `version()` 字符串现为 `SuperPaymaster-5.4.0` 与 `Registry-5.4.0`（god-split：结算与策略拆分为独立 `X402Facilitator` / `PolicyRegistry`）。独立合约保留各自的 `1.0.0` 版本号。
 
 ---
 

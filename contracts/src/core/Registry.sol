@@ -21,7 +21,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.3.3";
+        return "Registry-5.4.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;

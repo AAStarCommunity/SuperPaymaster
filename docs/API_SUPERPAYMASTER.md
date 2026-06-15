@@ -1,17 +1,17 @@
 # SuperPaymaster API Reference
 
-**Version**: `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`)
+**Version**: `SuperPaymaster-5.4.0` (release `v5.4.0`)
 
 > This document covers the full public API as of `v5.4.0-beta.1`, including V3/V4 baseline
 > functions and all V5.x additions (agent-native gas sponsorship, x402 settlement,
 > ERC-8004 dual-channel eligibility, and agent sponsorship policies).
 >
-> **v5.4 god-split note:** the on-chain `version()` string is still `SuperPaymaster-5.3.3`,
-> but the v5.4.0-beta.1 implementation content extracts the x402 settlement functions into a
+> **v5.4 god-split note:** the on-chain `version()` strings are now `SuperPaymaster-5.4.0`
+> and `Registry-5.4.0`. The v5.4 implementation extracts the x402 settlement functions into a
 > **standalone [`X402Facilitator`](#x402facilitator-standalone-contract--v54)** contract and adds a
-> standalone **[`PolicyRegistry`](#policyregistry-standalone-contract--v54)**. The bump of the SP
-> `version()` string to `5.4.0` is deferred to GA. The `settleX402Payment*` entries below remain
-> documented for the SP-embedded path but are **superseded by `X402Facilitator`** in v5.4.
+> standalone **[`PolicyRegistry`](#policyregistry-standalone-contract--v54)** (both keep their own
+> `1.0.0` version). The `settleX402Payment*` entries below remain documented for the SP-embedded
+> path but are **superseded by `X402Facilitator`** in v5.4.
 
 ---
 
@@ -19,7 +19,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`) |
+| **Version** | `SuperPaymaster-5.4.0` (release `v5.4.0`) |
 | **Sepolia Proxy** | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` |
 | **Sepolia Impl** | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
 | **X402Facilitator (Sepolia)** | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
@@ -1048,6 +1048,7 @@ function recordSpend(address sender, address target, address asset, uint256 amou
 
 | Version | Key Changes |
 |---------|-------------|
+| `SuperPaymaster-5.4.0` (release `v5.4.0`) | **v5.4 GA:** `version()` bumped `5.3.3` → `5.4.0` (Registry also `5.4.0`). Same god-split implementation content as `v5.4.0-beta.1` — standalone `X402Facilitator-1.0.0` + `PolicyRegistry-1.0.0` + `TimelockController`. Mainnet-ready `DeployLive` (X402Facilitator + Timelock + PolicyRegistry on a fresh chain). |
 | `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`) | **v5.4 god-split phase 1:** x402 settlement extracted to standalone `X402Facilitator-1.0.0`; new standalone `PolicyRegistry-1.0.0` (governance-gated spend policy) + `TimelockController`. SP `version()` string unchanged (`5.3.3`); bump to `5.4.0` deferred to GA. |
 | `SuperPaymaster-5.3.0` | V5.3: ERC-8004 dual-channel sponsorship (`isEligibleForSponsorship`), agent sponsorship policies (F1), reputation feedback (F2), x402 EIP-3009 settlement (`settleX402Payment`), xPNTs direct settlement (`settleX402PaymentDirect`), `__gap` reduced 48→40 |
 | `SuperPaymaster-5.0.0` | V5.1: `_consumeCredit()` kernel, `chargeMicroPayment()` EIP-712, solady EIP-712, `microPaymentNonces` |
