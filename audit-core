@@ -116,7 +116,7 @@ rpc_retry() {
 # ---------------------------------------------------------------------------
 
 echo "━━━ A) Forge Script Checks ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring VerifyV3_1_1"
+CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring Check10_V54 VerifyV3_1_1"
 
 run_forge_check() {
     local SCRIPT="$1"

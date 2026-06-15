@@ -14,26 +14,17 @@ import {IRegistry} from "src/interfaces/v3/IRegistry.sol";
 import {IxPNTsFactory} from "src/interfaces/IxPNTsFactory.sol";
 import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
-
-/// @dev Minimal view over the concrete xPNTsFactory: enumerate every community token it minted.
-interface IXPNTsFactoryEnum {
-    function getAllTokens() external view returns (address[] memory);
-}
-
-/// @dev Minimal view/mutate surface over the concrete xPNTsToken for X402Facilitator wiring.
-///      Not in IxPNTsToken (those are community-admin entrypoints), so declared locally.
-interface IXPNTsWiring {
-    function communityOwner() external view returns (address);
-    function autoApprovedSpenders(address spender) external view returns (bool);
-    function approvedFacilitators(address facilitator) external view returns (bool);
-    function addAutoApprovedSpender(address spender) external;        // onlyFactoryOrOwner
-    function setSpenderDailyCapFor(address spender, uint256 newCap) external; // onlyCommunityOwner
-    function addApprovedFacilitator(address facilitator) external;    // onlyCommunityOwner
-}
+import {V54Bootstrap} from "./V54Bootstrap.sol";
 
 /**
  * @title DeployV54 (redeploy-bus)
  * @notice v5.4 "god-split + DVT policy" Sepolia rollout. One script that:
+ *
+ * @dev NOTE (2026-06): DeployLive and UpgradeLive are now v5.4-aware — the canonical
+ *      `./deploy-core <env>` path deploys X402Facilitator + TimelockController +
+ *      PolicyRegistry and wires the facilitator automatically. This standalone bus is
+ *      retained as the PROVEN Sepolia one-shot; it shares its deploy + wiring logic with
+ *      the routed scripts via the V54Bootstrap base, so the two cannot drift.
  *
  *   NEW standalone (non-upgradeable) contracts:
  *     1. X402Facilitator   — x402 settlement lifted out of SuperPaymaster.
@@ -67,14 +58,7 @@ interface IXPNTsWiring {
  *   source .env.sepolia && forge script contracts/script/v3/DeployV54.s.sol:DeployV54 \
  *     --rpc-url $RPC_URL -vvv
  */
-contract DeployV54 is Script {
-    // ERC-1967 implementation slot: bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)
-    bytes32 internal constant IMPL_SLOT =
-        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-
-    uint256 internal constant TIMELOCK_MIN_DELAY = 2 days;
-    uint256 internal constant FACILITATOR_DAILY_CAP = 10_000 ether;
-
+contract DeployV54 is V54Bootstrap {
     function run() external {
         string memory network = vm.envOr("ENV", string("sepolia"));
         string memory configPath =
@@ -129,51 +113,16 @@ contract DeployV54 is Script {
         }
 
         // ------------------------------------------------------------------
-        // 1. X402Facilitator (NEW, non-upgradeable). owner = deployer.
+        // 1-3. Deploy the three NEW v5.4 contracts via the shared bootstrap base
+        //      (X402Facilitator, TimelockController, PolicyRegistry). Same code the
+        //      deploy-core-routed scripts use, so the bus and the GA path cannot drift.
         // ------------------------------------------------------------------
-        X402Facilitator facilitator = new X402Facilitator(
-            IRegistry(registryProxy),
-            IxPNTsFactory(xpntsFactory)
-        );
         console.log("");
-        console.log("[1] X402Facilitator deployed:", address(facilitator));
-        console.log("    version:", facilitator.version());
-        console.log("    owner:  ", facilitator.owner());
-
-        // ------------------------------------------------------------------
-        // 2. TimelockController (NEW). minDelay = 2 days; governor is sole
-        //    proposer + executor + admin for Sepolia bootstrap.
-        // ------------------------------------------------------------------
-        address[] memory proposers = new address[](1);
-        proposers[0] = governor;
-        address[] memory executors = new address[](1);
-        executors[0] = governor;
-        TimelockController timelock = new TimelockController(
-            TIMELOCK_MIN_DELAY,
-            proposers,
-            executors,
-            governor // admin (bootstrap); renounce/transfer to multisig post-deploy
-        );
-        console.log("");
-        console.log("[2] TimelockController deployed:", address(timelock));
-        console.log("    minDelay (s):", TIMELOCK_MIN_DELAY);
-        console.log("    proposer/executor/admin:", governor);
-
-        // ------------------------------------------------------------------
-        // 3. PolicyRegistry (NEW, non-upgradeable).
-        //    ctor(timelock, guardian, initialConsumer = SuperPaymaster proxy).
-        // ------------------------------------------------------------------
-        PolicyRegistry policyRegistry = new PolicyRegistry(
-            address(timelock),
-            guardian,
-            spProxy // initialConsumer: SP is the staked consumer that calls recordSpend
-        );
-        console.log("");
-        console.log("[3] PolicyRegistry deployed:", address(policyRegistry));
-        console.log("    version: ", policyRegistry.version());
-        console.log("    timelock:", policyRegistry.timelock());
-        console.log("    guardian:", policyRegistry.guardian());
-        console.log("    initialConsumer (SP) authorized:", policyRegistry.isAuthorizedConsumer(spProxy));
+        V54Addresses memory v54 =
+            _deployV54Contracts(registryProxy, spProxy, xpntsFactory, governor, guardian, address(0));
+        X402Facilitator facilitator = X402Facilitator(v54.facilitator);
+        TimelockController timelock  = TimelockController(payable(v54.timelock));
+        PolicyRegistry policyRegistry = PolicyRegistry(v54.policyRegistry);
 
         // ------------------------------------------------------------------
         // 4. SuperPaymaster new impl (god-split) + UUPS upgrade.
@@ -255,95 +204,5 @@ contract DeployV54 is Script {
         console.log("  5. For any xPNTs token logged as SKIPPED below, the real communityOwner");
         console.log("       must run addAutoApprovedSpender + setSpenderDailyCapFor + addApprovedFacilitator.");
         console.log("=== v5.4 deploy complete ===");
-    }
-
-    /// @dev Best-effort wiring loop. Authorizes `facilitator` on every factory-minted xPNTs
-    ///      token the deployer owns. NEVER queues a reverting broadcast transaction:
-    ///        - a communityOwner mismatch is skipped+logged;
-    ///        - each setter is gated on a low-level staticcall probe of its paired getter,
-    ///          so a token whose ON-CHAIN bytecode predates a v5.4 setter (e.g. the Sepolia
-    ///          clones still on XPNTs-3.4.0, which lacks setSpenderDailyCapFor) is logged as
-    ///          a manual follow-up instead of issuing a doomed tx that fails forge's broadcast
-    ///          re-simulation (and would burn gas / a nonce on real broadcast).
-    ///      Staticcall probes are view-only and are NOT recorded as broadcast transactions.
-    function _wireFacilitator(address xpntsFactory, address facilitator, address deployer) internal {
-        address[] memory tokens = IXPNTsFactoryEnum(xpntsFactory).getAllTokens();
-        console.log("");
-        console.log("[6] Wiring X402Facilitator on", tokens.length, "xPNTs token(s)");
-
-        for (uint256 i; i < tokens.length; ++i) {
-            address token = tokens[i];
-            IXPNTsWiring t = IXPNTsWiring(token);
-
-            // communityOwner() exists on all xPNTs versions; guard anyway.
-            (bool ownerOk, bytes memory ownerRet) =
-                token.staticcall(abi.encodeWithSignature("communityOwner()"));
-            if (!ownerOk || ownerRet.length < 32) {
-                console.log("    SKIP token (no communityOwner getter):", token);
-                continue;
-            }
-            address owner = abi.decode(ownerRet, (address));
-            if (owner != deployer) {
-                console.log("    SKIP token:", token);
-                console.log("      communityOwner is not deployer:", owner);
-                console.log("      -> manual wiring required by communityOwner");
-                continue;
-            }
-
-            bool complete = true;
-
-            // (a) addAutoApprovedSpender — paired getter: autoApprovedSpenders(address).
-            (bool b1, bytes memory r1) =
-                token.staticcall(abi.encodeWithSignature("autoApprovedSpenders(address)", facilitator));
-            if (b1 && r1.length >= 32) {
-                if (!abi.decode(r1, (bool))) {
-                    t.addAutoApprovedSpender(facilitator);
-                }
-            } else {
-                complete = false;
-                console.log("      ! addAutoApprovedSpender unsupported (old bytecode)");
-            }
-
-            // (b) setSpenderDailyCapFor — paired getter: spenderDailyCapOverride(address).
-            //     Reverts on XPNTs-3.4.0; gate on the getter so we never queue a failing tx.
-            (bool b2,) =
-                token.staticcall(abi.encodeWithSignature("spenderDailyCapOverride(address)", facilitator));
-            if (b2) {
-                t.setSpenderDailyCapFor(facilitator, FACILITATOR_DAILY_CAP);
-            } else {
-                complete = false;
-                console.log("      ! setSpenderDailyCapFor unsupported (old bytecode)");
-            }
-
-            // (c) addApprovedFacilitator — paired getter: approvedFacilitators(address).
-            (bool b3, bytes memory r3) =
-                token.staticcall(abi.encodeWithSignature("approvedFacilitators(address)", facilitator));
-            if (b3 && r3.length >= 32) {
-                if (!abi.decode(r3, (bool))) {
-                    t.addApprovedFacilitator(facilitator);
-                }
-            } else {
-                complete = false;
-                console.log("      ! addApprovedFacilitator unsupported (old bytecode)");
-            }
-
-            if (complete) {
-                console.log("    WIRED token:", token);
-            } else {
-                console.log("    PARTIAL token (redeploy/upgrade xPNTs, then manual wiring):", token);
-            }
-        }
-    }
-
-    function _implOf(address proxy) internal view returns (address) {
-        return address(uint160(uint256(vm.load(proxy, IMPL_SLOT))));
-    }
-
-    /// @dev Append `\n` only if the file doesn't already end in one. Idempotent.
-    function _ensureTrailingNewline(string memory path) internal {
-        bytes memory content = bytes(vm.readFile(path));
-        if (content.length == 0) return;
-        if (content[content.length - 1] == 0x0a) return;
-        vm.writeFile(path, string.concat(string(content), "\n"));
     }
 }
