@@ -3,12 +3,12 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
-import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import "src/paymasters/superpaymaster/v3/X402Facilitator.sol";
 import "src/core/Registry.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/tokens/xPNTsToken.sol";
+import "src/interfaces/IxPNTsFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
-import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /// @notice P0-12a (B2-N4): `settleX402PaymentDirect` previously called
@@ -19,17 +19,11 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 ///         on `xpntsFactory.isXPNTs(asset)`. xPNTs tokens carry the
 ///         autoApproved firewall + MAX_SINGLE_TX_LIMIT; arbitrary ERC20s do
 ///         not, hence Direct must refuse them.
-contract MockEntryPoint {
-    function depositTo(address) external payable {}
-}
-
-contract MockOracle {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000e8, 0, block.timestamp, 1);
-    }
-    function decimals() external pure returns (uint8) { return 8; }
-}
-
+///
+/// @dev v5.4 god-split phase 1: retargeted from SuperPaymaster to the standalone
+///      X402Facilitator. The xPNTs auto-allowance now points at X402Facilitator
+///      (factory.setSuperPaymasterAddress(x402)), so the Direct-path transferFrom
+///      pulls into the facilitator.
 contract MockUSDC is ERC20 {
     constructor() ERC20("USD Coin", "USDC") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
@@ -43,7 +37,7 @@ contract MockAPNTs is ERC20 {
 contract X402Direct_AssetWhitelistTest is Test {
     using stdStorage for StdStorage;
 
-    SuperPaymaster paymaster;
+    X402Facilitator x402;
     Registry registry;
     xPNTsFactory factory;
     MockUSDC usdc;
@@ -65,23 +59,13 @@ contract X402Direct_AssetWhitelistTest is Test {
         usdc = new MockUSDC();
         apnts = new MockAPNTs();
 
-        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(address(new MockEntryPoint())),
-            registry,
-            address(new MockOracle()),
-            owner,
-            address(apnts),
-            owner,
-            3600
-        );
-
-        // Deploy factory and wire it into SP
-        factory = new xPNTsFactory(address(paymaster), address(registry));
-        paymaster.setXPNTsFactory(address(factory));
-
-        // Refresh price cache
-        vm.warp(block.timestamp + 2 hours);
-        paymaster.updatePrice();
+        // Deploy factory first (SUPERPAYMASTER unset), then the facilitator, then point
+        // the factory's auto-approved settler at the facilitator. xPNTs deployed AFTER
+        // this grant the transferFrom auto-allowance to X402Facilitator — the deploy-time
+        // firewall re-point that the split requires.
+        factory = new xPNTsFactory(address(0), address(registry));
+        x402 = new X402Facilitator(registry, IxPNTsFactory(address(factory)));
+        factory.setSuperPaymasterAddress(address(x402));
 
         // Operator gets PAYMASTER_SUPER role (acts as facilitator that calls settle).
         // Community gets COMMUNITY role (deploys xPNTs and owns it).
@@ -120,10 +104,10 @@ contract X402Direct_AssetWhitelistTest is Test {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("SuperPaymaster"),
+                keccak256("X402Facilitator"),
                 keccak256("1"),
                 block.chainid,
-                address(paymaster)
+                address(x402)
             )
         );
         bytes32 structHash = keccak256(
@@ -162,11 +146,11 @@ contract X402Direct_AssetWhitelistTest is Test {
             _signX402Direct(victimKey, victim, payee, address(usdc), amount, maxFee, validBefore, nonce);
         usdc.mint(victim, 1_000_000e6);
         vm.prank(victim);
-        usdc.approve(address(paymaster), type(uint256).max);
+        usdc.approve(address(x402), type(uint256).max);
 
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.InvalidXPNTsToken.selector);
+        x402.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
 
         // And the victim's balance is untouched — direct path bailed out
         // before transfer.
@@ -187,11 +171,11 @@ contract X402Direct_AssetWhitelistTest is Test {
             _signX402Direct(victimKey, victim, payee, address(apnts), amount, maxFee, validBefore, nonce);
         apnts.mint(victim, 1000 ether);
         vm.prank(victim);
-        apnts.approve(address(paymaster), type(uint256).max);
+        apnts.approve(address(x402), type(uint256).max);
 
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.settleX402PaymentDirect(victim, payee, address(apnts), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.InvalidXPNTsToken.selector);
+        x402.settleX402PaymentDirect(victim, payee, address(apnts), amount, maxFee, validBefore, nonce, signature);
     }
 
     function test_SettleDirect_AcceptsXPNTsAsset() public {
@@ -209,7 +193,7 @@ contract X402Direct_AssetWhitelistTest is Test {
         token.mint(user, 100 ether);
 
         vm.prank(operator);
-        bytes32 sid = paymaster.settleX402PaymentDirect(
+        bytes32 sid = x402.settleX402PaymentDirect(
             user, payee, address(token), amount, maxFee, validBefore, nonce, signature
         );
         assertTrue(sid != bytes32(0), "settle must succeed for whitelisted xPNTs");
@@ -231,29 +215,12 @@ contract X402Direct_AssetWhitelistTest is Test {
         assertFalse(factory.isXPNTs(address(0xC0DE)), "junk address is not xPNTs");
     }
 
-    /// @notice If owner forgot to wire the factory, Direct must fail closed
-    ///         (cannot whitelist anything → reject all).
-    /// @dev    Fix-4 hardened setXPNTsFactory against address(0); use stdstore
-    ///         to simulate the legacy un-initialized state at the storage layer.
-    function test_SettleDirect_RevertsWhenFactoryUnset() public {
-        stdstore.target(address(paymaster)).sig("xpntsFactory()").checked_write(address(0));
-
-        uint256 victimKey = 0xDEFEA9;
-        address victim = vm.addr(victimKey);
-        uint256 amount = 100e6;
-        uint256 maxFee = 0;
-        uint256 validBefore = block.timestamp + 1 hours;
-        bytes32 nonce = bytes32(uint256(4));
-        bytes memory signature =
-            _signX402Direct(victimKey, victim, payee, address(usdc), amount, maxFee, validBefore, nonce);
-        usdc.mint(victim, 1000e6);
-        vm.prank(victim);
-        usdc.approve(address(paymaster), type(uint256).max);
-
-        vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
-        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
-    }
+    /// @notice v5.4 god-split phase 1: the legacy "factory unset" test was removed.
+    ///         SuperPaymaster held `xpntsFactory` in MUTABLE storage (settable to
+    ///         address(0)), so it needed a runtime InvalidConfiguration guard. In
+    ///         X402Facilitator the factory is an IMMUTABLE constructor argument that
+    ///         the constructor rejects when zero, so the "factory unset" state is
+    ///         unreachable and no longer testable via stdstore.
 
     // -----------------------------------------------------------------------
     // Nonce consumption behavior
@@ -285,24 +252,24 @@ contract X402Direct_AssetWhitelistTest is Test {
         uint256 validBefore = block.timestamp + 1 hours;
         usdc.mint(victim, 1_000_000e6);
         vm.prank(victim);
-        usdc.approve(address(paymaster), type(uint256).max);
+        usdc.approve(address(x402), type(uint256).max);
 
         bytes32 nonce = bytes32(uint256(999));
-        bytes32 key = paymaster.x402NonceKey(address(usdc), victim, nonce);
+        bytes32 key = x402.x402NonceKey(address(usdc), victim, nonce);
         bytes memory signature =
             _signX402Direct(victimKey, victim, payee, address(usdc), amount, maxFee, validBefore, nonce);
 
         // Pre-condition: nonce is fresh.
-        assertFalse(paymaster.x402SettlementNonces(key), "nonce must start unused");
+        assertFalse(x402.x402SettlementNonces(key), "nonce must start unused");
 
         // First call: reverts with InvalidXPNTsToken. Because the entire call
         // reverts, the nonce write in _validateX402AndComputeFee is rolled back.
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.InvalidXPNTsToken.selector);
+        x402.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
 
         // Nonce is still free — the revert cancelled the storage write.
-        assertFalse(paymaster.x402SettlementNonces(key), "nonce must NOT be consumed after revert");
+        assertFalse(x402.x402SettlementNonces(key), "nonce must NOT be consumed after revert");
 
         // Victim's USDC balance is untouched — no transfer occurred.
         assertEq(usdc.balanceOf(victim), 1_000_000e6, "USDC must not move on failed call");
@@ -310,11 +277,11 @@ contract X402Direct_AssetWhitelistTest is Test {
         // Second call with same nonce and still-wrong asset: reverts again with
         // InvalidXPNTsToken (not NonceAlreadyUsed) — confirming nonce was free.
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
-        paymaster.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.InvalidXPNTsToken.selector);
+        x402.settleX402PaymentDirect(victim, payee, address(usdc), amount, maxFee, validBefore, nonce, signature);
 
         // Nonce remains free after two failed calls.
-        assertFalse(paymaster.x402SettlementNonces(key), "nonce must still be unused after second revert");
+        assertFalse(x402.x402SettlementNonces(key), "nonce must still be unused after second revert");
     }
 
     /// @notice Confirms that nonce IS durably consumed on a successful call,
@@ -331,21 +298,21 @@ contract X402Direct_AssetWhitelistTest is Test {
         token.mint(user, 200 ether);
 
         bytes32 nonce = bytes32(uint256(777));
-        bytes32 key = paymaster.x402NonceKey(address(token), user, nonce);
+        bytes32 key = x402.x402NonceKey(address(token), user, nonce);
         bytes memory signature =
             _signX402Direct(userKey, user, payee, address(token), amount, maxFee, validBefore, nonce);
 
-        assertFalse(paymaster.x402SettlementNonces(key), "nonce must start unused");
+        assertFalse(x402.x402SettlementNonces(key), "nonce must start unused");
 
         // Successful settlement — nonce is durably consumed.
         vm.prank(operator);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
+        x402.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
 
-        assertTrue(paymaster.x402SettlementNonces(key), "nonce must be consumed after successful settle");
+        assertTrue(x402.x402SettlementNonces(key), "nonce must be consumed after successful settle");
 
         // Replay with the same nonce must revert with NonceAlreadyUsed.
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.NonceAlreadyUsed.selector);
-        paymaster.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
+        vm.expectRevert(X402Facilitator.NonceAlreadyUsed.selector);
+        x402.settleX402PaymentDirect(user, payee, address(token), amount, maxFee, validBefore, nonce, signature);
     }
 }
