@@ -11,6 +11,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Contracts
 
 - [GTokenStaking](#gtokenstaking) — `contracts/src/core/GTokenStaking.sol`
+- [PolicyRegistry](#policyregistry) — `contracts/src/core/PolicyRegistry.sol`
 - [Registry](#registry) — `contracts/src/core/Registry.sol`
 - [IERC1363Receiver](#ierc1363receiver) — `contracts/src/interfaces/IERC1363.sol`
 - [IPaymasterRouter](#ipaymasterrouter) — `contracts/src/interfaces/IPaymasterRouter.sol`
@@ -26,6 +27,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [IERC3009](#ierc3009) — `contracts/src/interfaces/v3/IERC3009.sol`
 - [IGTokenStaking](#igtokenstaking) — `contracts/src/interfaces/v3/IGTokenStaking.sol`
 - [IMySBT](#imysbt) — `contracts/src/interfaces/v3/IMySBT.sol`
+- [IPolicyRegistry](#ipolicyregistry) — `contracts/src/interfaces/v3/IPolicyRegistry.sol`
 - [IRegistry](#iregistry) — `contracts/src/interfaces/v3/IRegistry.sol`
 - [IReputationCalculator](#ireputationcalculator) — `contracts/src/interfaces/v3/IReputationCalculator.sol`
 - [ISignatureTransfer](#isignaturetransfer) — `contracts/src/interfaces/v3/ISignatureTransfer.sol`
@@ -45,6 +47,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [BasePaymasterUpgradeable](#basepaymasterupgradeable) — `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
 - [MicroPaymentChannel](#micropaymentchannel) — `contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol`
 - [SuperPaymaster](#superpaymaster) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
+- [X402Facilitator](#x402facilitator) — `contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol`
 - [PaymasterFactory](#paymasterfactory) — `contracts/src/paymasters/v4/core/PaymasterFactory.sol`
 - [Paymaster](#paymaster) — `contracts/src/paymasters/v4/Paymaster.sol`
 - [IERC20Metadata](#ierc20metadata) — `contracts/src/paymasters/v4/PaymasterBase.sol`
@@ -504,6 +507,329 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
 | `0x03a16256` | `TotalStakeExceedsCap()` |
 | `0x82b42900` | `Unauthorized()` |
+
+## PolicyRegistry
+
+- **Source:** `contracts/src/core/PolicyRegistry.sol`
+- **Functions:** 21 · **Events:** 9 · **Errors:** 7
+- **Title:** PolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
+- Reference implementation of {IPolicyRegistry}. See the interface for the full design         invariants. This contract is the single on-chain source of truth that staked consumers         (SuperPaymaster #283, AirAccount #70) read during validation, and that DVT nodes /         the slash path reference so that "what a node enforced == what is punished".
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x969cb5da` | `checkPolicy(address,address,address,uint256,bytes4)` | view | — | Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation. |
+| `0x43a0c39f` | `DEFAULT_WINDOW()` | view | — | Default daily-limit / velocity window when a config leaves `windowSeconds == 0`. |
+| `0xb743be94` | `ETH_SENTINEL()` | view | — | Canonical ETH sentinel (Q4). `asset == ETH_SENTINEL` is the valid ETH path;         `asset == address(0)` is INVALID and reverts {ZeroAddress}. |
+| `0x7e19482e` | `freezeSender(address)` | nonpayable | — | Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}. |
+| `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
+| `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
+| `0x35cefaa8` | `getContractScope(address,address)` | view | — |  |
+| `0x452a9320` | `guardian()` | view | — | AirAccount 2-of-3 RecoveryService — immediate tighten / freeze. |
+| `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
+| `0xe5839836` | `isFrozen(address)` | view | — |  |
+| `0xb1655919` | `isSelectorAllowed(address,address,bytes4)` | view | — |  |
+| `0xa1a4a180` | `recordSpend(address,address,address,uint256,bytes4)` | nonpayable | — | Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed. |
+| `0xbe29f491` | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}. |
+| `0x6ef778ee` | `setConsumerAuthorization(address,bool)` | nonpayable | — | Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized. |
+| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
+| `0x8a0dac4a` | `setGuardian(address)` | nonpayable | — | Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`. |
+| `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`. |
+| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`. |
+| `0xd33219b4` | `timelock()` | view | — | OZ {TimelockController}; its `minDelay` (= 2 days) gates loosening. Immutable so the         loosening authority can never be silently re-pointed without redeploying. |
+| `0x53d8cb68` | `unfreezeSender(address)` | nonpayable | — | Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`. |
+| `0x54fd4d50` | `version()` | pure | — | Contract version (see CLAUDE.md versioning convention). |
+
+### Functions
+
+#### `checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)`
+
+`0x969cb5da` · view · access: —
+
+> Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation.
+
+*@dev* Reads ONLY `sender`-keyed slots so a staked consumer may call it inside      `validatePaymasterUserOp` / `validateUserOp`. Mirrors SP `_creditExceeded`'s      sender-keyed ceiling pattern.      OPT-IN, default-ALLOW. This registry is an OPT-IN DVT layer, NOT a global      allowlist: a sender with nothing configured for an (asset, target) is UNRESTRICTED      and resolves to ALLOW with `remainingDaily == type(uint256).max`. An explicit      `freeze` is the one hard block (highest priority). Each dimension is enforced ONLY      when it is `configured`; an unconfigured dimension imposes no constraint and never      triggers DVT. Combine: any configured dimension yielding REJECT ⇒ REJECT; else any      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` | the AA account address (the policy + counter key). |
+| `target` | `address` | the contract the op will call. |
+| `asset` | `address` | the ERC-20 whose `amount` is being moved (native units; the ETH sentinel                 `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` = ETH). `address(0)` is INVALID                 (reverts ZeroAddress) — 0xEee is the explicit ETH marker (Q4). |
+| `amount` | `uint256` | the asset amount in native units. |
+| `selector` | `bytes4` | the function selector being invoked on `target`. |
+
+| returns | type | description |
+|---|---|---|
+| `decision` | `uint8` | ALLOW / REQUIRE_DVT / REJECT (see {PolicyDecision}). |
+| `remainingDaily` | `uint256` | the asset's remaining native-unit allowance in the current window         AFTER this `amount` would post (0 when REJECT due to a cap; `type(uint256).max` when         the asset is UNRESTRICTED / not configured). Lets the consumer surface "how much         headroom is left" without a second call. |
+
+#### `DEFAULT_WINDOW()`
+
+`0x43a0c39f` · view · access: —
+
+> Default daily-limit / velocity window when a config leaves `windowSeconds == 0`.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `ETH_SENTINEL()`
+
+`0xb743be94` · view · access: —
+
+> Canonical ETH sentinel (Q4). `asset == ETH_SENTINEL` is the valid ETH path;         `asset == address(0)` is INVALID and reverts {ZeroAddress}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `freezeSender(address sender)`
+
+`0x7e19482e` · nonpayable · access: —
+
+> Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+#### `getAssetPolicy(address sender, address asset)`
+
+`0x29210a4b` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint128,uint128,uint256,uint64,bool)` |  |
+
+#### `getAssetSpend(address sender, address asset)`
+
+`0x715904dd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `spentInWindow` | `uint128` | cumulative native-unit spend in the current window for this asset. |
+| `windowStart` | `uint64` | unix timestamp the current window began. |
+
+#### `getContractScope(address sender, address target)`
+
+`0x35cefaa8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(bool,bool,uint128,uint64,bool)` |  |
+
+#### `guardian()`
+
+`0x452a9320` · view · access: —
+
+> AirAccount 2-of-3 RecoveryService — immediate tighten / freeze.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `isAuthorizedConsumer(address consumer)`
+
+`0x7df732ea` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `consumer` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isFrozen(address sender)`
+
+`0xe5839836` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isSelectorAllowed(address sender, address target, bytes4 selector)`
+
+`0xb1655919` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `selector` | `bytes4` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector)`
+
+`0xa1a4a180` · nonpayable · access: —
+
+> Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed.
+
+*@dev* Same key tuple as {checkPolicy} so per-target velocity can be charged too.      MUST revert if `msg.sender` is not an authorized consumer (see {isAuthorizedConsumer}).      Belt-and-suspenders: even though validation saw a slightly-stale counter, this      authoritative debit closes the drain-then-bypass window (same mitigation philosophy      as SP's postOp credit reconciliation).KNOWN LIMITATION — TOCTOU (accepted carry-forward, PR #285 round-3): the CUMULATIVE      checks (`dailyLimit`, `velocityLimit`) are read at validation and debited here at      postOp, so multiple ops from the SAME sender in ONE bundle each observe the pre-debit      counter and can collectively overshoot by up to a single bundle's worth — BOUNDED,      since the next bundle rejects. The PER-TX guards are UNAFFECTED: `perTxHardCap` and      `dvtTriggerAmount` are single-tx comparisons evaluated per op and cannot be bypassed      by bundling (a high-value op still trips its hard cap / still requires DVT). This is      inherent to the ERC-4337 validation/execution split (identical to SP's credit      ceiling). An atomic check-and-debit was evaluated and DEFERRED: it would need a      state-writing validation-time call (ERC-7562 associated-storage risk) plus on-revert      refund logic, and the bounded residual does not justify that complexity.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` | the AA account (counter key). |
+| `target` | `address` | the contract that was called. |
+| `asset` | `address` | the asset spent (native units; ETH sentinel 0xEee…EEeE = ETH; address(0) invalid). |
+| `amount` | `uint256` | the asset amount actually spent. |
+| `selector` | `bytes4` | the selector invoked. |
+
+#### `setAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
+
+`0xbe29f491` · nonpayable · access: —
+
+> Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}.
+
+*@dev* Reached only via the timelock's delayed path, so no direction check is needed —      it may loosen or tighten. Immediate tightening uses {tightenAssetPolicy}.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+| `params` | `(uint128,uint128,uint256,uint64)` |  |
+
+#### `setConsumerAuthorization(address consumer, bool authorized)`
+
+`0x6ef778ee` · nonpayable · access: —
+
+> Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized.
+
+| param | type | description |
+|---|---|---|
+| `consumer` | `address` |  |
+| `authorized` | `bool` |  |
+
+#### `setContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+
+`0x3ef43aff` · nonpayable · access: —
+
+> Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
+
+*@dev* Selectors are ADDED to the allow set (Q3 additive). Removal is via {tightenContractScope}.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+
+#### `setGuardian(address newGuardian)`
+
+`0x8a0dac4a` · nonpayable · access: —
+
+> Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `newGuardian` | `address` |  |
+
+#### `tightenAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
+
+`0x055b8e7b` · nonpayable · access: —
+
+> Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`.
+
+*@dev* Tighten = every dimension ≤ current. Prevents the immediate (no-delay) path from      being abused to loosen. Requires the policy to already be configured.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+| `params` | `(uint128,uint128,uint256,uint64)` |  |
+
+#### `tightenContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+
+`0xccd7129f` · nonpayable · access: —
+
+> Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`.
+
+*@dev* Tighten = disallow target (true→false ok, false→true forbidden), set requireDVTAlways      (false→true ok, true→false forbidden), lower velocityLimit, and REMOVE the listed      selectors from the allow set. Requires the scope to already be configured.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+
+#### `timelock()`
+
+`0xd33219b4` · view · access: —
+
+> OZ {TimelockController}; its `minDelay` (= 2 days) gates loosening. Immutable so the         loosening authority can never be silently re-pointed without redeploying.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `unfreezeSender(address sender)`
+
+`0x53d8cb68` · nonpayable · access: —
+
+> Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Contract version (see CLAUDE.md versioning convention).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe` | `AssetPolicySet(address,address,uint128,uint128,uint256)` |
+| `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` | `ConsumerAuthorizationSet(address,bool)` |
+| `0x92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc` | `ContractScopeSet(address,address,bool,bool,uint128,uint64)` |
+| `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` | `GuardianUpdated(address,address)` |
+| `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` | `PolicyTightened(address,address)` |
+| `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` | `SelectorScopeSet(address,address,bytes4,bool)` |
+| `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` |
+| `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` | `SenderUnfrozen(address)` |
+| `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` | `SpendRecorded(address,address,address,uint256,bytes4)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x972b6416` | `NotAuthorizedConsumer()` |
+| `0x954afe27` | `NotGuardianOrTimelock()` |
+| `0xc8922921` | `NotStrictlyTighter()` |
+| `0xcad4da2a` | `NotTimelock()` |
+| `0x6dfcc650` | `SafeCastOverflowedUintDowncast(uint8,uint256)` |
+| `0x75ae9c29` | `SenderIsFrozen()` |
+| `0xd92e233d` | `ZeroAddress()` |
 
 ## Registry
 
@@ -1296,7 +1622,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ISuperPaymaster
 
 - **Source:** `contracts/src/interfaces/ISuperPaymaster.sol`
-- **Functions:** 13 · **Events:** 7 · **Errors:** 0
+- **Functions:** 11 · **Events:** 6 · **Errors:** 0
 - **Title:** ISuperPaymaster - Multi-tenant SuperPaymaster Interface
 - Interface for SuperPaymaster V3 with per-operator configuration
 
@@ -1311,8 +1637,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — |  |
 | `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
-| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
-| `0x7344209c` | `settleX402PaymentDirect(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | — |  |
 | `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — |  |
 | `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — |  |
 | `0x54fd4d50` | `version()` | view | — | Get human-readable version string |
@@ -1413,45 +1737,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `totalSpent` | `uint256` |  |
 | `totalTxSponsored` | `uint256` |  |
 
-#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
-
-`0xf3a729da` · nonpayable · access: —
-
-| param | type | description |
-|---|---|---|
-| `from` | `address` |  |
-| `to` | `address` |  |
-| `asset` | `address` |  |
-| `amount` | `uint256` |  |
-| `maxFee` | `uint256` |  |
-| `validAfter` | `uint256` |  |
-| `validBefore` | `uint256` |  |
-| `salt` | `bytes32` |  |
-| `signature` | `bytes` |  |
-
-| returns | type | description |
-|---|---|---|
-| `settlementId` | `bytes32` |  |
-
-#### `settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature)`
-
-`0x7344209c` · nonpayable · access: —
-
-| param | type | description |
-|---|---|---|
-| `from` | `address` |  |
-| `to` | `address` |  |
-| `asset` | `address` |  |
-| `amount` | `uint256` |  |
-| `maxFee` | `uint256` |  |
-| `validBefore` | `uint256` |  |
-| `nonce` | `bytes32` |  |
-| `signature` | `bytes` |  |
-
-| returns | type | description |
-|---|---|---|
-| `settlementId` | `bytes32` |  |
-
 #### `updateBlockedStatus(address operator, address[] users, bool[] statuses)`
 
 `0x5f4cd4fe` · nonpayable · access: —
@@ -1501,7 +1786,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
 | `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
-| `0xecef7698217b345db7161a8d2ffa4e7109c3ca0fe6e64ca6627ee67be3e818fc` | `X402PaymentSettled(address,address,address,uint256,uint256,bytes32)` |
 
 ## ISuperPaymasterRegistry
 
@@ -2433,6 +2717,287 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `isValid` | `bool` | True if user has active membership |
+
+## IPolicyRegistry
+
+- **Source:** `contracts/src/interfaces/v3/IPolicyRegistry.sol`
+- **Functions:** 18 · **Events:** 9 · **Errors:** 6
+- **Title:** IPolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
+- Single source of truth for "is this op within policy / does it need DVT co-sign".         Read by staked EntryPoint consumers (SuperPaymaster) during         `validatePaymasterUserOp`, by AirAccount accounts (#70) during `validateUserOp`,         and by DVT nodes / the slash path off-chain. ALL of those read the SAME registry         and the SAME schema so that the policy a node enforces == the policy the slash         path punishes against (fair punishment).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x969cb5da` | `checkPolicy(address,address,address,uint256,bytes4)` | view | — | Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation. |
+| `0x7e19482e` | `freezeSender(address)` | nonpayable | — | Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}. |
+| `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
+| `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
+| `0x35cefaa8` | `getContractScope(address,address)` | view | — |  |
+| `0x452a9320` | `guardian()` | view | — |  |
+| `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
+| `0xe5839836` | `isFrozen(address)` | view | — |  |
+| `0xb1655919` | `isSelectorAllowed(address,address,bytes4)` | view | — |  |
+| `0xa1a4a180` | `recordSpend(address,address,address,uint256,bytes4)` | nonpayable | — | Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed. |
+| `0xbe29f491` | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}. |
+| `0x6ef778ee` | `setConsumerAuthorization(address,bool)` | nonpayable | — | Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized. |
+| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
+| `0x8a0dac4a` | `setGuardian(address)` | nonpayable | — | Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`. |
+| `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`. |
+| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`. |
+| `0xd33219b4` | `timelock()` | view | — | The OZ {TimelockController} whose `minDelay` (= 2 days) gates every loosening.         It is the only address allowed to call the `onlyTimelock` loosening/admin setters. |
+| `0x53d8cb68` | `unfreezeSender(address)` | nonpayable | — | Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`. |
+
+### Functions
+
+#### `checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)`
+
+`0x969cb5da` · view · access: —
+
+> Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation.
+
+*@dev* OPT-IN, default-ALLOW (NOT a global allowlist). An explicit `freeze` ⇒ REJECT (the one      hard block, top priority). Otherwise each dimension is enforced ONLY when `configured`:      an unconfigured asset is UNRESTRICTED (no cap / daily / amount-DVT; `remainingDaily ==      type(uint256).max`) and an unconfigured target is UNRESTRICTED (no allow-list / selector      / velocity / requireDVTAlways check). Combine: any configured dimension ⇒ REJECT wins;      else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING      configured ⇒ ALLOW with `remainingDaily == type(uint256).max`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` | the AA account address (the policy + counter key). |
+| `target` | `address` | the contract the op will call. |
+| `asset` | `address` | the ERC-20 whose `amount` is being moved (native units; the ETH sentinel                 `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` = ETH). `address(0)` is INVALID                 (reverts ZeroAddress) — 0xEee is the explicit ETH marker (Q4). |
+| `amount` | `uint256` | the asset amount in native units. |
+| `selector` | `bytes4` | the function selector being invoked on `target`. |
+
+| returns | type | description |
+|---|---|---|
+| `decision` | `uint8` | ALLOW / REQUIRE_DVT / REJECT (see {PolicyDecision}). |
+| `remainingDaily` | `uint256` | the asset's remaining native-unit allowance in the current window         AFTER this `amount` would post (0 when REJECT due to a cap; `type(uint256).max` when         the asset is UNRESTRICTED / not configured). Lets the consumer surface "how much         headroom is left" without a second call. |
+
+#### `freezeSender(address sender)`
+
+`0x7e19482e` · nonpayable · access: —
+
+> Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+#### `getAssetPolicy(address sender, address asset)`
+
+`0x29210a4b` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint128,uint128,uint256,uint64,bool)` |  |
+
+#### `getAssetSpend(address sender, address asset)`
+
+`0x715904dd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `spentInWindow` | `uint128` | cumulative native-unit spend in the current window for this asset. |
+| `windowStart` | `uint64` | unix timestamp the current window began. |
+
+#### `getContractScope(address sender, address target)`
+
+`0x35cefaa8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(bool,bool,uint128,uint64,bool)` |  |
+
+#### `guardian()`
+
+`0x452a9320` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `isAuthorizedConsumer(address consumer)`
+
+`0x7df732ea` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `consumer` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isFrozen(address sender)`
+
+`0xe5839836` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isSelectorAllowed(address sender, address target, bytes4 selector)`
+
+`0xb1655919` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `selector` | `bytes4` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector)`
+
+`0xa1a4a180` · nonpayable · access: —
+
+> Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed.
+
+*@dev* Same key tuple as {checkPolicy} so per-target velocity can be charged too.      MUST revert if `msg.sender` is not an authorized consumer (see {isAuthorizedConsumer}).      Belt-and-suspenders: even though validation saw a slightly-stale counter, this      authoritative debit closes the drain-then-bypass window (same mitigation philosophy      as SP's postOp credit reconciliation).KNOWN LIMITATION — TOCTOU (accepted carry-forward, PR #285 round-3): the CUMULATIVE      checks (`dailyLimit`, `velocityLimit`) are read at validation and debited here at      postOp, so multiple ops from the SAME sender in ONE bundle each observe the pre-debit      counter and can collectively overshoot by up to a single bundle's worth — BOUNDED,      since the next bundle rejects. The PER-TX guards are UNAFFECTED: `perTxHardCap` and      `dvtTriggerAmount` are single-tx comparisons evaluated per op and cannot be bypassed      by bundling (a high-value op still trips its hard cap / still requires DVT). This is      inherent to the ERC-4337 validation/execution split (identical to SP's credit      ceiling). An atomic check-and-debit was evaluated and DEFERRED: it would need a      state-writing validation-time call (ERC-7562 associated-storage risk) plus on-revert      refund logic, and the bounded residual does not justify that complexity.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` | the AA account (counter key). |
+| `target` | `address` | the contract that was called. |
+| `asset` | `address` | the asset spent (native units; ETH sentinel 0xEee…EEeE = ETH; address(0) invalid). |
+| `amount` | `uint256` | the asset amount actually spent. |
+| `selector` | `bytes4` | the selector invoked. |
+
+#### `setAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
+
+`0xbe29f491` · nonpayable · access: —
+
+> Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+| `params` | `(uint128,uint128,uint256,uint64)` |  |
+
+#### `setConsumerAuthorization(address consumer, bool authorized)`
+
+`0x6ef778ee` · nonpayable · access: —
+
+> Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized.
+
+| param | type | description |
+|---|---|---|
+| `consumer` | `address` |  |
+| `authorized` | `bool` |  |
+
+#### `setContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+
+`0x3ef43aff` · nonpayable · access: —
+
+> Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
+
+*@dev* ADDITIVE semantics (Q3, by design — accepted carry-forward, PR #285 round-3):      re-calling UNIONS the new `selectorAllowlist` with whatever is already allowed; it      does NOT replace. To REMOVE selectors (a tightening) use {tightenContractScope}.      There is intentionally no single-call "replace": loosen adds, tighten removes — so      "swap the selector set" = tighten away the stale ones, then set the new ones. This      keeps loosen/tighten direction unambiguous for the timelock-vs-guardian split.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+
+#### `setGuardian(address guardian)`
+
+`0x8a0dac4a` · nonpayable · access: —
+
+> Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `guardian` | `address` |  |
+
+#### `tightenAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
+
+`0x055b8e7b` · nonpayable · access: —
+
+> Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `asset` | `address` |  |
+| `params` | `(uint128,uint128,uint256,uint64)` |  |
+
+#### `tightenContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+
+`0xccd7129f` · nonpayable · access: —
+
+> Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+
+#### `timelock()`
+
+`0xd33219b4` · view · access: —
+
+> The OZ {TimelockController} whose `minDelay` (= 2 days) gates every loosening.         It is the only address allowed to call the `onlyTimelock` loosening/admin setters.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `unfreezeSender(address sender)`
+
+`0x53d8cb68` · nonpayable · access: —
+
+> Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe` | `AssetPolicySet(address,address,uint128,uint128,uint256)` |
+| `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` | `ConsumerAuthorizationSet(address,bool)` |
+| `0x92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc` | `ContractScopeSet(address,address,bool,bool,uint128,uint64)` |
+| `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` | `GuardianUpdated(address,address)` |
+| `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` | `PolicyTightened(address,address)` |
+| `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` | `SelectorScopeSet(address,address,bytes4,bool)` |
+| `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` |
+| `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` | `SenderUnfrozen(address)` |
+| `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` | `SpendRecorded(address,address,address,uint256,bytes4)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x972b6416` | `NotAuthorizedConsumer()` |
+| `0x954afe27` | `NotGuardianOrTimelock()` |
+| `0xc8922921` | `NotStrictlyTighter()` |
+| `0xcad4da2a` | `NotTimelock()` |
+| `0x75ae9c29` | `SenderIsFrozen()` |
+| `0xd92e233d` | `ZeroAddress()` |
 
 ## IRegistry
 
@@ -4047,7 +4612,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Register a BLS validator's public key into a deterministic slot.
 
-*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.
+*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.SECURITY / TRUST ASSUMPTION — owner path deliberately skips PoP.         There are exactly two registration paths and only ONE of them omits the         proof-of-possession check:           • Owner path (`msg.sender == owner()`): PoP is NOT verified. This is             intentional and safe under the protocol trust model. `owner` is the             trusted bootstrap authority (deployer → DAO / governance multisig /             timelock) that curates the known-good validator set during onboarding             and vets each key's proof-of-possession OFF-CHAIN before calling. A             compromised owner is already game-over for BLS consensus by design —             it can register/revoke ANY key at ANY slot, move `setSuperPaymaster`,             `setDVTValidator`, and the thresholds — so skipping PoP grants it NO             extra power it doesn't already hold. The rogue-key attack             (`Pm = xG − Σ pk_honest`) is therefore NOT reachable by an untrusted             party through this path: an attacker cannot satisfy the `owner()` gate.           • Permissionless path (`permissionlessBLSRegistration == true`, off by             default): an untrusted staked ROLE_DVT validator self-registers its OWN             key, and PoP IS enforced here precisely because the caller is untrusted.         Defense-in-depth: even a key inserted via the owner path can only contribute         to an aggregate if its validator address still holds ROLE_DVT with locked         stake >= minStake at verification time (re-checked live in         `_reconstructPkAgg`); a key registered for an address lacking the role/stake         can never enter a slash/reputation proof.         Deploy runbook: after launch, transfer ownership to the governance         multisig/timelock and onboard validators owner-side (off-chain PoP vetting)         OR flip `setPermissionlessBLSRegistration(true)` to require on-chain PoP for         self-service onboarding. See docs/architecture/dvt-validator-workflow.md.
 
 | param | type | description |
 |---|---|---|
@@ -5408,7 +5973,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 96 · **Events:** 41 · **Errors:** 39
+- **Functions:** 85 · **Events:** 38 · **Errors:** 33
 - **Title:** SuperPaymaster
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -5443,11 +6008,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x84450c3d` | `executeAPNTsTokenChange()` | nonpayable | onlyOwner | Apply a previously queued APNTS_TOKEN swap. |
 | `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. |
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Execute slash triggered by BLS consensus (DVT Module only) |
-| `0xef842a46` | `facilitatorEarnings(address,address)` | view | — |  |
-| `0xbac256d6` | `facilitatorFeeBPS()` | view | — |  |
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
 | `0xc399ec88` | `getDeposit()` | view | — |  |
-| `0x8670d78d` | `getEffectiveFacilitatorFee(address)` | view | — | P1-39: Returns the effective facilitator fee for an operator. |
 | `0xc1d9cb08` | `getLatestSlash(address)` | view | — |  |
 | `0x66c36875` | `getSlashCount(address)` | view | — |  |
 | `0xa134d63a` | `getSlashHistory(address)` | view | — |  |
@@ -5456,7 +6018,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — | V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent |
 | `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Check if an address is a registered ERC-8004 agent |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | nonpayable | nonReentrant | Handle ERC1363 transferAndCall (Push Mode) |
-| `0x928624e7` | `operatorFacilitatorFees(address)` | view | — |  |
 | `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x60a9139b` | `pendingAPNTsToken()` | view | — | Pending APNTS_TOKEN swap; address(0) when none queued. |
@@ -5479,13 +6040,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6a4b23b1` | `setAgentRegistries(address,address)` | nonpayable | onlyOwner | Set ERC-8004 agent registries (Owner only) |
 | `0xec2123f1` | `setAPNTSPrice(uint256)` | nonpayable | onlyOwner | Set the APNTS Price in USD (Owner Only) |
 | `0xd20727d7` | `setAPNTsToken(address)` | nonpayable | onlyOwner | Queue a new APNTS_TOKEN. Cannot take effect until         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`         and `protocolRevenue` are within PROTOCOL_REVENUE_BUFFER (otherwise         existing operator deposits would be stranded under the new token's         accounting). |
-| `0x2540c471` | `setFacilitatorFeeBPS(uint256)` | nonpayable | onlyOwner | Set default facilitator fee BPS (Owner only) |
-| `0xc50cff87` | `setOperatorFacilitatorFee(address,uint256)` | nonpayable | onlyOwner | Set per-operator facilitator fee override (Owner only) |
 | `0xfc347007` | `setOperatorLimits(uint48)` | nonpayable | — |  |
 | `0xe8ade1a9` | `setOperatorPaused(address,bool)` | nonpayable | onlyOwner | Pause/Unpause an operator (Owner Only) |
 | `0x787dce3d` | `setProtocolFee(uint256)` | nonpayable | onlyOwner | Set the protocol fee basis points (Owner Only) |
-| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path) |
-| `0x7344209c` | `settleX402PaymentDirect(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via direct transferFrom (xPNTs only) |
 | `0xf0f44260` | `setTreasury(address)` | nonpayable | onlyOwner | Set the protocol treasury address (Owner Only) |
 | `0x58a2570a` | `setXPNTsFactory(address)` | nonpayable | onlyOwner |  |
 | `0x8e580213` | `slashHistory(address,uint256)` | view | — |  |
@@ -5505,12 +6062,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x52b7512c` | `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)` | nonpayable | onlyEntryPoint, nonReentrant | Payment validation: check if paymaster agrees to pay. Must verify sender is the entryPoint. Revert to reject this request. Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted (whitelisted). The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns. |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 | `0x2e1a7d4d` | `withdraw(uint256)` | nonpayable | nonReentrant | Withdraw aPNTs |
-| `0xd4c38f52` | `withdrawFacilitatorEarnings(address)` | nonpayable | nonReentrant | Withdraw accumulated facilitator earnings |
 | `0xa4b5328f` | `withdrawProtocolRevenue(address,uint256)` | nonpayable | onlyOwner, nonReentrant | Withdraw accumulated Protocol Revenue |
 | `0xc23a5cea` | `withdrawStake(address)` | nonpayable | — |  |
 | `0x205c2878` | `withdrawTo(address,uint256)` | nonpayable | — |  |
-| `0x761cda33` | `x402NonceKey(address,address,bytes32)` | pure | — | Compose the per-(asset, from, nonce) replay-protection key. |
-| `0x4ee1a3d6` | `x402SettlementNonces(bytes32)` | view | — | x402 settlement nonces, keyed by keccak256(asset, from, nonce). |
 | `0x6d8a4aff` | `xpntsFactory()` | view | — |  |
 
 ### Functions
@@ -5763,27 +6317,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `level` | `uint8` |  |
 | `proof` | `bytes` |  |
 
-#### `facilitatorEarnings(address arg0, address arg1)`
-
-`0xef842a46` · view · access: —
-
-| param | type | description |
-|---|---|---|
-| `arg0` | `address` |  |
-| `arg1` | `address` |  |
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
-
-#### `facilitatorFeeBPS()`
-
-`0xbac256d6` · view · access: —
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
-
 #### `getAvailableCredit(address user, address token)`
 
 `0xeafe74b5` · view · access: —
@@ -5802,22 +6335,6 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `getDeposit()`
 
 `0xc399ec88` · view · access: —
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
-
-#### `getEffectiveFacilitatorFee(address operator)`
-
-`0x8670d78d` · view · access: —
-
-> P1-39: Returns the effective facilitator fee for an operator.
-
-*@dev* Per-operator override takes precedence over the global default.
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
 
 | returns | type | description |
 |---|---|---|
@@ -5928,18 +6445,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bytes4` |  |
-
-#### `operatorFacilitatorFees(address arg0)`
-
-`0x928624e7` · view · access: —
-
-| param | type | description |
-|---|---|---|
-| `arg0` | `address` |  |
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
 
 #### `operators(address arg0)`
 
@@ -6178,27 +6683,6 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `newAPNTsToken` | `address` |  |
 
-#### `setFacilitatorFeeBPS(uint256 _fee)`
-
-`0x2540c471` · nonpayable · access: onlyOwner
-
-> Set default facilitator fee BPS (Owner only)
-
-| param | type | description |
-|---|---|---|
-| `_fee` | `uint256` |  |
-
-#### `setOperatorFacilitatorFee(address operator, uint256 _fee)`
-
-`0xc50cff87` · nonpayable · access: onlyOwner
-
-> Set per-operator facilitator fee override (Owner only)
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `_fee` | `uint256` |  |
-
 #### `setOperatorLimits(uint48 _minTxInterval)`
 
 `0xfc347007` · nonpayable · access: —
@@ -6229,53 +6713,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `newFeeBPS` | `uint256` |  |
-
-#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
-
-`0xf3a729da` · nonpayable · access: nonReentrant
-
-> Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path)
-
-*@dev* C-03 + M-1: both the final recipient `to` AND the payer-approved fee cap         `maxFee` are bound into the EIP-3009 nonce         (`nonce = keccak256(to, maxFee, salt)`). The payer signs the EIP-3009         authorization over that nonce, so an operator that swaps `to` OR raises         `maxFee` produces a different nonce and the EIP-3009 signature no longer         recovers `from` — the transfer reverts. This reuses the payer's existing         token-level signature; no second signature. Without the `maxFee` binding the         payer's EIP-3009 signature only authorizes moving `amount` and places no cap         on the operator's facilitator fee (up to MAX_FACILITATOR_FEE), which the         payer never consented to (M-1).M-1: the path assumes the contract receives exactly `amount`. A fee-on-transfer         / deflationary asset delivers less, so paying out `amount - fee` would overpay         `to` from other settlements' reserves. We measure the actual delta and revert         if it is short. EIP-3009 stablecoins (USDC) are not deflationary, so this only         rejects assets that violate the path's amount==received assumption.M-1 (front-run grief): we use `receiveWithAuthorization`, NOT         `transferWithAuthorization`. The EIP-3009 spec requires the token to enforce         `msg.sender == to` for the receive variant, so only this contract (the `to`)         can submit the authorization. With the transfer variant, anyone who observes         the payer's signature could call the token directly to pull `amount` into the         SuperPaymaster outside of a settlement, burning the token-side nonce and         leaving the funds stranded (the real settle would then revert). The receive         variant closes that grief vector. EIP-3009's two variants share a nonce         namespace but sign distinct typehashes (Transfer- vs ReceiveWithAuthorization);         since the payer signs ONLY the receive typehash, the same signature cannot be         replayed against `transferWithAuthorization` to burn the nonce (recovery would         yield a different signer), so both nonce-burning paths are closed.settlementId uses abi.encode (fixed-size fields) for a collision-free id.
-
-| param | type | description |
-|---|---|---|
-| `from` | `address` |  |
-| `to` | `address` |  |
-| `asset` | `address` |  |
-| `amount` | `uint256` |  |
-| `maxFee` | `uint256` |  |
-| `validAfter` | `uint256` |  |
-| `validBefore` | `uint256` |  |
-| `salt` | `bytes32` |  |
-| `signature` | `bytes` |  |
-
-| returns | type | description |
-|---|---|---|
-| `settlementId` | `bytes32` |  |
-
-#### `settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature)`
-
-`0x7344209c` · nonpayable · access: nonReentrant
-
-> Settle x402 payment via direct transferFrom (xPNTs only)
-
-*@dev* Direct path is restricted to xPNTs tokens registered in         `xpntsFactory` AND to facilitators explicitly approved by the         community that owns the xPNTs. Without these gates:         - any ERC20 the payer ever did `approve(facilitator, MAX)` on           (e.g. USDC for x402 standard payments) could be drained by           a compromised facilitator (xPNTs carry an in-contract           firewall + per-tx cap; arbitrary ERC20s do not);         - any single global facilitator compromise would blast across           every community's xPNTs.         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).settlementId uses abi.encode (not encodePacked), matching the         x402NonceKey encoding to avoid hash-collision with variable-length types.P0-12a: enforce `xpntsFactory.isXPNTs(asset)` gate.P0-12b (D4): enforce community-side `approvedFacilitators`         whitelist on the xPNTs token. Community owner toggles via         `xPNTsToken.add/removeApprovedFacilitator`. AAStar's default         facilitator is NOT auto-approved at deploy — each community         decides explicitly.Nonce and asset whitelist: _validateX402AndComputeFee writes the         nonce before the isXPNTs check executes. However, if the call         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back         the nonce write — so the nonce is NOT consumed on failure.
-
-| param | type | description |
-|---|---|---|
-| `from` | `address` |  |
-| `to` | `address` |  |
-| `asset` | `address` |  |
-| `amount` | `uint256` |  |
-| `maxFee` | `uint256` |  |
-| `validBefore` | `uint256` |  |
-| `nonce` | `bytes32` |  |
-| `signature` | `bytes` |  |
-
-| returns | type | description |
-|---|---|---|
-| `settlementId` | `bytes32` |  |
 
 #### `setTreasury(address _treasury)`
 
@@ -6486,16 +6923,6 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `amount` | `uint256` |  |
 
-#### `withdrawFacilitatorEarnings(address asset)`
-
-`0xd4c38f52` · nonpayable · access: nonReentrant
-
-> Withdraw accumulated facilitator earnings
-
-| param | type | description |
-|---|---|---|
-| `asset` | `address` |  |
-
 #### `withdrawProtocolRevenue(address to, uint256 amount)`
 
 `0xa4b5328f` · nonpayable · access: onlyOwner, nonReentrant
@@ -6523,6 +6950,297 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `to` | `address` |  |
 | `amount` | `uint256` |  |
+
+#### `xpntsFactory()`
+
+`0x6d8a4aff` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` |
+| `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
+| `0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee` | `APNTsTokenChangeCancelled(address)` |
+| `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` |
+| `0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c` | `APNTsTokenChangeQueued(address,uint256)` |
+| `0x75f4cc3f3f70100dc11e396f47f8af2dec5cf7ec94e06062222be779cf2f3dec` | `APNTsTokenUpdated(address,address)` |
+| `0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d` | `BLSAggregatorQueued(address,uint48)` |
+| `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
+| `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` |
+| `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
+| `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
+| `0x028dfa1d2bc951d60682384a066c9424c3829ea5f25cb00a5f659caed927faea` | `EmergencyPriceQueued(int256,uint256)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
+| `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
+| `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
+| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
+| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
+| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
+| `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
+| `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
+| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
+| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
+| `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
+| `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
+| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
+| `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
+| `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
+| `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
+| `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
+| `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
+| `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
+| `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
+| `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x9996b315` | `AddressEmptyCode(address)` |
+| `0xcd786059` | `AddressInsufficientBalance(address)` |
+| `0x54ada055` | `AmountExceedsUint128()` |
+| `0x4efd1550` | `ChainlinkNotStale()` |
+| `0x144f0768` | `DepositNotVerified()` |
+| `0x4a1a5610` | `EmergencyExpired()` |
+| `0x6b049335` | `EmergencyPriceOutOfRange()` |
+| `0x5d2ccdb4` | `EmergencyTimelockNotElapsed()` |
+| `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
+| `0xb398979f` | `ERC1967NonPayable()` |
+| `0x1425ea42` | `FailedInnerCall()` |
+| `0xcf479181` | `InsufficientBalance(uint256,uint256)` |
+| `0xb4aa8063` | `InsufficientRevenue()` |
+| `0xe6c4247b` | `InvalidAddress()` |
+| `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0x49e27cff` | `InvalidOwner()` |
+| `0x67cc8b75` | `InvalidXPNTsToken()` |
+| `0x227bc153` | `MathOverflowedMulDiv()` |
+| `0xa24a1471` | `NoEmergencyPending()` |
+| `0x0d0a552c` | `NoPendingDebt()` |
+| `0xe0a1dc31` | `NoSlashHistory()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xb41b6cb1` | `OracleError()` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
+| `0x5274afe7` | `SafeERC20FailedOperation(address)` |
+| `0x82c6707e` | `ScoreExceedsUint32()` |
+| `0xbe3963ef` | `SlashCooldown()` |
+| `0x82b42900` | `Unauthorized()` |
+| `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
+| `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+
+## X402Facilitator
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol`
+- **Functions:** 17 · **Events:** 4 · **Errors:** 17
+- **Title:** X402Facilitator
+- Standalone x402 settlement layer extracted from SuperPaymaster (v5.4 god-split         phase 1). Settles agent-to-service micropayments via two paths:           - settleX402Payment:       EIP-3009 `receiveWithAuthorization` (USDC-native).           - settleX402PaymentDirect: `transferFrom` over community xPNTs (auto-allowance).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0xef842a46` | `facilitatorEarnings(address,address)` | view | — |  |
+| `0xbac256d6` | `facilitatorFeeBPS()` | view | — |  |
+| `0x8670d78d` | `getEffectiveFacilitatorFee(address)` | view | — | P1-39: Returns the effective facilitator fee for an operator. |
+| `0x928624e7` | `operatorFacilitatorFees(address)` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x06433b1b` | `REGISTRY()` | view | — | Registry used for the ROLE_PAYMASTER_SUPER operator gate. |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x2540c471` | `setFacilitatorFeeBPS(uint256)` | nonpayable | onlyOwner | Set default facilitator fee BPS (Owner only) |
+| `0xc50cff87` | `setOperatorFacilitatorFee(address,uint256)` | nonpayable | onlyOwner | Set per-operator facilitator fee override (Owner only) |
+| `0xf3a729da` | `settleX402Payment(address,address,address,uint256,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path) |
+| `0x7344209c` | `settleX402PaymentDirect(address,address,address,uint256,uint256,uint256,bytes32,bytes)` | nonpayable | nonReentrant | Settle x402 payment via direct transferFrom (xPNTs only) |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x54fd4d50` | `version()` | pure | — |  |
+| `0xd4c38f52` | `withdrawFacilitatorEarnings(address)` | nonpayable | nonReentrant | Withdraw accumulated facilitator earnings |
+| `0x761cda33` | `x402NonceKey(address,address,bytes32)` | pure | — | Compose the per-(asset, from, nonce) replay-protection key. |
+| `0x4ee1a3d6` | `x402SettlementNonces(bytes32)` | view | — | x402 settlement nonces, keyed by keccak256(asset, from, nonce). |
+| `0xb08ec5ca` | `XPNTS_FACTORY()` | view | — | xPNTs factory used by the Direct path to whitelist assets (P0-12a). |
+
+### Functions
+
+#### `facilitatorEarnings(address arg0, address arg1)`
+
+`0xef842a46` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `facilitatorFeeBPS()`
+
+`0xbac256d6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `getEffectiveFacilitatorFee(address operator)`
+
+`0x8670d78d` · view · access: —
+
+> P1-39: Returns the effective facilitator fee for an operator.
+
+*@dev* Per-operator override takes precedence over the global default.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `operatorFacilitatorFees(address arg0)`
+
+`0x928624e7` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+> Registry used for the ROLE_PAYMASTER_SUPER operator gate.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+
+#### `setFacilitatorFeeBPS(uint256 _fee)`
+
+`0x2540c471` · nonpayable · access: onlyOwner
+
+> Set default facilitator fee BPS (Owner only)
+
+| param | type | description |
+|---|---|---|
+| `_fee` | `uint256` |  |
+
+#### `setOperatorFacilitatorFee(address operator, uint256 _fee)`
+
+`0xc50cff87` · nonpayable · access: onlyOwner
+
+> Set per-operator facilitator fee override (Owner only)
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `_fee` | `uint256` |  |
+
+#### `settleX402Payment(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validAfter, uint256 validBefore, bytes32 salt, bytes signature)`
+
+`0xf3a729da` · nonpayable · access: nonReentrant
+
+> Settle x402 payment via EIP-3009 receiveWithAuthorization (USDC native path)
+
+*@dev* C-03 + M-1: both the final recipient `to` AND the payer-approved fee cap         `maxFee` are bound into the EIP-3009 nonce         (`nonce = keccak256(to, maxFee, salt)`). The payer signs the EIP-3009         authorization over that nonce, so an operator that swaps `to` OR raises         `maxFee` produces a different nonce and the EIP-3009 signature no longer         recovers `from` — the transfer reverts. This reuses the payer's existing         token-level signature; no second signature. Without the `maxFee` binding the         payer's EIP-3009 signature only authorizes moving `amount` and places no cap         on the operator's facilitator fee (up to MAX_FACILITATOR_FEE), which the         payer never consented to (M-1).M-1: the path assumes the contract receives exactly `amount`. A fee-on-transfer         / deflationary asset delivers less, so paying out `amount - fee` would overpay         `to` from other settlements' reserves. We measure the actual delta and revert         if it is short. EIP-3009 stablecoins (USDC) are not deflationary, so this only         rejects assets that violate the path's amount==received assumption.M-1 (front-run grief): we use `receiveWithAuthorization`, NOT         `transferWithAuthorization`. The EIP-3009 spec requires the token to enforce         `msg.sender == to` for the receive variant, so only this contract (the `to`)         can submit the authorization. With the transfer variant, anyone who observes         the payer's signature could call the token directly to pull `amount` into this         contract outside of a settlement, burning the token-side nonce and leaving the         funds stranded (the real settle would then revert). The receive variant closes         that grief vector. EIP-3009's two variants share a nonce namespace but sign         distinct typehashes (Transfer- vs ReceiveWithAuthorization); since the payer         signs ONLY the receive typehash, the same signature cannot be replayed against         `transferWithAuthorization` to burn the nonce (recovery would yield a different         signer), so both nonce-burning paths are closed.settlementId uses abi.encode (fixed-size fields) for a collision-free id.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `asset` | `address` |  |
+| `amount` | `uint256` |  |
+| `maxFee` | `uint256` |  |
+| `validAfter` | `uint256` |  |
+| `validBefore` | `uint256` |  |
+| `salt` | `bytes32` |  |
+| `signature` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `settlementId` | `bytes32` |  |
+
+#### `settleX402PaymentDirect(address from, address to, address asset, uint256 amount, uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes signature)`
+
+`0x7344209c` · nonpayable · access: nonReentrant
+
+> Settle x402 payment via direct transferFrom (xPNTs only)
+
+*@dev* Direct path is restricted to xPNTs tokens registered in         `XPNTS_FACTORY` AND to facilitators explicitly approved by the         community that owns the xPNTs. Without these gates:         - any ERC20 the payer ever did `approve(facilitator, MAX)` on           (e.g. USDC for x402 standard payments) could be drained by           a compromised facilitator (xPNTs carry an in-contract           firewall + per-tx cap; arbitrary ERC20s do not);         - any single global facilitator compromise would blast across           every community's xPNTs.         For non-xPNTs settlement use `settleX402Payment` (EIP-3009).settlementId uses abi.encode (not encodePacked), matching the         x402NonceKey encoding to avoid hash-collision with variable-length types.P0-12a: enforce `XPNTS_FACTORY.isXPNTs(asset)` gate.P0-12b (D4): enforce community-side `approvedFacilitators`         whitelist on the xPNTs token. Community owner toggles via         `xPNTsToken.add/removeApprovedFacilitator`. AAStar's default         facilitator is NOT auto-approved at deploy — each community         decides explicitly.Nonce and asset whitelist: _validateX402AndComputeFee writes the         nonce before the isXPNTs check executes. However, if the call         reverts (e.g. InvalidXPNTsToken), EVM revert semantics roll back         the nonce write — so the nonce is NOT consumed on failure.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `asset` | `address` |  |
+| `amount` | `uint256` |  |
+| `maxFee` | `uint256` |  |
+| `validBefore` | `uint256` |  |
+| `nonce` | `bytes32` |  |
+| `signature` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `settlementId` | `bytes32` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `withdrawFacilitatorEarnings(address asset)`
+
+`0xd4c38f52` · nonpayable · access: nonReentrant
+
+> Withdraw accumulated facilitator earnings
+
+| param | type | description |
+|---|---|---|
+| `asset` | `address` |  |
 
 #### `x402NonceKey(address asset, address from, bytes32 nonce)`
 
@@ -6556,9 +7274,11 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
-#### `xpntsFactory()`
+#### `XPNTS_FACTORY()`
 
-`0x6d8a4aff` · view · access: —
+`0xb08ec5ca` · view · access: —
+
+> xPNTs factory used by the Direct path to whitelist assets (P0-12a).
 
 | returns | type | description |
 |---|---|---|
@@ -6568,47 +7288,10 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | topic0 | event |
 |---|---|
-| `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` |
-| `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
-| `0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee` | `APNTsTokenChangeCancelled(address)` |
-| `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` |
-| `0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c` | `APNTsTokenChangeQueued(address,uint256)` |
-| `0x75f4cc3f3f70100dc11e396f47f8af2dec5cf7ec94e06062222be779cf2f3dec` | `APNTsTokenUpdated(address,address)` |
-| `0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d` | `BLSAggregatorQueued(address,uint48)` |
-| `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
-| `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` |
-| `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
-| `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
-| `0x028dfa1d2bc951d60682384a066c9424c3829ea5f25cb00a5f659caed927faea` | `EmergencyPriceQueued(int256,uint256)` |
 | `0xdd3840d6dd5c33bfa3b3743f47978de59805ce10f5170e1659be2936e489d73e` | `FacilitatorEarningsWithdrawn(address,address,uint256)` |
 | `0x9b6bf5a61deb3c460999ea46c3ff444018a6f424eb8807d5e7e7ca031461cb98` | `FacilitatorFeeUpdated(uint256,uint256)` |
-| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
-| `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
-| `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
-| `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
-| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
-| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
-| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
-| `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
-| `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
-| `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
-| `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
-| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
-| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
-| `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
-| `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
-| `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
-| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
-| `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
-| `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
-| `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
-| `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
-| `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
-| `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
-| `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
 | `0xecef7698217b345db7161a8d2ffa4e7109c3ca0fe6e64ca6627ee67be3e818fc` | `X402PaymentSettled(address,address,address,uint256,uint256,bytes32)` |
-| `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
 
 ### Errors
 
@@ -6616,40 +7299,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0x9996b315` | `AddressEmptyCode(address)` |
 | `0xcd786059` | `AddressInsufficientBalance(address)` |
-| `0x54ada055` | `AmountExceedsUint128()` |
-| `0x4efd1550` | `ChainlinkNotStale()` |
-| `0x144f0768` | `DepositNotVerified()` |
-| `0x4a1a5610` | `EmergencyExpired()` |
-| `0x6b049335` | `EmergencyPriceOutOfRange()` |
-| `0x5d2ccdb4` | `EmergencyTimelockNotElapsed()` |
-| `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
-| `0xb398979f` | `ERC1967NonPayable()` |
 | `0x1425ea42` | `FailedInnerCall()` |
 | `0xcf479181` | `InsufficientBalance(uint256,uint256)` |
-| `0xb4aa8063` | `InsufficientRevenue()` |
-| `0xe6c4247b` | `InvalidAddress()` |
 | `0xc52a9bd3` | `InvalidConfiguration()` |
 | `0x58d620b3` | `InvalidFee()` |
-| `0xf92ee8a9` | `InvalidInitialization()` |
-| `0x49e27cff` | `InvalidOwner()` |
 | `0xf9d36a71` | `InvalidX402Signature()` |
 | `0x67cc8b75` | `InvalidXPNTsToken()` |
-| `0x227bc153` | `MathOverflowedMulDiv()` |
-| `0xa24a1471` | `NoEmergencyPending()` |
 | `0x1fb09b80` | `NonceAlreadyUsed()` |
-| `0x0d0a552c` | `NoPendingDebt()` |
-| `0xe0a1dc31` | `NoSlashHistory()` |
-| `0xd7e6bcf8` | `NotInitializing()` |
-| `0xb41b6cb1` | `OracleError()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
-| `0x82c6707e` | `ScoreExceedsUint32()` |
-| `0xbe3963ef` | `SlashCooldown()` |
 | `0x82b42900` | `Unauthorized()` |
-| `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
-| `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
 | `0x760a602d` | `X402AmountMismatch()` |
 | `0x483a32fe` | `X402AuthExpired()` |
 | `0xfdc8ad38` | `X402FeeExceedsMax()` |
@@ -8590,7 +9251,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - **Source:** `contracts/src/tokens/GTokenAuthorization.sol`
 - **Functions:** 31 · **Events:** 6 · **Errors:** 21
 - **Title:** GTokenAuthorization v2.2.0 — GToken with EIP-3009 gasless transfers
-- Extends GToken with two EIP-3009 transfer paths and two risk controls. Transfer paths ────────────── transferWithAuthorization  — any relay can call; suitable for simple gasless sends. receiveWithAuthorization   — only msg.sender == to may call; prevents front-running                              for atomic deposit/wrapper flows (e.g. UI-driven UIDC                              purchases where the contract must be the caller). Risk controls ───────────── RC-1  Validity window hard-capped at MAX_AUTH_VALIDITY (5 min).       Limits the attack surface if a signature is intercepted. RC-2  Recipient must hold mySBT OR any xPNTs token issued by `factory`.       Covers the entire protocol ecosystem — all past and future communities —       without redeployment. `xPNTsToken` is a relay-supplied calldata hint       (not EIP-712 signed) because it only gates access; funds always flow to       the signature-bound `to` address.       Note: balanceOf is an at-execution snapshot; a recipient that briefly       holds xPNTs will pass RC-2. Persistent membership enforcement requires       a registry/lock mechanism (out of scope for this contract).       If mySBT has not been set yet, RC-2 falls back to xPNTs path only. Execution order (gas-optimal) ───────────────────────────── 1. Time-window checks  (pure arithmetic, cheapest) 2. Nonce state check   (1 SLOAD) 3. Signature recovery  (ecrecover, ~3k gas) 4. RC-2 eligibility    (≤3 external calls, most expensive — runs only on valid sigs) Deployment dependency ───────────────────── Deploy order: Registry → xPNTsFactory → GTokenAuthorization → GTokenStaking → MySBT               → GTokenAuthorization.setMySBT(mysbt) mySBT is set post-deploy (one-time, owner-only) to avoid circular constructor deps. factory is immutable — wrong address at deploy is permanent.
+- Extends GToken with two EIP-3009 transfer paths and two risk controls. Transfer paths ────────────── transferWithAuthorization  — any relay can call; suitable for simple gasless sends. receiveWithAuthorization   — only msg.sender == to may call; prevents front-running                              for atomic deposit/wrapper flows (e.g. UI-driven UIDC                              purchases where the contract must be the caller). Risk controls ───────────── RC-1  Validity window hard-capped at MAX_AUTH_VALIDITY (5 min).       Limits the attack surface if a signature is intercepted. RC-2  Recipient must hold mySBT OR any xPNTs token issued by `factory`.       Covers the entire protocol ecosystem — all past and future communities —       without redeployment. `xPNTsToken` is a relay-supplied calldata hint       (not EIP-712 signed) because it only gates access; funds always flow to       the signature-bound `to` address.       Note: balanceOf is an at-execution snapshot; a recipient that briefly       holds xPNTs will pass RC-2. Persistent membership enforcement requires       a registry/lock mechanism (out of scope for this contract).       If mySBT has not been set yet, RC-2 falls back to xPNTs path only.       ⚠️ DEPRECATED (2026-06-14, team decision): RC-2 is ABANDONED as a security       control and slated for REMOVAL in the v5.4 redeploy. Rationale: GToken is a       freely-transferable ERC20 — every holder has the right to dispose of their       own asset, so requiring the RECIPIENT to hold some other asset (SBT/xPNTs)       is a decentralization violation. It also carries no security value: the       standard ERC20 `transfer`/`transferFrom` path has no such gate, so RC-2 on       the gasless path is trivially bypassed (at most it was a gasless-relay       anti-abuse hint, never a recipient-security control — see closed #207).       Until v5.4 removes it, RC-2 stays in bytecode but MUST NOT be relied on       for security. Execution order (gas-optimal) ───────────────────────────── 1. Time-window checks  (pure arithmetic, cheapest) 2. Nonce state check   (1 SLOAD) 3. Signature recovery  (ecrecover, ~3k gas) 4. RC-2 eligibility    (≤3 external calls, most expensive — runs only on valid sigs) Deployment dependency ───────────────────── Deploy order: Registry → xPNTsFactory → GTokenAuthorization → GTokenStaking → MySBT               → GTokenAuthorization.setMySBT(mysbt) mySBT is set post-deploy (one-time, owner-only) to avoid circular constructor deps. factory is immutable — wrong address at deploy is permanent.
 
 ### Function selector index
 
@@ -10131,7 +10792,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsToken
 
 - **Source:** `contracts/src/tokens/xPNTsToken.sol`
-- **Functions:** 61 · **Events:** 18 · **Errors:** 36
+- **Functions:** 63 · **Events:** 19 · **Errors:** 36
 - **Title:** xPNTsToken
 - Community points token with pre-authorization mechanism
 
@@ -10184,7 +10845,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6b09de45` | `repayDebt(uint256)` | nonpayable | — | Manually repay debt by burning xPNTs. |
 | `0x4e4852f3` | `setMaxSingleTxLimit(uint256)` | nonpayable | — | P1-16: update the owner-configurable single-tx limit. |
 | `0x1eb6ca03` | `setSpenderDailyCap(uint256)` | nonpayable | — | P0-8: tune the per-spender daily burn cap. |
+| `0x433ae8eb` | `setSpenderDailyCapFor(address,uint256)` | nonpayable | — | P0-12c: pin a per-spender daily burn cap that overrides the global         `spenderDailyCapTokens` for one autoApproved spender. |
 | `0x7ade132c` | `setSuperPaymasterAddress(address)` | nonpayable | — | Sets or updates the trusted SuperPaymaster address. |
+| `0xa68f9524` | `spenderDailyCapOverride(address)` | view | — | P0-12c: optional per-spender override of `spenderDailyCapTokens`. |
 | `0xbf855565` | `spenderDailyCapTokens()` | view | — | Maximum xPNTs that any non-self spender can burn per rolling 24h window. |
 | `0xda21d73e` | `spenderRateLimit(address)` | view | — |  |
 | `0x5054dbd0` | `SUPERPAYMASTER_ADDRESS()` | view | — | The address of the trusted SuperPaymaster, which can call special functions. |
@@ -10209,7 +10872,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Authorize a facilitator to invoke         `SuperPaymaster.settleX402PaymentDirect` against this xPNTs.
 
-*@dev* P0-12b (D4): community-controlled whitelist; only community         owner can add/remove. AAStar's default facilitator is NOT         auto-added by the factory — each community decides explicitly.         A facilitator that is not in this set will be rejected by         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.Role separation: `approvedFacilitators` gates settle-call invocation         only. The actual `transferFrom` inside `settleX402PaymentDirect` is         executed by the SuperPaymaster contract (msg.sender = SP), which is         already in `autoApprovedSpenders` via factory setup. Facilitators do         NOT need to be in `autoApprovedSpenders` for the settle flow to work.SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).      A compromised single-EOA communityOwner can add arbitrary facilitators,      enabling unauthorized token extraction. This contract cannot enforce      multisig — the deployment process must ensure communityOwner != EOA.Prevents communityOwner from acting as both administrator and facilitator      (conflict of interest: an owner-facilitator could exploit the auto-approved      allowance they administer, bypassing the separation-of-duties guarantee).
+*@dev* P0-12b (D4): community-controlled whitelist; only community         owner can add/remove. AAStar's default facilitator is NOT         auto-added by the factory — each community decides explicitly.         A facilitator that is not in this set will be rejected by         SuperPaymaster regardless of its `ROLE_PAYMASTER_SUPER` role.Role separation: `approvedFacilitators` gates settle-call invocation         only — it is NOT the allowance grant. Since v5.4 god-split, x402 lives         in the standalone `X402Facilitator` contract, so the `transferFrom`         inside `settleX402PaymentDirect` runs with `msg.sender = X402Facilitator`         (not SP). The facilitator therefore MUST also be in `autoApprovedSpenders`         to pull `from`'s xPNTs, and is bound by the same firewall (can only pull         to itself, single-tx limit, emergencyDisabled, and the per-spender daily         cap — `setSpenderDailyCapFor` can pin it tighter than the SP-shared         global). The two whitelists are complementary: `approvedFacilitators`         authorises the settle call, `autoApprovedSpenders` authorises the pull.SECURITY: communityOwner MUST be a multisig wallet (e.g., Gnosis Safe).      A compromised single-EOA communityOwner can add arbitrary facilitators,      enabling unauthorized token extraction. This contract cannot enforce      multisig — the deployment process must ensure communityOwner != EOA.Prevents communityOwner from acting as both administrator and facilitator      (conflict of interest: an owner-facilitator could exploit the auto-approved      allowance they administer, bypassing the separation-of-duties guarantee).
 
 | param | type | description |
 |---|---|---|
@@ -10713,6 +11376,19 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `newCap` | `uint256` |  |
 
+#### `setSpenderDailyCapFor(address spender, uint256 newCap)`
+
+`0x433ae8eb` · nonpayable · access: —
+
+> P0-12c: pin a per-spender daily burn cap that overrides the global         `spenderDailyCapTokens` for one autoApproved spender.
+
+*@dev* Community-owner only. Intended to give a newer / less-audited         autoApproved spender (e.g. the standalone X402Facilitator) a TIGHTER         daily cap than the SP-shared global, shrinking the worst-case drain if         that spender is compromised. `newCap == 0` clears the override (the         spender reverts to the global cap); it does NOT disable the spender —         use `removeAutoApprovedSpender` for that. Same uint128 ceiling as the         global setter (storage type of `SpenderRateLimit.dailyBurnTotal`).
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `newCap` | `uint256` |  |
+
 #### `setSuperPaymasterAddress(address _spAddress)`
 
 `0x7ade132c` · nonpayable · access: —
@@ -10724,6 +11400,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `_spAddress` | `address` |  |
+
+#### `spenderDailyCapOverride(address arg0)`
+
+`0xa68f9524` · view · access: —
+
+> P0-12c: optional per-spender override of `spenderDailyCapTokens`.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `spenderDailyCapTokens()`
 
@@ -10929,6 +11619,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa8fe5b89f35f2ebd6f3f95a7ef215f4bd89179e10c101073ae76cffad14734cf` | `FacilitatorRemoved(address)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` |
+| `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` |
 | `0x68639863c58fa667262fab7192372355b1b2cb2731dcd7636cedbfcd1900f05d` | `SpenderDailyCapUpdated(uint256,uint256)` |
 | `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` |
 | `0x3c84f1b682ac1493ee72abc0427a570b681583551f8fadd1b98ea9cce545ec6a` | `SuperPaymasterAddressUpdated(address)` |
