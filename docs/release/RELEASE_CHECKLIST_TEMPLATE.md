@@ -160,7 +160,12 @@ Goal: prove the system works with **real on-chain transactions**, with reliable 
 
 Goal: make the release discoverable and consumable. The on-chain part is only half.
 
-- [ ] **[BLOCK] (eng)** **GitHub Release** created with the version tag (mark **prerelease** for beta/rc).
+- [ ] **[BLOCK] (eng)** **GitHub Release** created via **`gh release create <tag>`** (a git tag ALONE is
+      NOT a release and does NOT appear on the repo homepage). **Mark it `--latest` (NOT `--prerelease`),
+      even for beta/rc** — GitHub's homepage "Releases" widget only surfaces the *Latest* (non-prerelease)
+      release, so a `--prerelease` beta is invisible on the repo homepage (this bit us in v5.4.0-beta.1:
+      the release existed but was prerelease-only, so the homepage showed nothing). Notes must include the
+      version, deployed addresses, changelog, and verification status.
 - [ ] **[BLOCK] (eng)** **ABI files + manifest** regenerated and committed, including every new contract.
       The manifest must reflect what was actually deployed (addresses + ABIs in sync).
 - [ ] **[BLOCK] (eng)** **Deploy record** doc updated with addresses, tx hashes, and the real E2E hashes.
