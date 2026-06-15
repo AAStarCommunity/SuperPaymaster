@@ -1,10 +1,17 @@
 # SuperPaymaster API Reference
 
-**Version**: `SuperPaymaster-5.3.3` (release `v5.3.3-beta.2`)
+**Version**: `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`)
 
-> This document covers the full public API as of v5.3.3, including V3/V4 baseline
+> This document covers the full public API as of `v5.4.0-beta.1`, including V3/V4 baseline
 > functions and all V5.x additions (agent-native gas sponsorship, x402 settlement,
 > ERC-8004 dual-channel eligibility, and agent sponsorship policies).
+>
+> **v5.4 god-split note:** the on-chain `version()` string is still `SuperPaymaster-5.3.3`,
+> but the v5.4.0-beta.1 implementation content extracts the x402 settlement functions into a
+> **standalone [`X402Facilitator`](#x402facilitator-standalone-contract--v54)** contract and adds a
+> standalone **[`PolicyRegistry`](#policyregistry-standalone-contract--v54)**. The bump of the SP
+> `version()` string to `5.4.0` is deferred to GA. The `settleX402Payment*` entries below remain
+> documented for the SP-embedded path but are **superseded by `X402Facilitator`** in v5.4.
 
 ---
 
@@ -12,10 +19,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `SuperPaymaster-5.3.3` |
+| **Version** | `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`) |
 | **Sepolia Proxy** | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` |
-| **Sepolia Impl** | `0x52C1E6f039eb9BA50ac9Ad0D041cB07Dcf4C9AA0` |
-| **MicroPaymentChannel (Sepolia)** | `0xbD1807328Dd654512B13d6320C9Cc78685a405Ed` |
+| **Sepolia Impl** | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
+| **X402Facilitator (Sepolia)** | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
+| **PolicyRegistry (Sepolia)** | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
+| **TimelockController (Sepolia)** | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
+| **MicroPaymentChannel (Sepolia)** | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
 | **AgentIdentityRegistry (Sepolia)** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
 | **AgentReputationRegistry (Sepolia)** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | **EntryPoint** | v0.7 — `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
@@ -402,6 +412,14 @@ function getAgentSponsorshipRate(
 ---
 
 ## V5.x — x402 Payment Settlement Functions
+
+> **⚠️ v5.4 god-split:** As of `v5.4.0-beta.1`, x402 settlement has been **extracted into the
+> standalone [`X402Facilitator`](#x402facilitator-standalone-contract--v54)** contract (Sepolia
+> `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512`). The functions below document the legacy
+> SuperPaymaster-embedded path (still present in the impl bytecode); **new integrations should
+> target `X402Facilitator`**, whose canonical signatures are documented in its own section. The
+> standalone `settleX402Payment` signature additionally takes a `maxFee` argument and settles via
+> EIP-3009 `receiveWithAuthorization`.
 
 ### settleX402Payment
 
@@ -899,10 +917,138 @@ Voucher(bytes32 channelId, uint128 cumulativeAmount)
 
 ---
 
+## X402Facilitator (Standalone Contract) — v5.4
+
+**Version:** `X402Facilitator-1.0.0` · **Sepolia:** `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512`
+· **Type:** Standalone, non-upgradeable (`Ownable` + `ReentrancyGuard`)
+
+The `v5.4` god-split extracts x402 settlement out of SuperPaymaster into this dedicated contract.
+It has **zero SuperPaymaster-storage dependency** — it only reads external contracts (Registry role
+gate, xPNTs factory whitelist, ERC-3009/ERC-20 token transfers) and owns its own copies of the four
+x402 storage vars (`facilitatorFeeBPS`, `operatorFacilitatorFees`, `x402SettlementNonces`,
+`facilitatorEarnings`). Operator/facilitator calls are gated on
+`Registry.hasRole(ROLE_PAYMASTER_SUPER, caller)`.
+
+### settleX402Payment (X402Facilitator)
+
+Settle an x402 HTTP payment via EIP-3009 `receiveWithAuthorization` (USDC-native path).
+
+```solidity
+function settleX402Payment(
+    address from, address to, address asset, uint256 amount, uint256 maxFee,
+    uint256 validAfter, uint256 validBefore, bytes32 salt, bytes calldata signature
+) external nonReentrant returns (bytes32 settlementId)
+```
+
+- **Access:** caller must hold `ROLE_PAYMASTER_SUPER` in Registry.
+- **Recipient + fee binding (C-03):** the contract derives the EIP-3009 nonce as
+  `nonce = keccak256(abi.encode(to, maxFee, salt))`. The payer signs EIP-3009
+  `ReceiveWithAuthorization` over that derived nonce (`to = X402Facilitator`); swapping `to` or
+  `maxFee` derives a different nonce → signature no longer recovers `from` → revert.
+- **Amount check:** reverts `X402AmountMismatch` if the post-transfer balance delta < `amount`.
+- **Fee:** deducts `getEffectiveFacilitatorFee(msg.sender)` (per-operator override else global
+  `facilitatorFeeBPS`), capped by `maxFee`; net `amount - fee` forwarded to `to`, fee credited to
+  `facilitatorEarnings[msg.sender][asset]`.
+- **Returns:** `settlementId = keccak256(abi.encode(from, to, asset, amount, nonce))`.
+- **Events:** `X402PaymentSettled(from, to, asset, amount, fee, nonce)`.
+- **Errors:** `Unauthorized`, `NonceAlreadyUsed`, `InvalidFee`, `X402FeeExceedsMax`,
+  `X402AmountMismatch`.
+
+### settleX402PaymentDirect (X402Facilitator)
+
+Settle an x402 payment for a factory-deployed **xPNTs token** via `transferFrom` (auto-allowance).
+Because xPNTs carry no token-level EIP-3009 authorization, the consent gate lives here: the payer
+**must** sign an EIP-712 `X402PaymentAuthorization` (C-02).
+
+```solidity
+function settleX402PaymentDirect(
+    address from, address to, address asset, uint256 amount,
+    uint256 maxFee, uint256 validBefore, bytes32 nonce, bytes calldata signature
+) external nonReentrant returns (bytes32 settlementId)
+```
+
+- **Access:** caller must hold `ROLE_PAYMASTER_SUPER` (P0-12), `asset` must be a factory xPNTs
+  (`XPNTS_FACTORY.isXPNTs(asset)`, P0-12a), and caller must be on the xPNTs token's
+  `approvedFacilitators` whitelist (P0-12b).
+- **Signature (C-02, required):** `from` signs EIP-712
+  `X402PaymentAuthorization(address from,address to,address asset,uint256 amount,uint256 maxFee,uint256 validBefore,bytes32 nonce)`
+  over the **X402Facilitator** domain (`name:"X402Facilitator", version:"1"`), verified via
+  `SignatureCheckerLib` (EOA + ERC-1271). Enforces `block.timestamp <= validBefore` and `fee <= maxFee`.
+- **Returns:** `settlementId = keccak256(abi.encode(from, to, asset, amount, nonce))`.
+- **Errors:** `X402AuthExpired`, `InvalidX402Signature`, `X402FeeExceedsMax`, `InvalidXPNTsToken`,
+  `NonceAlreadyUsed`, `Unauthorized`, `InvalidConfiguration`.
+
+### Fee model & admin (X402Facilitator)
+
+| Function | Access | Purpose |
+|----------|--------|---------|
+| `setFacilitatorFeeBPS(uint256)` | `onlyOwner` | Global facilitator fee in BPS |
+| `setOperatorFacilitatorFee(address, uint256)` | `onlyOwner` | Per-operator fee override |
+| `getEffectiveFacilitatorFee(address)` → `uint256` | view | Operator override else global default |
+| `withdrawFacilitatorEarnings(address asset)` | operator | Withdraw accrued fees for `asset` |
+| `x402NonceKey(address asset, address from, bytes32 nonce)` → `bytes32` | pure | Off-chain nonce-key derivation helper |
+
+**Events:** `FacilitatorFeeUpdated`, `FacilitatorEarningsWithdrawn`, `X402PaymentSettled`.
+
+---
+
+## PolicyRegistry (Standalone Contract) — v5.4
+
+**Version:** `PolicyRegistry-1.0.0` · **Sepolia:** `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29`
+· **Type:** Standalone, non-upgradeable, governance-gated (`TimelockController` + guardian)
+
+PolicyRegistry is the single on-chain source of truth for **sender-keyed, governance-gated spend
+policy and DVT-trigger rules**. Staked consumers (SuperPaymaster, AirAccount) read it during
+validation; DVT nodes and the slash path reference the same policy so that "what a node enforced ==
+what is punished". It **never inspects signature wire-format** — it reasons only about
+`(sender, target, asset, amount, selector)`. Governance evolves policy through the injected
+`TimelockController` (Sepolia `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF`) and a guardian, not via
+code upgrades. ETH uses a sentinel address `0xEeee...EEeE` (`asset == address(0)` is invalid).
+
+### checkPolicy (read path)
+
+```solidity
+function checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)
+    external view returns (PolicyDecision decision, uint256 remainingDaily)
+```
+
+- **Decision:** `ALLOW` / `REJECT` / DVT-required — a frozen sender is a hard `REJECT`.
+  Opt-in default: an unconfigured dimension imposes **no** constraint (`remainingDaily = type(uint256).max`);
+  configured asset / contract-scope dimensions narrow it (daily/velocity windows, selector allow-list).
+- **Pure read** — consumers call this during ERC-4337 validation (ERC-7562 sender-associated storage).
+
+### recordSpend (write path)
+
+```solidity
+function recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector)
+    external onlyAuthorizedConsumer
+```
+
+- **Access:** only authorized consumers (staked SuperPaymaster / AirAccount; toggled by Timelock via
+  `setConsumerAuthorization`). Advances the per-asset and per-target velocity counters, rolling the
+  window first if elapsed. Emits `SpendRecorded`.
+
+### Governance & views (PolicyRegistry)
+
+| Function | Access | Purpose |
+|----------|--------|---------|
+| `setAssetPolicy` / `setContractScope` | timelock | Set per-(sender,asset) and per-(sender,target) policy |
+| `tightenAssetPolicy` / `tightenContractScope` | guardian/timelock | Monotonic tighten-only fast path |
+| `freezeSender` / `unfreezeSender` | guardian / timelock | Emergency hard-block a sender |
+| `setGuardian` / `setConsumerAuthorization` | timelock | Rotate guardian, authorize consumers |
+| `getAssetPolicy` / `getContractScope` / `getAssetSpend` / `isSelectorAllowed` / `isFrozen` / `isAuthorizedConsumer` | view | Inspection |
+
+> **Note:** `POLICY_REGISTRY_ADDRESS` handoff to the SuperPaymaster/AirAccount consumer wiring
+> (issue #110) and the multisig/Timelock ownership transfer are **deferred to GA** — see the
+> [v5.4.0-beta.1 deploy record](./announcements/deployment/sepolia-deploy-record-v5.4.0-beta.1.md).
+
+---
+
 ## Version History
 
 | Version | Key Changes |
 |---------|-------------|
+| `SuperPaymaster-5.3.3` (release `v5.4.0-beta.1`) | **v5.4 god-split phase 1:** x402 settlement extracted to standalone `X402Facilitator-1.0.0`; new standalone `PolicyRegistry-1.0.0` (governance-gated spend policy) + `TimelockController`. SP `version()` string unchanged (`5.3.3`); bump to `5.4.0` deferred to GA. |
 | `SuperPaymaster-5.3.0` | V5.3: ERC-8004 dual-channel sponsorship (`isEligibleForSponsorship`), agent sponsorship policies (F1), reputation feedback (F2), x402 EIP-3009 settlement (`settleX402Payment`), xPNTs direct settlement (`settleX402PaymentDirect`), `__gap` reduced 48→40 |
 | `SuperPaymaster-5.0.0` | V5.1: `_consumeCredit()` kernel, `chargeMicroPayment()` EIP-712, solady EIP-712, `microPaymentNonces` |
 | `SuperPaymaster-4.x` | UUPS upgradeable proxy migration (ERC1967), `BasePaymasterUpgradeable`, `initialize()` |
