@@ -61,11 +61,11 @@ async function main() {
 
   const VERSION_ABI = ["function version() view returns (string)"];
   const versionChecks = [
-    { name: "Registry", address: config.registry, expected: "Registry-4.1.0" },
-    { name: "SuperPaymaster", address: config.superPaymaster, expected: "SuperPaymaster-4.1.0" },
-    { name: "GTokenStaking", address: config.staking, expected: "Staking-3.2.0" },
-    { name: "MySBT", address: config.sbt, expected: "MySBT-3.1.3" },
-    { name: "GToken", address: config.gToken, expected: "GToken-2.1.2" }
+    { name: "Registry", address: config.registry, expected: "Registry-5.4.0" },
+    { name: "SuperPaymaster", address: config.superPaymaster, expected: "SuperPaymaster-5.4.0" },
+    { name: "GTokenStaking", address: config.staking, expected: "Staking-4.2.0" },
+    { name: "MySBT", address: config.sbt, expected: "MySBT-3.2.0" },
+    { name: "GToken", address: config.gToken, expected: "GToken-2.2.0" }
   ];
 
   for (const check of versionChecks) {

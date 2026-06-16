@@ -92,6 +92,21 @@ contract TestAccountPrepare is V54Bootstrap {
                 apnts = xPNTsToken(deployerTokenInFactory);
             }
 
+            // Phase 2.0.1b: On a FRESH deploy the deployer holds COMMUNITY + PAYMASTER_AOA
+            // but NOT PAYMASTER_SUPER, which configureOperator() requires (it checks
+            // hasRole(keccak256("PAYMASTER_SUPER"), msg.sender)). On an upgraded chain the
+            // role was already present so this was a silent no-op; a fresh deploy surfaces
+            // the gap. Grant it here, mirroring the Anni PAYMASTER_SUPER block below. Idempotent.
+            if (!registry.hasRole(ROLE_PAYMASTER_SUPER, deployerAddr)) {
+                console.log("[Phase 2.0.1b] Granting deployer PAYMASTER_SUPER (fresh deploy)...");
+                if (gtoken.balanceOf(deployerAddr) < 60 ether) {
+                    gtoken.mint(deployerAddr, 100 ether);
+                }
+                gtoken.approve(stakingAddr, 60 ether);
+                registry.safeMintForRole(ROLE_PAYMASTER_SUPER, deployerAddr, "");
+                console.log("  PAYMASTER_SUPER granted to deployer");
+            }
+
             // Phase 2.0.2: Configure deployer as SP operator if unconfigured or
             // if the stored token no longer matches (e.g. after factory upgrade).
             (, bool deployerCfg,, address deployerXPNTs, , , , ,) = superPaymaster.operators(deployerAddr);
