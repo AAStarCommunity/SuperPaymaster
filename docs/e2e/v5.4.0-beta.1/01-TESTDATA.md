@@ -43,8 +43,7 @@
 | GTokenStaking | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
 | MySBT | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
 | xPNTsFactory | `0xc312CAFcb49dFe3aB76bFB2F3e37CaEdBa65ccd9` |
-| **`SuperPaymaster.APNTS_TOKEN`** (protocol base accounting unit) | `0x9f0E11e0D33Ec0a5c9608990E7B3498B5EE3210B` (name "AAStar PNTs", symbol `aPNTs`) — **operator deposit/withdraw + `operators[op].aPNTsBalance` are denominated/funded in THIS token** |
-| operator xPNTs (`config.aPNTs`) | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` (symbol `aPNTs`, an `xPNTsToken` instance) — **user balances, `burnFromWithOpHash`, `getDebt` (user credit/debt) live here** |
+| `aPNTs` (`config.aPNTs`) | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` (symbol `aPNTs`, an `xPNTsToken`) — operator's xPNTs gas token: user balances, `burnFromWithOpHash`, `getDebt` (credit/debt 1.2). **NB: this is NOT the SuperPaymaster base accounting token — see §2.3.** |
 | PNTs (community xPNTs sample) | `0x5aa8b75eF1650CF3C67b17b474677eD5C847A435` |
 | PaymasterFactory | `0x60B8f728Abca14B82a4EC72f00Ff5437e0702e90` |
 | PaymasterV4 impl | `0x59aEAec186a8883c165adf5C72a64df2fD9af068` |
@@ -52,16 +51,21 @@
 | ReputationSystem | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
 | BLSAggregator | `0x7ec72505220a13040c80EF2B895Bf3405b6ed3e9` |
 | DVTValidator | `0xB60C82158734def92D0d2163C93927cf19b86a95` |
-| AgentIdentityRegistry (ERC-8004, per `config`) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` — ⚠️ **differs from the SP-wired registry**: `SuperPaymaster.agentIdentityRegistry()` returns `0xc60E7D1d13027Ed63a899926ba1a9A2692f1D9EB` (6988 bytes, `isRegisteredAgent` live). The **SP-wired `0xc60E7D1d…` is operative** for dual-channel eligibility; reconcile config vs wiring before GA. |
+| AgentIdentityRegistry (`config.agentIdentityRegistry`) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` — **NB: SuperPaymaster is wired to a different registry at runtime — see §2.3.** |
 | AgentReputationRegistry (ERC-8004) | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | AgentValidationRegistry (ERC-8004) | `0x8004Cb1BF31DAf7788923b405b754f57acEB4272` |
 | SimpleAccountFactory | `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985` |
 
-> The canonical, machine-readable source for ALL addresses is `deployments/config.sepolia.json`. If any address above conflicts with that file, the file wins. The E2E suite computes a SHA-256 fingerprint over the entire file to key its idempotent skip-cache, so any address change forces a full re-run.
+> **Source-of-truth model.** `deployments/config.sepolia.json` is authoritative for the **deployed-contract address registry** and is exactly what the E2E suite reads (it SHA-256-fingerprints the whole file to key its idempotent skip-cache, so any address change forces a full re-run). For every address the suite consumes from the file, the file wins. **Documented exception:** two SuperPaymaster *runtime pointers* resolve on-chain to addresses that differ from (or are absent in) the file — for those, the **on-chain value governs runtime behaviour** and the divergence is a tracked reconcile-before-GA item (see §2.3). There is exactly one source of truth per concern: the file for the address registry, the contract getter for those two runtime pointers.
 
-> ⚠️ **Two distinct contracts both report symbol `aPNTs` — do NOT conflate them** (this collision is the source of the B2 "APNTS_TOKEN differs from config.aPNTs" log line):
-> - **`0x9f0E11e0…`** = `SuperPaymaster.APNTS_TOKEN()` (immutable, on-chain), name "AAStar PNTs". The protocol **base accounting unit**: operator `deposit`/`withdraw` and `operators[op].aPNTsBalance` move this token (B2 tracks it for ERC20 balance assertions). **Not present in `config.sepolia.json`** — only discoverable via `SuperPaymaster.APNTS_TOKEN()`. A timelocked `queueSetAPNTsToken` migration toward `config.aPNTs` is pending (see 03-RESULTS Known-Oversight #4) — until it executes, the on-chain `APNTS_TOKEN` and `config.aPNTs` legitimately differ.
-> - **`0xc53a8c96…`** = `config.aPNTs`, an `xPNTsToken` instance. The operator's **xPNTs community gas token**: user balances, `burnFromWithOpHash`, and `getDebt` (the credit/debt scenario 1.2 proof read `getDebt` here → 39.76 aPNTs). Charges to the end-user settle against THIS token.
+### 2.3 On-chain runtime pointers that DIVERGE from `config` (read from the contract, not the file)
+
+| Pointer | `config.sepolia.json` value | `SuperPaymaster` getter — **operative at runtime** | Reconcile |
+|---|---|---|---|
+| Base accounting token | `aPNTs` = `0xc53a8c96…` (an `xPNTsToken`) — this is the **migration TARGET** | `APNTS_TOKEN()` = `0x9f0E11e0…` ("AAStar PNTs") — operator `deposit`/`withdraw`/`aPNTsBalance` move THIS token (B2 asserts it). Not in the file. | **Verified on-chain:** `pendingAPNTsToken()` = `0xc53a8c96…` (= `config.aPNTs`), `pendingAPNTsTokenEta()` = `1781920248`. A timelock migration is already QUEUED to make `APNTS_TOKEN` match `config.aPNTs`; until eta elapses and `executeAPNTsTokenChange` runs, the on-chain `APNTS_TOKEN` stays `0x9f0E11e0…`. (So `config.aPNTs` is the forward-looking source of truth; the divergence is in-flight, not a misconfiguration.) |
+| Agent identity registry | `agentIdentityRegistry` = `0x8004A818…` | `agentIdentityRegistry()` = `0xc60E7D1d…` (6988 bytes, `isRegisteredAgent` live) — dual-channel eligibility queries THIS one | reconcile config vs wiring before GA |
+
+> ⚠️ Both `APNTS_TOKEN 0x9f0E11e0…` and `config.aPNTs 0xc53a8c96…` report symbol `aPNTs` — do NOT conflate. The **end-user** is charged / burned / accrues `getDebt` against `config.aPNTs 0xc53a8c96…` (credit/debt 1.2 read `getDebt` here → 39.76 aPNTs); the **operator** funds `aPNTsBalance` in `APNTS_TOKEN 0x9f0E11e0…`.
 
 ## 3. Actors & Funding Gate
 
