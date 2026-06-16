@@ -7,8 +7,8 @@
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **v5.4.0-beta.1** (God-Split Beta · X402Facilitator + PolicyRegistry + Timelock) — Sepolia Testnet Live
-> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.4.0-beta.1)
+> **v5.4.0-beta.1-redeploy** (God-Split Beta · X402Facilitator + PolicyRegistry + Timelock) — Sepolia Testnet Live
+> · [Release Notes](https://github.com/AAStarCommunity/SuperPaymaster/releases/tag/v5.4.0-beta.1-redeploy)
 > · [Integration Guide](./docs/integration/v5.3.3-beta.2-integration-guide.md)
 > · [Coverage Report](./docs/coverage-report-2026-06-02.md)
 
@@ -222,25 +222,25 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 
 ## Contract Addresses (Sepolia)
 
-> `v5.4.0-beta.1` deployment. Always read live addresses from
+> `v5.4.0-beta.1-redeploy` (Sepolia, 2026-06-16). Always read live addresses from
 > [`deployments/config.sepolia.json`](./deployments/config.sepolia.json).
 
 | Contract | Proxy | Implementation |
 |----------|-------|----------------|
-| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0x0B5ce7032804aEFA698bddeB355D1FDDc553c14A` |
-| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
-| X402Facilitator | — | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
-| PolicyRegistry | — | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
-| TimelockController | — | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
-| ReputationSystem | — | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
-| GToken | — | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` |
-| GTokenStaking | — | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
-| MySBT | — | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
-| xPNTsFactory | — | `0xc312CAFcb49dFe3aB76bFB2F3e37CaEdBa65ccd9` |
-| PaymasterFactory | — | `0x60B8f728Abca14B82a4EC72f00Ff5437e0702e90` |
-| BLSAggregator | — | `0x7ec72505220a13040c80EF2B895Bf3405b6ed3e9` |
-| DVTValidator | — | `0xB60C82158734def92D0d2163C93927cf19b86a95` |
-| MicroPaymentChannel | — | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
+| Registry | `0x3F920B25f8b65988359C372F66F036E48adFc556` | `0x1770338C0669d3333473a72CF0c164Ccc640Dc34` |
+| SuperPaymaster | `0x030025f40d509b1a99547bAEb3795bD27F7182b7` | `0x24a94572cfB6Ca6C8dE107431043556D461d8cFf` |
+| X402Facilitator | — | `0x326Fc3413c8A0185b0179B971C69813B6dFD971B` |
+| PolicyRegistry | — | `0x8c2488d46d5447418558c38AA6441720df656094` |
+| TimelockController | — | `0xB734df3c0A1809bc06708512363D368Ac51dF1A2` |
+| ReputationSystem | — | `0x7fEd690E1663755e24a1C9d6164336809d68a578` |
+| GToken | — | `0x20a051502a7AE6e40cfFd6EBe59057538E698984` |
+| GTokenStaking | — | `0x3B363598746Ea57314d4869B160940948c569D48` |
+| MySBT | — | `0x072A0D12f4212B6baD7c6d0A633eaffbDE9105bF` |
+| xPNTsFactory | — | `0xCec3655525a112882E74Fb7C26AcB267a07724cb` |
+| PaymasterFactory | — | `0x0Aa06EA5295eeD4D48c93c594Db1CBf3626971A5` |
+| BLSAggregator | — | `0x15387e161c1b3dAe7c66Fbd5c1F32837B58B2e79` |
+| DVTValidator | — | `0x19BA9829C784E4A41b68960b9c0bA55f83718997` |
+| MicroPaymentChannel | — | `0x405851A141Cde827E33247d4D4089Af2814c2FF5` |
 
 **EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
@@ -390,7 +390,7 @@ See [NOTICE](./NOTICE) · [TRADEMARK.md](./TRADEMARK.md) · [LICENSE-zh.md](./LI
 
 **[English](#english)** | **[中文](#chinese)**
 
-> **v5.4.0-beta.1**（God-Split Beta · X402Facilitator + PolicyRegistry + Timelock）— Sepolia 测试网运行中
+> **v5.4.0-beta.1-redeploy**（God-Split Beta · X402Facilitator + PolicyRegistry + Timelock）— Sepolia 测试网运行中
 
 ## SuperPaymaster 是什么？
 
@@ -486,20 +486,20 @@ forge test
 
 ## 合约地址（Sepolia 测试网）
 
-> `v5.4.0-beta.1` 部署。请始终从 [`deployments/config.sepolia.json`](./deployments/config.sepolia.json) 读取实时地址。
+> `v5.4.0-beta.1-redeploy`（Sepolia，2026-06-16）。请始终从 [`deployments/config.sepolia.json`](./deployments/config.sepolia.json) 读取实时地址。
 
 | 合约 | 代理地址 | 实现地址 |
 |------|----------|----------|
-| Registry | `0xB5Fb8920F7AcD8b395934bd1F21222b32A30eF1A` | `0x0B5ce7032804aEFA698bddeB355D1FDDc553c14A` |
-| SuperPaymaster | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
-| X402Facilitator | — | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
-| PolicyRegistry | — | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
-| TimelockController | — | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
-| ReputationSystem | — | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
-| GToken | — | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` |
-| GTokenStaking | — | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
-| MySBT | — | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
-| MicroPaymentChannel | — | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
+| Registry | `0x3F920B25f8b65988359C372F66F036E48adFc556` | `0x1770338C0669d3333473a72CF0c164Ccc640Dc34` |
+| SuperPaymaster | `0x030025f40d509b1a99547bAEb3795bD27F7182b7` | `0x24a94572cfB6Ca6C8dE107431043556D461d8cFf` |
+| X402Facilitator | — | `0x326Fc3413c8A0185b0179B971C69813B6dFD971B` |
+| PolicyRegistry | — | `0x8c2488d46d5447418558c38AA6441720df656094` |
+| TimelockController | — | `0xB734df3c0A1809bc06708512363D368Ac51dF1A2` |
+| ReputationSystem | — | `0x7fEd690E1663755e24a1C9d6164336809d68a578` |
+| GToken | — | `0x20a051502a7AE6e40cfFd6EBe59057538E698984` |
+| GTokenStaking | — | `0x3B363598746Ea57314d4869B160940948c569D48` |
+| MySBT | — | `0x072A0D12f4212B6baD7c6d0A633eaffbDE9105bF` |
+| MicroPaymentChannel | — | `0x405851A141Cde827E33247d4D4089Af2814c2FF5` |
 
 **EntryPoint v0.7**: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`
 
