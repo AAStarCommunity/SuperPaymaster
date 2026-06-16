@@ -65,6 +65,12 @@ const SP_ABI = [
   'function cachedPrice() view returns (int256 price, uint256 updatedAt, uint80 roundId, uint8 decimals)',
 ];
 
+const REGISTRY_ABI = [
+  'function creditTierConfig(uint256 level) view returns (uint256)',
+  'function setCreditTier(uint256 level, uint256 limit) external',
+  'function owner() view returns (address)',
+];
+
 const PM_FACTORY_ABI = ['function paymasterByOperator(address) view returns (address)'];
 
 const PASS = '✅';
@@ -101,11 +107,12 @@ async function setupOnce(ctx) {
   ];
   if (AA.some((a) => !a)) throw new Error('TEST_AA_ACCOUNT_ADDRESS_A/B/C not set in .env.sepolia');
 
-  const apntsRO = new ethers.Contract(APNTS, ERC20_ABI, provider);
-  const pntsRO  = PNTS ? new ethers.Contract(PNTS, ERC20_ABI, provider) : null;
-  const sp      = new ethers.Contract(SP, SP_ABI, deployer);
-  const ep      = new ethers.Contract(EP, ENTRYPOINT_ABI, provider);
-  const pmf     = new ethers.Contract(PMF, PM_FACTORY_ABI, provider);
+  const apntsRO  = new ethers.Contract(APNTS, ERC20_ABI, provider);
+  const pntsRO   = PNTS ? new ethers.Contract(PNTS, ERC20_ABI, provider) : null;
+  const sp       = new ethers.Contract(SP, SP_ABI, deployer);
+  const ep       = new ethers.Contract(EP, ENTRYPOINT_ABI, provider);
+  const pmf      = new ethers.Contract(PMF, PM_FACTORY_ABI, provider);
+  const registry = new ethers.Contract(config.registry, REGISTRY_ABI, deployer);
 
   let failures = 0;
   const check = (label, ok, detail = '') => {
@@ -217,6 +224,45 @@ async function setupOnce(ctx) {
     }
   }
   console.log();
+
+  // ── Step 4.5: Ensure base credit tier is high enough for Sepolia L1 gasless ops ──
+  // A fresh deploy initialises creditTierConfig[1]=100 aPNTs. On Sepolia L1 the
+  // validate-time gas estimate is ~120-150 aPNTs, so the default tier-1 ceiling
+  // causes AA34 for every new user. Raise to 300 (safe floor covering the L1
+  // charge while keeping meaningful economic friction for production).
+  // Idempotent: only writes if the current value is below the threshold.
+  console.log('━━━ Step 4.5: Ensure Base Credit Tier (Registry) ━━━');
+  {
+    const CREDIT_TIER_MIN = ethers.parseEther('200'); // below this → raise
+    const CREDIT_TIER_SET = ethers.parseEther('300'); // target value
+    try {
+      const [tier1, tier2, registryOwner] = await Promise.all([
+        retryView(() => registry.creditTierConfig(1n), 'creditTierConfig(1)'),
+        retryView(() => registry.creditTierConfig(2n), 'creditTierConfig(2)'),
+        retryView(() => registry.owner(), 'registry.owner'),
+      ]);
+      const isOwner = registryOwner.toLowerCase() === deployer.address.toLowerCase();
+      if (!isOwner) {
+        console.log(`  ${WARN} Deployer is not Registry owner — cannot set creditTierConfig (owner=${registryOwner})`);
+      } else {
+        if (tier1 < CREDIT_TIER_MIN) {
+          console.log(`  ${WARN} creditTierConfig[1]=${ethers.formatEther(tier1)} aPNTs — below threshold, raising to ${ethers.formatEther(CREDIT_TIER_SET)}...`);
+          await sendAndWait(registry, 'setCreditTier', [1n, CREDIT_TIER_SET], 'registry.setCreditTier(1, 300)');
+          console.log(`  ${PASS} creditTierConfig[1] set to ${ethers.formatEther(CREDIT_TIER_SET)} aPNTs`);
+        } else {
+          check('creditTierConfig[1] sufficient for Sepolia L1 gasless', true, `${ethers.formatEther(tier1)} aPNTs`);
+        }
+        if (tier2 < CREDIT_TIER_MIN) {
+          await sendAndWait(registry, 'setCreditTier', [2n, CREDIT_TIER_SET], 'registry.setCreditTier(2, 300)');
+          console.log(`  ${PASS} creditTierConfig[2] set to ${ethers.formatEther(CREDIT_TIER_SET)} aPNTs`);
+        } else {
+          check('creditTierConfig[2] sufficient for Sepolia L1 gasless', true, `${ethers.formatEther(tier2)} aPNTs`);
+        }
+      }
+    } catch (e) {
+      console.log(`  ${WARN} creditTierConfig check error (non-fatal): ${(e.message || '').slice(0, 80)}`);
+    }
+  }
 
   // ── Step 5: Fund AA accounts with BOTH tokens (auto-mint) ───────────────────
   console.log('━━━ Step 5: Fund AA Account Token Balances ━━━');
