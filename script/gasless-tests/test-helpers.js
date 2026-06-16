@@ -574,8 +574,30 @@ function _isNonceConflict(err) {
     reason.includes('nonce too low') ||
     reason.includes('already known') ||
     reason.includes('in-flight transaction limit') ||
+    reason.includes('could not coalesce') ||
     reason.includes('nonce has already been used') ||
     (err.code || '').toLowerCase() === 'replacement_underpriced';
+}
+
+// Wait until the signer's mempool drains (pending nonce == latest nonce), i.e. all
+// previously-broadcast txs for this account have mined. This is the cure for the
+// "in-flight transaction limit" / nonce-conflict skips seen when the full suite
+// fires many txs back-to-back: instead of skipping a critical tx, we wait for the
+// queue to clear and retry with a fresh nonce. Returns the drained 'latest' nonce,
+// or null on timeout.
+async function _waitMempoolDrain(signer, maxWaitMs = 90000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const [pending, latest] = await Promise.all([
+        signer.getNonce('pending'),
+        signer.getNonce('latest'),
+      ]);
+      if (pending <= latest) return latest; // no in-flight txs left
+    } catch (_) { /* transient RPC — retry below */ }
+    await new Promise(r => setTimeout(r, 4000));
+  }
+  return null;
 }
 
 /**
@@ -637,14 +659,28 @@ async function sendTxSafe(contract, method, args, label, opts = {}) {
       }
       const reason = err.reason || err.shortMessage || (err.message || '').substring(0, 120);
       if (_isNonceConflict(err)) {
-        printSkip(`${label}: nonce/in-flight conflict (pending TXs in mempool) — skipped${critical ? ' [CRITICAL]' : ''}`);
+        // RETRYABLE — never skip a critical tx on the first nonce/in-flight conflict.
+        // Root cause is mempool congestion (RPC "in-flight transaction limit") or a
+        // drifted cached nonce when other code paths advanced the chain nonce. Cure:
+        // wait for the mempool to drain, re-sync the nonce to 'latest', then retry.
+        if (attempt < maxRetries) {
+          printInfo(`${label}: nonce/in-flight conflict — draining mempool & retrying ${attempt}/${maxRetries - 1}...`);
+          const drained = signer ? await _waitMempoolDrain(signer) : null;
+          if (_nonceWallet && signer && signer.address === _nonceWallet) {
+            _nextNonce = drained !== null ? drained : await signer.getNonce('pending').catch(() => _nextNonce);
+          }
+          continue;
+        }
+        // Budget exhausted — only NOW treat as an (inconclusive) skip.
+        printSkip(`${label}: nonce/in-flight conflict persisted after ${maxRetries} attempts — skipped${critical ? ' [CRITICAL]' : ''}`);
         if (critical) _criticalTxSkipped++;
-      } else {
-        printError(`${label}: TX failed (${reason})`);
+        if (_nonceWallet && signer && signer.address === _nonceWallet) {
+          try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
+        }
+        return null;
       }
+      printError(`${label}: TX failed (${reason})`);
       if (_nonceWallet && signer && signer.address === _nonceWallet) {
-        // Resync to 'pending' (consistent with the initial tracker) so we skip past
-        // any tx still sitting in the mempool rather than colliding with it.
         try { _nextNonce = await signer.getNonce('pending'); } catch (_) {}
       }
       return null;
