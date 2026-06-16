@@ -43,7 +43,8 @@
 | GTokenStaking | `0x574820E26Acb7D9a1202708C6183d6A8aC957dA6` |
 | MySBT | `0x754CeB687aCFC72136B02a1cb7cE2F911B63F1f8` |
 | xPNTsFactory | `0xc312CAFcb49dFe3aB76bFB2F3e37CaEdBa65ccd9` |
-| aPNTs (protocol gas token) | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` |
+| **`SuperPaymaster.APNTS_TOKEN`** (protocol base accounting unit) | `0x9f0E11e0D33Ec0a5c9608990E7B3498B5EE3210B` (name "AAStar PNTs", symbol `aPNTs`) — **operator deposit/withdraw + `operators[op].aPNTsBalance` are denominated/funded in THIS token** |
+| operator xPNTs (`config.aPNTs`) | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` (symbol `aPNTs`, an `xPNTsToken` instance) — **user balances, `burnFromWithOpHash`, `getDebt` (user credit/debt) live here** |
 | PNTs (community xPNTs sample) | `0x5aa8b75eF1650CF3C67b17b474677eD5C847A435` |
 | PaymasterFactory | `0x60B8f728Abca14B82a4EC72f00Ff5437e0702e90` |
 | PaymasterV4 impl | `0x59aEAec186a8883c165adf5C72a64df2fD9af068` |
@@ -51,12 +52,16 @@
 | ReputationSystem | `0xDD4D6162F426998E8B8FC97D0a8a5912cd70e6E0` |
 | BLSAggregator | `0x7ec72505220a13040c80EF2B895Bf3405b6ed3e9` |
 | DVTValidator | `0xB60C82158734def92D0d2163C93927cf19b86a95` |
-| AgentIdentityRegistry (ERC-8004) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
+| AgentIdentityRegistry (ERC-8004, per `config`) | `0x8004A818BFB912233c491871b3d84c89A494BD9e` — ⚠️ **differs from the SP-wired registry**: `SuperPaymaster.agentIdentityRegistry()` returns `0xc60E7D1d13027Ed63a899926ba1a9A2692f1D9EB` (6988 bytes, `isRegisteredAgent` live). The **SP-wired `0xc60E7D1d…` is operative** for dual-channel eligibility; reconcile config vs wiring before GA. |
 | AgentReputationRegistry (ERC-8004) | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | AgentValidationRegistry (ERC-8004) | `0x8004Cb1BF31DAf7788923b405b754f57acEB4272` |
 | SimpleAccountFactory | `0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985` |
 
 > The canonical, machine-readable source for ALL addresses is `deployments/config.sepolia.json`. If any address above conflicts with that file, the file wins. The E2E suite computes a SHA-256 fingerprint over the entire file to key its idempotent skip-cache, so any address change forces a full re-run.
+
+> ⚠️ **Two distinct contracts both report symbol `aPNTs` — do NOT conflate them** (this collision is the source of the B2 "APNTS_TOKEN differs from config.aPNTs" log line):
+> - **`0x9f0E11e0…`** = `SuperPaymaster.APNTS_TOKEN()` (immutable, on-chain), name "AAStar PNTs". The protocol **base accounting unit**: operator `deposit`/`withdraw` and `operators[op].aPNTsBalance` move this token (B2 tracks it for ERC20 balance assertions). **Not present in `config.sepolia.json`** — only discoverable via `SuperPaymaster.APNTS_TOKEN()`. A timelocked `queueSetAPNTsToken` migration toward `config.aPNTs` is pending (see 03-RESULTS Known-Oversight #4) — until it executes, the on-chain `APNTS_TOKEN` and `config.aPNTs` legitimately differ.
+> - **`0xc53a8c96…`** = `config.aPNTs`, an `xPNTsToken` instance. The operator's **xPNTs community gas token**: user balances, `burnFromWithOpHash`, and `getDebt` (the credit/debt scenario 1.2 proof read `getDebt` here → 39.76 aPNTs). Charges to the end-user settle against THIS token.
 
 ## 3. Actors & Funding Gate
 
@@ -77,7 +82,8 @@
 
 | Token | Address | Use |
 |---|---|---|
-| aPNTs | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` | Protocol gas accounting unit (operator balance, debt, protocol revenue) |
+| `APNTS_TOKEN` (base unit) | `0x9f0E11e0D33Ec0a5c9608990E7B3498B5EE3210B` | `SuperPaymaster.APNTS_TOKEN` — operator `deposit`/`withdraw`/`aPNTsBalance` (B2). The protocol base accounting unit. |
+| operator xPNTs (`config.aPNTs`) | `0xc53a8c96581D8b7ACeDF16995323D7b3888ABCe8` | Operator's xPNTs gas token: user balances, burn-on-sponsor (`burnFromWithOpHash`), user `getDebt` (credit/debt 1.2). symbol `aPNTs` but is an `xPNTsToken`. |
 | PNTs (xPNTs sample) | `0x5aa8b75eF1650CF3C67b17b474677eD5C847A435` | Community gas token: burn-on-sponsor, x402 direct settle, firewall/limits |
 | USDC (Sepolia) | per `.env.sepolia` / x402 test config | x402 EIP-3009 `receiveWithAuthorization` settlement |
 | GToken | `0x46B82966f8a40f0Bbb8C13aCfBA746631CC2ec72` | Role stake lock / slash governance |
