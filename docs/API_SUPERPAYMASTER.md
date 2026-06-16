@@ -20,12 +20,12 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `SuperPaymaster-5.4.0` (release `v5.4.0`) |
-| **Sepolia Proxy** | `0xFb090E82bD041C6e9787eDEbE1D3BE55b3c7266a` |
-| **Sepolia Impl** | `0xE84Ae83Eb1fF99AF859e5FADA1104A8376a96d7A` |
-| **X402Facilitator (Sepolia)** | `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512` |
-| **PolicyRegistry (Sepolia)** | `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29` |
-| **TimelockController (Sepolia)** | `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF` |
-| **MicroPaymentChannel (Sepolia)** | `0xfCC95340Cbd4Ca8DdbE74676e799ABFb61553082` |
+| **Sepolia Proxy** | `0x030025f40d509b1a99547bAEb3795bD27F7182b7` |
+| **Sepolia Impl** | `0x24a94572cfB6Ca6C8dE107431043556D461d8cFf` |
+| **X402Facilitator (Sepolia)** | `0x326Fc3413c8A0185b0179B971C69813B6dFD971B` |
+| **PolicyRegistry (Sepolia)** | `0x8c2488d46d5447418558c38AA6441720df656094` |
+| **TimelockController (Sepolia)** | `0xB734df3c0A1809bc06708512363D368Ac51dF1A2` |
+| **MicroPaymentChannel (Sepolia)** | `0x405851A141Cde827E33247d4D4089Af2814c2FF5` |
 | **AgentIdentityRegistry (Sepolia)** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
 | **AgentReputationRegistry (Sepolia)** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | **EntryPoint** | v0.7 — `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
@@ -415,7 +415,7 @@ function getAgentSponsorshipRate(
 
 > **⚠️ v5.4 god-split:** As of `v5.4.0-beta.1`, x402 settlement has been **extracted into the
 > standalone [`X402Facilitator`](#x402facilitator-standalone-contract--v54)** contract (Sepolia
-> `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512`). The functions below document the legacy
+> `0x326Fc3413c8A0185b0179B971C69813B6dFD971B`). The functions below document the legacy
 > SuperPaymaster-embedded path (still present in the impl bytecode); **new integrations should
 > target `X402Facilitator`**, whose canonical signatures are documented in its own section. The
 > standalone `settleX402Payment` signature additionally takes a `maxFee` argument and settles via
@@ -919,7 +919,7 @@ Voucher(bytes32 channelId, uint128 cumulativeAmount)
 
 ## X402Facilitator (Standalone Contract) — v5.4
 
-**Version:** `X402Facilitator-1.0.0` · **Sepolia:** `0xFe95a77e4Db593E6EA88000Aad9cD1230BAB4512`
+**Version:** `X402Facilitator-1.0.0` · **Sepolia:** `0x326Fc3413c8A0185b0179B971C69813B6dFD971B`
 · **Type:** Standalone, non-upgradeable (`Ownable` + `ReentrancyGuard`)
 
 The `v5.4` god-split extracts x402 settlement out of SuperPaymaster into this dedicated contract.
@@ -994,7 +994,7 @@ function settleX402PaymentDirect(
 
 ## PolicyRegistry (Standalone Contract) — v5.4
 
-**Version:** `PolicyRegistry-1.0.0` · **Sepolia:** `0x37e4E40e69Fb7d5C3fbAA0F52A4002D27472Ff29`
+**Version:** `PolicyRegistry-1.0.0` · **Sepolia:** `0x8c2488d46d5447418558c38AA6441720df656094`
 · **Type:** Standalone, non-upgradeable, governance-gated (`TimelockController` + guardian)
 
 PolicyRegistry is the single on-chain source of truth for **sender-keyed, governance-gated spend
@@ -1002,7 +1002,7 @@ policy and DVT-trigger rules**. Staked consumers (SuperPaymaster, AirAccount) re
 validation; DVT nodes and the slash path reference the same policy so that "what a node enforced ==
 what is punished". It **never inspects signature wire-format** — it reasons only about
 `(sender, target, asset, amount, selector)`. Governance evolves policy through the injected
-`TimelockController` (Sepolia `0x6cEc100c9CDc6ee7D9EDe0533edD3554E641DdBF`) and a guardian, not via
+`TimelockController` (Sepolia `0xB734df3c0A1809bc06708512363D368Ac51dF1A2`) and a guardian, not via
 code upgrades. ETH uses a sentinel address `0xEeee...EEeE` (`asset == address(0)` is invalid).
 
 ### checkPolicy (read path)
