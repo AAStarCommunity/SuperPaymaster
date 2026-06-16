@@ -231,12 +231,14 @@ async function main() {
   // ──────────────────────────────────────────
   // Step 7: Version check — confirm H-1 fix is deployed
   // ──────────────────────────────────────────
-  printStep(7, 'Version assertion — confirm SuperPaymaster-5.3.3 is deployed');
+  printStep(7, 'Version assertion — confirm SuperPaymaster-5.4.0 is deployed');
   try {
     const ver = await sp.version();
     printKeyValue('SuperPaymaster version', ver);
-    assertTrue(ver.includes('5.3.3'), `version contains "5.3.3" (got "${ver}")`);
-    printSuccess('H-1 fix confirmed deployed — SuperPaymaster-5.3.3 on-chain');
+    // H-1 credit-ceiling fix ships in v5.4.x. Update this string per release
+    // (on-chain version() must equal the exact release tag — see TX-Value-Verification).
+    assertTrue(ver.includes('5.4.0'), `version contains "5.4.0" (got "${ver}")`);
+    printSuccess('H-1 fix confirmed deployed — SuperPaymaster-5.4.0 on-chain');
     printInfo('Fix summary: _recordDebt() fallback now enforces credit ceiling before');
     printInfo('  recording debt. Over-ceiling mid-op drain → isBlocked=true (DVT/BLS to unblock).');
   } catch (e) {
