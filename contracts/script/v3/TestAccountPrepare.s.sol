@@ -125,6 +125,41 @@ contract TestAccountPrepare is V54Bootstrap {
                 superPaymaster.setOperatorPaused(deployerAddr, false);
                 console.log("  Deployer operator unpaused");
             }
+
+            // Phase 2.0.5: Deploy deployer's V4 (AOA) Paymaster proxy for aPNTs if missing.
+            // Requires ROLE_COMMUNITY + ROLE_PAYMASTER_AOA (both confirmed on deployer).
+            address pmProxyDeployer = pmFactory.getPaymasterByOperator(deployerAddr);
+            if (pmProxyDeployer == address(0)) {
+                if (!registry.hasRole(ROLE_PAYMASTER_AOA, deployerAddr)) {
+                    console.log("[Phase 2.0.5] Granting deployer PAYMASTER_AOA...");
+                    gtoken.approve(stakingAddr, 50 ether);
+                    registry.registerRole(ROLE_PAYMASTER_AOA, deployerAddr, "");
+                }
+                console.log("[Phase 2.0.5] Deploying deployer's AOA Paymaster (V4)...");
+                bytes memory initDataDeployer = abi.encodeWithSignature(
+                    "initialize(address,address,address,address,uint256,uint256,uint256)",
+                    entryPointAddr,
+                    deployerAddr,
+                    deployerAddr,
+                    priceFeedAddr,
+                    100,
+                    1 ether,
+                    86400
+                );
+                pmProxyDeployer = pmFactory.deployPaymaster("v4.2", initDataDeployer);
+                console.log("  Deployer PM proxy:", pmProxyDeployer);
+                Paymaster(payable(pmProxyDeployer)).setTokenPrice(address(apnts), 2_000_000); // $0.02 — matches DeployLive
+            }
+            // Correct token price if missing or wrong (idempotent — covers existing proxies with stale price).
+            // DeployLive sets $0.02 (2_000_000); old prepare-test runs may have set $1.00 (100_000_000).
+            uint256 curApntsPrice = Paymaster(payable(pmProxyDeployer)).tokenPrices(address(apnts));
+            if (curApntsPrice != 2_000_000) {
+                Paymaster(payable(pmProxyDeployer)).setTokenPrice(address(apnts), 2_000_000);
+                console.log("[Phase 2.0.5] Corrected aPNTs price: was", curApntsPrice, "-> 2000000 ($0.02)");
+            }
+            // Always write to config (idempotent — same address on re-run)
+            vm.writeJson(vm.toString(pmProxyDeployer), cfgPath, ".aPNTsPaymasterV4");
+            console.log("[Phase 2.0.5] aPNTs PaymasterV4 proxy:", pmProxyDeployer);
         }
 
         if (!registry.hasRole(ROLE_COMMUNITY, anniAddr)) {
@@ -195,6 +230,9 @@ contract TestAccountPrepare is V54Bootstrap {
             );
             console.log("  PNTs deployed:", pntsAddr);
         }
+        // Always write pNTs address to config (idempotent)
+        vm.writeJson(vm.toString(pntsAddr), cfgPath, ".pnts");
+        console.log("[Phase 2.2] pNTs address written to config:", pntsAddr);
         // Wire X402Facilitator on Anni's PNTs (communityOwner = Anni; broadcast is anniPK).
         // Idempotent + staticcall-gated: enables x402 settlement tests against PNTs.
         if (facilitator != address(0) && pntsAddr != address(0)) {
@@ -216,11 +254,11 @@ contract TestAccountPrepare is V54Bootstrap {
             console.log("  1000 aPNTs deposited");
         }
 
-        // Deploy Anni's V4 paymaster proxy if not yet deployed
+        // Deploy Anni's V4 paymaster proxy if not yet deployed; always write to config
         address pmProxyAnni = pmFactory.getPaymasterByOperator(anniAddr);
+        address dPNTs = xpntsFactory.getTokenAddress(anniAddr);
         if (pmProxyAnni == address(0)) {
             console.log("[Phase 2.2] Deploying Anni's AOA Paymaster (V4)...");
-            address dPNTs = xpntsFactory.getTokenAddress(anniAddr);
             bytes memory initData = abi.encodeWithSignature(
                 "initialize(address,address,address,address,uint256,uint256,uint256)",
                 entryPointAddr,
@@ -233,21 +271,39 @@ contract TestAccountPrepare is V54Bootstrap {
             );
             pmProxyAnni = pmFactory.deployPaymaster("v4.2", initData);
             console.log("  Anni PM proxy:", pmProxyAnni);
-
-            // Configure token price so the paymaster can quote gas costs
-            if (dPNTs != address(0)) {
-                Paymaster(payable(pmProxyAnni)).setTokenPrice(dPNTs, 100_000_000); // $1.00 per token
+        }
+        // Correct pNTs token price if missing or wrong (idempotent — covers existing proxies).
+        // $0.02 matches the aPNTs price in DeployLive; pNTs is the same denomination.
+        if (pmProxyAnni != address(0) && dPNTs != address(0)) {
+            uint256 curPntsPrice = Paymaster(payable(pmProxyAnni)).tokenPrices(dPNTs);
+            if (curPntsPrice != 2_000_000) {
+                Paymaster(payable(pmProxyAnni)).setTokenPrice(dPNTs, 2_000_000); // $0.02 — matches aPNTs pricing
+                console.log("[Phase 2.2] Corrected pNTs price: was", curPntsPrice, "-> 2000000 ($0.02)");
             }
+        }
+        // Always write to config (idempotent — same address on re-run)
+        if (pmProxyAnni != address(0)) {
+            vm.writeJson(vm.toString(pmProxyAnni), cfgPath, ".pNTsPaymasterV4");
+            console.log("[Phase 2.2] pNTs PaymasterV4 proxy:", pmProxyAnni);
         }
         vm.stopBroadcast();
 
         // -----------------------------------------------------------------------
-        // Phase 2.3: Deployer deposits ETH into EntryPoint for Anni's paymaster
+        // Phase 2.3: Deployer deposits ETH into EntryPoint for both V4 paymasters
         // -----------------------------------------------------------------------
         vm.startBroadcast(deployerPK);
-        if (IEntryPoint(entryPointAddr).balanceOf(pmProxyAnni) < 0.05 ether) {
-            console.log("[Phase 2.3] Depositing 0.05 ETH to EntryPoint for Anni PM...");
-            IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxyAnni);
+        uint256 anniEpBal = pmProxyAnni != address(0) ? IEntryPoint(entryPointAddr).balanceOf(pmProxyAnni) : 0.05 ether;
+        if (anniEpBal < 0.05 ether) {
+            uint256 topUp = 0.05 ether - anniEpBal;
+            console.log("[Phase 2.3] Depositing ETH to EntryPoint for Anni PM (gap):", topUp);
+            IEntryPoint(entryPointAddr).depositTo{value: topUp}(pmProxyAnni);
+        }
+        address _pmDeployer = pmFactory.getPaymasterByOperator(deployerAddr);
+        uint256 deployerEpBal = _pmDeployer != address(0) ? IEntryPoint(entryPointAddr).balanceOf(_pmDeployer) : 0.05 ether;
+        if (deployerEpBal < 0.05 ether) {
+            uint256 topUp = 0.05 ether - deployerEpBal;
+            console.log("[Phase 2.3] Depositing ETH to EntryPoint for deployer PM (gap):", topUp);
+            IEntryPoint(entryPointAddr).depositTo{value: topUp}(_pmDeployer);
         }
         vm.stopBroadcast();
 
@@ -277,9 +333,19 @@ contract TestAccountPrepare is V54Bootstrap {
         if (pmProxyAnni != address(0)) {
             (bool v4Ok,) = pmProxyAnni.call(abi.encodeWithSignature("updatePrice()"));
             if (v4Ok) {
-                console.log("  Anni V4 paymaster updatePrice() OK");
+                console.log("  Anni V4 (pNTs) paymaster updatePrice() OK");
             } else {
-                console.log("  Anni V4 paymaster updatePrice() skipped");
+                console.log("  Anni V4 (pNTs) paymaster updatePrice() skipped");
+            }
+        }
+        // PaymasterV4 (deployer's aPNTs proxy).
+        address _pmD = pmFactory.getPaymasterByOperator(deployerAddr);
+        if (_pmD != address(0)) {
+            (bool v4dOk,) = _pmD.call(abi.encodeWithSignature("updatePrice()"));
+            if (v4dOk) {
+                console.log("  Deployer V4 (aPNTs) paymaster updatePrice() OK");
+            } else {
+                console.log("  Deployer V4 (aPNTs) paymaster updatePrice() skipped");
             }
         }
         vm.stopBroadcast();
