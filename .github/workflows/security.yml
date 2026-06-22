@@ -26,7 +26,7 @@ jobs:
     name: Stage 1 — solhint + build (EIP-170)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
@@ -47,7 +47,7 @@ jobs:
     name: Stage 2 — forge test + fuzz
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true   # via-IR support is partial; advisory until stabilised
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
