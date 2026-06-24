@@ -13,6 +13,9 @@ import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
+// ROLE_COMMUNITY, ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER are file-level
+// constants from IRegistry.sol (imported above) — no local redeclaration needed.
+
 /**
  * @title InitializeAAStar
  * @notice Mainnet-safe community initialization for the AAStar official community.
@@ -27,37 +30,31 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  * Writes aPNTs and aPNTsPaymasterV4 to config.<ENV>.json.
  */
 contract InitializeAAStar is Script {
-    // Role constants imported from IRegistry (file-level, same values)
-    // Re-declared here to avoid import of full IRegistry globals into scope.
-    bytes32 private constant __ROLE_COMMUNITY       = keccak256("COMMUNITY");
-    bytes32 private constant __ROLE_PAYMASTER_AOA   = keccak256("PAYMASTER_AOA");
-    bytes32 private constant __ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
-
     function run() external {
         string memory network  = vm.envOr("ENV", string("op-mainnet"));
         string memory cfgPath  = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory json     = vm.readFile(cfgPath);
 
-        address deployerAddr   = vm.envAddress("DEPLOYER_ADDRESS");
-        address registryAddr   = vm.parseJsonAddress(json, ".registry");
-        address spAddr         = vm.parseJsonAddress(json, ".superPaymaster");
+        address deployerAddr     = vm.envAddress("DEPLOYER_ADDRESS");
+        address registryAddr     = vm.parseJsonAddress(json, ".registry");
+        address spAddr           = vm.parseJsonAddress(json, ".superPaymaster");
         address xpntsFactoryAddr = vm.parseJsonAddress(json, ".xPNTsFactory");
-        address stakingAddr    = vm.parseJsonAddress(json, ".staking");
-        address gTokenAddr     = vm.parseJsonAddress(json, ".gToken");
-        address entryPointAddr = vm.parseJsonAddress(json, ".entryPoint");
-        address priceFeedAddr  = vm.parseJsonAddress(json, ".priceFeed");
-        address pmFactoryAddr  = vm.parseJsonAddress(json, ".paymasterFactory");
+        address stakingAddr      = vm.parseJsonAddress(json, ".staking");
+        address gTokenAddr       = vm.parseJsonAddress(json, ".gToken");
+        address entryPointAddr   = vm.parseJsonAddress(json, ".entryPoint");
+        address priceFeedAddr    = vm.parseJsonAddress(json, ".priceFeed");
+        address pmFactoryAddr    = vm.parseJsonAddress(json, ".paymasterFactory");
 
-        Registry registry      = Registry(registryAddr);
-        SuperPaymaster sp      = SuperPaymaster(payable(spAddr));
-        xPNTsFactory xpFactory = xPNTsFactory(xpntsFactoryAddr);
-        GToken gtoken          = GToken(gTokenAddr);
+        Registry registry        = Registry(registryAddr);
+        SuperPaymaster sp        = SuperPaymaster(payable(spAddr));
+        xPNTsFactory xpFactory   = xPNTsFactory(xpntsFactoryAddr);
+        GToken gtoken            = GToken(gTokenAddr);
         PaymasterFactory pmFactory = PaymasterFactory(pmFactoryAddr);
 
         vm.startBroadcast();
 
         // Step 1: Register AAStar as COMMUNITY if not already
-        if (!registry.hasRole(_ROLE_COMMUNITY, deployerAddr)) {
+        if (!registry.hasRole(ROLE_COMMUNITY, deployerAddr)) {
             console.log("[InitializeAAStar] Registering AAStar as COMMUNITY...");
             gtoken.approve(stakingAddr, 50 ether);
             Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
@@ -65,17 +62,17 @@ contract InitializeAAStar is Script {
                 ensName: "aastar.eth",
                 stakeAmount: 30 ether
             });
-            registry.safeMintForRole(_ROLE_COMMUNITY, deployerAddr, abi.encode(aaStarData));
+            registry.safeMintForRole(ROLE_COMMUNITY, deployerAddr, abi.encode(aaStarData));
             console.log("  AAStar COMMUNITY registered");
         } else {
             console.log("[InitializeAAStar] AAStar COMMUNITY already registered, skip");
         }
 
         // Step 2: Grant PAYMASTER_SUPER if missing (for SuperPaymaster operator)
-        if (!registry.hasRole(_ROLE_PAYMASTER_SUPER, deployerAddr)) {
+        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, deployerAddr)) {
             console.log("[InitializeAAStar] Granting PAYMASTER_SUPER...");
             gtoken.approve(stakingAddr, 60 ether);
-            registry.safeMintForRole(_ROLE_PAYMASTER_SUPER, deployerAddr, "");
+            registry.safeMintForRole(ROLE_PAYMASTER_SUPER, deployerAddr, "");
         }
 
         // Step 3: Deploy aPNTs token if missing
@@ -99,10 +96,10 @@ contract InitializeAAStar is Script {
         }
 
         // Step 5: Grant PAYMASTER_AOA for V4 deployment
-        if (!registry.hasRole(_ROLE_PAYMASTER_AOA, deployerAddr)) {
+        if (!registry.hasRole(ROLE_PAYMASTER_AOA, deployerAddr)) {
             console.log("[InitializeAAStar] Granting PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
-            registry.registerRole(_ROLE_PAYMASTER_AOA, deployerAddr, "");
+            registry.registerRole(ROLE_PAYMASTER_AOA, deployerAddr, "");
         }
 
         // Step 6: Deploy aPNTs PaymasterV4 proxy if missing
@@ -125,14 +122,14 @@ contract InitializeAAStar is Script {
             console.log("[InitializeAAStar] aPNTs V4 proxy already deployed:", pmProxy);
         }
 
-        // Step 7: Correct token price (idempotent, $0.02 = 2_000_000 with 8 decimals)
+        // Step 7: Correct token price (idempotent — $0.02 = 2_000_000 with 8 decimals)
         uint256 curPrice = Paymaster(payable(pmProxy)).tokenPrices(apntsAddr);
         if (curPrice != 2_000_000) {
             Paymaster(payable(pmProxy)).setTokenPrice(apntsAddr, 2_000_000);
             console.log("[InitializeAAStar] aPNTs price set to $0.02 (2000000)");
         }
 
-        // Step 8: Top up EntryPoint deposit (gap only, idempotent target 0.1 ETH on mainnet)
+        // Step 8: Top up EntryPoint deposit (gap only, idempotent target 0.1 ETH)
         uint256 epBal = IEntryPoint(entryPointAddr).balanceOf(pmProxy);
         if (epBal < 0.1 ether) {
             uint256 topUp = 0.1 ether - epBal;
