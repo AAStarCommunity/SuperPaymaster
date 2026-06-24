@@ -173,8 +173,10 @@ if [ "$SHOULD_RUN_DEPLOY" = true ]; then
                 echo -e "\033[1;33m⚠️  prepare-test not executable; skipping test account setup.\033[0m"
             fi
             ;;
-        mainnet|optimism)
+        mainnet|optimism|op-mainnet)
             echo -e "\n\033[0;33mℹ️  Skipping prepare-test on $ENV (mainnet — manual operator onboarding required)\033[0m"
+            echo -e "\033[0;33m   Run: forge script contracts/script/v3/InitializeAAStar.s.sol --account \$DEPLOYER_ACCOUNT --broadcast\033[0m"
+            echo -e "\033[0;33m        forge script contracts/script/v3/InitializeMycelium.s.sol --account \$ANNI_ACCOUNT --broadcast\033[0m"
             ;;
     esac
 fi

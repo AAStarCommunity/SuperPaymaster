@@ -305,13 +305,13 @@
     "type": "address"
   },
   {
-    "label": "facilitatorFeeBPS",
+    "label": "__deprecated_x402_facilitatorFeeBPS",
     "slot": "25",
     "offset": 0,
     "type": "uint256"
   },
   {
-    "label": "operatorFacilitatorFees",
+    "label": "__deprecated_x402_operatorFacilitatorFees",
     "slot": "26",
     "offset": 0,
     "type": {
@@ -321,7 +321,7 @@
     }
   },
   {
-    "label": "x402SettlementNonces",
+    "label": "__deprecated_x402_settlementNonces",
     "slot": "27",
     "offset": 0,
     "type": {
@@ -331,7 +331,7 @@
     }
   },
   {
-    "label": "facilitatorEarnings",
+    "label": "__deprecated_x402_facilitatorEarnings",
     "slot": "28",
     "offset": 0,
     "type": {
