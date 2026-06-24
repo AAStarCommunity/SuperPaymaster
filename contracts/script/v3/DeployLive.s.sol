@@ -170,7 +170,14 @@ contract DeployLive is V54Bootstrap {
         _orchestrateRolesJason();
 
         console.log("=== Step 7: Mycelium Community (Anni) ===");
-        _setupMyceliumCommunity();
+        // On mainnet (no PRIVATE_KEY_ANNI), skip in-script Mycelium setup.
+        // Run InitializeMyceliumPrep.s.sol + InitializeMycelium.s.sol separately.
+        if (vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0) {
+            _setupMyceliumCommunity();
+        } else {
+            console.log("  PRIVATE_KEY_ANNI not set — skipping Mycelium setup.");
+            console.log("  Run InitializeMyceliumPrep + InitializeMycelium scripts after deploy.");
+        }
 
         console.log("=== Step 8: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===");
         _deployV54Stack();

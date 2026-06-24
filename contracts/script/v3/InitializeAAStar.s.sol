@@ -27,9 +27,11 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  * Writes aPNTs and aPNTsPaymasterV4 to config.<ENV>.json.
  */
 contract InitializeAAStar is Script {
-    bytes32 constant ROLE_COMMUNITY      = keccak256("COMMUNITY");
-    bytes32 constant ROLE_PAYMASTER_AOA  = keccak256("PAYMASTER_AOA");
-    bytes32 constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
+    // Role constants imported from IRegistry (file-level, same values)
+    // Re-declared here to avoid import of full IRegistry globals into scope.
+    bytes32 private constant __ROLE_COMMUNITY       = keccak256("COMMUNITY");
+    bytes32 private constant __ROLE_PAYMASTER_AOA   = keccak256("PAYMASTER_AOA");
+    bytes32 private constant __ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
 
     function run() external {
         string memory network  = vm.envOr("ENV", string("op-mainnet"));
@@ -55,7 +57,7 @@ contract InitializeAAStar is Script {
         vm.startBroadcast();
 
         // Step 1: Register AAStar as COMMUNITY if not already
-        if (!registry.hasRole(ROLE_COMMUNITY, deployerAddr)) {
+        if (!registry.hasRole(_ROLE_COMMUNITY, deployerAddr)) {
             console.log("[InitializeAAStar] Registering AAStar as COMMUNITY...");
             gtoken.approve(stakingAddr, 50 ether);
             Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
@@ -63,17 +65,17 @@ contract InitializeAAStar is Script {
                 ensName: "aastar.eth",
                 stakeAmount: 30 ether
             });
-            registry.safeMintForRole(ROLE_COMMUNITY, deployerAddr, abi.encode(aaStarData));
+            registry.safeMintForRole(_ROLE_COMMUNITY, deployerAddr, abi.encode(aaStarData));
             console.log("  AAStar COMMUNITY registered");
         } else {
             console.log("[InitializeAAStar] AAStar COMMUNITY already registered, skip");
         }
 
         // Step 2: Grant PAYMASTER_SUPER if missing (for SuperPaymaster operator)
-        if (!registry.hasRole(ROLE_PAYMASTER_SUPER, deployerAddr)) {
+        if (!registry.hasRole(_ROLE_PAYMASTER_SUPER, deployerAddr)) {
             console.log("[InitializeAAStar] Granting PAYMASTER_SUPER...");
             gtoken.approve(stakingAddr, 60 ether);
-            registry.safeMintForRole(ROLE_PAYMASTER_SUPER, deployerAddr, "");
+            registry.safeMintForRole(_ROLE_PAYMASTER_SUPER, deployerAddr, "");
         }
 
         // Step 3: Deploy aPNTs token if missing
@@ -97,10 +99,10 @@ contract InitializeAAStar is Script {
         }
 
         // Step 5: Grant PAYMASTER_AOA for V4 deployment
-        if (!registry.hasRole(ROLE_PAYMASTER_AOA, deployerAddr)) {
+        if (!registry.hasRole(_ROLE_PAYMASTER_AOA, deployerAddr)) {
             console.log("[InitializeAAStar] Granting PAYMASTER_AOA...");
             gtoken.approve(stakingAddr, 50 ether);
-            registry.registerRole(ROLE_PAYMASTER_AOA, deployerAddr, "");
+            registry.registerRole(_ROLE_PAYMASTER_AOA, deployerAddr, "");
         }
 
         // Step 6: Deploy aPNTs PaymasterV4 proxy if missing
