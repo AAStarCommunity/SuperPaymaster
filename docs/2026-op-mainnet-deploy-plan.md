@@ -236,26 +236,92 @@ forge script contracts/script/v3/InitializeMycelium.s.sol:InitializeMycelium \
 
 ---
 
-## 十一、Beta 阶段必须完成的前置条件
+## 十一、主网前**必须完成**项（阻塞项）
 
-在启动主网部署前，以下 Sepolia beta 任务必须关闭：
+> 下列任何一项未关闭，均不得启动 OP 主网部署。
 
-| # | 任务 | 状态 | 关联 |
-|---|---|---|---|
-| B1 | Registry struct 补全（website/description/logoURI） | ⬜ 待做 | Issue #299 P1+P3 瘦身后 |
-| B2 | `version()` GA blocker 修复 | ⬜ 待做 | E2E 报告 |
-| B3 | credit/debt repay E2E 覆盖 | ⬜ 待做 | E2E owed 项 |
-| B4 | agent 双通道赞助 E2E | ⬜ 待做 | E2E owed 项 |
-| B5 | Mycelium V4 proxy 部署（Sepolia） | ⬜ 待做 | 需 PRIVATE_KEY_ANNI |
-| B6 | 基础信用档值确认 | ✅ 确认 | tier 1/2 = 100，可运营后调 |
-| B7 | deploy-core 增加 op-mainnet 路由 | ⬜ 待做 | Section 5 |
-| B8 | InitializeOfficialCommunities 脚本 | ⬜ 待做 | Section 7 |
-| B9 | op-sepolia 全新部署演习 | ⬜ 待做 | Section 10.1 |
-| B10 | OP 主网 Chainlink feed 地址核实 | ⬜ 待做 | Section 8 |
+### 11.1 安全审计阻塞项
+
+| # | Issue | 问题描述 | 优先级 | 状态 |
+|---|---|---|---|---|
+| S1 | #249 | [Audit M-5] operator 可抢跑 `withdraw` 规避 Tier-1 slash — 须引入延迟提款队列或 paused/pending-slash 时阻断提款 | 🔴 安全 | ⬜ 待做 |
+| S2 | #255 D-H2 | check 失败不阻塞 + config 先写后验 — checks 全挂仍写入新地址，下次直接 skip；必须改为 checks 全通过才写 config，任一失败 `exit 1` | 🔴 部署事故 | ⬜ 待做 |
+| S3 | #255 D-H4 | wiring 步骤无完整性断言 — `setStaking/setMySBT/...` 执行后无 `require(registry.GTOKEN_STAKING()==staking)` 等断言；部署静默挂线上无法感知 | 🔴 部署事故 | ⬜ 待做 |
+
+**S1 修复方向**（`SuperPaymaster.sol:771-782`）：在 `withdraw()` 加 `pendingSlash == 0` 检查，或给提款加 24h 时间锁（类似 Timelock 已有的模式）。
+
+**S2/S3 修复方向**（`deploy-core`）：将 `save_config` 移至 `run_checks` 之后；`run_checks` 中删除 `|| true`，任一 exit code 非零则整体 `exit 1`；`DeployLive.s.sol` 末尾加 wiring assert block。
 
 ---
 
-## 十二、发布后运营事项
+### 11.2 测试与验证阻塞项
+
+| # | 任务 | 说明 | 状态 |
+|---|---|---|---|
+| T1 | credit/debt repay E2E | 制造 debt → repayDebt → 验证余额回归；主网前须有 1 条真实 TX 证明 | ⬜ 待做 |
+| T2 | agent 双通道赞助 E2E | 无 SBT 的 registered agent 走 agentIdentityRegistry 通道跑真实赞助；须有 TX 证明 | ⬜ 待做 |
+| T3 | Mycelium V4 proxy 部署（Sepolia） | 在 Sepolia 验证 InitializeMyceliumPrep + InitializeMycelium 脚本可执行（需 Anni keystore + PRIVATE_KEY_ANNI） | ⬜ 待做 |
+| T4 | op-sepolia 全新部署演习 | `./deploy-core op-sepolia --fresh-deploy` 全流程跑通，验证 op-mainnet 部署脚本在真实 OP 网络无问题 | ⬜ 待做 |
+
+---
+
+### 11.3 基础设施阻塞项
+
+| # | 任务 | 说明 | 状态 |
+|---|---|---|---|
+| I1 | PR #306 合并 | op-mainnet 部署脚本（InitializeAAStar/MyceliumPrep/Mycelium + deploy-core 路由）须先合并到 main | ⬜ 待 review |
+| I2 | OP 主网 Chainlink ETH/USD feed 核实 | 当前配置 `0x13e3Ee699D1909E989722E753853AE30b17e08c5`，须核对 [Chainlink OP mainnet feeds](https://docs.chain.link/data-feeds/price-feeds/addresses?network=optimism) 确认正确 | ⬜ 待做 |
+| I3 | Foundry keystore 导入（两账户） | `cast wallet import optimism-deployer --interactive` + `cast wallet import optimism-anni --interactive`，在部署机器上验证 `cast wallet list` 能看到两者 | ⬜ 待做 |
+| I4 | 基础信用档值确认 | tier 1/2 默认 100 ether（100 aPNTs），已确认；部署后如需调整：`cast send <registry> "setCreditTier(uint256,uint256)" 1 200ether --account optimism-deployer` | ✅ 已确认（100） |
+
+---
+
+## 十二、主网前**建议完成**项（非阻塞，强烈推荐）
+
+> 以下项目不阻塞部署，但会显著降低上线风险或后期维护成本，建议在 beta 稳定期内顺带处理。
+
+### 12.1 代码质量与审计（顺带做）
+
+| # | Issue | 说明 | 工作量 | 建议时机 |
+|---|---|---|---|---|
+| Q1 | #255 D-H1 | srcHash 覆盖不足：只 hash `contracts/src/*.sol`，不含 lib/foundry.toml/部署脚本，升级依赖后会被误判跳过 | 小 | 修 S2 时顺带 |
+| Q2 | #255 D-H3 | DeployAnvil/DeployLive 参数手写易漂移，建议抽共享 `_deployCore()` | 中 | 下次部署脚本改动时 |
+| Q3 | #255 D-H5 | config↔链上无自动对账，建议 CI 加每日 diff 报警 | 小 | CI 闲时 |
+| Q4 | #256 | version 命名统一 + 事件 indexed — 影响链上索引和 SDK 事件订阅 | 小 | beta 期间 |
+| Q5 | #259 | Info 代码卫生（命名/注释/死代码） | 小 | beta 期间随手 |
+| Q6 | #257 | 测试 gap 剩余 — 目前缺少 slash/DVT 集成测试 | 中 | beta 期间 |
+
+### 12.2 功能与 UX（顺带做）
+
+| # | Issue/PR | 说明 | 建议时机 |
+|---|---|---|---|
+| F1 | #299 | Registry struct 补全（website/description/logoURI）— 社区展示信息，影响前端和 SDK | 主网部署后第一次 UUPS upgrade 时加入 |
+| F2 | #300 | ERC-7677 paymaster web 服务（MetaMask 智能账户 gasless 买 GToken）— 扩大用户入口 | v5.5 特性 |
+| F3 | #286 | x402-facilitator-node 迁出合入 aNode monorepo | v5.4 稳定后 |
+
+### 12.3 依赖维护（建议主网前合并）
+
+| PR | 内容 |
+|---|---|
+| #302 | bump `actions/checkout` v6→v7（CI 动作） |
+| #303 | bump x402-facilitator-node 依赖组 |
+| #304 | bump undici `5.25.1→6.27.0`（openzeppelin-contracts-v5.0.2 子模块，安全修复） |
+| #305 | bump undici `6.22.0→6.27.0`（openzeppelin-contracts-v5.1.0 子模块，安全修复） |
+
+> undici CVE 相关安全修复（#304/#305）建议合并后跑一次 `forge build` 确认无编译变化。
+
+### 12.4 运营基础设施（主网 Day-0 前准备好）
+
+| # | 任务 | 说明 |
+|---|---|---|
+| O1 | 价格 keeper 上线 | 主网需定期调用 `updatePrice()`（SuperPaymaster + 两个 V4 proxy），否则触发 AA32 价格过期错误；使用 AAStar SDK `keeper run keep` 脚本配私钥运行 |
+| O2 | EntryPoint 余额监控 | 两个 V4 proxy 的 ETH deposit < 0.05 ETH 时告警并自动补充 |
+| O3 | 多签治理准备 | 主网 `owner` 建议转移至 Gnosis Safe 多签（deployer 暂时 owner 可接受，但应有转移计划） |
+| O4 | 社区扩展流程文档 | 第三方社区 `safeMintForRole(ROLE_COMMUNITY)` 的权限管理机制文档化，避免无序接入 |
+
+---
+
+## 十三、发布后运营事项
 
 1. **价格 keeper**：主网需要定期调用 `updatePrice()` 或配置链下 keeper 自动刷新价格缓存（否则 AA32 到期错误）
 2. **EntryPoint 余额监控**：两个 V4 proxy 的 ETH 余额低于阈值时自动告警并补充
@@ -269,5 +335,6 @@ forge script contracts/script/v3/InitializeMycelium.s.sol:InitializeMycelium \
 > 本节用于记录后续决策、变更和补充信息。
 
 - **2026-06-24**：初稿创建，基于 Sepolia v5.4.0-beta.1-redeploy 现状分析。
+- **2026-06-24**：增加 Section 11/12 — 必须完成项（安全/测试/基础设施）+ 建议完成项（代码质量/功能/依赖/运营）。
 - OP 主网 Anni 地址待确认后填入 `ANNI_ADDRESS`。
-- `InitializeOfficialCommunities.s.sol` 待创建（参考 `TestAccountPrepare.s.sol` Phase 2.0.5 + Phase 2.2 逻辑，去掉 Anvil fallback，全部走 keystore）。
+- `InitializeMyceliumPrep.s.sol` + `InitializeMycelium.s.sol` 已创建（PR #306），待 Sepolia 演练验证。
