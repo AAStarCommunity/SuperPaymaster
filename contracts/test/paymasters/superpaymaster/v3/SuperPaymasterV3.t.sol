@@ -263,7 +263,7 @@ contract SuperPaymasterTest is Test {
     function testSlashAndPause() public {
         vm.startPrank(owner);
         paymaster.updateReputation(operator, 100);
-        
+
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
         (,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
@@ -274,10 +274,89 @@ contract SuperPaymasterTest is Test {
 
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");
-        (,,,, uint32 repMajor,,,,) = paymaster.operators(operator); 
+        (,,,, uint32 repMajor,,,,) = paymaster.operators(operator);
         assertEq(repMajor, 30);
-        
+
         vm.stopPrank();
+    }
+
+    // ====================================
+    // M-5: pending-slash withdraw guard
+    // ====================================
+
+    /// @notice M-5: withdraw reverts when a slash has been queued for the caller.
+    function testWithdrawBlockedWhenSlashPending() public {
+        // Deposit so operator has a balance to attempt to withdraw
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
+        vm.stopPrank();
+
+        // Owner queues a slash (phase 1 — sets the pending flag)
+        vm.prank(owner);
+        paymaster.queueSlash(operator);
+
+        // Operator tries to front-run by withdrawing before slash executes
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymaster.SlashPending.selector);
+        paymaster.withdraw(100 ether);
+    }
+
+    /// @notice M-5: withdraw succeeds again after slashOperator clears the flag.
+    function testWithdrawAllowedAfterSlashExecuted() public {
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
+        vm.stopPrank();
+
+        // Owner queues then executes slash
+        vm.startPrank(owner);
+        paymaster.queueSlash(operator);
+        paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Minor via queueSlash path");
+        vm.stopPrank();
+
+        // Withdraw should succeed now that flag is cleared
+        vm.prank(operator);
+        paymaster.withdraw(50 ether); // should not revert
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
+        assertLt(bal, 100 ether, "balance should have decreased");
+    }
+
+    /// @notice M-5: withdraw succeeds after owner cancels a queued slash.
+    function testWithdrawAllowedAfterSlashCancelled() public {
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        paymaster.queueSlash(operator);
+        paymaster.cancelSlash(operator);
+        vm.stopPrank();
+
+        // Withdraw should succeed now that flag is cleared
+        vm.prank(operator);
+        paymaster.withdraw(100 ether); // should not revert
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
+        assertEq(bal, 0);
+    }
+
+    /// @notice M-5: queueSlash reverts for callers that are neither owner nor BLS aggregator.
+    function testQueueSlashUnauthorizedReverts() public {
+        vm.prank(user);
+        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        paymaster.queueSlash(operator);
+    }
+
+    /// @notice M-5: withdraw still works normally when no slash has been queued.
+    function testWithdrawNoPendingSlash() public {
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 100 ether);
+        paymaster.depositFor(operator, 100 ether);
+        paymaster.withdraw(50 ether);
+        vm.stopPrank();
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
+        assertEq(bal, 50 ether);
     }
     
     function testProtocolRevenueFlow() public {
