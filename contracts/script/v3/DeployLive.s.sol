@@ -175,7 +175,7 @@ contract DeployLive is V54Bootstrap {
         if (vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0) {
             _setupMyceliumCommunity();
         } else {
-            console.log("  PRIVATE_KEY_ANNI not set — skipping Mycelium setup.");
+            console.log("  PRIVATE_KEY_ANNI not set - skipping Mycelium setup.");
             console.log("  Run InitializeMyceliumPrep + InitializeMycelium scripts after deploy.");
         }
 
