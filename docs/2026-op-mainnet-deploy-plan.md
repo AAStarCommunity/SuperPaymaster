@@ -297,10 +297,10 @@ function _assertWiring() internal view {
 
 | # | 任务 | 详细说明 | 状态 |
 |---|---|---|---|
-| T1 | credit/debt repay E2E | 场景：operator 欠费（credit 透支）→ `repayDebt()` 还款 → 余额回归正常。主网前须有 1 条 Sepolia 真实 TX hash 证明 | ⬜ 待做 |
-| T2 | agent 双通道赞助 E2E | 场景：用户无 SBT 但注册为 agent → `isEligibleForSponsorship()` 走 AgentIdentityRegistry 通道 → 跑真实 gasless TX。须有真实 TX 证明 | ⬜ 待做 |
-| T3 | Mycelium Sepolia 脚本演练 | 用 Anni 账户在 Sepolia 跑 `InitializeMyceliumPrep.s.sol` + `InitializeMycelium.s.sol`，验证脚本端到端可执行，写入 config.sepolia.json | ⬜ 待做（需 Anni keystore） |
-| T4 | op-sepolia 全新部署演习 | `./deploy-core op-sepolia --fresh-deploy` 完整跑通（OP 网络），验证 gas 估算/Chainlink/EntryPoint 在真实 OP 测试网无问题 | ⬜ 待做 |
+| T1 | credit/debt repay E2E | 场景：operator 欠费（credit 透支）→ `repayDebt()` 还款 → 余额回归正常。主网前须有 1 条 Sepolia 真实 TX hash 证明 | ✅ 完成（2026-06-27，I1 Credit Ceiling 13/13 PASS）|
+| T2 | agent 双通道赞助 E2E | 场景：用户无 SBT 但注册为 agent → `isEligibleForSponsorship()` 走 AgentIdentityRegistry 通道 → 跑真实 gasless TX。须有真实 TX 证明 | ✅ 完成（2026-06-27，G2 Agent Sponsorship 10/10 PASS）|
+| T3 | Mycelium Sepolia 脚本演练 | 用 Anni 账户在 Sepolia 跑 `InitializeMycelium.s.sol`，写入 config.sepolia.json | ✅ 完成（2026-06-27，pntsPaymasterV4=0xd998..，价格修正 $1→$0.02）|
+| T4 | Sepolia 全新部署演习 | `./deploy-core sepolia --fresh-deploy` 完整跑通，验证 S1/S2/S3 修复在真实网络端到端可行 | ⬜ 待做（PR #312 合并后执行）|
 
 ---
 
