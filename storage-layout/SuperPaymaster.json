@@ -389,11 +389,21 @@
     }
   },
   {
-    "label": "__gap",
+    "label": "_pendingSlash",
     "slot": "34",
     "offset": 0,
     "type": {
-      "array": "uint256[31]",
+      "mapping": "mapping(address => bool)",
+      "key": "address",
+      "value": "bool"
+    }
+  },
+  {
+    "label": "__gap",
+    "slot": "35",
+    "offset": 0,
+    "type": {
+      "array": "uint256[30]",
       "base": "uint256"
     }
   }
