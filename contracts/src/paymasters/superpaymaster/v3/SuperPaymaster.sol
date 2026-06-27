@@ -911,6 +911,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ReputationUpdated(operator, config.reputation);
     }
 
+    // P0-3 (initial-deploy path): one-time setter for fresh deploys where BLS_AGGREGATOR == address(0).
+    // The 24h timelock (queueBLSAggregator / applyBLSAggregator) only applies to REPLACEMENTS;
+    // a fresh deployment has no aggregator to protect, so no delay is needed.
+    function initBLSAggregator(address _bls) external onlyOwner {
+        if (BLS_AGGREGATOR != address(0)) revert InvalidConfiguration(); // already initialized — use queue/apply
+        if (_bls == address(0)) revert InvalidAddress();
+        BLS_AGGREGATOR = _bls;
+        emit BLSAggregatorUpdated(address(0), _bls);
+    }
+
     // P0-3: 24h timelock on BLSAggregator replacement — prevents instant governance takeover.
     function queueBLSAggregator(address _bls) external onlyOwner {
         if (_bls == address(0)) revert InvalidAddress();

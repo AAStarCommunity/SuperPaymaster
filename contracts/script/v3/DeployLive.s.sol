@@ -182,6 +182,9 @@ contract DeployLive is V54Bootstrap {
         console.log("=== Step 8: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===");
         _deployV54Stack();
 
+        console.log("=== Wiring Integrity Check (D-H4) ===");
+        _assertWiring();
+
         vm.stopBroadcast();
         _generateConfig();
     }
@@ -208,6 +211,62 @@ contract DeployLive is V54Bootstrap {
         _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
     }
 
+    /// @notice Asserts every critical contract wiring link is intact.
+    ///         Called at the end of run() — after all steps including Step 6
+    ///         (aPNTs wired) and before vm.stopBroadcast() — so any silently
+    ///         no-op setter reverts the entire deploy script rather than writing
+    ///         broken addresses to the config file.  (Security fix: D-H4 / Issue #255 S3)
+    /// @dev    All reads are view-only; no transactions are broadcast.
+    function _assertWiring() internal view {
+        // ── Step 1: Registry ↔ GTokenStaking ↔ MySBT ──────────────────────────
+        require(address(registry.GTOKEN_STAKING()) == address(staking),
+            "wire: registry.setStaking");
+        require(address(registry.MYSBT())           == address(mysbt),
+            "wire: registry.setMySBT");
+        require(address(gtoken.mySBT())             == address(mysbt),
+            "wire: gtoken.setMySBT");
+
+        // ── Step 5: Registry ↔ core modules ────────────────────────────────────
+        require(registry.SUPER_PAYMASTER()          == address(superPaymaster),
+            "wire: registry.setSuperPaymaster");
+        require(registry.isReputationSource(address(repSystem)),
+            "wire: registry.setReputationSource");
+        require(registry.blsAggregator()            == address(aggregator),
+            "wire: registry.setBLSAggregator");
+
+        // ── Step 5: DVT / BLS cross-wiring ─────────────────────────────────────
+        require(aggregator.DVT_VALIDATOR()          == address(dvt),
+            "wire: aggregator.setDVTValidator");
+        require(dvt.BLS_AGGREGATOR()                == address(aggregator),
+            "wire: dvt.setBLSAggregator");
+
+        // ── Step 5: PaymasterFactory implementation registration ────────────────
+        require(pmFactory.implementations("v4.2")  == address(pmV4Impl),
+            "wire: factory.addImplementation v4.2");
+
+        // ── Step 5: SuperPaymaster ↔ xPNTsFactory ──────────────────────────────
+        require(superPaymaster.xpntsFactory()      == address(xpntsFactory),
+            "wire: sp.setXPNTsFactory");
+        require(xpntsFactory.SUPERPAYMASTER()       == address(superPaymaster),
+            "wire: factory.setSuperPaymaster");
+
+        // ── Step 5: Slasher authorization ───────────────────────────────────────
+        require(staking.authorizedSlashers(address(aggregator)),
+            "wire: staking.setAuthorizedSlasher");
+
+        // ── Step 5: SuperPaymaster BLS_AGGREGATOR ───────────────────────────────
+        require(superPaymaster.BLS_AGGREGATOR()     == address(aggregator),
+            "wire: sp.initBLSAggregator");
+
+        // ── Step 5: Price feed immutable (baked into SP implementation) ─────────
+        require(address(superPaymaster.ETH_USD_PRICE_FEED()) == priceFeedAddr,
+            "wire: sp.priceFeed");
+
+        // ── Step 6: aPNTs ↔ SuperPaymaster ─────────────────────────────────────
+        require(apnts.SUPERPAYMASTER_ADDRESS()      == address(superPaymaster),
+            "wire: apnts.setSuperPaymaster");
+    }
+
     function _executeWiring() internal {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
@@ -221,18 +280,16 @@ contract DeployLive is V54Bootstrap {
         // setSuperPaymasterAddress also sets autoApprovedSpenders[SP] = true.
         apnts.setSuperPaymasterAddress(address(superPaymaster));
 
+        // Wire BLSAggregator into SuperPaymaster (Tier 1 slash authorization).
+        // Uses initBLSAggregator() — a one-time setter that bypasses the 24h timelock
+        // because BLS_AGGREGATOR is address(0) on a fresh deployment (no governance asset to protect).
+        superPaymaster.initBLSAggregator(address(aggregator));
+
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
 
-        // AUDIT D-H4: assert critical wiring took effect. Setters can silently
-        // no-op or run out of order, and the post-deploy Check scripts are
-        // non-blocking (|| true), so a broken wire would otherwise surface only
-        // AFTER config is written. Fail the deploy here instead, before config.
-        require(address(registry.GTOKEN_STAKING()) == address(staking), "wire: setStaking");
-        require(address(registry.MYSBT()) == address(mysbt), "wire: setMySBT");
-        require(registry.SUPER_PAYMASTER() == address(superPaymaster), "wire: setSuperPaymaster");
-        require(registry.blsAggregator() == address(aggregator), "wire: setBLSAggregator");
-        require(staking.authorizedSlashers(address(aggregator)), "wire: setAuthorizedSlasher");
+        // Integrity assertions moved to _assertWiring(), called at end of run()
+        // before vm.stopBroadcast() — see D-H4 fix.
 
         // ERC-8004 official agent registry addresses (CREATE2, deterministic across all EVM chains).
         // Mainnet chains: Ethereum, OP, Base, Arbitrum, Polygon, etc.
