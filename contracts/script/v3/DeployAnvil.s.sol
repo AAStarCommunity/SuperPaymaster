@@ -278,6 +278,11 @@ contract DeployAnvil is V54Bootstrap {
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
+        // HIGH-2: wire BLS_AGGREGATOR into SuperPaymaster so executeSlashWithBLS is callable.
+        // Anvil: queue + warp past 24h timelock + apply in one script run.
+        superPaymaster.queueBLSAggregator(address(aggregator));
+        vm.warp(block.timestamp + 24 hours + 1);
+        superPaymaster.applyBLSAggregator();
         // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)
         superPaymaster.setAgentRegistries(address(mockAgentIdentity), address(mockAgentReputation));
     }

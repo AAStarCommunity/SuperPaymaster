@@ -91,7 +91,9 @@ contract DVTSlashTest is Test {
         assertEq(staking.balanceOf(operator), 50 ether);
 
         // 2. Perform Tier 1 Slash (aPNTs Rep Loss) via SuperPaymaster
+        // HIGH-1: queue slash first (BLS_AGGREGATOR can call queueSlash)
         vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(
             operator,
             ISuperPaymaster.SlashLevel.MINOR,

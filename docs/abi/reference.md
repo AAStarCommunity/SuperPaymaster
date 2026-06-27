@@ -5973,7 +5973,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 85 · **Events:** 38 · **Errors:** 33
+- **Functions:** 87 · **Events:** 40 · **Errors:** 34
 - **Title:** SuperPaymaster
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -5992,6 +5992,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xf60fdcb3` | `cachedPrice()` | view | — |  |
 | `0x1d2282c9` | `cancelAPNTsTokenChange()` | nonpayable | onlyOwner | Abort a queued APNTS_TOKEN swap before it executes. |
 | `0x0c883112` | `cancelEmergencyPrice()` | nonpayable | onlyOwner | Cancel a queued emergency price. Useful when the multisig         realises the queued value is wrong before timelock elapses. |
+| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). |
 | `0x5d2e7e50` | `clearPendingDebt(address,address)` | nonpayable | onlyOwner | Admin function to clear stuck pending debt (escape hatch) |
 | `0x5c7c4b5f` | `configureOperator(address,address)` | nonpayable | — |  |
 | `0xd0e30db0` | `deposit()` | payable | nonReentrant |  |
@@ -6033,6 +6034,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7af3816c` | `protocolRevenue()` | view | — |  |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
 | `0xb54a8fca` | `queueBLSAggregator(address)` | nonpayable | onlyOwner |  |
+| `0xad1c98d7` | `queueSlash(address)` | nonpayable | — | Mark an operator as having a pending slash (owner or BLS aggregator only). |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x8041c94a` | `retryPendingDebt(address,address,uint256)` | nonpayable | onlyOwner, nonReentrant | Retry recording a pending debt that failed during postOp. |
@@ -6153,6 +6155,18 @@ Authoritative, auto-generated reference for every external/public function, even
 `0x0c883112` · nonpayable · access: onlyOwner
 
 > Cancel a queued emergency price. Useful when the multisig         realises the queued value is wrong before timelock elapses.
+
+#### `cancelSlash(address operator)`
+
+`0xfcc6bd8a` · nonpayable · access: onlyOwner
+
+> Cancel a previously queued slash (owner only).
+
+*@dev* Allows the owner to unblock an operator's withdraw if the slash was      queued in error.  Idempotent when no slash is pending.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
 
 #### `clearPendingDebt(address token, address user)`
 
@@ -6310,6 +6324,8 @@ Authoritative, auto-generated reference for every external/public function, even
 `0x079d2d42` · nonpayable · access: —
 
 > Execute slash triggered by BLS consensus (DVT Module only)
+
+*@dev* M-5: Clears the pending-slash flag after execution so withdraw is unblocked.
 
 | param | type | description |
 |---|---|---|
@@ -6606,6 +6622,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_bls` | `address` |  |
 
+#### `queueSlash(address operator)`
+
+`0xad1c98d7` · nonpayable · access: —
+
+> Mark an operator as having a pending slash (owner or BLS aggregator only).
+
+*@dev* M-5: Called as a first step before executing slashOperator or      executeSlashWithBLS. Once set, the operator's withdraw() is blocked until      the slash executes or is cancelled. This closes the front-run window: the      owner/aggregator queues the flag in one TX; by the time that TX is mined      the operator can no longer drain their balance before the slash lands.      Calling queueSlash when already pending is idempotent (no revert).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
 #### `REGISTRY()`
 
 `0x06433b1b` · view · access: —
@@ -6755,7 +6783,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Slash an operator (Admin/Governance only)
 
-*@dev* Reduces reputation and optionally pauses operator
+*@dev* Reduces reputation and optionally pauses operator.      Clears the pending-slash flag so the operator can withdraw again after.
 
 | param | type | description |
 |---|---|---|
@@ -6919,6 +6947,8 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Withdraw aPNTs
 
+*@dev* M-5: Reverts when a slash has been queued for this operator via      queueSlash(). The slash must be executed (or cancelled) before the      operator can withdraw, closing the front-run window where an operator      could observe a pending slash TX in the mempool and drain their balance      before it lands.
+
 | param | type | description |
 |---|---|---|
 | `amount` | `uint256` |  |
@@ -6993,7 +7023,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
 | `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
+| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
+| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
 | `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
@@ -7036,6 +7068,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
 | `0x82c6707e` | `ScoreExceedsUint32()` |
 | `0xbe3963ef` | `SlashCooldown()` |
+| `0x57064225` | `SlashPending()` |
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
