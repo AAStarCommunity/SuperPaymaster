@@ -55,9 +55,9 @@ contract InitializeMycelium is Script {
         PaymasterFactory pmFactory = PaymasterFactory(pmFactoryAddr);
 
         require(registry.hasRole(ROLE_COMMUNITY, anniAddr),
-            "InitializeMycelium: ANNI_ADDRESS missing ROLE_COMMUNITY — run InitializeMyceliumPrep first");
+            "InitializeMycelium: ANNI_ADDRESS missing ROLE_COMMUNITY - run InitializeMyceliumPrep first");
         require(registry.hasRole(ROLE_PAYMASTER_AOA, anniAddr),
-            "InitializeMycelium: ANNI_ADDRESS missing ROLE_PAYMASTER_AOA — run InitializeMyceliumPrep first");
+            "InitializeMycelium: ANNI_ADDRESS missing ROLE_PAYMASTER_AOA - run InitializeMyceliumPrep first");
 
         vm.startBroadcast();
 
@@ -109,7 +109,7 @@ contract InitializeMycelium is Script {
             console.log("[InitializeMycelium] Deposited ETH to EntryPoint:", topUp);
         }
 
-        vm.writeJson(vm.toString(pmProxy), cfgPath, ".pNTsPaymasterV4");
+        vm.writeJson(vm.toString(pmProxy), cfgPath, ".pntsPaymasterV4");
         console.log("[InitializeMycelium] Done. pNTsPaymasterV4:", pmProxy);
 
         vm.stopBroadcast();

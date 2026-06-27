@@ -239,40 +239,79 @@ forge script contracts/script/v3/InitializeMycelium.s.sol:InitializeMycelium \
 ## 十一、主网前**必须完成**项（阻塞项）
 
 > 下列任何一项未关闭，均不得启动 OP 主网部署。
+> **开发计划**：S2/S3 在 `fix/pre-mainnet-blockers` 分支下并行 worktree 修复，各自提 PR 合入该分支后，整体再合入 main。
 
 ### 11.1 安全审计阻塞项
 
-| # | Issue | 问题描述 | 优先级 | 状态 |
-|---|---|---|---|---|
-| S1 | #249 | [Audit M-5] operator 可抢跑 `withdraw` 规避 Tier-1 slash — 须引入延迟提款队列或 paused/pending-slash 时阻断提款 | 🔴 安全 | ⬜ 待做 |
-| S2 | #255 D-H2 | check 失败不阻塞 + config 先写后验 — checks 全挂仍写入新地址，下次直接 skip；必须改为 checks 全通过才写 config，任一失败 `exit 1` | 🔴 部署事故 | ⬜ 待做 |
-| S3 | #255 D-H4 | wiring 步骤无完整性断言 — `setStaking/setMySBT/...` 执行后无 `require(registry.GTOKEN_STAKING()==staking)` 等断言；部署静默挂线上无法感知 | 🔴 部署事故 | ⬜ 待做 |
+| # | Issue | 问题描述 | 优先级 | 状态 | 负责分支 |
+|---|---|---|---|---|---|
+| S1 | #249 | operator 可抢跑 `withdraw` 规避 Tier-1 slash | 🔴 合约安全 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
+| S2 | #255 D-H2 | deploy-core check 失败不阻塞 + config 先写后验 | 🔴 部署事故 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
+| S3 | #255 D-H4 | DeployLive wiring 步骤无完整性断言 | 🔴 部署事故 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
 
-**S1 修复方向**（`SuperPaymaster.sol:771-782`）：在 `withdraw()` 加 `pendingSlash == 0` 检查，或给提款加 24h 时间锁（类似 Timelock 已有的模式）。
+#### S1 详解 — operator 提款可逃罚款
 
-**S2/S3 修复方向**（`deploy-core`）：将 `save_config` 移至 `run_checks` 之后；`run_checks` 中删除 `|| true`，任一 exit code 非零则整体 `exit 1`；`DeployLive.s.sol` 末尾加 wiring assert block。
+**问题位置**：`SuperPaymaster.sol:771-782`（`withdraw` 函数）
+
+**问题**：operator 如果知道自己要被 slash（罚没 aPNTs），可以在 slash 执行前抢先调 `withdraw()` 把余额全取走，Tier-1 的罚款就落空了。
+
+**修复方向**：在 `withdraw()` 里加一行检查——
+```solidity
+require(pendingSlashAmount[operator] == 0, "SP: pending slash exists");
+```
+或引入 24h 提款延迟队列（类似项目已有的 TimelockController 模式）。需要加 forge 测试覆盖此路径。
+
+#### S2 详解 — 部署脚本出错但假装成功
+
+**问题**：`deploy-core` 目前流程是：
+1. 部署合约 → `save_config`（立即写入新地址）→ `run_checks`（验证）
+2. `run_checks` 里每个 check 都加了 `|| true`，即使全挂也不退出
+
+**后果**：部署完成但 Check01-08 全部失败，config 里已经是新地址，下次 srcHash 匹配直接跳过重部署——**相当于带着错误的配置上线**。
+
+**修复方向**（`deploy-core`）：
+- 删除 `run_checks` 里的所有 `|| true`
+- 将 `save_config` 移到 `run_checks` 之后
+- 任意一个 check 失败则整体 `exit 1`
+
+#### S3 详解 — 合约连线成功与否无法感知
+
+**问题位置**：`DeployLive.s.sol` 部署完各合约后调用 `setStaking()` / `setMySBT()` / `setSuperPaymaster()` 等 wiring 步骤，**执行后没有任何断言验证连线是否真的成功**。
+
+**后果**：某个 `set*()` 调用悄悄 revert 或 no-op，脚本继续跑完，上链，配置里写着新地址，但合约内部并没有接好——直到用户发起真实交易才会发现。
+
+**修复方向**（`DeployLive.s.sol` 末尾加 `_assertWiring()` 函数）：
+```solidity
+function _assertWiring() internal view {
+    require(registry.GTOKEN_STAKING() == address(staking), "wiring: staking");
+    require(registry.MY_SBT() == address(mySBT), "wiring: mySBT");
+    require(registry.SUPER_PAYMASTER() == address(sp), "wiring: superPaymaster");
+    // ... 其他关键连线
+}
+```
+在 `run()` 末尾调用 `_assertWiring()`。
 
 ---
 
 ### 11.2 测试与验证阻塞项
 
-| # | 任务 | 说明 | 状态 |
+| # | 任务 | 详细说明 | 状态 |
 |---|---|---|---|
-| T1 | credit/debt repay E2E | 制造 debt → repayDebt → 验证余额回归；主网前须有 1 条真实 TX 证明 | ⬜ 待做 |
-| T2 | agent 双通道赞助 E2E | 无 SBT 的 registered agent 走 agentIdentityRegistry 通道跑真实赞助；须有 TX 证明 | ⬜ 待做 |
-| T3 | Mycelium V4 proxy 部署（Sepolia） | 在 Sepolia 验证 InitializeMyceliumPrep + InitializeMycelium 脚本可执行（需 Anni keystore + PRIVATE_KEY_ANNI） | ⬜ 待做 |
-| T4 | op-sepolia 全新部署演习 | `./deploy-core op-sepolia --fresh-deploy` 全流程跑通，验证 op-mainnet 部署脚本在真实 OP 网络无问题 | ⬜ 待做 |
+| T1 | credit/debt repay E2E | 场景：operator 欠费（credit 透支）→ `repayDebt()` 还款 → 余额回归正常。主网前须有 1 条 Sepolia 真实 TX hash 证明 | ✅ 完成（2026-06-27，I1 Credit Ceiling 13/13 PASS）|
+| T2 | agent 双通道赞助 E2E | 场景：用户无 SBT 但注册为 agent → `isEligibleForSponsorship()` 走 AgentIdentityRegistry 通道 → 跑真实 gasless TX。须有真实 TX 证明 | ✅ 完成（2026-06-27，G2 Agent Sponsorship 10/10 PASS）|
+| T3 | Mycelium Sepolia 脚本演练 | 用 Anni 账户在 Sepolia 跑 `InitializeMycelium.s.sol`，写入 config.sepolia.json | ✅ 完成（2026-06-27，pntsPaymasterV4=0xd998..，价格修正 $1→$0.02）|
+| T4 | Sepolia 全新部署演习 | `./deploy-core sepolia --fresh-deploy` 完整跑通，验证 S1/S2/S3 修复在真实网络端到端可行 | ⬜ 待做（PR #312 合并后执行）|
 
 ---
 
 ### 11.3 基础设施阻塞项
 
-| # | 任务 | 说明 | 状态 |
+| # | 任务 | 详细说明 | 状态 |
 |---|---|---|---|
-| I1 | PR #306 合并 | op-mainnet 部署脚本（InitializeAAStar/MyceliumPrep/Mycelium + deploy-core 路由）须先合并到 main | ⬜ 待 review |
-| I2 | OP 主网 Chainlink ETH/USD feed 核实 | 当前配置 `0x13e3Ee699D1909E989722E753853AE30b17e08c5`，须核对 [Chainlink OP mainnet feeds](https://docs.chain.link/data-feeds/price-feeds/addresses?network=optimism) 确认正确 | ⬜ 待做 |
-| I3 | Foundry keystore 导入（两账户） | `cast wallet import optimism-deployer --interactive` + `cast wallet import optimism-anni --interactive`，在部署机器上验证 `cast wallet list` 能看到两者 | ⬜ 待做 |
-| I4 | 基础信用档值确认 | tier 1/2 默认 100 ether（100 aPNTs），已确认；部署后如需调整：`cast send <registry> "setCreditTier(uint256,uint256)" 1 200ether --account optimism-deployer` | ✅ 已确认（100） |
+| I1 | PR #306 合并 | op-mainnet 部署脚本已合并 ✅ | ✅ 完成 |
+| I2 | OP 主网 Chainlink ETH/USD feed 核实 | `0x13e3Ee699D1909E989722E753853AE30b17e08c5` — 链上验证：`latestRoundData()` 返回 `158,152,000,000`（$1,581.52），timestamp 对应今日，feed 活跃 | ✅ 已核实（2026-06-27）|
+| I3 | Foundry keystore 导入 | 部署机器上运行：`cast wallet import optimism-deployer --interactive` + `cast wallet import optimism-anni --interactive`，验证 `cast wallet list` 看到两个账户 | ⬜ 待做（人工操作） |
+| I4 | 基础信用档值 | tier 1/2 = 100 ether 已确认，部署后可调 | ✅ 已确认 |
 
 ---
 

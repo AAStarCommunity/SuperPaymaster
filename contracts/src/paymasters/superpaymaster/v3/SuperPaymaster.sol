@@ -152,6 +152,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         bytes32 proofHash,
         uint256 timestamp
     );
+    /// @notice M-5: emitted when an operator's withdraw is locked pending a slash.
+    event SlashQueued(address indexed operator);
+    /// @notice M-5: emitted when a pending slash is cancelled without execution.
+    event SlashCancelled(address indexed operator);
     
     event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
     /**
@@ -201,6 +205,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error EmergencyExpired();
     /// @notice M-5: initialize() called with owner == address(0).
     error InvalidOwner();
+    /// @notice M-5: withdraw blocked because a slash has been queued for this operator.
+    error SlashPending();
 
     // ====================================
     // Internal Helpers
@@ -754,17 +760,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /**
      * @notice Withdraw aPNTs
+     * @dev M-5: Reverts when a slash has been queued for this operator via
+     *      queueSlash(). The slash must be executed (or cancelled) before the
+     *      operator can withdraw, closing the front-run window where an operator
+     *      could observe a pending slash TX in the mempool and drain their balance
+     *      before it lands.
      */
     function withdraw(uint256 amount) external nonReentrant {
+        if (_pendingSlash[msg.sender]) revert SlashPending();
         if (operators[msg.sender].aPNTsBalance < amount) {
             revert InsufficientBalance(operators[msg.sender].aPNTsBalance, amount);
         }
         operators[msg.sender].aPNTsBalance -= uint128(amount);
         // Fix: Reduce tracked balance to prevent underflow in notifyDeposit
         totalTrackedBalance -= amount;
-        
+
         IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
-        
+
         emit OperatorWithdrawn(msg.sender, amount);
     }
 
@@ -819,14 +831,44 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ====================================
 
     /**
+     * @notice Mark an operator as having a pending slash (owner or BLS aggregator only).
+     * @dev M-5: Called as a first step before executing slashOperator or
+     *      executeSlashWithBLS. Once set, the operator's withdraw() is blocked until
+     *      the slash executes or is cancelled. This closes the front-run window: the
+     *      owner/aggregator queues the flag in one TX; by the time that TX is mined
+     *      the operator can no longer drain their balance before the slash lands.
+     *      Calling queueSlash when already pending is idempotent (no revert).
+     */
+    function queueSlash(address operator) external {
+        if (msg.sender != owner() && msg.sender != BLS_AGGREGATOR) revert Unauthorized();
+        _pendingSlash[operator] = true;
+        emit SlashQueued(operator);
+    }
+
+    /**
+     * @notice Cancel a previously queued slash (owner only).
+     * @dev Allows the owner to unblock an operator's withdraw if the slash was
+     *      queued in error.  Idempotent when no slash is pending.
+     */
+    function cancelSlash(address operator) external onlyOwner {
+        _pendingSlash[operator] = false;
+        emit SlashCancelled(operator);
+    }
+
+    /**
      * @notice Slash an operator (Admin/Governance only)
-     * @dev Reduces reputation and optionally pauses operator
+     * @dev Reduces reputation and optionally pauses operator.
+     *      Clears the pending-slash flag so the operator can withdraw again after.
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
+        // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
+        require(_pendingSlash[operator], "SP: must queueSlash first");
         // P0-14: 30% cap + 24h cooldown — prevents owner from draining operator in a single tx.
         if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
         _slashCd[operator] = uint48(block.timestamp) + 24 hours;
         _slash(operator, level, penaltyAmount, reason, true);
+        // M-5: clear pending-slash guard after execution so withdraw is unblocked.
+        _pendingSlash[operator] = false;
     }
 
     /**
@@ -842,10 +884,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     /**
      * @notice Execute slash triggered by BLS consensus (DVT Module only)
+     * @dev M-5: Clears the pending-slash flag after execution so withdraw is unblocked.
      */
     function executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes calldata proof) external override {
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
-        
+        // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
+        require(_pendingSlash[operator], "SP: must queueSlash first");
+
         // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
         // Major is further capped at 30% inside _slash (applyCap=true).
         uint256 penalty = 0;
@@ -855,12 +900,14 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             penalty = operators[operator].aPNTsBalance;
         }
 
-        // ✅ Store proof hash for audit traceability (永久存储在event中)
+        // Store proof hash for audit traceability
         bytes32 proofHash = keccak256(proof);
-        
+
         _slash(operator, level, penalty, "DVT BLS Slash", true);
-        
-        // ✅ Emit event with proof hash (链上永久可查,DVT保留完整proof 30天供验证)
+        // M-5: clear pending-slash guard after execution.
+        _pendingSlash[operator] = false;
+
+        // Emit event with proof hash
         emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
@@ -909,6 +956,16 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
         emit OperatorSlashed(operator, penaltyAmount, level);
         emit ReputationUpdated(operator, config.reputation);
+    }
+
+    // P0-3 (initial-deploy path): one-time setter for fresh deploys where BLS_AGGREGATOR == address(0).
+    // The 24h timelock (queueBLSAggregator / applyBLSAggregator) only applies to REPLACEMENTS;
+    // a fresh deployment has no aggregator to protect, so no delay is needed.
+    function initBLSAggregator(address _bls) external onlyOwner {
+        if (BLS_AGGREGATOR != address(0)) revert InvalidConfiguration(); // already initialized — use queue/apply
+        if (_bls == address(0)) revert InvalidAddress();
+        BLS_AGGREGATOR = _bls;
+        emit BLSAggregatorUpdated(address(0), _bls);
     }
 
     // P0-3: 24h timelock on BLSAggregator replacement — prevents instant governance takeover.
@@ -1517,12 +1574,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///         cross-checks alone cannot prevent.
     mapping(bytes32 => bool) internal _settledDebtOps;
 
+    // M-5: per-operator pending-slash guard. True while a slash has been queued via
+    // queueSlash() but not yet executed or cancelled. withdraw() reverts while this is
+    // set, closing the front-run window where an operator could observe a pending slash
+    // TX in the mempool and drain their balance before it lands.
+    mapping(address => bool) private _pendingSlash;
+
     // v5.4 god-split phase 1: the x402 settle/admin LOGIC moved to X402Facilitator, but
     // the 4 x402 storage slots are RETAINED above as `private __deprecated_*` placeholders
     // to keep this UUPS proxy's layout byte-identical to the pre-split deployed layout.
     // Therefore __gap is UNCHANGED at [31] (it never grew to [35]); every variable keeps
     // its original slot, so an in-place upgrade of the live proxy stays storage-safe.
-    // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps = 21.
+    // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps + _pendingSlash = 22.
     // (The 4 deprecated x402 slots are accounted in the "18 original"+V5 block, not here.)
-    uint256[31] private __gap;
+    uint256[30] private __gap;
 }

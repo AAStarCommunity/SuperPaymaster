@@ -357,6 +357,9 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D1_ExecuteAPNTsTokenChange_Reverts_WhenProtocolRevenueNonZero() public {
         // Slash operator1 to push funds into protocolRevenue
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "test");
 
@@ -405,7 +408,10 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D2_WithdrawProtocolRevenue_ExactAvailable() public {
         // Slash to accumulate protocolRevenue
+        // HIGH-1: queue before slash
         uint256 slashAmount = PROTOCOL_REVENUE_BUFFER + 5 ether;
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, slashAmount, "test");
 
@@ -427,6 +433,9 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D2_WithdrawProtocolRevenue_Reverts_WhenAboveAvailable() public {
         uint256 slashAmount = PROTOCOL_REVENUE_BUFFER + 5 ether;
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, slashAmount, "test");
 
@@ -443,7 +452,10 @@ contract SuperPaymaster_Coverage_Test is Test {
      */
     function test_D2_WithdrawProtocolRevenue_Reverts_WhenBelowBuffer() public {
         // Slash with small amount that stays within the buffer
+        // HIGH-1: queue before slash
         uint256 slashAmount = PROTOCOL_REVENUE_BUFFER / 2;
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, slashAmount, "test");
 
@@ -654,6 +666,9 @@ contract SuperPaymaster_Coverage_Test is Test {
     function test_D11_ProtocolRevenue_ExactlyBuffer_AvailableIsZero() public {
         // Force protocolRevenue to exactly PROTOCOL_REVENUE_BUFFER via slash
         // First drain any existing revenue, then slash exactly the buffer amount.
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, PROTOCOL_REVENUE_BUFFER, "exact buffer");
 

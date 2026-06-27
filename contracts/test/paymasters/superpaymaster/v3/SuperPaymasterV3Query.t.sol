@@ -116,7 +116,9 @@ contract SuperPaymasterQueryTest is Test {
     }
 
     function test_GetSlashHistory_AfterSlash() public {
-        // Execute a slash
+        // HIGH-1: queue before slash
+        vm.prank(blsAggregator);
+        paymaster.queueSlash(operator);
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(
             operator,
@@ -131,11 +133,14 @@ contract SuperPaymasterQueryTest is Test {
 
     function test_GetSlashHistory_MultipleSlashes() public {
         vm.startPrank(blsAggregator);
-        
+        // HIGH-1: queue before each slash (flag is cleared after each execution)
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
-        
+
         vm.stopPrank();
 
         ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator);
@@ -155,13 +160,15 @@ contract SuperPaymasterQueryTest is Test {
 
     function test_GetSlashCount_AfterSlashes() public {
         vm.startPrank(blsAggregator);
-        
+        // HIGH-1: queue before each slash
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
         assertEq(paymaster.getSlashCount(operator), 1);
-        
+
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
         assertEq(paymaster.getSlashCount(operator), 2);
-        
+
         vm.stopPrank();
     }
 
@@ -176,11 +183,14 @@ contract SuperPaymasterQueryTest is Test {
 
     function test_GetLatestSlash_ReturnsLatest() public {
         vm.startPrank(blsAggregator);
-        
+        // HIGH-1: queue before each slash
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
-        
+
         vm.stopPrank();
 
         ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator);
@@ -193,6 +203,9 @@ contract SuperPaymasterQueryTest is Test {
     // ====================================
 
     function test_WARNING_NoBalanceDeduction() public {
+        // HIGH-1: queue before slash
+        vm.prank(blsAggregator);
+        paymaster.queueSlash(operator);
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("test"));
 
@@ -204,6 +217,9 @@ contract SuperPaymasterQueryTest is Test {
     function test_MINOR_10PercentDeduction() public {
         // This test would need operator to have aPNTs balance
         // Skipping actual balance test, just verify record structure
+        // HIGH-1: queue before slash
+        vm.prank(blsAggregator);
+        paymaster.queueSlash(operator);
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("test"));
 
@@ -213,6 +229,9 @@ contract SuperPaymasterQueryTest is Test {
     }
 
     function test_MAJOR_FullDeduction() public {
+        // HIGH-1: queue before slash
+        vm.prank(blsAggregator);
+        paymaster.queueSlash(operator);
         vm.prank(blsAggregator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("test"));
 

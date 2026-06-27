@@ -194,7 +194,10 @@ contract UpgradeLive is V54Bootstrap {
         console.log("  SuperPaymaster version after:", SuperPaymaster(payable(spProxy)).version());
 
         // --- Patch config only for contracts that were actually changed ---
-        string memory srcHash    = vm.envOr("SRC_HASH",    vm.parseJsonString(config, ".srcHash"));
+        // srcHash intentionally written as "" — deploy-core is the sole authority for committing
+        // the real hash AFTER audit-core passes (see "Commit srcHash" block in deploy-core).
+        // Writing "" here prevents a failed audit from leaving a valid-looking srcHash in config
+        // that would cause the next run to skip both the upgrade and the audit.
         string memory updateTime = vm.envOr("DEPLOY_TIME", string("N/A"));
 
         if (needReg) vm.writeJson(vm.toString(address(newRegImpl)), configPath, ".registryImpl");
@@ -206,7 +209,7 @@ contract UpgradeLive is V54Bootstrap {
         if (needFac) vm.writeJson(vm.toString(facCfg), configPath, ".x402Facilitator");
         if (needPol) vm.writeJson(vm.toString(polCfg), configPath, ".policyRegistry");
         if (needMC || needReg || needSP || needTl || needFac || needPol) {
-            vm.writeJson(srcHash,    configPath, ".srcHash");
+            vm.writeJson(string(""),  configPath, ".srcHash");
             vm.writeJson(updateTime, configPath, ".updateTime");
         }
 

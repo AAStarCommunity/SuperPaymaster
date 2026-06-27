@@ -312,7 +312,10 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_SlashOperator_Minor() public {
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
@@ -345,7 +348,10 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_GetSlashHistory() public {
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
@@ -361,10 +367,13 @@ contract SuperPaymaster_Admin_Test is Test {
 
     function test_GetSlashCount() public {
         assertEq(paymaster.getSlashCount(operator1), 0);
-        
+
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
@@ -379,7 +388,10 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_GetLatestSlash() public {
         vm.prank(operator1);
         paymaster.deposit(1000 ether);
-        
+
+        // HIGH-1: queue before slash
+        vm.prank(owner);
+        paymaster.queueSlash(operator1);
         vm.prank(owner);
         paymaster.slashOperator(
             operator1,
