@@ -245,9 +245,9 @@ forge script contracts/script/v3/InitializeMycelium.s.sol:InitializeMycelium \
 
 | # | Issue | 问题描述 | 优先级 | 状态 | 负责分支 |
 |---|---|---|---|---|---|
-| S1 | #249 | operator 可抢跑 `withdraw` 规避 Tier-1 slash | 🔴 合约安全 | ⬜ 待做 | `fix/s1-withdraw-slash-guard` |
-| S2 | #255 D-H2 | deploy-core check 失败不阻塞 + config 先写后验 | 🔴 部署事故 | ⬜ 待做 | `fix/s2-deploy-blocking-checks` |
-| S3 | #255 D-H4 | DeployLive wiring 步骤无完整性断言 | 🔴 部署事故 | ⬜ 待做 | `fix/s3-wiring-assertions` |
+| S1 | #249 | operator 可抢跑 `withdraw` 规避 Tier-1 slash | 🔴 合约安全 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
+| S2 | #255 D-H2 | deploy-core check 失败不阻塞 + config 先写后验 | 🔴 部署事故 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
+| S3 | #255 D-H4 | DeployLive wiring 步骤无完整性断言 | 🔴 部署事故 | ✅ 已修，PR #312 待 review | `fix/pre-mainnet-blockers` |
 
 #### S1 详解 — operator 提款可逃罚款
 
@@ -309,7 +309,7 @@ function _assertWiring() internal view {
 | # | 任务 | 详细说明 | 状态 |
 |---|---|---|---|
 | I1 | PR #306 合并 | op-mainnet 部署脚本已合并 ✅ | ✅ 完成 |
-| I2 | OP 主网 Chainlink ETH/USD feed 核实 | 当前 `.env.op-mainnet` 配置 `0x13e3Ee699D1909E989722E753853AE30b17e08c5`，需链上调用 `latestRoundData()` 确认返回合理价格，并对照 Chainlink 官方文档。填写错误 = SuperPaymaster 价格全乱 | ⬜ 待核实（需链上验证） |
+| I2 | OP 主网 Chainlink ETH/USD feed 核实 | `0x13e3Ee699D1909E989722E753853AE30b17e08c5` — 链上验证：`latestRoundData()` 返回 `158,152,000,000`（$1,581.52），timestamp 对应今日，feed 活跃 | ✅ 已核实（2026-06-27）|
 | I3 | Foundry keystore 导入 | 部署机器上运行：`cast wallet import optimism-deployer --interactive` + `cast wallet import optimism-anni --interactive`，验证 `cast wallet list` 看到两个账户 | ⬜ 待做（人工操作） |
 | I4 | 基础信用档值 | tier 1/2 = 100 ether 已确认，部署后可调 | ✅ 已确认 |
 
