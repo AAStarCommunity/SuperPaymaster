@@ -214,6 +214,9 @@ contract DeployLive is V54Bootstrap {
         registry.setBLSAggregator(address(aggregator));
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        // HIGH-2: wire BLS_AGGREGATOR into SuperPaymaster so executeSlashWithBLS is callable.
+        // The 24h timelock means applyBLSAggregator() must be called manually ~24h after deploy.
+        superPaymaster.queueBLSAggregator(address(aggregator));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
@@ -233,6 +236,7 @@ contract DeployLive is V54Bootstrap {
         require(registry.SUPER_PAYMASTER() == address(superPaymaster), "wire: setSuperPaymaster");
         require(registry.blsAggregator() == address(aggregator), "wire: setBLSAggregator");
         require(staking.authorizedSlashers(address(aggregator)), "wire: setAuthorizedSlasher");
+        require(superPaymaster.pendingBLSAgg() == address(aggregator), "wire: queueBLSAggregator");
 
         // ERC-8004 official agent registry addresses (CREATE2, deterministic across all EVM chains).
         // Mainnet chains: Ethereum, OP, Base, Arbitrum, Polygon, etc.

@@ -264,6 +264,8 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(owner);
         paymaster.updateReputation(operator, 100);
 
+        // HIGH-1: queue before each slash (two-step slash guard)
+        paymaster.queueSlash(operator);
         // Slash Minor
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "Test Minor");
         (,,,, uint32 repMinor,,,,) = paymaster.operators(operator);
@@ -272,6 +274,8 @@ contract SuperPaymasterTest is Test {
         // P0-14: advance past 24h cooldown before second slash
         vm.warp(block.timestamp + 24 hours + 1);
 
+        // HIGH-1: re-queue for the second slash (flag was cleared by the first execution)
+        paymaster.queueSlash(operator);
         // Slash Major (Pause)
         paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 0, "Test Major");
         (,,,, uint32 repMajor,,,,) = paymaster.operators(operator);

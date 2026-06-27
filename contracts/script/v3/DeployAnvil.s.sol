@@ -275,6 +275,11 @@ contract DeployAnvil is V54Bootstrap {
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
         superPaymaster.updatePrice();
+        // HIGH-2: wire BLS_AGGREGATOR into SuperPaymaster so executeSlashWithBLS is callable.
+        // Anvil: queue + warp past 24h timelock + apply in one script run.
+        superPaymaster.queueBLSAggregator(address(aggregator));
+        vm.warp(block.timestamp + 24 hours + 1);
+        superPaymaster.applyBLSAggregator();
         // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)
         superPaymaster.setAgentRegistries(address(mockAgentIdentity), address(mockAgentReputation));
     }
@@ -284,6 +289,7 @@ contract DeployAnvil is V54Bootstrap {
         require(registry.SUPER_PAYMASTER() == address(superPaymaster), "Registry SP Wiring Failed");
         require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "aPNTs Firewall Failed");
         require(address(superPaymaster.REGISTRY()) == address(registry), "Paymaster Registry Immutable Failed");
+        require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "SP BLS_AGGREGATOR Wiring Failed");
         console.log("All Wiring Assertions Passed!");
     }
 

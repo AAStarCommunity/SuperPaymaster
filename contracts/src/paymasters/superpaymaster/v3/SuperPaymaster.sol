@@ -861,6 +861,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      *      Clears the pending-slash flag so the operator can withdraw again after.
      */
     function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
+        // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
+        require(_pendingSlash[operator], "SP: must queueSlash first");
         // P0-14: 30% cap + 24h cooldown — prevents owner from draining operator in a single tx.
         if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
         _slashCd[operator] = uint48(block.timestamp) + 24 hours;
@@ -886,6 +888,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes calldata proof) external override {
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
+        // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
+        require(_pendingSlash[operator], "SP: must queueSlash first");
 
         // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
         // Major is further capped at 30% inside _slash (applyCap=true).
