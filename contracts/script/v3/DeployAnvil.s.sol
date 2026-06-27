@@ -311,7 +311,8 @@ contract DeployAnvil is V54Bootstrap {
         vm.serializeAddress(jsonObj, "x402Facilitator", x402FacilitatorAddr);
         vm.serializeAddress(jsonObj, "policyRegistry", policyRegistryAddr);
         vm.serializeAddress(jsonObj, "timelockController", timelockControllerAddr);
-        vm.serializeString(jsonObj, "srcHash", vm.envOr("SRC_HASH", string("")));
+        // srcHash intentionally written as "" — deploy-core commits the real hash after audit-core passes.
+        vm.serializeString(jsonObj, "srcHash", string(""));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);
