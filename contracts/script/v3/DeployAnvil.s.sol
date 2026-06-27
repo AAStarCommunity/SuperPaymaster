@@ -266,9 +266,12 @@ contract DeployAnvil is V54Bootstrap {
         // CRITICAL: Update factory's SuperPaymaster address
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
 
+        // Wire BLSAggregator into SuperPaymaster (Tier 1 slash authorization — one-time, no timelock).
+        superPaymaster.initBLSAggregator(address(aggregator));
+
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
-        
+
         // Configure auto-approval for aPNTs (already deployed via factory)
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         
@@ -284,6 +287,7 @@ contract DeployAnvil is V54Bootstrap {
         require(registry.SUPER_PAYMASTER() == address(superPaymaster), "Registry SP Wiring Failed");
         require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "aPNTs Firewall Failed");
         require(address(superPaymaster.REGISTRY()) == address(registry), "Paymaster Registry Immutable Failed");
+        require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "SP BLS_AGGREGATOR Wiring Failed");
         console.log("All Wiring Assertions Passed!");
     }
 

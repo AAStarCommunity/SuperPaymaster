@@ -254,6 +254,14 @@ contract DeployLive is V54Bootstrap {
         require(staking.authorizedSlashers(address(aggregator)),
             "wire: staking.setAuthorizedSlasher");
 
+        // ── Step 5: SuperPaymaster BLS_AGGREGATOR ───────────────────────────────
+        require(superPaymaster.BLS_AGGREGATOR()     == address(aggregator),
+            "wire: sp.initBLSAggregator");
+
+        // ── Step 5: Price feed immutable (baked into SP implementation) ─────────
+        require(address(superPaymaster.ETH_USD_PRICE_FEED()) == priceFeedAddr,
+            "wire: sp.priceFeed");
+
         // ── Step 6: aPNTs ↔ SuperPaymaster ─────────────────────────────────────
         require(apnts.SUPERPAYMASTER_ADDRESS()      == address(superPaymaster),
             "wire: apnts.setSuperPaymaster");
@@ -271,6 +279,11 @@ contract DeployLive is V54Bootstrap {
         // Wire aPNTs (deployed before SP in Step 2, so SP address must be set retroactively).
         // setSuperPaymasterAddress also sets autoApprovedSpenders[SP] = true.
         apnts.setSuperPaymasterAddress(address(superPaymaster));
+
+        // Wire BLSAggregator into SuperPaymaster (Tier 1 slash authorization).
+        // Uses initBLSAggregator() — a one-time setter that bypasses the 24h timelock
+        // because BLS_AGGREGATOR is address(0) on a fresh deployment (no governance asset to protect).
+        superPaymaster.initBLSAggregator(address(aggregator));
 
         // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
         staking.setAuthorizedSlasher(address(aggregator), true);
