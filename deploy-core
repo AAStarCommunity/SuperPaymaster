@@ -29,7 +29,13 @@ if [ -z "$RPC_URL" ]; then
 fi
 
 # Smart Hash Check
-CURRENT_HASH=$(find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
+# Cover Solidity sources AND the build/deploy toolchain files so that changes to
+# foundry.toml (optimizer, profile, remappings), remappings.txt, or deploy-core
+# itself will also trigger a fresh deploy rather than being silently skipped.
+CURRENT_HASH=$(
+  { find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -exec shasum -a 256 {} +; \
+    shasum -a 256 foundry.toml remappings.txt deploy-core 2>/dev/null; } \
+  | sort | shasum -a 256 | awk '{print $1}')
 CONFIG_FILE_PATH="deployments/config.$ENV.json"
 
 FORCE_DEPLOY=false
@@ -65,7 +71,12 @@ else
 fi
 
 export CONFIG_FILE="config.$ENV.json"
-export SRC_HASH="$CURRENT_HASH"
+# SRC_HASH is intentionally NOT exported here.  The forge deploy scripts write
+# srcHash via vm.envOr("SRC_HASH", ""), so the config will contain an empty hash
+# after deployment.  deploy-core writes the real hash into the config ONLY after
+# audit-core passes (see "Commit srcHash" block below).  This prevents a failed
+# audit from leaving a valid-looking srcHash in config that would cause the next
+# run to skip both the deploy and the audit.
 export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
 
@@ -157,6 +168,19 @@ else
 fi
 
 echo -e "\n\033[0;32m✅ Core Infrastructure is Deployed & Audited!\033[0m"
+
+# --- Commit srcHash (only after all audit checks passed) ---
+# The forge deploy scripts wrote srcHash="" to config (SRC_HASH was not exported).
+# Now that audit-core has returned 0 we can safely record the real hash so that
+# the next deploy-core invocation can skip the deploy when sources are unchanged.
+# If audit-core had failed (exit 1), set -e would have aborted before this point,
+# leaving srcHash="" in config and forcing a full redeploy+reaudit on the next run.
+if [ -f "$CONFIG_FILE_PATH" ]; then
+    echo "  📝 Committing srcHash to config (${CURRENT_HASH})..."
+    jq --arg h "$CURRENT_HASH" '.srcHash = $h' "$CONFIG_FILE_PATH" \
+        > "${CONFIG_FILE_PATH}.tmp" && mv "${CONFIG_FILE_PATH}.tmp" "$CONFIG_FILE_PATH"
+    echo "  ✅ srcHash committed."
+fi
 
 # --- PHASE 2.5: Prepare Test Accounts (testnet only, not mainnet/optimism) ---
 # After a successful deploy, idempotently set up the Mycelium/Anni demo operator.
