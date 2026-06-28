@@ -38,7 +38,7 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 | Mode | Protocol | Description | Since |
 |------|----------|-------------|-------|
 | **Gas Sponsorship** | ERC-4337 | Operators pre-fund aPNTs; users pay zero gas, repay in xPNTs (community tokens) | V3 |
-| **x402 Settlement** *(contracts live; SDK signing [integrating](https://github.com/AAStarCommunity/aastar-sdk/issues/39))* | HTTP 402 + EIP-3009 | Single-payment resource purchases — client pays USDC/xPNTs per request | V5.1 |
+| **x402 Settlement** *(contracts live; SDK available — [`@aastar/sdk@0.29.0`](https://github.com/AAStarCommunity/aastar-sdk/releases/tag/v0.29.0))* | HTTP 402 + EIP-3009 | Single-payment resource purchases — client pays USDC/xPNTs per request | V5.1 |
 | **Micropayment Channel** | EIP-712 Vouchers | Streaming micro-charges with off-chain signing and batch on-chain settlement | V5.2 |
 | **Agent Sponsorship** | ERC-8004 | Reputation-driven tiered gas sponsorship for registered AI agents | V5.3 |
 
@@ -113,7 +113,7 @@ SuperPaymaster supports **4 payment channels** in a single contract system:
 
 ### V5 Feature Highlights
 
-**V5.1 — x402 Settlement** *(contracts live; `@aastar/x402` SDK signing integrating — [aastar-sdk#39](https://github.com/AAStarCommunity/aastar-sdk/issues/39))*
+**V5.1 — x402 Settlement** *(contracts live; SDK available — [`@aastar/sdk@0.29.0`](https://github.com/AAStarCommunity/aastar-sdk/releases/tag/v0.29.0) ships `@aastar/sdk/x402`)*
 - `settleX402Payment()` — EIP-3009 `transferWithAuthorization` for USDC-native settlement; recipient bound into the nonce (C-03)
 - `settleX402PaymentDirect()` — xPNTs settle gated by a payer EIP-712 `X402PaymentAuthorization` signature (C-02) + factory/facilitator whitelist
 - *`chargeMicroPayment()` (off-path metered charge) — **designed, not deployed**; the session/limited-payment use case is covered by AirAccount Session Keys at the account layer (see division of labor below)*
