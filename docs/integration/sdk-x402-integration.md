@@ -44,7 +44,7 @@
 | `X402Client` 高级 API | `X402Client.ts` | 已实现 |
 | `x402Fetch` 自动 402 → sign → retry | `X402Client.ts` `x402Fetch()` | 已实现，有 TODO（部分 server 把 PaymentRequired 放 body 而非 header） |
 | HMAC challenge 客户端封装 | — | **TODO（缺失，详见 §10）** |
-| Direct path（xPNTs，**需 EIP-712 签名**，C-02 起） | `X402Client.settleDirectOnChain()` | 链上直发已实现，但**签名参数 TODO**（aastar-sdk#39）；详见 §5.2 |
+| Direct path（xPNTs，**需 EIP-712 签名**，C-02 起） | `X402Client.settleDirectOnChain()` | 已实现，`@aastar/sdk@0.29.0` 起可用（aastar-sdk#39 已关闭）；详见 §5.2 |
 | Settlement via external facilitator | `X402Client.settleViaFacilitator()` | 已实现 |
 
 入口导出（`packages/x402/src/index.ts`）：
