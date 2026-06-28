@@ -454,16 +454,18 @@ node test-x402-permit2-settlement.js     # 历史脚本（V5.3 已弃用 Permit2
 
 ## 8. TODO（SDK 需要补的东西）
 
-| 优先级 | 项目 | 说明 |
+> **状态更新 (2026-06-28)：** 以下 P0 项均已在 `@aastar/sdk@0.29.0` + DVT facilitator 模块（YetAnotherAA-Validator #130–134）中解决。End-to-end 流程已通过 live round-trip 验证（TX 0x95e41bd1 / 0xc5bad0af）。以下保留为历史记录；未解决项移至 aastar-sdk 各自 issue 跟踪。
+
+| 优先级 | 项目 | 状态（2026-06-28） |
 |--------|------|------|
-| **P0** | 重新生成 SDK ABI（带 `x402NonceKey`） | P0-13 给 SuperPaymaster 加了新 `pure` 函数 `x402NonceKey(asset,from,nonce)`，SDK 当前 ABI 不含；`actions/x402.ts` 也未暴露。一旦 wave2 合并/上线，单参数 `x402SettlementNonces(nonce)` 的查询永远返回 false（key 已变三元组），SDK 现有 `checkNonce(nonce)` 会给出错误结果。 |
-| **P0** | 校正 `X402Client.createPayment` 的 `to` 字段语义 | 当前 `to = params.to` 直签给 payee，但 facilitator-node `verify.ts` L60 期望 `to = SuperPaymaster`。需要明确"SP 业务模式 vs spec 标准"，至少在文档/参数层把这个差异显式表达，且 EIP-712 签名要和 SP 业务对齐。 |
-| **P1** | 一行 helper 让 dApp 完成 x402 settle | 当前 `aastar x402 pay/settle` CLI 是 stub。建议封装：`await aastar.payx402(url, { wallet, max })` 一句话搞定。 |
-| **P1** | HMAC challenge 客户端封装 | `FacilitatorClient` 加 `enableHmac`、自动抓 `X-Challenge`、调 settle 时自动计算 HMAC（见 §6）。 |
-| **P0** | facilitator-node schema 与 x402 v2 spec 对齐 | facilitator-node 用 `{payment, scheme}` 平面字段；SDK `FacilitatorClient.verify/settle` 发的是 `{x402Version:2, paymentPayload, paymentRequirements}`。两者**当前互不兼容，SDK 无法完成真实 x402 集成**。要么改 facilitator-node 接 v2 spec，要么 SDK 对自家 facilitator 提供专用 client。升级为 P0：当前状态下任何端到端 x402 流程均无法工作。 |
-| **P2** | 错误归一化 | review.md J4-MINOR-7：`AAStarError.fromViemError` 对 settle revert 的归类不细，"NonceAlreadyUsed/Unauthorized/InsufficientBalance" 都报成 generic message。 |
-| **P2** | 测试覆盖率 | x402 包仅 37 个单元测试（编解码、EIP-712 签名 mock、FacilitatorClient mock）；缺：(a) `x402Fetch` 自动重试集成测试、(b) 真链 settle 走 anvil/forge fixture、(c) HMAC 端到端、(d) Direct path 测试、(e) channel + voucher 重放保护。 |
-| **P2** | CLI `pay` / `settle` 实装 | 接到 X402Client + 钱包 keystore（参考 `enduser` 包钱包加载方式）。 |
+| ~~**P0**~~ | ~~重新生成 SDK ABI（带 `x402NonceKey`）~~ | ✅ **已解决** — SDK v0.29.0 ABI 已与 v5.4 合约同步 |
+| ~~**P0**~~ | ~~校正 `X402Client.createPayment` 的 `to` 字段语义~~ | ✅ **已解决** — DVT facilitator 实现对齐 x402 v2 spec `to=payTo` |
+| ~~**P0**~~ | ~~facilitator-node schema 与 x402 v2 spec 对齐~~ | ✅ **已解决** — DVT facilitator module (#130–134) 实现标准 `{x402Version:2, paymentPayload, paymentRequirements}` schema；SuperPaymaster `packages/x402-facilitator-node` 已废弃 |
+| **P1** | 一行 helper 让 dApp 完成 x402 settle | 仍为 stub（`aastar x402 pay/settle` CLI）；独立后续工作 |
+| **P1** | HMAC challenge 客户端封装 | 仍为 TODO；`FacilitatorClient` 加 `enableHmac` 选项 |
+| **P2** | 错误归一化 | review.md J4-MINOR-7；generic message 问题待改 |
+| **P2** | 测试覆盖率 | 单元测试覆盖签名 mock；真链 / HMAC / E2E 脚本仍缺 |
+| **P2** | CLI `pay` / `settle` 实装 | 接到 X402Client + 钱包 keystore |
 
 ---
 
@@ -515,17 +517,20 @@ verify.ts L40:
 
 `/verify` 的 nonce 重放检测在 P0-13 部署后会失效（旧 key 永远没人写，永远返回 false）。这不是安全问题（settle 仍会按新 key 防重放），但 facilitator 对客户端的"提前判断"不再有意义。
 
-### 9.4 Facilitator-Node ↔ SDK schema 不一致
+### 9.4 Facilitator-Node ↔ SDK schema（历史记录，已解决）
 
-| 端点 | facilitator-node 期望 (`types.ts`) | SDK `FacilitatorClient` 发出 (`facilitator.ts`) |
-|------|-----------------------------------|---------------------------------------------|
-| `/verify` POST body | `{ payload, payment: {from,to,asset,amount,nonce,validAfter,validBefore,signature}, scheme: 'eip-3009'\|'permit2'\|'direct' }` | `{ x402Version: 2, paymentPayload, paymentRequirements }` |
-| `/settle` POST body | 同上 | 同上 |
-| `/quote` GET | 返回 `{feeBPS,feePercent,supportedAssets,supportedSchemes}` | SDK 没有 `quote` 方法（只有 `supported`） |
-| `/supported` GET | 不存在 | SDK 期望存在，返回 `{kinds, extensions}` |
-| `.well-known` | `/.well-known/x-payment-info` 返回 `PaymentInfo` (自定义) | SDK 不读 |
+> **状态更新 (2026-06-28)：** 以下 schema 不一致已通过 DVT facilitator 模块解决。
+> DVT node（YetAnotherAA-Validator #130–134）实现标准 x402 v2 spec schema，SuperPaymaster
+> `packages/x402-facilitator-node`（平面 schema）已废弃。SDK v0.29.0 `FacilitatorClient`
+> 与 DVT facilitator 已完成 live round-trip 验证（TX 0x95e41bd1 / 0xc5bad0af）。
 
-**结论：当前 SDK 的 `FacilitatorClient` 不能直接对接 SuperPaymaster 自家 facilitator-node**，要么 facilitator-node 升级到 x402 v2 spec，要么 SDK 提供 `SuperPaymasterFacilitatorClient` 走平面 schema。
+| 端点 | ~~旧 facilitator-node~~ (废弃) | SDK `FacilitatorClient` v0.29.0 | DVT facilitator (当前) |
+|------|-----------------------------------|---------------------------------------------|---|
+| `/verify` POST | ~~平面 `{payment, scheme}`~~ | `{x402Version:2, paymentPayload, paymentRequirements}` | ✅ v2 spec |
+| `/settle` POST | ~~同上~~ | 同上 | ✅ v2 spec |
+| `/supported` GET | ~~不存在~~ | 期望 `{kinds, extensions}` | ✅ 实现 |
+
+~~**结论：当前 SDK 的 `FacilitatorClient` 不能直接对接 SuperPaymaster 自家 facilitator-node**~~ — **已解决**，见上。
 
 ### 9.5 测试结果
 
@@ -542,7 +547,7 @@ facilitator-node：**没有任何测试**（package.json 无 `test` 脚本，src
 ### 9.6 联调脚本
 
 - 已有合约级脚本：`SuperPaymaster/script/gasless-tests/test-x402-eip3009-settlement.js`、`test-x402-permit2-settlement.js`（用 ethers，直接调链上 settle，**不经过 facilitator-node**）。
-- 全链路（SDK → facilitator-node → SP）e2e：**不存在**。这是 §10 TODO 的一项。
+- 全链路（SDK → DVT facilitator → SP）e2e：~~不存在~~ — **已验证**，live round-trip TX 0x95e41bd1 / 0xc5bad0af（aastar-sdk v0.29.0 + YetAnotherAA-Validator DVT facilitator）。自动化 E2E 测试脚本仍为独立后续工作项。
 
 ---
 
@@ -575,11 +580,11 @@ facilitator-node：**没有任何测试**（package.json 无 `test` 脚本，src
 
 6. **跑合约级 E2E**（`script/gasless-tests/test-x402-*.js`），确认旧脚本仍 pass（它们用的是简化 ABI，对 ABI 变更最敏感）。
 
-7. **跑全链路 E2E**（待补）— SDK + facilitator-node + 本地 anvil SP。
+7. **全链路 E2E** — SDK + DVT facilitator (YetAnotherAA-Validator) + Sepolia SP。Live round-trip 已验证；自动化脚本为后续工作。
 
 8. **bump 版本**：`@aastar/x402` `@aastar/core` 升 minor（接口扩展）或 major（不兼容变更，例如 `checkNonce` 签名改）。
 
-9. **同步更新** `packages/x402-facilitator-node/src/routes/verify.ts` 的 `x402SettlementNonces(nonce)` 调用，改为 `x402SettlementNonces(x402NonceKey(asset,from,nonce))`，否则 verify 阶段的 nonce 检查会失效。
+9. ~~**同步更新** `packages/x402-facilitator-node/src/routes/verify.ts` 的 `x402SettlementNonces(nonce)` 调用~~ — `packages/x402-facilitator-node` 已废弃，facilitator 角色迁移至 DVT 节点。
 
 ---
 
