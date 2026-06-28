@@ -135,16 +135,18 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, ticketPrice, thresh, base, inc, max, exitFeePercent, true, minExitFee, "", roleOwner, lockDuration);
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
-            address(GTOKEN_STAKING).call(abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee)));
+            (bool ok,) = address(GTOKEN_STAKING).call(abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee)));
+            if (!ok) emit SyncFailed(address(GTOKEN_STAKING), roleId);
         }
     }
 
     function _syncExitFeeForRole(bytes32 roleId) internal {
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
-            address(GTOKEN_STAKING).call(
+            (bool ok,) = address(GTOKEN_STAKING).call(
                 abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, cfg.exitFeePercent, cfg.minExitFee))
             );
+            if (!ok) emit SyncFailed(address(GTOKEN_STAKING), roleId);
         }
     }
 
