@@ -215,3 +215,18 @@ All 5 invariants pass — fund conservation, op-hash replay protection, and xPNT
 ---
 
 *Report generated: 2026-06-28. Next scheduled: before mainnet GA.*
+
+---
+
+## E2E Suite Results (run-all-tests.sh) — 2026-06-28
+
+| Test Case | Status | TX Hash |
+|---|---|---|
+| TC1: PaymasterV4 + xPNTs | ✅ PASS | `0x397f1d59b38dce636decae722f18a58825346f861164f9998a1df76f6484ead2` |
+| TC2: SuperPaymaster + aPNTs (xPNTs1) | ✅ PASS | `0x2c3bf99d198e9e94e0252a9bf22021cba2083ebcd395a95c2ed144a2839eb0ce` |
+| TC3: SuperPaymaster + PNTs (xPNTs2) | ✅ PASS | `0x3d989f6658a3cbe85f9ab9eeeed67750cc69ff6b4436fb290e8d27ed3333d90f` |
+| TC4: Credit/Debt burn path | ✅ PASS | `0x06f9234e713f8ca6dbabd8680d11b691123a8f1cd0fd5f8a1b3092f58c7a135a` |
+
+**4/4 PASS** on Sepolia against v5.4.1-rc.1 contracts.
+
+**Pre-flight note**: AA test accounts (AA_A/B/C) needed `RegisterEnduser.s.sol` re-run after fresh T4 deploy (SBT state reset on new Registry). One-time setup per deployment; idempotent on subsequent runs.
