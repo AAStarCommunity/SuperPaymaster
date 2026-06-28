@@ -1,8 +1,9 @@
 # SDK x402 集成文档
 
 > 文档日期：2026-04-27（状态更新：2026-06-28）
-> 关联仓库：aastar-sdk（main 分支）/ SuperPaymaster（security/audit-2026-04-25）/ SuperPaymaster packages/x402-facilitator-node
-> 本文目的：把 SDK 中的 `@aastar/x402`、`@aastar/channel`、`@aastar/cli`、`@aastar/core` 与 SuperPaymaster 合约、x402 facilitator-node 服务三者的对接讲清楚，给出接入示例、签名细节、HMAC 握手流程、联调清单和 SDK 仍需补的工作项。
+> 关联仓库：aastar-sdk（main 分支 · v0.29.0）/ SuperPaymaster（main）/ YetAnotherAA-Validator（DVT facilitator 模块，当前 facilitator 实现）
+> ~~SuperPaymaster packages/x402-facilitator-node~~ — 已废弃，facilitator 角色迁移至 DVT 节点（2026-06-28）
+> 本文目的：把 SDK 中的 `@aastar/x402`、`@aastar/channel`、`@aastar/cli`、`@aastar/core` 与 SuperPaymaster 合约、DVT facilitator 服务三者的对接讲清楚，给出接入示例、签名细节、HMAC 握手流程、联调清单和 SDK 仍需补的工作项。
 
 > **状态更新 (2026-06-28)：** aastar-sdk#39 已关闭。`@aastar/sdk@0.29.0` 起，EIP-3009 路径和 Direct (xPNTs) 路径的签名均已可用（`@aastar/sdk/x402`）。
 > 本文中仍标注 TODO/stub 的项目（CLI `aastar x402 pay/settle`、HMAC FacilitatorClient 封装、全链路 E2E 脚本）属于独立的后续工作，**不影响核心签名路径的可用性**。
@@ -13,22 +14,22 @@
 
 ```
 ┌─────────────────────┐    HTTP (x402 v2)    ┌────────────────────────────┐    JSON-RPC      ┌─────────────────────┐
-│ Client (SDK / dApp) │◄────────────────────►│ Facilitator-Node (operator)│◄────────────────►│ SuperPaymaster (SP) │
-│ @aastar/x402        │  /verify  /settle    │ packages/x402-facilitator- │  settleX402*     │ V5.3 + P0-13        │
-│ @aastar/channel     │  /quote   /supported │ node (Hono on Node)        │  x402Settlement* │ UUPS proxy on SP    │
-│ @aastar/cli         │  X-Challenge (HMAC)  │ middleware/hmac-challenge  │  facilitatorFee* │ x402NonceKey() ★    │
+│ Client (SDK / dApp) │◄────────────────────►│ DVT Facilitator (operator) │◄────────────────►│ SuperPaymaster (SP) │
+│ @aastar/x402        │  /verify  /settle    │ YetAnotherAA-Validator     │  settleX402*     │ V5.4 + P0-13        │
+│ @aastar/channel     │  /quote   /supported │ x402 module (NestJS)       │  x402Settlement* │ UUPS proxy on SP    │
+│ @aastar/cli         │  X-Challenge (HMAC)  │ x402 v2 spec compatible    │  facilitatorFee* │ x402NonceKey() ★    │
 └─────────────────────┘                      └────────────────────────────┘                  └─────────────────────┘
 ```
+
+> **注 (2026-06-28)：** 旧版 `packages/x402-facilitator-node`（平面 schema）已废弃。当前 facilitator 由 DVT 节点（YetAnotherAA-Validator #130–134）承担，实现标准 x402 v2 spec。SDK v0.29.0 `FacilitatorClient` 与 DVT facilitator 已完成 live round-trip 验证。
 
 三方分工：
 
 | 层 | 职责 | 关键模块 |
 |----|------|----------|
 | SuperPaymaster (链上) | 真正记账：`settleX402Payment` (EIP-3009) / `settleX402PaymentDirect` (xPNTs)；nonce 三元组防重放；`facilitatorFeeBPS`/operator 自定义费率 | `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol` |
-| Facilitator-Node (服务端) | x402 协议门面：HTTP `/verify`(链下签名校验) `/settle`(写链) `/quote` `/.well-known/x-payment-info`；可选 HMAC 防机器人 | `packages/x402-facilitator-node/src` |
+| DVT Facilitator (服务端) | x402 协议门面：HTTP `/verify`(链下签名校验) `/settle`(写链) `/quote` `/supported` `/.well-known/x-payment-info`；实现 x402 v2 spec `{x402Version:2, paymentPayload, paymentRequirements}` schema | YetAnotherAA-Validator x402 模块（#130–134） |
 | SDK (客户端) | 帮 dApp / 钱包 / agent 生成 EIP-3009 typed-data、调 facilitator、按 x402 v2 协议处理 402 → sign → retry；同时直接调链上 settle 函数（自托管模式） | `packages/x402/`、`packages/core/src/actions/x402.ts`、`packages/cli` |
-
-> 关键差别：x402-facilitator-node 是 SuperPaymaster 自家维护的、专用于 SP 业务的 facilitator 实现；它和 Coinbase 公开的 x402 facilitator 协议**当前不完全兼容**（schema 用了简化字段而非 v2 spec 的 `paymentPayload/paymentRequirements`），SDK 通过 `FacilitatorClient` 接的是 v2 spec。下面"实现盘点"会标注这一差异。
 
 ---
 
@@ -327,10 +328,11 @@ const txHash = await client.settleDirectOnChain({ from, to, asset, amount, maxFe
 
 ## 6. HMAC challenge 客户端实现
 
-> **重要修正**：HMAC 设计与任务描述里的"先调 /verify 拿 challenge 回填到 settle"**不一致**。实际实现（`packages/x402-facilitator-node/src/middleware/hmac-challenge.ts` + `index.ts`）是 hono middleware：
+> **重要修正**（历史记录，基于旧 `packages/x402-facilitator-node`，已废弃）：HMAC 设计与任务描述里的"先调 /verify 拿 challenge 回填到 settle"**不一致**。实际实现是 hono middleware：
 > - `hmacChallengeInjector()` 注册在 `app.use("*", ...)` 上，**任何**返回 402 的响应都会被注入 `X-Challenge` header；
 > - `hmacSettleGuard()` 注册在 `/settle`，要求请求带 `X-Challenge` + `X-Payment-HMAC` 两个 header，并按 `HMAC(challenge, body)` 验证。
 > - `/verify` 路由本身不涉及 challenge。
+> 当前 DVT facilitator 模块的 HMAC 行为请参考 YetAnotherAA-Validator 文档。
 
 启用条件：facilitator 把 `ENABLE_HMAC_CHALLENGE=true` 且配置 `HMAC_SECRET=<secret>`。客户端可先 GET `/.well-known/x-payment-info` 或观察 402 响应判断。
 
@@ -414,11 +416,9 @@ git checkout fix/p0-wave2-funds-price
 ./scripts/extract_v3_abis.sh
 ./sync_to_sdk.sh
 
-# 3) Facilitator-Node：填 .env 并启动
-cd packages/x402-facilitator-node
-cp .env.example .env
-# 编辑 .env：RPC_URL / SUPER_PAYMASTER_ADDRESS / OPERATOR_PRIVATE_KEY / USDC_ADDRESS / ENABLE_HMAC_CHALLENGE=true / HMAC_SECRET=...
-pnpm install && pnpm dev   # 默认 port 3402
+# 3) Facilitator：使用 DVT facilitator 模块（YetAnotherAA-Validator）
+# packages/x402-facilitator-node 已废弃；当前 facilitator 由 DVT 节点承担
+# 参考 YetAnotherAA-Validator #130–134 运维文档
 
 # 4) SDK：跑单元测试
 cd $AASTAR_SDK_ROOT   # e.g. ~/Dev/aastar/aastar-sdk
@@ -600,8 +600,8 @@ facilitator-node：**没有任何测试**（package.json 无 `test` 脚本，src
 | SDK SuperPaymaster ABI | `$AASTAR_SDK_ROOT/packages/core/src/abis/SuperPaymaster.json` |
 | SP 仓库 ABI 输出 | `$SUPERPAYMASTER_ROOT/abis/` |
 | ABI 同步脚本 | `$SUPERPAYMASTER_ROOT/sync_to_sdk.sh` + `scripts/extract_v3_abis.sh` |
-| Facilitator-Node 源码 | `/Users/jason/Dev/aastar/SuperPaymaster/packages/x402-facilitator-node/src/` |
-| HMAC middleware | `/Users/jason/Dev/aastar/SuperPaymaster/packages/x402-facilitator-node/src/middleware/hmac-challenge.ts` |
+| ~~Facilitator-Node 源码~~ | ~~`packages/x402-facilitator-node/src/`~~ — **已废弃**；facilitator 迁至 DVT 节点 |
+| DVT facilitator 模块 | YetAnotherAA-Validator x402 module (#130–134) |
 | SuperPaymaster 合约 | `/Users/jason/Dev/aastar/SuperPaymaster/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol` |
 | P0-13 修复分支 | `fix/p0-wave2-funds-price` (commit b478a10) |
 | Forge x402 测试 | `/Users/jason/Dev/aastar/SuperPaymaster/contracts/test/v3/SuperPaymasterV5Features.t.sol` (F3/F3b) |
