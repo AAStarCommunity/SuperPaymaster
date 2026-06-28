@@ -1,8 +1,11 @@
 # SDK x402 集成文档
 
-> 文档日期：2026-04-27
+> 文档日期：2026-04-27（状态更新：2026-06-28）
 > 关联仓库：aastar-sdk（main 分支）/ SuperPaymaster（security/audit-2026-04-25）/ SuperPaymaster packages/x402-facilitator-node
 > 本文目的：把 SDK 中的 `@aastar/x402`、`@aastar/channel`、`@aastar/cli`、`@aastar/core` 与 SuperPaymaster 合约、x402 facilitator-node 服务三者的对接讲清楚，给出接入示例、签名细节、HMAC 握手流程、联调清单和 SDK 仍需补的工作项。
+
+> **状态更新 (2026-06-28)：** aastar-sdk#39 已关闭。`@aastar/sdk@0.29.0` 起，EIP-3009 路径和 Direct (xPNTs) 路径的签名均已可用（`@aastar/sdk/x402`）。
+> 本文中仍标注 TODO/stub 的项目（CLI `aastar x402 pay/settle`、HMAC FacilitatorClient 封装、全链路 E2E 脚本）属于独立的后续工作，**不影响核心签名路径的可用性**。
 
 ---
 

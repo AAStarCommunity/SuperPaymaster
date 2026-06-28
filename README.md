@@ -276,7 +276,7 @@ For secure mainnet deployment with Foundry Keystore, see [Deployment Guide](./do
 - [Spores Protocol Design](./docs/Spores-protocol-design-2026.md) — Decentralized revenue sharing network
 
 ### Developer Guides
-- [**Beta Integration Guide (v5.3.3-beta.2)**](./docs/integration/v5.3.3-beta.2-integration-guide.md) — beta entry: ready vs pending (x402), prerequisites, `dryRunValidation` pre-flight
+- [**Beta Integration Guide (v5.3.3-beta.2)**](./docs/integration/v5.3.3-beta.2-integration-guide.md) — beta entry: capabilities, prerequisites, `dryRunValidation` pre-flight (x402 now available — `@aastar/sdk@0.29.0`)
 - [Developer Integration Guide](./docs/DEVELOPER_INTEGRATION_GUIDE.md) — Gasless, x402, micropayment scenarios
 - [SDK x402 Integration](./docs/integration/sdk-x402-integration.md) — EIP-3009 + direct settle signing (post-C-02)
 - [SDK E2E Scenario Guide](./docs/SDK-E2E-Scenario-Guide.md) — 7 complete user scenarios
