@@ -298,8 +298,8 @@ const signature = await walletClient.signTypedData(typedData);
 - 资产必须是 xPNTsFactory 部署的 xPNTs（**P0-12a 已修复**：`isXPNTs(asset)` 白名单强制，恶意 token → `InvalidXPNTsToken`）；
 - facilitator 必须在该 xPNTs 的 `approvedFacilitators` 白名单内（**P0-12b 已修复**：否则 `Unauthorized`）。
 
-SDK 调用示例（**含签名**；`@aastar/x402` 暴露 salt/签名前见 [aastar-sdk#39](https://github.com/AAStarCommunity/aastar-sdk/issues/39)，
-可参考裸 EIP-712 实现 `script/gasless-tests/test-x402-direct-settle.js`）：
+SDK 调用示例（**含签名**；`@aastar/sdk@0.29.0` 起可用，aastar-sdk#39 已关闭。
+裸 EIP-712 参考实现：`script/gasless-tests/test-x402-direct-settle.js`）：
 
 ```ts
 // payer 用 SP proxy 的 domain 签 X402PaymentAuthorization
