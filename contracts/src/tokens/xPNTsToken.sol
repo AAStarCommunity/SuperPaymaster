@@ -401,15 +401,24 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
             // to the self-pull case so emergencyDisabled is a true single-tx
             // kill switch.
             //
-            // Exemption: any pull whose destination is the SuperPaymaster is the
-            // legitimate settle/deposit path (e.g. SP.depositFor → transferFrom
-            // (operator, SP) where msg.sender == to == SP). SP is de-authorized
-            // separately on emergency via emergencyRevokePaymaster, mirroring
-            // burn()'s `msg.sender != from` carve-out for the protocol's own
-            // path. So guard ONLY a self-pull to a non-SP recipient.
-            if (to == msg.sender && to != SUPERPAYMASTER_ADDRESS) {
+            // AUDIT 2026-07-04 (H-2 fix): the emergency kill switch was previously
+            // keyed on the DESTINATION (guarded only `to == msg.sender && to != SP`),
+            // so a *different* autoApproved spender (e.g. a compromised facilitator)
+            // could set `to == SP` and keep moving every holder's balance into the SP
+            // contract even AFTER emergencyRevokePaymaster() flipped the switch —
+            // defeating the entire purpose of the kill switch (funds land in SP with
+            // no profit to the attacker, i.e. griefing/forced-lock, but the halt must
+            // still stop it). Fix: the emergency halt now applies to EVERY non-SP
+            // caller regardless of destination; only the genuine `msg.sender == SP`
+            // settle path is exempt.
+            if (msg.sender != SUPERPAYMASTER_ADDRESS) {
                 if (emergencyDisabled) revert EmergencyStop();
-                _checkAndConsumeRateLimit(msg.sender, value);
+                // Daily cap intentionally exempts the settle path (to == SP) to
+                // preserve legitimate settlement throughput (P0-8 design); self-pulls
+                // (to == msg.sender) remain capped.
+                if (to != SUPERPAYMASTER_ADDRESS) {
+                    _checkAndConsumeRateLimit(msg.sender, value);
+                }
             }
         }
 

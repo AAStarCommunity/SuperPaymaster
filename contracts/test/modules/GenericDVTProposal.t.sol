@@ -231,7 +231,7 @@ contract GenericDVTProposalTest is Test {
 
     function test_ExecuteProposal_ThresholdBelowMin_Reverts() public {
         uint256 proposalId = 300;
-        uint256 requiredThreshold = 2; // Below minThreshold (3)
+        uint256 requiredThreshold = 2; // Below generic minThreshold (3)
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
         bytes memory proof = _createMockProof(requiredThreshold);
 

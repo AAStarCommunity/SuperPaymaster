@@ -20,6 +20,7 @@ interface IRegistryStakingAwareBLS {
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
+    function queueSlash(address operator) external;
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 }
 
@@ -92,11 +93,53 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     mapping(uint256 => AggregatedSignature) public aggregatedSignatures;
     mapping(uint256 => bool) public executedProposals;
+    /// @notice Replay guard for queueSlashWithConsensus. A queue proof commits to
+    ///         (operator, slashLevel, epoch, chainid); once consumed it cannot be
+    ///         replayed — otherwise the same signed proof could re-flag an operator
+    ///         after the owner cancelled the slash or after it already executed
+    ///         (a reusable withdraw-block DoS). A fresh, legitimate re-queue simply
+    ///         uses a new epoch (→ new hash).
+    mapping(bytes32 => bool) public usedSlashQueueHashes;
     mapping(uint256 => uint256) public proposalNonces;
 
-    uint256 public minThreshold = 3;    // Global minimum (safety floor)
-    uint256 public defaultThreshold = 7; // Default for legacy calls
+    uint256 public minThreshold = 3;    // Floor for the GENERIC executeProposal path only
+    uint256 public defaultThreshold = 7; // Default for the reputation consensus path
     uint256 public constant MAX_VALIDATORS = 13;
+
+    /// @notice Absolute signature floor enforced inside `_checkSignatures` for
+    ///         EVERY verification path (a hard safety net; no path may verify
+    ///         below this). The generic executeProposal path layers the stricter
+    ///         `minThreshold` on top, so lowering the slash floor to 2 (for a
+    ///         2-of-3 WARNING) does NOT widen the generic path — that stays at
+    ///         minThreshold. Also the min a slash-table entry may be set to.
+    uint8 public constant SLASH_THRESHOLD_FLOOR = 2;
+
+    /// @notice H-1: slash / consensus-marking selectors the GENERIC executeProposal
+    ///         path may never invoke on any target. The aPNTs burn
+    ///         (executeSlashWithBLS) and proposalId marking (markProposalExecuted)
+    ///         must go through the threshold-checked slash path (verifyAndExecute),
+    ///         and the reversible pre-flag (queueSlash) has its own dedicated
+    ///         quorum-gated entry (queueSlashWithConsensus) — none belong on a
+    ///         caller-chosen-threshold generic `.call`. We do NOT blocklist whole
+    ///         targets: Registry.updateOperatorBlacklist is a legitimate DVT-consensus
+    ///         generic action, and batchUpdateGlobalReputation self-protects via
+    ///         Registry's independent proof re-verification.
+    bytes4 private constant SEL_QUEUE_SLASH = bytes4(keccak256("queueSlash(address)"));
+    bytes4 private constant SEL_EXECUTE_SLASH_BLS = bytes4(keccak256("executeSlashWithBLS(address,uint8,bytes)"));
+    bytes4 private constant SEL_MARK_PROPOSAL_EXECUTED = bytes4(keccak256("markProposalExecuted(uint256)"));
+
+    /// @notice Per-severity slash consensus threshold, keyed by SlashLevel
+    ///         (0=WARNING, 1=MINOR, 2=MAJOR). Bootstrap (N=3): 2/3/3. This
+    ///         replaces the flat defaultThreshold for the slash-only path so the
+    ///         bar scales with severity and with the validator set over time,
+    ///         by governance table update rather than a code change.
+    mapping(uint8 => uint8) public slashThresholds;
+
+    /// @notice Address permitted to update `slashThresholds`. Set this to a
+    ///         multisig for plain governance, or to a TimelockController(multisig)
+    ///         to get timelocked policy changes WITHOUT building timelock logic
+    ///         (and its bytecode) into this contract. Owner rotates it.
+    address public slashPolicyAdmin;
 
     /// @notice H-02: when true, a staked ROLE_DVT validator may self-register their OWN
     ///         BLS key (with proof-of-possession) instead of requiring an owner call.
@@ -115,6 +158,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Events
     // ====================================
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+    /// @notice Emitted when governance updates a per-severity slash threshold.
+    event SlashThresholdUpdated(uint8 indexed slashLevel, uint8 oldThreshold, uint8 newThreshold);
+    /// @notice Emitted when the owner rotates the slash-policy admin.
+    event SlashPolicyAdminUpdated(address indexed oldAdmin, address indexed newAdmin);
+    /// @notice Emitted on a successful slash-only consensus, recording the
+    ///         on-chain-committed evidence hash + the threshold it cleared, so
+    ///         off-chain archives can bind their stored proof to the chain fact.
+    event SlashConsensusReached(uint256 indexed proposalId, uint8 slashLevel, uint256 requiredThreshold, bytes32 evidenceHash);
+    /// @notice Emitted when a DVT quorum pre-flags an operator for slashing (the
+    ///         reversible first step of the two-step slash; blocks withdraw until
+    ///         execute or owner cancel).
+    event SlashPreQueued(address indexed operator, uint8 slashLevel, uint256 epoch, uint256 requiredThreshold);
 
     event BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot);
     event PermissionlessBLSRegistrationSet(bool enabled);
@@ -143,6 +198,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidSignatureCount(uint256 count, uint256 required);
     error SignatureVerificationFailed();
     error ProposalAlreadyExecuted(uint256 proposalId);
+    /// @notice A queueSlashWithConsensus proof was replayed (same operator/level/epoch).
+    error SlashQueueProofAlreadyUsed(bytes32 queueHash);
     error UnauthorizedCaller(address caller);
     error InvalidAddress(address addr);
     error InvalidBLSKey();
@@ -150,6 +207,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error ProposalExecutionFailed(uint256 proposalId, bytes returnData);
     error InvalidTarget(address target);
     error InvalidProposalId();
+    /// @notice H-1: the generic executeProposal path invoked a slash / consensus-
+    ///         marking selector that must go through the threshold-checked slash
+    ///         path (verifyAndExecute), not a caller-chosen-threshold generic call.
+    error ForbiddenGenericSelector(bytes4 selector);
+    /// @notice A slash threshold update fell outside [SLASH_THRESHOLD_FLOOR, MAX_VALIDATORS].
+    error SlashThresholdOutOfRange(uint8 threshold);
+    /// @notice Caller is not the slash-policy admin.
+    error NotSlashPolicyAdmin(address caller);
     /// @notice signerMask references a slot whose validator key is not registered/active.
     error UnknownValidatorSlot(uint8 slot);
     /// @notice signerMask references a slot index outside [1..MAX_VALIDATORS].
@@ -203,6 +268,38 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         REGISTRY = IRegistry(_registry);
         SUPERPAYMASTER = _superPaymaster;
         DVT_VALIDATOR = _dvtValidator;
+
+        // Bootstrap slash thresholds for N=3: WARNING 2-of-3 (no funds moved,
+        // reputation ding only), MINOR/MAJOR 3-of-3 (real aPNTs at stake).
+        // Governance raises these via setSlashThreshold as the validator set grows.
+        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.WARNING)] = 2;
+        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MINOR)]   = 3;
+        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)]   = 3;
+
+        // Owner is the initial policy admin; rotate to a multisig / timelock post-deploy.
+        slashPolicyAdmin = msg.sender;
+    }
+
+    /// @notice Update the per-severity slash consensus threshold.
+    /// @dev    Gated to `slashPolicyAdmin` (a multisig, or a TimelockController for
+    ///         timelocked changes). Floored at SLASH_THRESHOLD_FLOOR and capped at
+    ///         MAX_VALIDATORS. Operationally the value should stay <= the active
+    ///         validator count, otherwise that severity becomes unslashable.
+    function setSlashThreshold(uint8 slashLevel, uint8 threshold) external {
+        if (msg.sender != slashPolicyAdmin) revert NotSlashPolicyAdmin(msg.sender);
+        if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
+        if (threshold < SLASH_THRESHOLD_FLOOR || threshold > MAX_VALIDATORS) {
+            revert SlashThresholdOutOfRange(threshold);
+        }
+        emit SlashThresholdUpdated(slashLevel, slashThresholds[slashLevel], threshold);
+        slashThresholds[slashLevel] = threshold;
+    }
+
+    /// @notice Rotate the slash-policy admin (owner only).
+    function setSlashPolicyAdmin(address newAdmin) external onlyOwner {
+        if (newAdmin == address(0)) revert InvalidAddress(newAdmin);
+        emit SlashPolicyAdminUpdated(slashPolicyAdmin, newAdmin);
+        slashPolicyAdmin = newAdmin;
     }
 
     // ====================================
@@ -384,6 +481,42 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         return BLS.pairing(g1s, g2s);
     }
 
+    /// @notice Step 1 of the two-step slash: a DVT quorum pre-flags `operator` for
+    ///         slashing (SP.queueSlash), blocking their withdraw until the slash is
+    ///         executed (verifyAndExecute) or the owner cancels it. Kept SEPARATE
+    ///         from execution so the flag lands in an earlier tx — closing the
+    ///         front-run window an atomic queue+execute would reopen.
+    /// @dev    Dedicated (not the generic executeProposal) so it (a) is gated at the
+    ///         per-severity slash threshold, (b) does NOT consume a proposalId /
+    ///         executedProposals slot (queueSlash is idempotent — re-flagging is a
+    ///         no-op), leaving the execute-step proposalId intact, and (c) requires a
+    ///         real quorum, so no single validator can DoS an operator's withdraw.
+    ///         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof
+    ///         can never be replayed as an execute proof.
+    function queueSlashWithConsensus(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata proof
+    ) external nonReentrant {
+        if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+        if (operator == address(0)) revert InvalidTarget(operator);
+        if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
+        uint256 requiredThreshold = slashThresholds[slashLevel];
+        bytes32 expectedMessageHash = keccak256(abi.encode(
+            keccak256("QUEUE_SLASH"), operator, slashLevel, epoch, block.chainid
+        ));
+        // Replay guard: a consumed queue proof cannot re-flag the operator after a
+        // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
+        if (usedSlashQueueHashes[expectedMessageHash]) revert SlashQueueProofAlreadyUsed(expectedMessageHash);
+        _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+        usedSlashQueueHashes[expectedMessageHash] = true;
+        ISuperPaymasterSlash(SUPERPAYMASTER).queueSlash(operator);
+        emit SlashPreQueued(operator, slashLevel, epoch, requiredThreshold);
+    }
+
     function verifyAndExecute(
         uint256 proposalId,
         address operator,
@@ -391,6 +524,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         address[] calldata repUsers,
         uint256[] calldata newScores,
         uint256 epoch,
+        bytes32 evidenceHash,
         bytes calldata proof
     ) external nonReentrant {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
@@ -401,20 +535,33 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert ProposalAlreadyExecuted(proposalId);
         }
 
-        // 1. Construct expected message binding to specific action.
+        // 1. Construct expected message + resolve the required threshold.
         // The signed message MUST commit to chainid to prevent cross-chain replay.
-        bytes32 expectedMessageHash = keccak256(abi.encode(
-            proposalId,
-            operator,
-            slashLevel,
-            repUsers,
-            newScores,
-            epoch,
-            block.chainid
-        ));
+        bytes32 expectedMessageHash;
+        uint256 requiredThreshold;
+        if (repUsers.length == 0) {
+            // Slash-only consensus path: bar = per-severity governance table
+            // (2/3/3 at bootstrap), and the signed message additionally commits to
+            // `evidenceHash` so every slash is bound on-chain to the off-chain
+            // evidence that justified it. Keeps the reputation branch (below)
+            // byte-identical so Registry's independent re-verification still matches.
+            if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
+            requiredThreshold = slashThresholds[slashLevel];
+            expectedMessageHash = keccak256(abi.encode(
+                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid, evidenceHash
+            ));
+        } else {
+            // Reputation (or combined) path: unchanged 7-field encoding +
+            // defaultThreshold, so Registry.batchUpdateGlobalReputation's
+            // re-verification reconstructs the identical hash.
+            requiredThreshold = defaultThreshold;
+            expectedMessageHash = keccak256(abi.encode(
+                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid
+            ));
+        }
 
         // 2. Verify BLS pairing using on-chain reconstructed pkAgg (P0-1).
-        _checkSignatures(proof, expectedMessageHash, defaultThreshold);
+        _checkSignatures(proof, expectedMessageHash, requiredThreshold);
 
         // 3. Update Global Reputation in Registry
         if (repUsers.length > 0) {
@@ -424,6 +571,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // Slash-only proposal: mark proposalId in Registry to prevent cross-path replay
             // (attacker holding valid proof cannot reuse proposalId via direct Registry call)
             REGISTRY.markProposalExecuted(proposalId);
+            emit SlashConsensusReached(proposalId, slashLevel, requiredThreshold, evidenceHash);
         }
 
         // 4. Execute Slash if operator is provided
@@ -459,6 +607,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert UnauthorizedCaller(msg.sender);
         }
         if (target == address(0)) revert InvalidTarget(target);
+        // H-1: block the slash / consensus-marking selectors on the generic path (any
+        // target) so a caller-chosen (minThreshold) quorum can never drive
+        // SuperPaymaster.queueSlash/executeSlashWithBLS or markProposalExecuted. The
+        // fund-moving slash goes through the per-severity threshold in
+        // verifyAndExecute; the reversible pre-flag has its own dedicated quorum-gated
+        // entry (queueSlashWithConsensus) — neither should be a generic .call, and
+        // routing queueSlash through executeProposal would also consume its
+        // proposalId (executedProposals + markProposalExecuted), breaking a later
+        // verifyAndExecute for the same id. Selector-scoped (not target-scoped) so
+        // Registry.updateOperatorBlacklist still works.
+        if (callData.length >= 4) {
+            bytes4 sel = bytes4(callData[0:4]);
+            if (sel == SEL_QUEUE_SLASH || sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED) {
+                revert ForbiddenGenericSelector(sel);
+            }
+        }
         if (proposalId == 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
         if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
@@ -645,7 +809,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // on-chain so a forged proof cannot satisfy the pairing.
         (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
 
-        if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
+        // Absolute floor for ALL paths. The generic executeProposal path enforces
+        // the stricter `minThreshold` before it reaches here (see executeProposal),
+        // so this hard floor lets the slash path verify a 2-of-3 WARNING without
+        // widening the generic path's 3-of-N minimum.
+        if (requiredThreshold < SLASH_THRESHOLD_FLOOR) revert InvalidParameter("Threshold below minimum");
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
 
         (BLS.G1Point memory pkAgg, uint256 count) = _reconstructPkAgg(signerMask);
@@ -757,6 +925,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     function _executeSlash(uint256 proposalId, address operator, uint8 level, bytes calldata proof) internal {
         ISuperPaymasterSlash.SlashLevel sLevel = ISuperPaymasterSlash.SlashLevel(level);
+        // Two-step slash: the operator MUST already be flagged via SP.queueSlash in a
+        // SEPARATE, earlier consensus tx — the dedicated queueSlashWithConsensus entry
+        // (queueSlash IS selector-blocked on the generic executeProposal path). That
+        // flag blocks the operator's withdraw() between the queue and this execute.
+        // Queuing + slashing atomically here would REOPEN the front-run window (the
+        // operator could drain their balance before the slash lands), regressing the
+        // HIGH-1 two-step protection — so the flag stays a distinct prior step. Only
+        // the fund-moving executeSlashWithBLS runs here, and it is reachable solely
+        // through this per-severity threshold-checked path.
         ISuperPaymasterSlash(SUPERPAYMASTER).executeSlashWithBLS(operator, sLevel, proof);
         emit SlashExecuted(proposalId, operator, level);
     }

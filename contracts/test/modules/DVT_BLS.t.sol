@@ -97,7 +97,9 @@ contract MockSuperPaymaster {
         MINOR,
         MAJOR
     }
-    // Mock the call signature
+    // Mock the call signatures used by the two-step BLS slash.
+    bool public queued;
+    function queueSlash(address) external { queued = true; }
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
 }
@@ -194,8 +196,37 @@ contract DVTBLSTest is Test {
         vm.stopPrank();
 
         // Check proposal was executed
-        (,,, bool executed,) = dvt.proposals(id);
+        (,,, bool executed,,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
+    }
+
+    function test_QueueSlashWithConsensus_FlagsAndBlocksReplay() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1))); // pairing success
+        bytes memory proof = _proofForMask(0x7F); // 7 signers >= MINOR threshold (3)
+
+        // First queue succeeds and pre-flags the operator on SP.
+        vm.prank(address(dvt));
+        bls.queueSlashWithConsensus(op, 1, 42, proof); // MINOR, epoch 42
+        assertTrue(sp.queued(), "operator pre-flagged via SP.queueSlash");
+
+        // Replaying the SAME proof (same operator/level/epoch) reverts — a consumed
+        // queue proof cannot re-flag after a cancel/execute cleared the flag.
+        bytes32 h = keccak256(abi.encode(keccak256("QUEUE_SLASH"), op, uint8(1), uint256(42), block.chainid));
+        vm.prank(address(dvt));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashQueueProofAlreadyUsed.selector, h));
+        bls.queueSlashWithConsensus(op, 1, 42, proof);
+
+        // A fresh, legitimate re-queue (new epoch → new hash) is allowed.
+        vm.prank(address(dvt));
+        bls.queueSlashWithConsensus(op, 1, 43, proof);
+    }
+
+    function test_QueueSlashWithProof_ForwarderFlags() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        bytes memory proof = _proofForMask(0x7F);
+        vm.prank(address(101)); // active validator drives the forwarder
+        dvt.queueSlashWithProof(op, 1, 7, proof);
+        assertTrue(sp.queued(), "operator pre-flagged via DVTValidator forwarder");
     }
 
     function test_BLS_ManualVerify() public {
@@ -213,7 +244,7 @@ contract DVTBLSTest is Test {
 
         vm.prank(address(dvt));
 
-        bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, mockProof);
+        bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, bytes32(0), mockProof);
 
         assertTrue(bls.executedProposals(id));
     }

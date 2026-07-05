@@ -12,6 +12,18 @@ interface IBLSAggregator {
         address[] calldata repUsers,
         uint256[] calldata newScores,
         uint256 epoch,
+        bytes32 evidenceHash,
+        bytes calldata proof
+    ) external;
+
+    /// @notice Per-severity slash consensus threshold (SlashLevel => required signatures).
+    function slashThresholds(uint8 slashLevel) external view returns (uint8);
+
+    /// @notice Step 1 of the two-step slash: quorum pre-flags an operator (SP.queueSlash).
+    function queueSlashWithConsensus(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
         bytes calldata proof
     ) external;
 

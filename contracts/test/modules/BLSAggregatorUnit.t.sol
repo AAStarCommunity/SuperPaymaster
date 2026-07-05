@@ -305,9 +305,14 @@ contract BLSAggregatorUnitTest is Test {
     function test_Constructor_InitialState() public view {
         assertEq(bls.SUPERPAYMASTER(), sp);
         assertEq(bls.DVT_VALIDATOR(), dvt);
-        assertEq(bls.minThreshold(), 3);
+        assertEq(bls.minThreshold(), 3); // generic path floor unchanged; slash floor is SLASH_THRESHOLD_FLOOR=2
         assertEq(bls.defaultThreshold(), 7);
         assertEq(bls.MAX_VALIDATORS(), 13);
+        // Per-severity slash table bootstrap (N=3): WARNING 2, MINOR 3, MAJOR 3.
+        assertEq(bls.slashThresholds(0), 2);
+        assertEq(bls.slashThresholds(1), 3);
+        assertEq(bls.slashThresholds(2), 3);
+        assertEq(bls.slashPolicyAdmin(), owner); // initial admin = deployer
     }
 
     // ========================================

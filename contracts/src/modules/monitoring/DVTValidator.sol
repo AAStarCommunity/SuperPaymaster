@@ -37,6 +37,12 @@ contract DVTValidator is Ownable, IVersioned {
         // operator proposals (it skips slash when operator is zero), so using
         // operator==address(0) as a non-existence sentinel breaks that path.
         bool exists;
+        // Content-addressed hash of the off-chain evidence (audit record) that
+        // justified this proposal. Appended last to keep the pre-existing field
+        // indices stable. Bound into the BLS-signed message on the slash-only
+        // path so the on-chain slash is cryptographically tied to a specific
+        // evidence artifact. bytes32(0) = no evidence committed.
+        bytes32 evidenceHash;
         // ✅ Removed validators[] and signatures[]
         // Individual signatures collected off-chain via DVT P2P protocol
         // Only aggregated BLS proof submitted on-chain
@@ -172,7 +178,27 @@ contract DVTValidator is Ownable, IVersioned {
     }
 
 
+    /// @notice Backward-compatible overload: creates a proposal with no committed
+    ///         evidence hash (evidenceHash = 0). Prefer the 4-arg form for slashes
+    ///         so the on-chain consensus binds the justifying evidence.
     function createProposal(address operator, uint8 level, string calldata reason) external returns (uint256 id) {
+        return _createProposal(operator, level, reason, bytes32(0));
+    }
+
+    /// @notice Create a slash proposal that commits to an off-chain evidence hash.
+    /// @param  evidenceHash content-addressed hash of the audit record justifying
+    ///         the slash; bound into the BLS-signed message at execution time.
+    function createProposal(address operator, uint8 level, string calldata reason, bytes32 evidenceHash)
+        external
+        returns (uint256 id)
+    {
+        return _createProposal(operator, level, reason, evidenceHash);
+    }
+
+    function _createProposal(address operator, uint8 level, string calldata reason, bytes32 evidenceHash)
+        internal
+        returns (uint256 id)
+    {
         // P0 follow-up: enforce live liveness before allowing a stake-less
         // ex-validator to mint new proposals.
         _requireActiveValidator(msg.sender);
@@ -181,6 +207,7 @@ contract DVTValidator is Ownable, IVersioned {
         p.operator = operator;
         p.slashLevel = level;
         p.reason = reason;
+        p.evidenceHash = evidenceHash;
         // P0-4 fix: mark the proposal as created so existence checks use p.exists
         // instead of operator==address(0), allowing zero-operator proposals.
         p.exists = true;
@@ -217,6 +244,26 @@ contract DVTValidator is Ownable, IVersioned {
     // Last validator aggregates BLS signatures and calls executeWithProof
 
     /**
+     * @notice Step 1 of the two-step slash: forward an aggregated queue proof to the
+     *         aggregator, which pre-flags the operator (SP.queueSlash) at the
+     *         per-severity threshold. Kept separate from execution so the flag lands
+     *         in an earlier tx (front-run protection). Not tied to a proposalId —
+     *         queue by (operator, level) so it can precede createProposal.
+     */
+    function queueSlashWithProof(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata proof
+    ) external {
+        // Only an active DVT validator may drive a pre-flag. No BLS_AGGREGATOR
+        // exemption here (unlike executeWithProof): the aggregator never calls back
+        // into this forwarder, so that branch would be dead code.
+        _requireActiveValidator(msg.sender);
+        IBLSAggregator(BLS_AGGREGATOR).queueSlashWithConsensus(operator, slashLevel, epoch, proof);
+    }
+
+    /**
      * @notice Direct execution with an aggregated proof
      */
     function executeWithProof(
@@ -251,6 +298,7 @@ contract DVTValidator is Ownable, IVersioned {
             repUsers,
             newScores,
             epoch,
+            p.evidenceHash,
             proof
         );
     }
