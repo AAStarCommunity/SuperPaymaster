@@ -112,6 +112,7 @@ contract MockStakingGas {
 }
 
 contract MockSuperPaymasterGas {
+    function queueSlash(address) external {}
     function executeSlashWithBLS(address, uint8, bytes calldata) external {}
 }
 

@@ -97,7 +97,8 @@ contract MockSuperPaymaster {
         MINOR,
         MAJOR
     }
-    // Mock the call signature
+    // Mock the call signatures. The BLS path now queues then executes atomically.
+    function queueSlash(address operator) external {}
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
 }
@@ -194,7 +195,7 @@ contract DVTBLSTest is Test {
         vm.stopPrank();
 
         // Check proposal was executed
-        (,,, bool executed,) = dvt.proposals(id);
+        (,,, bool executed,,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
     }
 
@@ -213,7 +214,7 @@ contract DVTBLSTest is Test {
 
         vm.prank(address(dvt));
 
-        bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, mockProof);
+        bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, bytes32(0), mockProof);
 
         assertTrue(bls.executedProposals(id));
     }

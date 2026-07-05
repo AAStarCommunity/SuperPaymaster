@@ -12,8 +12,12 @@ interface IBLSAggregator {
         address[] calldata repUsers,
         uint256[] calldata newScores,
         uint256 epoch,
+        bytes32 evidenceHash,
         bytes calldata proof
     ) external;
+
+    /// @notice Per-severity slash consensus threshold (SlashLevel => required signatures).
+    function slashThresholds(uint8 slashLevel) external view returns (uint8);
 
     function setDVTValidator(address _dvt) external;
 
