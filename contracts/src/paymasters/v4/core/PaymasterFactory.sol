@@ -175,14 +175,14 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // Deploy minimal proxy using OpenZeppelin Clones
         paymaster = implementation.clone();
 
-        _initAndVerify(paymaster, operator, initData);
-
-        // Update mappings
+        // CEI: record state before external calls so any re-entry sees the mapping populated.
+        // nonReentrant already blocks re-entry; this aligns with the pattern for hygiene.
         paymasterByOperator[operator] = paymaster;
         operatorByPaymaster[paymaster] = operator;
         paymasterList.push(paymaster);
-
         totalDeployed++;
+
+        _initAndVerify(paymaster, operator, initData);
 
         emit PaymasterDeployed(operator, paymaster, _version, block.timestamp);
     }
@@ -220,13 +220,13 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         // Deploy with deterministic address
         paymaster = implementation.cloneDeterministic(salt);
 
-        _initAndVerify(paymaster, operator, initData);
-
+        // CEI: record state before external calls (mirrors deployPaymaster ordering).
         paymasterByOperator[operator] = paymaster;
         operatorByPaymaster[paymaster] = operator;
         paymasterList.push(paymaster);
-
         totalDeployed++;
+
+        _initAndVerify(paymaster, operator, initData);
 
         emit PaymasterDeployed(operator, paymaster, _version, block.timestamp);
     }
