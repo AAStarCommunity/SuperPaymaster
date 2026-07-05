@@ -43,6 +43,21 @@ contract xPNTs_AuditH2_TransferFromFirewallTest is Test {
         token.transferFrom(user, facilitator, 100 ether);
     }
 
+    // --- AUDIT 2026-07-04 (H-2 kill-switch gap): a non-SP autoApproved spender
+    //     could bypass the emergency halt by routing the pull to the SP address
+    //     (`to == SP`), because the halt was keyed on destination, not caller.
+    //     After the fix the halt applies to EVERY non-SP caller regardless of
+    //     destination, so a compromised facilitator can no longer force-move
+    //     holder funds into the SP contract once the kill switch is flipped. ---
+    function test_TransferFromToSuperPaymaster_HaltedByEmergency() public {
+        vm.prank(community);
+        token.emergencyRevokePaymaster(); // emergencyDisabled = true
+
+        vm.prank(facilitator);
+        vm.expectRevert(xPNTsToken.EmergencyStop.selector);
+        token.transferFrom(user, paymaster, 100 ether);
+    }
+
     // --- P0-8 parity: cumulative self-pull is bounded by the daily cap ---
     function test_TransferFromSelf_BoundedByDailyCap() public {
         uint256 cap   = token.spenderDailyCapTokens(); // default 50_000 ether
