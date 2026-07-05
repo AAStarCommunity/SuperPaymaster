@@ -97,8 +97,7 @@ contract MockSuperPaymaster {
         MINOR,
         MAJOR
     }
-    // Mock the call signatures. The BLS path now queues then executes atomically.
-    function queueSlash(address operator) external {}
+    // Mock the call signature
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
 }

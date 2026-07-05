@@ -83,13 +83,16 @@ contract BLSAggregator_SlashPolicyTest is Test {
         bls.setSlashPolicyAdmin(attacker);
     }
 
-    // ---- (2) H-1: executeProposal cannot invoke slash / consensus-marking selectors ----
+    // ---- (2) H-1: executeProposal cannot invoke the fund-moving / DoS selectors ----
 
-    function test_ExecuteProposal_ForbidsQueueSlashSelector() public {
+    /// @notice queueSlash is a reversible pre-flag and the required first step of the
+    ///         HIGH-1 two-step slash, so it is NOT selector-blocked. It still requires
+    ///         a real quorum (minThreshold): here threshold 2 < minThreshold 3 reverts
+    ///         on the threshold check, proving the selector guard let it through.
+    function test_ExecuteProposal_AllowsQueueSlashSelector_NotForbidden() public {
         bytes memory cd = abi.encodeWithSignature("queueSlash(address)", attacker);
         vm.prank(dvt);
-        vm.expectRevert(abi.encodeWithSelector(
-            BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256("queueSlash(address)"))));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold below minimum"));
         bls.executeProposal(1, sp, cd, 2, hex"00");
     }
 

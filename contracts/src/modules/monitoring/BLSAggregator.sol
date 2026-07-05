@@ -20,7 +20,6 @@ interface IRegistryStakingAwareBLS {
 
 interface ISuperPaymasterSlash {
     enum SlashLevel { WARNING, MINOR, MAJOR }
-    function queueSlash(address operator) external;
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 }
 
@@ -107,15 +106,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         minThreshold. Also the min a slash-table entry may be set to.
     uint8 public constant SLASH_THRESHOLD_FLOOR = 2;
 
-    /// @notice H-1: function selectors the GENERIC executeProposal path may never
-    ///         invoke on any target. These reach a slash / consensus-marking
-    ///         action that must go through the threshold-checked slash path
-    ///         (verifyAndExecute), not a caller-chosen-threshold generic `.call`.
-    ///         Note we deliberately do NOT blocklist the whole target contract:
-    ///         Registry.updateOperatorBlacklist IS a legitimate DVT-consensus
-    ///         action reachable via the generic path, and batchUpdateGlobalReputation
+    /// @notice H-1: fund-moving / consensus-marking selectors the GENERIC
+    ///         executeProposal path may never invoke on any target — the actual
+    ///         aPNTs burn (executeSlashWithBLS) and proposalId marking must go
+    ///         through the threshold-checked slash path (verifyAndExecute), not a
+    ///         caller-chosen-threshold generic `.call`. queueSlash is intentionally
+    ///         NOT here: it is a reversible pre-flag (see executeProposal). We also
+    ///         do NOT blocklist whole targets: Registry.updateOperatorBlacklist is a
+    ///         legitimate DVT-consensus generic action, and batchUpdateGlobalReputation
     ///         self-protects via Registry's independent proof re-verification.
-    bytes4 private constant SEL_QUEUE_SLASH = bytes4(keccak256("queueSlash(address)"));
     bytes4 private constant SEL_EXECUTE_SLASH_BLS = bytes4(keccak256("executeSlashWithBLS(address,uint8,bytes)"));
     bytes4 private constant SEL_MARK_PROPOSAL_EXECUTED = bytes4(keccak256("markProposalExecuted(uint256)"));
 
@@ -556,15 +555,20 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert UnauthorizedCaller(msg.sender);
         }
         if (target == address(0)) revert InvalidTarget(target);
-        // H-1: block the specific slash / consensus-marking selectors on the
-        // generic path (any target), so a caller-chosen (minThreshold) quorum can
-        // never drive SuperPaymaster.queueSlash/executeSlashWithBLS or
-        // markProposalExecuted — those must go through the per-severity slash
-        // threshold in verifyAndExecute. Selector-scoped (not target-scoped) so
-        // legitimate generic actions like Registry.updateOperatorBlacklist still work.
+        // H-1: block the FUND-MOVING slash selector + the consensus-marking DoS
+        // selector on the generic path (any target), so a caller-chosen (minThreshold)
+        // quorum can never drive SuperPaymaster.executeSlashWithBLS (the actual aPNTs
+        // burn) or markProposalExecuted (proposalId DoS). The actual slash must go
+        // through the per-severity threshold in verifyAndExecute.
+        //
+        // queueSlash is DELIBERATELY NOT blocked: it only sets a reversible
+        // pending-slash flag (blocks the operator's withdraw, owner-cancellable, no
+        // fund movement) and is the required pre-flag step of the HIGH-1 two-step
+        // slash. Gating it behind minThreshold (real quorum) is sufficient. Selector-
+        // scoped (not target-scoped) so Registry.updateOperatorBlacklist still works.
         if (callData.length >= 4) {
             bytes4 sel = bytes4(callData[0:4]);
-            if (sel == SEL_QUEUE_SLASH || sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED) {
+            if (sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED) {
                 revert ForbiddenGenericSelector(sel);
             }
         }
@@ -870,13 +874,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     function _executeSlash(uint256 proposalId, address operator, uint8 level, bytes calldata proof) internal {
         ISuperPaymasterSlash.SlashLevel sLevel = ISuperPaymasterSlash.SlashLevel(level);
-        // The BLS two-step slash is atomic here: the aggregator (as BLS_AGGREGATOR)
-        // queues the pending-slash flag then executes it in the SAME tx. SP.queueSlash
-        // is idempotent and SP.executeSlashWithBLS clears the flag, so a DVT slash is
-        // a single threshold-checked verifyAndExecute call. This is why the generic
-        // executeProposal path can (and must) keep BOTH queueSlash and
-        // executeSlashWithBLS selectors blocked (H-1) without breaking slash execution.
-        ISuperPaymasterSlash(SUPERPAYMASTER).queueSlash(operator);
+        // Two-step slash: the operator MUST already be flagged via SP.queueSlash in a
+        // SEPARATE, earlier consensus tx (the generic executeProposal queueSlash path,
+        // which is intentionally NOT selector-blocked — see executeProposal). That
+        // flag blocks the operator's withdraw() between the queue and this execute.
+        // Queuing + slashing atomically here would REOPEN the front-run window (the
+        // operator could drain their balance before the slash lands), regressing the
+        // HIGH-1 two-step protection — so the flag stays a distinct prior step. Only
+        // the fund-moving executeSlashWithBLS runs here, and it is reachable solely
+        // through this per-severity threshold-checked path.
         ISuperPaymasterSlash(SUPERPAYMASTER).executeSlashWithBLS(operator, sLevel, proof);
         emit SlashExecuted(proposalId, operator, level);
     }
