@@ -255,10 +255,11 @@ contract DVTValidator is Ownable, IVersioned {
         uint8 slashLevel,
         uint256 epoch,
         bytes calldata proof
-    ) external onlyAuthorizedExecutor {
-        if (msg.sender != BLS_AGGREGATOR) {
-            _requireActiveValidator(msg.sender);
-        }
+    ) external {
+        // Only an active DVT validator may drive a pre-flag. No BLS_AGGREGATOR
+        // exemption here (unlike executeWithProof): the aggregator never calls back
+        // into this forwarder, so that branch would be dead code.
+        _requireActiveValidator(msg.sender);
         IBLSAggregator(BLS_AGGREGATOR).queueSlashWithConsensus(operator, slashLevel, epoch, proof);
     }
 

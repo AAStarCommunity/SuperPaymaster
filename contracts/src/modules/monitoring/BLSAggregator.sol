@@ -926,8 +926,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function _executeSlash(uint256 proposalId, address operator, uint8 level, bytes calldata proof) internal {
         ISuperPaymasterSlash.SlashLevel sLevel = ISuperPaymasterSlash.SlashLevel(level);
         // Two-step slash: the operator MUST already be flagged via SP.queueSlash in a
-        // SEPARATE, earlier consensus tx (the generic executeProposal queueSlash path,
-        // which is intentionally NOT selector-blocked — see executeProposal). That
+        // SEPARATE, earlier consensus tx — the dedicated queueSlashWithConsensus entry
+        // (queueSlash IS selector-blocked on the generic executeProposal path). That
         // flag blocks the operator's withdraw() between the queue and this execute.
         // Queuing + slashing atomically here would REOPEN the front-run window (the
         // operator could drain their balance before the slash lands), regressing the
