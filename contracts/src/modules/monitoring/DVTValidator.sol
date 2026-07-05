@@ -244,6 +244,25 @@ contract DVTValidator is Ownable, IVersioned {
     // Last validator aggregates BLS signatures and calls executeWithProof
 
     /**
+     * @notice Step 1 of the two-step slash: forward an aggregated queue proof to the
+     *         aggregator, which pre-flags the operator (SP.queueSlash) at the
+     *         per-severity threshold. Kept separate from execution so the flag lands
+     *         in an earlier tx (front-run protection). Not tied to a proposalId —
+     *         queue by (operator, level) so it can precede createProposal.
+     */
+    function queueSlashWithProof(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata proof
+    ) external onlyAuthorizedExecutor {
+        if (msg.sender != BLS_AGGREGATOR) {
+            _requireActiveValidator(msg.sender);
+        }
+        IBLSAggregator(BLS_AGGREGATOR).queueSlashWithConsensus(operator, slashLevel, epoch, proof);
+    }
+
+    /**
      * @notice Direct execution with an aggregated proof
      */
     function executeWithProof(

@@ -19,6 +19,14 @@ interface IBLSAggregator {
     /// @notice Per-severity slash consensus threshold (SlashLevel => required signatures).
     function slashThresholds(uint8 slashLevel) external view returns (uint8);
 
+    /// @notice Step 1 of the two-step slash: quorum pre-flags an operator (SP.queueSlash).
+    function queueSlashWithConsensus(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata proof
+    ) external;
+
     function setDVTValidator(address _dvt) external;
 
     /// @notice External BLS verification entry point (P0-1).

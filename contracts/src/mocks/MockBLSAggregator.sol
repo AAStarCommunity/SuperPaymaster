@@ -56,5 +56,9 @@ contract MockBLSAggregator is IBLSAggregator {
         uint256, address, uint8, address[] calldata, uint256[] calldata, uint256, bytes32, bytes calldata
     ) external pure override {}
 
+    function queueSlashWithConsensus(
+        address, uint8, uint256, bytes calldata
+    ) external pure override {}
+
     function setDVTValidator(address) external pure override {}
 }

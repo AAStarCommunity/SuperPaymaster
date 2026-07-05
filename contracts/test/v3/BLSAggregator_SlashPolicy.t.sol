@@ -83,17 +83,38 @@ contract BLSAggregator_SlashPolicyTest is Test {
         bls.setSlashPolicyAdmin(attacker);
     }
 
-    // ---- (2) H-1: executeProposal cannot invoke the fund-moving / DoS selectors ----
+    // ---- (2) H-1: executeProposal cannot invoke slash / consensus-marking selectors ----
 
-    /// @notice queueSlash is a reversible pre-flag and the required first step of the
-    ///         HIGH-1 two-step slash, so it is NOT selector-blocked. It still requires
-    ///         a real quorum (minThreshold): here threshold 2 < minThreshold 3 reverts
-    ///         on the threshold check, proving the selector guard let it through.
-    function test_ExecuteProposal_AllowsQueueSlashSelector_NotForbidden() public {
+    /// @notice queueSlash is blocked on the generic path — it has its own dedicated
+    ///         quorum-gated entry (queueSlashWithConsensus). Routing it through
+    ///         executeProposal would also consume the proposalId, breaking a later
+    ///         verifyAndExecute for the same id.
+    function test_ExecuteProposal_ForbidsQueueSlashSelector() public {
         bytes memory cd = abi.encodeWithSignature("queueSlash(address)", attacker);
         vm.prank(dvt);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold below minimum"));
+        vm.expectRevert(abi.encodeWithSelector(
+            BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256("queueSlash(address)"))));
         bls.executeProposal(1, sp, cd, 2, hex"00");
+    }
+
+    // ---- (3) queueSlashWithConsensus: dedicated quorum-gated pre-flag ----
+
+    function test_QueueSlashWithConsensus_OnlyDvtOrOwner() public {
+        vm.prank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, attacker));
+        bls.queueSlashWithConsensus(attacker, 2, 1, hex"00");
+    }
+
+    function test_QueueSlashWithConsensus_RejectsInvalidLevel() public {
+        vm.prank(dvt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "slashLevel"));
+        bls.queueSlashWithConsensus(attacker, 3, 1, hex"00");
+    }
+
+    function test_QueueSlashWithConsensus_RejectsZeroOperator() public {
+        vm.prank(dvt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidTarget.selector, address(0)));
+        bls.queueSlashWithConsensus(address(0), 2, 1, hex"00");
     }
 
     function test_ExecuteProposal_ForbidsExecuteSlashWithBLSSelector() public {

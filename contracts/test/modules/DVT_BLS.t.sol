@@ -97,7 +97,9 @@ contract MockSuperPaymaster {
         MINOR,
         MAJOR
     }
-    // Mock the call signature
+    // Mock the call signatures used by the two-step BLS slash.
+    bool public queued;
+    function queueSlash(address) external { queued = true; }
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
 }
