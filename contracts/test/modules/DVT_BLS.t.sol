@@ -200,6 +200,35 @@ contract DVTBLSTest is Test {
         assertTrue(executed, "Proposal should be executed");
     }
 
+    function test_QueueSlashWithConsensus_FlagsAndBlocksReplay() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1))); // pairing success
+        bytes memory proof = _proofForMask(0x7F); // 7 signers >= MINOR threshold (3)
+
+        // First queue succeeds and pre-flags the operator on SP.
+        vm.prank(address(dvt));
+        bls.queueSlashWithConsensus(op, 1, 42, proof); // MINOR, epoch 42
+        assertTrue(sp.queued(), "operator pre-flagged via SP.queueSlash");
+
+        // Replaying the SAME proof (same operator/level/epoch) reverts — a consumed
+        // queue proof cannot re-flag after a cancel/execute cleared the flag.
+        bytes32 h = keccak256(abi.encode(keccak256("QUEUE_SLASH"), op, uint8(1), uint256(42), block.chainid));
+        vm.prank(address(dvt));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashQueueProofAlreadyUsed.selector, h));
+        bls.queueSlashWithConsensus(op, 1, 42, proof);
+
+        // A fresh, legitimate re-queue (new epoch → new hash) is allowed.
+        vm.prank(address(dvt));
+        bls.queueSlashWithConsensus(op, 1, 43, proof);
+    }
+
+    function test_QueueSlashWithProof_ForwarderFlags() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        bytes memory proof = _proofForMask(0x7F);
+        vm.prank(address(101)); // active validator drives the forwarder
+        dvt.queueSlashWithProof(op, 1, 7, proof);
+        assertTrue(sp.queued(), "operator pre-flagged via DVTValidator forwarder");
+    }
+
     function test_BLS_ManualVerify() public {
         // P0-17: BLSAggregator now calls back into DVTValidator.markProposalExecuted
         // which requires the proposal to exist. Create it first via the legitimate

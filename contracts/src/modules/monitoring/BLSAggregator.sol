@@ -93,6 +93,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     mapping(uint256 => AggregatedSignature) public aggregatedSignatures;
     mapping(uint256 => bool) public executedProposals;
+    /// @notice Replay guard for queueSlashWithConsensus. A queue proof commits to
+    ///         (operator, slashLevel, epoch, chainid); once consumed it cannot be
+    ///         replayed — otherwise the same signed proof could re-flag an operator
+    ///         after the owner cancelled the slash or after it already executed
+    ///         (a reusable withdraw-block DoS). A fresh, legitimate re-queue simply
+    ///         uses a new epoch (→ new hash).
+    mapping(bytes32 => bool) public usedSlashQueueHashes;
     mapping(uint256 => uint256) public proposalNonces;
 
     uint256 public minThreshold = 3;    // Floor for the GENERIC executeProposal path only
@@ -191,6 +198,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidSignatureCount(uint256 count, uint256 required);
     error SignatureVerificationFailed();
     error ProposalAlreadyExecuted(uint256 proposalId);
+    /// @notice A queueSlashWithConsensus proof was replayed (same operator/level/epoch).
+    error SlashQueueProofAlreadyUsed(bytes32 queueHash);
     error UnauthorizedCaller(address caller);
     error InvalidAddress(address addr);
     error InvalidBLSKey();
@@ -499,7 +508,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         bytes32 expectedMessageHash = keccak256(abi.encode(
             keccak256("QUEUE_SLASH"), operator, slashLevel, epoch, block.chainid
         ));
+        // Replay guard: a consumed queue proof cannot re-flag the operator after a
+        // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
+        if (usedSlashQueueHashes[expectedMessageHash]) revert SlashQueueProofAlreadyUsed(expectedMessageHash);
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+        usedSlashQueueHashes[expectedMessageHash] = true;
         ISuperPaymasterSlash(SUPERPAYMASTER).queueSlash(operator);
         emit SlashPreQueued(operator, slashLevel, epoch, requiredThreshold);
     }
