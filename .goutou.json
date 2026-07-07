@@ -1,0 +1,6 @@
+{
+  "repoId": "sp",
+  "coordProjectId": "03253073-c822-4a5a-b169-cb39976200c3",
+  "aliases": ["superpaymaster"],
+  "note": "SuperPaymaster repo. Coordination-Center (CC) label is repo:sp. REPO_ID fixed to sp so /goutou matches without manual correction."
+}
