@@ -176,7 +176,10 @@ const ABI = {
     // SBT / user state
     "function sbtHolders(address user) view returns (bool)",
     "function userOpState(address operator, address user) view returns (uint48 lastTimestamp, bool isBlocked)",
-    // Slash
+    // Slash (HIGH-1 two-step: queueSlash must precede slashOperator/executeSlashWithBLS)
+    "function queueSlash(address operator)",
+    "function cancelSlash(address operator)",
+    "function isSlashPending(address operator) view returns (bool)",
     "function slashOperator(address operator, uint8 level, uint256 penaltyAmount, string reason)",
     "function getSlashCount(address operator) view returns (uint256)",
     "function getSlashHistory(address operator) view returns (tuple(uint256 timestamp, uint256 amount, uint256 reputationLoss, string reason, uint8 level)[])",
