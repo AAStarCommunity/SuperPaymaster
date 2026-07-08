@@ -35,12 +35,17 @@ contract XPNTsOverIssueTest is Test {
         _setStake(0); // default: no aPNTs backing
     }
 
-    /// @dev Mock SuperPaymaster.operators(community) → aPNTsBalance = `staked`.
+    /// @dev Mock canonical-SP.operators(community) → configured & linked to THIS token, stake set.
     function _setStake(uint128 staked) internal {
+        _setStakeOn(mockSP, staked, true, address(token));
+    }
+
+    /// @dev Full control of the operators() tuple, for spoof-resistance tests.
+    function _setStakeOn(address sp, uint128 staked, bool isConfigured, address linkedToken) internal {
         vm.mockCall(
-            mockSP,
+            sp,
             abi.encodeWithSelector(bytes4(keccak256("operators(address)")), community),
-            abi.encode(staked, false, false, address(0), uint32(0), uint48(0), address(0), uint256(0), uint256(0))
+            abi.encode(staked, isConfigured, false, linkedToken, uint32(0), uint48(0), address(0), uint256(0), uint256(0))
         );
     }
 
@@ -115,6 +120,40 @@ contract XPNTsOverIssueTest is Test {
     }
 
     // ---------------------------------------------------------------------
+    // H-1: backing is spoof-resistant (canonical SP + link verification)
+    // ---------------------------------------------------------------------
+
+    function test_Backing_IgnoresCommunityMutableSP() public {
+        _mint(600_000 ether); // over the $10k baseline, no backing
+        assertTrue(token.isOverIssued());
+        // Attacker deploys a fake SP that reports a huge stake and points the token at it.
+        address fakeSP = address(0xBEEF);
+        vm.mockCall(
+            fakeSP,
+            abi.encodeWithSelector(bytes4(keccak256("operators(address)")), community),
+            abi.encode(uint128(10_000_000 ether), true, false, address(token), uint32(0), uint48(0), address(0), uint256(0), uint256(0))
+        );
+        vm.prank(community);
+        token.setSuperPaymasterAddress(fakeSP);
+        // backing still reads the CANONICAL factory SP, not the community-set one → still over-issued.
+        assertEq(token.backingValueUSD(), 0);
+        assertTrue(token.isOverIssued());
+    }
+
+    function test_Backing_RequiresConfiguredAndLinked() public {
+        _mint(600_000 ether);
+        // stake present but operator not configured → not counted
+        _setStakeOn(mockSP, 500_000 ether, false, address(token));
+        assertEq(token.backingValueUSD(), 0);
+        // configured but linked to a DIFFERENT token → not counted (can't borrow others' stake)
+        _setStakeOn(mockSP, 500_000 ether, true, address(0xDEAD));
+        assertEq(token.backingValueUSD(), 0);
+        // configured AND linked to this token → counted
+        _setStakeOn(mockSP, 500_000 ether, true, address(token));
+        assertEq(token.backingValueUSD(), 10_000 ether);
+    }
+
+    // ---------------------------------------------------------------------
     // credibilityScore
     // ---------------------------------------------------------------------
 
@@ -134,17 +173,26 @@ contract XPNTsOverIssueTest is Test {
     // category
     // ---------------------------------------------------------------------
 
-    function test_Category_ChangesBaseline() public {
-        vm.prank(community);
-        token.setCategory("DeFi");
+    function test_Category_GovernanceAssigned_ChangesBaseline() public {
+        vm.prank(owner); // H-3: category is governance-assigned, NOT community-selected
+        factory.setTokenCategory(address(token), "DeFi");
         assertEq(token.effectiveCapUSD(), 50_000 ether); // DeFi baseline
         _mint(600_000 ether); // $12,000 < $50,000
         assertFalse(token.isOverIssued());
     }
 
-    function test_SetCategory_OnlyCommunityOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(xPNTsToken.Unauthorized.selector, address(this)));
-        token.setCategory("DeFi");
+    function test_SetTokenCategory_OnlyGovernance() public {
+        // community cannot self-select a higher-baseline category
+        vm.prank(community);
+        vm.expectRevert();
+        factory.setTokenCategory(address(token), "DeFi");
+    }
+
+    function test_Category_EmptyFallsBackToDefault() public {
+        assertEq(token.effectiveCapUSD(), 10_000 ether); // never assigned → "default"
+        vm.prank(owner);
+        factory.setTokenCategory(address(token), ""); // explicit reset
+        assertEq(token.effectiveCapUSD(), 10_000 ether);
     }
 
     // ---------------------------------------------------------------------
@@ -173,6 +221,32 @@ contract XPNTsOverIssueTest is Test {
         vm.prank(owner);
         factory.setIndustryScaleUSD("default", 1_000 ether);
         assertEq(token.effectiveCapUSD(), 1_000 ether);
+    }
+
+    function test_SetIndustryScaleUSD_BoundedToPreventOverflow() public {
+        uint256 tooBig = factory.MAX_INDUSTRY_SCALE_USD() + 1;
+        vm.prank(owner);
+        vm.expectRevert(xPNTsFactory.InvalidParameters.selector);
+        factory.setIndustryScaleUSD("default", tooBig);
+    }
+
+    // ---------------------------------------------------------------------
+    // M-1: renounceFactory must NOT make the auditor's isOverIssued() revert
+    // ---------------------------------------------------------------------
+
+    function test_RenounceFactory_ViewsDegradeGracefully() public {
+        _mint(600_000 ether);
+        assertTrue(token.isOverIssued()); // tier-2 active
+        vm.prank(community);
+        token.renounceFactory();
+        // views must not revert; tier-2 is unavailable → degrades to tier-1 only
+        assertEq(token.effectiveCapUSD(), 0);
+        assertEq(token.issuedValueUSD(), 0);
+        assertFalse(token.isOverIssued()); // no tier-1 cap set
+        // tier-1 still enforceable after renounce
+        vm.prank(community);
+        token.setIssuanceCap(100_000 ether);
+        assertTrue(token.isOverIssued());
     }
 
     function test_FactoryKnobs_OnlyOwner() public {

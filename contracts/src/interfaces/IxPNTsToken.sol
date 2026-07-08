@@ -87,8 +87,6 @@ interface IxPNTsToken {
     function credibilityScore() external view returns (uint8);
 
     /// @notice CC-28 tier-1: absolute hard cap on totalSupply (xPNTs). 0 = disabled.
+    ///         A voluntary community self-limit; DVT relies on tier-2 (isOverIssued value model).
     function issuanceCap() external view returns (uint256);
-
-    /// @notice CC-28 tier-2: industry category key (into factory.industryScaleUSD).
-    function category() external view returns (string memory);
 }

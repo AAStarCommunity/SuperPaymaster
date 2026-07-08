@@ -13,6 +13,10 @@ interface IxPNTsFactoryCap {
     function aPNTsPriceUSD() external view returns (uint256);
     function industryScaleUSD(string calldata category) external view returns (uint256);
     function capRatioBps() external view returns (uint16);
+    /// @dev Governance-assigned category for a token (community cannot self-select).
+    function tokenCategory(address token) external view returns (string memory);
+    /// @dev The canonical, governance-set SuperPaymaster — the ONLY trusted backing source.
+    function SUPERPAYMASTER() external view returns (address);
 }
 
 /// @dev CC-28: minimal view of SuperPaymaster to read a community's staked aPNTs backing.
@@ -179,13 +183,11 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     mapping(bytes32 => bool) public usedDebtHashes;
 
     /// @notice CC-28 tier-1: absolute hard cap on totalSupply (in xPNTs). 0 = disabled.
-    /// @dev    Community-controlled circuit breaker independent of the value-based model.
+    /// @dev    A community-controlled circuit breaker (voluntary self-limit), NOT the auditor's
+    ///         enforcement tool — a community can raise/clear it, so DVT relies on tier-2
+    ///         (the value model), whose inputs are governance-controlled. tier-1 just lets a
+    ///         community cap its own issuance defensively.
     uint256 public issuanceCap;
-
-    /// @notice CC-28 tier-2: industry category key into factory.industryScaleUSD.
-    /// @dev    Empty string falls back to "default" (see _categoryKey), so pre-CC-28 clones
-    ///         that never set this still get the default baseline. Community-controlled.
-    string public category;
 
     function version() external pure override returns (string memory) {
         return "XPNTs-3.5.0"; // CC-28 over-issue model (issuanceCap + value-based cap)
@@ -230,8 +232,6 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     event MaxSingleTxLimitUpdated(uint256 oldLimit, uint256 newLimit);
     /// @notice CC-28: emitted when the absolute issuance hard cap is updated.
     event IssuanceCapUpdated(uint256 oldCap, uint256 newCap);
-    /// @notice CC-28: emitted when the industry category is updated.
-    event CategoryUpdated(string oldCategory, string newCategory);
 
 
     // ====================================
@@ -776,63 +776,92 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     // CC-28: over-issue model (DVT audit rule ③)
     //
     // Two tiers a DVT auditor can read to detect an over-issuing community:
-    //   tier-1  issuanceCap   — an absolute community-set hard cap on totalSupply.
+    //   tier-1  issuanceCap   — a community-set VOLUNTARY hard cap on totalSupply. Not the
+    //                           auditor's tool (community can raise/clear it); a defensive
+    //                           self-limit only.
     //   tier-2  value model   — issued USD value must stay within an effective cap of
-    //                           (industry baseline) + (aPNTs staked in SuperPaymaster).
+    //                           (industry baseline) + (aPNTs staked in SuperPaymaster). This
+    //                           is the auditor signal; its inputs are governance-controlled:
+    //                             * category   → factory.tokenCategory (owner-assigned)
+    //                             * baseline   → factory.industryScaleUSD/capRatioBps (owner)
+    //                             * price      → factory.aPNTsPriceUSD (owner)
+    //                             * backing SP → factory.SUPERPAYMASTER (owner, canonical)
+    //                           so the audited community cannot spoof a false negative.
+    //
     // Backing is aPNTs-stake-only for now; a future MyShop / IBackingSource can be added
     // additively without changing this ABI. isOverIssued() is what DVT calls per token.
+    //
+    // Residual, bounded evasions (documented, not exploitable for a clean pass):
+    //   * exchangeRate re-pricing lowers issued value, but it is the real redemption rate and
+    //     is bounded to +-20%/hr (EXCHANGE_RATE_DELTA_BPS) within [MIN,MAX] — devaluing the
+    //     token genuinely lowers obligations, and DVT audits finalized snapshots.
+    //   * renounceFactory() disables tier-2 (views degrade to tier-1); DVT should treat a
+    //     factory-less token as unauditable/suspect at the enumeration layer.
     // =====================================================================
 
     /// @notice CC-28 tier-1: set the absolute hard cap on totalSupply (xPNTs). 0 = disabled.
+    /// @dev    A voluntary community self-limit — DVT does not rely on this (see tier-2).
     function setIssuanceCap(uint256 newCap) external {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
         emit IssuanceCapUpdated(issuanceCap, newCap);
         issuanceCap = newCap;
     }
 
-    /// @notice CC-28 tier-2: set the industry category key (into factory.industryScaleUSD).
-    function setCategory(string calldata newCategory) external {
-        if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
-        emit CategoryUpdated(category, newCategory);
-        category = newCategory;
-    }
-
-    /// @dev Empty category falls back to "default" so pre-CC-28 clones get a baseline.
+    /// @dev The governance-assigned category (factory.tokenCategory), else "default".
+    ///      Never community-controlled — that would let the audited party pick its own baseline.
     function _categoryKey() internal view returns (string memory) {
-        return bytes(category).length == 0 ? "default" : category;
+        address f = FACTORY;
+        if (f == address(0)) return "default";
+        string memory c = IxPNTsFactoryCap(f).tokenCategory(address(this));
+        return bytes(c).length == 0 ? "default" : c;
     }
 
     /// @notice CC-28: USD value (18 decimals) of all issued xPNTs.
     /// @dev    aPNTs-equivalent = totalSupply * 1e18 / exchangeRate; USD = aPNTs * price / 1e18.
-    ///         Collapsed to totalSupply * price / exchangeRate. exchangeRate is >=1e18 by
-    ///         construction, but we guard 0 to keep this a safe view.
+    ///         Collapsed to totalSupply * price / exchangeRate. Rounded UP (Ceil) so a
+    ///         community cannot sit exactly on the cap via a rounding-down false negative.
+    ///         Returns 0 if the factory was renounced (price unknowable) — tier-2 then degrades.
     function issuedValueUSD() public view returns (uint256) {
         uint256 rate = exchangeRate;
-        if (rate == 0) return 0;
-        return Math.mulDiv(totalSupply(), IxPNTsFactoryCap(FACTORY).aPNTsPriceUSD(), rate);
+        address f = FACTORY;
+        if (rate == 0 || f == address(0) || totalSupply() == 0) return 0;
+        return Math.mulDiv(totalSupply(), IxPNTsFactoryCap(f).aPNTsPriceUSD(), rate, Math.Rounding.Ceil);
     }
 
     /// @notice CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster.
+    /// @dev    Reads ONLY the canonical, governance-set SuperPaymaster (factory.SUPERPAYMASTER),
+    ///         never the token's community-mutable SUPERPAYMASTER_ADDRESS — otherwise a
+    ///         community could point at a fake SP returning an inflated balance. Counts the
+    ///         stake only when SP confirms the operator is configured AND linked to THIS token,
+    ///         so unrelated operators' stake can't be borrowed as backing.
     function backingValueUSD() public view returns (uint256) {
-        address sp = SUPERPAYMASTER_ADDRESS;
+        address f = FACTORY;
+        if (f == address(0)) return 0;
+        address sp = IxPNTsFactoryCap(f).SUPERPAYMASTER();
         if (sp == address(0)) return 0;
-        (uint128 staked,,,,,,,,) = ISPStakeView(sp).operators(communityOwner);
-        if (staked == 0) return 0;
-        return Math.mulDiv(uint256(staked), IxPNTsFactoryCap(FACTORY).aPNTsPriceUSD(), 1e18);
+        (uint128 staked, bool isConfigured, , address linkedToken, , , , , ) =
+            ISPStakeView(sp).operators(communityOwner);
+        if (!isConfigured || linkedToken != address(this) || staked == 0) return 0;
+        return Math.mulDiv(uint256(staked), IxPNTsFactoryCap(f).aPNTsPriceUSD(), 1e18);
     }
 
     /// @notice CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing.
     function effectiveCapUSD() public view returns (uint256) {
-        IxPNTsFactoryCap f = IxPNTsFactoryCap(FACTORY);
-        uint256 baseCap = Math.mulDiv(f.industryScaleUSD(_categoryKey()), f.capRatioBps(), 10_000);
+        address f = FACTORY;
+        if (f == address(0)) return 0;
+        IxPNTsFactoryCap fc = IxPNTsFactoryCap(f);
+        uint256 baseCap = Math.mulDiv(fc.industryScaleUSD(_categoryKey()), fc.capRatioBps(), 10_000);
         return baseCap + backingValueUSD();
     }
 
     /// @notice CC-28 rule ③: true when this community has over-issued xPNTs — either the
     ///         absolute issuanceCap (if set) is breached, or issued USD value exceeds the
     ///         effective cap (industry baseline + staked-aPNTs backing). DVT calls this.
+    ///         Never reverts (safe for a DVT auditor); if the factory was renounced, only the
+    ///         tier-1 cap applies.
     function isOverIssued() external view returns (bool) {
         if (issuanceCap != 0 && totalSupply() > issuanceCap) return true;
+        if (FACTORY == address(0)) return false; // tier-2 unavailable; tier-1 already checked
         return issuedValueUSD() > effectiveCapUSD();
     }
 

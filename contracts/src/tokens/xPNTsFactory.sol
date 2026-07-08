@@ -91,6 +91,15 @@ contract xPNTsFactory is Ownable, IVersioned {
     ///      0 < capRatioBps <= 10000. Governance knob to tighten/loosen the whole baseline.
     uint16 public capRatioBps;
 
+    /// @notice CC-28: governance-assigned industry category per xPNTs token.
+    /// @dev    MUST be governance-set (not community-self-selected) — otherwise the audited
+    ///         party could pick a higher-baseline category to evade over-issue detection.
+    ///         Empty => xPNTsToken._categoryKey() falls back to "default". Read by the token.
+    mapping(address => string) public tokenCategory;
+
+    /// @notice CC-28: safety ceiling on a category's baseline (guards effectiveCapUSD overflow).
+    uint256 public constant MAX_INDUSTRY_SCALE_USD = 1e12 ether; // $1 trillion
+
     // ====================================
     // Constants
     // ====================================
@@ -142,6 +151,8 @@ contract xPNTsFactory is Ownable, IVersioned {
     event IndustryScaleSet(string indexed category, uint256 scaleUSD);
     /// @notice CC-28: emitted when the global baseline cap ratio is changed.
     event CapRatioBpsSet(uint16 oldBps, uint16 newBps);
+    /// @notice CC-28: emitted when a token's governance-assigned category is set.
+    event TokenCategorySet(address indexed token, string category);
 
     event SuperPaymasterAddressUpdated(address indexed oldAddr, address indexed newAddr);
     event SuperPaymasterPropagationFailed(address indexed token, address indexed newSP);
@@ -453,8 +464,19 @@ contract xPNTsFactory is Ownable, IVersioned {
      *         it must back all issuance with staked aPNTs. Governance-controlled.
      */
     function setIndustryScaleUSD(string calldata category, uint256 scaleUSD) external onlyOwner {
+        if (scaleUSD > MAX_INDUSTRY_SCALE_USD) revert InvalidParameters();
         industryScaleUSD[category] = scaleUSD;
         emit IndustryScaleSet(category, scaleUSD);
+    }
+
+    /**
+     * @notice CC-28: assign the industry category for an xPNTs token. Governance-only so the
+     *         audited community cannot self-select a higher-baseline category to evade
+     *         over-issue detection. Empty string resets the token to the "default" baseline.
+     */
+    function setTokenCategory(address token, string calldata category) external onlyOwner {
+        tokenCategory[token] = category;
+        emit TokenCategorySet(token, category);
     }
 
     /**
