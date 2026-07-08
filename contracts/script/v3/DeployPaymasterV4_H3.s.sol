@@ -10,7 +10,6 @@ interface IPaymasterFactory {
     function implementations(string memory) external view returns (address);
     function addImplementation(string memory version, address implementation) external;
     function upgradeImplementation(string memory version, address newImplementation) external;
-    function defaultVersion() external view returns (string memory);
     function owner() external view returns (address);
 }
 
@@ -28,6 +27,12 @@ interface IPaymasterFactory {
  */
 contract DeployPaymasterV4_H3 is Script {
     string constant VERSION = "PMV4-Deposit-4.5.1";
+    // The specific factory version key every deploy script passes to deployPaymaster(). Hardcoded
+    // (not read from defaultVersion()) so a changed default can never repoint the WRONG key.
+    string constant ACTIVE_VERSION = "v4.2";
+    // The known pre-fix impl version this fix supersedes — we only repoint ACTIVE_VERSION when it
+    // still points at this (or is unset), never clobbering a different/newer impl a maintainer set.
+    string constant PREV_VERSION = "PMV4-Deposit-4.5.0";
 
     function run() external {
         string memory network = vm.envOr("ENV", string("sepolia"));
@@ -41,11 +46,10 @@ contract DeployPaymasterV4_H3 is Script {
         console.log("=== Deploy PaymasterV4 4.3.2 impl (#327) ===");
         console.log("  Factory:", factoryAddr);
 
-        // The factory's defaultVersion (the key every deploy script passes to deployPaymaster —
-        // "v4.2") is what NEW community paymasters actually clone. Registering the fixed impl under a
-        // fresh key alone would be orphaned, so we ALSO repoint that active version at the fixed impl.
-        string memory activeVersion = factory.defaultVersion();
-
+        // ACTIVE_VERSION ("v4.2") is the key every deploy script passes to deployPaymaster(), so
+        // that's what NEW community paymasters clone. Registering the fixed impl under VERSION alone
+        // would be orphaned; we also repoint ACTIVE_VERSION at the fixed impl — but ONLY when it
+        // still points at the known pre-fix impl, never clobbering a different/newer one.
         vm.startBroadcast();
         // 1. Deploy + register the fixed impl under its own version key (idempotent).
         address impl = factory.implementations(VERSION);
@@ -55,18 +59,25 @@ contract DeployPaymasterV4_H3 is Script {
             factory.addImplementation(VERSION, address(newImpl));
             impl = address(newImpl);
         }
-        // 2. Repoint the ACTIVE deploy version at the fixed impl so deployPaymaster(defaultVersion)
-        //    actually yields the H-3 fix. Existing EIP-1167 clones are immutable and keep the old impl.
-        if (factory.implementations(activeVersion) != impl) {
-            factory.upgradeImplementation(activeVersion, impl);
+        // 2. Repoint ACTIVE_VERSION at the fixed impl. Guard: only when it currently points at the
+        //    known pre-fix impl (or is unset). Refuse to clobber an unexpected impl — a maintainer
+        //    may have deliberately set a newer one under this key.
+        address activeImpl = factory.implementations(ACTIVE_VERSION);
+        if (activeImpl != impl) {
+            require(
+                activeImpl == address(0) ||
+                keccak256(bytes(Paymaster(payable(activeImpl)).version())) == keccak256(bytes(PREV_VERSION)),
+                "V: v4.2 points at an unexpected impl - refusing to clobber"
+            );
+            factory.upgradeImplementation(ACTIVE_VERSION, impl);
         }
         vm.stopBroadcast();
 
         require(factory.implementations(VERSION) == impl, "V: registration failed");
-        require(factory.implementations(activeVersion) == impl, "V: active version not repointed");
+        require(factory.implementations(ACTIVE_VERSION) == impl, "V: active version not repointed");
         console.log("  New impl:", impl);
         console.log("  Registered as:", VERSION);
-        console.log("  Active version repointed:", activeVersion);
+        console.log("  Active version repointed:", ACTIVE_VERSION);
 
         vm.writeJson(vm.toString(impl), configPath, ".paymasterV4Impl");
         _ensureTrailingNewline(configPath);
