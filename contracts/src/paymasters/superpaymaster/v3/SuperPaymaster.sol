@@ -59,7 +59,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.4.1"; // v5.4.1 two-step slash guard + BLS_AGGREGATOR wiring + srcHash authority
+        return "SuperPaymaster-5.4.2"; // v5.4.2 CC-13: BLS-path slash cooldown (anti-double-slash) + isSlashPending getter
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -322,6 +322,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
 
     uint256 public constant EMERGENCY_TIMELOCK = 1 hours;
     uint256 internal constant CHAINLINK_STALE_THRESHOLD = 1 hours;
+    /// @notice Anti-double-slash cooldown for the BLS/DVT slash path (executeSlashWithBLS).
+    ///         Sized to cover the finality-lag + gossip + re-queue race window across DVT
+    ///         nodes (which observe the same violation at different blocks → different epoch
+    ///         → distinct queue-hash that the aggregator replay-guard cannot dedupe), while
+    ///         staying short enough to allow a legitimate MINOR→MAJOR escalation afterwards.
+    uint48 internal constant SLASH_BLS_COOLDOWN = 1 hours;
     uint256 internal constant EMERGENCY_PRICE_DEVIATION_BPS = 2000; // 20%
     /// @notice Maximum duration for which EMERGENCY mode may remain active.
     ///         After 7 days without Chainlink recovery the break-glass is
@@ -856,6 +862,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     }
 
     /**
+     * @notice Whether `operator` currently has a slash queued (withdraw-blocking flag set).
+     * @dev O(1) authoritative read of the private `_pendingSlash` flag. DVT peers use this
+     *      for failover — when the node that queued a slash dies before executing, another
+     *      peer detects the pending state and continues to execute rather than re-queuing
+     *      (which the aggregator replay-guard would reject). Replaces off-chain reconstruction
+     *      from SlashQueued/SlashCancelled/OperatorSlashed events.
+     */
+    function isSlashPending(address operator) external view returns (bool) {
+        return _pendingSlash[operator];
+    }
+
+    /**
      * @notice Slash an operator (Admin/Governance only)
      * @dev Reduces reputation and optionally pauses operator.
      *      Clears the pending-slash flag so the operator can withdraw again after.
@@ -890,6 +908,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
         // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
         require(_pendingSlash[operator], "SP: must queueSlash first");
+        // CC-13: mirror the owner path's cooldown on the BLS/DVT path. Two DVT nodes observing
+        // the same violation at different finalized blocks derive different epochs → distinct
+        // queue-hashes that bypass the aggregator replay-guard, letting a second slash land after
+        // the first cleared _pendingSlash. The cooldown authoritatively closes that double-slash.
+        if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
+        _slashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 
         // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
         // Major is further capped at 30% inside _slash (applyCap=true).

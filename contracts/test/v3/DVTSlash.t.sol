@@ -138,4 +138,76 @@ contract DVTSlashTest is Test {
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 1 ether, "No stake yet");
         vm.stopPrank();
     }
+
+    // ============================================================
+    // CC-13: BLS-path slash cooldown (anti double-slash) + isSlashPending
+    // ============================================================
+
+    function _registerOperatorForSlash() internal {
+        vm.startPrank(operator);
+        gtoken.approve(address(staking), 100 ether);
+        bytes memory commData = abi.encode(
+            Registry.CommunityRoleData({ name: "OpComm", ensName: "", stakeAmount: 30 ether })
+        );
+        registry.registerRole(keccak256("COMMUNITY"), operator, commData);
+        bytes memory roleData = abi.encode(uint256(50 ether));
+        registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);
+        vm.stopPrank();
+    }
+
+    /// @dev Two DVT nodes observing the same violation at different finalized blocks derive
+    ///      different epochs → distinct queue-hashes that bypass the aggregator replay-guard.
+    ///      Node B re-queues after node A cleared _pendingSlash and would double-slash. The
+    ///      BLS-path cooldown must block the second execute within the window.
+    function test_ExecuteSlashWithBLS_CooldownBlocksDoubleSlash() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+        assertFalse(paymaster.isSlashPending(operator), "pending cleared after first execute");
+
+        // Second node re-queues with a fresh epoch (aggregator would allow) then tries to execute.
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "re-queued pending set");
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        vm.stopPrank();
+    }
+
+    /// @dev After the 1h cooldown elapses, a legitimate later slash (e.g. escalation) succeeds.
+    function test_ExecuteSlashWithBLS_CooldownExpires() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        paymaster.queueSlash(operator);
+        vm.warp(block.timestamp + 1 hours + 1);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        assertFalse(paymaster.isSlashPending(operator), "pending cleared after cooldown expiry execute");
+        vm.stopPrank();
+    }
+
+    /// @dev The public getter must mirror the private _pendingSlash flag through its lifecycle.
+    function test_IsSlashPending_ReflectsFlag() public {
+        _registerOperatorForSlash();
+
+        assertFalse(paymaster.isSlashPending(operator), "no pending initially");
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after queue");
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof");
+        assertFalse(paymaster.isSlashPending(operator), "cleared after execute");
+        vm.stopPrank();
+
+        // owner cancelSlash path also reflected
+        vm.prank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after re-queue");
+        vm.prank(owner);
+        paymaster.cancelSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "cleared after cancel");
+    }
 }
