@@ -98,7 +98,7 @@ contract Paymaster is PaymasterBase, Initializable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     function version() external pure override returns (string memory) {
-        return "PMV4-Deposit-4.5.0";
+        return "PMV4-Deposit-4.5.1"; // v4.5.1 H-3(#327): reject ops over maxGasCostCap
     }
 
     /// @notice Get the Paymaster data offset (version specific)
