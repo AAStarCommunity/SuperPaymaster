@@ -156,6 +156,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event SlashQueued(address indexed operator);
     /// @notice M-5: emitted when a pending slash is cancelled without execution.
     event SlashCancelled(address indexed operator);
+    /// @notice CC-13: emitted when the global BLS-slash cooldown floor is (re-)primed.
+    event BlsSlashCooldownPrimed(uint48 floorUntil);
     
     event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
     /**
@@ -853,10 +855,29 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // flag would let a second slash execute for the same violation with no fresh queue. Gating
         // the re-arm here — not just the execution — is what actually prevents the double-slash.
         // Owner (trusted governance) may still queue; its slashOperator path carries its own cooldown.
-        // Uses the dedicated _blsSlashCd (F2) so the owner path's 24h cooldown never blocks DVT.
-        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _blsSlashCd[operator]) revert SlashCooldown();
+        // Uses the dedicated BLS cooldown (F2) so the owner path's 24h cooldown never blocks DVT.
+        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _blsCooldownEnd(operator)) revert SlashCooldown();
         _pendingSlash[operator] = true;
         emit SlashQueued(operator);
+    }
+
+    /// @dev Effective end of the BLS-slash cooldown for `operator`: the later of the per-operator
+    ///      cooldown and the global post-upgrade floor (`_blsSlashCdFloor`). The floor closes the
+    ///      cold-start window right after the 5.4.2 upgrade (see `primeBlsSlashCooldown`).
+    function _blsCooldownEnd(address operator) internal view returns (uint48) {
+        uint48 cd = _blsSlashCd[operator];
+        uint48 fl = _blsSlashCdFloor;
+        return fl > cd ? fl : cd;
+    }
+
+    /// @notice One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`.
+    /// @dev    Owner-only. Called atomically from the 5.4.2 upgrade (upgradeToAndCall data) so that,
+    ///         immediately after the impl swap, no operator can be BLS-slashed for the cooldown
+    ///         window — covering any operator that was slashed shortly before the upgrade and thus
+    ///         has no per-operator `_blsSlashCd` recorded. Idempotent and harmless to re-call.
+    function primeBlsSlashCooldown() external onlyOwner {
+        _blsSlashCdFloor = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
+        emit BlsSlashCooldownPrimed(_blsSlashCdFloor);
     }
 
     /**
@@ -920,8 +941,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // queueSlash, which blocks the BLS path from parking a stale pending flag during the window).
         // The check here is defense-in-depth for any path that arms _pendingSlash within the window
         // (e.g. an owner queue followed by a BLS execute); the set records the window start.
-        // Dedicated _blsSlashCd (F2) — decoupled from the owner path's _slashCd.
-        if (uint48(block.timestamp) < _blsSlashCd[operator]) revert SlashCooldown();
+        // Dedicated BLS cooldown (F2) — decoupled from the owner path's _slashCd; includes the
+        // global post-upgrade floor (_blsCooldownEnd) so the cold-start window is covered.
+        if (uint48(block.timestamp) < _blsCooldownEnd(operator)) revert SlashCooldown();
         _blsSlashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 
         // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
@@ -1619,12 +1641,20 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // the end of storage (UUPS-safe: existing slots unchanged, __gap reduced 30→29).
     mapping(address => uint48) private _blsSlashCd;
 
+    // CC-13: global BLS-slash cooldown floor. `primeBlsSlashCooldown()` sets it to now+cooldown
+    // atomically during the 5.4.2 upgrade. This closes the cold-start window: right after an
+    // upgrade that introduces/rebuilds `_blsSlashCd`, an operator BLS-slashed shortly before the
+    // upgrade has no per-operator cooldown recorded, so a raced duplicate could slip through. The
+    // floor treats the upgrade moment as if every operator was just slashed (blanket 1h pause).
+    // Effective end = max(_blsSlashCd[op], _blsSlashCdFloor).
+    uint48 private _blsSlashCdFloor;
+
     // v5.4 god-split phase 1: the x402 settle/admin LOGIC moved to X402Facilitator, but
     // the 4 x402 storage slots are RETAINED above as `private __deprecated_*` placeholders
     // to keep this UUPS proxy's layout byte-identical to the pre-split deployed layout.
     // Every variable keeps its original slot, so an in-place upgrade of the live proxy stays
     // storage-safe. 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta +
-    // _settledDebtOps + _pendingSlash + _blsSlashCd = 23. (The 4 deprecated x402 slots are
-    // accounted in the "18 original"+V5 block, not here.)
-    uint256[29] private __gap;
+    // _settledDebtOps + _pendingSlash + _blsSlashCd + _blsSlashCdFloor = 24. (The 4 deprecated
+    // x402 slots are accounted in the "18 original"+V5 block, not here.)
+    uint256[28] private __gap;
 }

@@ -31,12 +31,21 @@ source .env.sepolia && forge script contracts/script/v3/UpgradeToV5_4_2.s.sol:Up
   --rpc-url $RPC_URL --account $DEPLOYER_ACCOUNT --broadcast -vvvv
 ```
 
+The upgrade is done via `upgradeToAndCall(newImpl, encodeCall(primeBlsSlashCooldown))`
+— the impl swap **and** the global BLS-cooldown floor prime land in **one atomic tx**.
+The floor (`_blsSlashCdFloor = now + 1h`) closes the **cold-start window**: right after the
+upgrade `_blsSlashCd` is empty, so an operator BLS-slashed shortly before the upgrade would
+have no recorded cooldown — the floor blankets ALL operators for one window (owner path exempt).
+Expect: **no BLS slash executes for ~1h after the upgrade** (by design); owner `slashOperator`
+still works.
+
 The script **codifies** the critical checks (reverts if any fail):
 - [ ] `version() == "SuperPaymaster-5.4.2"`
 - [ ] storage integrity: `owner`, `APNTS_TOKEN`, `treasury`, `BLS_AGGREGATOR`,
       `protocolFeeBPS`, `aPNTsPriceUSD` **unchanged** across the swap
 - [ ] `isSlashPending(0x0) == false` (new fn live)
 - [ ] `BLS_AGGREGATOR == config.blsAggregator` (slash wiring intact)
+- [ ] `BlsSlashCooldownPrimed(floorUntil)` event emitted (floor primed atomically)
 - [ ] auto-patches `config.<net>.json`: `spImpl`, `srcHash`, `updateTime`
 
 ## 2. On-chain wiring re-verification (defense against "missed wiring")

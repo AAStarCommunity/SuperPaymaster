@@ -74,8 +74,15 @@ contract UpgradeToV5_4_2 is Script {
             );
             newImpl = address(newSPImpl);
             console.log("  New SP impl:", newImpl);
-            UUPSUpgradeable(spProxy).upgradeToAndCall(newImpl, "");
-            console.log("  SP upgradeToAndCall executed");
+            // Atomically prime the global BLS-slash cooldown floor in the SAME tx as the impl swap,
+            // closing the cold-start double-slash window (an operator slashed shortly before the
+            // upgrade has no per-operator _blsSlashCd recorded). Delegatecalled with msg.sender ==
+            // the owner performing the upgrade, so the onlyOwner guard passes.
+            UUPSUpgradeable(spProxy).upgradeToAndCall(
+                newImpl,
+                abi.encodeCall(SuperPaymaster.primeBlsSlashCooldown, ())
+            );
+            console.log("  SP upgradeToAndCall + primeBlsSlashCooldown executed");
         } else {
             console.log("  SuperPaymaster already at target version - skipping");
             bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;

@@ -285,4 +285,44 @@ contract DVTSlashTest is Test {
         vm.stopPrank();
         assertFalse(paymaster.isSlashPending(operator), "cleared after post-expiry execute");
     }
+
+    /// @dev CC-13: the post-upgrade global cooldown floor blankets EVERY operator for one window,
+    ///      covering the cold-start gap where an operator slashed just before the upgrade has no
+    ///      per-operator _blsSlashCd recorded. Primed atomically by the 5.4.2 upgrade.
+    function test_PrimeBlsSlashCooldown_BlanketsFreshOperator() public {
+        _registerOperatorForSlash();
+
+        vm.prank(owner);
+        paymaster.primeBlsSlashCooldown();
+
+        // A never-slashed operator's BLS queue is blocked within the floor window...
+        vm.prank(dvtAggregator);
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+
+        // ...and succeeds once the floor lapses.
+        vm.warp(block.timestamp + 1 hours + 1);
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "post-floor");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "cleared after post-floor execute");
+    }
+
+    /// @dev The owner path is exempt from the BLS floor (trusted governance).
+    function test_PrimeBlsSlashCooldown_OwnerExempt() public {
+        _registerOperatorForSlash();
+        vm.prank(owner);
+        paymaster.primeBlsSlashCooldown();
+        vm.prank(owner);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "owner queue not blocked by floor");
+    }
+
+    /// @dev primeBlsSlashCooldown is owner-only.
+    function test_PrimeBlsSlashCooldown_OnlyOwner() public {
+        vm.prank(dvtAggregator);
+        vm.expectRevert();
+        paymaster.primeBlsSlashCooldown();
+    }
 }
