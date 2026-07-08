@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Mycelium Protocol 生态上下文
+
+@/Users/jason/Dev/Brood/protocol/MISSION.md
+@/Users/jason/Dev/Brood/protocol/PGL/CONTEXT.md
+@/Users/jason/Dev/Brood/orgs/aastar/PROFILE.md
+@/Users/jason/Dev/Brood/orgs/aastar/INTERFACES.md
+
+**本 repo 在生态中的角色**: Gas 抽象基础设施层（ERC-4337 Paymaster + Registry + BLS slash）
+**协议**: Mycelium Protocol — https://www.mushroom.cv
+
 ## Project Overview
 
 SuperPaymaster is a **decentralized gas payment infrastructure** for ERC-4337 Account Abstraction, built with Foundry (Solidity 0.8.33). It enables communities to sponsor gas fees for users via community tokens (xPNTs) instead of ETH.
