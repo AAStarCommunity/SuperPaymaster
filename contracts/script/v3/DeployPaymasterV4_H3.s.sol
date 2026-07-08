@@ -64,11 +64,17 @@ contract DeployPaymasterV4_H3 is Script {
         //    may have deliberately set a newer one under this key.
         address activeImpl = factory.implementations(ACTIVE_VERSION);
         if (activeImpl != impl) {
-            require(
-                activeImpl == address(0) ||
-                keccak256(bytes(Paymaster(payable(activeImpl)).version())) == keccak256(bytes(PREV_VERSION)),
-                "V: v4.2 points at an unexpected impl - refusing to clobber"
-            );
+            // L-1: version() via try/catch — if v4.2 points at an ABI-incompatible impl the call
+            // reverts, and we surface the clear clobber-refusal message instead of an opaque revert.
+            bool safeToRepoint = activeImpl == address(0);
+            if (!safeToRepoint) {
+                try Paymaster(payable(activeImpl)).version() returns (string memory v) {
+                    safeToRepoint = keccak256(bytes(v)) == keccak256(bytes(PREV_VERSION));
+                } catch {
+                    safeToRepoint = false; // unknown/incompatible ABI → never clobber
+                }
+            }
+            require(safeToRepoint, "V: v4.2 points at an unexpected impl - refusing to clobber");
             factory.upgradeImplementation(ACTIVE_VERSION, impl);
         }
         vm.stopBroadcast();
@@ -81,6 +87,11 @@ contract DeployPaymasterV4_H3 is Script {
 
         vm.writeJson(vm.toString(impl), configPath, ".paymasterV4Impl");
         _ensureTrailingNewline(configPath);
+        // L-2: assert the config write actually landed (vm.writeJson can silently no-op).
+        require(
+            vm.parseJsonAddress(vm.readFile(configPath), ".paymasterV4Impl") == impl,
+            "V: config paymasterV4Impl write failed"
+        );
         console.log("=== Done. deployPaymaster(defaultVersion) now yields the H-3-fixed impl ===");
     }
 
