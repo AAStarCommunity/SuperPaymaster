@@ -997,6 +997,11 @@
   },
   {
     "type": "error",
+    "name": "CategoryNotSeeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ERC1167FailedCreateClone",
     "inputs": []
   },
@@ -1029,6 +1034,11 @@
   {
     "type": "error",
     "name": "InvalidPrice",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotFactoryToken",
     "inputs": []
   },
   {

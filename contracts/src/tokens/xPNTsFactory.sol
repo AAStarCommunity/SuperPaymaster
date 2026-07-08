@@ -170,6 +170,10 @@ contract xPNTsFactory is Ownable, IVersioned {
     error InvalidMultiplier();
     /// @notice CC-28: thrown when capRatioBps is set to 0 or > 10000.
     error InvalidCapRatio();
+    /// @notice CC-28 L-1: thrown when setTokenCategory targets a non-factory token.
+    error NotFactoryToken();
+    /// @notice CC-28 L-2: thrown when assigning a non-empty category that has no seeded baseline.
+    error CategoryNotSeeded();
 
     // ====================================
     // Constructor
@@ -473,8 +477,15 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @notice CC-28: assign the industry category for an xPNTs token. Governance-only so the
      *         audited community cannot self-select a higher-baseline category to evade
      *         over-issue detection. Empty string resets the token to the "default" baseline.
+     * @dev    L-1: the token must be one this factory deployed (isXPNTs), so a typo'd address
+     *         can't seed junk state. L-2: a non-empty category must already be seeded
+     *         (industryScaleUSD > 0), so a governance typo can't silently assign a zero-baseline
+     *         category that forces 100% stake coverage and flips the community to over-issued.
+     *         Seed the category via setIndustryScaleUSD first, or pass "" to use the default.
      */
     function setTokenCategory(address token, string calldata category) external onlyOwner {
+        if (!isXPNTs[token]) revert NotFactoryToken();
+        if (bytes(category).length != 0 && industryScaleUSD[category] == 0) revert CategoryNotSeeded();
         tokenCategory[token] = category;
         emit TokenCategorySet(token, category);
     }

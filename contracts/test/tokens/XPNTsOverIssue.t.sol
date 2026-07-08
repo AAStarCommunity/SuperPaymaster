@@ -195,6 +195,43 @@ contract XPNTsOverIssueTest is Test {
         assertEq(token.effectiveCapUSD(), 10_000 ether);
     }
 
+    // L-1: setTokenCategory only accepts tokens this factory deployed
+    function test_SetTokenCategory_RejectsNonFactoryToken() public {
+        vm.prank(owner);
+        vm.expectRevert(xPNTsFactory.NotFactoryToken.selector);
+        factory.setTokenCategory(address(0xABCD), "DeFi");
+    }
+
+    // L-2: a non-empty category must be seeded first — a typo can't force 100% coverage
+    function test_SetTokenCategory_RejectsUnseededCategory() public {
+        vm.prank(owner);
+        vm.expectRevert(xPNTsFactory.CategoryNotSeeded.selector);
+        factory.setTokenCategory(address(token), "DeFo"); // typo of DeFi, never seeded
+    }
+
+    function test_SetTokenCategory_AllowsSeededCategory() public {
+        vm.startPrank(owner);
+        factory.setIndustryScaleUSD("Infra", 30_000 ether); // seed first
+        factory.setTokenCategory(address(token), "Infra");
+        vm.stopPrank();
+        assertEq(token.effectiveCapUSD(), 30_000 ether);
+    }
+
+    // L-2 behavior: a DELIBERATELY zero-baseline category → cap is backing-only (documented).
+    function test_ZeroBaselineCategory_RequiresFullStakeBacking() public {
+        vm.startPrank(owner);
+        factory.setIndustryScaleUSD("Strict", 1); // seed non-zero so assignment is allowed
+        factory.setTokenCategory(address(token), "Strict");
+        factory.setIndustryScaleUSD("Strict", 0); // governance then deliberately zeroes it
+        vm.stopPrank();
+        _mint(100_000 ether); // $2,000 issued, no backing
+        assertEq(token.effectiveCapUSD(), 0); // baseline 0 + backing 0
+        assertTrue(token.isOverIssued());      // must fully stake-back or be flagged
+        _setStake(200_000 ether);              // $4,000 backing > $2,000 issued
+        assertEq(token.effectiveCapUSD(), 4_000 ether);
+        assertFalse(token.isOverIssued());
+    }
+
     // ---------------------------------------------------------------------
     // factory governance knobs
     // ---------------------------------------------------------------------
