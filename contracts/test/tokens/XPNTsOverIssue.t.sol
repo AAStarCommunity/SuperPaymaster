@@ -217,12 +217,13 @@ contract XPNTsOverIssueTest is Test {
         assertEq(token.effectiveCapUSD(), 30_000 ether);
     }
 
-    // L-2 behavior: a DELIBERATELY zero-baseline category → cap is backing-only (documented).
-    function test_ZeroBaselineCategory_RequiresFullStakeBacking() public {
+    // L-2 behavior: a DELIBERATELY zero-baseline category is assignable (register with scale 0)
+    // and yields a backing-only cap — full stake-backing required. Distinct from a typo (reverts).
+    function test_ZeroBaselineCategory_RegisterableAndRequiresFullStakeBacking() public {
         vm.startPrank(owner);
-        factory.setIndustryScaleUSD("Strict", 1); // seed non-zero so assignment is allowed
-        factory.setTokenCategory(address(token), "Strict");
-        factory.setIndustryScaleUSD("Strict", 0); // governance then deliberately zeroes it
+        factory.setIndustryScaleUSD("Strict", 0); // register a deliberate zero-baseline category
+        assertTrue(factory.categoryRegistered("Strict"));
+        factory.setTokenCategory(address(token), "Strict"); // now assignable directly
         vm.stopPrank();
         _mint(100_000 ether); // $2,000 issued, no backing
         assertEq(token.effectiveCapUSD(), 0); // baseline 0 + backing 0

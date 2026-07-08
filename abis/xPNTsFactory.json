@@ -147,6 +147,25 @@
   },
   {
     "type": "function",
+    "name": "categoryRegistered",
+    "inputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "communityToToken",
     "inputs": [
       {

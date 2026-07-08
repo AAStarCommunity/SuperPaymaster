@@ -91,6 +91,12 @@ contract xPNTsFactory is Ownable, IVersioned {
     ///      0 < capRatioBps <= 10000. Governance knob to tighten/loosen the whole baseline.
     uint16 public capRatioBps;
 
+    /// @notice CC-28: whether a category key has been governance-registered (via
+    ///         setIndustryScaleUSD or constructor seeding). Distinguishes a DELIBERATE
+    ///         zero-baseline category (registered, scale 0 → full stake-backing required)
+    ///         from a typo'd category name (never registered) in setTokenCategory.
+    mapping(string => bool) public categoryRegistered;
+
     /// @notice CC-28: governance-assigned industry category per xPNTs token.
     /// @dev    MUST be governance-set (not community-self-selected) — otherwise the audited
     ///         party could pick a higher-baseline category to evade over-issue detection.
@@ -208,12 +214,18 @@ contract xPNTsFactory is Ownable, IVersioned {
         // CC-28: over-issue baseline model. capRatioBps=10000 => baseline cap == full scale.
         // The baseline is the non-staked credit floor; staked aPNTs amplify it additively.
         capRatioBps = 10_000;
-        industryScaleUSD["default"] = 10_000 ether; // $10,000 baseline credit floor
-        industryScaleUSD["DeFi"] = 50_000 ether;
-        industryScaleUSD["Gaming"] = 20_000 ether;
-        industryScaleUSD["Social"] = 10_000 ether;
-        industryScaleUSD["DAO"] = 15_000 ether;
-        industryScaleUSD["NFT"] = 15_000 ether;
+        _seedCategory("default", 10_000 ether); // $10,000 baseline credit floor
+        _seedCategory("DeFi", 50_000 ether);
+        _seedCategory("Gaming", 20_000 ether);
+        _seedCategory("Social", 10_000 ether);
+        _seedCategory("DAO", 15_000 ether);
+        _seedCategory("NFT", 15_000 ether);
+    }
+
+    /// @dev CC-28: seed a category's baseline + mark it registered (constructor only).
+    function _seedCategory(string memory category, uint256 scaleUSD) private {
+        industryScaleUSD[category] = scaleUSD;
+        categoryRegistered[category] = true;
     }
 
     // ====================================
@@ -470,6 +482,7 @@ contract xPNTsFactory is Ownable, IVersioned {
     function setIndustryScaleUSD(string calldata category, uint256 scaleUSD) external onlyOwner {
         if (scaleUSD > MAX_INDUSTRY_SCALE_USD) revert InvalidParameters();
         industryScaleUSD[category] = scaleUSD;
+        categoryRegistered[category] = true; // registering with scale 0 is a valid deliberate choice
         emit IndustryScaleSet(category, scaleUSD);
     }
 
@@ -478,14 +491,15 @@ contract xPNTsFactory is Ownable, IVersioned {
      *         audited community cannot self-select a higher-baseline category to evade
      *         over-issue detection. Empty string resets the token to the "default" baseline.
      * @dev    L-1: the token must be one this factory deployed (isXPNTs), so a typo'd address
-     *         can't seed junk state. L-2: a non-empty category must already be seeded
-     *         (industryScaleUSD > 0), so a governance typo can't silently assign a zero-baseline
-     *         category that forces 100% stake coverage and flips the community to over-issued.
-     *         Seed the category via setIndustryScaleUSD first, or pass "" to use the default.
+     *         can't seed junk state. L-2: a non-empty category must already be REGISTERED (via
+     *         setIndustryScaleUSD or constructor), so a governance typo can't silently assign an
+     *         unknown zero-baseline category that forces 100% stake coverage. A deliberate
+     *         zero-baseline category is still assignable — register it with setIndustryScaleUSD
+     *         (any value, including 0). Pass "" to use the default baseline.
      */
     function setTokenCategory(address token, string calldata category) external onlyOwner {
         if (!isXPNTs[token]) revert NotFactoryToken();
-        if (bytes(category).length != 0 && industryScaleUSD[category] == 0) revert CategoryNotSeeded();
+        if (bytes(category).length != 0 && !categoryRegistered[category]) revert CategoryNotSeeded();
         tokenCategory[token] = category;
         emit TokenCategorySet(token, category);
     }
