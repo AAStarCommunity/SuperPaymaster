@@ -104,6 +104,11 @@ interface IRegistry is IVersioned {
     /// @notice L-04: Emitted when burnSBT fails during exitRole (failure is non-fatal)
     event SBTBurnFailed(address indexed user, bytes32 indexed roleId);
 
+    /// @notice M-2: Emitted when SuperPaymaster.updateSBTStatus fails during exitRole. Non-fatal —
+    ///         a reverting/paused SuperPaymaster must not deadlock exitRole and freeze the user's
+    ///         locked-stake withdrawal. The SBT desync is re-syncable; fund release takes priority.
+    event SBTStatusSyncFailed(address indexed user, bytes32 indexed roleId);
+
 
     // ====================================
     // Core Functions

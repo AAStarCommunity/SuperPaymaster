@@ -31,6 +31,15 @@ contract MockMySBT is IMySBT {
     function burnSBT(address) external {}
 }
 
+// M-2 (#324): a SuperPaymaster that is up at register time (status=true succeeds) but reverts on
+// the exit call (status=false), modelling an SP that became paused/faulty after the user registered.
+// This exercises the exitRole non-fatal path without breaking the (intentionally fatal) register path.
+contract RevertingSP {
+    function updateSBTStatus(address, bool status) external pure {
+        if (!status) revert("SP: updateSBTStatus down");
+    }
+}
+
 contract RegistryV3_Changes_Test is Test {
     Registry registry;
     GTokenStaking staking;
@@ -81,6 +90,34 @@ contract RegistryV3_Changes_Test is Test {
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community));
         assertEq(registry.getCommunityByName("TestCommunity"), address(0));
         assertEq(registry.getCommunityByENS("test.eth"), address(0));
+        vm.stopPrank();
+    }
+
+    /// @dev M-2 (#324): a reverting SuperPaymaster.updateSBTStatus must NOT deadlock exitRole and
+    ///      freeze the user's locked stake. exitRole succeeds, emits SBTStatusSyncFailed, releases stake.
+    function test_ExitRole_NonFatal_When_UpdateSBTStatus_Reverts() public {
+        RevertingSP badSP = new RevertingSP();
+        vm.prank(admin);
+        registry.setSuperPaymaster(address(badSP));
+
+        vm.prank(admin);
+        gtoken.mint(community, 100 ether);
+
+        vm.startPrank(community);
+        gtoken.approve(address(staking), 100 ether);
+        TestCommunityRoleData memory dataStruct = TestCommunityRoleData("SyncTest", "sync.eth", 30 ether);
+        registry.registerRole(ROLE_COMMUNITY, community, abi.encode(dataStruct));
+        assertTrue(registry.hasRole(ROLE_COMMUNITY, community));
+
+        // Pre-fix, exitRole reverts here ("SP: updateSBTStatus down") — deadlocking the exit and
+        // freezing any locked stake. Post-fix, the SP revert is swallowed into SBTStatusSyncFailed
+        // and exitRole completes (proving the withdrawal path is no longer held hostage by the SP).
+        vm.expectEmit(true, true, false, false, address(registry));
+        emit IRegistry.SBTStatusSyncFailed(community, ROLE_COMMUNITY);
+        registry.exitRole(ROLE_COMMUNITY);
+
+        // exitRole completed despite the SuperPaymaster revert; role fully removed.
+        assertFalse(registry.hasRole(ROLE_COMMUNITY, community), "role removed despite SP revert");
         vm.stopPrank();
     }
 

@@ -21,7 +21,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.4.1"; // v5.4.1 EIP-170 compression: dedup _safeSetRoleExitFee (P0-3 semantics unchanged)
+        return "Registry-5.4.2"; // v5.4.2 M-2: non-fatal updateSBTStatus in exitRole (stake-withdrawal liveness)
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -306,7 +306,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
         if (userRoleCount[msg.sender] == 0) {
             if (SUPER_PAYMASTER != address(0)) {
-                ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(msg.sender, false);
+                // M-2: non-fatal — a reverting or paused SuperPaymaster.updateSBTStatus must not
+                // deadlock exitRole and freeze the user's locked-stake withdrawal. Mirrors the
+                // burnSBT low-level pattern below; the SBT desync is re-syncable, fund release wins.
+                (bool _sbtOk,) = SUPER_PAYMASTER.call(
+                    abi.encodeCall(ISuperPaymaster.updateSBTStatus, (msg.sender, false))
+                );
+                if (!_sbtOk) emit SBTStatusSyncFailed(msg.sender, roleId);
             }
             // L-04: non-fatal burnSBT — failure emits SBTBurnFailed.
             (bool _burnOk,) = address(MYSBT).call(abi.encodeCall(IMySBT.burnSBT, (msg.sender)));
@@ -527,6 +533,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             sbtData = abi.encode(user, "");
         }
         if (SUPER_PAYMASTER != address(0)) {
+            // M-2: the REGISTER path stays fatal (fail-closed) on purpose. Registration is atomic
+            // (no stake locked yet if it reverts), so a revert here is a clean rollback the user can
+            // retry — unlike exitRole, where a fatal call would freeze already-locked stake. Making
+            // this non-fatal would risk a silent half-registration (registered but not SBT-eligible).
             ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(user, true);
         }
     }
