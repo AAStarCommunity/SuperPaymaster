@@ -234,19 +234,24 @@ contract XPNTsOverIssueTest is Test {
     // M-1: renounceFactory must NOT make the auditor's isOverIssued() revert
     // ---------------------------------------------------------------------
 
-    function test_RenounceFactory_ViewsDegradeGracefully() public {
+    function test_RenounceFactory_ConservativelyFlags_NoCleanEscape() public {
         _mint(600_000 ether);
         assertTrue(token.isOverIssued()); // tier-2 active
         vm.prank(community);
         token.renounceFactory();
-        // views must not revert; tier-2 is unavailable → degrades to tier-1 only
+        // views must not revert; tier-2 is unverifiable without a factory
         assertEq(token.effectiveCapUSD(), 0);
         assertEq(token.issuedValueUSD(), 0);
-        assertFalse(token.isOverIssued()); // no tier-1 cap set
-        // tier-1 still enforceable after renounce
-        vm.prank(community);
-        token.setIssuanceCap(100_000 ether);
+        // renounce must NOT be a clean escape: any live issuance is conservatively flagged.
         assertTrue(token.isOverIssued());
+        assertEq(token.credibilityScore(), 0); // unverifiable backing → worst score
+    }
+
+    function test_RenounceFactory_ZeroSupply_NotFlagged() public {
+        vm.prank(community);
+        token.renounceFactory();
+        assertFalse(token.isOverIssued()); // nothing issued → nothing to flag
+        assertEq(token.credibilityScore(), 100);
     }
 
     function test_FactoryKnobs_OnlyOwner() public {

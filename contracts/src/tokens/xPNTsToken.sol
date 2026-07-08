@@ -857,17 +857,21 @@ contract xPNTsToken is Initializable, ERC20, ERC20Permit, IVersioned {
     /// @notice CC-28 rule ③: true when this community has over-issued xPNTs — either the
     ///         absolute issuanceCap (if set) is breached, or issued USD value exceeds the
     ///         effective cap (industry baseline + staked-aPNTs backing). DVT calls this.
-    ///         Never reverts (safe for a DVT auditor); if the factory was renounced, only the
-    ///         tier-1 cap applies.
+    ///         Never reverts (safe for a DVT auditor).
+    /// @dev    If the factory was renounced, tier-2 is unverifiable (no price/baseline/backing
+    ///         source). We must NOT grant a clean pass — renouncing the factory would otherwise
+    ///         be an over-issue escape hatch — so any live issuance is conservatively flagged.
     function isOverIssued() external view returns (bool) {
         if (issuanceCap != 0 && totalSupply() > issuanceCap) return true;
-        if (FACTORY == address(0)) return false; // tier-2 unavailable; tier-1 already checked
+        if (FACTORY == address(0)) return totalSupply() > 0; // unverifiable → flag, never clear
         return issuedValueUSD() > effectiveCapUSD();
     }
 
     /// @notice CC-28: backing coverage as a 0-100 score (backing / issued value).
     /// @dev    100 when issuance is zero or fully backed; a low score flags thin backing.
+    ///         Factory renounced => backing unverifiable => 0 (worst) if anything is issued.
     function credibilityScore() external view returns (uint8) {
+        if (FACTORY == address(0)) return totalSupply() == 0 ? 100 : 0;
         uint256 issued = issuedValueUSD();
         if (issued == 0) return 100;
         uint256 score = Math.mulDiv(backingValueUSD(), 100, issued);
