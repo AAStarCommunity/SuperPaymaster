@@ -847,6 +847,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
      */
     function queueSlash(address operator) external {
         if (msg.sender != owner() && msg.sender != BLS_AGGREGATOR) revert Unauthorized();
+        // CC-13: block the BLS/DVT path from re-arming a slash while the cooldown is active.
+        // Otherwise a raced duplicate (a different-epoch re-queue that the aggregator replay-guard
+        // cannot dedupe) would leave _pendingSlash=true parked; once the window lapses that stale
+        // flag would let a second slash execute for the same violation with no fresh queue. Gating
+        // the re-arm here — not just the execution — is what actually prevents the double-slash.
+        // Owner (trusted governance) may still queue; its slashOperator path carries its own cooldown.
+        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
         _pendingSlash[operator] = true;
         emit SlashQueued(operator);
     }
@@ -908,10 +915,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
         // HIGH-1: enforce two-step slash — queueSlash must precede execution to block operator front-run.
         require(_pendingSlash[operator], "SP: must queueSlash first");
-        // CC-13: mirror the owner path's cooldown on the BLS/DVT path. Two DVT nodes observing
-        // the same violation at different finalized blocks derive different epochs → distinct
-        // queue-hashes that bypass the aggregator replay-guard, letting a second slash land after
-        // the first cleared _pendingSlash. The cooldown authoritatively closes that double-slash.
+        // CC-13: establish the anti-double-slash cooldown window (the primary re-arm gate lives in
+        // queueSlash, which blocks the BLS path from parking a stale pending flag during the window).
+        // The check here is defense-in-depth for any path that arms _pendingSlash within the window
+        // (e.g. an owner queue followed by a BLS execute); the set records the window start.
         if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
         _slashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 

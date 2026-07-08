@@ -159,7 +159,7 @@ contract DVTSlashTest is Test {
     ///      different epochs → distinct queue-hashes that bypass the aggregator replay-guard.
     ///      Node B re-queues after node A cleared _pendingSlash and would double-slash. The
     ///      BLS-path cooldown must block the second execute within the window.
-    function test_ExecuteSlashWithBLS_CooldownBlocksDoubleSlash() public {
+    function test_ExecuteSlashWithBLS_CooldownBlocksReQueue() public {
         _registerOperatorForSlash();
 
         vm.startPrank(dvtAggregator);
@@ -167,15 +167,32 @@ contract DVTSlashTest is Test {
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
         assertFalse(paymaster.isSlashPending(operator), "pending cleared after first execute");
 
-        // Second node re-queues with a fresh epoch (aggregator would allow) then tries to execute.
-        paymaster.queueSlash(operator);
-        assertTrue(paymaster.isSlashPending(operator), "re-queued pending set");
+        // A raced second node re-queues within the cooldown → blocked at the queue step, so no
+        // stale pending flag is parked (this is what actually prevents the double-slash).
         vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
-        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        paymaster.queueSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "no stale pending parked during cooldown");
         vm.stopPrank();
     }
 
-    /// @dev After the 1h cooldown elapses, a legitimate later slash (e.g. escalation) succeeds.
+    /// @dev Regression for the Codex finding: once the window lapses, a slash must NOT be primed
+    ///      by a stale pending flag. Since the raced re-queue was blocked during the window, an
+    ///      execute-only attempt after the window reverts (a fresh queue is required).
+    function test_ExecuteSlashWithBLS_NoPrimedSlashAfterWindow() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        vm.warp(block.timestamp + 1 hours + 1); // window lapses; no re-queue happened
+        vm.expectRevert(bytes("SP: must queueSlash first"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        assertFalse(paymaster.isSlashPending(operator), "still no pending after window");
+        vm.stopPrank();
+    }
+
+    /// @dev After the 1h cooldown elapses, a legitimate later slash (fresh queue + execute) succeeds.
     function test_ExecuteSlashWithBLS_CooldownExpires() public {
         _registerOperatorForSlash();
 
@@ -183,10 +200,10 @@ contract DVTSlashTest is Test {
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
 
-        paymaster.queueSlash(operator);
         vm.warp(block.timestamp + 1 hours + 1);
+        paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
-        assertFalse(paymaster.isSlashPending(operator), "pending cleared after cooldown expiry execute");
+        assertFalse(paymaster.isSlashPending(operator), "pending cleared after cooldown-expiry execute");
         vm.stopPrank();
     }
 
@@ -202,10 +219,10 @@ contract DVTSlashTest is Test {
         assertFalse(paymaster.isSlashPending(operator), "cleared after execute");
         vm.stopPrank();
 
-        // owner cancelSlash path also reflected
-        vm.prank(dvtAggregator);
+        // Owner queue is exempt from the BLS cooldown; cancelSlash path also reflected.
+        vm.prank(owner);
         paymaster.queueSlash(operator);
-        assertTrue(paymaster.isSlashPending(operator), "pending after re-queue");
+        assertTrue(paymaster.isSlashPending(operator), "pending after owner re-queue");
         vm.prank(owner);
         paymaster.cancelSlash(operator);
         assertFalse(paymaster.isSlashPending(operator), "cleared after cancel");
