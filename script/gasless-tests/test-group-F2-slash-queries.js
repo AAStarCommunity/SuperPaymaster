@@ -92,15 +92,30 @@ async function main() {
       printSkip(`Slash cooldown active — ${Math.floor(remaining / 3600)}h ${Math.floor((remaining % 3600) / 60)}m remaining (resets at ${new Date(Number(cooldownEnds) * 1000).toISOString()})`);
     } else {
       try {
-        await sendTxSafe(sp, 'slashOperator',
+        // HIGH-1: two-step slash — queueSlash must precede slashOperator (owner path).
+        // The owner is exempt from the BLS-path cooldown, so this queue always succeeds.
+        await sendTxSafe(sp, 'queueSlash', [deployerAddr], 'queueSlash(deployer)');
+        const slashReceipt = await sendTxSafe(sp, 'slashOperator',
           [deployerAddr, SLASH_LEVEL.WARNING, 0, "E2E test warning slash"],
           'slashOperator(WARNING, 0)'
         );
 
-        const newCount = await sp.getSlashCount(deployerAddr);
-        assertEqual(newCount, deployerSlashCount + 1n, 'Slash count incremented');
+        if (slashReceipt) {
+          const newCount = await sp.getSlashCount(deployerAddr);
+          assertEqual(newCount, deployerSlashCount + 1n, 'Slash count incremented');
+        }
       } catch (e) {
         catchStep(`slashOperator`, e);
+      } finally {
+        // Robustness: slashOperator clears _pendingSlash on success. But if queueSlash landed
+        // and slashOperator then failed, the pending flag stays set — blocking the operator's
+        // withdraw and polluting later runs. Cancel any leftover queued slash (best-effort).
+        try {
+          if (await sp.isSlashPending(deployerAddr)) {
+            await sendTxSafe(sp, 'cancelSlash', [deployerAddr], 'cancelSlash(cleanup)');
+            printKeyValue('Cleanup', 'cancelled leftover pending slash');
+          }
+        } catch (_) { /* best-effort */ }
       }
     }
   }
