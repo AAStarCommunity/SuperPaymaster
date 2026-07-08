@@ -38,4 +38,23 @@ interface IxPNTsFactory {
      * @return True iff the factory deployed this token (xPNTs).
      */
     function isXPNTs(address token) external view returns (bool);
+
+    // =====================================================================
+    // CC-28: over-issue baseline model (read by xPNTsToken.effectiveCapUSD)
+    // =====================================================================
+
+    /// @notice CC-28: aPNTs USD price (18 decimals) used to value issuance and backing.
+    function aPNTsPriceUSD() external view returns (uint256);
+
+    /// @notice CC-28: baseline issuance ceiling (USD, 18 dec) per industry category.
+    function industryScaleUSD(string calldata category) external view returns (uint256);
+
+    /// @notice CC-28: fraction of industryScaleUSD granted as baseline cap, in basis points.
+    function capRatioBps() external view returns (uint16);
+
+    /// @notice CC-28: governance-assigned industry category for a token (not community-set).
+    function tokenCategory(address token) external view returns (string memory);
+
+    /// @notice CC-28: the canonical, governance-set SuperPaymaster (the only trusted backing SP).
+    function SUPERPAYMASTER() external view returns (address);
 }

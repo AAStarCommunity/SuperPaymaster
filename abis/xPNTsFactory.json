@@ -69,6 +69,19 @@
   },
   {
     "type": "function",
+    "name": "MAX_INDUSTRY_SCALE_USD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_SUGGESTED_AMOUNT",
     "inputs": [],
     "outputs": [
@@ -115,6 +128,38 @@
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "capRatioBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "categoryRegistered",
+    "inputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -411,6 +456,25 @@
   },
   {
     "type": "function",
+    "name": "industryScaleUSD",
+    "inputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isXPNTs",
     "inputs": [
       {
@@ -521,6 +585,19 @@
   },
   {
     "type": "function",
+    "name": "setCapRatioBps",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setIndustryMultiplier",
     "inputs": [
       {
@@ -530,6 +607,24 @@
       },
       {
         "name": "multiplier",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setIndustryScaleUSD",
+    "inputs": [
+      {
+        "name": "category",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "scaleUSD",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -549,6 +644,43 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTokenCategory",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "tokenCategory",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -666,6 +798,25 @@
   },
   {
     "type": "event",
+    "name": "CapRatioBpsSet",
+    "inputs": [
+      {
+        "name": "oldBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "newBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "IndustryMultiplierSet",
     "inputs": [
       {
@@ -676,6 +827,25 @@
       },
       {
         "name": "multiplier",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "IndustryScaleSet",
+    "inputs": [
+      {
+        "name": "category",
+        "type": "string",
+        "indexed": true,
+        "internalType": "string"
+      },
+      {
+        "name": "scaleUSD",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -780,6 +950,25 @@
   },
   {
     "type": "event",
+    "name": "TokenCategorySet",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "xPNTsTokenDeployed",
     "inputs": [
       {
@@ -827,6 +1016,11 @@
   },
   {
     "type": "error",
+    "name": "CategoryNotSeeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ERC1167FailedCreateClone",
     "inputs": []
   },
@@ -843,6 +1037,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidCapRatio",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidMultiplier",
     "inputs": []
   },
@@ -854,6 +1053,11 @@
   {
     "type": "error",
     "name": "InvalidPrice",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotFactoryToken",
     "inputs": []
   },
   {

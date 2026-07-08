@@ -63,4 +63,30 @@ interface IxPNTsToken {
      * @return True iff this xPNTs has authorized `facilitator`.
      */
     function approvedFacilitators(address facilitator) external view returns (bool);
+
+    // =====================================================================
+    // CC-28: over-issue model (DVT audit rule ③)
+    // =====================================================================
+
+    /// @notice CC-28 rule ③: true when this community has over-issued its xPNTs — either the
+    ///         absolute issuanceCap (if set) is breached, or the issued USD value exceeds the
+    ///         effective cap (industry baseline + aPNTs staked in SuperPaymaster). This is the
+    ///         single entry point DVT calls per xPNTs token.
+    function isOverIssued() external view returns (bool);
+
+    /// @notice CC-28: total issued xPNTs valued in USD (18 decimals).
+    function issuedValueUSD() external view returns (uint256);
+
+    /// @notice CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster.
+    function backingValueUSD() external view returns (uint256);
+
+    /// @notice CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing.
+    function effectiveCapUSD() external view returns (uint256);
+
+    /// @notice CC-28: backing coverage as a 0-100 score (backing / issued value).
+    function credibilityScore() external view returns (uint8);
+
+    /// @notice CC-28 tier-1: absolute hard cap on totalSupply (xPNTs). 0 = disabled.
+    ///         A voluntary community self-limit; DVT relies on tier-2 (isOverIssued value model).
+    function issuanceCap() external view returns (uint256);
 }
