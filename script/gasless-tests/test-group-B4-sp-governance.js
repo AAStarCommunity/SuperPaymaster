@@ -96,9 +96,12 @@ async function main() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // Step 4: setAgentRegistries — set deployer + verify + restore
+  // Step 4: setAgentRegistries — set a valid contract + verify + restore
+  // NOTE: setAgentRegistries rejects non-contract addresses (code.length == 0 → InvalidAddress),
+  // so the test value must be a deployed contract, not an EOA. Use the SuperPaymaster address.
   // ──────────────────────────────────────────────────────────────
-  printStep(4, 'setAgentRegistries — set deployer + verify + restore');
+  printStep(4, 'setAgentRegistries — set a valid contract + verify + restore');
+  const agentTestAddr = config.superPaymaster; // any deployed contract passes the code.length check
   let currentIdentity;
   let currentRep;
   try {
@@ -109,12 +112,12 @@ async function main() {
 
     const receipt = await sendTxSafe(
       sp, 'setAgentRegistries',
-      [deployerAddr, deployerAddr],
-      'setAgentRegistries(deployer)'
+      [agentTestAddr, agentTestAddr],
+      'setAgentRegistries(contract)'
     );
     if (receipt) {
       const identityAfter = await sp.agentIdentityRegistry();
-      assertEqual(identityAfter.toLowerCase(), deployerAddr.toLowerCase(), 'agentIdentityRegistry == deployer');
+      assertEqual(identityAfter.toLowerCase(), agentTestAddr.toLowerCase(), 'agentIdentityRegistry == test contract');
 
       // Restore
       await sendTxSafe(
