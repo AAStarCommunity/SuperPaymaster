@@ -26,7 +26,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Contract version
     function version() external pure override virtual returns (string memory) {
-        return "PaymasterV4-4.3.1";
+        return "PaymasterV4-4.3.2"; // v4.3.2 H-3(#327): reject ops over maxGasCostCap (no ETH subsidy leak)
     }
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
@@ -130,6 +130,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
     error Paymaster__TokenNotInList();
     error Paymaster__TokenDecimalsTooLarge();
     error Paymaster__InvalidGasCostCap();
+    /// @notice H-3 (#327): the op's EntryPoint maxCost exceeds the per-op gas ceiling maxGasCostCap.
+    error Paymaster__GasCostExceedsCap();
     error Paymaster__InvalidStalenessThreshold();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -258,8 +260,12 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
         address sender = userOp.sender;
 
-        // Apply gas cost cap
-        uint256 cappedMaxCost = maxCost > maxGasCostCap ? maxGasCostCap : maxCost;
+        // H-3 (#327): reject ops whose EntryPoint maxCost exceeds the per-op gas ceiling, instead
+        // of silently capping the TOKEN charge while the paymaster still pays the FULL ETH gas —
+        // which leaked ETH subsidy on gas spikes and made maxGasCostCap's semantics backwards.
+        // Now the cap is a true per-op exposure ceiling: over-cap ops are not sponsored.
+        // maxCost <= maxGasCostCap now, so the token charge below equals what EntryPoint can deduct.
+        if (maxCost > maxGasCostCap) revert Paymaster__GasCostExceedsCap();
 
         // Parse user-specified Payment Token from paymasterData
         // Format: [paymaster(20)] [validUntil(6)] [validAfter(6)] [token(20)]
@@ -275,7 +281,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
         // Calculate Cost in Token
         // Mode: Validation (False for realtime)
-        uint256 requiredTokenAmount = _calculateTokenCost(cappedMaxCost, paymentToken, false);
+        uint256 requiredTokenAmount = _calculateTokenCost(maxCost, paymentToken, false);
 
         // CHECK INTERNAL BALANCE
         if (balances[sender][paymentToken] < requiredTokenAmount) {
