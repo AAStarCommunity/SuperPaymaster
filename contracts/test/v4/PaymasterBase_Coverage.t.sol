@@ -607,31 +607,30 @@ contract PaymasterBase_Coverage_Test is Test {
     /**
      * @notice E12: When maxCost > maxGasCostCap, validation uses cap (no revert)
      */
-    function test_E12_Validate_CappedAtMaxGasCostCap() public {
+    /// @dev H-3 (#327): an op whose EntryPoint maxCost exceeds maxGasCostCap is REJECTED (rather
+    ///      than silently capping the token charge while the paymaster pays full ETH gas). Within
+    ///      the cap, validation succeeds and charges the full (uncapped) cost.
+    function test_E12_Validate_RejectsOverMaxGasCostCap() public {
         vm.startPrank(user);
         token.approve(address(paymaster), 10_000 ether);
         paymaster.depositFor(user, address(token), 10_000 ether);
         vm.stopPrank();
 
-        uint256 beforeBal = paymaster.balances(user, address(token));
         PackedUserOperation memory op = _buildUserOp(user, address(token));
 
-        // Pass maxCost = 10 ether >> MAX_GAS_CAP (1 ether) — should be capped
+        // maxCost = 10 ether >> maxGasCostCap (1 ether) → rejected (no ETH-subsidy leak).
         vm.prank(address(entryPoint));
-        (bytes memory ctx,) = paymaster.validatePaymasterUserOp(op, bytes32(0), 10 ether);
+        vm.expectRevert(PaymasterBase.Paymaster__GasCostExceedsCap.selector);
+        paymaster.validatePaymasterUserOp(op, bytes32(0), 10 ether);
 
-        uint256 afterBal = paymaster.balances(user, address(token));
-        uint256 deducted = beforeBal - afterBal;
+        // Within the cap → validation succeeds, charges the full cost, postOp does not revert.
+        uint256 beforeBal = paymaster.balances(user, address(token));
+        vm.prank(address(entryPoint));
+        (bytes memory ctx,) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1 ether);
+        assertGt(beforeBal - paymaster.balances(user, address(token)), 0, "within-cap op charged");
 
-        // Deducted amount should correspond to MAX_GAS_CAP (1 ether), not 10 ether
-        // Also run postOp to ensure no revert
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, ctx, 0.5 ether, 0);
-
-        assertTrue(deducted > 0, "Some tokens deducted");
-        // Rough sanity: if cap is working, deducted < what 10 ether would cost
-        // (10 ether would need ~10x more tokens than 1 ether at same price)
-        // We just verify it completed without revert
     }
 
     // ─── E13: setTokenPrice — update does not re-add to list ─────────────────
