@@ -16,7 +16,7 @@ import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUp
  * Changes:
  *   - executeSlashWithBLS: anti-double-slash cooldown on the BLS/DVT path.
  *   - queueSlash: BLS/DVT re-arm gated during the cooldown (primary gate — no parked pending).
- *   - New dedicated `_blsSlashCd` mapping (appended; __gap 30->29, UUPS-safe), decoupled from the
+ *   - New dedicated `_blsSlashCd` mapping + `_blsSlashCdFloor` (both appended; __gap 30->28, UUPS-safe), decoupled from the
  *     owner path's `_slashCd` so an owner slash never blocks the DVT path.
  *   - New `isSlashPending(address) view` for DVT peer-failover.
  *

@@ -8,7 +8,7 @@ address switch. `_authorizeUpgrade` is `onlyOwner` with **no timelock** → a si
 immediate owner tx (unlike the BLS_AGGREGATOR swap which had a 24h timelock).
 
 The only genuinely new surface: **one appended storage slot** (`_blsSlashCd`,
-`__gap` 30→29) + **one new ABI method** (`isSlashPending`) + **changed `queueSlash`
+`__gap` 30→28, two slots) + **one new ABI method** (`isSlashPending`) + **changed `queueSlash`
 behavior** (BLS path reverts `SlashCooldown` within the 1h window).
 
 ---
@@ -21,7 +21,8 @@ behavior** (BLS path reverts `SlashCooldown` within the 1h window).
       existing slot moved:
       `forge inspect SuperPaymaster storage-layout --extra-output storageLayout`
       → the only delta vs the deployed impl must be `_blsSlashCd` at the slot right
-      after `_pendingSlash`, and `__gap` length 30→29. **If any prior var moved, STOP.**
+      after `_pendingSlash` (`_blsSlashCd` then `_blsSlashCdFloor`, two slots), and `__gap`
+      length 30→28. **If any prior var moved, STOP.**
 - [ ] `.env.sepolia` loaded; `DEPLOYER_ACCOUNT` = the SP proxy **owner** key.
 
 ## 1. Execute the upgrade (single owner tx, no timelock)

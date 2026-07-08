@@ -1638,7 +1638,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // CC-13 (F2): dedicated cooldown for the BLS/DVT slash path, SEPARATE from the owner path's
     // `_slashCd` (24h). Sharing one mapping coupled the paths — an owner slash (writes +24h) would
     // block the DVT path for up to 24h, stalling a legitimate MINOR→MAJOR escalation. Appended at
-    // the end of storage (UUPS-safe: existing slots unchanged, __gap reduced 30→29).
+    // the end of storage (UUPS-safe: existing slots unchanged). This is the FIRST of two slots this
+    // upgrade appends (with `_blsSlashCdFloor` below); together __gap goes 30→28 — see below.
     mapping(address => uint48) private _blsSlashCd;
 
     // CC-13: global BLS-slash cooldown floor. `primeBlsSlashCooldown()` sets it to now+cooldown
