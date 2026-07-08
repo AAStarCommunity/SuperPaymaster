@@ -92,6 +92,13 @@ interface ISuperPaymaster is IVersioned {
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 
     /**
+     * @notice Whether an operator currently has a slash queued (withdraw-blocking flag set).
+     * @dev O(1) authoritative read used by DVT peer-failover to detect a queued-but-unexecuted
+     *      slash without reconstructing state from events.
+     */
+    function isSlashPending(address operator) external view returns (bool);
+
+    /**
      * @notice Get operator configuration
      */
     function operators(address operator) external view returns (

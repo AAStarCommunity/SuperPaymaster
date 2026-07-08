@@ -134,10 +134,14 @@ contract SuperPaymasterQueryTest is Test {
     function test_GetSlashHistory_MultipleSlashes() public {
         vm.startPrank(blsAggregator);
         // HIGH-1: queue before each slash (flag is cleared after each execution)
+        // CC-13: legitimate distinct slashes of the same operator must be spaced past the BLS-path cooldown.
+        uint256 t0 = block.timestamp;
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        vm.warp(t0 + 2 hours);
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        vm.warp(t0 + 4 hours);
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
 
@@ -165,6 +169,8 @@ contract SuperPaymasterQueryTest is Test {
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
         assertEq(paymaster.getSlashCount(operator), 1);
 
+        // CC-13: space past the BLS-path cooldown before the next distinct slash.
+        vm.warp(block.timestamp + 1 hours + 1);
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
         assertEq(paymaster.getSlashCount(operator), 2);
@@ -184,10 +190,14 @@ contract SuperPaymasterQueryTest is Test {
     function test_GetLatestSlash_ReturnsLatest() public {
         vm.startPrank(blsAggregator);
         // HIGH-1: queue before each slash
+        // CC-13: space past the BLS-path cooldown between distinct slashes.
+        uint256 t0 = block.timestamp;
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.WARNING, abi.encode("1"));
+        vm.warp(t0 + 2 hours);
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, abi.encode("2"));
+        vm.warp(t0 + 4 hours);
         paymaster.queueSlash(operator);
         paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, abi.encode("3"));
 

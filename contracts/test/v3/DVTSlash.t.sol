@@ -138,4 +138,191 @@ contract DVTSlashTest is Test {
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 1 ether, "No stake yet");
         vm.stopPrank();
     }
+
+    // ============================================================
+    // CC-13: BLS-path slash cooldown (anti double-slash) + isSlashPending
+    // ============================================================
+
+    function _registerOperatorForSlash() internal {
+        vm.startPrank(operator);
+        gtoken.approve(address(staking), 100 ether);
+        bytes memory commData = abi.encode(
+            Registry.CommunityRoleData({ name: "OpComm", ensName: "", stakeAmount: 30 ether })
+        );
+        registry.registerRole(keccak256("COMMUNITY"), operator, commData);
+        bytes memory roleData = abi.encode(uint256(50 ether));
+        registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);
+        vm.stopPrank();
+    }
+
+    /// @dev Two DVT nodes observing the same violation at different finalized blocks derive
+    ///      different epochs → distinct queue-hashes that bypass the aggregator replay-guard.
+    ///      Node B re-queues after node A cleared _pendingSlash and would double-slash. The
+    ///      BLS-path cooldown must block the second execute within the window.
+    function test_ExecuteSlashWithBLS_CooldownBlocksReQueue() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+        assertFalse(paymaster.isSlashPending(operator), "pending cleared after first execute");
+
+        // A raced second node re-queues within the cooldown → blocked at the queue step, so no
+        // stale pending flag is parked (this is what actually prevents the double-slash).
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "no stale pending parked during cooldown");
+        vm.stopPrank();
+    }
+
+    /// @dev Regression for the Codex finding: once the window lapses, a slash must NOT be primed
+    ///      by a stale pending flag. Since the raced re-queue was blocked during the window, an
+    ///      execute-only attempt after the window reverts (a fresh queue is required).
+    function test_ExecuteSlashWithBLS_NoPrimedSlashAfterWindow() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        vm.warp(block.timestamp + 1 hours + 1); // window lapses; no re-queue happened
+        vm.expectRevert(bytes("SP: must queueSlash first"));
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        assertFalse(paymaster.isSlashPending(operator), "still no pending after window");
+        vm.stopPrank();
+    }
+
+    /// @dev After the 1h cooldown elapses, a legitimate later slash (fresh queue + execute) succeeds.
+    function test_ExecuteSlashWithBLS_CooldownExpires() public {
+        _registerOperatorForSlash();
+
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        vm.warp(block.timestamp + 1 hours + 1);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        assertFalse(paymaster.isSlashPending(operator), "pending cleared after cooldown-expiry execute");
+        vm.stopPrank();
+    }
+
+    /// @dev The public getter must mirror the private _pendingSlash flag through its lifecycle.
+    function test_IsSlashPending_ReflectsFlag() public {
+        _registerOperatorForSlash();
+
+        assertFalse(paymaster.isSlashPending(operator), "no pending initially");
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after queue");
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof");
+        assertFalse(paymaster.isSlashPending(operator), "cleared after execute");
+        vm.stopPrank();
+
+        // Owner queue is exempt from the BLS cooldown; cancelSlash path also reflected.
+        vm.prank(owner);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after owner re-queue");
+        vm.prank(owner);
+        paymaster.cancelSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "cleared after cancel");
+    }
+
+    /// @dev F2: the owner path's 24h cooldown (_slashCd) must NOT block the BLS/DVT path, which
+    ///      uses a dedicated _blsSlashCd. Otherwise an owner manual slash would freeze DVT for 24h.
+    function test_OwnerSlashDoesNotBlockBLSPath() public {
+        _registerOperatorForSlash();
+
+        // Owner queues + slashes → writes _slashCd = now + 24h (owner cooldown only).
+        vm.startPrank(owner);
+        paymaster.queueSlash(operator);
+        paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "owner slash");
+        vm.stopPrank();
+
+        // BLS/DVT path must be immediately usable (not blocked by the owner's 24h cooldown).
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "bls-after-owner");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "BLS slash executed despite prior owner slash");
+    }
+
+    /// @dev F3: cancel → re-queue → expiry path.
+    ///      A queued-but-unexecuted slash sets no cooldown; owner cancel unlocks and a fresh
+    ///      re-queue+execute is allowed. Once executed the cooldown is set, so a re-queue within
+    ///      the window is blocked and only succeeds after expiry.
+    function test_CancelReQueueThenExpiry() public {
+        _registerOperatorForSlash();
+
+        // Queue but never execute; owner cancels to unlock withdraw. No cooldown was set.
+        vm.prank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after queue");
+        vm.prank(owner);
+        paymaster.cancelSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "unlocked after cancel");
+
+        // Re-queue + execute is allowed (cancel left no cooldown), and sets the window.
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        // Within the window a re-queue is blocked; owner cancel does not reset the BLS cooldown.
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+        vm.stopPrank();
+        vm.prank(owner);
+        paymaster.cancelSlash(operator); // idempotent unlock; must not reset _blsSlashCd
+        vm.prank(dvtAggregator);
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+
+        // After expiry a fresh slash succeeds.
+        vm.warp(block.timestamp + 1 hours + 1);
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "cleared after post-expiry execute");
+    }
+
+    /// @dev CC-13: the post-upgrade global cooldown floor blankets EVERY operator for one window,
+    ///      covering the cold-start gap where an operator slashed just before the upgrade has no
+    ///      per-operator _blsSlashCd recorded. Primed atomically by the 5.4.2 upgrade.
+    function test_PrimeBlsSlashCooldown_BlanketsFreshOperator() public {
+        _registerOperatorForSlash();
+
+        vm.prank(owner);
+        paymaster.primeBlsSlashCooldown();
+
+        // A never-slashed operator's BLS queue is blocked within the floor window...
+        vm.prank(dvtAggregator);
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+
+        // ...and succeeds once the floor lapses.
+        vm.warp(block.timestamp + 1 hours + 1);
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "post-floor");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "cleared after post-floor execute");
+    }
+
+    /// @dev The owner path is exempt from the BLS floor (trusted governance).
+    function test_PrimeBlsSlashCooldown_OwnerExempt() public {
+        _registerOperatorForSlash();
+        vm.prank(owner);
+        paymaster.primeBlsSlashCooldown();
+        vm.prank(owner);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "owner queue not blocked by floor");
+    }
+
+    /// @dev primeBlsSlashCooldown is owner-only.
+    function test_PrimeBlsSlashCooldown_OnlyOwner() public {
+        vm.prank(dvtAggregator);
+        vm.expectRevert();
+        paymaster.primeBlsSlashCooldown();
+    }
 }
