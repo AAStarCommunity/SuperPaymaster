@@ -92,6 +92,9 @@ async function main() {
       printSkip(`Slash cooldown active — ${Math.floor(remaining / 3600)}h ${Math.floor((remaining % 3600) / 60)}m remaining (resets at ${new Date(Number(cooldownEnds) * 1000).toISOString()})`);
     } else {
       try {
+        // HIGH-1: two-step slash — queueSlash must precede slashOperator (owner path).
+        // The owner is exempt from the BLS-path cooldown, so this queue always succeeds.
+        await sendTxSafe(sp, 'queueSlash', [deployerAddr], 'queueSlash(deployer)');
         await sendTxSafe(sp, 'slashOperator',
           [deployerAddr, SLASH_LEVEL.WARNING, 0, "E2E test warning slash"],
           'slashOperator(WARNING, 0)'
