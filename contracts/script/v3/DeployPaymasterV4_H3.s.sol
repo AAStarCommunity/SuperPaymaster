@@ -9,6 +9,8 @@ import "src/paymasters/v4/Paymaster.sol";
 interface IPaymasterFactory {
     function implementations(string memory) external view returns (address);
     function addImplementation(string memory version, address implementation) external;
+    function upgradeImplementation(string memory version, address newImplementation) external;
+    function defaultVersion() external view returns (string memory);
     function owner() external view returns (address);
 }
 
@@ -39,25 +41,36 @@ contract DeployPaymasterV4_H3 is Script {
         console.log("=== Deploy PaymasterV4 4.3.2 impl (#327) ===");
         console.log("  Factory:", factoryAddr);
 
-        address existing = factory.implementations(VERSION);
-        if (existing != address(0)) {
-            console.log("  Version already registered at", existing, "- skipping");
-            return;
-        }
+        // The factory's defaultVersion (the key every deploy script passes to deployPaymaster —
+        // "v4.2") is what NEW community paymasters actually clone. Registering the fixed impl under a
+        // fresh key alone would be orphaned, so we ALSO repoint that active version at the fixed impl.
+        string memory activeVersion = factory.defaultVersion();
 
         vm.startBroadcast();
-        Paymaster impl = new Paymaster(registry);
-        require(keccak256(bytes(impl.version())) == keccak256(bytes(VERSION)), "V: impl version mismatch");
-        factory.addImplementation(VERSION, address(impl));
+        // 1. Deploy + register the fixed impl under its own version key (idempotent).
+        address impl = factory.implementations(VERSION);
+        if (impl == address(0)) {
+            Paymaster newImpl = new Paymaster(registry);
+            require(keccak256(bytes(newImpl.version())) == keccak256(bytes(VERSION)), "V: impl version mismatch");
+            factory.addImplementation(VERSION, address(newImpl));
+            impl = address(newImpl);
+        }
+        // 2. Repoint the ACTIVE deploy version at the fixed impl so deployPaymaster(defaultVersion)
+        //    actually yields the H-3 fix. Existing EIP-1167 clones are immutable and keep the old impl.
+        if (factory.implementations(activeVersion) != impl) {
+            factory.upgradeImplementation(activeVersion, impl);
+        }
         vm.stopBroadcast();
 
-        require(factory.implementations(VERSION) == address(impl), "V: registration failed");
-        console.log("  New impl:", address(impl));
-        console.log("  Registered as", VERSION);
+        require(factory.implementations(VERSION) == impl, "V: registration failed");
+        require(factory.implementations(activeVersion) == impl, "V: active version not repointed");
+        console.log("  New impl:", impl);
+        console.log("  Registered as:", VERSION);
+        console.log("  Active version repointed:", activeVersion);
 
-        vm.writeJson(vm.toString(address(impl)), configPath, ".paymasterV4Impl");
+        vm.writeJson(vm.toString(impl), configPath, ".paymasterV4Impl");
         _ensureTrailingNewline(configPath);
-        console.log("=== Done. New community paymasters use", VERSION, "===");
+        console.log("=== Done. deployPaymaster(defaultVersion) now yields the H-3-fixed impl ===");
     }
 
     function _ensureTrailingNewline(string memory path) internal {
