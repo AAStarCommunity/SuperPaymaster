@@ -399,11 +399,27 @@
     }
   },
   {
-    "label": "__gap",
+    "label": "_blsSlashCd",
     "slot": "35",
     "offset": 0,
     "type": {
-      "array": "uint256[30]",
+      "mapping": "mapping(address => uint48)",
+      "key": "address",
+      "value": "uint48"
+    }
+  },
+  {
+    "label": "_blsSlashCdFloor",
+    "slot": "36",
+    "offset": 0,
+    "type": "uint48"
+  },
+  {
+    "label": "__gap",
+    "slot": "37",
+    "offset": 0,
+    "type": {
+      "array": "uint256[28]",
       "base": "uint256"
     }
   }
