@@ -853,7 +853,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // flag would let a second slash execute for the same violation with no fresh queue. Gating
         // the re-arm here — not just the execution — is what actually prevents the double-slash.
         // Owner (trusted governance) may still queue; its slashOperator path carries its own cooldown.
-        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
+        // Uses the dedicated _blsSlashCd (F2) so the owner path's 24h cooldown never blocks DVT.
+        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _blsSlashCd[operator]) revert SlashCooldown();
         _pendingSlash[operator] = true;
         emit SlashQueued(operator);
     }
@@ -919,8 +920,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // queueSlash, which blocks the BLS path from parking a stale pending flag during the window).
         // The check here is defense-in-depth for any path that arms _pendingSlash within the window
         // (e.g. an owner queue followed by a BLS execute); the set records the window start.
-        if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
-        _slashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
+        // Dedicated _blsSlashCd (F2) — decoupled from the owner path's _slashCd.
+        if (uint48(block.timestamp) < _blsSlashCd[operator]) revert SlashCooldown();
+        _blsSlashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 
         // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance.
         // Major is further capped at 30% inside _slash (applyCap=true).
@@ -1611,12 +1613,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // TX in the mempool and drain their balance before it lands.
     mapping(address => bool) private _pendingSlash;
 
+    // CC-13 (F2): dedicated cooldown for the BLS/DVT slash path, SEPARATE from the owner path's
+    // `_slashCd` (24h). Sharing one mapping coupled the paths — an owner slash (writes +24h) would
+    // block the DVT path for up to 24h, stalling a legitimate MINOR→MAJOR escalation. Appended at
+    // the end of storage (UUPS-safe: existing slots unchanged, __gap reduced 30→29).
+    mapping(address => uint48) private _blsSlashCd;
+
     // v5.4 god-split phase 1: the x402 settle/admin LOGIC moved to X402Facilitator, but
     // the 4 x402 storage slots are RETAINED above as `private __deprecated_*` placeholders
     // to keep this UUPS proxy's layout byte-identical to the pre-split deployed layout.
-    // Therefore __gap is UNCHANGED at [31] (it never grew to [35]); every variable keeps
-    // its original slot, so an in-place upgrade of the live proxy stays storage-safe.
-    // 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta + _settledDebtOps + _pendingSlash = 22.
-    // (The 4 deprecated x402 slots are accounted in the "18 original"+V5 block, not here.)
-    uint256[30] private __gap;
+    // Every variable keeps its original slot, so an in-place upgrade of the live proxy stays
+    // storage-safe. 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta +
+    // _settledDebtOps + _pendingSlash + _blsSlashCd = 23. (The 4 deprecated x402 slots are
+    // accounted in the "18 original"+V5 block, not here.)
+    uint256[29] private __gap;
 }

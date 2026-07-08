@@ -227,4 +227,62 @@ contract DVTSlashTest is Test {
         paymaster.cancelSlash(operator);
         assertFalse(paymaster.isSlashPending(operator), "cleared after cancel");
     }
+
+    /// @dev F2: the owner path's 24h cooldown (_slashCd) must NOT block the BLS/DVT path, which
+    ///      uses a dedicated _blsSlashCd. Otherwise an owner manual slash would freeze DVT for 24h.
+    function test_OwnerSlashDoesNotBlockBLSPath() public {
+        _registerOperatorForSlash();
+
+        // Owner queues + slashes → writes _slashCd = now + 24h (owner cooldown only).
+        vm.startPrank(owner);
+        paymaster.queueSlash(operator);
+        paymaster.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 0, "owner slash");
+        vm.stopPrank();
+
+        // BLS/DVT path must be immediately usable (not blocked by the owner's 24h cooldown).
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "bls-after-owner");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "BLS slash executed despite prior owner slash");
+    }
+
+    /// @dev F3: cancel → re-queue → expiry path.
+    ///      A queued-but-unexecuted slash sets no cooldown; owner cancel unlocks and a fresh
+    ///      re-queue+execute is allowed. Once executed the cooldown is set, so a re-queue within
+    ///      the window is blocked and only succeeds after expiry.
+    function test_CancelReQueueThenExpiry() public {
+        _registerOperatorForSlash();
+
+        // Queue but never execute; owner cancels to unlock withdraw. No cooldown was set.
+        vm.prank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        assertTrue(paymaster.isSlashPending(operator), "pending after queue");
+        vm.prank(owner);
+        paymaster.cancelSlash(operator);
+        assertFalse(paymaster.isSlashPending(operator), "unlocked after cancel");
+
+        // Re-queue + execute is allowed (cancel left no cooldown), and sets the window.
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-1");
+
+        // Within the window a re-queue is blocked; owner cancel does not reset the BLS cooldown.
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+        vm.stopPrank();
+        vm.prank(owner);
+        paymaster.cancelSlash(operator); // idempotent unlock; must not reset _blsSlashCd
+        vm.prank(dvtAggregator);
+        vm.expectRevert(SuperPaymaster.SlashCooldown.selector);
+        paymaster.queueSlash(operator);
+
+        // After expiry a fresh slash succeeds.
+        vm.warp(block.timestamp + 1 hours + 1);
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "proof-2");
+        vm.stopPrank();
+        assertFalse(paymaster.isSlashPending(operator), "cleared after post-expiry execute");
+    }
 }
