@@ -80,6 +80,17 @@ contract xPNTsFactory is Ownable, IVersioned {
     /// @dev Used by PaymasterV4 and SuperPaymaster V2 for gas cost calculation
     uint256 public aPNTsPriceUSD;
 
+    /// @notice CC-28 over-issue model: baseline issuance ceiling per industry category
+    ///         (USD, 18 decimals). The non-staked credit floor a category is trusted with.
+    ///         Governance-set. 0 => the category has no baseline (a community in it must back
+    ///         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD().
+    mapping(string => uint256) public industryScaleUSD;
+
+    /// @notice CC-28: fraction of industryScaleUSD granted as the baseline cap, in basis points.
+    /// @dev effectiveCap = industryScaleUSD[category] * capRatioBps / 10000 + stakedValueUSD.
+    ///      0 < capRatioBps <= 10000. Governance knob to tighten/loosen the whole baseline.
+    uint16 public capRatioBps;
+
     // ====================================
     // Constants
     // ====================================
@@ -127,6 +138,11 @@ contract xPNTsFactory is Ownable, IVersioned {
         uint256 newPrice
     );
 
+    /// @notice CC-28: emitted when a category's baseline issuance ceiling is set.
+    event IndustryScaleSet(string indexed category, uint256 scaleUSD);
+    /// @notice CC-28: emitted when the global baseline cap ratio is changed.
+    event CapRatioBpsSet(uint16 oldBps, uint16 newBps);
+
     event SuperPaymasterAddressUpdated(address indexed oldAddr, address indexed newAddr);
     event SuperPaymasterPropagationFailed(address indexed token, address indexed newSP);
     event SuperPaymasterPropagated(address indexed token, address indexed newSP);
@@ -141,6 +157,8 @@ contract xPNTsFactory is Ownable, IVersioned {
     error CallerNotCommunity();
     error InvalidPrice();
     error InvalidMultiplier();
+    /// @notice CC-28: thrown when capRatioBps is set to 0 or > 10000.
+    error InvalidCapRatio();
 
     // ====================================
     // Constructor
@@ -171,6 +189,16 @@ contract xPNTsFactory is Ownable, IVersioned {
         industryMultipliers["Social"] = 1.0 ether;    // 1.0x
         industryMultipliers["DAO"] = 1.2 ether;       // 1.2x
         industryMultipliers["NFT"] = 1.3 ether;       // 1.3x
+
+        // CC-28: over-issue baseline model. capRatioBps=10000 => baseline cap == full scale.
+        // The baseline is the non-staked credit floor; staked aPNTs amplify it additively.
+        capRatioBps = 10_000;
+        industryScaleUSD["default"] = 10_000 ether; // $10,000 baseline credit floor
+        industryScaleUSD["DeFi"] = 50_000 ether;
+        industryScaleUSD["Gaming"] = 20_000 ether;
+        industryScaleUSD["Social"] = 10_000 ether;
+        industryScaleUSD["DAO"] = 15_000 ether;
+        industryScaleUSD["NFT"] = 15_000 ether;
     }
 
     // ====================================
@@ -417,6 +445,26 @@ contract xPNTsFactory is Ownable, IVersioned {
         industryMultipliers[industry] = multiplier;
 
         emit IndustryMultiplierSet(industry, multiplier);
+    }
+
+    /**
+     * @notice CC-28: set the baseline issuance ceiling (USD, 18 decimals) for a category.
+     * @dev    0 is allowed — it means the category has no baseline credit and communities in
+     *         it must back all issuance with staked aPNTs. Governance-controlled.
+     */
+    function setIndustryScaleUSD(string calldata category, uint256 scaleUSD) external onlyOwner {
+        industryScaleUSD[category] = scaleUSD;
+        emit IndustryScaleSet(category, scaleUSD);
+    }
+
+    /**
+     * @notice CC-28: set the global baseline cap ratio in basis points (0 < bps <= 10000).
+     */
+    function setCapRatioBps(uint16 bps) external onlyOwner {
+        if (bps == 0 || bps > 10_000) revert InvalidCapRatio();
+        uint16 old = capRatioBps;
+        capRatioBps = bps;
+        emit CapRatioBpsSet(old, bps);
     }
 
     // ====================================
