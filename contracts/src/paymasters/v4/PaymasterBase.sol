@@ -264,8 +264,8 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
         // of silently capping the TOKEN charge while the paymaster still pays the FULL ETH gas —
         // which leaked ETH subsidy on gas spikes and made maxGasCostCap's semantics backwards.
         // Now the cap is a true per-op exposure ceiling: over-cap ops are not sponsored.
+        // maxCost <= maxGasCostCap now, so the token charge below equals what EntryPoint can deduct.
         if (maxCost > maxGasCostCap) revert Paymaster__GasCostExceedsCap();
-        uint256 cappedMaxCost = maxCost; // maxCost <= maxGasCostCap here; token charge == what EP can deduct
 
         // Parse user-specified Payment Token from paymasterData
         // Format: [paymaster(20)] [validUntil(6)] [validAfter(6)] [token(20)]
@@ -281,7 +281,7 @@ abstract contract PaymasterBase is Ownable, ReentrancyGuard, IVersioned {
 
         // Calculate Cost in Token
         // Mode: Validation (False for realtime)
-        uint256 requiredTokenAmount = _calculateTokenCost(cappedMaxCost, paymentToken, false);
+        uint256 requiredTokenAmount = _calculateTokenCost(maxCost, paymentToken, false);
 
         // CHECK INTERNAL BALANCE
         if (balances[sender][paymentToken] < requiredTokenAmount) {
