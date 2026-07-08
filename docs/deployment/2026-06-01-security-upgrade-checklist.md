@@ -105,10 +105,9 @@ GTokenStaking (slither comments only) and Registry (unchanged) are **not** redep
 
 C-02/C-03 make `settleX402Payment*` revert without the new EIP-712 signature, so the moment
 the new impl is live on mainnet, **any pre-existing unsigned x402 flow breaks**.
-- [ ] **Block mainnet SP upgrade** until **aastar-sdk #39** is merged + the facilitator is
-      deployed signing the new `X402PaymentAuthorization` (KMS needs no new interface — see #39);
-      **OR** execute an explicit "disable x402 settlement in production" step before the upgrade
-      and re-enable after the SDK/facilitator cutover.
+- [x] **aastar-sdk #39 CLOSED** — `@aastar/sdk@0.29.0` ships `@aastar/sdk/x402` with full
+      `X402PaymentAuthorization` signing. DVT facilitator module live (YetAnotherAA-Validator
+      #130–134 merged). x402 gate unblocked for mainnet GA.
 - [ ] (Defense in depth) AirAccount KMS #16 / PR #20 (passkey-bound signing) merged.
 
 ---
