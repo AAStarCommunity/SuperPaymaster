@@ -21,7 +21,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.4.0";
+        return "Registry-5.4.1"; // v5.4.1 EIP-170 compression: dedup _safeSetRoleExitFee (P0-3 semantics unchanged)
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -127,6 +127,18 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ///      sync failures; role identifies which role was affected.
     event SyncFailed(address indexed target, bytes32 indexed role);
 
+    /// @dev P0-3: push a role's exit fee to staking via a low-level call so a staking-side
+    ///      revert cannot brick registration/config; emits SyncFailed for indexer alerting.
+    ///      Extracted from _initRole / _syncExitFeeForRole / syncExitFees so the encode+call+emit
+    ///      sequence is compiled once instead of three times (EIP-170 compression; behavior and
+    ///      P0-3 fail-open semantics unchanged).
+    function _safeSetRoleExitFee(bytes32 roleId, uint16 exitFeePercent, uint256 minExitFee) internal {
+        (bool ok,) = address(GTOKEN_STAKING).call(
+            abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee))
+        );
+        if (!ok) emit SyncFailed(address(GTOKEN_STAKING), roleId);
+    }
+
     function _initRole(
         bytes32 roleId, uint256 min, uint256 ticketPrice,
         uint32 thresh, uint32 base, uint32 inc, uint32 max,
@@ -135,33 +147,25 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ) internal {
         roleConfigs[roleId] = RoleConfig(min, ticketPrice, thresh, base, inc, max, exitFeePercent, true, minExitFee, "", roleOwner, lockDuration);
         if (address(GTOKEN_STAKING) != address(0) && address(GTOKEN_STAKING).code.length > 0) {
-            (bool ok,) = address(GTOKEN_STAKING).call(abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, exitFeePercent, minExitFee)));
-            if (!ok) emit SyncFailed(address(GTOKEN_STAKING), roleId);
+            _safeSetRoleExitFee(roleId, exitFeePercent, minExitFee);
         }
     }
 
     function _syncExitFeeForRole(bytes32 roleId) internal {
         RoleConfig memory cfg = roleConfigs[roleId];
         if (cfg.isActive) {
-            (bool ok,) = address(GTOKEN_STAKING).call(
-                abi.encodeCall(IGTokenStaking.setRoleExitFee, (roleId, cfg.exitFeePercent, cfg.minExitFee))
-            );
-            if (!ok) emit SyncFailed(address(GTOKEN_STAKING), roleId);
+            _safeSetRoleExitFee(roleId, cfg.exitFeePercent, cfg.minExitFee);
         }
     }
 
     /// @notice Admin-triggered batch sync. Emits SyncFailed for any role whose
     ///         call to staking reverts — indexers watch this topic for alerting.
     function syncExitFees(bytes32[] calldata roles) external onlyOwner {
-        address stk = address(GTOKEN_STAKING);
         for (uint256 i = 0; i < roles.length; ) {
             bytes32 r = roles[i];
             RoleConfig storage cfg = roleConfigs[r];
             if (cfg.isActive) {
-                (bool ok,) = stk.call(
-                    abi.encodeCall(IGTokenStaking.setRoleExitFee, (r, cfg.exitFeePercent, cfg.minExitFee))
-                );
-                if (!ok) emit SyncFailed(stk, r);
+                _safeSetRoleExitFee(r, cfg.exitFeePercent, cfg.minExitFee);
             }
             unchecked { ++i; }
         }
