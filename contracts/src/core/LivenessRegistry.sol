@@ -18,17 +18,17 @@ import {ILivenessRegistry} from "../interfaces/v3/ILivenessRegistry.sol";
 ///      BLS-aggregated batch attest), deploy v2 and re-point DVT — operators re-attest cheaply
 ///      (self-healing), so no state migration is needed.
 ///
-/// @dev LIVENESS SEMANTIC (what "live" proves, and what it does NOT). {attestLiveness} proves
-///      "an `operator`-authorized transaction was included at this block" — nothing stronger. A
-///      keeper holding operator-pre-signed txs (consecutive nonces) can submit them on a delay, so
-///      "live" tolerates delayed/pre-signed attestations; it is NOT a real-time human-presence proof.
-///      This is acceptable BY DESIGN here because offline has NO slashing consequence — it only
-///      shrinks the live-set (quorum denominator). The only leverage is a malicious operator
-///      inflating the denominator to shield colluders from a real slash, which is bounded (finite
-///      pre-signed txs, gas per ping) and self-defeating (a faked-live op still cannot BLS-co-sign).
-///      DVT owns quorum policy and can apply a mass-offline floor. If denominator inflation ever
-///      matters, a v2 MAY bind attestations to a recent `blockhash` for freshness; deliberately
-///      omitted from v1 to keep the attest hot-path a single cheap SSTORE.
+/// @dev LIVENESS SEMANTIC (what "live" proves, and what it does NOT). {attestLiveness} proves the
+///      operator's signing key produced a transaction within the last `MAX_ATTEST_ANCHOR_AGE` blocks
+///      (enforced by the freshness binding — the caller must echo a recent, unpredictable
+///      `blockhash`, so the tx cannot be pre-signed for the future). This ties "live" to RECENT
+///      signing capability, defeating a keeper that replays a batch of stale pre-authorized
+///      attestations to keep an abandoned-key operator counted in the live-set (quorum denominator) —
+///      a denominator-inflation vector that could otherwise suppress a legitimate slash against a
+///      colluder (CC-29 review M-01). It does NOT prove the full DVT stack is online: an operator
+///      whose key is genuinely online but which refuses to co-sign slashes still attests fine; that
+///      residual griefer is caught at the DVT layer by excluding recent non-participants from quorum,
+///      NOT here. Offline itself carries NO slash — it only shrinks the live-set.
 ///
 /// @dev GOVERNANCE — the window IS the definition of offline, so changing {livenessWindow}
 ///      deterministically RE-PARTITIONS the live-set at the next block, in BOTH directions and with
@@ -54,6 +54,11 @@ contract LivenessRegistry is Ownable, ILivenessRegistry {
     /// @dev ~10M blocks: generous enough to effectively disable liveness on any chain if governance
     ///      chooses, while still bounding the field to an auditable magnitude.
     uint256 public constant MAX_LIVENESS_WINDOW = 10_000_000;
+
+    /// @inheritdoc ILivenessRegistry
+    /// @dev Fixed at the EVM's `blockhash` availability window (256). An attestation must anchor to a
+    ///      block no older than this; older/current/future anchors have no readable `blockhash`.
+    uint256 public constant MAX_ATTEST_ANCHOR_AGE = 256;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Storage
@@ -81,7 +86,18 @@ contract LivenessRegistry is Ownable, ILivenessRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// @inheritdoc ILivenessRegistry
-    function attestLiveness() external {
+    function attestLiveness(uint256 anchorBlock, bytes32 anchorHash) external {
+        // Freshness binding (M-01): anchor must be a recent PAST block whose hash the caller echoes.
+        // `anchorBlock >= block.number` covers both the current block (hash not yet known) and any
+        // future block. The subtraction is then safe (anchorBlock < block.number).
+        if (anchorBlock >= block.number || block.number - anchorBlock > MAX_ATTEST_ANCHOR_AGE) {
+            revert StaleAnchor(anchorBlock);
+        }
+        // In-range blocks always have a nonzero blockhash; the `== 0` guard is belt-and-suspenders and
+        // also rejects a caller passing anchorHash == 0 for an out-of-window block (which returns 0).
+        bytes32 h = blockhash(anchorBlock);
+        if (h == bytes32(0) || h != anchorHash) revert BadAnchorHash(anchorBlock);
+
         _lastLive[msg.sender] = block.number;
         emit LivenessAttested(msg.sender, block.number);
     }

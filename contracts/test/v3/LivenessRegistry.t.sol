@@ -7,9 +7,11 @@ import {ILivenessRegistry} from "src/interfaces/v3/ILivenessRegistry.sol";
 import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /// @title LivenessRegistry tests (CC-29)
-/// @notice Covers self-attest, the objective offline predicate + its window boundary, never-attested
-///         = offline, auto-jail self-heal, batch areOffline, block.number-based archival determinism
-///         (via vm.roll), governance window set (onlyOwner + bounds + event + effect), and bounds.
+/// @notice Covers self-attest + the M-01 freshness binding (stale/bad/current anchor reverts,
+///         pre-signed-replay defense), the objective offline predicate + its window boundary,
+///         never-attested = offline, auto-jail self-heal, batch areOffline, block.number-based
+///         archival determinism + same-block cross-caller agreement (via vm.roll), renounce-disabled,
+///         governance window set (onlyOwner + bounds + event + effect), and bounds.
 contract LivenessRegistryTest is Test {
     LivenessRegistry internal reg;
 
@@ -27,6 +29,14 @@ contract LivenessRegistryTest is Test {
         // Start well past block 0 so `block.number` arithmetic is realistic.
         vm.roll(5_000_000);
         reg = new LivenessRegistry(governance, WINDOW);
+    }
+
+    /// @dev Attest `op` at the current block with a valid recent freshness anchor (M-01 binding).
+    function _attest(address op) internal {
+        uint256 anchor = block.number - 1;
+        bytes32 h = blockhash(anchor);
+        vm.prank(op);
+        reg.attestLiveness(anchor, h);
     }
 
     // ── Construction ─────────────────────────────────────────────────────────
@@ -59,20 +69,67 @@ contract LivenessRegistryTest is Test {
     function test_attest_recordsBlockAndEmits() public {
         vm.expectEmit(true, false, false, true, address(reg));
         emit LivenessAttested(op1, block.number);
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         assertEq(reg.lastLive(op1), block.number);
     }
 
     function test_attest_updatesOnReattest() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 first = reg.lastLive(op1);
 
         vm.roll(block.number + 42);
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         assertEq(reg.lastLive(op1), first + 42);
+    }
+
+    // ── attestLiveness: M-01 freshness binding ─────────────────────────────────
+
+    function test_attest_validAtMaxAnchorAge() public {
+        uint256 age = reg.MAX_ATTEST_ANCHOR_AGE();
+        uint256 anchor = block.number - age; // oldest allowed
+        bytes32 h = blockhash(anchor);
+        assertTrue(h != bytes32(0), "precondition: in-range blockhash is nonzero");
+        vm.prank(op1);
+        reg.attestLiveness(anchor, h);
+        assertEq(reg.lastLive(op1), block.number);
+    }
+
+    function test_attest_revertsOnCurrentAnchor() public {
+        uint256 cur = block.number; // hash not yet known; anchor must be a PAST block
+        vm.expectRevert(abi.encodeWithSelector(ILivenessRegistry.StaleAnchor.selector, cur));
+        vm.prank(op1);
+        reg.attestLiveness(cur, blockhash(cur));
+    }
+
+    function test_attest_revertsJustBeyondMaxAnchorAge() public {
+        uint256 anchor = block.number - reg.MAX_ATTEST_ANCHOR_AGE() - 1; // one block too old
+        bytes32 h = blockhash(anchor); // 0 in practice, but StaleAnchor fires first
+        vm.expectRevert(abi.encodeWithSelector(ILivenessRegistry.StaleAnchor.selector, anchor));
+        vm.prank(op1);
+        reg.attestLiveness(anchor, h);
+    }
+
+    function test_attest_revertsOnWrongHash() public {
+        uint256 anchor = block.number - 1;
+        vm.expectRevert(abi.encodeWithSelector(ILivenessRegistry.BadAnchorHash.selector, anchor));
+        vm.prank(op1);
+        reg.attestLiveness(anchor, bytes32(uint256(0xdeadbeef))); // not the real blockhash
+    }
+
+    /// @dev M-01 DEFENSE: a keeper prepares an attestation now but only submits it after the anchor
+    ///      has aged past MAX_ATTEST_ANCHOR_AGE — it reverts, so an abandoned-key operator cannot use
+    ///      pre-signed/stale txs to stay counted in the live-set. Freshness is unforgeable because a
+    ///      future blockhash cannot be known at signing time.
+    function test_attest_preSignedReplayRejectedAfterAnchorExpires() public {
+        uint256 anchor = block.number - 1;
+        bytes32 h = blockhash(anchor); // captured "at signing time"
+        vm.roll(block.number + reg.MAX_ATTEST_ANCHOR_AGE() + 5); // submitted much later
+
+        vm.expectRevert(abi.encodeWithSelector(ILivenessRegistry.StaleAnchor.selector, anchor));
+        vm.prank(op1);
+        reg.attestLiveness(anchor, h);
+
+        assertTrue(reg.isOffline(op1)); // never got into the live-set
     }
 
     // ── isOffline: never attested ──────────────────────────────────────────────
@@ -85,14 +142,12 @@ contract LivenessRegistryTest is Test {
     // ── isOffline: window boundary ─────────────────────────────────────────────
 
     function test_isOffline_liveImmediatelyAfterAttest() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         assertFalse(reg.isOffline(op1));
     }
 
     function test_isOffline_atExactlyWindowEdge_stillLive() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 last = reg.lastLive(op1);
         // block.number == last + window  → NOT offline (predicate is strict `>`).
         vm.roll(last + WINDOW);
@@ -100,8 +155,7 @@ contract LivenessRegistryTest is Test {
     }
 
     function test_isOffline_oneBlockPastWindow_isOffline() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 last = reg.lastLive(op1);
         vm.roll(last + WINDOW + 1);
         assertTrue(reg.isOffline(op1));
@@ -110,13 +164,11 @@ contract LivenessRegistryTest is Test {
     // ── auto-jail self-heal ────────────────────────────────────────────────────
 
     function test_selfHeal_reattestClearsOffline() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         vm.roll(reg.lastLive(op1) + WINDOW + 500); // drift into offline
         assertTrue(reg.isOffline(op1));
 
-        vm.prank(op1);
-        reg.attestLiveness(); // permissionless self-heal
+        _attest(op1); // permissionless self-heal
         assertFalse(reg.isOffline(op1));
     }
 
@@ -124,12 +176,10 @@ contract LivenessRegistryTest is Test {
 
     function test_areOffline_batchMixedSet() public {
         // op2 attests, then time drifts past its window; stranger never attests.
-        vm.prank(op2);
-        reg.attestLiveness();
+        _attest(op2);
         vm.roll(reg.lastLive(op2) + WINDOW + 1);
         // op1 attests fresh AFTER the drift, so only op1 is live at read time.
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
 
         address[] memory ops = new address[](3);
         ops[0] = op1;
@@ -151,8 +201,7 @@ contract LivenessRegistryTest is Test {
     ///      This test mimics that: the SAME operator+state is live at one block height and offline at
     ///      a later one, deterministically, purely from `block.number` — no caller-supplied block.
     function test_determinism_predicateFollowsExecutingBlock() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 last = reg.lastLive(op1);
 
         vm.roll(last + WINDOW); // "epoch A" — within window
@@ -166,16 +215,13 @@ contract LivenessRegistryTest is Test {
     ///      MUST get identical isOffline/areOffline results. Mimics N DVT co-signers doing an archival
     ///      eth_call at the same epoch block: their agreement is what makes the live-set deterministic.
     function test_determinism_sameBlockAllCallersAgree() public {
-        vm.prank(op1);
-        reg.attestLiveness(); // op1 live
+        _attest(op1); // op1 live
         // op2 attested earlier and has drifted offline; stranger never attested.
-        vm.prank(op2);
-        reg.attestLiveness();
+        _attest(op2);
         uint256 op2Last = reg.lastLive(op2);
         vm.roll(op2Last + WINDOW + 1);
         // op1 re-attests fresh at THIS block so it is live at the pinned height.
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
 
         address[] memory ops = new address[](3);
         ops[0] = op1;
@@ -251,8 +297,7 @@ contract LivenessRegistryTest is Test {
     /// @dev Shrinking the window can flip a previously-live operator to offline — the fleet-sensitive
     ///      direction the interface warns about (owner SHOULD be a timelock/multisig).
     function test_setWindow_shrinkFlipsLiveToOffline() public {
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 last = reg.lastLive(op1);
 
         vm.roll(last + 500); // within the 1000-block window → live
@@ -272,8 +317,7 @@ contract LivenessRegistryTest is Test {
         vm.prank(governance);
         reg.setLivenessWindow(window);
 
-        vm.prank(op1);
-        reg.attestLiveness();
+        _attest(op1);
         uint256 last = reg.lastLive(op1);
 
         vm.roll(last + uint256(elapsed));

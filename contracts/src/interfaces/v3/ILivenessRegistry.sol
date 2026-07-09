@@ -41,17 +41,30 @@ interface ILivenessRegistry {
     /// @notice The proposed window is outside [MIN_LIVENESS_WINDOW, MAX_LIVENESS_WINDOW].
     error InvalidWindow(uint256 window);
 
+    /// @notice The freshness anchor is not in `[block.number - MAX_ATTEST_ANCHOR_AGE, block.number-1]`.
+    error StaleAnchor(uint256 anchorBlock);
+
+    /// @notice `anchorHash` does not equal `blockhash(anchorBlock)` (or the anchor hash is unavailable).
+    error BadAnchorHash(uint256 anchorBlock);
+
     // ─────────────────────────────────────────────────────────────────────────
     // Operator write
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Prove the caller is live. Records `lastLive[msg.sender] = block.number`.
-    /// @dev Cheapest possible liveness proof (one warm SSTORE). Permissionless: any address may
-    ///      attest for itself; there is no registration gate here — consumers decide which addresses
-    ///      count (DVT enumerates operators from SuperPaymaster and reads this per operator). A v2
-    ///      MAY add a BLS-aggregated `attestLivenessFor(address[],bytes)` batch; deliberately omitted
-    ///      from v1 to avoid an aggregator SPOF + replay/epoch-binding complexity.
-    function attestLiveness() external;
+    /// @notice Prove the caller is live *now*. Records `lastLive[msg.sender] = block.number`.
+    /// @param anchorBlock a recent block in `[block.number - MAX_ATTEST_ANCHOR_AGE, block.number - 1]`.
+    /// @param anchorHash  must equal `blockhash(anchorBlock)`.
+    /// @dev FRESHNESS BINDING (M-01): the caller must echo the hash of a recent block. A blockhash is
+    ///      unpredictable until its block exists, and `blockhash()` only exposes the last 256 blocks,
+    ///      so a transaction CANNOT be pre-signed to cover a future period — the signer must have
+    ///      observed a block within the last `MAX_ATTEST_ANCHOR_AGE` blocks. This ties "live" to
+    ///      recent signing capability and defeats a keeper replaying a batch of stale, pre-authorized
+    ///      attestations to keep an abandoned-key operator in the live-set. (It does NOT, by itself,
+    ///      stop an operator whose key is genuinely online but which refuses to co-sign slashes — that
+    ///      residual griefer is caught at the DVT layer by excluding recent non-participants.)
+    ///      Still cheap: one `blockhash` read + one warm SSTORE. Permissionless; consumers decide which
+    ///      addresses count. A v2 MAY add a BLS-aggregated batch form.
+    function attestLiveness(uint256 anchorBlock, bytes32 anchorHash) external;
 
     // ─────────────────────────────────────────────────────────────────────────
     // DVT / consumer reads (pin to a finalized block for cross-node determinism)
@@ -92,4 +105,8 @@ interface ILivenessRegistry {
 
     /// @notice Upper bound on {livenessWindow} — fat-finger guard against an absurd value.
     function MAX_LIVENESS_WINDOW() external view returns (uint256);
+
+    /// @notice Max age (in blocks) of the freshness anchor {attestLiveness} may reference. Bounded by
+    ///         the EVM's 256-block `blockhash` window.
+    function MAX_ATTEST_ANCHOR_AGE() external view returns (uint256);
 }
