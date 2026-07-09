@@ -27,6 +27,11 @@ contract CheckVersions is Script {
             network = "op-sepolia";
         } else if (block.chainid == 1) {
             network = "mainnet";
+        } else if (block.chainid == 10) {
+            // OP mainnet → authoritative V5 config (config.op-mainnet.json); NOT the legacy
+            // V3 config.optimism.json (CC-30 G10). Without this case chainid 10 fell through
+            // to "10" → config.10.json (missing) → version verification was not executable.
+            network = "op-mainnet";
         } else {
             network = vm.toString(block.chainid);
         }

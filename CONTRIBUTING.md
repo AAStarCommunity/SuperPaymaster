@@ -37,6 +37,15 @@ Fork → 新建分支 → 写代码 → 提交 PR → 签 CLA → Review → Mer
 - Commit 规范：[Conventional Commits](https://www.conventionalcommits.org/)
 - 问题反馈：在本仓库提 Issue
 
+## 版本命名约定 (CC-14 · 全生态)
+
+对外沟通的版本号**必须带产品名** —— CHANGELOG、PR 标题、release notes、issue 评论、跨仓沟通一律如此，禁止裸报数字。
+
+- ✅ `SuperPaymaster v5.4.2`、`@aastar/sdk 0.39.4`、`airaccount-contract v0.27.0`、`YetAnotherAA-Validator (DVT) v1.9.0`
+- ❌ `v5.4.2`、`0.39`、`v0.27`（多条独立版本轨道混说会分不清哪个产品）
+
+版本字符串本身保持**干净 semver**（不要把产品名塞进 `version()` 之外的 npm/tag 字符串——会坏工具链）；产品名只出现在**人类可读文本**里。合约 `version()` 沿用 `"ContractName-X.Y.Z"`（如 `"SuperPaymaster-5.4.2"`）。报同步时两边都写全名：「SDK 0.39.4 同步到 SuperPaymaster v5.4.2」。
+
 ## License
 
 Contributions are licensed under [Apache License 2.0](LICENSE).  
