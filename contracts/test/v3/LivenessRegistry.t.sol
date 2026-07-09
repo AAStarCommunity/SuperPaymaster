@@ -162,6 +162,53 @@ contract LivenessRegistryTest is Test {
         assertTrue(reg.isOffline(op1));
     }
 
+    /// @dev L-02: the core design property — at ONE fixed pinned block, every reader (any msg.sender)
+    ///      MUST get identical isOffline/areOffline results. Mimics N DVT co-signers doing an archival
+    ///      eth_call at the same epoch block: their agreement is what makes the live-set deterministic.
+    function test_determinism_sameBlockAllCallersAgree() public {
+        vm.prank(op1);
+        reg.attestLiveness(); // op1 live
+        // op2 attested earlier and has drifted offline; stranger never attested.
+        vm.prank(op2);
+        reg.attestLiveness();
+        uint256 op2Last = reg.lastLive(op2);
+        vm.roll(op2Last + WINDOW + 1);
+        // op1 re-attests fresh at THIS block so it is live at the pinned height.
+        vm.prank(op1);
+        reg.attestLiveness();
+
+        address[] memory ops = new address[](3);
+        ops[0] = op1;
+        ops[1] = op2;
+        ops[2] = stranger;
+
+        // Three distinct caller contexts read the SAME block — results must be byte-identical.
+        address[3] memory readers = [address(this), op2, stranger];
+        bool[] memory expected = reg.areOffline(ops);
+        for (uint256 i; i < readers.length; ++i) {
+            vm.prank(readers[i]);
+            bool[] memory got = reg.areOffline(ops);
+            assertEq(got.length, expected.length);
+            for (uint256 j; j < got.length; ++j) {
+                assertEq(got[j], expected[j], "cross-caller disagreement at fixed block");
+            }
+            // Per-operator single read agrees too.
+            vm.prank(readers[i]);
+            assertEq(reg.isOffline(op1), false);
+            vm.prank(readers[i]);
+            assertEq(reg.isOffline(op2), true);
+        }
+    }
+
+    // ── governance: renounce disabled (M-02a) ──────────────────────────────────
+
+    function test_renounceOwnership_disabled() public {
+        vm.expectRevert(LivenessRegistry.RenounceDisabled.selector);
+        vm.prank(governance);
+        reg.renounceOwnership();
+        assertEq(reg.owner(), governance); // ownership intact
+    }
+
     // ── governance: setLivenessWindow ──────────────────────────────────────────
 
     function test_setWindow_onlyOwner() public {
