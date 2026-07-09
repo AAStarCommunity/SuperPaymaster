@@ -23,7 +23,7 @@ So G1 is **not** a code task; it is a **gated ops task**. Do NOT run it until th
 |---|---|---|---|
 | 1 | External security audit of V5.4.2 full stack passed | jason | 🔴 GA hard gate |
 | 2 | OP mainnet deployer keystore funded (cast wallet / Foundry keystore) | jason | 🔴 |
-| 3 | `.env.op-mainnet` filled: `OP-MAINNET_RPC_URL`, signer (`DEPLOYER_ACCOUNT` keystore preferred over `PRIVATE_KEY`) | jason | 🔴 (template exists, secrets pending) |
+| 3 | `.env.op-mainnet` filled: `OP_MAINNET_RPC_URL` (deploy-core reads `${ENV_UPPER//-/_}_RPC_URL`), signer (`DEPLOYER_ACCOUNT` keystore preferred over `PRIVATE_KEY`) | jason | 🔴 (template exists, secrets pending) |
 | 4 | DVT mainnet validators + production nodes ready (BLS quorum is a slash prerequisite) | @repo:dvt | 🔴 |
 | 5 | Chainlink ETH/USD price feed address for OP mainnet confirmed in deploy config | SP | 🟡 verify |
 | 6 | Mycelium community Safe reachable on OP mainnet (`0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`, `oeth:`) for post-deploy ownership transfer (CC-31) | jason | ✅ address known |
@@ -33,26 +33,39 @@ So G1 is **not** a code task; it is a **gated ops task**. Do NOT run it until th
 ## Deploy sequence
 
 ```bash
-# 0. Pre-flight: confirm you are NOT about to hit the legacy V3 config.
-#    config.op-mainnet.json is the target (authoritative); config.optimism.json is legacy V3.
+# 0. Pre-flight: load env; confirm OP_MAINNET_RPC_URL is set (deploy-core reads it as
+#    ${ENV_UPPER//-/_}_RPC_URL). config.op-mainnet.json is the target (authoritative);
+#    config.optimism.json is legacy V3 — do NOT deploy into it.
+set -a; . ./.env.op-mainnet; set +a
+[ -n "$OP_MAINNET_RPC_URL" ] || { echo "OP_MAINNET_RPC_URL unset"; exit 1; }
 
-# 1. Full-stack V5.4.2 deploy (writes deployments/config.op-mainnet.json).
-./deploy-core op-mainnet          # add --force only if re-deploying over an unchanged srcHash
+# 1. Full-stack V5.4.2 deploy → writes deployments/config.op-mainnet.json.
+#    --fresh-deploy: this is the FIRST V5 deploy on chain 10 → new UUPS proxies. V5 is NOT an
+#    in-place upgrade of the legacy V3 (storage layout differs), so the "--fresh-deploy will
+#    LOSE all on-chain state" warning is EXPECTED and correct — the V3 stack is superseded,
+#    not upgraded. (Use plain `./deploy-core op-mainnet` only for later same-stack redeploys;
+#    `--force` only to override the skip-if-srcHash-unchanged guard.)
+./deploy-core op-mainnet --fresh-deploy
 
-# 2. Verify on-chain versions match 5.4.2 (fail = stop).
-./version-check-onchain.sh        # expect SuperPaymaster-5.4.2 / Registry-... V5 stack
+# 2. Verify on-chain versions (fail = stop). Script takes the RPC URL as its arg.
+./version-check-onchain.sh "$OP_MAINNET_RPC_URL"   # expect SuperPaymaster-5.4.2 / V5 stack
 
 # 3. Post-deploy ownership → EOA-first, then Safe once stable (mirror CC-29 model).
-#    Owners/admins deploy under the deployer EOA for bring-up, then transfer to the Safe:
-cast send <SuperPaymaster/Registry/LivenessRegistry/...> \
+#    Per Ownable contract (SuperPaymaster, Registry, LivenessRegistry, PolicyRegistry guardian,
+#    factories, …) transfer to the Safe. Exact call is per-contract — Ownable uses
+#    transferOwnership(address); slashPolicyAdmin / role-admins use their own setter (item 6).
+cast send <each-Ownable-contract> \
   "transferOwnership(address)" 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 \
   --rpc-url "$OP_MAINNET_RPC_URL" --account <deployer-keystore>
-#    Also: slashPolicyAdmin → Safe/Timelock (CC-30 item 6).
+#    Also: slashPolicyAdmin → Safe/Timelock (CC-30 item 6, its own setter, not transferOwnership).
 
 # 4. aPNTs mainnet address + fund SuperPaymaster deposit (CC-30 item 7).
 
 # 5. EntryPoint stake / deposit for the paymaster as required.
 ```
+
+> The `<each-Ownable-contract>` / `<deployer-keystore>` placeholders are the only non-literal
+> parts — fill them from the freshly-written `config.op-mainnet.json` and your keystore name.
 
 ---
 
