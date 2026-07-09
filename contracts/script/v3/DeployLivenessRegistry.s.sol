@@ -34,6 +34,7 @@ contract DeployLivenessRegistry is Script {
     address internal constant MYCELIUM_SAFE = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
 
     function run() external {
+        string memory configPath = string.concat(vm.projectRoot(), "/deployments/config.sepolia.json");
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPk);
         uint256 window = vm.envOr("LIVENESS_WINDOW", uint256(300));
@@ -57,8 +58,17 @@ contract DeployLivenessRegistry is Script {
             "LR: version"
         );
 
+        // Record (additive key — config-driven convention; downstream tooling / DVT read it here).
+        vm.writeJson(vm.toString(address(reg)), configPath, ".livenessRegistry");
+        // Read back so a silent vm.writeJson no-op fails loud (mirrors the CC-28 deploy pattern).
+        require(
+            vm.parseJsonAddress(vm.readFile(configPath), ".livenessRegistry") == address(reg),
+            "LR: config write failed"
+        );
+
         console.log("  LivenessRegistry:", address(reg));
         console.log("  version:", reg.version());
+        console.log("  recorded to:", configPath);
         if (owner == deployer) {
             console.log("  NOTE: owner = deployer EOA. After bring-up, transferOwnership to the");
             console.log("        Mycelium community Safe:", MYCELIUM_SAFE);
