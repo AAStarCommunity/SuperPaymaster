@@ -68,10 +68,14 @@ contract DeployCC28Factory is Script {
         require(t.issuedValueUSD() == 12_000 ether, "CC28: issued value");
         require(t.effectiveCapUSD() == 10_000 ether, "CC28: default cap");
         require(t.isOverIssued(), "CC28: demo token should be over-issued");
+        // No backing (demo community not configured as an SP operator) ⇒ credibilityScore == 0.
+        // Asserted on-chain so the readback matches the deploy's stated invariant, not just logged.
+        require(t.credibilityScore() == 0, "CC28: demo token credibility should be 0");
         console.log("  CC-28 demo token:", testToken);
         console.log("  issuedValueUSD:", t.issuedValueUSD());
         console.log("  effectiveCapUSD:", t.effectiveCapUSD());
         console.log("  isOverIssued:", t.isOverIssued());
+        console.log("  credibilityScore:", t.credibilityScore());
 
         // 4. Record (additive keys — old factory / official communities untouched).
         vm.writeJson(vm.toString(address(factory)), configPath, ".xPNTsFactoryCC28");
