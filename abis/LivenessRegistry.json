@@ -1,0 +1,324 @@
+{
+  "abi": [
+    {
+      "type": "constructor",
+      "inputs": [
+        {
+          "name": "governance",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "initialWindow",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "MAX_ATTEST_ANCHOR_AGE",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "MAX_LIVENESS_WINDOW",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "MIN_LIVENESS_WINDOW",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "areOffline",
+      "inputs": [
+        {
+          "name": "operators",
+          "type": "address[]",
+          "internalType": "address[]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "bool[]",
+          "internalType": "bool[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "attestLiveness",
+      "inputs": [
+        {
+          "name": "anchorBlock",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "anchorHash",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "isOffline",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "lastLive",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "livenessWindow",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "renounceOwnership",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "function",
+      "name": "setLivenessWindow",
+      "inputs": [
+        {
+          "name": "newWindow",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "inputs": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "version",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "event",
+      "name": "LivenessAttested",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "atBlock",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "LivenessWindowUpdated",
+      "inputs": [
+        {
+          "name": "oldWindow",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "newWindow",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "OwnershipTransferred",
+      "inputs": [
+        {
+          "name": "previousOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "BadAnchorHash",
+      "inputs": [
+        {
+          "name": "anchorBlock",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "InvalidWindow",
+      "inputs": [
+        {
+          "name": "window",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "OwnableInvalidOwner",
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "OwnableUnauthorizedAccount",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "RenounceDisabled",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "StaleAnchor",
+      "inputs": [
+        {
+          "name": "anchorBlock",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    }
+  ],
+  "bytecode": "0x60803461012857601f61073e38819003918201601f19168301916001600160401b0383118484101761012c5780849260409485528339810103126101285780516001600160a01b03811691908290036101285760200151908015610115575f80546001600160a01b031981168317825560405192916001600160a01b03909116907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09080a3606482108015610109575b6100f6576040907f8580ef248ca1d6bb850bdefe489be0582d571973a1276ac11455204a7f901160926001548160015582526020820152a16040516105fd90816101418239f35b5063378972b560e01b5f5260045260245ffd5b506298968082116100af565b631e4fbdf760e01b5f525f60045260245ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe60806040526004361015610011575f80fd5b5f3560e01c80630a9a8d99146104aa57806315c978871461048d578063231e03401461045457806351f1fe1a1461031a57806354fd4d5014610280578063715018a61461026157806384dfda79146101df5780638da5cb5b146101ba578063a641a7221461019d578063d4dcb45a14610182578063e458779b14610147578063f2fde38b146100c85763f901ac57146100a8575f80fd5b346100c4575f3660031901126100c45760206040516101008152f35b5f80fd5b346100c45760203660031901126100c4576004356001600160a01b0381168091036100c4576100f56105ca565b8015610134576001600160a01b035f548282198216175f55167f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a3005b631e4fbdf760e01b5f525f60045260245ffd5b346100c45760203660031901126100c4576004356001600160a01b0381168091036100c4575f526002602052602060405f2054604051908152f35b346100c4575f3660031901126100c457602060405160648152f35b346100c4575f3660031901126100c4576020604051629896808152f35b346100c4575f3660031901126100c45760206001600160a01b035f5416604051908152f35b346100c45760203660031901126100c4576004356101fb6105ca565b606481108015610255575b6102435760407f8580ef248ca1d6bb850bdefe489be0582d571973a1276ac11455204a7f90116091600154908060015582519182526020820152a1005b63378972b560e01b5f5260045260245ffd5b50629896808111610206565b346100c4575f3660031901126100c457638905116560e01b5f5260045ffd5b346100c4575f3660031901126100c4576040516040810181811067ffffffffffffffff8211176103065760405260168152604060208201917f4c6976656e65737352656769737472792d312e302e300000000000000000000083528151928391602083525180918160208501528484015e5f828201840152601f01601f19168101030190f35b634e487b7160e01b5f52604160045260245ffd5b346100c45760203660031901126100c45760043567ffffffffffffffff81116100c457366023820112156100c457806004013567ffffffffffffffff81116100c4573660248260051b840101116100c457610374816105b2565b60405190601f01601f1916810167ffffffffffffffff811182821017610306576040528181526103a3826105b2565b6020820190601f19013682375f5b8381101561040e578060051b90602482870101356001600160a01b03811681036100c4576103de90610580565b9184518210156103fa57602060019315159186010152016103b1565b634e487b7160e01b5f52603260045260245ffd5b5090604051918291602083019060208452518091526040830191905f5b818110610439575050500390f35b8251151584528594506020938401939092019160010161042b565b346100c45760203660031901126100c4576004356001600160a01b03811681036100c457610483602091610580565b6040519015158152f35b346100c4575f3660031901126100c4576020600154604051908152f35b346100c45760403660031901126100c45760043543811080159061054b575b610539578040801590811561052c575b5061051a57335f5260026020524360405f20556040514381527f2063ad0e5e02d8662f91343a706d6661b86a0fd54dee876f99763199bcebdb7360203392a2005b630aae45ff60e21b5f5260045260245ffd5b90506024351415826104d9565b633e9ea38960e21b5f5260045260245ffd5b50610100610559824361055f565b116104c9565b9190820391821161056c57565b634e487b7160e01b5f52601160045260245ffd5b6001600160a01b03165f52600260205260405f205480156105ac576105a5904361055f565b6001541090565b50600190565b67ffffffffffffffff81116103065760051b60200190565b6001600160a01b035f541633036105dd57565b63118cdaa760e01b5f523360045260245ffdfea164736f6c6343000821000a"
+}
