@@ -76,9 +76,15 @@ contract DeployCC28Factory is Script {
         // 4. Record (additive keys — old factory / official communities untouched).
         vm.writeJson(vm.toString(address(factory)), configPath, ".xPNTsFactoryCC28");
         vm.writeJson(vm.toString(testToken), configPath, ".xPNTsTokenCC28Test");
+        // Read both keys back so a silent vm.writeJson no-op fails loud (mirrors #342 L-2).
+        string memory written = vm.readFile(configPath);
         require(
-            vm.parseJsonAddress(vm.readFile(configPath), ".xPNTsFactoryCC28") == address(factory),
-            "CC28: config write failed"
+            vm.parseJsonAddress(written, ".xPNTsFactoryCC28") == address(factory),
+            "CC28: factory config write failed"
+        );
+        require(
+            vm.parseJsonAddress(written, ".xPNTsTokenCC28Test") == testToken,
+            "CC28: token config write failed"
         );
         console.log("=== Done. CC-28 factory live; official communities unaffected. ===");
     }
