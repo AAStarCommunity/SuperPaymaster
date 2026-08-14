@@ -1,0 +1,217 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+
+import "forge-std/Test.sol";
+import "src/modules/monitoring/BLSAggregator.sol";
+import "src/interfaces/v3/IRegistry.sol";
+import "src/interfaces/v3/IGTokenStaking.sol";
+import "src/utils/BLS.sol";
+
+/// @notice CC-89 stage-2 Phase-2 E2E harness (SP half real, DVT verifier mocked).
+/// @dev  Full over-issue guardian-collusion slash chain wired end-to-end:
+///         A)造 slash: verifyAndExecute (real, BLS precompiles mocked) → stores
+///            proposalSignersCommitment  ← SP half, fully asserted incl. off-chain recompute.
+///         B) fraud proof → executeGuardianSlash → slashByDVT → auto-eject  ← DVT half.
+///       The verifier is a MOCK here (returns true). When the real DVT
+///       OverIssueFraudProofVerifier lands (issue #222), swap MockVerifier for it and
+///       feed a real fraudProof — the rest of the wiring stays identical.
+///       Mirrors DVT_BLS.t.sol's mocked BLS precompiles so verifyAndExecute passes
+///       _checkSignatures without real BLS signing.
+
+// ---- staking: real-enough accounting to prove slash → 0 → auto-eject ----
+contract MockStaking {
+    mapping(address => uint128) public lockAmt;
+    uint256 public slashCount;
+    function setLock(address u, uint128 a) external { lockAmt[u] = a; }
+    function roleLocks(address user, bytes32 roleId)
+        external view returns (uint128, uint128, uint48, bytes32, bytes memory)
+    { return (lockAmt[user], 0, 0, roleId, ""); }
+    function slashByDVT(address operator, bytes32, uint256 penalty, string calldata) external {
+        require(lockAmt[operator] >= penalty, "InsufficientStake");
+        lockAmt[operator] -= uint128(penalty);
+        slashCount++;
+    }
+}
+
+contract MockRegistry is IRegistry {
+    address public staking;
+    uint256 public minStake;
+    constructor(uint256 _minStake) { minStake = _minStake; }
+    function setStaking(address s) external { staking = s; }
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) { return IGTokenStaking(staking); }
+    function hasRole(bytes32, address) external pure override returns (bool) { return true; }
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
+        return RoleConfig(minStake, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
+    }
+    // stubs
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function configureRole(bytes32, RoleConfig calldata) external override {}
+    function exitRole(bytes32) external override {}
+    function getRoleUserCount(bytes32) external pure override returns (uint256) { return 0; }
+    function getUserRoles(address) external pure override returns (bytes32[] memory) { return new bytes32[](0); }
+    function registerRole(bytes32, address, bytes calldata) external override {}
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+    function setReputationSource(address, bool) external override {}
+    function markProposalExecuted(uint256) external override {}
+    function setCreditTier(uint256, uint256) external override {}
+    function getCreditLimit(address) external pure override returns (uint256) { return 100 ether; }
+    function isReputationSource(address) external pure override returns (bool) { return true; }
+    function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
+    function version() external pure override returns (string memory) { return "MockRegistry"; }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+    function getEffectiveStake(address, bytes32) external pure override returns (uint256) { return 0; }
+}
+
+/// @notice Stand-in for the real DVT OverIssueFraudProofVerifier (issue #222).
+///         The real one will: require(commitment!=0) → keccak(claimedSigners)==commitment
+///         → guiltyGuardians ⊆ claimedSigners → over-issue evidence recompute.
+contract MockVerifier {
+    bool public ok = true;
+    function set(bool v) external { ok = v; }
+    function verify(uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
+}
+
+/// @notice DVT_VALIDATOR stand-in — verifyAndExecute calls markProposalExecuted on it.
+contract MockDVT { function markProposalExecuted(uint256) external {} }
+
+/// @notice SUPERPAYMASTER stand-in — _executeSlash forwards the operator slash here.
+contract MockSP {
+    function queueSlash(address) external {}
+    function executeSlashWithBLS(address, uint8, bytes calldata) external {}
+}
+
+contract GuardianSlashE2ETest is Test {
+    BLSAggregator bls;
+    MockRegistry registry;
+    MockStaking staking;
+    MockVerifier verifier;
+
+    MockDVT dvtC;
+    MockSP spC;
+    address owner = address(0x0BEE);
+    uint256 constant MIN_STAKE = 30 ether;
+
+    // slots 1..7 → these validator addresses (already ascending by uint160)
+    address[7] signers = [
+        address(0x101), address(0x102), address(0x103), address(0x104),
+        address(0x105), address(0x106), address(0x107)
+    ];
+
+    function setUp() public {
+        // Mock BLS precompiles (same shape as DVT_BLS.t.sol) so verifyAndExecute
+        // passes _reconstructPkAgg + pairing without real BLS signing.
+        vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
+        vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (identity)
+        vm.etch(address(0x10), hex"60806000f3"); // MapFpToG1
+        vm.etch(address(0x11), hex"6101006000f3"); // MapFp2ToG2 → 256 bytes
+        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
+        // BLS12_PAIRING (0x0f) → success (1); focuses the harness on commitment +
+        // slash wiring, not real pairing arithmetic (same approach as DVT_BLS.t.sol).
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        staking = new MockStaking();
+        registry = new MockRegistry(MIN_STAKE);
+        registry.setStaking(address(staking));
+
+        vm.startPrank(owner);
+        dvtC = new MockDVT();
+        spC = new MockSP();
+        bls = new BLSAggregator(address(registry), address(spC), address(dvtC));
+        // register 7 validators into slots 1..7 + give each a ROLE_DVT lock ≥ minStake
+        for (uint8 i = 0; i < 7; i++) {
+            bls.registerBLSPublicKey(signers[i], _stubKey(i + 1), i + 1, _emptyPoP());
+        }
+        vm.stopPrank();
+        for (uint8 i = 0; i < 7; i++) {
+            staking.setLock(signers[i], uint128(MIN_STAKE)); // exactly at floor
+        }
+
+        verifier = new MockVerifier();
+    }
+
+    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+        pk.x_a = bytes32(seed); pk.x_b = bytes32(seed + 1);
+        pk.y_a = bytes32(seed + 2); pk.y_b = bytes32(seed + 3);
+    }
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+    function _proof(uint256 signerMask) internal pure returns (bytes memory) {
+        BLS.G2Point memory sig;
+        return abi.encode(signerMask, abi.encode(sig));
+    }
+
+    // ============================================================
+    // Phase A — SP half: verifyAndExecute stores a commitment an off-chain
+    //           watcher can reproduce byte-for-byte.
+    // ============================================================
+    function test_E2E_A_CommitmentStoredAndReproducible() public {
+        uint256 pid = 42;
+        address op = address(0xABCD);
+        uint8 slashLevel = 1; // MINOR (threshold 3); mask 0x7F = 7 signers passes
+        uint256 epoch = 100;
+        bytes32 evidenceHash = keccak256("disputed-over-issue-evidence");
+        uint256 mask = 0x7F; // slots 1..7
+        bytes memory proof = _proof(mask);
+
+        vm.prank(owner);
+        bls.verifyAndExecute(pid, op, slashLevel, new address[](0), new uint256[](0), epoch, evidenceHash, proof);
+
+        bytes32 stored = bls.proposalSignersCommitment(pid);
+        assertTrue(stored != bytes32(0), "commitment must be non-zero (pr-daemon require)");
+
+        // Off-chain recompute (this is exactly what the DVT watcher/verifier does):
+        // slash-only messageHash + canonical ascending signer set.
+        bytes32 expectedMsgHash = keccak256(abi.encode(
+            pid, op, slashLevel, new address[](0), new uint256[](0), epoch, block.chainid, evidenceHash
+        ));
+        address[] memory sorted = new address[](7);
+        for (uint8 i = 0; i < 7; i++) sorted[i] = signers[i]; // already ascending
+        bytes32 expected = keccak256(abi.encode(
+            "BLS_SIGNERS_COMMITMENT_V1", block.chainid, address(bls), pid, expectedMsgHash, mask, sorted
+        ));
+        assertEq(stored, expected, "off-chain recompute must match on-chain commitment");
+    }
+
+    // ============================================================
+    // Phase B — DVT half (verifier mocked): fraud proof → executeGuardianSlash →
+    //           slash guilty guardians' ROLE_DVT lock to 0 → auto-eject.
+    // ============================================================
+    function test_E2E_B_FraudProofSlashesAndEjects() public {
+        // First run Phase A so a commitment exists for the disputed proposal.
+        test_E2E_A_CommitmentStoredAndReproducible();
+
+        vm.prank(owner);
+        bls.setFraudProofVerifier(address(verifier)); // real verifier swaps in here
+
+        // The (mock) verifier attests these two signers colluded on the fraudulent slash.
+        address[] memory guilty = new address[](2);
+        guilty[0] = signers[0]; // 0x101
+        guilty[1] = signers[3]; // 0x104
+        // Real fraudProof would be abi.encode(proposalId, claimedSigners, mask, msgHash, token);
+        // mock verifier ignores it.
+        bls.executeGuardianSlash(1, guilty, hex"");
+
+        // Full-lock slash → 0 → below minStake.
+        assertEq(staking.lockAmt(signers[0]), 0, "guilty guardian 0x101 lock zeroed");
+        assertEq(staking.lockAmt(signers[3]), 0, "guilty guardian 0x104 lock zeroed");
+        assertEq(staking.slashCount(), 2, "both guilty slashed");
+        // Non-guilty untouched.
+        assertEq(staking.lockAmt(signers[1]), MIN_STAKE, "innocent 0x102 untouched");
+
+        // Auto-eject: a new proposal whose signerMask includes a slashed guardian
+        // (slot 1 = 0x101, now 0-lock < minStake) must revert in _reconstructPkAgg.
+        vm.prank(owner);
+        vm.expectRevert(); // SlotValidatorStakeBelowMinimum(1, 0x101, 0, 30e)
+        bls.verifyAndExecute(
+            99, address(0xABCD), 1, new address[](0), new uint256[](0), 101, bytes32(0), _proof(0x7F)
+        );
+    }
+
+    // Sanity: verifier gating still fail-closed in the E2E wiring.
+    function test_E2E_VerifierNotSet_Reverts() public {
+        test_E2E_A_CommitmentStoredAndReproducible();
+        address[] memory guilty = new address[](1);
+        guilty[0] = signers[0];
+        vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
+        bls.executeGuardianSlash(1, guilty, hex"");
+    }
+}
