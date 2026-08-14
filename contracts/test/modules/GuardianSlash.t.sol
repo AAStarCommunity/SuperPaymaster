@@ -9,7 +9,7 @@ import "src/interfaces/v3/IGTokenStaking.sol";
 contract MockVerifier {
     bool public ok = true;
     function set(bool v) external { ok = v; }
-    function verify(uint256, uint8[] calldata, bytes calldata) external view returns (bool) { return ok; }
+    function verify(uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
 }
 
 /// @notice Minimal GTokenStaking stub exposing only roleLocks + slashByDVT.
@@ -48,10 +48,9 @@ contract MockRegistry {
 
 /// @title  executeGuardianSlash tests (Protocol B stage-1 thin SP entry)
 /// @notice Covers fail-closed, verifier gating, full-lock slash + auto-eject
-///         precondition, replay guard, dedup/shape hardening, and 0-lock skip.
+///         precondition, replay guard, dedup/shape hardening, 0-lock skip, and
+///         address-binding (not slot) so slot reuse can never slash the wrong party.
 contract GuardianSlashTest is Test {
-    using stdStorage for StdStorage;
-
     BLSAggregator bls;
     MockRegistry registry;
     MockStaking staking;
@@ -77,12 +76,8 @@ contract GuardianSlashTest is Test {
         bls.setFraudProofVerifier(address(verifier));
     }
 
-    function _bindSlot(uint8 slot, address guardian) internal {
-        stdstore.target(address(bls)).sig("validatorAtSlot(uint8)").with_key(uint256(slot)).checked_write(guardian);
-    }
-
-    function _slots(uint8 a) internal pure returns (uint8[] memory s) {
-        s = new uint8[](1);
+    function _one(address a) internal pure returns (address[] memory s) {
+        s = new address[](1);
         s[0] = a;
     }
 
@@ -90,7 +85,7 @@ contract GuardianSlashTest is Test {
 
     function test_RevertWhen_VerifierNotSet() public {
         vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
-        bls.executeGuardianSlash(1, _slots(1), "");
+        bls.executeGuardianSlash(1, _one(guardian1), "");
     }
 
     function test_SetFraudProofVerifier_OnlyOwner() public {
@@ -101,16 +96,16 @@ contract GuardianSlashTest is Test {
 
     // ---- shape / verifier gating ----
 
-    function test_RevertWhen_EmptySlots() public {
+    function test_RevertWhen_EmptyGuardians() public {
         _wireVerifier();
-        vm.expectRevert(BLSAggregator.EmptyGuiltySlots.selector);
-        bls.executeGuardianSlash(1, new uint8[](0), "");
+        vm.expectRevert(BLSAggregator.EmptyGuiltyGuardians.selector);
+        bls.executeGuardianSlash(1, new address[](0), "");
     }
 
-    function test_RevertWhen_TooManySlots() public {
+    function test_RevertWhen_TooManyGuardians() public {
         _wireVerifier();
-        uint8[] memory many = new uint8[](14); // > MAX_VALIDATORS (13)
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "guiltySlots"));
+        address[] memory many = new address[](14); // > MAX_VALIDATORS (13)
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "guiltyGuardians"));
         bls.executeGuardianSlash(1, many, "");
     }
 
@@ -118,37 +113,34 @@ contract GuardianSlashTest is Test {
         _wireVerifier();
         verifier.set(false);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(1)));
-        bls.executeGuardianSlash(1, _slots(1), "");
+        bls.executeGuardianSlash(1, _one(guardian1), "");
     }
 
-    function test_RevertWhen_DuplicateSlot() public {
+    function test_RevertWhen_DuplicateGuardian() public {
         _wireVerifier();
-        uint8[] memory dup = new uint8[](2);
-        dup[0] = 1;
-        dup[1] = 1;
-        _bindSlot(1, guardian1);
+        address[] memory dup = new address[](2);
+        dup[0] = guardian1;
+        dup[1] = guardian1;
         staking.setLock(guardian1, 60 ether);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "dup slot"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "dup guardian"));
         bls.executeGuardianSlash(1, dup, "");
     }
 
-    function test_RevertWhen_UnknownSlot() public {
+    function test_RevertWhen_ZeroAddress() public {
         _wireVerifier();
-        // verify=true but slot 1 has no bound validator
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
-        bls.executeGuardianSlash(1, _slots(1), "");
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidTarget.selector, address(0)));
+        bls.executeGuardianSlash(1, _one(address(0)), "");
     }
 
     // ---- happy path: full-lock slash → auto-eject precondition ----
 
     function test_SuccessSlashesFullLock() public {
         _wireVerifier();
-        _bindSlot(1, guardian1);
         staking.setLock(guardian1, 60 ether);
 
-        vm.expectEmit(true, true, true, true, address(bls));
-        emit BLSAggregator.GuardianSlashed(1, 1, guardian1, 60 ether);
-        bls.executeGuardianSlash(1, _slots(1), "");
+        vm.expectEmit(true, true, false, true, address(bls));
+        emit BLSAggregator.GuardianSlashed(1, guardian1, 60 ether);
+        bls.executeGuardianSlash(1, _one(guardian1), "");
 
         assertEq(staking.lastSlashed(), guardian1);
         assertEq(staking.lastPenalty(), 60 ether, "full lock slashed");
@@ -156,15 +148,13 @@ contract GuardianSlashTest is Test {
         assertTrue(bls.consumedFraudProofs(1));
     }
 
-    function test_SuccessMultipleSlots() public {
+    function test_SuccessMultipleGuardians() public {
         _wireVerifier();
-        _bindSlot(1, guardian1);
-        _bindSlot(2, guardian2);
         staking.setLock(guardian1, 30 ether);
         staking.setLock(guardian2, 45 ether);
-        uint8[] memory two = new uint8[](2);
-        two[0] = 1;
-        two[1] = 2;
+        address[] memory two = new address[](2);
+        two[0] = guardian1;
+        two[1] = guardian2;
         bls.executeGuardianSlash(7, two, "");
         assertEq(staking.slashCount(), 2);
         assertEq(staking.lockAmt(guardian1), 0);
@@ -175,21 +165,19 @@ contract GuardianSlashTest is Test {
 
     function test_RevertWhen_Replay() public {
         _wireVerifier();
-        _bindSlot(1, guardian1);
         staking.setLock(guardian1, 60 ether);
-        bls.executeGuardianSlash(1, _slots(1), "");
+        bls.executeGuardianSlash(1, _one(guardian1), "");
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.FraudProofAlreadyUsed.selector, uint256(1)));
-        bls.executeGuardianSlash(1, _slots(1), "");
+        bls.executeGuardianSlash(1, _one(guardian1), "");
     }
 
-    // ---- 0-lock skip (already ejected guardian) ----
+    // ---- 0-lock skip (already ejected/exited guardian) ----
 
-    function test_SkipsZeroLockSlot() public {
+    function test_SkipsZeroLock() public {
         _wireVerifier();
-        _bindSlot(1, guardian1);
         staking.setLock(guardian1, 0); // already emptied
-        bls.executeGuardianSlash(1, _slots(1), "");
-        assertEq(staking.slashCount(), 0, "no slash call for 0-lock slot");
+        bls.executeGuardianSlash(1, _one(guardian1), "");
+        assertEq(staking.slashCount(), 0, "no slash call for 0-lock guardian");
         assertTrue(bls.consumedFraudProofs(1), "proof still consumed (no re-execution)");
     }
 
