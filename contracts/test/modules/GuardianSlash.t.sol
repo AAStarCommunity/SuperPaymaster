@@ -145,7 +145,7 @@ contract GuardianSlashTest is Test {
         assertEq(staking.lastSlashed(), guardian1);
         assertEq(staking.lastPenalty(), 60 ether, "full lock slashed");
         assertEq(staking.lockAmt(guardian1), 0, "lock zeroed -> falls below minStake -> auto-eject");
-        assertTrue(bls.consumedFraudProofs(1));
+        assertTrue(bls.guardianSlashed(1, guardian1));
     }
 
     function test_SuccessMultipleGuardians() public {
@@ -161,24 +161,47 @@ contract GuardianSlashTest is Test {
         assertEq(staking.lockAmt(guardian2), 0);
     }
 
-    // ---- replay guard ----
+    // ---- per-(proof,guardian) idempotency (replaces global-id replay) ----
 
-    function test_RevertWhen_Replay() public {
+    function test_Idempotent_Replay() public {
         _wireVerifier();
         staking.setLock(guardian1, 60 ether);
         bls.executeGuardianSlash(1, _one(guardian1), "");
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.FraudProofAlreadyUsed.selector, uint256(1)));
+        // Second call under the same (id, guardian) is a silent no-op, not a revert.
         bls.executeGuardianSlash(1, _one(guardian1), "");
+        assertEq(staking.slashCount(), 1, "no double-slash");
+        assertTrue(bls.guardianSlashed(1, guardian1));
     }
 
-    // ---- 0-lock skip (already ejected/exited guardian) ----
+    // ---- 0-lock skip: exited guardian is NOT consumed, emits skip event ----
 
     function test_SkipsZeroLock() public {
         _wireVerifier();
-        staking.setLock(guardian1, 0); // already emptied
+        staking.setLock(guardian1, 0); // already emptied / exited
+        vm.expectEmit(true, true, false, false, address(bls));
+        emit BLSAggregator.GuardianSlashSkipped(1, guardian1);
         bls.executeGuardianSlash(1, _one(guardian1), "");
         assertEq(staking.slashCount(), 0, "no slash call for 0-lock guardian");
-        assertTrue(bls.consumedFraudProofs(1), "proof still consumed (no re-execution)");
+        assertFalse(bls.guardianSlashed(1, guardian1), "0-lock guardian NOT consumed");
+    }
+
+    // ---- pr-daemon blocking: an exited guardian must NOT burn the proof for colluders ----
+
+    function test_ExitedGuardianDoesNotShieldColluder() public {
+        _wireVerifier();
+        staking.setLock(guardian1, 0);        // exited co-signer (griefing bait)
+        staking.setLock(guardian2, 60 ether); // still-staked colluder
+
+        // Attacker submits ONLY the exited guardian1 first, hoping to burn proof id 1.
+        bls.executeGuardianSlash(1, _one(guardian1), "");
+        assertEq(staking.slashCount(), 0);
+        assertFalse(bls.guardianSlashed(1, guardian1), "no id burned by exited guardian");
+
+        // The still-staked colluder remains slashable under the SAME proof id.
+        bls.executeGuardianSlash(1, _one(guardian2), "");
+        assertEq(staking.slashCount(), 1, "colluder slashed despite earlier grief");
+        assertEq(staking.lockAmt(guardian2), 0);
+        assertTrue(bls.guardianSlashed(1, guardian2));
     }
 
     // ---- version bump ----

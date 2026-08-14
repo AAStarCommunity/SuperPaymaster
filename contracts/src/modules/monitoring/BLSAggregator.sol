@@ -182,11 +182,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         detection layer plugs into; the aggregator never judges fraud itself.
     address public fraudProofVerifier;
 
-    /// @notice Replay guard for executeGuardianSlash — a consumed fraudProofId
-    ///         cannot re-slash the same guardians (mirrors executedProposals /
-    ///         usedSlashQueueHashes; kept in its own id-space so it can never
-    ///         collide with slash/reputation proposalIds).
-    mapping(uint256 => bool) public consumedFraudProofs;
+    /// @notice Per-(fraudProofId, guardian) slash record for executeGuardianSlash.
+    ///         Consumption is tracked PER GUARDIAN — and only for guardians actually
+    ///         slashed — so submitting an already-exited co-signer can never burn the
+    ///         proof for the still-staked colluders (the global-id-consumption flaw this
+    ///         replaces). Own id-space; never collides with slash/reputation proposalIds.
+    mapping(uint256 => mapping(address => bool)) public guardianSlashed;
 
     function version() external pure override returns (string memory) {
         return "BLSAggregator-4.2.0";
@@ -227,6 +228,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Emitted per guardian whose ROLE_DVT stake was slashed for proven
     ///         collusion. `amount` is the full lock slashed (→ auto-eject on next verify).
     event GuardianSlashed(uint256 indexed fraudProofId, address indexed guardian, uint256 amount);
+    /// @notice Emitted when a named guardian had no ROLE_DVT lock to slash (exited /
+    ///         already-ejected). On-chain trace so monitors can tell "escaped via exit"
+    ///         apart from "was never on the list"; no id/guardian is consumed here.
+    event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -300,8 +305,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error FraudProofVerifierNotSet();
     /// @notice The fraud-proof verifier rejected (fraudProofId, guiltyGuardians, fraudProof).
     error InvalidFraudProof(uint256 fraudProofId);
-    /// @notice A fraudProofId was replayed — its guardians were already slashed.
-    error FraudProofAlreadyUsed(uint256 fraudProofId);
     /// @notice executeGuardianSlash received an empty guiltyGuardians array.
     error EmptyGuiltyGuardians();
 
@@ -1039,6 +1042,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Wire/rotate the guardian-collusion fraud-proof verifier (Protocol B
     ///         stage 2 detection layer, supplied by the DVT repo). Owner-gated.
     ///         Setting address(0) disables executeGuardianSlash (feature dormant).
+    /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
+    ///         100%-of-lock slash path. Before wiring a verifier, `owner` MUST be a
+    ///         TimelockController (or multisig-behind-timelock) so verifier rotation is
+    ///         delay-guarded — do NOT arm this from a hot EOA owner. Enforced by
+    ///         deployment/governance, not in-contract, to keep this a thin entry.
     function setFraudProofVerifier(address verifier) external onlyOwner {
         emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
         fraudProofVerifier = verifier;
@@ -1081,15 +1089,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (verifier == address(0)) revert FraudProofVerifierNotSet();
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
-        if (consumedFraudProofs[fraudProofId]) revert FraudProofAlreadyUsed(fraudProofId);
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
 
-        // Check → verify(view) → effect → interaction (CEI; nonReentrant backstop).
+        // Verify once (view): the verifier authorizes this (proof, guardians) set.
+        // Consumption is tracked per guardian below, NOT by a single global id here —
+        // so an already-exited co-signer can never burn the proof for the others.
         if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltyGuardians, fraudProof)) {
             revert InvalidFraudProof(fraudProofId);
         }
-        consumedFraudProofs[fraudProofId] = true;
 
         bytes32 roleDvt = keccak256("DVT");
 
@@ -1102,16 +1110,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                 if (guiltyGuardians[j] == guardian) revert InvalidParameter("dup guardian");
                 unchecked { ++j; }
             }
-            (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
-            // Skip already-emptied locks: a guardian whose ROLE_DVT lock is 0 has
-            // already lost eligibility (auto-ejected / exited), so there is nothing
-            // to slash. Intentional — do NOT revert, else one exited co-signer would
-            // block slashing the still-staked colluders in the same proof.
-            if (amount != 0) {
-                IGTokenStakingSlash(address(staking)).slashByDVT(
-                    guardian, roleDvt, uint256(amount), "DVT collusion"
-                );
-                emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
+            // Idempotent per (proof, guardian): a guardian already slashed under this
+            // proof is silently skipped (no double-slash, no revert of the batch).
+            if (!guardianSlashed[fraudProofId][guardian]) {
+                (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
+                if (amount != 0) {
+                    // Mark ONLY when actually slashing (CEI: effect before interaction;
+                    // nonReentrant backstop). An exited/0-lock guardian is NOT marked,
+                    // so it consumes nothing on behalf of the still-staked colluders.
+                    guardianSlashed[fraudProofId][guardian] = true;
+                    IGTokenStakingSlash(address(staking)).slashByDVT(
+                        guardian, roleDvt, uint256(amount), "DVT collusion"
+                    );
+                    emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
+                } else {
+                    // Exited / already-ejected: nothing to slash and no id burned, so
+                    // still-staked colluders under this same proof remain slashable.
+                    emit GuardianSlashSkipped(fraudProofId, guardian);
+                }
             }
             unchecked { ++i; }
         }
