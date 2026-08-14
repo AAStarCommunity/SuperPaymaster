@@ -66,9 +66,19 @@ contract MockRegistry is IRegistry {
 ///         The real one will: require(commitment!=0) → keccak(claimedSigners)==commitment
 ///         → guiltyGuardians ⊆ claimedSigners → over-issue evidence recompute.
 contract MockVerifier {
+    BLSAggregator public immutable AGG;
     bool public ok = true;
+    constructor(BLSAggregator a) { AGG = a; }
     function set(bool v) external { ok = v; }
-    function verify(uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
+    /// @dev Binds the fraud proof to Phase A: fraudProof carries the disputed
+    ///      proposalId, and step 0 (pr-daemon Medium) requires its commitment != 0.
+    ///      The real verifier additionally checks keccak(claimedSigners)==commitment,
+    ///      guiltyGuardians ⊆ claimedSigners, and recomputes the over-issue evidence.
+    function verify(uint256, address[] calldata, bytes calldata fraudProof) external view returns (bool) {
+        if (!ok) return false;
+        uint256 disputedPid = abi.decode(fraudProof, (uint256));
+        return AGG.proposalSignersCommitment(disputedPid) != bytes32(0);
+    }
 }
 
 /// @notice DVT_VALIDATOR stand-in — verifyAndExecute calls markProposalExecuted on it.
@@ -126,7 +136,7 @@ contract GuardianSlashE2ETest is Test {
             staking.setLock(signers[i], uint128(MIN_STAKE)); // exactly at floor
         }
 
-        verifier = new MockVerifier();
+        verifier = new MockVerifier(bls);
     }
 
     function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
@@ -186,9 +196,10 @@ contract GuardianSlashE2ETest is Test {
         address[] memory guilty = new address[](2);
         guilty[0] = signers[0]; // 0x101
         guilty[1] = signers[3]; // 0x104
-        // Real fraudProof would be abi.encode(proposalId, claimedSigners, mask, msgHash, token);
-        // mock verifier ignores it.
-        bls.executeGuardianSlash(1, guilty, hex"");
+        // fraudProof binds to the disputed proposal FROM PHASE A (pid = 42); the mock
+        // verifier reads its commitment (mirrors pr-daemon's step-0 require != 0). A real
+        // fraudProof adds claimedSigners/mask/msgHash/token, but the pid binding is the same.
+        bls.executeGuardianSlash(1, guilty, abi.encode(uint256(42)));
 
         // Full-lock slash → 0 → below minStake.
         assertEq(staking.lockAmt(signers[0]), 0, "guilty guardian 0x101 lock zeroed");
@@ -204,6 +215,22 @@ contract GuardianSlashE2ETest is Test {
         bls.verifyAndExecute(
             99, address(0xABCD), 1, new address[](0), new uint256[](0), 101, bytes32(0), _proof(0x7F)
         );
+    }
+
+    // A fraud proof pointing at a proposalId with NO commitment (never executed, or
+    // executed via the generic executeProposal path) must be rejected — this is the
+    // pr-daemon `require(commitment != 0)` step the real verifier enforces, and it's
+    // why Phase B's proof must bind to a real Phase A proposal.
+    function test_E2E_B_RejectsUnanchoredProof() public {
+        test_E2E_A_CommitmentStoredAndReproducible(); // commitment exists for pid 42 ONLY
+        vm.prank(owner);
+        bls.setFraudProofVerifier(address(verifier));
+
+        address[] memory guilty = new address[](1);
+        guilty[0] = signers[0];
+        // Point at pid 999 — no commitment stored → verifier returns false → reject.
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(7)));
+        bls.executeGuardianSlash(7, guilty, abi.encode(uint256(999)));
     }
 
     // Sanity: verifier gating still fail-closed in the E2E wiring.
