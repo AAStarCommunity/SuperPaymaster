@@ -1047,6 +1047,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         TimelockController (or multisig-behind-timelock) so verifier rotation is
     ///         delay-guarded — do NOT arm this from a hot EOA owner. Enforced by
     ///         deployment/governance, not in-contract, to keep this a thin entry.
+    /// @dev    Activation prerequisite (follow-up, not this PR): ROLE_DVT needs a
+    ///         pending-slash freeze / unbonding gate (mirroring SP.queueSlash's
+    ///         two-step) BEFORE a verifier is armed. Without it a guardian exits
+    ///         ahead of the fraud proof (Registry.exitRole, 10% fee) and the paper's
+    ///         ρ·S_op deterrent degrades to ~0.1·S_op. The A' attribution work
+    ///         (per CC-89) and this exit-freeze are both stage-2 gating items.
     function setFraudProofVerifier(address verifier) external onlyOwner {
         emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
         fraudProofVerifier = verifier;
@@ -1064,17 +1070,25 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           captured at fraud time could later resolve to an innocent validator
     ///           — slashing by slot would hit the wrong address. The verifier binds
     ///           the proof to stable addresses; the slash reads the accused's own
-    ///           ROLE_DVT lock. This also blocks the revoke-to-escape trick, since a
-    ///           slashed address's lock is independent of whether it still holds a slot.
+    ///           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed
+    ///           address's lock is independent of whether it still holds a slot).
+    ///           ⚠️ It does NOT block Registry.exitRole: a guardian past
+    ///           roleLockDuration (ROLE_DVT = 30 days) can self-exit, pay the 10%
+    ///           exit fee, keep 90% AND retain re-staking eligibility; this loop
+    ///           then reads a 0 lock and skips him (GuardianSlashSkipped). Blocking
+    ///           the exit path is a stage-2 challenger concern (pending-slash freeze),
+    ///           out of scope for this thin entry — see setFraudProofVerifier.
     ///         - Permissionless CALL, gated by the verifier: fraud validity — not
     ///           caller identity — authorizes the slash. This deliberately bypasses
     ///           the accused DVT quorum, which is the collusion set and would never
     ///           slash itself (the circular-dependency escape).
     ///         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg
     ///           auto-ejects the guardian on the next verify. No 30% cap: proven
-    ///           collusion must lose eligibility, not merely pay a fee (the
+    ///           collusion must lose eligibility, not merely pay a fee — but this
+    ///           holds only for a guardian who has NOT exited (an exited guardian
+    ///           does merely pay the 10% exit fee; see the exit caveat above). The
     ///           operator-path cap protects honest operators from one bad epoch —
-    ///           a different threat model).
+    ///           a different threat model.
     ///         - fail-closed: reverts until a verifier is wired.
     /// @param  fraudProofId    Unique id of the fraud proof (own id-space; replay-guarded).
     /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier).
