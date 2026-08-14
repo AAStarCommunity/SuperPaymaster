@@ -28,6 +28,29 @@ interface IDVTValidator {
     function markProposalExecuted(uint256 proposalId) external;
 }
 
+/// @notice Narrow sub-view of GTokenStaking exposing only the directed
+///         role-lock slash. `IGTokenStaking` (used elsewhere here for
+///         `roleLocks`) does not surface `slashByDVT`, so we cast the same
+///         staking pointer to this local interface rather than widening the
+///         shared interface (which every mock/implementer would then have to
+///         satisfy). The aggregator is already in `authorizedSlashers`.
+interface IGTokenStakingSlash {
+    function slashByDVT(address operator, bytes32 roleId, uint256 penaltyAmount, string calldata reason) external;
+}
+
+/// @notice External, DVT-supplied fraud-proof verifier (Protocol B stage 2).
+///         Returns true iff `fraudProofId` proves the referenced proposal was
+///         fraudulent AND `guiltySlots` are exactly the co-signers to blame.
+///         BLSAggregator treats this as the sole authority on "who colluded";
+///         it does not itself judge fraud. Kept behind an interface so the
+///         detection layer can evolve without touching this contract.
+interface IFraudProofVerifier {
+    function verify(uint256 fraudProofId, uint8[] calldata guiltySlots, bytes calldata fraudProof)
+        external
+        view
+        returns (bool);
+}
+
 /**
  * @title BLSAggregator
  * @notice BLS signature aggregation and verification for DVT slash consensus (V3)
@@ -149,8 +172,20 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         BLS-key registration here was owner-only.
     bool public permissionlessBLSRegistration;
 
+    /// @notice DVT-supplied fraud-proof verifier for guardian-collusion slashing
+    ///         (Protocol B stage 2). address(0) = feature dormant: executeGuardianSlash
+    ///         reverts until governance wires a verifier. This is the ONE seam the
+    ///         detection layer plugs into; the aggregator never judges fraud itself.
+    address public fraudProofVerifier;
+
+    /// @notice Replay guard for executeGuardianSlash — a consumed fraudProofId
+    ///         cannot re-slash the same guardians (mirrors executedProposals /
+    ///         usedSlashQueueHashes; kept in its own id-space so it can never
+    ///         collide with slash/reputation proposalIds).
+    mapping(uint256 => bool) public consumedFraudProofs;
+
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.1.0";
+        return "BLSAggregator-4.2.0";
     }
 
 
@@ -183,6 +218,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event SuperPaymasterUpdated(address indexed oldAddr, address indexed newAddr);
     /// @notice Emitted when the DVTValidator address is updated by the owner.
     event DVTValidatorUpdated(address indexed oldAddr, address indexed newAddr);
+    /// @notice Emitted when the owner wires/rotates the fraud-proof verifier.
+    event FraudProofVerifierUpdated(address indexed oldAddr, address indexed newAddr);
+    /// @notice Emitted per guardian whose ROLE_DVT stake was slashed for proven
+    ///         collusion. `amount` is the full lock slashed (→ auto-eject on next verify).
+    event GuardianSlashed(uint256 indexed fraudProofId, uint8 indexed slot, address indexed guardian, uint256 amount);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -252,6 +292,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         Small-subgroup points contaminate the reconstructed pkAgg and can be used to
     ///         bias or forge aggregate signatures.
     error InvalidBLSKeyNotInSubgroup();
+    /// @notice executeGuardianSlash called while no fraud-proof verifier is wired (feature dormant).
+    error FraudProofVerifierNotSet();
+    /// @notice The fraud-proof verifier rejected (fraudProofId, guiltySlots, fraudProof).
+    error InvalidFraudProof(uint256 fraudProofId);
+    /// @notice A fraudProofId was replayed — its guardians were already slashed.
+    error FraudProofAlreadyUsed(uint256 fraudProofId);
+    /// @notice executeGuardianSlash received an empty guiltySlots array.
+    error EmptyGuiltySlots();
 
     // ====================================
     // Constructor
@@ -982,5 +1030,78 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (_newThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold > Max");
         emit ThresholdUpdated(defaultThreshold, _newThreshold);
         defaultThreshold = _newThreshold;
+    }
+
+    /// @notice Wire/rotate the guardian-collusion fraud-proof verifier (Protocol B
+    ///         stage 2 detection layer, supplied by the DVT repo). Owner-gated.
+    ///         Setting address(0) disables executeGuardianSlash (feature dormant).
+    function setFraudProofVerifier(address verifier) external onlyOwner {
+        emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
+        fraudProofVerifier = verifier;
+    }
+
+    /// @notice Slash the FULL ROLE_DVT stake of guardians proven (by the external
+    ///         fraud-proof verifier) to have co-signed a fraudulent proposal. This
+    ///         is the thin SP execution entry for the paper's ρ·S_op collusion
+    ///         deterrent (Protocol B stage 1). It complements _executeSlash, which
+    ///         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT
+    ///         stake ≠ operator aPNTs, even if the addresses coincide).
+    ///
+    /// @dev    - Permissionless CALL, gated by the verifier: fraud validity — not
+    ///           caller identity — authorizes the slash. This deliberately bypasses
+    ///           the accused DVT quorum, which is the collusion set and would never
+    ///           slash itself (the circular-dependency escape).
+    ///         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg
+    ///           auto-ejects the guardian on the next verify. No 30% cap: proven
+    ///           collusion must lose eligibility, not merely pay a fee (the
+    ///           operator-path cap protects honest operators from one bad epoch —
+    ///           a different threat model).
+    ///         - fail-closed: reverts until a verifier is wired.
+    /// @param  fraudProofId Unique id of the fraud proof (own id-space; replay-guarded).
+    /// @param  guiltySlots  1-indexed validator slots proven to have colluded.
+    /// @param  fraudProof   Opaque proof bytes interpreted solely by the verifier.
+    function executeGuardianSlash(
+        uint256 fraudProofId,
+        uint8[] calldata guiltySlots,
+        bytes calldata fraudProof
+    ) external nonReentrant {
+        address verifier = fraudProofVerifier;
+        // All fail-closed shape checks up front (fail-fast, before any external call).
+        if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        if (guiltySlots.length == 0) revert EmptyGuiltySlots();
+        if (guiltySlots.length > MAX_VALIDATORS) revert InvalidParameter("guiltySlots");
+        if (consumedFraudProofs[fraudProofId]) revert FraudProofAlreadyUsed(fraudProofId);
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        if (address(staking) == address(0)) revert StakingNotConfigured();
+
+        // Check → verify(view) → effect → interaction (CEI; nonReentrant backstop).
+        if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltySlots, fraudProof)) {
+            revert InvalidFraudProof(fraudProofId);
+        }
+        consumedFraudProofs[fraudProofId] = true;
+
+        bytes32 roleDvt = keccak256("DVT");
+        uint256 seenSlots; // bitmap: reject duplicate slots so a slot can't be double-counted
+
+        for (uint256 i = 0; i < guiltySlots.length; ) {
+            uint8 slot = guiltySlots[i];
+            uint256 bit = uint256(1) << slot; // slot ∈ [1,MAX_VALIDATORS]; unknown slots revert below
+            if (seenSlots & bit != 0) revert InvalidParameter("dup slot");
+            seenSlots |= bit;
+            address guardian = validatorAtSlot[slot];
+            if (guardian == address(0)) revert UnknownValidatorSlot(slot);
+            (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
+            // Skip already-emptied slots: a guardian whose ROLE_DVT lock is 0 has
+            // already lost eligibility (auto-ejected), so there is nothing left to
+            // slash. Intentional — do NOT revert, else one exited co-signer would
+            // block slashing the still-staked colluders in the same proof.
+            if (amount != 0) {
+                IGTokenStakingSlash(address(staking)).slashByDVT(
+                    guardian, roleDvt, uint256(amount), "DVT collusion"
+                );
+                emit GuardianSlashed(fraudProofId, slot, guardian, uint256(amount));
+            }
+            unchecked { ++i; }
+        }
     }
 }
