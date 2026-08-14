@@ -189,8 +189,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         replaces). Own id-space; never collides with slash/reputation proposalIds.
     mapping(uint256 => mapping(address => bool)) public guardianSlashed;
 
+    /// @notice A' attribution (CC-89 stage-2): commitment to the exact signer
+    ///         ADDRESS set of each executed proposal, snapshotted at execution time
+    ///         before any revokeBLSPublicKey can reassign a slot. A fraud-proof
+    ///         verifier matches proof-supplied claimedSigners against this to
+    ///         attribute a fraudulent slash to real addresses. It is a 1-slot
+    ///         fingerprint and is NOT reversible — the address list's data
+    ///         availability is the DVT detection layer's (redundant watchers) job.
+    mapping(uint256 => bytes32) public proposalSignersCommitment;
+
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.2.0";
+        return "BLSAggregator-4.3.0";
     }
 
 
@@ -618,6 +627,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // 2. Verify BLS pairing using on-chain reconstructed pkAgg (P0-1).
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
 
+        // 2b. A' attribution snapshot (CC-89 stage-2): commit to the signer ADDRESS
+        //     set NOW — after signatures verified, before any revoke can reassign a
+        //     slot — so a later fraud proof can attribute this proposal to the real
+        //     addresses that signed it. Covers BOTH branches (slash-only + rep).
+        proposalSignersCommitment[proposalId] =
+            _computeSignersCommitment(proof, proposalId, expectedMessageHash);
+
         // 3. Update Global Reputation in Registry
         if (repUsers.length > 0) {
             REGISTRY.batchUpdateGlobalReputation(proposalId, repUsers, newScores, epoch, proof);
@@ -852,6 +868,60 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         if (!initialized) revert EmptySignerMask();
+    }
+
+    /// @notice A' attribution helper (CC-89 stage-2): compute the signer-set
+    ///         commitment for a proposal. Deliberately re-walks signerMask instead
+    ///         of threading signers out of _reconstructPkAgg, to keep the
+    ///         load-bearing verification path untouched; N ≤ MAX_VALIDATORS so the
+    ///         extra SLOAD loop + insertion sort are negligible vs the BLS pairing.
+    /// @dev    MUST be called only AFTER _checkSignatures has passed — that guarantees
+    ///         signerMask has no out-of-range bits and every selected slot resolves
+    ///         to a live validator (validatorAtSlot != 0). Canonical order = ascending
+    ///         uint160(address) (no duplicates: each slot maps to one address), so an
+    ///         off-chain verifier sorting claimedSigners the same way reproduces the
+    ///         identical commitment. signerMask is bound in too (slot layout), and the
+    ///         encoding is domain-separated to prevent cross-proposal/chain/contract reuse.
+    function _computeSignersCommitment(
+        bytes calldata proof,
+        uint256 proposalId,
+        bytes32 messageHash
+    ) internal view returns (bytes32) {
+        // proof = abi.encode(uint256 signerMask, bytes sigG2); its first 32-byte
+        // word is the mask value. Decode ONLY that slice so we don't copy the
+        // (unused here) sigG2 bytes — saves gas on this live consensus path.
+        uint256 signerMask = abi.decode(proof[:32], (uint256));
+        // popcount → exact array size.
+        uint256 n;
+        { uint256 m = signerMask; while (m != 0) { m &= (m - 1); n++; } }
+
+        address[] memory signers = new address[](n);
+        uint256 k;
+        for (uint8 slot = 1; slot <= MAX_VALIDATORS; slot++) {
+            if ((signerMask >> uint256(slot - 1)) & 1 == 0) continue;
+            signers[k++] = validatorAtSlot[slot];
+        }
+
+        // Insertion sort ascending by uint160(address) (n ≤ MAX_VALIDATORS).
+        for (uint256 i = 1; i < n; i++) {
+            address key = signers[i];
+            uint256 j = i;
+            while (j > 0 && uint160(signers[j - 1]) > uint160(key)) {
+                signers[j] = signers[j - 1];
+                unchecked { j--; }
+            }
+            signers[j] = key;
+        }
+
+        return keccak256(abi.encode(
+            "BLS_SIGNERS_COMMITMENT_V1",
+            block.chainid,
+            address(this),
+            proposalId,
+            messageHash,
+            signerMask,
+            signers
+        ));
     }
 
     function _checkSignatures(
