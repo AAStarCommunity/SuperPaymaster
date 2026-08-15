@@ -158,7 +158,11 @@ contract GuardianSlashE2ETest is Test {
         address op = address(0xABCD);
         uint8 slashLevel = 1; // MINOR (threshold 3); mask 0x7F = 7 signers passes
         uint256 epoch = 100;
-        bytes32 evidenceHash = keccak256("disputed-over-issue-evidence");
+        // DVT's frozen cross-repo convention (CC-89 f41fd3b1): the verifier recomputes
+        // this exact preimage from the slash fields to bind disputedToken and block the
+        // token-swap attack. The E2E filer MUST use it or the commitment won't match.
+        address disputedToken = address(0x7000); // the over-issued token under dispute
+        bytes32 evidenceHash = keccak256(abi.encode("DVT_OVERISSUE_EVIDENCE_V1", disputedToken, op, epoch));
         uint256 mask = 0x7F; // slots 1..7
         bytes memory proof = _proof(mask);
 
