@@ -58,6 +58,8 @@ contract E2EGuardianSetupSepolia is Script {
     }
 
     function run() external {
+        // Hardcoded Sepolia addresses — fail closed on any other chain.
+        require(block.chainid == 11155111, "not Sepolia (11155111)");
         uint256 jasonPk = vm.envUint("PRIVATE_KEY_JASON");
         uint256 s2Pk = vm.envUint("GUARDIAN_SLOT2_KEY");
         uint256 s3Pk = vm.envUint("GUARDIAN_SLOT3_KEY");

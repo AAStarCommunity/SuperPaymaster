@@ -36,6 +36,8 @@ contract DeployBLSAggregatorSepolia is Script {
     address constant STAKING         = 0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e;
 
     function run() external {
+        // Hardcoded Sepolia addresses — fail closed on any other chain.
+        require(block.chainid == 11155111, "not Sepolia (11155111)");
         uint256 pk = vm.envUint("PRIVATE_KEY_JASON");
 
         // Pre-flight sanity: the constants must match the live Registry wiring, else
