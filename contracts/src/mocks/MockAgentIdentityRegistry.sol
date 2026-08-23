@@ -5,7 +5,8 @@ import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 /// @title MockAgentIdentityRegistry
 /// @notice Minimal ERC-721-like mock for ERC-8004 Agent Identity testing
-/// @dev Implements IAgentIdentityRegistry interface (balanceOf, ownerOf)
+/// @dev Implements the dedicated IAgentIdentityRegistry eligibility view while
+///      retaining ERC-721-like balanceOf/ownerOf helpers for local tooling.
 contract MockAgentIdentityRegistry is Ownable {
     uint256 private _nextId = 1;
     mapping(uint256 => address) private _owners;
@@ -36,6 +37,11 @@ contract MockAgentIdentityRegistry is Ownable {
     /// @notice Check if address holds agent NFT(s)
     function balanceOf(address owner) external view returns (uint256) {
         return _balances[owner];
+    }
+
+    /// @notice Dedicated SuperPaymaster eligibility view.
+    function isRegisteredAgent(address account) external view returns (bool) {
+        return _balances[account] != 0;
     }
 
     /// @notice Get owner of agent ID
