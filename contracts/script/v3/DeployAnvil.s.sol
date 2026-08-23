@@ -289,8 +289,11 @@ contract DeployAnvil is V54Bootstrap {
 
         // RepCredit evidence mode starts fresh users with no baseline credit so
         // the pre-contribution reject and post-reputation unlock are observable.
+        // It also pins the requested local experiment to a real 3-node quorum;
+        // the production default of seven remains unchanged outside this mode.
         if (vm.envOr("REPCREDIT_EVIDENCE_MODE", false)) {
             registry.setCreditTier(1, 0);
+            aggregator.setDefaultThreshold(3);
         }
         // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)
         superPaymaster.setAgentRegistries(address(mockAgentIdentity), address(mockAgentReputation));
@@ -304,6 +307,9 @@ contract DeployAnvil is V54Bootstrap {
         require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "SP BLS_AGGREGATOR Wiring Failed");
         require(registry.isReputationSource(address(aggregator)), "BLS Reputation Source Wiring Failed");
         require(IEntryPoint(entryPointAddr).balanceOf(address(superPaymaster)) > 0, "EntryPoint Deposit Missing");
+        if (vm.envOr("REPCREDIT_EVIDENCE_MODE", false)) {
+            require(aggregator.defaultThreshold() == 3, "RepCredit Quorum Must Be Three");
+        }
         console.log("All Wiring Assertions Passed!");
     }
 
