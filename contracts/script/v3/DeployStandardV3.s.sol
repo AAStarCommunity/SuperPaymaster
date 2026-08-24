@@ -22,6 +22,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 // Module Imports
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 // BLSValidator standalone removed in P0-1 — Registry verifies via BLSAggregator.
 
@@ -128,8 +129,18 @@ contract DeployStandardV3 is Script {
         console.log("=== Step 6: Final Verification ===");
         _verifyWiring();
 
+        // CC-48 round-6 HIGH-1: the aggregator's owner holds an immediate, unannounced
+        // `emergencyDisarmFraudProofVerifier()`. Move it to governance last, after every
+        // owner-gated wiring step above has run.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) {
+            aggregator.transferOwnership(gov);
+            console.log("  BLSAggregator ownership transferred to governance:", gov);
+        }
+
         vm.stopBroadcast();
 
+        GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         _generateConfig();
     }
 

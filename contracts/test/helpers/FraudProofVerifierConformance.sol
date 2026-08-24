@@ -195,11 +195,18 @@ library FraudProofVerifierConformance {
             }
         }
 
+        // CC-48 round-6 LOW-2: both synthetic sets come from ONE constructive generator
+        // (see `syntheticSets`), which draws every address against a growing exclusion
+        // list. Round-5 built the unrelated set against `guiltyGuardians` alone, so its
+        // entries were merely PROBABLY distinct from each other and from `extra`; a
+        // collision would have silently shortened "n unrelated addresses" into a smaller
+        // multiset and weakened (4) with nothing failing.
+        (address extra, address[] memory unrelated) = syntheticSets(guiltyGuardians, fraudProofId);
+
         // 3. superset: one extra address the evidence never named. A verifier that only
         //    checks "everyone I was told about is guilty" is caught by (2); one that only
         //    checks "everyone guilty is in the list I was told about" is caught here —
         //    the accused innocent would lose 100% of its lock.
-        address extra = _syntheticGuardian(guiltyGuardians, fraudProofId);
         address[] memory superset = new address[](n + 1);
         for (uint256 i = 0; i < n; ++i) {
             superset[i] = guiltyGuardians[i];
@@ -210,13 +217,41 @@ library FraudProofVerifierConformance {
         }
 
         // 4. a wholly unrelated set of the same size — catches a verifier that only looks
-        //    at the set's LENGTH, or ignores the set entirely.
-        address[] memory unrelated = new address[](n);
-        for (uint256 i = 0; i < n; ++i) {
-            unrelated[i] = _syntheticGuardian(guiltyGuardians, fraudProofId + 1 + i);
-        }
+        //    at the set's LENGTH, or ignores the set entirely. Disjoint from the guilty
+        //    set, from `extra`, and pairwise distinct, by construction.
         if (_verifyAgainst(verifier, aggregator, fraudProofId, unrelated, fraudProof)) {
             revert VerifierAcceptsUnrelatedGuardianSet(verifier, keccak256(abi.encode(unrelated)));
+        }
+    }
+
+    /// @notice The synthetic addresses `assertSetBound` will use for a given
+    ///         `(guiltyGuardians, fraudProofId)` — the extra address for the superset case
+    ///         and the n unrelated addresses for case (4).
+    /// @dev    CC-48 round-6 LOW-2. Exposed (rather than inlined) so the fixture's own
+    ///         regression tests can assert the property directly instead of inferring it:
+    ///         `guiltyGuardians ∪ {extra} ∪ unrelated` are PAIRWISE DISTINCT and none is
+    ///         `address(0)`, by construction — each draw is rejected against every address
+    ///         already chosen, not merely against the accused set.
+    function syntheticSets(address[] memory guiltyGuardians, uint256 fraudProofId)
+        internal
+        pure
+        returns (address extra, address[] memory unrelated)
+    {
+        uint256 n = guiltyGuardians.length;
+        address[] memory excluded = new address[](2 * n + 1);
+        uint256 len;
+        for (uint256 i = 0; i < n; ++i) {
+            excluded[len++] = guiltyGuardians[i];
+        }
+
+        extra = _syntheticGuardian(excluded, len, _setSalt(fraudProofId, 0));
+        excluded[len++] = extra;
+
+        unrelated = new address[](n);
+        for (uint256 i = 0; i < n; ++i) {
+            address pick = _syntheticGuardian(excluded, len, _setSalt(fraudProofId, i + 1));
+            unrelated[i] = pick;
+            excluded[len++] = pick;
         }
     }
 
@@ -235,21 +270,31 @@ library FraudProofVerifierConformance {
         return _verify(verifier, digest, fraudProofId, candidate, fraudProof);
     }
 
-    /// @dev A deterministic address that is guaranteed NOT to be in `guiltyGuardians`
+    /// @dev CC-48 round-6 LOW-2. A per-index salt that cannot overflow. Round-5 used
+    ///      `fraudProofId + 1 + i`, which reverts on an id within `n + 1` of
+    ///      `type(uint256).max` — an id is caller-chosen and single-use for ever, so
+    ///      "nobody would pick one that big" is not a property, it is a hope. Hashing
+    ///      removes the arithmetic entirely.
+    function _setSalt(uint256 fraudProofId, uint256 index) private pure returns (uint256) {
+        return uint256(keccak256(abi.encode("CC-48 conformance set salt", fraudProofId, index)));
+    }
+
+    /// @dev A deterministic address guaranteed NOT to be among `excluded[0 .. len)`
     ///      (and never address(0), which the aggregator rejects anyway). Derived, not
     ///      hard-coded, so the fixture cannot be gamed by a verifier that allow-lists a
-    ///      known test address.
-    function _syntheticGuardian(address[] memory guiltyGuardians, uint256 salt)
+    ///      known test address. `len` is passed separately so a caller can grow one
+    ///      buffer as it picks, and every later pick is checked against every earlier one.
+    function _syntheticGuardian(address[] memory excluded, uint256 len, uint256 salt)
         private
         pure
         returns (address candidate)
     {
-        bytes32 seed = keccak256(abi.encode("CC-48 conformance synthetic guardian", guiltyGuardians, salt));
+        bytes32 seed = keccak256(abi.encode("CC-48 conformance synthetic guardian", excluded, len, salt));
         while (true) {
             candidate = address(uint160(uint256(seed)));
             bool collides = candidate == address(0);
-            for (uint256 i = 0; i < guiltyGuardians.length && !collides; ++i) {
-                if (guiltyGuardians[i] == candidate) collides = true;
+            for (uint256 i = 0; i < len && !collides; ++i) {
+                if (excluded[i] == candidate) collides = true;
             }
             if (!collides) return candidate;
             seed = keccak256(abi.encode(seed));

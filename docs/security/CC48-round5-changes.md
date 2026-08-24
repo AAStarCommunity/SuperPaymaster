@@ -26,12 +26,28 @@
 
 ### What was actually on chain
 
-Read-only `cast call` against Sepolia (`ethereum-sepolia-rpc.publicnode.com`):
+> **CORRECTED IN ROUND-6.** The table below originally listed ONE guardian-slash getter
+> and drew a whole-surface conclusion from it. All five are now shown, and the 4.3.0 row
+> does not say what round-5 assumed it said. See
+> [`CC48-round6-changes.md`](./CC48-round6-changes.md) §1.
 
-| Aggregator | `version()` | `MAX_VALIDATORS()` | `pendingGuardianSlashCount(address)` |
-|---|---|---|---|
-| `0x174b60bB…0158` (`config.sepolia.blsAggregator`) | `BLSAggregator-4.3.0` | 13 ✅ | **reverts — selector absent** |
-| `0xF51c0298…8B13` (`blsAggregatorPrev`) | `BLSAggregator-4.1.0` | 13 ✅ | **reverts — selector absent** |
+Read-only `cast call` against Sepolia (two independent RPCs —
+`ethereum-sepolia-rpc.publicnode.com` and `1rpc.io/sepolia` — agreeing):
+
+| Probe | `0x174b60bB…0158` (`config.sepolia.blsAggregator`) | `0xF51c0298…8B13` (`blsAggregatorPrev`) |
+|---|---|---|
+| `version()` | `BLSAggregator-4.3.0` | `BLSAggregator-4.1.0` |
+| `MAX_VALIDATORS()` | 13 ✅ | 13 ✅ |
+| `pendingGuardianSlashCount(address)` | **reverts — selector absent** | **reverts — selector absent** |
+| `guardianSlashCases(uint256)` | **reverts — selector absent** | **reverts — selector absent** |
+| `GUARDIAN_SLASH_CASE_WINDOW()` | **reverts — selector absent** | **reverts — selector absent** |
+| `guardianExitRequests(address)` | **reverts — selector absent** | **reverts — selector absent** |
+| `fraudProofVerifier()` | **`0x128847cF…6D51` — ANSWERS, 32 bytes** | **reverts — selector absent** |
+
+The last row is the one round-5 never probed. `fraudProofVerifier` shipped with CC-89's
+queue-less direct-execute path (`BLSAggregator-4.2.0`), TWO minor versions before the case
+machine, so 4.3.0 sits in the gap where it answers that getter and none of the other four.
+Treating all five as one feature is what made the real predecessor `Ambiguous`.
 
 `pendingGuardianSlashCount` arrived with the guardian-slash feature (CC-89). Round-3 made
 `UpgradeRegistryTo570` call `BLSKeyScanLib.requireNoPendingCases(OLD_BLS_AGGREGATOR)`
@@ -177,20 +193,30 @@ executed for 100% of every accused guardian's lock **in a single block**, so a f
 remedy was not a remedy; the write-up was more optimistic than the code.
 
 **`emergencyDisarmFraudProofVerifier()` (onlyOwner, immediate)** clears the active
-verifier **and** any in-flight rotation. It is safe to make immediate because it is
-strictly monotone downwards:
+verifier **and** any in-flight rotation.
+
+> **THE JUSTIFICATION BELOW IS RETRACTED — see
+> [`CC48-round6-changes.md`](./CC48-round6-changes.md) §3.** The last bullet ("a stolen
+> owner gains nothing new") is false in the only dimension that matters for an immediate
+> call: TIME. This function **does** give the owner a new power — immediate, unannounced
+> censorship of every future accusation, including by front-running a watcher's
+> `queueGuardianSlash` out of the mempool. The power is kept, because a compromised
+> verifier can slash 100% of every accused guardian's lock in one block, but it is a trade,
+> not a free win, and the residual risk sits entirely on the owner being a Safe multisig.
 
 - It can only ever *reduce* authority — the post-state is exactly the fail-closed dormant
-  state the feature ships in. It cannot install, replace, or point at anything.
+  state the feature ships in. It cannot install, replace, or point at anything. *(True.)*
 - **Re-arming is not shortened.** There is no counterpart that sets a non-zero verifier;
   coming back on-line still costs a full propose → 4 days → apply cycle. Disarm is not a
-  fast path to a verifier of the owner's choosing.
+  fast path to a verifier of the owner's choosing. *(True.)*
 - **Already-queued cases are unaffected, by construction rather than by promise.** Since
   round-4, `executeGuardianSlash` / retry / expire read only the verdict frozen in
   `guardianSlashCases[id]` and never touch `fraudProofVerifier`. The owner may stop future
-  accusations and may **not** rescue an accused colluder — that asymmetry is the point.
-- A stolen `owner` gains nothing new: `proposeFraudProofVerifier(0)` + 4 days reached the
-  same terminal state, and a stolen owner has strictly stronger moves available anyway.
+  accusations and may **not** rescue an accused colluder. *(True — and it is only half of
+  the asymmetry. The other half, "may stop future accusations", is the new power.)*
+- ~~A stolen `owner` gains nothing new: `proposeFraudProofVerifier(0)` + 4 days reached the
+  same terminal state, and a stolen owner has strictly stronger moves available anyway.~~
+  **RETRACTED.** Same terminal state, different latency, and latency is the whole point.
 
 It reverts (`VerifierAlreadyDisarmed`) rather than emitting a "disarmed" trail that took
 nothing away, and emits `FraudProofVerifierEmergencyDisarmed` alongside the routine
@@ -368,3 +394,11 @@ having no default — **with these two changes**:
 For the real Sepolia cutover this means: `OLD_BLS_AGGREGATOR=0x174b60bB…0158` (a
 `BLSAggregator-4.3.0`, capability `Absent`) → the preflight runs, logs the skip with a
 warning naming the version, and enforces the key scan against it.
+
+> **CORRECTED IN ROUND-6.** That conclusion was right about the intent and wrong about the
+> code as shipped in `fc0ca825`: `0x174b60bB…0158` classified as **`Ambiguous`**, not
+> `Absent`, because `fraudProofVerifier()` was in the absence probe set and the live 4.3.0
+> answers it. With `requireDeclaredPredecessor` also refusing `0`, NO value of
+> `OLD_BLS_AGGREGATOR` could complete the script. Round-6 removes that probe from the
+> absence set and pins the real shape with a fixture; the sentence above is true from
+> round-6 onwards. See [`CC48-round6-changes.md`](./CC48-round6-changes.md) §1.

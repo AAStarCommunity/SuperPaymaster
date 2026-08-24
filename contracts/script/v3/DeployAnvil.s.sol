@@ -26,6 +26,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 // Module Imports
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 // Named import (same EIP712-collision reason as GTokenAuthorization above).
 import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
@@ -248,7 +249,17 @@ contract DeployAnvil is V54Bootstrap {
             _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
         }
 
+        // CC-48 round-6 HIGH-1: same gate as every other entry point. On anvil (31337) it
+        // is a no-op by construction — the point is that this script cannot be repurposed
+        // for a live chain without the aggregator's disarm authority landing on a Safe.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) {
+            aggregator.transferOwnership(gov);
+            console.log("  BLSAggregator ownership transferred to governance:", gov);
+        }
+
         vm.stopBroadcast();
+        GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         _generateConfig();
     }
 

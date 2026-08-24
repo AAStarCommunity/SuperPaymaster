@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
 /// @notice Redeploy the two non-upgradeable BLS modules after the slash-consensus
 ///         unification (PR #329). Order matters: DVTValidator first, because the
@@ -21,7 +22,15 @@ contract DeployNewBLSModules is Script {
         BLSAggregator bls = new BLSAggregator(REGISTRY, SUPERPAYMASTER, address(dvt));
         dvt.setBLSAggregator(address(bls));
 
+        // CC-48 round-6 HIGH-1: this script targets a LIVE chain by construction (the
+        // Registry/SP addresses above are hard-coded Sepolia). Hand the aggregator's
+        // disarm authority to governance before the broadcast ends.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) bls.transferOwnership(gov);
+
         vm.stopBroadcast();
+
+        GovernanceOwnerGate.requireGovernanceOwner(address(bls), bls.owner(), "BLSAggregator");
 
         console.log("DVTValidator:", address(dvt));
         console.log("BLSAggregator:", address(bls));

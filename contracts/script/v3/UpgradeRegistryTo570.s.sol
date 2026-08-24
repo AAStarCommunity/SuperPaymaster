@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import "forge-std/Script.sol";
 import "src/core/Registry.sol";
 import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
+import {GovernanceOwnerGate, IOwned} from "../checks/GovernanceOwnerGate.sol";
 
 interface IAggregatorDomain {
     function REGISTRY() external view returns (address);
@@ -83,6 +84,15 @@ interface ITimelockBatch {
  * verifier now carries an in-contract rotation delay, and the owner of both Registry
  * and BLSAggregator must still sit behind governance, not a hot EOA.
  *
+ * CC-48 round-6 HIGH-1: the NEW_BLS_AGGREGATOR's own owner is gated the same way, and
+ * for a stronger reason. 4.9.0's `emergencyDisarmFraudProofVerifier()` is immediate and
+ * unannounced, so that owner can censor every FUTURE guardian-slash accusation by
+ * front-running it in the mempool. A TimelockController cannot cover that path (a
+ * timelocked emergency stop is not an emergency stop), which makes the Safe multisig the
+ * only governance defence there; the in-contract 4-day delay only governs RE-arming, and
+ * already-queued cases are unreachable either way. Both gates are strict outside anvil —
+ * a migration rehearsal that runs with an EOA owner rehearses a different system.
+ *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
  *   NEW_BLS_AGGREGATOR           BLSAggregator 4.9.0 (already deployed + wired)
@@ -120,7 +130,7 @@ contract UpgradeRegistryTo570 is Script {
         console.log("current version     :", registry.version());
         console.log("current owner       :", owner);
 
-        // ---- governance gate (CC-48 MEDIUM-1 / round-3 MEDIUM-3) ----
+        // ---- governance gate (CC-48 MEDIUM-1 / round-3 MEDIUM-3 / round-6 HIGH-1) ----
         // The escape hatch is chain-bound. Round-2 left it as a comment saying
         // "local/anvil ONLY" with nothing enforcing it, which made the whole
         // "governance owner must be a contract" gate opt-out on ANY chain — including
@@ -130,10 +140,20 @@ contract UpgradeRegistryTo570 is Script {
             !allowEoa || block.chainid == 31337,
             "CC-48: ALLOW_EOA_OWNER is a local-chain (31337) escape hatch only"
         );
-        require(
-            owner.code.length > 0 || allowEoa,
-            "CC-48: Registry owner must be a Safe/TimelockController, not an EOA"
+        GovernanceOwnerGate.requireGovernanceOwnerStrict(proxy, owner, "Registry");
+
+        // CC-48 round-6 HIGH-1: the aggregator's OWN owner is now a distinct governance
+        // question, and until this round nothing checked it. 4.9.0 gave that owner
+        // `emergencyDisarmFraudProofVerifier()` — immediate, no notice, and enough to
+        // front-run every future `queueGuardianSlash` out of the mempool for one
+        // transaction's gas. A Timelock cannot cover an emergency stop, so the Safe
+        // multisig is the only governance defence on that path; wiring an EOA-owned
+        // aggregator into a live Registry hands one hot key a permanent, silent veto over
+        // the entire collusion deterrent. Checked before the batch is emitted, not after.
+        GovernanceOwnerGate.requireGovernanceOwnerStrict(
+            newAggregator, IOwned(newAggregator).owner(), "BLSAggregator (disarm authority)"
         );
+
         require(
             totalCap >= baseline,
             "CC-48: totalCap below the seeded baseline would freeze the reputation path on day one"

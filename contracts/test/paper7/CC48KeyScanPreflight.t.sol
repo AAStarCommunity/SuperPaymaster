@@ -22,24 +22,45 @@ contract KeyScanFraudVerifier {
 }
 
 /**
- * @notice A stand-in for the aggregators that are ACTUALLY DEPLOYED today — Sepolia's
- *         `BLSAggregator-4.3.0` (and `4.1.0` before it). It forwards the key-table
- *         surface that 4.3.0 really has to a live aggregator, and — the point of the
- *         fixture — it has NO fallback and NO guardian-slash getters, so
- *         `pendingGuardianSlashCount`, `guardianSlashCases`, `fraudProofVerifier`,
- *         `GUARDIAN_SLASH_CASE_WINDOW` and `guardianExitRequests` all revert on it,
- *         exactly as they do on-chain (verified by `cast call` against
- *         0x174b60bB...0158 and 0xF51c0298...8B13).
+ * @notice A stand-in for the aggregator that is ACTUALLY DEPLOYED on Sepolia today,
+ *         `BLSAggregator-4.3.0` at 0x174b60bB...0158. It forwards the key-table surface
+ *         4.3.0 really has to a live aggregator, has NO fallback, and reproduces the
+ *         guardian-slash surface EXACTLY as `cast call` reports it:
  *
- *         CC-48 round-5 HIGH-1 exists because the whole preflight was only ever run
- *         against a 4.9.0 "old" aggregator in CI, so the legacy shape had zero coverage
- *         and a suite that was fully green hid a migration that could not run at all.
+ *           `fraudProofVerifier()`            -> 0x128847cF...6D51   (32 bytes, ANSWERS)
+ *           `pendingGuardianSlashCount(...)`  -> reverts
+ *           `guardianSlashCases(uint256)`     -> reverts
+ *           `GUARDIAN_SLASH_CASE_WINDOW()`    -> reverts
+ *           `guardianExitRequests(address)`   -> reverts
+ *
+ *         CC-48 round-6 BLOCKER-1: round-5's version of this fixture hand-wrote a 4.3.0
+ *         with NO `fraudProofVerifier`, i.e. a shape that has never existed on chain, and
+ *         its NatSpec asserted that omission had been "verified by cast call". It had not.
+ *         `fraudProofVerifier` shipped with CC-89's queue-less direct-execute path
+ *         (`BLSAggregator-4.2.0`), two minor versions BEFORE the case machine, so 4.3.0
+ *         sits in the gap where it answers that one getter and none of the others. Probing
+ *         it as part of the absence set made the real migration source `Ambiguous`.
+ *
+ *         (`4.1.0` at 0xF51c0298...8B13 answers none of the five; it is the easy case.)
+ *
+ *         The whole round-5 HIGH-1 exists because the preflight was only ever run against
+ *         a 4.9.0 "old" aggregator in CI, so the legacy shape had zero coverage and a
+ *         fully green suite hid a migration that could not run at all. Round-6 is the same
+ *         failure mode one level down: a fixture that is green about the wrong shape.
  */
 contract Legacy43AggregatorStub {
     BLSAggregator public immutable INNER;
 
+    /// @dev The live value on Sepolia's 4.3.0, read by `cast call` (two independent RPCs).
+    address public constant LIVE_FRAUD_PROOF_VERIFIER = 0x128847cFD6e0C8247ED297Fb27a1302f2ad66D51;
+
     constructor(BLSAggregator inner) {
         INNER = inner;
+    }
+
+    /// @dev PRESENT on the real 4.3.0 — and deliberately NOT part of the absence set.
+    function fraudProofVerifier() external pure returns (address) {
+        return LIVE_FRAUD_PROOF_VERIFIER;
     }
 
     function MAX_VALIDATORS() external view returns (uint256) {
@@ -263,11 +284,15 @@ contract CC48KeyScanPreflight is Test {
         _seatValidators(oldAgg, 3, 1); // the experiment stack: public scalars 1, 2, 3
         Legacy43AggregatorStub legacy = new Legacy43AggregatorStub(oldAgg);
 
-        // 1. The capability probe recognises the legacy shape from its ABI surface alone.
+        // 1. The capability probe recognises the legacy shape from its ABI surface alone —
+        //    including the `fraudProofVerifier()` the real contract DOES answer, which is
+        //    the round-6 BLOCKER-1 correction. Absence of the four CASE-MACHINE getters is
+        //    the evidence; the CC-89-era verifier slot is not part of it.
+        assertTrue(legacy.fraudProofVerifier() != address(0), "fixture must match the live shape");
         assertEq(
             uint256(BLSKeyScanLib.guardianSlashCapability(address(legacy))),
             uint256(BLSKeyScanLib.GuardianSlashCapability.Absent),
-            "4.3.0 has no guardian-slash surface"
+            "4.3.0 answers fraudProofVerifier and still has no case machine"
         );
 
         // 2. ...so the pending-case check completes instead of reverting on a selector
@@ -289,6 +314,12 @@ contract CC48KeyScanPreflight is Test {
 
     /// A predecessor that DOES have the feature is not given the legacy exemption: the
     /// skip is capability-proven, not version-trusting.
+    ///
+    /// @dev This is also the standing proof that `BLSKeyScanLib.CATCH_ALL_SENTINEL` does
+    ///      not collide with a real function on this contract: `Present` is only reachable
+    ///      when the sentinel probe REVERTED against a genuine, fully-featured
+    ///      `BLSAggregator`. A collision would classify every aggregator `Ambiguous` and
+    ///      fail here first.
     function test_ModernPredecessorStillGetsTheFullPendingScan() public {
         _skipWithoutPrague();
         BLSAggregator oldAgg = _freshAggregator();

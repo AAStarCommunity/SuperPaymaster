@@ -1395,6 +1395,53 @@ contract CC48VerifierDisarmTest is Test {
         assertEq(resolved, 2);
     }
 
+    /// CC-48 round-6 LOW-3. The case round-4's HIGH-2 was about, crossed with round-5's
+    /// disarm: a case that only PARTIALLY executed (one guardian's `slashByDVT` reverted)
+    /// is disarmed mid-flight, then retried. The property is that disarm is invisible to
+    /// the retry — `fraudProofVerifier` has exactly one non-governance read, inside
+    /// `queueGuardianSlash`, so `executeGuardianSlash` never consults it — but "provable
+    /// by static reading" and "pinned by a test" are different things, and partial retry
+    /// is precisely where an accidental verifier re-read would hide.
+    function test_PartialExecutionSurvivesADisarmAndStillRetries() public {
+        address[] memory accused = _both();
+        bls.queueGuardianSlash(11, accused, hex"11");
+
+        // g2's slash fails on the staking side: partial execution, case stays pending.
+        vm.mockCallRevert(
+            address(staking),
+            abi.encodeWithSelector(IGTokenStakingSlash.slashByDVT.selector, g2, ROLE_DVT),
+            "staking down"
+        );
+        bls.executeGuardianSlash(11, accused, hex"11");
+        assertEq(bls.pendingGuardianSlashCount(g1), 0, "g1 settled");
+        assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen mid-case");
+        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(11);
+        assertEq(status, 1, "case still pending");
+        assertEq(resolved, 1);
+
+        // Now disarm, with the case half-finished, and make the old verifier hostile.
+        bls.emergencyDisarmFraudProofVerifier();
+        verifier.setValid(false);
+        assertEq(bls.fraudProofVerifier(), address(0));
+
+        // The retry completes on the FROZEN verdict. No verifier is consulted, so neither
+        // the disarm nor the flipped verdict can strand g2 half-accused.
+        vm.clearMockedCalls();
+        bls.executeGuardianSlash(11, accused, hex"11");
+
+        assertEq(bls.pendingGuardianSlashCount(g2), 0, "g2 settled by the retry");
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0, "g2 actually slashed");
+        assertTrue(bls.guardianSlashed(11, g1));
+        assertTrue(bls.guardianSlashed(11, g2));
+        (,,, status,, resolved,) = bls.guardianSlashCases(11);
+        assertEq(status, 2, "case resolved after the disarm");
+        assertEq(resolved, 2, "g1 not double-counted on the retry");
+
+        // And the disarm still holds: no NEW case can be opened.
+        vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
+        bls.queueGuardianSlash(12, accused, hex"12");
+    }
+
     /// ...and the pre-existing case can still be dropped the normal way, on its own
     /// bounded window — disarm neither shortens nor extends it.
     function test_DisarmDoesNotChangeAQueuedCaseDeadline() public {

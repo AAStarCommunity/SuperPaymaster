@@ -15,6 +15,7 @@ import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 import "src/mocks/MockAgentIdentityRegistry.sol";
 import "src/mocks/MockAgentReputationRegistry.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -165,7 +166,20 @@ contract DeployRepCreditSepolia is Script {
         require(blsAggregator.defaultThreshold() == 3, "threshold != 3");
         require(IEntryPoint(entryPoint).balanceOf(address(superPaymaster)) == entryPointDeposit, "deposit mismatch");
 
+        // CC-48 round-6 HIGH-1: the aggregator owner holds an immediate, unannounced
+        // `emergencyDisarmFraudProofVerifier()`. This is an EXPERIMENT stack that needs a
+        // hot owner to drive the RepCredit runs, so it may keep one — but only behind the
+        // explicit, testnet-bound TESTNET_EOA_OWNER_ACK acknowledgement that this
+        // deployment has no governance defence on that path. Set GOVERNANCE_OWNER instead
+        // to hand it to the Safe.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) blsAggregator.transferOwnership(gov);
+
         vm.stopBroadcast();
+
+        GovernanceOwnerGate.requireGovernanceOwner(
+            address(blsAggregator), blsAggregator.owner(), "BLSAggregator"
+        );
         _writeConfig(entryPointDeposit);
     }
 

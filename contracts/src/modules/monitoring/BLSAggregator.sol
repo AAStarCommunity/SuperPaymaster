@@ -1498,8 +1498,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
     ///         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,
     ///         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.
-    ///         `owner` should still be a multisig behind a TimelockController — that is
-    ///         defence in depth, no longer the only defence.
+    ///         `owner` MUST be a Safe multisig. For THIS function a TimelockController in
+    ///         front of it is genuine defence in depth (arming is delayed anyway, so an
+    ///         extra delay costs nothing); for `emergencyDisarmFraudProofVerifier` it is
+    ///         not, because a timelocked emergency stop is not an emergency stop — see the
+    ///         residual-risk paragraph there. The deployment/migration gate in
+    ///         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the multisig.
     /// @dev    WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an
     ///         owner from swapping in an always-false verifier mid-case so colluders
     ///         could time out; round-4's frozen verdict provides that property
@@ -1557,28 +1561,48 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         remedy was not a remedy. This call is the answer to "the verifier is
     ///         lying, stop it now".
     ///
-    ///         MONOTONICITY — why immediacy is safe here and not for `propose`:
-    ///           • It can ONLY reduce authority. The post-state is
-    ///             `fraudProofVerifier == address(0)` with no pending rotation, i.e. the
-    ///             fail-closed dormant state the feature ships in. It cannot install,
-    ///             replace, or point at anything.
-    ///           • RE-ARMING IS NOT SHORTENED. There is no counterpart that sets a
-    ///             non-zero verifier; coming back on-line still costs a full
-    ///             propose -> 4 days -> apply cycle. An owner cannot use disarm as a
-    ///             fast path to a verifier of its choosing.
-    ///           • ALREADY-QUEUED CASES ARE UNAFFECTED, by construction rather than by
-    ///             promise: since round-4 `executeGuardianSlash` / `retry` / `expire`
-    ///             read only the verdict frozen in `guardianSlashCases[id]` and never
-    ///             touch `fraudProofVerifier`. Disarming cannot cancel, stall, or
-    ///             re-judge a pending case — that asymmetry (owner may stop future
-    ///             accusations, may not rescue an accused colluder) is the point.
-    ///           • Therefore an attacker who steals `owner` gains nothing from this that
-    ///             it did not already have: `proposeFraudProofVerifier(0)` + 4 days
-    ///             reached the same terminal state, and a stolen owner has strictly
-    ///             stronger moves available anyway.
+    ///         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since
+    ///         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict
+    ///         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`
+    ///         (line ~1730 below is its single non-governance read, inside
+    ///         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an
+    ///         already-queued case. Cases opened BEFORE the disarm run to their frozen
+    ///         verdict; use `expireGuardianSlashCase` after the deadline to drop one.
     ///
-    ///         Cases opened BEFORE the disarm still run to their frozen verdict; use
-    ///         `expireGuardianSlashCase` after the deadline if a case must be dropped.
+    ///         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier
+    ///         revisions of this comment claimed a stolen `owner` "gains nothing new"
+    ///         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal
+    ///         state. That is FALSE in the only dimension that matters here — TIME — and
+    ///         it is retracted:
+    ///           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in
+    ///             the same block. Its preconditions (`verifier != 0`,
+    ///             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,
+    ///             `_validateGuardianSet`, `verify()`) are untouched by every other
+    ///             onlyOwner function; `_validateGuardianSet` is `pure`, so even
+    ///             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.
+    ///           • From 4.9.0 the owner CAN, immediately and with no public notice,
+    ///             censor ALL FUTURE accusations. Concretely: an honest watcher's
+    ///             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a
+    ///             colluding or compromised owner front-runs it with this call for the
+    ///             price of one transaction, and the watcher reverts with
+    ///             `FraudProofVerifierNotSet`. Repeating it costs the owner one more
+    ///             transaction each time. On 4.8.0 the same owner had to take
+    ///             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could
+    ///             still open cases that round-4's frozen verdict then protected.
+    ///           • This power is accepted deliberately: a compromised verifier can slash
+    ///             100% of every accused guardian's lock inside ONE block, so a four-day
+    ///             remedy is not a remedy, and censoring future accusations is strictly
+    ///             less damaging than that. It is a trade, not a free win.
+    ///           • WHAT CARRIES THE RESIDUAL RISK: the owner being a Safe multisig, and
+    ///             nothing else. A TimelockController cannot cover this path — a
+    ///             timelocked emergency stop is not an emergency stop — so for the DISARM
+    ///             path the multisig is the ONLY governance defence, not defence in depth.
+    ///             The in-contract 4-day delay still governs RE-ARMING: there is no
+    ///             counterpart that sets a non-zero verifier, so coming back on-line
+    ///             remains propose -> 4 days -> apply, and disarm is not a fast path to a
+    ///             verifier of the owner's choosing.
+    ///             `contracts/script/checks/GovernanceOwnerGate.sol` is what turns "owner
+    ///             should be a multisig" into a deploy/migration gate that fails closed.
     function emergencyDisarmFraudProofVerifier() external onlyOwner {
         address current = fraudProofVerifier;
         address pending = pendingFraudProofVerifier;

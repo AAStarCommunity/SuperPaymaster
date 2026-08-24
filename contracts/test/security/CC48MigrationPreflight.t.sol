@@ -68,6 +68,96 @@ contract PartialGuardianSurfaceStub {
     }
 }
 
+/// @notice THE SHAPE THAT IS ACTUALLY ON SEPOLIA — CC-48 round-6 BLOCKER-1.
+///         `0x174b60bB…0158` is a `BLSAggregator-4.3.0`: it ANSWERS
+///         `fraudProofVerifier()` with a 32-byte address (CC-89's queue-less
+///         direct-execute path, `BLSAggregator-4.2.0`) and REVERTS on all four
+///         case-machine getters, which only arrived two minor versions later with
+///         `queueGuardianSlash`. Round-5 probed `fraudProofVerifier` as if it belonged to
+///         the same feature, so the REAL migration source classified as `Ambiguous` and
+///         the preflight had no runnable `OLD_BLS_AGGREGATOR` at all. It has no fallback,
+///         exactly like the deployed contract.
+contract Legacy43RealShapeStub {
+    /// @dev The verifier address read off Sepolia's 4.3.0 by `cast call`.
+    address public constant FRAUD_PROOF_VERIFIER = 0x128847cFD6e0C8247ED297Fb27a1302f2ad66D51;
+
+    function fraudProofVerifier() external pure returns (address) {
+        return FRAUD_PROOF_VERIFIER;
+    }
+
+    function MAX_VALIDATORS() external pure returns (uint256) {
+        return 13;
+    }
+
+    function validatorAtSlot(uint8) external pure returns (address) {
+        return address(0);
+    }
+
+    function version() external pure returns (string memory) {
+        return "BLSAggregator-4.3.0";
+    }
+}
+
+/// @notice The other half of the catch-all problem, and the half round-5 left open
+///         (CC-48 round-6 MEDIUM-1). `FallbackAggregatorStub` returns ZERO bytes, which
+///         the old `>=` width test already rejected. A fallback that returns 32+ bytes —
+///         the ordinary shape of a proxy delegating to a different implementation — was
+///         read as a REAL `pendingGuardianSlashCount`, and a fabricated 0 reported "no
+///         pending cases" for a contract that was never actually asked.
+contract WideFallbackAggregatorStub {
+    fallback() external {
+        assembly {
+            mstore(0x00, 0)
+            return(0x00, 0x20)
+        }
+    }
+}
+
+/// @notice Answers the pending getter, but not as a `uint256`: 64 bytes where the ABI says
+///         32. Not what its ABI claims, therefore not trustworthy.
+contract WrongWidthPendingStub {
+    function pendingGuardianSlashCount(address) external pure returns (uint256, uint256) {
+        return (0, 0);
+    }
+
+    function version() external pure returns (string memory) {
+        return "BLSAggregator-impostor";
+    }
+}
+
+/// @notice A legacy-shaped predecessor whose `version()` returns a malformed dynamic head:
+///         the string offset points outside the returndata (CC-48 round-6 LOW-1). The
+///         capability is `Absent`, so the warning path runs and calls `_versionOrUnknown`.
+contract MalformedVersionOffsetStub {
+    /// @dev Same selector as `version()`, a head of (offset = 2**256-1, length = 0).
+    function version() external pure returns (bytes32, bytes32) {
+        return (bytes32(type(uint256).max), bytes32(0));
+    }
+
+    function MAX_VALIDATORS() external pure returns (uint256) {
+        return 1;
+    }
+
+    function validatorAtSlot(uint8) external pure returns (address) {
+        return address(0);
+    }
+}
+
+/// @notice The other malformed head: the offset is in range, the LENGTH is not.
+contract MalformedVersionLengthStub {
+    function version() external pure returns (bytes32, bytes32) {
+        return (bytes32(uint256(32)), bytes32(type(uint256).max));
+    }
+
+    function MAX_VALIDATORS() external pure returns (uint256) {
+        return 1;
+    }
+
+    function validatorAtSlot(uint8) external pure returns (address) {
+        return address(0);
+    }
+}
+
 contract RegistryWiringStub {
     address public blsAggregator;
 
@@ -167,6 +257,95 @@ contract CC48MigrationPreflight is Test {
             )
         );
         this.callRequireNoPendingCases(address(partialStub));
+    }
+
+    /// CC-48 round-6 BLOCKER-1. The regression that made round-5's preflight unrunnable
+    /// against the ONE contract it exists to preflight. `fraudProofVerifier` predates the
+    /// case machine by two minor versions, so its presence is not evidence of a case
+    /// store; probing it turned Sepolia's real 4.3.0 into `Ambiguous`, and with
+    /// `requireDeclaredPredecessor` also refusing `OLD_BLS_AGGREGATOR=0`, NO value of that
+    /// variable could complete the script.
+    ///
+    /// The positive argument this asserts instead: a pending case can only be created by
+    /// `queueGuardianSlash`, which landed in the SAME commit as the four case-machine
+    /// getters. All four missing ⇒ no `queueGuardianSlash` ⇒ no case store.
+    function test_TheRealSepolia43ShapeIsAbsentNotAmbiguous() public {
+        Legacy43RealShapeStub legacy = new Legacy43RealShapeStub();
+
+        // Precondition of the test itself: this fixture really does answer the getter
+        // that used to poison the classification.
+        assertTrue(legacy.fraudProofVerifier() != address(0), "fixture must expose the live shape");
+
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(legacy))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Absent),
+            "4.3.0 exposes fraudProofVerifier and still cannot hold a case"
+        );
+        // ...so the migration can actually run against the real predecessor.
+        this.callRequireNoPendingCases(address(legacy));
+    }
+
+    /// CC-48 round-6 MEDIUM-1, the `Present` direction. A catch-all fallback that returns
+    /// 32 bytes (an ordinary proxy to a different implementation) used to satisfy the old
+    /// `ret.length >= 32` test and be classified `Present`; the scan then read its
+    /// fabricated 0 as "no pending cases" for a contract that was never asked. It is now
+    /// caught before any real getter is probed, by a selector no build implements.
+    function test_AWideReturningFallbackIsAmbiguousNotPresent() public {
+        WideFallbackAggregatorStub proxyish = new WideFallbackAggregatorStub();
+
+        // The fixture really does answer 32 bytes — i.e. it would have passed the old test.
+        (bool ok, bytes memory ret) = address(proxyish).staticcall(
+            abi.encodeWithSignature("pendingGuardianSlashCount(address)", address(1))
+        );
+        assertTrue(ok && ret.length == 32, "fixture must answer a full word");
+
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(proxyish))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Ambiguous)
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.AmbiguousGuardianSlashCapability.selector, address(proxyish)
+            )
+        );
+        this.callRequireNoPendingCases(address(proxyish));
+    }
+
+    /// The width test is `==`, not `>=`: a contract answering the pending getter with the
+    /// wrong ABI width is not what its ABI claims, and must not be enumerated.
+    function test_AWrongWidthPendingAnswerIsAmbiguous() public {
+        WrongWidthPendingStub impostor = new WrongWidthPendingStub();
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(impostor))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Ambiguous)
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.AmbiguousGuardianSlashCapability.selector, address(impostor)
+            )
+        );
+        this.callRequireNoPendingCases(address(impostor));
+    }
+
+    /// CC-48 round-6 LOW-1. The version string is printed in a WARNING line next to a
+    /// skipped pending-case check; a predecessor returning a malformed dynamic head must
+    /// not be able to turn that informational path into an unexplained revert inside a
+    /// view library. Both malformed shapes — offset out of range, and length out of range
+    /// — degrade to a label and let the preflight finish.
+    function test_AMalformedVersionReturnDegradesInsteadOfReverting() public {
+        MalformedVersionOffsetStub badOffset = new MalformedVersionOffsetStub();
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(badOffset))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Absent)
+        );
+        this.callRequireNoPendingCases(address(badOffset)); // pre-fix: abi.decode reverts here
+
+        MalformedVersionLengthStub badLength = new MalformedVersionLengthStub();
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(badLength))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Absent)
+        );
+        this.callRequireNoPendingCases(address(badLength));
     }
 
     /// An address with no code at all cannot be reasoned about either.

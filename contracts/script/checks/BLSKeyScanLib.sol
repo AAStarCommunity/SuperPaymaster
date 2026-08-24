@@ -23,6 +23,11 @@ interface IAggregatorKeyScan {
         external
         view
         returns (bytes32, bytes32, uint64, uint8, uint16, uint16, address);
+    /// @dev DELIBERATELY NOT part of the capability probe — see `guardianSlashCapability`.
+    ///      `fraudProofVerifier` shipped with CC-89's queue-less direct-execute path in
+    ///      `BLSAggregator-4.2.0`, TWO minor versions before the case machine existed, so
+    ///      its presence says nothing about whether a case can be stored. Kept here only
+    ///      so the exclusion is visible at the declaration site.
     function fraudProofVerifier() external view returns (address);
     function GUARDIAN_SLASH_CASE_WINDOW() external view returns (uint256);
     function guardianExitRequests(address guardian) external view returns (uint64, uint64);
@@ -75,6 +80,15 @@ library BLSKeyScanLib {
     ///      Prague fixtures. Cheap to rule out (<= 32 MSMs per key).
     uint256 internal constant WEAK_SCALAR_SCAN_LIMIT = 32;
 
+    /// @dev CC-48 round-6 MEDIUM-1. A selector no build of this aggregator implements or
+    ///      ever will: a contract that ANSWERS it (rather than reverting) is running a
+    ///      catch-all fallback, so nothing else it returns can be trusted. Probed FIRST,
+    ///      before any real getter. Derived from a string, so the value is auditable and
+    ///      cannot silently collide with a real function — `BLSAggregator` classifying as
+    ///      `Present` in the suite is the standing proof that it does not collide.
+    bytes4 internal constant CATCH_ALL_SENTINEL =
+        bytes4(keccak256("cc48CatchAllFallbackSentinel_NoBuildImplementsThis(bytes32,uint256)"));
+
     struct ScanResult {
         uint256 activeSlots;
         uint256 distinctKeys;
@@ -91,10 +105,12 @@ library BLSKeyScanLib {
     error TooFewDistinctKeys(address aggregator, uint256 distinctKeys, uint256 required);
     error TaintedKeyCarriedOver(bytes32 keyHash, address oldHolder, address newHolder);
     error PendingCaseOnOldAggregator(address aggregator, address guardian, uint256 pendingCount);
-    /// @dev CC-48 round-5 HIGH-1: the predecessor exposes SOME of the guardian-slash
-    ///      surface but not `pendingGuardianSlashCount`, or answers a probe with
-    ///      undecodable data (a catch-all fallback). Either way the "it cannot hold a
-    ///      case" argument is not provable, so the migration stops rather than skipping.
+    /// @dev CC-48 round-5 HIGH-1 / round-6 BLOCKER-1 + MEDIUM-1: the predecessor exposes
+    ///      SOME of the case-machine surface but not `pendingGuardianSlashCount`, answers
+    ///      a probe with the wrong ABI width, or answers `CATCH_ALL_SENTINEL` at all (a
+    ///      catch-all fallback, whose every answer is fabricated). In each case the "it
+    ///      cannot hold a case" argument is not provable, so the migration stops rather
+    ///      than skipping.
     error AmbiguousGuardianSlashCapability(address aggregator);
     /// @dev CC-48 round-5 HIGH-1: `OLD_BLS_AGGREGATOR` does not match the aggregator this
     ///      Registry is wired to right now. Declaring 0 ("first-ever deployment") on a
@@ -104,9 +120,9 @@ library BLSKeyScanLib {
 
     /// @notice What a predecessor aggregator can do about guardian slashing.
     /// @dev    `Absent` is a POSITIVE proof, not an assumption: a pending case can only
-    ///         be created by `queueGuardianSlash`, which exists only in builds that also
-    ///         expose the four public getters probed below. A contract exposing none of
-    ///         them has no code path that can produce one.
+    ///         be created by `queueGuardianSlash`, and `queueGuardianSlash` landed in the
+    ///         SAME commit as the four case-machine getters probed below. A contract
+    ///         exposing none of them has no code path that can produce one.
     enum GuardianSlashCapability {
         Absent,
         Present,
@@ -215,9 +231,9 @@ library BLSKeyScanLib {
     ///         scheduling the batch; this function covers the enumerable majority.
     ///
     /// @dev    CC-48 round-5 HIGH-1 — LEGACY PREDECESSORS. `pendingGuardianSlashCount`
-    ///         arrived with the guardian-slash feature (CC-89); the aggregators actually
-    ///         deployed today (Sepolia `BLSAggregator-4.3.0`, and `4.1.0` before it) do
-    ///         not have that selector at all. Round-3 called this function first and
+    ///         arrived with the CASE MACHINE (CC-48, shipped as `BLSAggregator-4.7.0`);
+    ///         the aggregators actually deployed today (Sepolia `BLSAggregator-4.3.0`,
+    ///         and `4.1.0` before it) do not have that selector at all. Round-3 called this function first and
     ///         unconditionally, so pointing the migration at the REAL predecessor made
     ///         the whole preflight revert on a missing selector — and the only way to
     ///         make the script run was `OLD_BLS_AGGREGATOR=0`, which ALSO skipped
@@ -227,8 +243,9 @@ library BLSKeyScanLib {
     ///
     ///         The skip is therefore narrow and PROVEN, never assumed:
     ///           • if `pendingGuardianSlashCount` answers, nothing is skipped;
-    ///           • it is skipped only when the predecessor exposes NONE of the
-    ///             guardian-slash surface, which means no code path in it can create a
+    ///           • it is skipped only when the predecessor exposes NONE of the FOUR
+    ///             case-machine getters that shipped in the same commit as
+    ///             `queueGuardianSlash`, which means no code path in it can create a
     ///             case (see `guardianSlashCapability`);
     ///           • any in-between shape reverts with `AmbiguousGuardianSlashCapability`.
     ///         The caller keeps running `requireNoTaintedKeyCarriedOver` regardless —
@@ -258,22 +275,57 @@ library BLSKeyScanLib {
 
     /// @notice Decide, from the deployed bytecode's own ABI surface, whether `aggregator`
     ///         can hold a guardian-slash case at all.
-    /// @dev    `Present` iff `pendingGuardianSlashCount(address)` decodes — that is the
-    ///         only getter the pending scan needs, so nothing else matters once it
-    ///         answers.
     ///
-    ///         `Absent` requires ALL FOUR of the remaining guardian-slash getters to be
-    ///         missing too: `guardianSlashCases`, `fraudProofVerifier`,
-    ///         `GUARDIAN_SLASH_CASE_WINDOW`, `guardianExitRequests`. They ship in the
-    ///         same feature as `queueGuardianSlash` — the ONLY function that can create a
-    ///         pending case — so their joint absence is positive evidence that no case
-    ///         can exist, not an inference from a single missing selector.
+    /// @dev    THE ONLY THING THAT CAN CREATE A PENDING CASE is `queueGuardianSlash`, and
+    ///         it does so by writing `guardianSlashCases[id]` and bumping
+    ///         `pendingGuardianSlashCount`. Those two mappings, the case window constant
+    ///         and the exit-request surface that reads the counter all arrived in ONE
+    ///         commit (CC-48, `daa1d1ec`/`2c0ed76b`, shipped as `BLSAggregator-4.7.0`).
+    ///         That co-arrival is what makes their JOINT absence positive evidence: a
+    ///         build with none of them contains no `queueGuardianSlash`, hence no case
+    ///         store, hence nothing for the pending scan to find.
     ///
-    ///         Everything else is `Ambiguous` and must stop the migration: a partial
-    ///         surface means an unrecognised build, and a contract with a catch-all
-    ///         fallback answers every probe with empty/short returndata, which must never
-    ///         be read as "feature absent". Fail closed, loudly.
+    ///         CC-48 round-6 BLOCKER-1 — WHY `fraudProofVerifier` IS NOT IN THIS SET.
+    ///         It is NOT part of that commit. It arrived two minor versions earlier with
+    ///         CC-89's queue-less direct-execute path (`75b3f9f4`,
+    ///         `BLSAggregator-4.2.0`), which slashes inside a single call and writes no
+    ///         case storage whatsoever. Sepolia's live predecessor
+    ///         `0x174b60bB…0158` (`BLSAggregator-4.3.0`) sits exactly in that gap: it
+    ///         ANSWERS `fraudProofVerifier()` with a 32-byte address and REVERTS on all
+    ///         four case-machine getters. Round-5 probed all five as if they were one
+    ///         feature, so the real migration source classified as `Ambiguous` and the
+    ///         preflight could not run against ANY value of `OLD_BLS_AGGREGATOR`. Probing
+    ///         it proved nothing about case storage and broke the only usable path.
+    ///
+    ///         The classification, in order:
+    ///           0. CATCH-ALL DETECTION FIRST. A selector that cannot exist on any build
+    ///              is probed before anything else. If it ANSWERS — with any returndata,
+    ///              empty or 32+ bytes — the contract has a catch-all fallback and every
+    ///              subsequent answer is fabricated. Unconditionally `Ambiguous`; see
+    ///              `_probe`. (Round-5 only caught the empty-returndata half of this: a
+    ///              proxy fallback returning >= 32 bytes was read as a REAL
+    ///              `pendingGuardianSlashCount`, and a fabricated 0 reported "no pending
+    ///              cases" for a contract that was never asked.)
+    ///           1. `Present` iff `pendingGuardianSlashCount(address)` returns EXACTLY
+    ///              32 bytes — that is the only getter the pending scan needs.
+    ///           2. `Absent` iff ALL FOUR case-machine getters are missing:
+    ///              `pendingGuardianSlashCount`, `guardianSlashCases`,
+    ///              `GUARDIAN_SLASH_CASE_WINDOW`, `guardianExitRequests`.
+    ///           3. Everything else is `Ambiguous` and must stop the migration: a partial
+    ///              surface is an unrecognised build, and a wrong-width answer is a
+    ///              contract that is not what its ABI claims. Fail closed, loudly.
+    ///
+    ///         STATED LIMITATION: every probe is a `staticcall`, so a fallback that WRITES
+    ///         state reverts on all of them and classifies as `Absent`. Such a contract
+    ///         also cannot answer the pending scan, so the migration would be reasoning
+    ///         about a shape no aggregator in this repo's history has ever had; the
+    ///         predecessor binding (`requireDeclaredPredecessor`) is what keeps the target
+    ///         to the one Registry is actually wired to.
     function guardianSlashCapability(address aggregator) internal view returns (GuardianSlashCapability) {
+        // 0. Catch-all fallback detection, BEFORE any known getter is trusted.
+        (bool sentinelAnswered,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL), 0);
+        if (sentinelAnswered) return GuardianSlashCapability.Ambiguous;
+
         (bool pendingOk, bool pendingDecodable) =
             _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.pendingGuardianSlashCount, (address(1))), 32);
         if (pendingOk && pendingDecodable) return GuardianSlashCapability.Present;
@@ -283,9 +335,6 @@ library BLSKeyScanLib {
         bool anyUndecodable;
         (bool ok, bool decodable) =
             _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.guardianSlashCases, (uint256(0))), 224);
-        anyOther = anyOther || (ok && decodable);
-        anyUndecodable = anyUndecodable || (ok && !decodable);
-        (ok, decodable) = _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.fraudProofVerifier, ()), 32);
         anyOther = anyOther || (ok && decodable);
         anyUndecodable = anyUndecodable || (ok && !decodable);
         (ok, decodable) =
@@ -319,24 +368,52 @@ library BLSKeyScanLib {
         if (declaredOld != wired) revert PredecessorMismatch(registry, declaredOld, wired);
     }
 
-    /// @dev staticcall probe. Returns (the call succeeded, the returndata is at least the
+    /// @dev staticcall probe. Returns (the call succeeded, the returndata is EXACTLY the
     ///      expected ABI width). Split in two because "reverted" and "answered with
-    ///      something undecodable" mean very different things here: the first is a missing
-    ///      selector on a fallback-less contract (informative), the second is a fallback
-    ///      swallowing the call (never trustworthy).
-    function _probe(address target, bytes memory callData, uint256 minReturnLength)
+    ///      something of the wrong width" mean very different things here: the first is a
+    ///      missing selector on a fallback-less contract (informative), the second is a
+    ///      contract that is not what its ABI claims (never trustworthy).
+    ///
+    ///      CC-48 round-6 MEDIUM-1: the width test is `==`, not `>=`. Every getter probed
+    ///      by `guardianSlashCapability` returns a STATIC head, so its ABI encoding has
+    ///      one exact length; `>=` accepted anything longer, which is precisely what a
+    ///      proxy fallback delegating to a different implementation produces. Answers that
+    ///      are the wrong width are reported as undecodable and land in `Ambiguous`, and
+    ///      the caller separately refuses any contract that answers `CATCH_ALL_SENTINEL`.
+    function _probe(address target, bytes memory callData, uint256 expectedReturnLength)
         private
         view
         returns (bool ok, bool decodable)
     {
         bytes memory ret;
         (ok, ret) = target.staticcall(callData);
-        decodable = ret.length >= minReturnLength;
+        decodable = ret.length == expectedReturnLength;
     }
 
+    /// @dev CC-48 round-6 LOW-1. This is a pure WARNING path — it exists to name the
+    ///      predecessor in the log line printed next to a skipped pending-case check — so
+    ///      it must never be the thing that reverts. `abi.decode(ret, (string))` reverts
+    ///      on a malformed head (an offset or length pointing outside the returndata),
+    ///      which a predecessor can produce trivially, turning an informational message
+    ///      into an unexplained revert inside a view library. The head is therefore
+    ///      bounds-checked by hand before the decode, exactly as the ABI decoder would,
+    ///      and any failure degrades to a label instead.
     function _versionOrUnknown(address aggregator) private view returns (string memory) {
         (bool ok, bytes memory ret) = aggregator.staticcall(abi.encodeCall(IAggregatorKeyScan.version, ()));
         if (!ok || ret.length < 64) return "<no version() getter>";
+
+        uint256 offset;
+        assembly {
+            offset := mload(add(ret, 0x20))
+        }
+        // the length word must sit wholly inside the returndata
+        if (offset > ret.length - 32) return "<malformed version() return>";
+        uint256 len;
+        assembly {
+            len := mload(add(add(ret, 0x20), offset))
+        }
+        // ...and so must the bytes it claims
+        if (len > ret.length - offset - 32) return "<malformed version() return>";
         return abi.decode(ret, (string));
     }
 

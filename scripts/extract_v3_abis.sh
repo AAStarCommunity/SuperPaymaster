@@ -119,8 +119,21 @@ if [ -n "$WS_OFFENDERS" ]; then
 fi
 
 # The manifest must also still be valid JSON after any change to the emitting lines above.
+# CC-48 round-6 LOW-4: FAIL CLOSED. This used to be wrapped in `if command -v jq`, so on a
+# machine without jq the one check guarding the hand-quoted `echo` lines silently did
+# nothing -- and "silently did nothing" is indistinguishable from "passed" in CI output.
+# jq is preferred (it is already required by the extraction loop above); python3 is an
+# equivalent fallback; neither present is an ERROR, not a skip.
 if command -v jq >/dev/null 2>&1; then
-    jq empty "$CONFIG_FILE" || { echo "❌ $CONFIG_FILE is not valid JSON"; exit 1; }
+    jq empty "$CONFIG_FILE" || { echo "❌ $CONFIG_FILE is not valid JSON (jq)"; exit 1; }
+elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CONFIG_FILE" \
+        || { echo "❌ $CONFIG_FILE is not valid JSON (python3)"; exit 1; }
+else
+    echo "❌ Neither jq nor python3 is available, so $CONFIG_FILE cannot be validated."
+    echo "   The manifest is emitted by hand-quoted echo lines; shipping it unvalidated is"
+    echo "   how a malformed ABI manifest reaches a consumer. Install jq (or python3)."
+    exit 1
 fi
 
 echo "✨ ABI extraction and manifest generation complete. Files saved in $OUTPUT_DIR/"

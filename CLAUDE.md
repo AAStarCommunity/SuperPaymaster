@@ -181,7 +181,8 @@ Solidity 0.8.33, optimizer enabled (**500 runs**; `Registry.sol` is further rest
 - Any change to a public ABI, to a struct returned by a public getter, or to the storage
   layout requires a `version()` bump, a regenerated `abis/*.json`, and a note to the
   downstream repos (`repo:dvt`, `repo:sdk`). Current record:
-  `docs/security/CC48-round5-changes.md` (supersedes §2/§6 of
+  `docs/security/CC48-round6-changes.md` (supersedes §1/§3 of
+  `docs/security/CC48-round5-changes.md`, which supersedes §2/§6 of
   `docs/security/CC48-round4-changes.md`, which supersedes §1.1 of
   `docs/security/CC48-round3-changes.md`)
 - EntryPoint v0.7 address: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`

@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
 /// @notice Narrow views on the existing Sepolia Registry (sanity checks only).
 interface IRegSepolia {
@@ -68,8 +69,16 @@ contract DeployBLSAggregatorSepolia is Script {
         // guilty guardians' ROLE_DVT locks. (Owner == jason == deployer.)
         IStakingSlasher(STAKING).setAuthorizedSlasher(address(agg), true);
 
+        // CC-48 round-6 HIGH-1: whoever owns this aggregator can call
+        // `emergencyDisarmFraudProofVerifier()` in the same block a watcher tries to open
+        // a case. On a real chain that must be a Safe; this E2E stack may keep a hot owner
+        // ONLY with the explicit, testnet-bound TESTNET_EOA_OWNER_ACK acknowledgement.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) agg.transferOwnership(gov);
+
         vm.stopBroadcast();
 
+        GovernanceOwnerGate.requireGovernanceOwner(address(agg), agg.owner(), "BLSAggregator");
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
         console.log("BLSAggregator 4.9.0 (A' + exit gate + frozen verdict) deployed at:", address(agg));

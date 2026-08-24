@@ -354,6 +354,57 @@ contract CC48VerifierConformance is Test {
         Conformance.assertSetBound(address(good), address(aggA), 46, three, proof);
     }
 
+    /// CC-48 round-6 LOW-2, the constructive half. Round-5 derived the unrelated set with
+    /// `_syntheticGuardian(guilty, fraudProofId + 1 + i)`: each element was checked only
+    /// against the ACCUSED set, so pairwise distinctness — and distinctness from `extra` —
+    /// were probabilistic, not guaranteed. A collision would silently shrink assertion (4)
+    /// from "n unrelated addresses" to a smaller multiset with nothing failing. The
+    /// generator is now exposed so the property can be ASSERTED rather than argued.
+    function test_SyntheticSetsArePairwiseDistinctByConstruction() public pure {
+        address[] memory three = new address[](3);
+        three[0] = address(0x9001);
+        three[1] = address(0x9002);
+        three[2] = address(0x9003);
+
+        (address extra, address[] memory unrelated) = Conformance.syntheticSets(three, 46);
+
+        address[] memory all = new address[](three.length + 1 + unrelated.length);
+        uint256 k;
+        for (uint256 i = 0; i < three.length; ++i) {
+            all[k++] = three[i];
+        }
+        all[k++] = extra;
+        for (uint256 i = 0; i < unrelated.length; ++i) {
+            all[k++] = unrelated[i];
+        }
+
+        for (uint256 i = 0; i < all.length; ++i) {
+            assertTrue(all[i] != address(0), "no synthetic address may be the zero address");
+            for (uint256 j = i + 1; j < all.length; ++j) {
+                assertTrue(all[i] != all[j], "guilty, extra and unrelated must be pairwise distinct");
+            }
+        }
+    }
+
+    /// ...and the arithmetic half. `fraudProofId + 1 + i` reverted on overflow for any id
+    /// within `n + 1` of `type(uint256).max`. The id is CALLER-CHOSEN and single-use for
+    /// ever, so "nobody picks one that big" is a hope, not a property — a DVT repo running
+    /// this gate against such an id got an unexplained arithmetic revert from the fixture
+    /// instead of a verdict on its verifier. The salt is a hash now, so there is no
+    /// arithmetic left to overflow.
+    function test_SetBoundHandlesAMaximalFraudProofId() public view {
+        uint256 id = type(uint256).max;
+
+        // The generator itself must not revert...
+        (address extra, address[] memory unrelated) = Conformance.syntheticSets(guardians, id);
+        assertTrue(extra != address(0));
+        assertEq(unrelated.length, guardians.length);
+
+        // ...and neither must the full assertion built on top of it.
+        bytes memory proof = good.attest(aggA.fraudProofDigest(id, guardians), id, guardians);
+        Conformance.assertSetBound(address(good), address(aggA), id, guardians, proof);
+    }
+
     function callAssertSetBound(
         address verifier,
         address aggregator,
