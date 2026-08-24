@@ -30,6 +30,10 @@ contract V3_DynamicLevelThresholds_Test is Test {
         
         // Authorize admin as reputation source
         registry.setReputationSource(admin, true);
+        // This suite isolates dynamic tier lookup. Some flows intentionally
+        // create >2,000-token uplifts, so disable the separate proposal-cap
+        // control here; its normal, boundary, and attack paths have dedicated tests.
+        registry.setMaxAggregateCreditUpliftPerProposal(type(uint256).max);
 
         // P0-1: Registry now routes BLS verification through the aggregator.
         // Wire a permissive mock that always returns true so reputation update

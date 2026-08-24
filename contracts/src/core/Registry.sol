@@ -11,6 +11,9 @@ import "../interfaces/v3/IMySBT.sol";
 import "../interfaces/ISuperPaymaster.sol";
 import "../interfaces/v3/IBLSAggregator.sol";
 
+interface IGuardianExitGate {
+    function consumeGuardianExit(address guardian) external;
+}
 
 contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, IRegistry {
 
@@ -21,7 +24,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.4.2"; // v5.4.2 M-2: non-fatal updateSBTStatus in exitRole (stake-withdrawal liveness)
+        return "Registry-5.5.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -106,6 +109,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         creditTierConfig[4] = 600 ether;
         creditTierConfig[5] = 1000 ether;
         creditTierConfig[6] = 2000 ether;
+
+        // Fresh deployments fail closed at a finite proposal-level issuance
+        // budget. Existing UUPS proxies read zero after upgrade, which also
+        // fails closed for positive uplifts until governance configures a cap.
+        maxAggregateCreditUpliftPerProposal = 2000 ether;
 
         levelThresholds.push(13);
         levelThresholds.push(34);
@@ -275,6 +283,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     function exitRole(bytes32 roleId) external nonReentrant {
         if (!hasRole[roleId][msg.sender]) revert RoleNotGranted(roleId, msg.sender);
+        if (roleId == ROLE_DVT) {
+            if (blsAggregator == address(0)) revert BLSNotConfigured();
+            IGuardianExitGate(blsAggregator).consumeGuardianExit(msg.sender);
+        }
 
         // M-6: gate real fund release on Staking's source-of-truth, NOT the local
         // `roleStakes` cache. The cache is synced best-effort (try/catch in
@@ -391,6 +403,8 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event GlobalReputationUpdated(address indexed user, uint256 newScore, uint256 epoch);
     event CreditTierUpdated(uint256 level, uint256 creditLimit);
     event ReputationSourceUpdated(address indexed source, bool isActive);
+    event AggregateCreditUpliftCapUpdated(uint256 oldCap, uint256 newCap);
+    event ReputationProposalUplift(uint256 indexed proposalId, uint256 aggregateUplift, uint256 cap);
 
     /// @dev Shared BLS decode + threshold check + verify helper.
     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
@@ -426,6 +440,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             users, newScores, epoch, block.chainid
         )));
 
+        uint256 aggregateUplift;
         for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
             if (epoch <= lastReputationEpoch[user]) {
@@ -436,11 +451,17 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             uint256 clamped = (_new > _old)
                 ? ((_new - _old > 100) ? _old + 100 : _new)
                 : ((_old > _new && _old - _new > 100) ? _old - 100 : _new);
+            uint256 oldLimit = _creditLimitForReputation(_old);
+            uint256 newLimit = _creditLimitForReputation(clamped);
+            if (newLimit > oldLimit) aggregateUplift += newLimit - oldLimit;
             globalReputation[user] = clamped;
             lastReputationEpoch[user] = epoch;
             emit GlobalReputationUpdated(user, clamped, epoch);
             unchecked { ++i; }
         }
+        uint256 cap = maxAggregateCreditUpliftPerProposal;
+        if (aggregateUplift > cap) revert AggregateCreditUpliftExceeded(aggregateUplift, cap);
+        emit ReputationProposalUplift(proposalId, aggregateUplift, cap);
     }
 
     function updateOperatorBlacklist(
@@ -485,6 +506,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit CreditTierUpdated(level, limit);
     }
 
+    /// @notice Set the maximum sum of positive aPNT credit-limit changes in one
+    ///         reputation proposal. Zero is intentionally fail-closed.
+    function setMaxAggregateCreditUpliftPerProposal(uint256 cap) external onlyOwner {
+        emit AggregateCreditUpliftCapUpdated(maxAggregateCreditUpliftPerProposal, cap);
+        maxAggregateCreditUpliftPerProposal = cap;
+    }
+
     function setReputationSource(address source, bool active) external onlyOwner {
         isReputationSource[source] = active;
         emit ReputationSourceUpdated(source, active);
@@ -500,7 +528,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     }
 
     function getCreditLimit(address user) external view returns (uint256) {
-        uint256 rep = globalReputation[user];
+        return _creditLimitForReputation(globalReputation[user]);
+    }
+
+    function _creditLimitForReputation(uint256 rep) internal view returns (uint256) {
         uint256 level = 1;
         for (uint256 i = levelThresholds.length; i > 0; i--) {
             if (rep >= levelThresholds[i - 1]) {
@@ -580,5 +611,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     /// @notice Monotonic nonce for blacklist BLS proofs (P0-3 replay protection).
     uint256 public blacklistNonce;
 
-    uint256[50] private __gap;
+    /// @notice Maximum positive credit-limit uplift (aPNT, 18 decimals) per proposal.
+    uint256 public maxAggregateCreditUpliftPerProposal;
+
+    error AggregateCreditUpliftExceeded(uint256 aggregateUplift, uint256 cap);
+
+    uint256[49] private __gap;
 }

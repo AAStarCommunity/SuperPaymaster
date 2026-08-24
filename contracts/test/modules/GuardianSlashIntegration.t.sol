@@ -12,8 +12,13 @@ import "src/tokens/GToken.sol";
 ///         Registry's full registration flow is out of scope for this boundary test.
 contract MiniRegistry {
     address public staking;
+    mapping(address => uint256) public pending;
     function setStaking(address s) external { staking = s; }
     function GTOKEN_STAKING() external view returns (address) { return staking; }
+    function setGuardianSlashPending(address guardian, bool value) external {
+        if (value) pending[guardian]++;
+        else pending[guardian]--;
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
     fallback() external {}
 }
@@ -67,6 +72,7 @@ contract GuardianSlashIntegrationTest is Test {
     // §三-a: the authorizedSlashers gate is REAL (mock could not prove this).
     function test_Integration_UnauthorizedAggregator_Reverts() public {
         // aggregator was NOT added to authorizedSlashers → slashByDVT must revert.
+        bls.queueGuardianSlash(1, _one(guardian), "");
         vm.expectRevert(); // GTokenStaking.NotAuthorizedSlasher
         bls.executeGuardianSlash(1, _one(guardian), "");
         assertEq(_lockedDvt(guardian), 30 ether, "nothing slashed");
@@ -76,6 +82,7 @@ contract GuardianSlashIntegrationTest is Test {
     function test_Integration_RealSlashZerosLock() public {
         staking.setAuthorizedSlasher(address(bls), true);
         assertEq(_lockedDvt(guardian), 30 ether);
+        bls.queueGuardianSlash(1, _one(guardian), "");
         bls.executeGuardianSlash(1, _one(guardian), "");
         assertEq(_lockedDvt(guardian), 0, "real ROLE_DVT lock zeroed");
         assertTrue(bls.guardianSlashed(1, guardian));
@@ -89,6 +96,7 @@ contract GuardianSlashIntegrationTest is Test {
         staking.unlockAndTransfer(guardian, ROLE_DVT); // guardian exited
         assertEq(_lockedDvt(guardian), 0, "exited");
 
+        bls.queueGuardianSlash(1, _one(guardian), "");
         bls.executeGuardianSlash(1, _one(guardian), "");
         assertFalse(bls.guardianSlashed(1, guardian), "exited guardian not consumed");
     }

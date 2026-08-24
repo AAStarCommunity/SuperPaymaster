@@ -231,6 +231,19 @@ contract BLSAggregatorLivenessTest is Test {
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
+    function test_ReconstructPkAgg_RevertsWhileGuardianExitNoticeIsActive() public {
+        address slot3v = address(uint160(uint256(3) + 0x100));
+        vm.prank(slot3v);
+        bls.requestGuardianExit();
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), slot3v));
+        bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
+
+        vm.prank(slot3v);
+        bls.cancelGuardianExit();
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes()));
+    }
+
     function test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() public view {
         // If we DROP slot 3 from the mask (use only slots 1,2,4,5,6,7,8...) the
         // aggregator should not even look at slot 3. Confirms the per-slot check
@@ -308,6 +321,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.3.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.4.0"));
     }
 }

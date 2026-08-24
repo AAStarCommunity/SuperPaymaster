@@ -61,6 +61,7 @@ contract RepCreditPragueE2E is Test {
         registry.setBLSAggregator(address(aggregator));
         registry.setReputationSource(address(aggregator), true);
         registry.setCreditTier(1, 0);
+        registry.setMaxAggregateCreditUpliftPerProposal(type(uint256).max);
         aggregator.setMinThreshold(3);
         aggregator.setDefaultThreshold(3);
 
@@ -171,6 +172,9 @@ contract RepCreditPragueE2E is Test {
     function test_Prague_RejectsExitedValidatorAtVerificationTime() public {
         _skipWithoutPrague();
         vm.warp(block.timestamp + 31 days);
+        vm.prank(validators[0]);
+        aggregator.requestGuardianExit();
+        vm.warp(block.timestamp + aggregator.GUARDIAN_EXIT_DELAY());
         vm.prank(validators[0]);
         registry.exitRole(ROLE_DVT);
 

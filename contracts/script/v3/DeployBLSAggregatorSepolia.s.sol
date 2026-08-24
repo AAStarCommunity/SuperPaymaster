@@ -16,7 +16,7 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.3.0 (with A' proposalSignersCommitment) to Sepolia,
+/// @notice Deploys BLSAggregator 4.4.0 (A' commitment + bounded guardian exit) to Sepolia,
 ///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
 ///         slashByDVT works). Does NOT rewire registry/dvt/sp — this is a dedicated
@@ -50,7 +50,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.3.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.4.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -62,7 +62,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
-        console.log("BLSAggregator 4.3.0 (A') deployed at:", address(agg));
+        console.log("BLSAggregator 4.4.0 (A' + exit gate) deployed at:", address(agg));
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
         console.log("      then registerBLSPublicKey x3 (DVT keys) + setFraudProofVerifier(verifier).");

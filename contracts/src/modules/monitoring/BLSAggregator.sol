@@ -103,6 +103,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         bool verified;
     }
 
+    struct GuardianSlashCase {
+        bytes32 guardiansHash;
+        uint64 deadline;
+        uint8 status; // 0=none, 1=pending, 2=executed, 3=expired
+    }
+
+    struct GuardianExitRequest {
+        uint64 readyAt;
+        uint64 expiresAt;
+    }
+
     // ====================================
     // Storage
     // ====================================
@@ -198,8 +209,19 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         availability is the DVT detection layer's (redundant watchers) job.
     mapping(uint256 => bytes32) public proposalSignersCommitment;
 
+    /// @notice Two-step guardian-slash lifecycle. Queueing a verifier-approved
+    ///         case freezes every accused guardian's ROLE_DVT exit in Registry;
+    ///         execution or permissionless expiry releases exactly one count.
+    mapping(uint256 => GuardianSlashCase) public guardianSlashCases;
+    mapping(address => GuardianExitRequest) public guardianExitRequests;
+    mapping(address => uint256) public pendingGuardianSlashCount;
+
+    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 2 days;
+    uint256 public constant GUARDIAN_EXIT_DELAY = 2 days;
+    uint256 public constant GUARDIAN_EXIT_WINDOW = 1 days;
+
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.3.0";
+        return "BLSAggregator-4.4.0";
     }
 
 
@@ -241,6 +263,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         already-ejected). On-chain trace so monitors can tell "escaped via exit"
     ///         apart from "was never on the list"; no id/guardian is consumed here.
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
+    event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
+    event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
+    event GuardianExitRequested(address indexed guardian, uint256 readyAt, uint256 expiresAt);
+    event GuardianExitCancelled(address indexed guardian);
+    event GuardianExitConsumed(address indexed guardian);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -316,6 +343,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidFraudProof(uint256 fraudProofId);
     /// @notice executeGuardianSlash received an empty guiltyGuardians array.
     error EmptyGuiltyGuardians();
+    error GuardianSlashCaseAlreadyOpened(uint256 fraudProofId);
+    error GuardianSlashCaseNotPending(uint256 fraudProofId);
+    error GuardianSlashCaseExpiredError(uint256 fraudProofId, uint256 deadline);
+    error GuardianSlashCaseNotExpired(uint256 fraudProofId, uint256 deadline);
+    error GuardianSetMismatch(uint256 fraudProofId);
+    error GuardianExitAlreadyRequested(address guardian);
+    error GuardianExitNotRequested(address guardian);
+    error GuardianExitNotReady(address guardian, uint256 readyAt);
+    error GuardianExitRequestExpired(address guardian, uint256 expiresAt);
+    error GuardianExitBlockedBySlash(address guardian, uint256 pendingCount);
+    error NotRegistry(address caller);
+    error SlotValidatorExitPending(uint8 slot, address validator);
 
     // ====================================
     // Constructor
@@ -853,6 +892,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (!REGISTRY.hasRole(roleDvt, v)) {
                 revert SlotValidatorRoleRevoked(slot, v);
             }
+            if (guardianExitRequests[v].readyAt != 0) {
+                revert SlotValidatorExitPending(slot, v);
+            }
             (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
             if (uint256(amount) < minStake) {
                 revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
@@ -1117,15 +1159,103 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         TimelockController (or multisig-behind-timelock) so verifier rotation is
     ///         delay-guarded — do NOT arm this from a hot EOA owner. Enforced by
     ///         deployment/governance, not in-contract, to keep this a thin entry.
-    /// @dev    Activation prerequisite (follow-up, not this PR): ROLE_DVT needs a
-    ///         pending-slash freeze / unbonding gate (mirroring SP.queueSlash's
-    ///         two-step) BEFORE a verifier is armed. Without it a guardian exits
-    ///         ahead of the fraud proof (Registry.exitRole, 10% fee) and the paper's
-    ///         ρ·S_op deterrent degrades to ~0.1·S_op. The A' attribution work
-    ///         (per CC-89) and this exit-freeze are both stage-2 gating items.
+    /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
+    ///         unbonding delay. The request immediately removes the guardian from
+    ///         valid signer masks; a verifier-approved queued case increments the
+    ///         pending counter and Registry cannot consume the exit until all cases
+    ///         resolve. Governance must wire this aggregator into Registry before
+    ///         arming the verifier.
     function setFraudProofVerifier(address verifier) external onlyOwner {
         emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
         fraudProofVerifier = verifier;
+    }
+
+    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
+    ///         active request is excluded from BLS verification immediately,
+    ///         giving watchers the full delay to queue a fraud proof.
+    function requestGuardianExit() external {
+        if (!REGISTRY.hasRole(keccak256("DVT"), msg.sender)) {
+            revert SlotValidatorRoleRevoked(0, msg.sender);
+        }
+        if (pendingGuardianSlashCount[msg.sender] != 0) {
+            revert GuardianExitBlockedBySlash(msg.sender, pendingGuardianSlashCount[msg.sender]);
+        }
+        if (guardianExitRequests[msg.sender].readyAt != 0) revert GuardianExitAlreadyRequested(msg.sender);
+        uint64 readyAt = uint64(block.timestamp + GUARDIAN_EXIT_DELAY);
+        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_EXIT_WINDOW);
+        guardianExitRequests[msg.sender] = GuardianExitRequest(readyAt, expiresAt);
+        emit GuardianExitRequested(msg.sender, readyAt, expiresAt);
+    }
+
+    function cancelGuardianExit() external {
+        if (guardianExitRequests[msg.sender].readyAt == 0) revert GuardianExitNotRequested(msg.sender);
+        delete guardianExitRequests[msg.sender];
+        emit GuardianExitCancelled(msg.sender);
+    }
+
+    /// @notice Registry-only atomic gate called by Registry.exitRole(ROLE_DVT).
+    function consumeGuardianExit(address guardian) external {
+        if (msg.sender != address(REGISTRY)) revert NotRegistry(msg.sender);
+        GuardianExitRequest memory request = guardianExitRequests[guardian];
+        if (request.readyAt == 0) revert GuardianExitNotRequested(guardian);
+        if (pendingGuardianSlashCount[guardian] != 0) {
+            revert GuardianExitBlockedBySlash(guardian, pendingGuardianSlashCount[guardian]);
+        }
+        if (block.timestamp < request.readyAt) revert GuardianExitNotReady(guardian, request.readyAt);
+        if (block.timestamp > request.expiresAt) revert GuardianExitRequestExpired(guardian, request.expiresAt);
+        delete guardianExitRequests[guardian];
+        emit GuardianExitConsumed(guardian);
+    }
+
+    /// @notice Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
+    /// @dev The full proof is checked before any freeze is installed, so arbitrary
+    ///      callers cannot lock honest guardians. A bounded two-day window prevents
+    ///      an abandoned case from becoming a permanent withdrawal denial.
+    function queueGuardianSlash(
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external nonReentrant {
+        address verifier = fraudProofVerifier;
+        if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        if (fraudProofId == 0) revert InvalidProposalId();
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
+        bytes32 guardiansHash = _validateGuardianSet(guiltyGuardians);
+        if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltyGuardians, fraudProof)) {
+            revert InvalidFraudProof(fraudProofId);
+        }
+
+        uint64 deadline = uint64(block.timestamp + GUARDIAN_SLASH_CASE_WINDOW);
+        slashCase.guardiansHash = guardiansHash;
+        slashCase.deadline = deadline;
+        slashCase.status = 1;
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
+            unchecked { ++i; }
+        }
+        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
+    }
+
+    /// @notice Release an unexecuted case after its bounded pending window.
+    function expireGuardianSlashCase(uint256 fraudProofId, address[] calldata guiltyGuardians)
+        external
+        nonReentrant
+    {
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
+        if (block.timestamp <= slashCase.deadline) {
+            revert GuardianSlashCaseNotExpired(fraudProofId, slashCase.deadline);
+        }
+        if (_validateGuardianSet(guiltyGuardians) != slashCase.guardiansHash) {
+            revert GuardianSetMismatch(fraudProofId);
+        }
+        slashCase.status = 3;
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            pendingGuardianSlashCount[guiltyGuardians[i]] -= 1;
+            unchecked { ++i; }
+        }
+        emit GuardianSlashCaseExpired(fraudProofId);
     }
 
     /// @notice Slash the FULL ROLE_DVT stake of guardians proven (by the external
@@ -1142,12 +1272,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           the proof to stable addresses; the slash reads the accused's own
     ///           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed
     ///           address's lock is independent of whether it still holds a slot).
-    ///           ⚠️ It does NOT block Registry.exitRole: a guardian past
-    ///           roleLockDuration (ROLE_DVT = 30 days) can self-exit, pay the 10%
-    ///           exit fee, keep 90% AND retain re-staking eligibility; this loop
-    ///           then reads a 0 lock and skips him (GuardianSlashSkipped). Blocking
-    ///           the exit path is a stage-2 challenger concern (pending-slash freeze),
-    ///           out of scope for this thin entry — see setFraudProofVerifier.
+    ///           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian
+    ///           must first publish a bounded exit notice and is immediately excluded
+    ///           from BLS signer masks; any queued slash case freezes consumption.
+    ///           GuardianSlashSkipped remains for legacy/direct staking drift, but
+    ///           the coordinated Registry path cannot release a queued guardian.
     ///         - Permissionless CALL, gated by the verifier: fraud validity — not
     ///           caller identity — authorizes the slash. This deliberately bypasses
     ///           the accused DVT quorum, which is the collusion set and would never
@@ -1155,10 +1284,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg
     ///           auto-ejects the guardian on the next verify. No 30% cap: proven
     ///           collusion must lose eligibility, not merely pay a fee — but this
-    ///           holds only for a guardian who has NOT exited (an exited guardian
-    ///           does merely pay the 10% exit fee; see the exit caveat above). The
-    ///           operator-path cap protects honest operators from one bad epoch —
-    ///           a different threat model.
+    ///           holds for a guardian whose case is queued inside the configured
+    ///           exit-notice window. The operator-path cap protects honest operators
+    ///           from one bad epoch — a different threat model.
     ///         - fail-closed: reverts until a verifier is wired.
     /// @param  fraudProofId    Unique id of the fraud proof (own id-space; replay-guarded).
     /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier).
@@ -1173,6 +1301,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (verifier == address(0)) revert FraudProofVerifierNotSet();
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
+        if (block.timestamp > slashCase.deadline) {
+            revert GuardianSlashCaseExpiredError(fraudProofId, slashCase.deadline);
+        }
+        if (_validateGuardianSet(guiltyGuardians) != slashCase.guardiansHash) {
+            revert GuardianSetMismatch(fraudProofId);
+        }
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
 
@@ -1184,16 +1320,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         bytes32 roleDvt = keccak256("DVT");
+        slashCase.status = 2;
 
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             address guardian = guiltyGuardians[i];
-            if (guardian == address(0)) revert InvalidTarget(guardian);
-            // Reject duplicate addresses (n ≤ MAX_VALIDATORS, so O(n²) is cheap) so a
-            // proof cannot list the same guardian twice.
-            for (uint256 j = 0; j < i; ) {
-                if (guiltyGuardians[j] == guardian) revert InvalidParameter("dup guardian");
-                unchecked { ++j; }
-            }
             // Idempotent per (proof, guardian): a guardian already slashed under this
             // proof is silently skipped (no double-slash, no revert of the batch).
             if (!guardianSlashed[fraudProofId][guardian]) {
@@ -1213,7 +1343,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                     emit GuardianSlashSkipped(fraudProofId, guardian);
                 }
             }
+            pendingGuardianSlashCount[guardian] -= 1;
             unchecked { ++i; }
         }
+    }
+
+    function _validateGuardianSet(address[] calldata guiltyGuardians) internal pure returns (bytes32) {
+        if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
+        if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            if (guiltyGuardians[i] == address(0)) revert InvalidTarget(address(0));
+            for (uint256 j = 0; j < i; ) {
+                if (guiltyGuardians[j] == guiltyGuardians[i]) revert InvalidParameter("dup guardian");
+                unchecked { ++j; }
+            }
+            unchecked { ++i; }
+        }
+        return keccak256(abi.encode(guiltyGuardians));
     }
 }

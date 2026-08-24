@@ -36,6 +36,7 @@ contract MockStaking {
 contract MockRegistry is IRegistry {
     address public staking;
     uint256 public minStake;
+    mapping(address => uint256) public pending;
     constructor(uint256 _minStake) { minStake = _minStake; }
     function setStaking(address s) external { staking = s; }
     function GTOKEN_STAKING() external view returns (IGTokenStaking) { return IGTokenStaking(staking); }
@@ -60,6 +61,10 @@ contract MockRegistry is IRegistry {
     function version() external pure override returns (string memory) { return "MockRegistry"; }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
     function getEffectiveStake(address, bytes32) external pure override returns (uint256) { return 0; }
+    function setGuardianSlashPending(address guardian, bool value) external {
+        if (value) pending[guardian]++;
+        else pending[guardian]--;
+    }
 }
 
 /// @notice Stand-in for the real DVT OverIssueFraudProofVerifier (issue #222).
@@ -203,7 +208,9 @@ contract GuardianSlashE2ETest is Test {
         // fraudProof binds to the disputed proposal FROM PHASE A (pid = 42); the mock
         // verifier reads its commitment (mirrors pr-daemon's step-0 require != 0). A real
         // fraudProof adds claimedSigners/mask/msgHash/token, but the pid binding is the same.
-        bls.executeGuardianSlash(1, guilty, abi.encode(uint256(42)));
+        bytes memory fraudProof = abi.encode(uint256(42));
+        bls.queueGuardianSlash(1, guilty, fraudProof);
+        bls.executeGuardianSlash(1, guilty, fraudProof);
 
         // Full-lock slash → 0 → below minStake.
         assertEq(staking.lockAmt(signers[0]), 0, "guilty guardian 0x101 lock zeroed");
@@ -234,7 +241,7 @@ contract GuardianSlashE2ETest is Test {
         guilty[0] = signers[0];
         // Point at pid 999 — no commitment stored → verifier returns false → reject.
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(7)));
-        bls.executeGuardianSlash(7, guilty, abi.encode(uint256(999)));
+        bls.queueGuardianSlash(7, guilty, abi.encode(uint256(999)));
     }
 
     // Sanity: verifier gating still fail-closed in the E2E wiring.
@@ -243,6 +250,6 @@ contract GuardianSlashE2ETest is Test {
         address[] memory guilty = new address[](1);
         guilty[0] = signers[0];
         vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
-        bls.executeGuardianSlash(1, guilty, hex"");
+        bls.queueGuardianSlash(1, guilty, hex"");
     }
 }
