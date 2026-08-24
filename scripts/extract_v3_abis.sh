@@ -31,7 +31,13 @@ CONTRACTS=(
     "ReputationSystem"
     "BLSAggregator"
     "DVTValidator"
-    "BLSValidator"
+    # CC-48 round-7 LOW-2: "BLSValidator" used to sit here. The standalone contract was
+    # DELETED long ago (see contracts/script/checks/Check08_Wiring.s.sol:73 -- "standalone
+    # BLSValidator was deleted; only the aggregator is wired now"), and there is no
+    # abis/BLSValidator.json either. Every regeneration since then printed
+    # "Warning: Could not find build artifact for BLSValidator" and exited 0, so the stale
+    # entry survived every ABI sync. Making a missing artifact fail-closed is what surfaced
+    # it -- which is the argument for the change, not a side effect of it.
     "MicroPaymentChannel"
 )
 
@@ -54,6 +60,16 @@ fi
 
 echo "🔍 Starting ABI extraction for V3/V4..."
 
+# CC-48 round-7 LOW-2: a missing build artifact is an ERROR, not a warning.
+# This loop used to print "❌ Warning: Could not find build artifact" and CARRY ON: the
+# manifest was rebuilt from whatever files happened to be in abis/, and the script exited
+# 0. The first reproduction of round-6's ABI evidence hit exactly that -- `out` was a
+# symlink, `find` did not follow it, every artifact was missing -- and got a green run with
+# a stale manifest. That is the same defect the LOW-4 jq/python3 fix was written to remove:
+# "silently did nothing" must not be indistinguishable from "passed". Failures are
+# ACCUMULATED so one run names every missing contract instead of stopping at the first.
+MISSING_ARTIFACTS=()
+
 for CONTRACT in "${CONTRACTS[@]}"; do
     # Foundry 的路径通常是 out/ContractName.sol/ContractName.json
     # 如果存在多个匹配（例如 wrapper），优先选择非 core 目录下的，或者更完整的
@@ -67,9 +83,22 @@ for CONTRACT in "${CONTRACTS[@]}"; do
         # 提取 abi 和 bytecode.object 并合并为 JSON
         jq '{abi: .abi, bytecode: .bytecode.object}' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
     else
-        echo "❌ Warning: Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
+        echo "❌ Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
+        MISSING_ARTIFACTS+=("$CONTRACT")
     fi
 done
+
+if [ ${#MISSING_ARTIFACTS[@]} -ne 0 ]; then
+    echo ""
+    echo "❌ ${#MISSING_ARTIFACTS[@]} of ${#CONTRACTS[@]} ABI artifacts could not be found:"
+    for C in "${MISSING_ARTIFACTS[@]}"; do echo "   - $C"; done
+    echo "   Nothing was regenerated for them, so $OUTPUT_DIR still holds the PREVIOUS"
+    echo "   build's ABI (or nothing at all) while the manifest below would be recomputed"
+    echo "   over it and reported as a success. Run 'forge build' first."
+    echo "   NOTE: if out/ is a symlink, plain 'find out' does not follow it -- that is how"
+    echo "   this failure mode was first hit. Use a real directory or 'find -L'."
+    exit 1
+fi
 
 echo "📄 Generating ABI manifest (abi.config.json)..."
 CONFIG_FILE="$OUTPUT_DIR/abi.config.json"

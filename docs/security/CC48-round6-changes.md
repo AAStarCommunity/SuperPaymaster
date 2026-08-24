@@ -9,6 +9,12 @@
 > argument, in [`CC48-round5-changes.md`](./CC48-round5-changes.md). Those sections are
 > annotated in place rather than deleted, because the *wrong* claim is the interesting part
 > of the record.
+>
+> **SUPERSEDED BY ROUND 7** — [`CC48-round7-changes.md`](./CC48-round7-changes.md) replaces
+> §3 of this document in full (the gate checked `code.length > 0`, which a 7702-delegated
+> EOA and a 1-of-1 forwarder both satisfy, while every phrasing here said "Safe multisig"),
+> and adds the operational prerequisites missing from §1's conclusion. Both places are
+> annotated in place below.
 
 | Finding | Severity | Status |
 |---|---|---|
@@ -94,6 +100,21 @@ comments the line out — dismantling the gate that had just been built.
    not one), round-5's migration conclusion, and `Legacy43AggregatorStub`'s NatSpec — which
    claimed the absence of `fraudProofVerifier` had been "verified by cast call against
    0x174b60bB…0158". It had not; that claim was true only of `4.1.0`.
+
+> **ROUND-7 CORRECTION (MEDIUM-2).** Everything above is true at the CAPABILITY-PROBE
+> level and was re-verified against chain by the round-6 reviewer. It is **not** true of
+> *running* `UpgradeRegistryTo570` against the live Sepolia stack: read-only calls confirm
+> that the Registry (`0xf5Bf37ca…8E71`, `Registry-5.4.2`) and the 4.3.0 aggregator
+> (`0x174b60bB…0158`) are **both owned by an EOA** (`0xb5600060…df0e`, `eth_getCode` = `0x`),
+> so the script stops at the governance gate and never reaches the probe. That is not a
+> regression — Registry's owner has had to be a contract since round 3 — but the commit
+> title "unblock the real 4.3.0 predecessor" and this conclusion did not say it.
+> Prerequisites for a real migration: **(1)** `Registry.owner()` = Safe-compatible M-of-N
+> or a `TimelockController` with `getMinDelay() > 0` — **no script in this repo does this,
+> it is a manual ops step**; **(2)** `NEW_BLS_AGGREGATOR.owner()` = Safe-compatible M-of-N;
+> **(3)** a Prague RPC; **(4)** `OLD_BLS_AGGREGATOR == Registry.blsAggregator()`. See
+> [`CC48-round7-changes.md` §3](./CC48-round7-changes.md) and the
+> [Safe onboarding runbook](./CC48-safe-onboarding-runbook.md).
 
 | Property | Test |
 |---|---|
@@ -190,6 +211,24 @@ that round-4's frozen verdict then protected. That window is what this function 
   scoped to `proposeFraudProofVerifier` where it is true.
 
 ### The gate that makes "owner should be a multisig" mean something
+
+> **SUPERSEDED BY ROUND 7 (HIGH-1).** This subsection is wrong about what the gate
+> ENFORCES, and it is the wrongness that matters: the gate checked `ownerAddr.code.length >
+> 0` and logged *"owner is a contract (Safe/Timelock)"*, while this text, the revert
+> strings, the `GovernanceOwnerGate` NatSpec and `BLSAggregator`'s disarm NatSpec all said
+> a **multisig** had been required. An **EIP-7702 delegated EOA** (23 bytes of code, the
+> private key still signs everything) and a **1-of-1 forwarder** both passed. Round 7
+> replaces the criterion with a Safe-compatible M-of-N check — reject `0xef0100`,
+> `getThreshold() >= 2`, `getOwners()` an exactly-decoded array of distinct non-zero owners
+> with `length >= threshold` — and restricts every phrasing to **"Safe-compatible
+> M-of-N"**, because none of this proves the owner is a *canonical* Safe. The table of
+> entry points below is still accurate; the criterion applied at each of them is not. Read
+> [`CC48-round7-changes.md` §1](./CC48-round7-changes.md) instead of this subsection.
+>
+> Round 7 also replaces the test list at the end of this subsection: the env-reading cases
+> were merged into one `test_GateBehaviourAcrossChainsAndOwnerShapes`, because `forge` runs
+> a contract's tests in parallel and `vm.setEnv` is a process global — split apart, they
+> failed in a different combination on every run.
 
 Reviewing every entry point that can create or re-point a `BLSAggregator` owner found that
 **none** enforced anything: the constructor sets `owner = msg.sender`, and every deploy

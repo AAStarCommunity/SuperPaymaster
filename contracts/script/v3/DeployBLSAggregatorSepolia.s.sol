@@ -61,7 +61,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.9.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.10.0"),
             "unexpected version - build the A-prime branch"
         );
 

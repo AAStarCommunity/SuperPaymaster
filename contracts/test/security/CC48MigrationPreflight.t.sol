@@ -39,7 +39,7 @@ contract ModernSurfaceStub {
     }
 
     function version() external pure returns (string memory) {
-        return "BLSAggregator-4.9.0";
+        return "BLSAggregator-4.10.0";
     }
 }
 
@@ -107,6 +107,33 @@ contract Legacy43RealShapeStub {
 contract WideFallbackAggregatorStub {
     fallback() external {
         assembly {
+            mstore(0x00, 0)
+            return(0x00, 0x20)
+        }
+    }
+}
+
+/// @notice CC-48 round-7 MEDIUM-1. The catch-all that ROUND 6 STILL MISSED, and the exact
+///         reason the sentinel now carries its declared arguments.
+///
+///         Round 6 sent the sentinel as a BARE 4-BYTE SELECTOR while every real getter
+///         probe was sent with full arguments. One `lt(calldatasize(), 36)` is enough to
+///         tell the two apart: this fixture reverts on any call shorter than
+///         `selector + one word` and answers a fabricated full word to everything else. So
+///         under round 6 it
+///           • reverted on the 4-byte sentinel  -> "not a catch-all",
+///           • answered `pendingGuardianSlashCount(address)` with 32 clean bytes -> `Present`,
+///           • and `requireNoPendingCases` then read its fabricated 0 as "no pending case"
+///             for a contract that was never actually asked anything.
+///
+///         That is the same fail-open step 0 was written to close, reopened by the shape of
+///         the probe rather than by the width test. With the sentinel sent as
+///         `(bytes32,uint256)` the fixture answers it too, and lands in `Ambiguous`.
+contract ArgStrictCatchAllStub {
+    fallback() external {
+        assembly {
+            // A catch-all that only serves calls which "look real".
+            if lt(calldatasize(), 36) { revert(0, 0) }
             mstore(0x00, 0)
             return(0x00, 0x20)
         }
@@ -309,6 +336,50 @@ contract CC48MigrationPreflight is Test {
             )
         );
         this.callRequireNoPendingCases(address(proxyish));
+    }
+
+    /// CC-48 round-7 MEDIUM-1. The sentinel must be indistinguishable from a real call, or
+    /// the catch-all detector is itself detectable — and round 6's was, by one `lt`.
+    ///
+    /// This test asserts the DEFECT first (the fixture really does fabricate a full,
+    /// clean word for the pending getter, i.e. it would be read as `Present` by anything
+    /// that trusted that answer) and only then asserts the fix. Without the first half the
+    /// second half would still pass against a fixture that answered nothing at all.
+    function test_AnArgStrictCatchAllCannotForgePresentOrZeroPending() public {
+        ArgStrictCatchAllStub selective = new ArgStrictCatchAllStub();
+
+        // 1. It is genuinely a catch-all for real-looking calls: a fabricated 32-byte 0.
+        (bool ok, bytes memory ret) = address(selective).staticcall(
+            abi.encodeWithSignature("pendingGuardianSlashCount(address)", address(1))
+        );
+        assertTrue(ok && ret.length == 32, "fixture must fabricate a full word");
+        assertEq(abi.decode(ret, (uint256)), 0, "and the fabrication is a zero pending count");
+
+        // 2. It evades a SELECTOR-ONLY sentinel — the round-6 probe shape, reproduced here
+        //    so this test fails again if the probe ever regresses to it.
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL)
+        );
+        assertFalse(ok, "the round-6 probe shape is evadable; that is the whole finding");
+
+        // 3. ...and cannot evade the sentinel sent with its declared arguments.
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0), uint256(0))
+        );
+        assertTrue(ok, "an arg-carrying sentinel is indistinguishable from a real call");
+
+        // 4. So the classifier refuses it instead of reading its fabricated zero.
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(selective))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Ambiguous),
+            "a catch-all must never classify as Present"
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.AmbiguousGuardianSlashCapability.selector, address(selective)
+            )
+        );
+        this.callRequireNoPendingCases(address(selective));
     }
 
     /// The width test is `==`, not `>=`: a contract answering the pending getter with the

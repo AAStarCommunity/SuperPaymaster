@@ -40,7 +40,7 @@ interface ITimelockBatch {
  *         proxy to 5.7.0. All three steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
- *   2. setBLSAggregator(BLSAggregator 4.9.0)
+ *   2. setBLSAggregator(BLSAggregator 4.10.0)
  *   3. setCreditPolicy(perProposalCap, totalCap, exposureBaseline, true)
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
@@ -56,14 +56,14 @@ interface ITimelockBatch {
  *
  * CC-48 round-2 migration constraints — read before scheduling:
  *
- *   - BLSAggregator is NOT upgradeable. 4.9.0 is a fresh deployment at a NEW address,
+ *   - BLSAggregator is NOT upgradeable. 4.10.0 is a fresh deployment at a NEW address,
  *     and the domain separator commits to that address, so EVERY in-flight proof
  *     signed against the old aggregator becomes unverifiable the moment step (2)
  *     lands. Drain the proposal queue first; do not schedule the batch while a
  *     reputation or slash proposal is awaiting submission.
  *   - Validator BLS keys do NOT migrate. `blsKeyOwner` and `_blsKeys` are per-contract
  *     state, and a proof-of-possession is now bound to (validator, aggregator, chain),
- *     so every validator must re-file a freshly signed PoP against 4.9.0. Run
+ *     so every validator must re-file a freshly signed PoP against 4.10.0. Run
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
@@ -79,13 +79,25 @@ interface ITimelockBatch {
  *     re-registering them anywhere is equivalent to publishing the validator set's
  *     secret. Fresh deployment + fresh randomly generated keys only.
  *
- * The script refuses to emit a non-atomic path: `owner` must be a contract (Safe /
- * TimelockController). That is the CC-48 MEDIUM-1 deployment gate — the fraud-proof
- * verifier now carries an in-contract rotation delay, and the owner of both Registry
- * and BLSAggregator must still sit behind governance, not a hot EOA.
+ * The script refuses to emit a non-atomic path, and it refuses to run at all unless both
+ * owners are actually behind governance. CC-48 round-7 makes that check mean what it says:
+ *
+ *   - BLSAggregator's owner must be a SAFE-COMPATIBLE M-of-N owner — code, not an EIP-7702
+ *     delegation designator, `getThreshold() >= 2`, `getOwners()` a canonical array of
+ *     distinct non-zero owners of at least that length. A TimelockController does NOT
+ *     qualify and must not: a timelocked emergency stop is not an emergency stop, so the
+ *     M-of-N owner is the only defence on the disarm path.
+ *   - Registry's owner may be EITHER a Safe-compatible M-of-N owner OR a
+ *     TimelockController, and the script requires you to say which. Set `TIMELOCK` and it
+ *     asserts `Registry.owner() == TIMELOCK` AND `TIMELOCK.getMinDelay() > 0`; leave it
+ *     unset and Registry is held to the same M-of-N bar as the aggregator. This matters
+ *     because `Registry.setCreditPolicy` is `immediate onlyOwner` — a zero-delay Timelock
+ *     owning Registry restores exactly the property the batch below exists to remove.
+ *
+ * Neither check proves the owner is a CANONICAL Gnosis Safe; see `GovernanceOwnerGate`.
  *
  * CC-48 round-6 HIGH-1: the NEW_BLS_AGGREGATOR's own owner is gated the same way, and
- * for a stronger reason. 4.9.0's `emergencyDisarmFraudProofVerifier()` is immediate and
+ * for a stronger reason. 4.10.0's `emergencyDisarmFraudProofVerifier()` is immediate and
  * unannounced, so that owner can censor every FUTURE guardian-slash accusation by
  * front-running it in the mempool. A TimelockController cannot cover that path (a
  * timelocked emergency stop is not an emergency stop), which makes the Safe multisig the
@@ -95,7 +107,7 @@ interface ITimelockBatch {
  *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
- *   NEW_BLS_AGGREGATOR           BLSAggregator 4.9.0 (already deployed + wired)
+ *   NEW_BLS_AGGREGATOR           BLSAggregator 4.10.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
  *   CREDIT_EXPOSURE_BASELINE     aPNT wei, sum of existing users' credit limits
@@ -109,7 +121,11 @@ interface ITimelockBatch {
  *                                (CC-48 round-5 HIGH-1).
  *   MIN_DISTINCT_KEYS (optional) override the distinct-active-key floor; defaults to the
  *                                largest threshold the new aggregator itself configures
- *   TIMELOCK (optional)          if set, also print scheduleBatch/executeBatch calldata
+ *   TIMELOCK (optional)          the TimelockController that owns Registry. If set, the
+ *                                script ASSERTS Registry.owner() == TIMELOCK and
+ *                                TIMELOCK.getMinDelay() > 0 (not merely prints calldata),
+ *                                then emits scheduleBatch/executeBatch calldata. If unset,
+ *                                Registry's owner is held to the Safe-compatible M-of-N bar.
  *   ALLOW_EOA_OWNER (optional)   escape hatch, ENFORCED to chainid 31337 only
  *
  * Preflight requires an EIP-2537 (Prague) RPC: the weak-key scan recomputes g1*s and
@@ -140,16 +156,29 @@ contract UpgradeRegistryTo570 is Script {
             !allowEoa || block.chainid == 31337,
             "CC-48: ALLOW_EOA_OWNER is a local-chain (31337) escape hatch only"
         );
-        GovernanceOwnerGate.requireGovernanceOwnerStrict(proxy, owner, "Registry");
+        // CC-48 round-7 (archived original checklist): Registry governance is a DIFFERENT
+        // question from BLSAggregator governance, and the script now makes the operator
+        // answer it instead of accepting "any contract" for both. `setCreditPolicy` is
+        // immediate `onlyOwner`, so if Registry sits behind a Timelock, the evidence has to
+        // show that the Timelock actually imposes a delay AND is actually the owner --
+        // printing scheduleBatch calldata proves neither.
+        address timelock = vm.envOr("TIMELOCK", address(0));
+        if (timelock != address(0)) {
+            GovernanceOwnerGate.requireTimelockOwner(proxy, owner, timelock, "Registry");
+        } else {
+            GovernanceOwnerGate.requireGovernanceOwnerStrict(proxy, owner, "Registry");
+        }
 
         // CC-48 round-6 HIGH-1: the aggregator's OWN owner is now a distinct governance
-        // question, and until this round nothing checked it. 4.9.0 gave that owner
+        // question, and until this round nothing checked it. 4.10.0 gave that owner
         // `emergencyDisarmFraudProofVerifier()` — immediate, no notice, and enough to
         // front-run every future `queueGuardianSlash` out of the mempool for one
         // transaction's gas. A Timelock cannot cover an emergency stop, so the Safe
-        // multisig is the only governance defence on that path; wiring an EOA-owned
+        // M-of-N owner is the only governance defence on that path; wiring an EOA-owned
         // aggregator into a live Registry hands one hot key a permanent, silent veto over
         // the entire collusion deterrent. Checked before the batch is emitted, not after.
+        // Round-7: a Timelock is deliberately NOT accepted here even though it is accepted
+        // for Registry above -- it cannot cover an immediate disarm.
         GovernanceOwnerGate.requireGovernanceOwnerStrict(
             newAggregator, IOwned(newAggregator).owner(), "BLSAggregator (disarm authority)"
         );
@@ -171,8 +200,8 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.9.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.9.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.10.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.10.0"
         );
 
         // Byte-level domain agreement, checked HERE rather than printed for a human to
@@ -255,7 +284,6 @@ contract UpgradeRegistryTo570 is Script {
             console.logBytes(payloads[i]);
         }
 
-        address timelock = vm.envOr("TIMELOCK", address(0));
         if (timelock != address(0)) {
             uint256 delay = ITimelockBatch(timelock).getMinDelay();
             console.log("--- TimelockController.scheduleBatch calldata (delay:", delay, ") ---");

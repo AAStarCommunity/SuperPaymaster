@@ -119,10 +119,18 @@ library BLSKeyScanLib {
     error PredecessorMismatch(address registry, address declared, address wired);
 
     /// @notice What a predecessor aggregator can do about guardian slashing.
-    /// @dev    `Absent` is a POSITIVE proof, not an assumption: a pending case can only
-    ///         be created by `queueGuardianSlash`, and `queueGuardianSlash` landed in the
-    ///         SAME commit as the four case-machine getters probed below. A contract
-    ///         exposing none of them has no code path that can produce one.
+    /// @dev    `Absent` is a positive proof WITHIN THIS REPOSITORY'S BUILD LINEAGE, and
+    ///         nowhere wider (CC-48 round-7 LOW-1). In this repo a pending case can only be
+    ///         created by `queueGuardianSlash`, and `queueGuardianSlash` landed in the SAME
+    ///         commit as the four case-machine getters probed below — so a build OF THIS
+    ///         AGGREGATOR exposing none of them has no code path that can produce one.
+    ///
+    ///         It is NOT a statement about arbitrary contracts. A contract with a real case
+    ///         store and a real `queueGuardianSlash` whose counters are `private` exposes
+    ///         none of the four getters and classifies `Absent` too, and for that contract
+    ///         "it cannot hold a case" is simply false. What keeps that out of reach is
+    ///         `requireDeclaredPredecessor`: the scanned address is not a free parameter,
+    ///         it must be the aggregator `Registry` is wired to right now.
     enum GuardianSlashCapability {
         Absent,
         Present,
@@ -245,8 +253,9 @@ library BLSKeyScanLib {
     ///           • if `pendingGuardianSlashCount` answers, nothing is skipped;
     ///           • it is skipped only when the predecessor exposes NONE of the FOUR
     ///             case-machine getters that shipped in the same commit as
-    ///             `queueGuardianSlash`, which means no code path in it can create a
-    ///             case (see `guardianSlashCapability`);
+    ///             `queueGuardianSlash` — which, FOR A BUILD OF THIS AGGREGATOR, means no
+    ///             code path in it can create a case (see `guardianSlashCapability`, whose
+    ///             round-7 LOW-1 note states the scope of that argument exactly);
     ///           • any in-between shape reverts with `AmbiguousGuardianSlashCapability`.
     ///         The caller keeps running `requireNoTaintedKeyCarriedOver` regardless —
     ///         that check works fine against 4.3.0's ABI and is not what was failing.
@@ -258,7 +267,9 @@ library BLSKeyScanLib {
         if (capability == GuardianSlashCapability.Absent) {
             console.log("  WARNING: predecessor has no guardian-slash surface at all:", oldAggregator);
             console.log("           version:", _versionOrUnknown(oldAggregator));
-            console.log("           pending-case check SKIPPED (it cannot hold a case);");
+            console.log("           pending-case check SKIPPED: no build of THIS aggregator with");
+            console.log("           none of the four case-machine getters can create a case, and the");
+            console.log("           predecessor is bound to Registry.blsAggregator() above.");
             console.log("           tainted/weak/duplicate key carry-over check still ENFORCED.");
             return;
         }
@@ -299,7 +310,10 @@ library BLSKeyScanLib {
     ///
     ///         The classification, in order:
     ///           0. CATCH-ALL DETECTION FIRST. A selector that cannot exist on any build
-    ///              is probed before anything else. If it ANSWERS — with any returndata,
+    ///              is probed before anything else, WITH ITS FULL DECLARED ARGUMENT LIST
+    ///              (round-7 MEDIUM-1: a selector-only probe was itself evadable by any
+    ///              fallback that checks `calldatasize`, which is one `lt` instruction).
+    ///              If it ANSWERS — with any returndata,
     ///              empty or 32+ bytes — the contract has a catch-all fallback and every
     ///              subsequent answer is fabricated. Unconditionally `Ambiguous`; see
     ///              `_probe`. (Round-5 only caught the empty-returndata half of this: a
@@ -323,7 +337,17 @@ library BLSKeyScanLib {
     ///         to the one Registry is actually wired to.
     function guardianSlashCapability(address aggregator) internal view returns (GuardianSlashCapability) {
         // 0. Catch-all fallback detection, BEFORE any known getter is trusted.
-        (bool sentinelAnswered,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL), 0);
+        // CC-48 round-7 MEDIUM-1: the probe carries the sentinel's FULL declared argument
+        // list, not a bare 4-byte selector. A catch-all fallback that decodes its arguments
+        // -- `if lt(calldatasize(), 36) { revert }` is enough -- reverted on the 4-byte
+        // probe, so round 6 classified it as NOT catch-all and then read the very same
+        // fallback's fabricated 32-byte `pendingGuardianSlashCount` as a real answer of
+        // zero. That is the fail-open this step exists to close, reopened by the shape of
+        // the probe itself. Sent with exactly the (bytes32,uint256) the selector's
+        // pre-image names, so it is indistinguishable from a call to a real method.
+        (bool sentinelAnswered,) = _probe(
+            aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0), uint256(0)), 0
+        );
         if (sentinelAnswered) return GuardianSlashCapability.Ambiguous;
 
         (bool pendingOk, bool pendingDecodable) =

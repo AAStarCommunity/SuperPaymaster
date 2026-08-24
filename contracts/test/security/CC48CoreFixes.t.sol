@@ -918,6 +918,64 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.queueGuardianSlash(15, accused, hex"15");
     }
 
+    /// CC-48 round-7 LOW-3. `code.length != 0` stopped meaning "is a contract" at Pectra.
+    /// An EIP-7702 delegated EOA carries exactly 23 bytes (`0xef0100 || address`) and its
+    /// private key still signs everything, while the implementation it points at can return
+    /// `true` unconditionally. Since `queueGuardianSlash` FREEZES the verifier's answer into
+    /// the case, a hot key authoring that verdict is strictly worse than the plain-EOA case
+    /// closed in round 3 — the frozen `true` then survives rotation, disarm and retry.
+    ///
+    /// Asserted as a defect-then-fix pair: the fixture must first be shown to pass the OLD
+    /// `code.length == 0` test, otherwise this test would still pass against a verifier that
+    /// was simply absent.
+    function test_QueueRejectsA7702DelegatedEoaVerifier() public {
+        address delegated = address(0xDE1E6A7E);
+        // What one self-signed SET_CODE transaction gives any EOA on any post-Pectra chain.
+        vm.etch(delegated, abi.encodePacked(hex"ef0100", address(0xBEEF)));
+        assertEq(delegated.code.length, 23, "designator is 23 bytes");
+        assertTrue(delegated.code.length != 0, "and it PASSES the round-3 code.length test");
+
+        bls.proposeFraudProofVerifier(delegated);
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.VerifierIsDelegatedEoa.selector, delegated));
+        bls.queueGuardianSlash(17, accused, hex"17");
+    }
+
+    /// The converse, so the check is prefix-AND-length and not "reject anything small":
+    /// a genuine 23-byte contract is still an acceptable verifier shape. (It answers
+    /// `verify` with empty returndata, so the queue fails on the DECODE, not on the
+    /// delegation check — which is exactly the pre-round-7 behaviour for odd contracts.)
+    function test_A23ByteContractIsNotMistakenForA7702Delegation() public {
+        address tiny = address(0x7177);
+        vm.etch(tiny, hex"60016000526001601ff360016000526001601ff3601160");
+        assertEq(tiny.code.length, 23, "same length as a designator");
+
+        bls.proposeFraudProofVerifier(tiny);
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        // NOT VerifierIsDelegatedEoa: the prefix does not match, so it is treated as code.
+        try this.callQueue(18, accused, hex"18") {
+            fail();
+        } catch (bytes memory err) {
+            assertTrue(
+                err.length < 4
+                    || bytes4(err) != BLSAggregator.VerifierIsDelegatedEoa.selector,
+                "a 23-byte contract must not be classified as a 7702 delegation"
+            );
+        }
+    }
+
+    function callQueue(uint256 id, address[] calldata accused, bytes calldata proof) external {
+        bls.queueGuardianSlash(id, accused, proof);
+    }
+
     /// Dormancy is still enforced at queue time: with no verifier wired, no case can be
     /// opened, so there is nothing to pin.
     function test_QueueStillRequiresAWiredVerifier() public {

@@ -22,6 +22,14 @@ fi
 
 export CONFIG_FILE="config.$ENV.json"
 export ENV="$ENV"
+
+# CC-48 round-7 LOW-4: chainid 31337 no longer skips GovernanceOwnerGate silently.
+# Same reasoning as the root `deploy-core`: this is a genuinely local node started by this
+# repo's own tooling, so the acknowledgement is exactly what we mean. It is deliberately
+# NOT set for any other environment.
+if [ "$ENV" == "anvil" ]; then
+    export LOCAL_DEV_GOVERNANCE_ACK=true
+fi
 SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 
 echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"

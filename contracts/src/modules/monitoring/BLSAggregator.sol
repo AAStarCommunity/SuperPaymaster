@@ -394,7 +394,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.9.0";
+        return "BLSAggregator-4.10.0";
     }
 
 
@@ -566,6 +566,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      would "verify" against empty returndata (i.e. false) or worse, succeed
     ///      vacuously if the decode ever loosened.
     error VerifierNotContract(address verifier);
+    /// @dev CC-48 round-7 LOW-3: `code.length != 0` stopped meaning "is a contract" at
+    ///      Pectra. An EIP-7702 delegated EOA carries exactly 23 bytes of code
+    ///      (`0xef0100 || address`) while its private key still signs everything, and the
+    ///      implementation it points at can return `true` unconditionally. Since the
+    ///      verifier's answer is FROZEN into the case at queue time, letting a hot key
+    ///      author that verdict is strictly worse than the EOA case round 3 closed.
+    error VerifierIsDelegatedEoa(address verifier);
     /// @dev CC-48 round-3: the key-to-owner binding may only be released while NO active
     ///      slot holds that key. Otherwise releasing it would let a second address claim
     ///      the key of a live signer.
@@ -1758,6 +1765,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // and nothing about that outcome should be allowed near a verdict that is then
         // frozen for the life of the case.
         if (verifier.code.length == 0) revert VerifierNotContract(verifier);
+        // CC-48 round-7 LOW-3: and it must not be an EIP-7702 delegation designator. See
+        // `VerifierIsDelegatedEoa` and `_isDelegatedEoa`.
+        if (_isDelegatedEoa(verifier)) revert VerifierIsDelegatedEoa(verifier);
         if (fraudProofId == 0) revert InvalidProposalId();
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
@@ -1963,6 +1973,31 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                 emit GuardianSlashCaseResolved(fraudProofId);
             }
         }
+    }
+
+    /// @dev CC-48 round-7 LOW-3. True iff `account` carries an EIP-7702 delegation
+    ///      designator: exactly 23 bytes of code beginning `0xef 0x01 0x00`. That encoding
+    ///      is fixed by EIP-7702 and no deployable contract can produce it — `0xef` is a
+    ///      reserved initial byte (EIP-3541), so a CREATE/CREATE2 runtime can never start
+    ///      with it. There is therefore no false positive to trade against.
+    ///
+    ///      Only the first three bytes are copied, so this costs one `EXTCODESIZE` plus one
+    ///      3-word `EXTCODECOPY` regardless of how large the target is.
+    function _isDelegatedEoa(address account) private view returns (bool) {
+        bytes3 prefix;
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
+            if eq(size, 23) {
+                // Scratch space (0x00-0x3f) is caller-free. Zero it first: EXTCODECOPY
+                // writes only the 3 bytes asked for, and a dirty tail in the same word
+                // would survive into the bytes3.
+                mstore(0x00, 0)
+                extcodecopy(account, 0x00, 0, 3)
+                prefix := mload(0x00)
+            }
+        }
+        return size == 23 && prefix == 0xef0100;
     }
 
     function _validateGuardianSet(address[] calldata guiltyGuardians) internal pure returns (bytes32) {
