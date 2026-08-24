@@ -24,7 +24,7 @@ contract MiniRegistry {
 }
 
 contract IntgVerifier {
-    function verify(uint256, address[] calldata, bytes calldata) external pure returns (bool) { return true; }
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) { return true; }
 }
 
 /// @title  executeGuardianSlash — REAL GTokenStaking integration (pr-daemon §三)

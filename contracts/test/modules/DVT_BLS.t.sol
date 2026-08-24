@@ -211,7 +211,9 @@ contract DVTBLSTest is Test {
 
         // Replaying the SAME proof (same operator/level/epoch) reverts — a consumed
         // queue proof cannot re-flag after a cancel/execute cleared the flag.
-        bytes32 h = keccak256(abi.encode(keccak256("QUEUE_SLASH"), op, uint8(1), uint256(42), block.chainid));
+        bytes32 h = keccak256(
+            abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), uint256(42))
+        );
         vm.prank(address(dvt));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashQueueProofAlreadyUsed.selector, h));
         bls.queueSlashWithConsensus(op, 1, 42, proof);

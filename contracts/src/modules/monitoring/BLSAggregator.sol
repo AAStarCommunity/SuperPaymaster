@@ -48,11 +48,22 @@ interface IGTokenStakingSlash {
 ///         BLSAggregator treats this as the sole authority on "who colluded";
 ///         it does not itself judge fraud. Kept behind an interface so the
 ///         detection layer can evolve without touching this contract.
+///
+///         CC-48 round-2: `domainDigest` is supplied by the aggregator and equals
+///         `BLSAggregator.fraudProofDigest(fraudProofId, guiltyGuardians)` =
+///         keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId,
+///         guiltyGuardians)). It binds the proof to (versioned domain name, chainid,
+///         this aggregator, its Registry), so a fraud proof accepted on one
+///         aggregator/chain is not byte-valid on another. Verifiers MUST bind
+///         `domainDigest` into whatever they check; ignoring it re-opens
+///         cross-contract replay.
 interface IFraudProofVerifier {
-    function verify(uint256 fraudProofId, address[] calldata guiltyGuardians, bytes calldata fraudProof)
-        external
-        view
-        returns (bool);
+    function verify(
+        bytes32 domainDigest,
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external view returns (bool);
 }
 
 /**
@@ -157,6 +168,74 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         minThreshold. Also the min a slash-table entry may be set to.
     uint8 public constant SLASH_THRESHOLD_FLOOR = 2;
 
+    // ====================================
+    // CC-48 round-2: versioned domain separation
+    // ====================================
+    //
+    // Every signed pre-image on every path is
+    //     keccak256(abi.encode(domainSeparator(), <PATH_TAG>, ...fields))
+    // where
+    //     domainSeparator() = keccak256(abi.encode(DOMAIN_NAME, block.chainid,
+    //                                              address(this), address(REGISTRY)))
+    //
+    // Before this change a pre-image committed to chainid only. Two aggregators
+    // deployed on the SAME chain over the SAME validator keys/slots therefore
+    // accepted byte-identical proofs — an experiment-only deployment's signatures
+    // replayed verbatim against a production one. Refusing to *configure* the
+    // experimental contract is a policy control, not a cryptographic one; the
+    // domain now carries `address(this)` and the bound Registry, so a proof simply
+    // does not verify anywhere else. Registry re-derives the identical separator
+    // locally (see Registry.blsDomainSeparator) — it never asks the aggregator for
+    // it, keeping the second verification independent.
+    //
+    // Bump the *_v1 suffixes ONLY on a breaking encoding change; DVT/SDK pin them.
+
+    /// @notice Versioned domain name shared by every BLS pre-image in this system.
+    bytes32 public constant DOMAIN_NAME = keccak256("SuperPaymaster.BLSConsensus.v1");
+
+    /// @notice Path tags. Distinct per path so a proof for one path is never a
+    ///         valid proof for another, even with otherwise-identical fields.
+    bytes32 public constant TAG_QUEUE_SLASH = keccak256("SuperPaymaster.BLS.QueueSlash.v1");
+    bytes32 public constant TAG_EXECUTE_SLASH = keccak256("SuperPaymaster.BLS.ExecuteSlash.v1");
+    bytes32 public constant TAG_REPUTATION = keccak256("SuperPaymaster.BLS.Reputation.v1");
+    bytes32 public constant TAG_PROPOSAL = keccak256("SuperPaymaster.BLS.Proposal.v1");
+    bytes32 public constant TAG_POP = keccak256("SuperPaymaster.BLS.PoP.v1");
+    bytes32 public constant TAG_SIGNERS_COMMITMENT = keccak256("SuperPaymaster.BLS.SignersCommitment.v1");
+    bytes32 public constant TAG_FRAUD_PROOF = keccak256("SuperPaymaster.BLS.FraudProof.v1");
+
+    /// @notice The domain separator every pre-image on this contract commits to.
+    /// @dev    Not cached in storage: `block.chainid` must stay live so a chain
+    ///         fork cannot inherit the pre-fork domain, and both addresses are
+    ///         immutable anyway, so there is nothing to cache.
+    function domainSeparator() public view returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_NAME, block.chainid, address(this), address(REGISTRY)));
+    }
+
+    /// @notice Canonical digest handed to `IFraudProofVerifier.verify`.
+    /// @dev    Public so DVT can reproduce it byte-for-byte off-chain.
+    function fraudProofDigest(uint256 fraudProofId, address[] calldata guiltyGuardians)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId, guiltyGuardians));
+    }
+
+    /// @notice Canonical proof-of-possession digest for (validator, publicKey).
+    /// @dev    CC-48 round-2 HIGH: the pre-image now binds the VALIDATOR ADDRESS
+    ///         (and the domain). Previously it covered only the public key, so the
+    ///         PoP sitting in one registrant's public calldata could be lifted by
+    ///         any other ROLE_DVT address to register the same key at a second slot.
+    ///         With the same key in N slots the reconstructed pkAgg is N*pk, and the
+    ///         single key holder can produce N*sk*H(m) — one signer masquerading as
+    ///         a quorum. Address binding kills the lift; `blsKeyOwner` (below) kills
+    ///         the duplicate registration even when the key holder tries it himself.
+    function popDigest(address validator, BLS.G1Point calldata publicKey) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(domainSeparator(), TAG_POP, validator, publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b)
+        );
+    }
+
     /// @notice H-1: slash / consensus-marking selectors the GENERIC executeProposal
     ///         path may never invoke on any target. The aPNTs burn
     ///         (executeSlashWithBLS) and proposalId marking (markProposalExecuted)
@@ -229,6 +308,16 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         single staking-side failure can no longer release the whole set.
     mapping(uint256 => mapping(address => bool)) public guardianCaseResolved;
 
+    /// @notice CC-48 round-2: permanent binding of a G1 public key to the FIRST
+    ///         validator address it was registered under.
+    /// @dev    Deliberately never cleared — not on `revokeBLSPublicKey`, not on exit.
+    ///         Clearing it would let a revoked key be re-claimed by a different
+    ///         address, which is exactly the duplicate-key condition this prevents.
+    ///         A validator re-registering its OWN key (rotation back, slot reuse)
+    ///         still passes because the binding matches.
+    ///         Key: keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)).
+    mapping(bytes32 => address) public blsKeyOwner;
+
     /// @notice CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new
     ///         exit notice after cancelling one. Kills request/cancel flip-flopping as
     ///         a cheap, repeatable lever on the signer set.
@@ -255,7 +344,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.5.0";
+        return "BLSAggregator-4.6.0";
     }
 
 
@@ -400,6 +489,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
     error NoPendingVerifierRotation();
     error VerifierRotationNotReady(uint256 readyAt);
+    /// @dev CC-48 round-2: the same G1 public key may never be bound to two
+    ///      validator addresses. N slots holding one key make pkAgg = N*pk, which a
+    ///      single secret-key holder can sign for — a 1-of-N quorum forgery.
+    error DuplicatePublicKey(bytes32 keyHash, address boundTo);
+    /// @dev CC-48 round-2: the combined (reputation + slash) proposal shape is
+    ///      rejected outright. Its aggregator pre-image committed to the real
+    ///      operator/slashLevel while Registry re-derived the reputation pre-image
+    ///      with address(0)/0, so the two verifications could never agree on the same
+    ///      signature. Rather than invent a second reputation schema, the shape is
+    ///      forbidden: submit the slash and the reputation update as separate proposals.
+    error CombinedProposalNotSupported();
 
     // ====================================
     // Constructor
@@ -523,7 +623,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
             _requireDVTStake(validator, slot);
             _validateG1Point(publicKey);
-            if (!_verifyPoP(publicKey, popSignature)) revert InvalidPoP();
+            if (!_verifyPoP(validator, publicKey, popSignature)) revert InvalidPoP();
             // Permissionless callers do NOT choose their slot: the contract assigns the
             // lowest free slot deterministically (re-registration keeps the prior slot).
             // This removes the slot-squatting / front-running vector where a caller could
@@ -538,6 +638,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // prime-order subgroup membership is still validated to block small-subgroup /
             // key-cancellation contamination of the reconstructed pkAgg.
             _validateG1Point(publicKey);
+        }
+
+        // CC-48 round-2: one public key, one validator address — forever. Enforced on
+        // the OWNER path too: the owner is trusted to curate keys, not to be immune to
+        // a copy-paste, and a duplicated key silently multiplies one signer's weight.
+        bytes32 keyHash =
+            keccak256(abi.encode(publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b));
+        address keyOwner = blsKeyOwner[keyHash];
+        if (keyOwner == address(0)) {
+            blsKeyOwner[keyHash] = validator;
+        } else if (keyOwner != validator) {
+            revert DuplicatePublicKey(keyHash, keyOwner);
         }
 
         BLSValidatorKey storage existing = _blsKeys[validator];
@@ -654,7 +766,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
         uint256 requiredThreshold = slashThresholds[slashLevel];
         bytes32 expectedMessageHash = keccak256(abi.encode(
-            keccak256("QUEUE_SLASH"), operator, slashLevel, epoch, block.chainid
+            domainSeparator(), TAG_QUEUE_SLASH, operator, slashLevel, epoch
         ));
         // Replay guard: a consumed queue proof cannot re-flag the operator after a
         // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
@@ -682,6 +794,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
+        // CC-48 round-2: reject the combined shape before any signature work. See
+        // CombinedProposalNotSupported — the aggregator and Registry pre-images for a
+        // reputation batch can only agree when operator/slashLevel are absent, so a
+        // reputation proposal carrying a slash target was never executable anyway
+        // (it reverted deep inside Registry with an opaque BLSFailed). Failing here,
+        // by name, turns a silent dead path into an explicit protocol rule.
+        if (repUsers.length != 0 && (operator != address(0) || slashLevel != 0)) {
+            revert CombinedProposalNotSupported();
+        }
 
         // 1. Construct expected message + resolve the required threshold.
         // The signed message MUST commit to chainid to prevent cross-chain replay.
@@ -696,16 +817,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
             requiredThreshold = slashThresholds[slashLevel];
             expectedMessageHash = keccak256(abi.encode(
-                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid, evidenceHash
+                domainSeparator(), TAG_EXECUTE_SLASH, proposalId, operator, slashLevel, epoch, evidenceHash
             ));
         } else {
             // Reputation (or combined) path: unchanged 7-field encoding +
             // defaultThreshold, so Registry.batchUpdateGlobalReputation's
             // re-verification reconstructs the identical hash.
             requiredThreshold = defaultThreshold;
-            expectedMessageHash = keccak256(abi.encode(
-                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid
-            ));
+            // Byte-identical to Registry._reputationMessageHash. operator/slashLevel
+            // are NOT fields here: they are pinned to zero by the combined-shape guard
+            // above, so including them could only re-introduce the divergence.
+            expectedMessageHash = _reputationMessageHash(proposalId, repUsers, newScores, epoch);
         }
 
         // 2. Verify BLS pairing using on-chain reconstructed pkAgg (P0-1).
@@ -785,11 +907,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 2. Construct Generic Message Hash (includes requiredThreshold + chainid)
         bytes32 expectedMessageHash = keccak256(abi.encode(
+            domainSeparator(),
+            TAG_PROPOSAL,
             proposalId,
             target,
             keccak256(callData),
-            requiredThreshold,
-            block.chainid
+            requiredThreshold
         ));
 
         // 3. Verify BLS Signatures with custom threshold
@@ -1011,14 +1134,38 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         return keccak256(abi.encode(
-            "BLS_SIGNERS_COMMITMENT_V1",
-            block.chainid,
-            address(this),
+            domainSeparator(),
+            TAG_SIGNERS_COMMITMENT,
             proposalId,
             messageHash,
             signerMask,
             signers
         ));
+    }
+
+    /// @notice Canonical reputation-batch pre-image. MUST stay byte-identical to
+    ///         `Registry._reputationMessageHash` — Registry independently re-verifies
+    ///         the same signature, and any divergence turns every reputation proposal
+    ///         into an unexplained `BLSFailed`.
+    /// @dev    Public so DVT/SDK can reproduce it without re-deriving the layout.
+    function reputationMessageHash(
+        uint256 proposalId,
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch
+    ) external view returns (bytes32) {
+        return _reputationMessageHash(proposalId, users, newScores, epoch);
+    }
+
+    function _reputationMessageHash(
+        uint256 proposalId,
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch
+    ) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(domainSeparator(), TAG_REPUTATION, proposalId, users, newScores, epoch)
+        );
     }
 
     function _checkSignatures(
@@ -1118,17 +1265,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      e(G1, pop) == e(pk, H_pop(pk)), i.e. e(G1, pop) · e(-pk, H_pop(pk)) == 1.
     ///      The "..._POP_v1" domain tag keeps PoP signatures disjoint from slash-consensus
     ///      message hashes, so neither can ever be replayed as the other.
-    function _verifyPoP(BLS.G1Point calldata publicKey, BLS.G2Point calldata popSignature)
+    function _verifyPoP(address validator, BLS.G1Point calldata publicKey, BLS.G2Point calldata popSignature)
         internal
         view
         returns (bool)
     {
-        BLS.G2Point memory msgG2 = BLS.hashToG2(
-            abi.encodePacked(
-                "BLS12381G1_XMD:SHA-256_POP_v1:",
-                publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b
-            )
-        );
+        BLS.G2Point memory msgG2 = BLS.hashToG2(abi.encodePacked(popDigest(validator, publicKey)));
         BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
         BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
         g1s[0] = _getG1Generator();
@@ -1380,7 +1522,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
         bytes32 guardiansHash = _validateGuardianSet(guiltyGuardians);
-        if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltyGuardians, fraudProof)) {
+        if (
+            !IFraudProofVerifier(verifier).verify(
+                fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof
+            )
+        ) {
             revert InvalidFraudProof(fraudProofId);
         }
 
@@ -1480,7 +1626,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // Verify once (view): the verifier authorizes this (proof, guardians) set.
         // Consumption is tracked per guardian below, NOT by a single global id here —
         // so an already-exited co-signer can never burn the proof for the others.
-        if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltyGuardians, fraudProof)) {
+        if (
+            !IFraudProofVerifier(verifier).verify(
+                fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof
+            )
+        ) {
             revert InvalidFraudProof(fraudProofId);
         }
 

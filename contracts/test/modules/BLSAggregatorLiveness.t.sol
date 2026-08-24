@@ -337,6 +337,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.5.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.6.0"));
     }
 }

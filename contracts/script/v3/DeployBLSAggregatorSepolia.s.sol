@@ -50,7 +50,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.5.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.6.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -65,6 +65,12 @@ contract DeployBLSAggregatorSepolia is Script {
         console.log("BLSAggregator 4.4.0 (A' + exit gate) deployed at:", address(agg));
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
-        console.log("      then registerBLSPublicKey x3 (DVT keys) + setFraudProofVerifier(verifier).");
+        console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
+        console.log("      followed by applyFraudProofVerifier() after VERIFIER_ROTATION_DELAY.");
+        console.log("CC-48 round-2: IFraudProofVerifier.verify now takes a leading bytes32");
+        console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians).");
+        console.log("      Verifiers built for 4.5.0 or earlier WILL NOT decode; DVT must rebuild.");
+        console.log("aggregator domainSeparator:");
+        console.logBytes32(agg.domainSeparator());
     }
 }

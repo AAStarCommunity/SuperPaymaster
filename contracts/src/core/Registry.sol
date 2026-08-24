@@ -24,7 +24,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.6.0";
+        return "Registry-5.7.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -419,6 +419,41 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     );
     event CreditPolicyUpdated(uint256 perProposalCap, uint256 totalCap, uint256 exposureBaseline);
 
+    // ====================================
+    // CC-48 round-2: versioned domain separation (mirrors BLSAggregator)
+    // ====================================
+    //
+    // Registry re-derives the separator LOCALLY rather than reading it off the
+    // aggregator. The whole point of Registry's second verification is that it does
+    // not take the aggregator's word for anything; asking the aggregator to name its
+    // own domain would hand that back. Because the separator commits to
+    // `address(this)` (Registry) and to the aggregator address Registry has
+    // configured, the two only agree when the aggregator's immutable REGISTRY really
+    // is this Registry — a mis-wired pair fails closed instead of verifying.
+    bytes32 internal constant DOMAIN_NAME = keccak256("SuperPaymaster.BLSConsensus.v1");
+    bytes32 internal constant TAG_REPUTATION = keccak256("SuperPaymaster.BLS.Reputation.v1");
+    bytes32 internal constant TAG_BLACKLIST = keccak256("SuperPaymaster.BLS.Blacklist.v1");
+
+    /// @notice The BLS domain separator this Registry verifies under.
+    /// @dev    MUST equal `BLSAggregator.domainSeparator()` of the configured
+    ///         aggregator; asserted in tests and exposed for DVT/SDK pinning.
+    function blsDomainSeparator() public view returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_NAME, block.chainid, blsAggregator, address(this)));
+    }
+
+    /// @notice Canonical reputation-batch pre-image; byte-identical to
+    ///         `BLSAggregator.reputationMessageHash`.
+    function _reputationMessageHash(
+        uint256 proposalId,
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch
+    ) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(blsDomainSeparator(), TAG_REPUTATION, proposalId, users, newScores, epoch)
+        );
+    }
+
     /// @dev Shared BLS decode + threshold check + verify helper.
     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
         (uint256 signerMask, bytes memory sigG2Bytes) = abi.decode(proof, (uint256, bytes));
@@ -448,10 +483,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
 
         executedProposals[proposalId] = true;
-        _verifyBLS(proof, keccak256(abi.encode(
-            proposalId, address(0), uint8(0),
-            users, newScores, epoch, block.chainid
-        )));
+        _verifyBLS(proof, _reputationMessageHash(proposalId, users, newScores, epoch));
 
         uint256 aggregateUplift;
         uint256 aggregateRelease;
@@ -509,7 +541,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         blacklistNonce = nonce;
 
         _verifyBLS(proof, keccak256(abi.encode(
-            block.chainid, nonce, operator, users, statuses
+            blsDomainSeparator(), TAG_BLACKLIST, nonce, operator, users, statuses
         )));
 
         ISuperPaymaster(SUPER_PAYMASTER).updateBlockedStatus(operator, users, statuses);

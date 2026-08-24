@@ -222,14 +222,36 @@ contract RepCreditPragueE2E is Test {
         }
     }
 
+    /// @dev CC-48 round-2 schema: keccak256(abi.encode(domainSeparator, TAG_REPUTATION,
+    ///      proposalId, users, scores, epoch)) with
+    ///      domainSeparator = keccak256(abi.encode(DOMAIN_NAME, chainid, aggregator, registry)).
+    ///      Reconstructed field-by-field here (not read off the aggregator) so the test
+    ///      would catch a silent schema drift in the contract.
     function _reputationHash(
         uint256 proposalId,
         address[] memory users,
         uint256[] memory scores,
         uint256 epoch,
         uint256 chainId
+    ) internal view returns (bytes32) {
+        return _reputationHashFor(address(aggregator), address(registry), proposalId, users, scores, epoch, chainId);
+    }
+
+    function _reputationHashFor(
+        address agg,
+        address reg,
+        uint256 proposalId,
+        address[] memory users,
+        uint256[] memory scores,
+        uint256 epoch,
+        uint256 chainId
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(proposalId, address(0), uint8(0), users, scores, epoch, chainId));
+        bytes32 domain = keccak256(
+            abi.encode(keccak256("SuperPaymaster.BLSConsensus.v1"), chainId, agg, reg)
+        );
+        return keccak256(
+            abi.encode(domain, keccak256("SuperPaymaster.BLS.Reputation.v1"), proposalId, users, scores, epoch)
+        );
     }
 
     function _proof(bytes32 messageHash, uint256 signerCount) internal view returns (bytes memory) {

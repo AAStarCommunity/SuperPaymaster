@@ -9,7 +9,7 @@ import "src/interfaces/v3/IGTokenStaking.sol";
 contract MockVerifier {
     bool public ok = true;
     function set(bool v) external { ok = v; }
-    function verify(uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
 }
 
 /// @notice Minimal GTokenStaking stub exposing only roleLocks + slashByDVT.
@@ -230,6 +230,6 @@ contract GuardianSlashTest is Test {
     // ---- version bump ----
 
     function test_VersionBumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.5.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.6.0"));
     }
 }

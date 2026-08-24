@@ -79,7 +79,7 @@ contract MockVerifier {
     ///      proposalId, and step 0 (pr-daemon Medium) requires its commitment != 0.
     ///      The real verifier additionally checks keccak(claimedSigners)==commitment,
     ///      guiltyGuardians ⊆ claimedSigners, and recomputes the over-issue evidence.
-    function verify(uint256, address[] calldata, bytes calldata fraudProof) external view returns (bool) {
+    function verify(bytes32, uint256, address[] calldata, bytes calldata fraudProof) external view returns (bool) {
         if (!ok) return false;
         uint256 disputedPid = abi.decode(fraudProof, (uint256));
         return AGG.proposalSignersCommitment(disputedPid) != bytes32(0);
@@ -179,14 +179,32 @@ contract GuardianSlashE2ETest is Test {
 
         // Off-chain recompute (this is exactly what the DVT watcher/verifier does):
         // slash-only messageHash + canonical ascending signer set.
-        bytes32 expectedMsgHash = keccak256(abi.encode(
-            pid, op, slashLevel, new address[](0), new uint256[](0), epoch, block.chainid, evidenceHash
-        ));
+        // CC-48 round-2 schema: every pre-image is domain-separated by
+        // keccak256(abi.encode(DOMAIN_NAME, chainid, aggregator, registry)). Rebuilt
+        // from raw fields (not read off the contract) so a schema drift fails here.
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("SuperPaymaster.BLSConsensus.v1"), block.chainid, address(bls), address(registry)
+            )
+        );
+        bytes32 expectedMsgHash = keccak256(
+            abi.encode(
+                domain,
+                keccak256("SuperPaymaster.BLS.ExecuteSlash.v1"),
+                pid,
+                op,
+                slashLevel,
+                epoch,
+                evidenceHash
+            )
+        );
         address[] memory sorted = new address[](7);
         for (uint8 i = 0; i < 7; i++) sorted[i] = signers[i]; // already ascending
-        bytes32 expected = keccak256(abi.encode(
-            "BLS_SIGNERS_COMMITMENT_V1", block.chainid, address(bls), pid, expectedMsgHash, mask, sorted
-        ));
+        bytes32 expected = keccak256(
+            abi.encode(
+                domain, keccak256("SuperPaymaster.BLS.SignersCommitment.v1"), pid, expectedMsgHash, mask, sorted
+            )
+        );
         assertEq(stored, expected, "off-chain recompute must match on-chain commitment");
     }
 

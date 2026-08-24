@@ -58,7 +58,7 @@ contract BatchOwner {
     }
 }
 
-contract RegistryUpgradeTo560Test is Test {
+contract RegistryUpgradeTo570Test is Test {
     BatchOwner governance;
     Registry registry;
     UpgradeMockBLS newAggregator;
@@ -178,7 +178,7 @@ contract RegistryUpgradeTo560Test is Test {
 
         governance.executeBatch(targets, payloads);
 
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.6.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"));
         assertEq(registry.blsAggregator(), address(rotatedAggregator));
         assertEq(registry.totalCreditExposure(), baseline, "baseline seeded, not 0");
         assertEq(registry.maxTotalCreditExposure(), totalCap);

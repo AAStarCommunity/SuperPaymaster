@@ -32,7 +32,7 @@ contract RepCreditMockBLS {
 contract RepCreditMockFraudVerifier {
     bool public valid = true;
     function setValid(bool value) external { valid = value; }
-    function verify(uint256, address[] calldata, bytes calldata) external view returns (bool) { return valid; }
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return valid; }
 }
 
 contract AggregateUpliftCapTest is Test {
