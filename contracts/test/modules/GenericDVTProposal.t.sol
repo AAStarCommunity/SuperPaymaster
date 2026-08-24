@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 // Mock target contract for testing executeProposal
 contract MockTarget {
@@ -134,6 +135,10 @@ contract GenericDVTProposalTest is Test {
         // _validateG1Point invokes G1ADD (0x0b) and G1MUL (0x0c) at register
         // time, so the etch must already be in place.
         // 0x0b (G1ADD): Returns 128 bytes (0x80) — used by _reconstructPkAgg
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3");
         // 0x0c (G1MUL): Returns 128 bytes of zeros (identity) — required by
         // _validateG1Point's prime-order subgroup check (r*P == O).
@@ -144,6 +149,11 @@ contract GenericDVTProposalTest is Test {
         vm.etch(address(0x11), hex"6101006000f3");
         // 0x0d (G2ADD): Returns 256 bytes (0x100)
         vm.etch(address(0x0d), hex"6101006000f3");
+        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+        // pairing precompile must answer before any registerBLSPublicKey call in this
+        // mocked-precompile harness. Real-pairing coverage of the same registrations
+        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         vm.startPrank(owner);
         registry = new MockRegistryForProposal();

@@ -100,9 +100,13 @@ contract RepCreditDomainReplay is Test {
             registry.registerRole(ROLE_DVT, validator, abi.encode(DVT_STAKE));
             vm.stopPrank();
 
-            BLS.G2Point memory emptyPoP;
-            aggA.registerBLSPublicKey(validator, _publicKey(scalar), uint8(i + 1), emptyPoP);
-            aggB.registerBLSPublicKey(validator, _publicKey(scalar), uint8(i + 1), emptyPoP);
+            // CC-48 round-3: PoP is mandatory on the owner path too, and it is bound to
+            // (domain, validator, key) — so the SAME key needs a DIFFERENT signature on
+            // each aggregator. That is the migration cost the release notes describe,
+            // demonstrated here rather than asserted.
+            BLS.G1Point memory pk = _publicKey(scalar);
+            aggA.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggA, validator, pk, scalar));
+            aggB.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggB, validator, pk, scalar));
         }
         aggA.setDefaultThreshold(3);
         aggB.setDefaultThreshold(3);

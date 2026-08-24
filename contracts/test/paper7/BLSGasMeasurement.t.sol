@@ -78,8 +78,11 @@ contract RepCreditPragueE2E is Test {
             vm.stopPrank();
 
             dvt.addValidator(validator);
-            BLS.G2Point memory emptyPoP;
-            aggregator.registerBLSPublicKey(validator, _publicKey(scalar), uint8(i + 1), emptyPoP);
+            // CC-48 round-3: PoP is mandatory on both registration paths, so the
+            // owner-side onboarding used here signs a genuine one with the validator's
+            // own secret scalar under this aggregator's domain.
+            BLS.G1Point memory pk = _publicKey(scalar);
+            aggregator.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggregator, validator, pk, scalar));
         }
     }
 
@@ -270,6 +273,17 @@ contract RepCreditPragueE2E is Test {
         points[0] = _g1Generator();
         scalars[0] = bytes32(scalar);
         return BLS.msm(points, scalars);
+    }
+
+    /// @dev A genuine proof-of-possession: sk * H_pop(popDigest(validator, pk)), on the
+    ///      real EIP-2537 precompiles. Required on BOTH registration paths since
+    ///      CC-48 round-3.
+    function _pop(BLSAggregator agg, address validator, BLS.G1Point memory pk, uint256 sk)
+        internal
+        view
+        returns (BLS.G2Point memory)
+    {
+        return _multiplyG2(BLS.hashToG2(abi.encodePacked(agg.popDigest(validator, pk))), sk);
     }
 
     function _multiplyG2(BLS.G2Point memory point, uint256 scalar) internal view returns (BLS.G2Point memory) {

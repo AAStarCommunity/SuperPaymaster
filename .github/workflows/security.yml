@@ -55,6 +55,16 @@ jobs:
         run: |
           forge test -vvv
           forge test --fuzz-runs 10000
+      - name: Prague (EIP-2537) real-precompile gate
+        # CC-48 round-3 MEDIUM-5. The default run is Cancun, where the BLS12-381
+        # precompiles do not exist and every BLS suite runs against `vm.etch`ed stubs —
+        # i.e. a mock decides whether a signature is valid. This job runs the same tree
+        # on a Prague EVM, where contracts/test/paper7/ exercises the domain, exit,
+        # credit-cap, key-scan and guardian-slash paths with REAL keys, REAL pairings and
+        # no injection. Suites that require injection skip themselves here (see
+        # contracts/test/helpers/MockedPrecompiles.sol), so this command must be GREEN,
+        # not "green except the known 15".
+        run: forge test --evm-version prague
 
   slither:
     name: Stage 3 — Slither static scan

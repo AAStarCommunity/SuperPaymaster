@@ -9,6 +9,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IMySBT.sol";
 import "src/utils/BLS.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice CC-48 core security fixes.
 ///
@@ -242,11 +243,20 @@ contract CC48ExitNoticeTest is Test {
     }
 
     function setUp() public {
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3");
         vm.etch(address(0x0c), hex"60806000f3");
         vm.etch(address(0x0d), hex"6101006000f3");
         vm.etch(address(0x10), hex"60806000f3");
         vm.etch(address(0x11), hex"6101006000f3");
+        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+        // pairing precompile must answer before any registerBLSPublicKey call in this
+        // mocked-precompile harness. Real-pairing coverage of the same registrations
+        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.warp(365 days); // keep cooldown/readyAt arithmetic away from t = 0
 
         vm.startPrank(owner);
@@ -448,7 +458,7 @@ contract CC48ExitNoticeTest is Test {
         vm.prank(owner);
         bls.proposeFraudProofVerifier(address(evil));
 
-        (, uint64 caseDeadline,,,) = bls.guardianSlashCases(7);
+        (, uint64 caseDeadline,,,,) = bls.guardianSlashCases(7);
         assertEq(uint256(caseDeadline), queuedAt + bls.GUARDIAN_SLASH_CASE_WINDOW());
         assertGe(
             uint256(bls.pendingFraudProofVerifierReadyAt()),
@@ -553,7 +563,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertTrue(bls.guardianSlashed(1, g1));
         assertFalse(bls.guardianSlashed(1, g2));
 
-        (,, uint8 status,, uint16 resolved) = bls.guardianSlashCases(1);
+        (,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case stays pending, not silently executed");
         assertEq(resolved, 1);
 
@@ -568,7 +578,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.executeGuardianSlash(1, accused, hex"01");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
         assertEq(staking.getLockedStake(g2, ROLE_DVT), 0);
-        (,, status,, resolved) = bls.guardianSlashCases(1);
+        (,, status,, resolved,) = bls.guardianSlashCases(1);
         assertEq(status, 2, "case resolved once every guardian settled");
         assertEq(resolved, 2);
     }
@@ -615,7 +625,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.requestGuardianExit();
         bls.queueGuardianSlash(3, accused, hex"03");
 
-        (, uint64 deadline,,,) = bls.guardianSlashCases(3);
+        (, uint64 deadline,,,,) = bls.guardianSlashCases(3);
         (, uint64 expiresAt) = bls.guardianExitRequests(g1);
         // NOTE: read these into memory BEFORE any vm.warp — via-IR happily CSEs
         // block.timestamp across a cheatcode it cannot see.
@@ -657,7 +667,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
         assertFalse(bls.guardianSlashed(4, g1), "nothing was taken from g1");
         assertTrue(bls.guardianSlashed(4, g2), "g2 was still slashed under the same proof");
-        (,, uint8 status,,) = bls.guardianSlashCases(4);
+        (,, uint8 status,,,) = bls.guardianSlashCases(4);
         assertEq(status, 2);
     }
 
@@ -678,6 +688,187 @@ contract CC48GuardianSlashRetryTest is Test {
         // Same guardian set, new id from the verifier's id-space: allowed.
         bls.queueGuardianSlash(6, accused, hex"06");
         assertEq(bls.pendingGuardianSlashCount(g1), 1);
+    }
+
+    // =================================================================
+    // CC-48 round-3 HIGH-1 — the case is bound to the verifier that opened it
+    // =================================================================
+
+    /// THE regression. Round-2 claimed `VERIFIER_ROTATION_DELAY` made a queued case
+    /// immune to a governance verifier swap. It did not: the delay bounds
+    /// propose -> apply, but NOTHING bounds matured -> apply, and
+    /// `applyFraudProofVerifier` is permissionless. So an owner could arm a rotation
+    /// long in advance, let it mature, and leave it sitting — a loaded gun — then fire
+    /// it one second after a watcher queues a case. `executeGuardianSlash` read the
+    /// LIVE verifier, so from that block on it returned false forever and the case ran
+    /// out to expiry, releasing the accused.
+    ///
+    /// This test walks exactly that timeline and asserts the slash still lands.
+    function test_PreArmedVerifierRotationCannotKillAQueuedCase() public {
+        CC48MockFraudVerifier evil = new CC48MockFraudVerifier();
+        evil.setValid(false);
+
+        // T0: arm the rotation, then let it fully mature WITHOUT applying it.
+        bls.proposeFraudProofVerifier(address(evil));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY() + 1);
+        assertLe(uint256(bls.pendingFraudProofVerifierReadyAt()), block.timestamp, "rotation is armed and matured");
+
+        // T0 + delay + X: a watcher queues a case against the CURRENT (honest) verifier.
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        bls.queueGuardianSlash(10, accused, hex"10");
+        (,,,,, address pinned) = bls.guardianSlashCases(10);
+        assertEq(pinned, address(verifier), "case pinned the verifier that authorized it");
+
+        // One block later: fire the pre-armed rotation. Permissionless, and legitimate
+        // by the rotation rules — the delay was served in full.
+        bls.applyFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(evil), "the live verifier is now the always-false one");
+
+        // Pre-fix this reverted InvalidFraudProof and kept doing so until expiry.
+        bls.executeGuardianSlash(10, accused, hex"10");
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "the colluder was slashed under the pinned verifier");
+        (,, uint8 status,,,) = bls.guardianSlashCases(10);
+        assertEq(status, 2, "case resolved");
+    }
+
+    /// The retry path must use the SAME pinned verifier, not the live one — otherwise
+    /// the attack above just moves to the window between a partial execution and its
+    /// retry, which is where a real slash spends most of its life.
+    function test_RetryAfterRotationStillUsesThePinnedVerifier() public {
+        CC48MockFraudVerifier evil = new CC48MockFraudVerifier();
+        evil.setValid(false);
+
+        address[] memory accused = _both();
+        bls.queueGuardianSlash(11, accused, hex"11");
+
+        // Partial execution: g2's staking call reverts, so g2 stays frozen + retryable.
+        vm.mockCallRevert(
+            address(staking),
+            abi.encodeWithSelector(IGTokenStakingSlash.slashByDVT.selector, g2, ROLE_DVT),
+            "staking down"
+        );
+        bls.executeGuardianSlash(11, accused, hex"11");
+        assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen");
+        vm.clearMockedCalls();
+
+        // Rotate to the always-false verifier in the retry window.
+        bls.proposeFraudProofVerifier(address(evil));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        // The case deadline has NOT passed (window > rotation delay is not assumed;
+        // assert it, because the retry has to be reachable for this test to mean
+        // anything).
+        (, uint64 deadline,,,,) = bls.guardianSlashCases(11);
+        assertLe(block.timestamp, uint256(deadline), "retry window still open");
+
+        bls.executeGuardianSlash(11, accused, hex"11");
+        assertEq(bls.pendingGuardianSlashCount(g2), 0, "retry settled g2 under the pinned verifier");
+        (,, uint8 status,,,) = bls.guardianSlashCases(11);
+        assertEq(status, 2);
+    }
+
+    /// Pinning must not make a case immortal: expiry is verifier-independent and still
+    /// releases the accused on schedule, rotation or not.
+    function test_ExpiryIsUnaffectedByARotation() public {
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        bls.queueGuardianSlash(12, accused, hex"12");
+
+        bls.proposeFraudProofVerifier(address(next));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        (, uint64 rawDeadline,,,,) = bls.guardianSlashCases(12);
+        uint256 caseDeadline = uint256(rawDeadline);
+        vm.warp(caseDeadline + 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(12), caseDeadline
+            )
+        );
+        bls.executeGuardianSlash(12, accused, hex"12");
+
+        bls.expireGuardianSlashCase(12, accused);
+        assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry releases the freeze");
+        (,, uint8 status,,,) = bls.guardianSlashCases(12);
+        assertEq(status, 3);
+    }
+
+    /// A case opened AFTER a rotation must use the NEW verifier — pinning is per case,
+    /// not a permanent freeze of the first verifier ever wired.
+    function test_ANewCaseAfterRotationPinsTheNewVerifier() public {
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+        bls.proposeFraudProofVerifier(address(next));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        bls.queueGuardianSlash(13, accused, hex"13");
+        (,,,,, address pinned) = bls.guardianSlashCases(13);
+        assertEq(pinned, address(next), "the case opened under the new verifier is pinned to it");
+
+        // And the new verifier really is the authority: make it reject, and the
+        // execution fails even though the OLD one would have said yes.
+        next.setValid(false);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(13)));
+        bls.executeGuardianSlash(13, accused, hex"13");
+    }
+
+    /// If the pinned verifier stops being a contract, fail CLOSED — do NOT silently
+    /// re-judge the case under whatever verifier happens to be live. A case is either
+    /// decided by the authority that opened it or not at all.
+    function test_ExecutionFailsClosedWhenThePinnedVerifierIsGone() public {
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        bls.queueGuardianSlash(14, accused, hex"14");
+
+        // The live verifier would happily approve — the point is that it is not asked.
+        assertEq(bls.fraudProofVerifier(), address(verifier));
+        vm.etch(address(verifier), hex"");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianSlashVerifierGone.selector, uint256(14), address(verifier))
+        );
+        bls.executeGuardianSlash(14, accused, hex"14");
+
+        // The freeze stays until the case expires normally; nothing is silently lost.
+        assertEq(bls.pendingGuardianSlashCount(g1), 1);
+        vm.warp(block.timestamp + bls.GUARDIAN_SLASH_CASE_WINDOW() + 1);
+        bls.expireGuardianSlashCase(14, accused);
+        assertEq(bls.pendingGuardianSlashCount(g1), 0);
+    }
+
+    /// A snapshot is only meaningful if it points at code: queueing against an EOA
+    /// verifier is rejected up front rather than pinning a case to something that can
+    /// never answer.
+    function test_QueueRejectsAnEOAVerifier() public {
+        address eoa = address(0xE0A);
+        bls.proposeFraudProofVerifier(eoa);
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.VerifierNotContract.selector, eoa));
+        bls.queueGuardianSlash(15, accused, hex"15");
+    }
+
+    /// Dormancy is still enforced at queue time: with no verifier wired, no case can be
+    /// opened, so there is nothing to pin.
+    function test_QueueStillRequiresAWiredVerifier() public {
+        bls.proposeFraudProofVerifier(address(0));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = g1;
+        vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
+        bls.queueGuardianSlash(16, accused, hex"16");
     }
 }
 

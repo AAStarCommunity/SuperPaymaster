@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import {BLS} from "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /**
  * @title BLSGoldenVectors_Test
@@ -82,6 +83,10 @@ contract BLSGoldenVectors_Test is Test {
     }
 
     function setUp() public {
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers the production paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         wrapper = new BLSGoldenVectorsWrapper();
     }
 

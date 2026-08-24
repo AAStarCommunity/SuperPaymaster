@@ -7,6 +7,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 contract MockStakingPermissionlessRegistration {
     mapping(address => uint128) public lockedAmount;
@@ -109,6 +110,10 @@ contract BLSPermissionlessRegistrationTest is Test {
     address stranger = address(0xBAD);
 
     function setUp() public {
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3"); // G1ADD returns 128 zero bytes.
         vm.etch(address(0x0c), hex"60806000f3"); // G1MUL returns identity.
         vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD returns 256 zero bytes.
@@ -136,7 +141,26 @@ contract BLSPermissionlessRegistrationTest is Test {
         assertEq(bls.permissionlessBLSRegistration(), false);
     }
 
-    function test_ownerPathAlwaysWorks() public {
+    /// CC-48 round-3: the owner path no longer skips proof-of-possession. This suite's
+    /// pairing precompile answers FALSE, so an owner registration without a valid PoP
+    /// is rejected exactly like a permissionless one. Before round-3 this same call
+    /// succeeded — that was the hole: `blsKeyOwner` is a permanent binding, so an owner
+    /// typo (or a deliberate pre-emption of a validator's own registration) bound a
+    /// third party's public key to the wrong address with no way back.
+    function test_ownerPathAlsoRequiresPoP() public {
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.InvalidPoP.selector);
+        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+
+        (, , bool active) = bls.getBLSPublicKey(validator);
+        assertFalse(active, "no key may be bound without a PoP");
+        assertEq(bls.blsKeyOwner(keccak256(abi.encode(_key(1).x_a, _key(1).x_b, _key(1).y_a, _key(1).y_b))), address(0));
+    }
+
+    /// ...and it still works once the PoP verifies (pairing mocked true here; the real
+    /// pairing is exercised in contracts/test/paper7/RepCreditDomainReplay.t.sol).
+    function test_ownerPathWorksWithAValidPoP() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.prank(owner);
         bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
 

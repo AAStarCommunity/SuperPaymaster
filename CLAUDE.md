@@ -23,14 +23,25 @@ Two operating modes:
 ## Build & Test Commands
 
 ```bash
-# Build all contracts
+# Build all contracts. THIS is what ships: `deploy-core` never sets FOUNDRY_PROFILE,
+# so every deployment compiles under [profile.default].
 forge build
 
-# Build only V3 contracts (faster, for deployment)
-forge build --profile v3-only
+# Alternative profile with identical optimizer settings + the same Registry size
+# restriction (kept in sync deliberately; see the comment block in foundry.toml).
+# NOTE the form: `forge build --profile v3-only` is NOT valid on forge 1.7 — the
+# profile is selected by environment variable.
+FOUNDRY_PROFILE=v3-only forge build
 
-# Run all Foundry tests
+# Run all Foundry tests (Cancun: the BLS12-381 precompiles do not exist, so BLS
+# suites run against vm.etch'ed stubs)
 forge test
+
+# Run the same tree on a Prague EVM: contracts/test/paper7/ exercises the domain,
+# exit-notice, credit-cap, key-scan and guardian-slash paths against REAL EIP-2537
+# precompiles with real keys and signatures. Must be green — suites that need
+# precompile injection skip themselves (contracts/test/helpers/MockedPrecompiles.sol).
+forge test --evm-version prague
 
 # Run a specific test file
 forge test --match-path contracts/test/v3/Registry.t.sol
@@ -161,4 +172,8 @@ Solidity 0.8.33, optimizer enabled (10000 runs), via_ir = true, EVM target: canc
 - All code comments in English
 - All conversation responses in Chinese (中文)
 - Contract versioning embedded in `version()` functions (e.g., `"Registry-3.0.2"`, `"SuperPaymaster-3.2.2"`, `"PaymasterV4-4.3.0"`)
+- Any change to a public ABI, to a struct returned by a public getter, or to the storage
+  layout requires a `version()` bump, a regenerated `abis/*.json`, and a note to the
+  downstream repos (`repo:dvt`, `repo:sdk`). Current record:
+  `docs/security/CC48-round3-changes.md`
 - EntryPoint v0.7 address: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`

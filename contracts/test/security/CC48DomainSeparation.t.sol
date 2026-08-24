@@ -333,7 +333,7 @@ contract CC48FraudProofDomainTest is Test {
 
         aggA.queueGuardianSlash(99, g, hex"01");
 
-        (, , uint8 status, ,) = aggA.guardianSlashCases(99);
+        (, , uint8 status, , ,) = aggA.guardianSlashCases(99);
         assertEq(status, 1, "case queued => verifier saw the digest it was bound to");
     }
 
@@ -397,6 +397,12 @@ contract CC48PoPBindingTest is Test {
             vm.etch(address(0x0d), hex"6101006000f3");
             vm.etch(address(0x10), hex"60806000f3");
             vm.etch(address(0x11), hex"6101006000f3");
+            // CC-48 round-3: the owner path verifies a proof-of-possession too, so the
+            // pairing precompile has to answer for these synthetic keys. Whether a PoP
+            // is genuinely bound is proven with real pairings in
+            // contracts/test/paper7/RepCreditDomainReplay.t.sol; here we are asserting
+            // the duplicate-key / binding bookkeeping around it.
+            vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         }
 
         vm.startPrank(owner);
@@ -536,6 +542,90 @@ contract CC48PoPBindingTest is Test {
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
         assertEq(aggB.blsKeyOwner(_keyHash(pk)), v2);
     }
+
+    // =================================================================
+    // CC-48 round-3 — misconfiguration recovery for the permanent binding
+    // =================================================================
+
+    /// The binding is permanent by design, which used to mean a wrong entry was
+    /// permanent too: the key was burned forever and the validator had to rotate to a
+    /// brand-new secret key. `releaseKeyBinding` is the escape hatch — owner-only, and
+    /// only for a key no ACTIVE slot is using.
+    function test_OwnerCanReleaseABindingNoActiveSlotUses() public {
+        _skipUnderPrague();
+        BLS.G1Point memory pk = _key(7);
+        vm.prank(owner);
+        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
+
+        // Revoking alone must NOT release it — that is the anti-duplicate property.
+        vm.prank(owner);
+        aggA.revokeBLSPublicKey(v1);
+        assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1, "revoke still does not release the binding");
+
+        vm.prank(owner);
+        aggA.releaseKeyBinding(_keyHash(pk));
+        assertEq(aggA.blsKeyOwner(_keyHash(pk)), address(0));
+
+        // The key's real holder can now claim it at a different address.
+        vm.prank(owner);
+        aggA.registerBLSPublicKey(v2, pk, 2, _emptyPoP());
+        assertEq(aggA.blsKeyOwner(_keyHash(pk)), v2);
+    }
+
+    /// The narrow precondition is the whole safety argument: a LIVE signer's binding
+    /// can never be released out from under it, so the duplicate-key guard cannot be
+    /// disarmed by governance one call at a time.
+    function test_ReleaseIsRefusedWhileAnActiveSlotHoldsTheKey() public {
+        _skipUnderPrague();
+        BLS.G1Point memory pk = _key(8);
+        vm.prank(owner);
+        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.KeyBindingStillActive.selector, _keyHash(pk), v1)
+        );
+        aggA.releaseKeyBinding(_keyHash(pk));
+        assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
+    }
+
+    /// The scan looks at the ACTIVE table, not at the address the binding names: after
+    /// a rotation the key can be live under a different address, and releasing it there
+    /// would be the same hole.
+    function test_ReleaseIsRefusedWhenTheKeyIsLiveUnderAnotherAddress() public {
+        _skipUnderPrague();
+        BLS.G1Point memory pk = _key(9);
+        vm.startPrank(owner);
+        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.revokeBLSPublicKey(v1);
+        aggA.releaseKeyBinding(_keyHash(pk));
+        // Same key, new holder.
+        aggA.registerBLSPublicKey(v2, pk, 2, _emptyPoP());
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.KeyBindingStillActive.selector, _keyHash(pk), v2)
+        );
+        aggA.releaseKeyBinding(_keyHash(pk));
+        vm.stopPrank();
+    }
+
+    function test_ReleaseIsOwnerOnlyAndRejectsAnUnknownKey() public {
+        _skipUnderPrague();
+        BLS.G1Point memory pk = _key(10);
+        vm.prank(owner);
+        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        vm.prank(owner);
+        aggA.revokeBLSPublicKey(v1);
+
+        vm.prank(address(0xBAD));
+        vm.expectRevert();
+        aggA.releaseKeyBinding(_keyHash(pk));
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "keyHash"));
+        aggA.releaseKeyBinding(keccak256("never registered"));
+    }
 }
 
 // =====================================================================
@@ -592,5 +682,60 @@ contract CC48CombinedProposalTest is Test {
         // would revert on the decode instead.
         vm.expectRevert(BLSAggregator.CombinedProposalNotSupported.selector);
         agg.verifyAndExecute(1, address(0xDEAD), 1, u, s, 1, bytes32(0), hex"");
+    }
+
+    /// CC-48 round-3: the slash-only branch must be pinned from the other side too.
+    /// The slash pre-image commits to (proposalId, operator, slashLevel, epoch,
+    /// evidenceHash) — `newScores` is NOT a field — so a non-empty `newScores` on this
+    /// branch was caller-controlled input that rode through a signature check without
+    /// being covered by any signature. Unused today; rejected so it cannot quietly
+    /// become used-but-unsigned later.
+    function test_SlashOnlyBranchRejectsUnsignedNewScores() public {
+        address[] memory noUsers = new address[](0);
+        uint256[] memory scores = new uint256[](1);
+        scores[0] = 42;
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.CombinedProposalNotSupported.selector);
+        agg.verifyAndExecute(1, address(0xDEAD), 1, noUsers, scores, 1, bytes32(0), hex"");
+    }
+
+    /// ...and it is rejected before any signature work, same as the combined shape.
+    function test_UnsignedNewScoresRejectionPrecedesSignatureVerification() public {
+        address[] memory noUsers = new address[](0);
+        uint256[] memory scores = new uint256[](2);
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.CombinedProposalNotSupported.selector);
+        agg.verifyAndExecute(2, address(0xDEAD), 2, noUsers, scores, 1, bytes32(0), hex"");
+    }
+
+    /// A proposal with no batch, no target and no severity only burns a proposalId in
+    /// two contracts. It needs a real quorum so it was never an attack — but a no-op
+    /// shape on a consensus path is a place for future divergence, so it is now a
+    /// named rule rather than an accident of the branch structure.
+    function test_EmptyProposalShapeIsRejected() public {
+        address[] memory noUsers = new address[](0);
+        uint256[] memory noScores = new uint256[](0);
+        vm.prank(owner);
+        vm.expectRevert(BLSAggregator.EmptyProposalNotSupported.selector);
+        agg.verifyAndExecute(3, address(0), 0, noUsers, noScores, 1, bytes32(0), hex"");
+    }
+
+    /// The legitimate slash-only shapes are untouched: they get past the shape guards
+    /// and fail later, on the signature, which is where they should fail with a
+    /// malformed proof.
+    function test_LegitimateSlashOnlyShapesStillReachSignatureVerification() public {
+        address[] memory noUsers = new address[](0);
+        uint256[] memory noScores = new uint256[](0);
+
+        // operator set, level 0 (MINOR) — reaches _checkSignatures.
+        vm.prank(owner);
+        vm.expectRevert();
+        agg.verifyAndExecute(4, address(0xDEAD), 0, noUsers, noScores, 1, bytes32(0), hex"");
+
+        // no operator but a real severity — also a shape the protocol allows
+        // (marks the proposalId without moving funds).
+        vm.prank(owner);
+        vm.expectRevert();
+        agg.verifyAndExecute(5, address(0), 1, noUsers, noScores, 1, bytes32(0), hex"");
     }
 }

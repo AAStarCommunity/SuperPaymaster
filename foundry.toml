@@ -95,6 +95,14 @@ fs_permissions = [{ access = "read-write", path = "./contracts/deployments" }, {
 # Tokens-only profile (skips paper7 scratch dir)
 # ============================================
 # Usage: forge test --profile tokens
+#
+# CC-48 round-3 LOW: this profile shares `out/` and `cache/` with profile.default, so its
+# settings are not private to it — running it once leaves artifacts that every other
+# consumer of out/ (deploy-core's ABI sync uses `find out -name ...`) may read. At
+# optimizer_runs = 10000 and with no registry-size restriction it produced a Registry and
+# a SuperPaymaster ABOVE the 24,576-byte EIP-170 limit and left them sitting in out/.
+# That is the same class of bug that was fixed in profile.v3-only in round-2 and left
+# untouched one profile over. Settings are now aligned with the profile that ships.
 [profile.tokens]
 src = "contracts/src"
 test = "contracts/test/tokens"
@@ -103,7 +111,7 @@ libs = ["contracts/lib", "singleton-paymaster/lib"]
 cache_path = "cache"
 solc_version = "0.8.33"
 optimizer = true
-optimizer_runs = 10000
+optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
 remappings = [
@@ -154,5 +162,15 @@ optimizer_runs = 200
 via_ir = true
 
 [[profile.v3-only.compilation_restrictions]]
+paths = "contracts/src/core/Registry.sol"
+max_optimizer_runs = 200
+
+# ...and for the tokens profile, which shares out/ with everyone else (CC-48 round-3).
+[[profile.tokens.additional_compiler_profiles]]
+name = "registry-size"
+optimizer_runs = 200
+via_ir = true
+
+[[profile.tokens.compilation_restrictions]]
 paths = "contracts/src/core/Registry.sol"
 max_optimizer_runs = 200

@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice CC-89 stage-2 Phase-2 E2E harness (SP half real, DVT verifier mocked).
 /// @dev  Full over-issue guardian-collusion slash chain wired end-to-end:
@@ -115,6 +116,10 @@ contract GuardianSlashE2ETest is Test {
     function setUp() public {
         // Mock BLS precompiles (same shape as DVT_BLS.t.sol) so verifyAndExecute
         // passes _reconstructPkAgg + pairing without real BLS signing.
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
         vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (identity)
         vm.etch(address(0x10), hex"60806000f3"); // MapFpToG1

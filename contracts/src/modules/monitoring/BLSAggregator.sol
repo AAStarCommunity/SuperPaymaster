@@ -123,6 +123,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // case stays retryable instead of collapsing into an all-or-nothing batch.
         uint16 guardianCount;
         uint16 resolvedCount;
+        // CC-48 round-3 HIGH-1: the fraud-proof verifier PINNED at queue time.
+        // `executeGuardianSlash` re-verifies against THIS address, never against the
+        // live `fraudProofVerifier`. Without the snapshot, a rotation that was
+        // proposed long before the case (and left matured-but-unapplied — the delay
+        // only bounds propose->apply, nothing forces apply to be timely) could be
+        // fired the block after a case is queued, swapping in an always-false
+        // verifier and running the case out to expiry. The delay made the rotation
+        // slow; only the snapshot makes the queued case immune to it.
+        address verifier;
     }
 
     struct GuardianExitRequest {
@@ -344,7 +353,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.6.0";
+        return "BLSAggregator-4.7.0";
     }
 
 
@@ -368,6 +377,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot);
     event PermissionlessBLSRegistrationSet(bool enabled);
     event BLSPublicKeyRevoked(address indexed validator, uint8 indexed slot);
+    /// @notice CC-48 round-3: an owner-initiated recovery released a key-to-owner binding
+    ///         that no active slot was using (misconfiguration escape hatch).
+    event BLSKeyBindingReleased(bytes32 indexed keyHash, address indexed previousOwner);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
@@ -388,6 +400,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
     event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
     event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
+    /// @notice CC-48 round-3 HIGH-1: the verifier a queued case is permanently bound to.
+    event GuardianSlashVerifierPinned(uint256 indexed fraudProofId, address indexed verifier);
     /// @notice A case whose accused guardians have all been individually resolved.
     event GuardianSlashCaseResolved(uint256 indexed fraudProofId);
     /// @notice A single guardian's slash reverted on the staking side. The case stays
@@ -489,6 +503,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
     error NoPendingVerifierRotation();
     error VerifierRotationNotReady(uint256 readyAt);
+    /// @dev CC-48 round-3 HIGH-1: the verifier snapshotted when the case was queued no
+    ///      longer holds code (selfdestructed / never was a contract). Fail CLOSED —
+    ///      the case cannot be executed against a different verifier, and must be left
+    ///      to expire. Silently falling back to the live `fraudProofVerifier` would
+    ///      re-open exactly the retroactive-swap hole the snapshot closes.
+    error GuardianSlashVerifierGone(uint256 fraudProofId, address verifier);
+    /// @dev CC-48 round-3: a verifier must be a contract at queue time; snapshotting an
+    ///      EOA would pin a case to something that can never verify.
+    error VerifierNotContract(address verifier);
+    /// @dev CC-48 round-3: the key-to-owner binding may only be released while NO active
+    ///      slot holds that key. Otherwise releasing it would let a second address claim
+    ///      the key of a live signer.
+    error KeyBindingStillActive(bytes32 keyHash, address boundTo);
+    /// @dev CC-48 round-3: a proposal that carries no reputation batch, no operator and
+    ///      no severity does nothing but burn a proposalId in two contracts. It still
+    ///      requires a real quorum, so it is not an attack — but a consensus path with a
+    ///      no-op shape is a place for future divergence, so the shape is rejected.
+    error EmptyProposalNotSupported();
     /// @dev CC-48 round-2: the same G1 public key may never be bound to two
     ///      validator addresses. N slots holding one key make pkAgg = N*pk, which a
     ///      single secret-key holder can sign for — a 1-of-N quorum forgery.
@@ -572,35 +604,32 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @param  slot       1-indexed slot in [1..MAX_VALIDATORS]. Must not collide
     ///                    with another validator's already-bound slot.
     /// @param  popSignature proof-of-possession (G2): the validator's BLS signature over
-    ///                    their own public key. Ignored on the owner path; REQUIRED and
-    ///                    verified on the permissionless self-registration path.
+    ///                    `popDigest(validator, publicKey)`. REQUIRED on BOTH paths
+    ///                    (CC-48 round-3); a registration without a valid PoP reverts.
     ///
-    /// @dev    SECURITY / TRUST ASSUMPTION — owner path deliberately skips PoP.
-    ///         There are exactly two registration paths and only ONE of them omits the
+    /// @dev    SECURITY — PoP is enforced on both registration paths.
+    ///         There are exactly two registration paths and NEITHER of them skips the
     ///         proof-of-possession check:
-    ///           • Owner path (`msg.sender == owner()`): PoP is NOT verified. This is
-    ///             intentional and safe under the protocol trust model. `owner` is the
-    ///             trusted bootstrap authority (deployer → DAO / governance multisig /
-    ///             timelock) that curates the known-good validator set during onboarding
-    ///             and vets each key's proof-of-possession OFF-CHAIN before calling. A
-    ///             compromised owner is already game-over for BLS consensus by design —
-    ///             it can register/revoke ANY key at ANY slot, move `setSuperPaymaster`,
-    ///             `setDVTValidator`, and the thresholds — so skipping PoP grants it NO
-    ///             extra power it doesn't already hold. The rogue-key attack
-    ///             (`Pm = xG − Σ pk_honest`) is therefore NOT reachable by an untrusted
-    ///             party through this path: an attacker cannot satisfy the `owner()` gate.
+    ///           • Owner path (`msg.sender == owner()`): the owner still decides WHO is
+    ///             onboarded and at WHICH slot, but no longer decides whether the key is
+    ///             really the registrant's. Before round-3 this path skipped PoP on the
+    ///             argument that a compromised owner is game-over anyway. That argument
+    ///             covers authorization, not this property: `blsKeyOwner` is a permanent,
+    ///             deliberately irreversible binding, so one mistyped address bound a
+    ///             third party's public key forever, and an owner could pre-empt a
+    ///             validator's own self-registration by binding its key first. Both are
+    ///             gone: producing `popSignature` requires the corresponding secret key.
     ///           • Permissionless path (`permissionlessBLSRegistration == true`, off by
     ///             default): an untrusted staked ROLE_DVT validator self-registers its OWN
-    ///             key, and PoP IS enforced here precisely because the caller is untrusted.
-    ///         Defense-in-depth: even a key inserted via the owner path can only contribute
-    ///         to an aggregate if its validator address still holds ROLE_DVT with locked
-    ///         stake >= minStake at verification time (re-checked live in
-    ///         `_reconstructPkAgg`); a key registered for an address lacking the role/stake
-    ///         can never enter a slash/reputation proof.
-    ///         Deploy runbook: after launch, transfer ownership to the governance
-    ///         multisig/timelock and onboard validators owner-side (off-chain PoP vetting)
-    ///         OR flip `setPermissionlessBLSRegistration(true)` to require on-chain PoP for
-    ///         self-service onboarding. See docs/architecture/dvt-validator-workflow.md.
+    ///             key. Unchanged — PoP was always enforced here.
+    ///         Recovery: `releaseKeyBinding` (owner-only, and only while NO active slot
+    ///         holds the key) is the escape hatch for a binding created in error. It
+    ///         cannot touch a live signer's binding, so the anti-duplicate property is
+    ///         preserved; see the runbook in docs/architecture/dvt-validator-workflow.md.
+    ///         Defense-in-depth: a registered key can only contribute to an aggregate if
+    ///         its validator address still holds ROLE_DVT with locked stake >= minStake at
+    ///         verification time (re-checked live in `_reconstructPkAgg`); a key registered
+    ///         for an address lacking the role/stake can never enter a slash/reputation proof.
     function registerBLSPublicKey(
         address validator,
         BLS.G1Point calldata publicKey,
@@ -618,26 +647,26 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
         // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
         // caller reverts without paying for them; G1 is still validated before _verifyPoP.
-        if (msg.sender != owner()) {
+        bool ownerCall = msg.sender == owner();
+        if (!ownerCall) {
             if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
             if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
             _requireDVTStake(validator, slot);
-            _validateG1Point(publicKey);
-            if (!_verifyPoP(validator, publicKey, popSignature)) revert InvalidPoP();
+        }
+
+        // CC-48 round-3: proof-of-possession is MANDATORY on BOTH paths. On-curve +
+        // prime-order subgroup membership is validated first, so `_verifyPoP` never
+        // pairs against a small-subgroup point.
+        _validateG1Point(publicKey);
+        if (!_verifyPoP(validator, publicKey, popSignature)) revert InvalidPoP();
+
+        if (!ownerCall) {
             // Permissionless callers do NOT choose their slot: the contract assigns the
             // lowest free slot deterministically (re-registration keeps the prior slot).
             // This removes the slot-squatting / front-running vector where a caller could
             // grab or deny a specific slot. (Filling the whole capped set still costs
             // minStake per identity and remains owner-revocable.)
             slot = _assignSlot(validator);
-        } else {
-            // Owner (trusted bootstrap authority) path: PoP is intentionally NOT verified —
-            // see the SECURITY / TRUST ASSUMPTION note on this function. The owner vets each
-            // key's proof-of-possession off-chain; a compromised owner already controls the
-            // whole validator set, so on-chain PoP here would add no security. On-curve +
-            // prime-order subgroup membership is still validated to block small-subgroup /
-            // key-cancellation contamination of the reconstructed pkAgg.
-            _validateG1Point(publicKey);
         }
 
         // CC-48 round-2: one public key, one validator address — forever. Enforced on
@@ -687,6 +716,48 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         existing.isActive = false;
         validatorAtSlot[slot] = address(0);
         emit BLSPublicKeyRevoked(validator, slot);
+    }
+
+    /// @notice CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE
+    ///         slot is using.
+    /// @dev    The binding is intentionally permanent on the normal paths — clearing it
+    ///         on `revokeBLSPublicKey` would let a revoked key be re-claimed by a
+    ///         different address, which is exactly the duplicate-key condition the
+    ///         binding exists to prevent. This function is the ONE escape hatch for a
+    ///         binding created in error, and it is deliberately narrow:
+    ///           - owner-only (governance action, not a validator-facing one), and
+    ///           - refuses while ANY active slot holds this key, so a live signer's
+    ///             binding can never be released out from under it. Combined with the
+    ///             now-mandatory PoP on both registration paths, the only way to reach
+    ///             this function's precondition is a key that is registered nowhere.
+    ///         Runbook: revoke the slot first (`revokeBLSPublicKey`), confirm
+    ///         `getBLSPublicKey(...).isActive == false` for every holder, then release.
+    ///         After release the key may be re-registered by whoever can produce a PoP
+    ///         for it — i.e. its actual holder.
+    /// @param  keyHash keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)).
+    function releaseKeyBinding(bytes32 keyHash) external onlyOwner {
+        address boundTo = blsKeyOwner[keyHash];
+        if (boundTo == address(0)) revert InvalidParameter("keyHash");
+        // Scan the (capped, 13-slot) active table rather than trusting `boundTo`'s own
+        // record: the key may have been rotated to a different address's slot, and the
+        // property we need is "no ACTIVE slot holds this key", not "boundTo is idle".
+        for (uint8 slot = 1; slot <= uint8(MAX_VALIDATORS); ) {
+            address holder = validatorAtSlot[slot];
+            if (holder != address(0)) {
+                BLSValidatorKey storage k = _blsKeys[holder];
+                if (
+                    k.isActive
+                        && keccak256(
+                            abi.encode(k.publicKey.x_a, k.publicKey.x_b, k.publicKey.y_a, k.publicKey.y_b)
+                        ) == keyHash
+                ) {
+                    revert KeyBindingStillActive(keyHash, holder);
+                }
+            }
+            unchecked { ++slot; }
+        }
+        delete blsKeyOwner[keyHash];
+        emit BLSKeyBindingReleased(keyHash, boundTo);
     }
 
     /// @notice View accessor returning the stored G1 public key + slot for a validator.
@@ -802,6 +873,21 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // by name, turns a silent dead path into an explicit protocol rule.
         if (repUsers.length != 0 && (operator != address(0) || slashLevel != 0)) {
             revert CombinedProposalNotSupported();
+        }
+        // CC-48 round-3 LOW: pin the slash-only shape from the OTHER side too. The
+        // slash pre-image commits to (proposalId, operator, slashLevel, epoch,
+        // evidenceHash) and NOT to `newScores`, so a non-empty `newScores` here would be
+        // caller-controlled input that passed a signature check without being covered by
+        // any signature. It is unused on this branch today; requiring it empty means it
+        // can never become used-but-unsigned by a later edit.
+        if (repUsers.length == 0) {
+            if (newScores.length != 0) revert CombinedProposalNotSupported();
+            // A proposal with no batch, no target and no severity only burns a
+            // proposalId in this contract and in Registry. It needs a real quorum, so it
+            // is not an attack surface — but a no-op shape on a consensus path is a
+            // place for future divergence, and CC-48 is about making the protocol rules
+            // explicit rather than incidental.
+            if (operator == address(0) && slashLevel == 0) revert EmptyProposalNotSupported();
         }
 
         // 1. Construct expected message + resolve the required threshold.
@@ -1518,6 +1604,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ) external nonReentrant {
         address verifier = fraudProofVerifier;
         if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        // A snapshot is only meaningful if it points at code; an EOA verifier would pin
+        // the case to something that can never verify (and `.verify` on an EOA returns
+        // empty data, which would decode as false anyway).
+        if (verifier.code.length == 0) revert VerifierNotContract(verifier);
         if (fraudProofId == 0) revert InvalidProposalId();
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
@@ -1535,11 +1625,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         slashCase.deadline = deadline;
         slashCase.status = 1;
         slashCase.guardianCount = uint16(guiltyGuardians.length);
+        // CC-48 round-3 HIGH-1: pin the verifier that authorized this case. Every later
+        // execute/retry re-verifies against THIS address, so a verifier rotation — even
+        // one that was proposed months earlier, matured, and is applied one block after
+        // the queue — cannot retroactively invalidate a case that is already open.
+        slashCase.verifier = verifier;
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
             unchecked { ++i; }
         }
         emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
+        emit GuardianSlashVerifierPinned(fraudProofId, verifier);
     }
 
     /// @notice Release an unexecuted case after its bounded pending window.
@@ -1607,13 +1703,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         address[] calldata guiltyGuardians,
         bytes calldata fraudProof
     ) external nonReentrant {
-        address verifier = fraudProofVerifier;
         // All fail-closed shape checks up front (fail-fast, before any external call).
-        if (verifier == address(0)) revert FraudProofVerifierNotSet();
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
+        // CC-48 round-3 HIGH-1: the verifier is the one PINNED at queue time, NOT the
+        // live `fraudProofVerifier`. Reading the live value made the case's fate depend
+        // on whoever pressed `applyFraudProofVerifier` — permissionless, and satisfiable
+        // by a rotation that had been sitting matured-but-unapplied since before the case
+        // existed. `VERIFIER_ROTATION_DELAY` bounds propose->apply; nothing bounds
+        // matured->apply, so the delay alone never gave the property it claimed.
+        address verifier = slashCase.verifier;
+        if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        // Fail CLOSED, and do NOT silently substitute the current verifier: if the pinned
+        // one is gone the case must expire, not be re-judged by a different authority.
+        if (verifier.code.length == 0) revert GuardianSlashVerifierGone(fraudProofId, verifier);
         if (block.timestamp > slashCase.deadline) {
             revert GuardianSlashCaseExpiredError(fraudProofId, slashCase.deadline);
         }

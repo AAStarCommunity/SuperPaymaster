@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
 import "src/interfaces/v3/IRegistry.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 // Minimal mock registry (same pattern as GenericDVTProposal.t.sol)
 contract MockRegistryUnit is IRegistry {
@@ -87,9 +88,23 @@ contract BLSAggregatorUnitTest is Test {
         // or a custom etch before calling register.
         //
         // G1ADD returns 128 bytes of zeros (identity) — a valid G1 point.
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3"); // PUSH1 0x80 PUSH1 0 RETURN → 128 zero bytes
         // G1MUL must return 128 bytes of zeros (identity) to satisfy r*P == O.
         vm.etch(address(0x0c), hex"60806000f3"); // same bytecode → 128 zero bytes
+        // CC-48 round-3: registerBLSPublicKey now verifies a proof-of-possession on the
+        // owner path too, which walks hashToG2 (MAP_FP2_TO_G2 + G2ADD) and then the
+        // pairing precompile. Stub all three so this unit suite keeps testing slot /
+        // duplicate / validation bookkeeping rather than curve arithmetic; the genuine
+        // pairing behaviour is covered under --evm-version prague in
+        // contracts/test/paper7/RepCreditDomainReplay.t.sol.
+        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 zero bytes
+        vm.etch(address(0x10), hex"60806000f3");   // MAP_FP_TO_G1 → 128 zero bytes
+        vm.etch(address(0x11), hex"6101006000f3"); // MAP_FP2_TO_G2 → 256 zero bytes
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
     }
 
     /// @dev Returns a stub BLS.G1Point. Not a real curve point — callers must
@@ -320,7 +335,7 @@ contract BLSAggregatorUnitTest is Test {
     // ========================================
 
     function test_Version() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.6.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.7.0"));
     }
 
     // ========================================

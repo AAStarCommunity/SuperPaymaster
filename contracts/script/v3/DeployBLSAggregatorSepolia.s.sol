@@ -16,7 +16,8 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.4.0 (A' commitment + bounded guardian exit) to Sepolia,
+/// @notice Deploys BLSAggregator 4.7.0 (A' commitment + bounded guardian exit + CC-48
+///         round-3 verifier pinning) to Sepolia,
 ///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
 ///         slashByDVT works). Does NOT rewire registry/dvt/sp — this is a dedicated
@@ -25,9 +26,18 @@ interface IStakingSlasher {
 ///           forge script contracts/script/v3/DeployBLSAggregatorSepolia.s.sol:DeployBLSAggregatorSepolia \
 ///             --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $PRIVATE_KEY_JASON
 ///         Post-deploy (separate steps — need DVT inputs, see CC-89):
-///           1. DVT deploys OverIssueFraudProofVerifier(thisAggregator) → gives verifier addr
-///           2. registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys)
-///           3. setFraudProofVerifier(verifier)
+///           1. DVT deploys OverIssueFraudProofVerifier(thisAggregator) → gives verifier addr,
+///              and proves it domain-bound with contracts/test/helpers/
+///              FraudProofVerifierConformance.sol (CC-48 round-3 MEDIUM-2). Until that
+///              conformance run exists, leave the verifier UNSET (dormant).
+///           2. registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys).
+///              PoP is MANDATORY on this path too as of 4.7.0 — the owner can no longer
+///              register a key it cannot prove the guardian holds.
+///           3. proposeFraudProofVerifier(verifier), wait VERIFIER_ROTATION_DELAY,
+///              applyFraudProofVerifier()
+///           4. BLS_AGGREGATOR=<this> forge script contracts/script/checks/
+///              ScanDuplicateBLSKeys.s.sol --rpc-url $SEPOLIA_RPC_URL
+///              (duplicate / publicly-known-scalar / quorum-reachability gate)
 ///         Addresses are chain-verified as of 2026-08-15.
 contract DeployBLSAggregatorSepolia is Script {
     address constant REGISTRY        = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71;
@@ -50,7 +60,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.6.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.7.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -62,14 +72,18 @@ contract DeployBLSAggregatorSepolia is Script {
 
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
-        console.log("BLSAggregator 4.4.0 (A' + exit gate) deployed at:", address(agg));
+        console.log("BLSAggregator 4.7.0 (A' + exit gate + pinned verifier) deployed at:", address(agg));
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
         console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
         console.log("      followed by applyFraudProofVerifier() after VERIFIER_ROTATION_DELAY.");
-        console.log("CC-48 round-2: IFraudProofVerifier.verify now takes a leading bytes32");
-        console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians).");
-        console.log("      Verifiers built for 4.5.0 or earlier WILL NOT decode; DVT must rebuild.");
+        console.log("CC-48 round-2: IFraudProofVerifier.verify takes a leading bytes32");
+        console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians);");
+        console.log("      selector 0x61077735. Verifiers built for 4.5.0 or earlier WILL NOT");
+        console.log("      decode; DVT must rebuild AND prove domain binding (round-3 MEDIUM-2).");
+        console.log("CC-48 round-3: a queued case pins its verifier; rotating afterwards");
+        console.log("      cannot decide an already-open case. guardianSlashCases now returns");
+        console.log("      6 fields (…, address verifier) - SDK/DVT decoders must follow.");
         console.log("aggregator domainSeparator:");
         console.logBytes32(agg.domainSeparator());
     }

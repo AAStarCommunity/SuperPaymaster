@@ -138,6 +138,28 @@ contract DeployRepCreditSepolia is Script {
         require(registry.SUPER_PAYMASTER() == address(superPaymaster), "Registry/SP wiring");
         require(registry.isReputationSource(address(blsAggregator)), "BLS reputation source");
         require(registry.blsAggregator() == address(blsAggregator), "Registry/BLS wiring");
+        // CC-48 round-3: hard-check the build and the domain on a FRESH deploy, not just
+        // the wiring. A wrong build or a Registry/aggregator pair whose separators cannot
+        // agree produces a stack that looks wired and verifies nothing.
+        require(
+            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.7.0"),
+            "BLSAggregator is not 4.7.0"
+        );
+        require(blsAggregator.REGISTRY() == address(registry), "aggregator bound to another Registry");
+        require(
+            blsAggregator.domainSeparator() == registry.blsDomainSeparator(),
+            "domain separators disagree; no proof could ever verify"
+        );
+        require(
+            blsAggregator.domainSeparator()
+                == keccak256(
+                    abi.encode(
+                        blsAggregator.DOMAIN_NAME(), block.chainid, address(blsAggregator), address(registry)
+                    )
+                ),
+            "domain separator does not match the published schema"
+        );
+        require(blsAggregator.fraudProofVerifier() == address(0), "verifier must start dormant");
         require(blsAggregator.DVT_VALIDATOR() == address(dvtValidator), "BLS/DVT wiring");
         require(dvtValidator.BLS_AGGREGATOR() == address(blsAggregator), "DVT/BLS wiring");
         require(blsAggregator.defaultThreshold() == 3, "threshold != 3");

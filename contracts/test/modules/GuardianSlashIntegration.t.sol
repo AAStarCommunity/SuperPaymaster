@@ -87,7 +87,7 @@ contract GuardianSlashIntegrationTest is Test {
         assertFalse(bls.guardianSlashed(1, guardian));
         assertFalse(bls.guardianCaseResolved(1, guardian), "not settled");
         assertEq(bls.pendingGuardianSlashCount(guardian), 1, "still frozen");
-        (,, uint8 status,,) = bls.guardianSlashCases(1);
+        (,, uint8 status,,,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case still pending, not burned");
 
         // Governance fixes the authorization; the same case now executes.

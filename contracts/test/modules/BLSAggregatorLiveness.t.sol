@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Toggleable staking stub — per-validator amount can be flipped to
 ///         simulate exits / partial unlocks / slashes.
@@ -140,11 +141,20 @@ contract BLSAggregatorLivenessTest is Test {
         // BLS precompile mocks. G1ADD + G1MUL must succeed for stub keys to
         // pass _validateG1Point during register; G1MUL returning 128 zero
         // bytes is interpreted as r*P == O ⇒ in prime-order subgroup.
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3");
         vm.etch(address(0x0c), hex"60806000f3");
         vm.etch(address(0x0d), hex"6101006000f3");
         vm.etch(address(0x10), hex"60806000f3");
         vm.etch(address(0x11), hex"6101006000f3");
+        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+        // pairing precompile must answer before any registerBLSPublicKey call in this
+        // mocked-precompile harness. Real-pairing coverage of the same registrations
+        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         vm.startPrank(owner);
         registry = new MockRegistryToggleableBLS();
@@ -337,6 +347,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.6.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.7.0"));
     }
 }

@@ -3,11 +3,13 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/core/Registry.sol";
+import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
 
 interface IAggregatorDomain {
     function REGISTRY() external view returns (address);
     function domainSeparator() external view returns (bytes32);
     function version() external view returns (string memory);
+    function DOMAIN_NAME() external view returns (bytes32);
 }
 
 interface ITimelockBatch {
@@ -37,7 +39,7 @@ interface ITimelockBatch {
  *         proxy to 5.7.0. All three steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
- *   2. setBLSAggregator(BLSAggregator 4.6.0)
+ *   2. setBLSAggregator(BLSAggregator 4.7.0)
  *   3. setCreditPolicy(perProposalCap, totalCap, exposureBaseline, true)
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
@@ -53,14 +55,14 @@ interface ITimelockBatch {
  *
  * CC-48 round-2 migration constraints — read before scheduling:
  *
- *   - BLSAggregator is NOT upgradeable. 4.6.0 is a fresh deployment at a NEW address,
+ *   - BLSAggregator is NOT upgradeable. 4.7.0 is a fresh deployment at a NEW address,
  *     and the domain separator commits to that address, so EVERY in-flight proof
  *     signed against the old aggregator becomes unverifiable the moment step (2)
  *     lands. Drain the proposal queue first; do not schedule the batch while a
  *     reputation or slash proposal is awaiting submission.
  *   - Validator BLS keys do NOT migrate. `blsKeyOwner` and `_blsKeys` are per-contract
  *     state, and a proof-of-possession is now bound to (validator, aggregator, chain),
- *     so every validator must re-file a freshly signed PoP against 4.6.0. Run
+ *     so every validator must re-file a freshly signed PoP against 4.7.0. Run
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
@@ -80,13 +82,21 @@ interface ITimelockBatch {
  *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
- *   NEW_BLS_AGGREGATOR           BLSAggregator 4.6.0 (already deployed + wired)
+ *   NEW_BLS_AGGREGATOR           BLSAggregator 4.7.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
  *   CREDIT_EXPOSURE_BASELINE     aPNT wei, sum of existing users' credit limits
  *                                (computed off-chain from GlobalReputationUpdated)
+ *   OLD_BLS_AGGREGATOR           predecessor aggregator to preflight; 0 = first-ever
+ *                                deployment with no predecessor (REQUIRED, no default:
+ *                                forgetting it must fail loudly, not skip the check)
+ *   MIN_DISTINCT_KEYS (optional) override the distinct-active-key floor; defaults to the
+ *                                largest threshold the new aggregator itself configures
  *   TIMELOCK (optional)          if set, also print scheduleBatch/executeBatch calldata
- *   ALLOW_EOA_OWNER (optional)   escape hatch for local/anvil runs ONLY
+ *   ALLOW_EOA_OWNER (optional)   escape hatch, ENFORCED to chainid 31337 only
+ *
+ * Preflight requires an EIP-2537 (Prague) RPC: the weak-key scan recomputes g1*s and
+ * must not be able to report "clean" simply because it could not run.
  */
 contract UpgradeRegistryTo570 is Script {
     function run() external {
@@ -103,8 +113,16 @@ contract UpgradeRegistryTo570 is Script {
         console.log("current version     :", registry.version());
         console.log("current owner       :", owner);
 
-        // ---- governance gate (CC-48 MEDIUM-1) ----
+        // ---- governance gate (CC-48 MEDIUM-1 / round-3 MEDIUM-3) ----
+        // The escape hatch is chain-bound. Round-2 left it as a comment saying
+        // "local/anvil ONLY" with nothing enforcing it, which made the whole
+        // "governance owner must be a contract" gate opt-out on ANY chain — including
+        // the one it exists to protect. Anvil's 31337 is the only chain that may use it.
         bool allowEoa = vm.envOr("ALLOW_EOA_OWNER", false);
+        require(
+            !allowEoa || block.chainid == 31337,
+            "CC-48: ALLOW_EOA_OWNER is a local-chain (31337) escape hatch only"
+        );
         require(
             owner.code.length > 0 || allowEoa,
             "CC-48: Registry owner must be a Safe/TimelockController, not an EOA"
@@ -126,9 +144,46 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.6.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.6.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.7.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.7.0"
         );
+
+        // Byte-level domain agreement, checked HERE rather than printed for a human to
+        // eyeball after the fact. Registry derives its separator independently as
+        // keccak256(DOMAIN_NAME, chainid, blsAggregator, address(this)); recompute what
+        // it WILL be once step (2) lands and require it to equal the aggregator's own.
+        bytes32 expectedRegistrySeparator = keccak256(
+            abi.encode(IAggregatorDomain(newAggregator).DOMAIN_NAME(), block.chainid, newAggregator, proxy)
+        );
+        require(
+            expectedRegistrySeparator == IAggregatorDomain(newAggregator).domainSeparator(),
+            "CC-48: post-batch Registry domain would not equal the aggregator's; proofs could never verify"
+        );
+
+        // ---- CC-48 round-3 MEDIUM-4: validator-set preflight, enforced not suggested ----
+        // A fresh 4.7.0 starts with an EMPTY key table. Wiring it in before validators
+        // have re-filed their PoPs points every BLS-gated path at an aggregator with no
+        // signers — a real governance outage whose fix is another full timelock cycle.
+        uint256 requiredKeys = vm.envOr("MIN_DISTINCT_KEYS", BLSKeyScanLib.maxRequiredThreshold(newAggregator));
+        BLSKeyScanLib.ScanResult memory newScan = BLSKeyScanLib.requireHealthy(newAggregator, requiredKeys);
+        console.log("new aggregator active slots   :", newScan.activeSlots);
+        console.log("new aggregator distinct keys  :", newScan.distinctKeys);
+        console.log("required distinct keys        :", requiredKeys);
+
+        // The OLD aggregator, when one exists, is checked for two things: an unresolved
+        // guardian-slash case (whose freeze would be silently lifted by the cutover) and
+        // any duplicated/publicly-known key that must never be re-onboarded. Set
+        // OLD_BLS_AGGREGATOR=0 ONLY for a first-ever deployment with no predecessor.
+        address oldAggregator = vm.envAddress("OLD_BLS_AGGREGATOR");
+        if (oldAggregator != address(0)) {
+            BLSKeyScanLib.requireNoPendingCases(oldAggregator);
+            BLSKeyScanLib.requireNoTaintedKeyCarriedOver(oldAggregator, newAggregator);
+            console.log("old aggregator checked        :", oldAggregator);
+            console.log("  (note: an accused address that no longer holds a slot is not");
+            console.log("   enumerable on-chain -- cross-check GuardianSlashQueued events)");
+        } else {
+            console.log("OLD_BLS_AGGREGATOR = 0: declared first-ever deployment, no predecessor checks");
+        }
 
         vm.startBroadcast();
         Registry newImpl = new Registry();
@@ -181,7 +236,9 @@ contract UpgradeRegistryTo570 is Script {
         console.log("  registry.maxTotalCreditExposure()        ==", totalCap);
         console.log("  registry.totalCreditExposure()           ==", baseline);
         console.log("  registry.owner()                         ==", owner);
-        console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator(), i.e.");
+        console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator()");
+        console.log("     (pre-checked above by recomputing the post-batch value)");
+        console.log("     value:");
         console.logBytes32(IAggregatorDomain(newAggregator).domainSeparator());
         console.log("  every validator has re-filed a PoP against the new aggregator");
         console.log("  no guardian-slash case is left pending on the OLD aggregator");
