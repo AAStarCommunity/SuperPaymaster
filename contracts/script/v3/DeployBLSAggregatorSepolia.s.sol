@@ -16,7 +16,7 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.7.0 (A' commitment + bounded guardian exit + CC-48
+/// @notice Deploys BLSAggregator 4.8.0 (A' commitment + bounded guardian exit + CC-48
 ///         round-3 verifier pinning) to Sepolia,
 ///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
@@ -60,7 +60,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.7.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.8.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -72,7 +72,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
-        console.log("BLSAggregator 4.7.0 (A' + exit gate + pinned verifier) deployed at:", address(agg));
+        console.log("BLSAggregator 4.8.0 (A' + exit gate + frozen verdict) deployed at:", address(agg));
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
         console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
@@ -81,9 +81,14 @@ contract DeployBLSAggregatorSepolia is Script {
         console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians);");
         console.log("      selector 0x61077735. Verifiers built for 4.5.0 or earlier WILL NOT");
         console.log("      decode; DVT must rebuild AND prove domain binding (round-3 MEDIUM-2).");
-        console.log("CC-48 round-3: a queued case pins its verifier; rotating afterwards");
-        console.log("      cannot decide an already-open case. guardianSlashCases now returns");
-        console.log("      6 fields (…, address verifier) - SDK/DVT decoders must follow.");
+        console.log("CC-48 round-4: queueGuardianSlash FREEZES the verdict - guardiansHash +");
+        console.log("      fraudProofHash = keccak256(fraudProof). execute/retry re-check those");
+        console.log("      two and never call the verifier again, so a rotation, a proxy");
+        console.log("      implementation swap at the same address, or a selfdestruct cannot");
+        console.log("      re-judge an open case. guardianSlashCases now returns 7 fields");
+        console.log("      (guardiansHash, fraudProofHash, deadline, status, guardianCount,");
+        console.log("      resolvedCount, verifier) - SDK/DVT decoders must follow. The");
+        console.log("      executor MUST re-present the exact proof bytes (FraudProofMismatch).");
         console.log("aggregator domainSeparator:");
         console.logBytes32(agg.domainSeparator());
     }

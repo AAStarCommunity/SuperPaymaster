@@ -28,6 +28,45 @@ contract PragueStateMachineVerifier {
     }
 }
 
+/// @dev CC-48 round-4: the same stand-in, but behind a REAL delegatecall proxy so its
+///      answer can be flipped after a case is queued without its address or extcodehash
+///      moving. This is the shape the round-3 address-pinning defence could not see.
+contract PragueMutableVerifierProxy {
+    address public implementation;
+
+    constructor(address impl) {
+        implementation = impl;
+    }
+
+    function upgradeTo(address impl) external {
+        implementation = impl;
+    }
+
+    fallback() external payable {
+        address impl = implementation;
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let ok := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}
+
+contract PragueAlwaysTrueVerifierImpl {
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        return true;
+    }
+}
+
+contract PragueAlwaysFalseVerifierImpl {
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        return false;
+    }
+}
+
 /**
  * @title CC48PragueStateMachine
  * @notice CC-48 round-3 MEDIUM-5: real-EIP-2537 coverage for the state machines that,
@@ -256,7 +295,7 @@ contract CC48PragueStateMachine is Test {
         address[] memory accused = new address[](1);
         accused[0] = validators[4];
         agg.queueGuardianSlash(7301, accused, hex"73");
-        (,,,,, address pinned) = agg.guardianSlashCases(7301);
+        (,,,,,, address pinned) = agg.guardianSlashCases(7301);
         assertEq(pinned, address(verifier));
 
         // Fire the pre-armed rotation, then execute.
@@ -265,7 +304,7 @@ contract CC48PragueStateMachine is Test {
 
         agg.executeGuardianSlash(7301, accused, hex"73");
         assertEq(staking.getLockedStake(validators[4], ROLE_DVT), 0, "collusion stake taken in full");
-        (,, uint8 status,,,) = agg.guardianSlashCases(7301);
+        (,,, uint8 status,,,) = agg.guardianSlashCases(7301);
         assertEq(status, 2);
     }
 
@@ -300,6 +339,68 @@ contract CC48PragueStateMachine is Test {
         bytes32 h2 = _reputationHash(7313, users, scores, 2);
         agg.verifyAndExecute(7313, address(0), 0, users, scores, 2, bytes32(0), _proofFromSlots(h2));
         assertEq(registry.globalReputation(address(0xC0F3)), 20);
+    }
+
+    /// CC-48 round-4, on a real deployment: the verifier is a genuine delegatecall proxy.
+    /// The case is queued while it answers true, then its implementation is swapped — same
+    /// address, same extcodehash — to one that answers false. Under round-3 (re-verify
+    /// against the pinned ADDRESS) this froze the case until expiry and released the
+    /// colluder. With the verdict frozen the slash still lands, and the slashed guardian is
+    /// genuinely ejected from the next REAL aggregate proof.
+    function test_Prague_MutableProxyVerifierCannotUndoAQueuedCase() public {
+        _skipWithoutPrague();
+        address alwaysTrue = address(new PragueAlwaysTrueVerifierImpl());
+        address alwaysFalse = address(new PragueAlwaysFalseVerifierImpl());
+        PragueMutableVerifierProxy proxy = new PragueMutableVerifierProxy(alwaysTrue);
+
+        agg.proposeFraudProofVerifier(address(proxy));
+        vm.warp(block.timestamp + agg.VERIFIER_ROTATION_DELAY());
+        agg.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](1);
+        accused[0] = validators[2];
+        agg.queueGuardianSlash(7331, accused, hex"76");
+        (, bytes32 frozenProof,,,,, address recorded) = agg.guardianSlashCases(7331);
+        assertEq(frozenProof, keccak256(hex"76"), "verdict frozen at queue time");
+        assertEq(recorded, address(proxy), "verifier recorded for audit only");
+
+        bytes32 codehashBefore;
+        address proxyAddr = address(proxy);
+        assembly { codehashBefore := extcodehash(proxyAddr) }
+        proxy.upgradeTo(alwaysFalse);
+        bytes32 codehashAfter;
+        assembly { codehashAfter := extcodehash(proxyAddr) }
+        assertEq(codehashAfter, codehashBefore, "the upgrade is invisible to extcodehash");
+
+        // Substituting the proof is still refused...
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.FraudProofMismatch.selector, uint256(7331), keccak256(hex"76"), keccak256(hex"77")
+            )
+        );
+        agg.executeGuardianSlash(7331, accused, hex"77");
+
+        // ...and the real proof still executes despite the flipped implementation.
+        agg.executeGuardianSlash(7331, accused, hex"76");
+        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), 0, "collusion stake taken in full");
+        (,,, uint8 status,,,) = agg.guardianSlashCases(7331);
+        assertEq(status, 2);
+
+        // And the ejection is real: slot 3's lock is now below minStake, so the next
+        // genuine aggregate signature that includes it is refused during reconstruction.
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xC0F4), 20);
+        bytes32 h = _reputationHash(7332, users, scores, 1);
+        bytes memory proofWithSlashed = _proof(h, 3);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.SlotValidatorStakeBelowMinimum.selector,
+                uint8(3),
+                validators[2],
+                uint256(0),
+                DVT_STAKE
+            )
+        );
+        agg.verifyAndExecute(7332, address(0), 0, users, scores, 1, bytes32(0), proofWithSlashed);
     }
 
     /// A queued case freezes the accused guardian's ROLE_DVT exit end-to-end, through

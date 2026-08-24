@@ -333,7 +333,7 @@ contract CC48FraudProofDomainTest is Test {
 
         aggA.queueGuardianSlash(99, g, hex"01");
 
-        (, , uint8 status, , ,) = aggA.guardianSlashCases(99);
+        (, , , uint8 status, , ,) = aggA.guardianSlashCases(99);
         assertEq(status, 1, "case queued => verifier saw the digest it was bound to");
     }
 

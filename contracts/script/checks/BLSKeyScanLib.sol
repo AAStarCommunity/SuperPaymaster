@@ -44,7 +44,7 @@ interface IAggregatorKeyScan {
  *         stack was found in, and it is indistinguishable from a legitimate key by
  *         shape alone.
  *
- *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.7.0 starts with
+ *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.8.0 starts with
  *         an EMPTY key table. Wiring it into Registry before validators have re-filed
  *         their PoPs points the reputation / blacklist paths at an aggregator with no
  *         signers: every proposal reverts with InsufficientConsensus until onboarding

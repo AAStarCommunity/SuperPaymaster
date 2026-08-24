@@ -175,5 +175,6 @@ Solidity 0.8.33, optimizer enabled (10000 runs), via_ir = true, EVM target: canc
 - Any change to a public ABI, to a struct returned by a public getter, or to the storage
   layout requires a `version()` bump, a regenerated `abis/*.json`, and a note to the
   downstream repos (`repo:dvt`, `repo:sdk`). Current record:
-  `docs/security/CC48-round3-changes.md`
+  `docs/security/CC48-round4-changes.md` (supersedes §1.1 of
+  `docs/security/CC48-round3-changes.md`)
 - EntryPoint v0.7 address: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`

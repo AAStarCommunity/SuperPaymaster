@@ -14,6 +14,16 @@ for this one.
 
 ### 1.1 HIGH — a queued guardian-slash case now pins its verifier
 
+> **SUPERSEDED by round-4** — see [`CC48-round4-changes.md`](./CC48-round4-changes.md).
+> Pinning the verifier ADDRESS does not survive an upgradeable verifier: a UUPS /
+> Transparent / Beacon proxy keeps the same address *and* the same `extcodehash` across an
+> implementation swap, so the timing attack below still works one indirection deeper.
+> `BLSAggregator-4.8.0` freezes the VERDICT instead — `fraudProofHash =
+> keccak256(fraudProof)` alongside `guardiansHash` — and `executeGuardianSlash` no longer
+> calls a verifier at all. `GuardianSlashVerifierGone` and `GuardianSlashVerifierPinned`
+> are gone; `verifier` in the struct is audit-only. The rest of this section is kept as the
+> record of what round-3 shipped and why it was not sufficient.
+
 **The defect.** Round-2 introduced `VERIFIER_ROTATION_DELAY` (= `GUARDIAN_SLASH_CASE_WINDOW`
 = 4 days) and claimed it made a queued case immune to a governance verifier swap. It did
 not. The delay bounds `propose → apply`. Nothing bounds `matured → apply`, and
@@ -96,7 +106,7 @@ which is the duplicate-key condition itself.
 |---|---|
 | `newAggregator.REGISTRY() == proxy` | domains can never agree; reputation path halts |
 | recomputed post-batch Registry separator `==` aggregator's | same, at byte level, checked instead of printed |
-| `version() == BLSAggregator-4.7.0` | wrong build wired in |
+| `version() == BLSAggregator-4.7.0` (round-4: `4.8.0`) | wrong build wired in |
 | distinct **active** keys `>=` max of `defaultThreshold`, `minThreshold`, `slashThresholds[0..2]` | cutting over to an aggregator with too few signers → every BLS path reverts until onboarding finishes; undoing costs another timelock cycle |
 | no duplicate keys | N slots on one key ⇒ pkAgg = N·pk ⇒ one sk holder signs an N-of-N quorum |
 | no publicly-known scalar keys | the exact state the RepCredit experiment stack was in |
@@ -151,14 +161,16 @@ also now states what actually ships: `deploy-core` never sets `FOUNDRY_PROFILE`,
 
 | Artifact | Before | After | Notes |
 |---|---|---|---|
-| `BLSAggregator.version()` | `BLSAggregator-4.6.0` | `BLSAggregator-4.7.0` | not upgradeable — fresh deployment |
+| `BLSAggregator.version()` | `BLSAggregator-4.6.0` | `BLSAggregator-4.7.0` (round-4: `4.8.0`) | not upgradeable — fresh deployment |
 | `Registry.version()` | `Registry-5.7.0` | `Registry-5.7.0` | unchanged this round |
 | Registry storage layout | 28 slots | 28 slots | unchanged; `scripts/check_storage_layout.py` green |
 | SuperPaymaster | untouched | untouched | — |
 
 ### BLSAggregator ABI delta (all additive except one struct getter)
 
-**BREAKING for decoders:** `guardianSlashCases(uint256)` now returns **6** fields, not 5:
+**BREAKING for decoders:** `guardianSlashCases(uint256)` now returns **6** fields, not 5
+(round-4 makes it **7**, with `fraudProofHash` inserted at index 1 — see the round-4 doc;
+decoders should skip straight to the 7-field shape):
 
 ```
 (bytes32 guardiansHash, uint64 deadline, uint8 status,
@@ -173,8 +185,10 @@ Added:
 
 - `function releaseKeyBinding(bytes32 keyHash) external` (owner-only)
 - `event BLSKeyBindingReleased(bytes32 indexed keyHash, address indexed previousOwner)`
-- `event GuardianSlashVerifierPinned(uint256 indexed fraudProofId, address indexed verifier)`
-- `error GuardianSlashVerifierGone(uint256 fraudProofId, address verifier)`
+- `event GuardianSlashVerifierPinned(...)` — **removed again in round-4**, replaced by
+  `GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)`
+- `error GuardianSlashVerifierGone(...)` — **removed in round-4**; the condition can no
+  longer block execution
 - `error VerifierNotContract(address verifier)`
 - `error KeyBindingStillActive(bytes32 keyHash, address boundTo)`
 - `error EmptyProposalNotSupported()`
@@ -245,7 +259,7 @@ cutting over — the freeze does not migrate.
 | Item | Owner | State |
 |---|---|---|
 | `OverIssueFraudProofVerifier` must genuinely bind `domainDigest`, proven by `FraudProofVerifierConformance.assertDomainBound` in the DVT repo's CI | `repo:dvt` | **open** — `fraudProofVerifier` stays dormant (`address(0)`) in production until this lands |
-| `guardianSlashCases` 5→6 tuple in decoders / ABI pin | `repo:sdk` | **open** |
+| `guardianSlashCases` 5→6 tuple in decoders / ABI pin (round-4: 6→**7**) | `repo:sdk` | **open** |
 | `fraudProofId` id-space re-open semantics; CC-29 auto-jail boundary | `repo:dvt` | still unanswered from round-2 |
 
 SP cannot enforce the first item from this repo — it can only make it a one-line import,

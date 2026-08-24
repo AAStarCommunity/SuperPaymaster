@@ -39,7 +39,7 @@ interface ITimelockBatch {
  *         proxy to 5.7.0. All three steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
- *   2. setBLSAggregator(BLSAggregator 4.7.0)
+ *   2. setBLSAggregator(BLSAggregator 4.8.0)
  *   3. setCreditPolicy(perProposalCap, totalCap, exposureBaseline, true)
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
@@ -55,14 +55,14 @@ interface ITimelockBatch {
  *
  * CC-48 round-2 migration constraints — read before scheduling:
  *
- *   - BLSAggregator is NOT upgradeable. 4.7.0 is a fresh deployment at a NEW address,
+ *   - BLSAggregator is NOT upgradeable. 4.8.0 is a fresh deployment at a NEW address,
  *     and the domain separator commits to that address, so EVERY in-flight proof
  *     signed against the old aggregator becomes unverifiable the moment step (2)
  *     lands. Drain the proposal queue first; do not schedule the batch while a
  *     reputation or slash proposal is awaiting submission.
  *   - Validator BLS keys do NOT migrate. `blsKeyOwner` and `_blsKeys` are per-contract
  *     state, and a proof-of-possession is now bound to (validator, aggregator, chain),
- *     so every validator must re-file a freshly signed PoP against 4.7.0. Run
+ *     so every validator must re-file a freshly signed PoP against 4.8.0. Run
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
@@ -82,7 +82,7 @@ interface ITimelockBatch {
  *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
- *   NEW_BLS_AGGREGATOR           BLSAggregator 4.7.0 (already deployed + wired)
+ *   NEW_BLS_AGGREGATOR           BLSAggregator 4.8.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
  *   CREDIT_EXPOSURE_BASELINE     aPNT wei, sum of existing users' credit limits
@@ -144,8 +144,8 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.7.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.7.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.8.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.8.0"
         );
 
         // Byte-level domain agreement, checked HERE rather than printed for a human to
@@ -161,7 +161,7 @@ contract UpgradeRegistryTo570 is Script {
         );
 
         // ---- CC-48 round-3 MEDIUM-4: validator-set preflight, enforced not suggested ----
-        // A fresh 4.7.0 starts with an EMPTY key table. Wiring it in before validators
+        // A fresh 4.8.0 starts with an EMPTY key table. Wiring it in before validators
         // have re-filed their PoPs points every BLS-gated path at an aggregator with no
         // signers — a real governance outage whose fix is another full timelock cycle.
         uint256 requiredKeys = vm.envOr("MIN_DISTINCT_KEYS", BLSKeyScanLib.maxRequiredThreshold(newAggregator));

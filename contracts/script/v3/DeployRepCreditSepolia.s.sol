@@ -142,8 +142,8 @@ contract DeployRepCreditSepolia is Script {
         // the wiring. A wrong build or a Registry/aggregator pair whose separators cannot
         // agree produces a stack that looks wired and verifies nothing.
         require(
-            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.7.0"),
-            "BLSAggregator is not 4.7.0"
+            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.8.0"),
+            "BLSAggregator is not 4.8.0"
         );
         require(blsAggregator.REGISTRY() == address(registry), "aggregator bound to another Registry");
         require(

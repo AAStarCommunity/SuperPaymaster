@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
-/// @notice EXACT ABI of the verifier seam as of BLSAggregator-4.7.0. Copy this
+/// @notice EXACT ABI of the verifier seam as of BLSAggregator-4.8.0. Copy this
 ///         interface verbatim into the DVT repo — do not re-derive it by hand.
 ///         Canonical selector: `verify(bytes32,uint256,address[],bytes)` = 0x61077735.
 interface IFraudProofVerifierConformance {

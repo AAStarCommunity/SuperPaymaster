@@ -79,7 +79,7 @@ contract CC48KeyScanPreflight is Test {
     }
 
     /// An empty (or under-populated) fresh deployment must fail BEFORE it is wired into
-    /// Registry. This is the governance-outage case: a 4.7.0 starts with no keys, and
+    /// Registry. This is the governance-outage case: a 4.8.0 starts with no keys, and
     /// cutting over first means every BLS-gated path reverts until onboarding finishes.
     function test_UnderPopulatedFreshDeploymentFailsTheGate() public {
         _skipWithoutPrague();

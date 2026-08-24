@@ -116,6 +116,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     struct GuardianSlashCase {
         bytes32 guardiansHash;
+        // CC-48 round-4 HIGH: the VERDICT is frozen, not the judge. `queueGuardianSlash`
+        // runs the verifier exactly once and stores keccak256(fraudProof) here; every
+        // later execute/retry re-presents the same proof bytes and is checked against
+        // this hash instead of re-asking the verifier.
+        //
+        // Round-3 froze `verifier` (the address) and re-verified against it. That is not
+        // enough: a UUPS/Transparent/Beacon verifier keeps its address AND its
+        // extcodehash across an implementation swap, so governance (or a compromised
+        // proxy admin) could still flip an already-queued case to `false` and run it out
+        // to expiry — the exact round-3 timing attack, one indirection deeper. No
+        // on-chain check on the *address* (code.length, extcodehash, EXTCODECOPY) can
+        // prove the semantics behind it are immutable, so the address stopped being the
+        // thing we rely on. Freezing the verdict also makes the case immune to the
+        // verifier selfdestructing, being upgraded to a reverting implementation, or
+        // simply going down between a partial execution and its retry.
+        bytes32 fraudProofHash;
         uint64 deadline;
         uint8 status; // 0=none, 1=pending, 2=executed, 3=expired
         // CC-48 HIGH-2: a case is only "executed" once EVERY accused guardian has
@@ -123,14 +139,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // case stays retryable instead of collapsing into an all-or-nothing batch.
         uint16 guardianCount;
         uint16 resolvedCount;
-        // CC-48 round-3 HIGH-1: the fraud-proof verifier PINNED at queue time.
-        // `executeGuardianSlash` re-verifies against THIS address, never against the
-        // live `fraudProofVerifier`. Without the snapshot, a rotation that was
-        // proposed long before the case (and left matured-but-unapplied — the delay
-        // only bounds propose->apply, nothing forces apply to be timely) could be
-        // fired the block after a case is queued, swapping in an always-false
-        // verifier and running the case out to expiry. The delay made the rotation
-        // slow; only the snapshot makes the queued case immune to it.
+        // AUDIT ONLY as of round-4: the verifier that authorized this case, recorded so
+        // an observer can attribute the verdict. Execution no longer calls it, and no
+        // code path reads it for a decision — a rotation, upgrade, or selfdestruct after
+        // queueing changes nothing about the case's fate.
         address verifier;
     }
 
@@ -353,7 +365,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.7.0";
+        return "BLSAggregator-4.8.0";
     }
 
 
@@ -400,8 +412,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
     event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
     event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
-    /// @notice CC-48 round-3 HIGH-1: the verifier a queued case is permanently bound to.
-    event GuardianSlashVerifierPinned(uint256 indexed fraudProofId, address indexed verifier);
+    /// @notice CC-48 round-4 HIGH: the verdict a queued case is permanently bound to.
+    ///         `fraudProofHash` is the only thing execution checks; `verifier` is the
+    ///         audit trail of who authorized it, not an authority consulted again.
+    event GuardianSlashJudgmentFrozen(
+        uint256 indexed fraudProofId, address indexed verifier, bytes32 fraudProofHash, bytes32 guardiansHash
+    );
     /// @notice A case whose accused guardians have all been individually resolved.
     event GuardianSlashCaseResolved(uint256 indexed fraudProofId);
     /// @notice A single guardian's slash reverted on the staking side. The case stays
@@ -503,14 +519,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
     error NoPendingVerifierRotation();
     error VerifierRotationNotReady(uint256 readyAt);
-    /// @dev CC-48 round-3 HIGH-1: the verifier snapshotted when the case was queued no
-    ///      longer holds code (selfdestructed / never was a contract). Fail CLOSED —
-    ///      the case cannot be executed against a different verifier, and must be left
-    ///      to expire. Silently falling back to the live `fraudProofVerifier` would
-    ///      re-open exactly the retroactive-swap hole the snapshot closes.
-    error GuardianSlashVerifierGone(uint256 fraudProofId, address verifier);
-    /// @dev CC-48 round-3: a verifier must be a contract at queue time; snapshotting an
-    ///      EOA would pin a case to something that can never verify.
+    /// @dev CC-48 round-4 HIGH: `executeGuardianSlash` was handed proof bytes that do not
+    ///      hash to the ones the verifier actually approved at queue time. The frozen
+    ///      verdict covers exactly one (guardian set, proof) pair; substituting either
+    ///      half is a different case and must be queued as one.
+    error FraudProofMismatch(uint256 fraudProofId, bytes32 expected, bytes32 provided);
+    /// @dev CC-48 round-3: a verifier must be a contract at queue time; asking an EOA
+    ///      would "verify" against empty returndata (i.e. false) or worse, succeed
+    ///      vacuously if the decode ever loosened.
     error VerifierNotContract(address verifier);
     /// @dev CC-48 round-3: the key-to-owner binding may only be released while NO active
     ///      slot holds that key. Otherwise releasing it would let a second address claim
@@ -1604,9 +1620,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ) external nonReentrant {
         address verifier = fraudProofVerifier;
         if (verifier == address(0)) revert FraudProofVerifierNotSet();
-        // A snapshot is only meaningful if it points at code; an EOA verifier would pin
-        // the case to something that can never verify (and `.verify` on an EOA returns
-        // empty data, which would decode as false anyway).
+        // The single verify below is the ONLY time this address is ever asked about this
+        // case, so it must be a contract: a call to an EOA succeeds with empty returndata,
+        // and nothing about that outcome should be allowed near a verdict that is then
+        // frozen for the life of the case.
         if (verifier.code.length == 0) revert VerifierNotContract(verifier);
         if (fraudProofId == 0) revert InvalidProposalId();
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
@@ -1621,21 +1638,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         uint64 deadline = uint64(block.timestamp + GUARDIAN_SLASH_CASE_WINDOW);
+        // CC-48 round-4 HIGH: freeze the VERDICT here — the (guardian set, proof) pair the
+        // verifier just approved. From this line on the case's fate depends only on state
+        // in this contract, so nothing that happens to the verifier afterwards (rotation,
+        // proxy implementation swap at the same address and codehash, selfdestruct, an
+        // outage) can re-judge it. The verifier address is kept purely for attribution.
+        bytes32 proofHash = keccak256(fraudProof);
         slashCase.guardiansHash = guardiansHash;
+        slashCase.fraudProofHash = proofHash;
         slashCase.deadline = deadline;
         slashCase.status = 1;
         slashCase.guardianCount = uint16(guiltyGuardians.length);
-        // CC-48 round-3 HIGH-1: pin the verifier that authorized this case. Every later
-        // execute/retry re-verifies against THIS address, so a verifier rotation — even
-        // one that was proposed months earlier, matured, and is applied one block after
-        // the queue — cannot retroactively invalidate a case that is already open.
         slashCase.verifier = verifier;
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
             unchecked { ++i; }
         }
         emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
-        emit GuardianSlashVerifierPinned(fraudProofId, verifier);
+        emit GuardianSlashJudgmentFrozen(fraudProofId, verifier, proofHash, guardiansHash);
     }
 
     /// @notice Release an unexecuted case after its bounded pending window.
@@ -1684,20 +1704,23 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           from BLS signer masks; any queued slash case freezes consumption.
     ///           GuardianSlashSkipped remains for legacy/direct staking drift, but
     ///           the coordinated Registry path cannot release a queued guardian.
-    ///         - Permissionless CALL, gated by the verifier: fraud validity — not
-    ///           caller identity — authorizes the slash. This deliberately bypasses
-    ///           the accused DVT quorum, which is the collusion set and would never
-    ///           slash itself (the circular-dependency escape).
+    ///         - Permissionless CALL, gated by the verdict frozen at queue time: fraud
+    ///           validity — not caller identity — authorizes the slash. This deliberately
+    ///           bypasses the accused DVT quorum, which is the collusion set and would
+    ///           never slash itself (the circular-dependency escape).
     ///         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg
     ///           auto-ejects the guardian on the next verify. No 30% cap: proven
     ///           collusion must lose eligibility, not merely pay a fee — but this
     ///           holds for a guardian whose case is queued inside the configured
     ///           exit-notice window. The operator-path cap protects honest operators
     ///           from one bad epoch — a different threat model.
-    ///         - fail-closed: reverts until a verifier is wired.
+    ///         - fail-closed: no case can exist until a verifier is wired, because
+    ///           `queueGuardianSlash` — the only way to open one — reverts without it.
     /// @param  fraudProofId    Unique id of the fraud proof (own id-space; replay-guarded).
-    /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier).
-    /// @param  fraudProof      Opaque proof bytes interpreted solely by the verifier.
+    /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier at
+    ///                         queue time); must hash to the case's `guardiansHash`.
+    /// @param  fraudProof      The SAME proof bytes the verifier approved at queue time;
+    ///                         checked against `fraudProofHash`, not re-interpreted here.
     function executeGuardianSlash(
         uint256 fraudProofId,
         address[] calldata guiltyGuardians,
@@ -1708,37 +1731,35 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
-        // CC-48 round-3 HIGH-1: the verifier is the one PINNED at queue time, NOT the
-        // live `fraudProofVerifier`. Reading the live value made the case's fate depend
-        // on whoever pressed `applyFraudProofVerifier` — permissionless, and satisfiable
-        // by a rotation that had been sitting matured-but-unapplied since before the case
-        // existed. `VERIFIER_ROTATION_DELAY` bounds propose->apply; nothing bounds
-        // matured->apply, so the delay alone never gave the property it claimed.
-        address verifier = slashCase.verifier;
-        if (verifier == address(0)) revert FraudProofVerifierNotSet();
-        // Fail CLOSED, and do NOT silently substitute the current verifier: if the pinned
-        // one is gone the case must expire, not be re-judged by a different authority.
-        if (verifier.code.length == 0) revert GuardianSlashVerifierGone(fraudProofId, verifier);
         if (block.timestamp > slashCase.deadline) {
             revert GuardianSlashCaseExpiredError(fraudProofId, slashCase.deadline);
         }
+        // CC-48 round-4 HIGH: the case is decided by the verdict frozen at queue time, and
+        // the ONLY thing execution re-checks is that the caller re-presents exactly the
+        // (guardian set, proof) pair that verdict covers. There is no external verifier
+        // call on this path at all.
+        //
+        // Round-3 re-verified against the address pinned at queue time. That closed the
+        // rotation variant but not the general one: an upgradeable verifier (UUPS /
+        // Transparent / Beacon) survives an implementation swap with the SAME address and
+        // the SAME extcodehash, so a queued case could still be flipped to `false` after
+        // the fact and starved to expiry. `code.length`, an address snapshot and a plain
+        // extcodehash all fail to witness "the semantics behind this address did not
+        // change", so none of them can carry the property. Freezing the verdict removes
+        // the dependency instead of trying to constrain it — and as a bonus a verifier
+        // that selfdestructs, reverts, or is simply down can no longer strand a case.
         if (_validateGuardianSet(guiltyGuardians) != slashCase.guardiansHash) {
             revert GuardianSetMismatch(fraudProofId);
+        }
+        bytes32 providedProofHash = keccak256(fraudProof);
+        if (providedProofHash != slashCase.fraudProofHash) {
+            revert FraudProofMismatch(fraudProofId, slashCase.fraudProofHash, providedProofHash);
         }
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
 
-        // Verify once (view): the verifier authorizes this (proof, guardians) set.
-        // Consumption is tracked per guardian below, NOT by a single global id here —
-        // so an already-exited co-signer can never burn the proof for the others.
-        if (
-            !IFraudProofVerifier(verifier).verify(
-                fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof
-            )
-        ) {
-            revert InvalidFraudProof(fraudProofId);
-        }
-
+        // Consumption is tracked per guardian below, NOT by a single global id — so an
+        // already-exited co-signer can never burn the proof for the others.
         bytes32 roleDvt = keccak256("DVT");
 
         // CC-48 HIGH-2: advance guardian-by-guardian. Pre-fix this loop marked the

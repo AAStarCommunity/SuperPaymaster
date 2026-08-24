@@ -50,6 +50,62 @@ contract CC48MockFraudVerifier {
     function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return valid; }
 }
 
+// ---------------------------------------------------------------------
+// CC-48 round-4 — a REAL upgradeable verifier, not a mock with a flag.
+//
+// The round-3 defence snapshotted the verifier ADDRESS and re-verified against it.
+// These three contracts are the counterexample: a genuine delegatecall proxy whose
+// address AND extcodehash are constant across an implementation swap. Nothing the
+// aggregator can observe about the address distinguishes the honest state from the
+// post-upgrade one — which is why the verdict, not the judge, has to be frozen.
+// ---------------------------------------------------------------------
+
+contract CC48AlwaysTrueVerifierImpl {
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        return true;
+    }
+}
+
+contract CC48AlwaysFalseVerifierImpl {
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        return false;
+    }
+}
+
+contract CC48RevertingVerifierImpl {
+    error VerifierIsDown();
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        revert VerifierIsDown();
+    }
+}
+
+/// @dev Minimal UUPS-shaped proxy: `verify` reaches the implementation through the
+///      fallback's delegatecall, so the proxy's own runtime code (and therefore its
+///      extcodehash) never changes when `upgradeTo` is called.
+contract CC48UpgradeableVerifierProxy {
+    address public implementation;
+
+    constructor(address impl) {
+        implementation = impl;
+    }
+
+    function upgradeTo(address impl) external {
+        implementation = impl;
+    }
+
+    fallback() external payable {
+        address impl = implementation;
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let ok := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}
+
 // =====================================================================
 // HIGH-1 — protocol-wide outstanding credit-exposure budget
 // =====================================================================
@@ -458,7 +514,7 @@ contract CC48ExitNoticeTest is Test {
         vm.prank(owner);
         bls.proposeFraudProofVerifier(address(evil));
 
-        (, uint64 caseDeadline,,,,) = bls.guardianSlashCases(7);
+        (,, uint64 caseDeadline,,,,) = bls.guardianSlashCases(7);
         assertEq(uint256(caseDeadline), queuedAt + bls.GUARDIAN_SLASH_CASE_WINDOW());
         assertGe(
             uint256(bls.pendingFraudProofVerifierReadyAt()),
@@ -563,7 +619,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertTrue(bls.guardianSlashed(1, g1));
         assertFalse(bls.guardianSlashed(1, g2));
 
-        (,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(1);
+        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case stays pending, not silently executed");
         assertEq(resolved, 1);
 
@@ -578,7 +634,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.executeGuardianSlash(1, accused, hex"01");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
         assertEq(staking.getLockedStake(g2, ROLE_DVT), 0);
-        (,, status,, resolved,) = bls.guardianSlashCases(1);
+        (,,, status,, resolved,) = bls.guardianSlashCases(1);
         assertEq(status, 2, "case resolved once every guardian settled");
         assertEq(resolved, 2);
     }
@@ -625,7 +681,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.requestGuardianExit();
         bls.queueGuardianSlash(3, accused, hex"03");
 
-        (, uint64 deadline,,,,) = bls.guardianSlashCases(3);
+        (,, uint64 deadline,,,,) = bls.guardianSlashCases(3);
         (, uint64 expiresAt) = bls.guardianExitRequests(g1);
         // NOTE: read these into memory BEFORE any vm.warp — via-IR happily CSEs
         // block.timestamp across a cheatcode it cannot see.
@@ -667,7 +723,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
         assertFalse(bls.guardianSlashed(4, g1), "nothing was taken from g1");
         assertTrue(bls.guardianSlashed(4, g2), "g2 was still slashed under the same proof");
-        (,, uint8 status,,,) = bls.guardianSlashCases(4);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(4);
         assertEq(status, 2);
     }
 
@@ -717,7 +773,7 @@ contract CC48GuardianSlashRetryTest is Test {
         address[] memory accused = new address[](1);
         accused[0] = g1;
         bls.queueGuardianSlash(10, accused, hex"10");
-        (,,,,, address pinned) = bls.guardianSlashCases(10);
+        (,,,,,, address pinned) = bls.guardianSlashCases(10);
         assertEq(pinned, address(verifier), "case pinned the verifier that authorized it");
 
         // One block later: fire the pre-armed rotation. Permissionless, and legitimate
@@ -728,7 +784,7 @@ contract CC48GuardianSlashRetryTest is Test {
         // Pre-fix this reverted InvalidFraudProof and kept doing so until expiry.
         bls.executeGuardianSlash(10, accused, hex"10");
         assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "the colluder was slashed under the pinned verifier");
-        (,, uint8 status,,,) = bls.guardianSlashCases(10);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(10);
         assertEq(status, 2, "case resolved");
     }
 
@@ -760,12 +816,12 @@ contract CC48GuardianSlashRetryTest is Test {
         // The case deadline has NOT passed (window > rotation delay is not assumed;
         // assert it, because the retry has to be reachable for this test to mean
         // anything).
-        (, uint64 deadline,,,,) = bls.guardianSlashCases(11);
+        (,, uint64 deadline,,,,) = bls.guardianSlashCases(11);
         assertLe(block.timestamp, uint256(deadline), "retry window still open");
 
         bls.executeGuardianSlash(11, accused, hex"11");
         assertEq(bls.pendingGuardianSlashCount(g2), 0, "retry settled g2 under the pinned verifier");
-        (,, uint8 status,,,) = bls.guardianSlashCases(11);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(11);
         assertEq(status, 2);
     }
 
@@ -782,7 +838,7 @@ contract CC48GuardianSlashRetryTest is Test {
         vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
         bls.applyFraudProofVerifier();
 
-        (, uint64 rawDeadline,,,,) = bls.guardianSlashCases(12);
+        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(12);
         uint256 caseDeadline = uint256(rawDeadline);
         vm.warp(caseDeadline + 1);
         vm.expectRevert(
@@ -794,53 +850,57 @@ contract CC48GuardianSlashRetryTest is Test {
 
         bls.expireGuardianSlashCase(12, accused);
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry releases the freeze");
-        (,, uint8 status,,,) = bls.guardianSlashCases(12);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(12);
         assertEq(status, 3);
     }
 
-    /// A case opened AFTER a rotation must use the NEW verifier — pinning is per case,
-    /// not a permanent freeze of the first verifier ever wired.
-    function test_ANewCaseAfterRotationPinsTheNewVerifier() public {
+    /// The LIVE verifier is the authority for opening a case — that much is unchanged.
+    /// What changed in round-4 is that its authority ends the moment the case is queued:
+    /// the audit field records who approved it, and a later `setValid(false)` on that very
+    /// verifier cannot reach back into the open case.
+    function test_ANewCaseAfterRotationRecordsTheNewVerifierAndThenIgnoresIt() public {
         CC48MockFraudVerifier next = new CC48MockFraudVerifier();
         bls.proposeFraudProofVerifier(address(next));
         vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
         bls.applyFraudProofVerifier();
 
+        // The new verifier really is the gate at QUEUE time: while it rejects, no case
+        // can be opened at all.
         address[] memory accused = new address[](1);
         accused[0] = g1;
-        bls.queueGuardianSlash(13, accused, hex"13");
-        (,,,,, address pinned) = bls.guardianSlashCases(13);
-        assertEq(pinned, address(next), "the case opened under the new verifier is pinned to it");
-
-        // And the new verifier really is the authority: make it reject, and the
-        // execution fails even though the OLD one would have said yes.
         next.setValid(false);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(13)));
+        bls.queueGuardianSlash(13, accused, hex"13");
+
+        next.setValid(true);
+        bls.queueGuardianSlash(13, accused, hex"13");
+        (,,,,,, address recorded) = bls.guardianSlashCases(13);
+        assertEq(recorded, address(next), "the case records the verifier that approved it");
+
+        // ...and now that the verdict is frozen, the same verifier flipping to reject is
+        // simply not consulted.
+        next.setValid(false);
         bls.executeGuardianSlash(13, accused, hex"13");
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "frozen verdict survives the verifier's change of mind");
     }
 
-    /// If the pinned verifier stops being a contract, fail CLOSED — do NOT silently
-    /// re-judge the case under whatever verifier happens to be live. A case is either
-    /// decided by the authority that opened it or not at all.
-    function test_ExecutionFailsClosedWhenThePinnedVerifierIsGone() public {
+    /// A verifier that selfdestructs / is wiped must NOT be able to strand a queued case.
+    /// Round-3 failed closed here (revert until expiry, accused released); with the verdict
+    /// frozen there is nothing left to fail on, so the slash still lands.
+    function test_ExecutionSurvivesThePinnedVerifierDisappearing() public {
         address[] memory accused = new address[](1);
         accused[0] = g1;
         bls.queueGuardianSlash(14, accused, hex"14");
 
-        // The live verifier would happily approve — the point is that it is not asked.
         assertEq(bls.fraudProofVerifier(), address(verifier));
-        vm.etch(address(verifier), hex"");
+        vm.etch(address(verifier), hex""); // selfdestruct / wipe
+        assertEq(address(verifier).code.length, 0, "verifier really is gone");
 
-        vm.expectRevert(
-            abi.encodeWithSelector(BLSAggregator.GuardianSlashVerifierGone.selector, uint256(14), address(verifier))
-        );
         bls.executeGuardianSlash(14, accused, hex"14");
-
-        // The freeze stays until the case expires normally; nothing is silently lost.
-        assertEq(bls.pendingGuardianSlashCount(g1), 1);
-        vm.warp(block.timestamp + bls.GUARDIAN_SLASH_CASE_WINDOW() + 1);
-        bls.expireGuardianSlashCase(14, accused);
-        assertEq(bls.pendingGuardianSlashCount(g1), 0);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "slash lands without the verifier");
+        assertEq(bls.pendingGuardianSlashCount(g1), 0, "freeze released by execution, not by expiry");
+        (,,, uint8 status,,,) = bls.guardianSlashCases(14);
+        assertEq(status, 2, "case resolved");
     }
 
     /// A snapshot is only meaningful if it points at code: queueing against an EOA
@@ -869,6 +929,320 @@ contract CC48GuardianSlashRetryTest is Test {
         accused[0] = g1;
         vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
         bls.queueGuardianSlash(16, accused, hex"16");
+    }
+}
+
+// =====================================================================
+// CC-48 round-4 HIGH — the frozen VERDICT, against a real mutable proxy verifier
+// =====================================================================
+
+/// Round-3 pinned the verifier ADDRESS and re-verified against it at execute/retry time.
+/// This suite is the attack that defeats that: a real delegatecall proxy keeps its address
+/// AND its extcodehash across an implementation swap, so the "pinned" verifier can be
+/// turned into an always-false one after a case is queued and the accused walks at expiry.
+///
+/// The round-4 rule is that `queueGuardianSlash` freezes keccak256(fraudProof) together
+/// with the guardian set, and execute/retry only re-check those two — no verifier call at
+/// all. Every test below asserts a property of that rule, not of a mock's flag.
+contract CC48MutableProxyVerifierTest is Test {
+    Registry registry;
+    GTokenStaking staking;
+    GToken gtoken;
+    BLSAggregator bls;
+
+    CC48UpgradeableVerifierProxy proxy;
+    address alwaysTrue;
+    address alwaysFalse;
+    address reverting;
+
+    address g1 = address(0x7001);
+    address g2 = address(0x7002);
+
+    bytes constant PROOF = hex"c0ffee";
+    bytes constant OTHER_PROOF = hex"deadbeef";
+
+    function setUp() public {
+        vm.warp(365 days);
+        CC48MockSBT sbt = new CC48MockSBT();
+        registry = UUPSDeployHelper.deployRegistryProxy(address(this), address(0), address(sbt));
+        gtoken = new GToken(1_000_000 ether);
+        staking = new GTokenStaking(address(gtoken), address(this), address(registry));
+        registry.setStaking(address(staking));
+        bls = new BLSAggregator(address(registry), address(0x5050), address(0xD57));
+        registry.setBLSAggregator(address(bls));
+
+        alwaysTrue = address(new CC48AlwaysTrueVerifierImpl());
+        alwaysFalse = address(new CC48AlwaysFalseVerifierImpl());
+        reverting = address(new CC48RevertingVerifierImpl());
+        proxy = new CC48UpgradeableVerifierProxy(alwaysTrue);
+
+        bls.proposeFraudProofVerifier(address(proxy));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+        staking.setAuthorizedSlasher(address(bls), true);
+
+        IRegistry.RoleConfig memory dvtConfig = registry.getRoleConfig(ROLE_DVT);
+        dvtConfig.roleLockDuration = 0;
+        registry.configureRole(ROLE_DVT, dvtConfig);
+
+        _seat(g1);
+        _seat(g2);
+    }
+
+    function _seat(address g) internal {
+        gtoken.mint(g, 100 ether);
+        vm.prank(g);
+        gtoken.approve(address(staking), 100 ether);
+        vm.prank(g);
+        registry.registerRole(ROLE_DVT, g, abi.encode(uint256(30 ether)));
+    }
+
+    function _one(address g) internal pure returns (address[] memory a) {
+        a = new address[](1);
+        a[0] = g;
+    }
+
+    function _both() internal view returns (address[] memory a) {
+        a = new address[](2);
+        a[0] = g1;
+        a[1] = g2;
+    }
+
+    /// Establishes the premise the whole suite rests on: swapping the implementation
+    /// changes NOTHING an on-chain observer can see about the verifier address.
+    /// `code.length`, the address itself, and `extcodehash` are all identical before and
+    /// after — so no snapshot of any of them could have detected this.
+    function test_ProxyUpgradeIsInvisibleToAddressAndCodehash() public {
+        address addrBefore = address(proxy);
+        uint256 lenBefore = addrBefore.code.length;
+        bytes32 hashBefore;
+        assembly { hashBefore := extcodehash(addrBefore) }
+
+        proxy.upgradeTo(alwaysFalse);
+
+        uint256 lenAfter = addrBefore.code.length;
+        bytes32 hashAfter;
+        assembly { hashAfter := extcodehash(addrBefore) }
+
+        assertEq(lenAfter, lenBefore, "code length unchanged by the upgrade");
+        assertEq(hashAfter, hashBefore, "extcodehash unchanged by the upgrade");
+        assertEq(proxy.implementation(), alwaysFalse, "but the semantics did change");
+    }
+
+    /// THE round-4 regression. queue true -> upgrade the SAME address to always-false ->
+    /// execute must still slash. Under round-3 this reverted `InvalidFraudProof` and kept
+    /// reverting until the case expired and released the colluder.
+    function test_QueuedCaseSurvivesAnImplementationSwapAtTheSameAddress() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(20, accused, PROOF);
+        (, bytes32 frozenProofHash,,,,, address recorded) = bls.guardianSlashCases(20);
+        assertEq(frozenProofHash, keccak256(PROOF), "verdict frozen as the proof hash");
+        assertEq(recorded, address(proxy), "verifier recorded for audit");
+
+        // The attack: same address, same codehash, opposite answer.
+        proxy.upgradeTo(alwaysFalse);
+        assertFalse(
+            IFraudProofVerifier(address(proxy)).verify(
+                bls.fraudProofDigest(20, accused), 20, accused, PROOF
+            ),
+            "the live verifier now rejects the very proof it approved"
+        );
+
+        bls.executeGuardianSlash(20, accused, PROOF);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "the colluder was slashed anyway");
+        assertEq(bls.pendingGuardianSlashCount(g1), 0);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(20);
+        assertEq(status, 2, "case resolved");
+    }
+
+    /// Freezing the verdict must not create a "any bytes will do" hole: the executor has
+    /// to re-present the exact proof the verifier approved.
+    function test_ExecutionRejectsASubstitutedProof() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(21, accused, PROOF);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.FraudProofMismatch.selector,
+                uint256(21),
+                keccak256(PROOF),
+                keccak256(OTHER_PROOF)
+            )
+        );
+        bls.executeGuardianSlash(21, accused, OTHER_PROOF);
+
+        // Even an empty proof — the degenerate substitution — is refused.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.FraudProofMismatch.selector, uint256(21), keccak256(PROOF), keccak256(bytes(""))
+            )
+        );
+        bls.executeGuardianSlash(21, accused, "");
+
+        assertEq(bls.pendingGuardianSlashCount(g1), 1, "case untouched by the failed attempts");
+        bls.executeGuardianSlash(21, accused, PROOF);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0);
+    }
+
+    /// A substituted proof must be refused even when the CURRENT implementation would
+    /// happily approve it — the frozen verdict, not the live verifier, is the authority
+    /// in both directions.
+    function test_SubstitutedProofIsRefusedEvenIfTheLiveVerifierWouldApproveIt() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(22, accused, PROOF);
+
+        // Live verifier still says yes to anything, including OTHER_PROOF.
+        assertTrue(
+            IFraudProofVerifier(address(proxy)).verify(
+                bls.fraudProofDigest(22, accused), 22, accused, OTHER_PROOF
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.FraudProofMismatch.selector,
+                uint256(22),
+                keccak256(PROOF),
+                keccak256(OTHER_PROOF)
+            )
+        );
+        bls.executeGuardianSlash(22, accused, OTHER_PROOF);
+    }
+
+    /// The retry window is where a slash spends most of its life, so the upgrade attack
+    /// is repeated there: partial execution, THEN the swap, then the retry with the same
+    /// proof must still settle the remaining guardian.
+    function test_PartialRetryAfterUpgradeUsesTheSameFrozenProof() public {
+        address[] memory accused = _both();
+        bls.queueGuardianSlash(23, accused, PROOF);
+
+        vm.mockCallRevert(
+            address(staking),
+            abi.encodeWithSelector(IGTokenStakingSlash.slashByDVT.selector, g2, ROLE_DVT),
+            "staking down"
+        );
+        bls.executeGuardianSlash(23, accused, PROOF);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "g1 banked");
+        assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen and retryable");
+        vm.clearMockedCalls();
+
+        // Swap the implementation mid-case, then retry.
+        proxy.upgradeTo(alwaysFalse);
+
+        (,, uint64 deadline,,,,) = bls.guardianSlashCases(23);
+        assertLe(block.timestamp, uint256(deadline), "retry window still open");
+
+        bls.executeGuardianSlash(23, accused, PROOF);
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0, "g2 settled after the upgrade");
+        assertEq(bls.pendingGuardianSlashCount(g2), 0);
+        (,,, uint8 status,,,) = bls.guardianSlashCases(23);
+        assertEq(status, 2);
+
+        // ...and the retry path is equally strict about the proof. (Opening a fresh case
+        // still needs the LIVE implementation to approve, so restore it first — queue-time
+        // authority is unchanged by this fix.)
+        proxy.upgradeTo(alwaysTrue);
+        bls.queueGuardianSlash(24, _one(g1), PROOF);
+        proxy.upgradeTo(alwaysFalse);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.FraudProofMismatch.selector,
+                uint256(24),
+                keccak256(PROOF),
+                keccak256(OTHER_PROOF)
+            )
+        );
+        bls.executeGuardianSlash(24, _one(g1), OTHER_PROOF);
+    }
+
+    /// A verifier that has been upgraded to a REVERTING implementation is the outage
+    /// variant of the same attack (deny instead of deny-by-answer). It must not strand
+    /// the case either.
+    function test_QueuedCaseSurvivesAnUpgradeToARevertingImplementation() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(25, accused, PROOF);
+
+        // Compute the digest BEFORE expectRevert — it is a call of its own and would
+        // otherwise absorb the expectation.
+        bytes32 digest = bls.fraudProofDigest(25, accused);
+        proxy.upgradeTo(reverting);
+        vm.expectRevert(CC48RevertingVerifierImpl.VerifierIsDown.selector);
+        IFraudProofVerifier(address(proxy)).verify(digest, 25, accused, PROOF);
+
+        bls.executeGuardianSlash(25, accused, PROOF);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "outage cannot veto a frozen verdict");
+    }
+
+    /// Freezing the verdict must not make a case immortal: expiry is unchanged, still
+    /// permissionless, and still releases the accused on schedule — upgrade or no upgrade.
+    function test_ExpiryIsUnchangedByTheFrozenVerdictAndByAnUpgrade() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(26, accused, PROOF);
+        proxy.upgradeTo(alwaysFalse);
+
+        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(26);
+        uint256 caseDeadline = uint256(rawDeadline);
+        vm.warp(caseDeadline + 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(26), caseDeadline
+            )
+        );
+        bls.executeGuardianSlash(26, accused, PROOF);
+
+        bls.expireGuardianSlashCase(26, accused);
+        assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry still releases the freeze");
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 30 ether, "and nothing was slashed");
+        (,,, uint8 status,,,) = bls.guardianSlashCases(26);
+        assertEq(status, 3);
+    }
+
+    /// A verifier ROTATION after queueing is the round-3 scenario; it must still be a
+    /// no-op for an open case now that nothing external is consulted.
+    function test_RotationAfterQueueingStillCannotTouchAnOpenCase() public {
+        address[] memory accused = _one(g1);
+        bls.queueGuardianSlash(27, accused, PROOF);
+
+        CC48UpgradeableVerifierProxy evil = new CC48UpgradeableVerifierProxy(alwaysFalse);
+        bls.proposeFraudProofVerifier(address(evil));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(evil));
+
+        (,, uint64 deadline,,,,) = bls.guardianSlashCases(27);
+        assertLe(block.timestamp, uint256(deadline), "case still open");
+
+        bls.executeGuardianSlash(27, accused, PROOF);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0);
+    }
+
+    /// The guardian-set half of the frozen verdict is still enforced independently: a
+    /// caller cannot keep the approved proof and swap in a different accused set.
+    function test_GuardianSetIsStillPinnedAlongsideTheProof() public {
+        bls.queueGuardianSlash(28, _one(g1), PROOF);
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianSetMismatch.selector, uint256(28)));
+        bls.executeGuardianSlash(28, _one(g2), PROOF);
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianSetMismatch.selector, uint256(28)));
+        bls.executeGuardianSlash(28, _both(), PROOF);
+
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), 30 ether, "the un-accused guardian is untouched");
+    }
+
+    /// The upgrade attack must not work at QUEUE time either: while the live
+    /// implementation rejects, no case can be opened — the freeze only ever captures a
+    /// verdict the verifier actually gave.
+    function test_QueueStillHonoursTheLiveImplementation() public {
+        proxy.upgradeTo(alwaysFalse);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidFraudProof.selector, uint256(29)));
+        bls.queueGuardianSlash(29, _one(g1), PROOF);
+
+        proxy.upgradeTo(alwaysTrue);
+        bls.queueGuardianSlash(29, _one(g1), PROOF);
+        (, bytes32 frozen,,,,,) = bls.guardianSlashCases(29);
+        assertEq(frozen, keccak256(PROOF));
     }
 }
 
