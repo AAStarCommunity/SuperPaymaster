@@ -57,6 +57,29 @@ interface IGTokenStakingSlash {
 ///         aggregator/chain is not byte-valid on another. Verifiers MUST bind
 ///         `domainDigest` into whatever they check; ignoring it re-opens
 ///         cross-contract replay.
+///
+///         CC-48 round-5 (MEDIUM-1) — EXACT-SET BINDING IS PART OF THE CONTRACT.
+///         A verifier MUST return true only for the guardian set the evidence commits
+///         to, EXACTLY. A strict SUBSET, a SUPERSET, and any unrelated set must all be
+///         rejected for the same `(fraudProofId, fraudProof)`. "Every listed address is
+///         provably a co-signer" is NOT sufficient — that predicate is self-consistent
+///         on any subset, and evidence-checking verifiers (as opposed to the
+///         attester-commitment reference implementation) satisfy it by construction.
+///
+///         Why this is a security property and not a nicety: `fraudProofId` is
+///         SINGLE-USE FOR EVER. `guardianSlashCases[id].status != 0` blocks re-opening,
+///         and status 2 (executed) and 3 (expired) block it just as permanently as 1
+///         (pending). `queueGuardianSlash` is permissionless and the guardian set is
+///         chosen by the CALLER. So if a verifier accepts subsets, a colluder who sees
+///         an honest watcher's `queueGuardianSlash(id, {A,B,C}, proof)` in the mempool
+///         can front-run it with `queueGuardianSlash(id, {A}, proof)`: the case opens on
+///         {A} alone, executes, burns `id` permanently, and B and C become immune to
+///         that evidence while the chain records the matter as settled.
+///
+///         The gate for this property is
+///         `contracts/test/helpers/FraudProofVerifierConformance.sol` —
+///         `assertDomainBound` (domain) + `assertSetBound` (set completeness). Both must
+///         pass in the DVT repo's own CI before `fraudProofVerifier` leaves address(0).
 interface IFraudProofVerifier {
     function verify(
         bytes32 domainDigest,
@@ -293,9 +316,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     bool public permissionlessBLSRegistration;
 
     /// @notice DVT-supplied fraud-proof verifier for guardian-collusion slashing
-    ///         (Protocol B stage 2). address(0) = feature dormant: executeGuardianSlash
-    ///         reverts until governance wires a verifier. This is the ONE seam the
-    ///         detection layer plugs into; the aggregator never judges fraud itself.
+    ///         (Protocol B stage 2). address(0) = feature dormant: NO NEW CASE can be
+    ///         opened, because `queueGuardianSlash` — the only way to open one — reverts
+    ///         with `FraudProofVerifierNotSet`. It does NOT stop a case that is already
+    ///         queued: since round-4 the verdict is frozen at queue time, so
+    ///         `executeGuardianSlash` never reads this slot at all (CC-48 round-5
+    ///         MEDIUM-2: the pre-round-5 NatSpec claimed the opposite and would have led
+    ///         an operator to believe zeroing this halts an in-flight slash).
+    ///         This is the ONE seam the detection layer plugs into; the aggregator never
+    ///         judges fraud itself.
     address public fraudProofVerifier;
 
     /// @notice Per-(fraudProofId, guardian) slash record for executeGuardianSlash.
@@ -365,7 +394,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.8.0";
+        return "BLSAggregator-4.9.0";
     }
 
 
@@ -427,6 +456,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event GuardianExitCancelled(address indexed guardian, uint256 cooldownUntil);
     event FraudProofVerifierRotationProposed(address indexed verifier, uint256 readyAt);
     event FraudProofVerifierRotationCancelled(address indexed verifier);
+    /// @notice CC-48 round-5 MEDIUM-2: the verifier was disarmed with immediate effect.
+    ///         `clearedVerifier` was active, `clearedPending` was the rotation in flight
+    ///         (either may be address(0)). Emitted in addition to the
+    ///         `FraudProofVerifierUpdated` / `FraudProofVerifierRotationCancelled` pair
+    ///         so monitors can tell an emergency stop apart from routine governance.
+    event FraudProofVerifierEmergencyDisarmed(address indexed clearedVerifier, address indexed clearedPending);
     event GuardianExitConsumed(address indexed guardian);
 
     // ====================================
@@ -519,6 +554,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
     error NoPendingVerifierRotation();
     error VerifierRotationNotReady(uint256 readyAt);
+    /// @dev Emergency disarm called when there is neither an active verifier nor a
+    ///      pending rotation to clear — the contract is already in the dormant state.
+    error VerifierAlreadyDisarmed();
     /// @dev CC-48 round-4 HIGH: `executeGuardianSlash` was handed proof bytes that do not
     ///      hash to the ones the verifier actually approved at queue time. The frozen
     ///      verdict covers exactly one (guardian set, proof) pair; substituting either
@@ -655,12 +693,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
 
-        // Access control. The owner may always register any validator's key at the
-        // caller-chosen slot (the permissioned default; popSignature is not inspected).
-        // Otherwise — only when the permissionless switch is on — a validator may
-        // self-register their OWN key, provided they currently hold ROLE_DVT with
-        // sufficient stake AND supply a valid proof-of-possession. PoP blocks the
-        // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
+        // Access control ONLY. The owner may register any validator's key at the
+        // caller-chosen slot; otherwise — only when the permissionless switch is on — a
+        // validator may self-register their OWN key, provided they currently hold
+        // ROLE_DVT with sufficient stake. Authorization is the whole of what differs
+        // between the two paths: since round-3 a valid proof-of-possession is REQUIRED
+        // on BOTH of them (enforced unconditionally a few lines below), so neither the
+        // owner nor a self-registrant can bind a key they do not hold the secret for.
+        // PoP blocks the rogue-key attack that off-chain key vetting used to be relied
+        // on for.
         // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
         // caller reverts without paying for them; G1 is still validated before _verifyPoP.
         bool ownerCall = msg.sender == owner();
@@ -1450,17 +1491,25 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         defaultThreshold = _newThreshold;
     }
 
-    /// @notice Wire/rotate the guardian-collusion fraud-proof verifier (Protocol B
-    ///         stage 2 detection layer, supplied by the DVT repo). Owner-gated.
-    ///         Setting address(0) disables executeGuardianSlash (feature dormant).
+    /// @notice Propose wiring/rotating the guardian-collusion fraud-proof verifier
+    ///         (Protocol B stage 2 detection layer, supplied by the DVT repo).
+    ///         Owner-gated, and matured by `applyFraudProofVerifier` only after
+    ///         `VERIFIER_ROTATION_DELAY`.
     /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
     ///         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,
     ///         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.
-    ///         The delay is >= GUARDIAN_SLASH_CASE_WINDOW precisely so that a queued
-    ///         case always outlives any rotation started after it; an owner can no
-    ///         longer swap in an always-false verifier mid-case to let colluders time
-    ///         out. `owner` should still be a multisig behind a TimelockController —
-    ///         that is defence in depth, no longer the only defence.
+    ///         `owner` should still be a multisig behind a TimelockController — that is
+    ///         defence in depth, no longer the only defence.
+    /// @dev    WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an
+    ///         owner from swapping in an always-false verifier mid-case so colluders
+    ///         could time out; round-4's frozen verdict provides that property
+    ///         structurally instead (execution never calls a verifier at all, see
+    ///         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay
+    ///         still buys is the direction that matters: ARMING or REPLACING the
+    ///         authority behind a 100%-of-lock slash is publicly visible for four days
+    ///         before it can act. It is deliberately NOT applied to disarming — see
+    ///         `emergencyDisarmFraudProofVerifier`, which is immediate because it only
+    ///         ever removes power (CC-48 round-5 MEDIUM-2).
     /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
     ///         unbonding delay. The request immediately removes the guardian from
     ///         valid signer masks; a verifier-approved queued case increments the
@@ -1495,6 +1544,58 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         delete pendingFraudProofVerifierReadyAt;
         emit FraudProofVerifierUpdated(fraudProofVerifier, next);
         fraudProofVerifier = next;
+    }
+
+    /// @notice EMERGENCY: disarm the fraud-proof verifier immediately — no delay.
+    ///         Clears the active verifier AND any in-flight rotation, so no new
+    ///         guardian-slash case can be opened from this block onwards.
+    /// @dev    CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a
+    ///         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +
+    ///         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A
+    ///         compromised verifier can open a case and have it executed for 100% of
+    ///         every accused guardian's lock within a SINGLE block, so a four-day
+    ///         remedy was not a remedy. This call is the answer to "the verifier is
+    ///         lying, stop it now".
+    ///
+    ///         MONOTONICITY — why immediacy is safe here and not for `propose`:
+    ///           • It can ONLY reduce authority. The post-state is
+    ///             `fraudProofVerifier == address(0)` with no pending rotation, i.e. the
+    ///             fail-closed dormant state the feature ships in. It cannot install,
+    ///             replace, or point at anything.
+    ///           • RE-ARMING IS NOT SHORTENED. There is no counterpart that sets a
+    ///             non-zero verifier; coming back on-line still costs a full
+    ///             propose -> 4 days -> apply cycle. An owner cannot use disarm as a
+    ///             fast path to a verifier of its choosing.
+    ///           • ALREADY-QUEUED CASES ARE UNAFFECTED, by construction rather than by
+    ///             promise: since round-4 `executeGuardianSlash` / `retry` / `expire`
+    ///             read only the verdict frozen in `guardianSlashCases[id]` and never
+    ///             touch `fraudProofVerifier`. Disarming cannot cancel, stall, or
+    ///             re-judge a pending case — that asymmetry (owner may stop future
+    ///             accusations, may not rescue an accused colluder) is the point.
+    ///           • Therefore an attacker who steals `owner` gains nothing from this that
+    ///             it did not already have: `proposeFraudProofVerifier(0)` + 4 days
+    ///             reached the same terminal state, and a stolen owner has strictly
+    ///             stronger moves available anyway.
+    ///
+    ///         Cases opened BEFORE the disarm still run to their frozen verdict; use
+    ///         `expireGuardianSlashCase` after the deadline if a case must be dropped.
+    function emergencyDisarmFraudProofVerifier() external onlyOwner {
+        address current = fraudProofVerifier;
+        address pending = pendingFraudProofVerifier;
+        uint64 pendingReadyAt = pendingFraudProofVerifierReadyAt;
+        // Nothing to take away: refuse rather than emit a misleading "disarmed" trail.
+        if (current == address(0) && pendingReadyAt == 0) revert VerifierAlreadyDisarmed();
+
+        if (current != address(0)) {
+            fraudProofVerifier = address(0);
+            emit FraudProofVerifierUpdated(current, address(0));
+        }
+        if (pendingReadyAt != 0) {
+            delete pendingFraudProofVerifier;
+            delete pendingFraudProofVerifierReadyAt;
+            emit FraudProofVerifierRotationCancelled(pending);
+        }
+        emit FraudProofVerifierEmergencyDisarmed(current, pending);
     }
 
     /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
@@ -1611,8 +1712,16 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
     /// @dev The full proof is checked before any freeze is installed, so arbitrary
-    ///      callers cannot lock honest guardians. A bounded two-day window prevents
-    ///      an abandoned case from becoming a permanent withdrawal denial.
+    ///      callers cannot lock honest guardians. A bounded window
+    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full
+    ///      exit notice, see the constant's own comment) prevents an abandoned case
+    ///      from becoming a permanent withdrawal denial.
+    /// @dev `fraudProofId` is consumed for ever by this call, whatever the case's
+    ///      eventual outcome, and the accused set is chosen by the CALLER. Verifiers
+    ///      therefore MUST reject any set that is not exactly the one the evidence
+    ///      commits to — otherwise a front-runner can open the case on a subset and
+    ///      burn the id for everyone else. See `IFraudProofVerifier` above and
+    ///      `FraudProofVerifierConformance.assertSetBound`.
     function queueGuardianSlash(
         uint256 fraudProofId,
         address[] calldata guiltyGuardians,
@@ -1672,6 +1781,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert GuardianSetMismatch(fraudProofId);
         }
         slashCase.status = 3;
+        // CC-48 round-5 LOW-4, decoder note: `resolvedCount` is deliberately NOT advanced
+        // here. It counts guardians settled by EXECUTION (slashed or provably nothing to
+        // take); expiry releases the stragglers without adjudicating them, and conflating
+        // the two would make `status == 2` (fully executed) and "expired after a partial
+        // execution" indistinguishable after the fact. Decoders must therefore read
+        // `status == 3 && resolvedCount < guardianCount` as "expired with
+        // `guardianCount - resolvedCount` accused released unjudged", which is exactly
+        // what the `GuardianSlashed` / `GuardianSlashSkipped` event trail shows. This is
+        // documented for SDK consumers in docs/security/CC48-round5-changes.md.
         // CC-48 HIGH-2: guardians already released by a successful (or no-op) partial
         // execution must not be decremented twice — expiry only frees the stragglers.
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
@@ -1727,6 +1845,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         bytes calldata fraudProof
     ) external nonReentrant {
         // All fail-closed shape checks up front (fail-fast, before any external call).
+        // CC-48 round-5 LOW-4, kept deliberately: these two bounds are re-checked inside
+        // `_validateGuardianSet` further down, but that call happens only AFTER the case
+        // lookup and the deadline check. Running them here keeps a malformed call cheap
+        // and, more importantly, keeps the failure mode stable if the order of the
+        // checks below is ever rearranged. They are pure `calldatasize`-derived
+        // comparisons — no state, no external call — so the duplication costs a few gas
+        // on the revert path only. It is redundancy, not dead code: removing them is
+        // safe today and silently unsafe after the next reordering.
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];

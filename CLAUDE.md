@@ -165,7 +165,13 @@ src/                       → contracts/src/
 
 ### Compiler Settings
 
-Solidity 0.8.33, optimizer enabled (10000 runs), via_ir = true, EVM target: cancun
+Solidity 0.8.33, optimizer enabled (**500 runs**; `Registry.sol` is further restricted to
+**200 runs** via `compilation_restrictions` in every profile), via_ir = true, EVM target: cancun.
+
+> Do NOT raise `optimizer_runs` back to 10000 without measuring. At 10000 this tree builds
+> SuperPaymaster at 27,597 B and BLSAggregator at 25,860 B — both over the EIP-170 24,576 B
+> limit, i.e. undeployable. All three profiles (`default`, `v3-only`, `tokens`) are kept in
+> sync deliberately because they share `out/`; see the comment block in `foundry.toml`.
 
 ## Conventions
 
@@ -175,6 +181,7 @@ Solidity 0.8.33, optimizer enabled (10000 runs), via_ir = true, EVM target: canc
 - Any change to a public ABI, to a struct returned by a public getter, or to the storage
   layout requires a `version()` bump, a regenerated `abis/*.json`, and a note to the
   downstream repos (`repo:dvt`, `repo:sdk`). Current record:
-  `docs/security/CC48-round4-changes.md` (supersedes §1.1 of
+  `docs/security/CC48-round5-changes.md` (supersedes §2/§6 of
+  `docs/security/CC48-round4-changes.md`, which supersedes §1.1 of
   `docs/security/CC48-round3-changes.md`)
 - EntryPoint v0.7 address: `0x0000000071727De22E5E9d8BAf0edAc6f37da032`

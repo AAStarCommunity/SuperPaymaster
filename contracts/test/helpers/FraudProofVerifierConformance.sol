@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
-/// @notice EXACT ABI of the verifier seam as of BLSAggregator-4.8.0. Copy this
+/// @notice EXACT ABI of the verifier seam as of BLSAggregator-4.9.0. Copy this
 ///         interface verbatim into the DVT repo — do not re-derive it by hand.
 ///         Canonical selector: `verify(bytes32,uint256,address[],bytes)` = 0x61077735.
+///         (The selector is unchanged since 4.7.0; the 4.9.0 bump is the aggregator's
+///         own ABI, not this seam's.)
 interface IFraudProofVerifierConformance {
     function verify(
         bytes32 domainDigest,
@@ -54,6 +56,16 @@ interface IAggregatorFraudDigest {
  *              );
  *          }
  *
+ *          function test_VerifierIsSetBound() public {
+ *              Conformance.assertSetBound(
+ *                  address(myVerifier),
+ *                  address(aggregatorA),   // digests are recomputed per perturbed set
+ *                  fraudProofId,
+ *                  guiltyGuardians,        // the EXACT set the evidence commits to (>= 2)
+ *                  fraudProofBytes
+ *              );
+ *          }
+ *
  *      `aggregatorB` may be a second deployment on the SAME chain with the SAME Registry
  *      and the SAME validator keys — that is the hardest case and the one that actually
  *      happened (an experiment stack's proofs replaying onto production). If a verifier
@@ -64,12 +76,26 @@ interface IAggregatorFraudDigest {
  *           rejects everything would trivially "pass" a replay test)
  *        2. REJECTS another aggregator's digest for the same (id, guardians, proof)
  *        3. REJECTS an arbitrary unrelated digest (catches "compares to a constant")
+ *
+ *      CC-48 round-5 MEDIUM-1 — `assertDomainBound` IS NOT ENOUGH ON ITS OWN. Domain
+ *      binding says nothing about WHICH guardians a proof covers, so a verifier that
+ *      recomputes the digest from the (id, guardians) it was handed passes all three
+ *      assertions above while happily accepting a strict SUBSET of the guilty set.
+ *      Because `fraudProofId` is single-use for ever, that is directly exploitable —
+ *      see `assertSetBound` below. BOTH assertions are release gates; running only
+ *      this one is the failure mode this paragraph exists to prevent.
  */
 library FraudProofVerifierConformance {
     error VerifierRejectedItsOwnDomain(address verifier, bytes32 domainDigest);
     error VerifierIgnoresDomainDigest(address verifier, bytes32 foreignDigest);
     error VerifierAcceptsArbitraryDigest(address verifier, bytes32 arbitraryDigest);
     error AggregatorsShareADigest(address aggregatorA, address aggregatorB);
+    /// @dev CC-48 round-5 MEDIUM-1 (set completeness).
+    error VerifierRejectedItsOwnGuardianSet(address verifier, bytes32 setHash);
+    error VerifierAcceptsGuardianSubset(address verifier, address droppedGuardian);
+    error VerifierAcceptsGuardianSuperset(address verifier, address addedGuardian);
+    error VerifierAcceptsUnrelatedGuardianSet(address verifier, bytes32 unrelatedSetHash);
+    error SetBoundNeedsAtLeastTwoGuardians(uint256 provided);
 
     /// @notice Full conformance check for one (proof, guardians) pair.
     function assertDomainBound(
@@ -96,6 +122,137 @@ library FraudProofVerifierConformance {
         bytes32 arbitrary = keccak256("CC-48 conformance: not any aggregator's digest");
         if (_verify(verifier, arbitrary, fraudProofId, guiltyGuardians, fraudProof)) {
             revert VerifierAcceptsArbitraryDigest(verifier, arbitrary);
+        }
+    }
+
+    /// @notice CC-48 round-5 MEDIUM-1: the guilty set a proof covers must be EXACT.
+    ///
+    /// @dev WHY THIS IS A SEPARATE, MANDATORY GATE. `assertDomainBound` proves the proof
+    ///      belongs to this aggregator. It proves nothing about WHO the proof accuses,
+    ///      and the two are independent: a verifier that recomputes
+    ///      `fraudProofDigest(id, guardians)` from the arguments it was handed is
+    ///      perfectly domain-bound and still self-consistent on any subset — it simply
+    ///      re-derives a matching digest for the smaller set. Evidence-checking verifiers
+    ///      ("each listed address co-signed the fraudulent proposal") are subset-lenient
+    ///      BY CONSTRUCTION, which is exactly the shape `OverIssueFraudProofVerifier`
+    ///      will have. The attester-commitment reference implementation in
+    ///      `CC48VerifierConformance.t.sol` happens to be set-bound by accident of its
+    ///      pre-image, which is precisely why this fixture must exist rather than relying
+    ///      on "the reference passes".
+    ///
+    ///      THE VECTOR IT CLOSES. `queueGuardianSlash` is permissionless, the accused set
+    ///      is chosen by the CALLER, and `fraudProofId` is single-use FOR EVER
+    ///      (`guardianSlashCases[id].status != 0` blocks re-opening, and 2=executed /
+    ///      3=expired block it as permanently as 1=pending). Against a subset-lenient
+    ///      verifier, a colluder who sees an honest watcher's
+    ///      `queueGuardianSlash(id, {A,B,C}, proof)` in the mempool front-runs it with
+    ///      `queueGuardianSlash(id, {A}, proof)`. The case opens on {A}, executes, burns
+    ///      `id`, and B and C are permanently immune to that evidence — with an on-chain
+    ///      record saying the matter was adjudicated.
+    ///
+    ///      WHAT IS CHECKED. For the SAME `(fraudProofId, fraudProof)`, and with each
+    ///      candidate set's own digest recomputed from `aggregator` exactly as
+    ///      `queueGuardianSlash` would:
+    ///        1. ACCEPTS the exact committed set        (no false negative)
+    ///        2. REJECTS every strict subset of size n-1 (each guardian dropped in turn)
+    ///        3. REJECTS the superset with one extra address
+    ///        4. REJECTS an unrelated set of the same size
+    ///
+    /// @param verifier          the DVT verifier under test
+    /// @param aggregator        the aggregator the proof was built for (digest source)
+    /// @param fraudProofId      the id the proof was issued for
+    /// @param guiltyGuardians   the EXACT set the evidence commits to; >= 2 entries, since
+    ///                          a 1-element set has no non-empty strict subset and the
+    ///                          aggregator rejects the empty one outright
+    /// @param fraudProof        the proof bytes, unchanged across every candidate set
+    function assertSetBound(
+        address verifier,
+        address aggregator,
+        uint256 fraudProofId,
+        address[] memory guiltyGuardians,
+        bytes memory fraudProof
+    ) internal view {
+        uint256 n = guiltyGuardians.length;
+        if (n < 2) revert SetBoundNeedsAtLeastTwoGuardians(n);
+
+        // 1. the exact set must still be accepted (otherwise "rejects everything" would
+        //    trivially pass 2-4, the same false-negative trap assertDomainBound guards).
+        if (!_verifyAgainst(verifier, aggregator, fraudProofId, guiltyGuardians, fraudProof)) {
+            revert VerifierRejectedItsOwnGuardianSet(verifier, keccak256(abi.encode(guiltyGuardians)));
+        }
+
+        // 2. every strict subset of size n-1. Dropping each guardian in turn is what an
+        //    attacker actually does: keep the set self-consistent, shrink the blame.
+        for (uint256 dropped = 0; dropped < n; ++dropped) {
+            address[] memory subset = new address[](n - 1);
+            uint256 k;
+            for (uint256 i = 0; i < n; ++i) {
+                if (i == dropped) continue;
+                subset[k++] = guiltyGuardians[i];
+            }
+            if (_verifyAgainst(verifier, aggregator, fraudProofId, subset, fraudProof)) {
+                revert VerifierAcceptsGuardianSubset(verifier, guiltyGuardians[dropped]);
+            }
+        }
+
+        // 3. superset: one extra address the evidence never named. A verifier that only
+        //    checks "everyone I was told about is guilty" is caught by (2); one that only
+        //    checks "everyone guilty is in the list I was told about" is caught here —
+        //    the accused innocent would lose 100% of its lock.
+        address extra = _syntheticGuardian(guiltyGuardians, fraudProofId);
+        address[] memory superset = new address[](n + 1);
+        for (uint256 i = 0; i < n; ++i) {
+            superset[i] = guiltyGuardians[i];
+        }
+        superset[n] = extra;
+        if (_verifyAgainst(verifier, aggregator, fraudProofId, superset, fraudProof)) {
+            revert VerifierAcceptsGuardianSuperset(verifier, extra);
+        }
+
+        // 4. a wholly unrelated set of the same size — catches a verifier that only looks
+        //    at the set's LENGTH, or ignores the set entirely.
+        address[] memory unrelated = new address[](n);
+        for (uint256 i = 0; i < n; ++i) {
+            unrelated[i] = _syntheticGuardian(guiltyGuardians, fraudProofId + 1 + i);
+        }
+        if (_verifyAgainst(verifier, aggregator, fraudProofId, unrelated, fraudProof)) {
+            revert VerifierAcceptsUnrelatedGuardianSet(verifier, keccak256(abi.encode(unrelated)));
+        }
+    }
+
+    /// @dev Recompute the digest for `candidate` from the aggregator itself — the same
+    ///      call `queueGuardianSlash` makes — then ask the verifier. Recomputing (rather
+    ///      than reusing the committed set's digest) is what makes this a real test: it
+    ///      reproduces the attacker's transaction exactly, digest included.
+    function _verifyAgainst(
+        address verifier,
+        address aggregator,
+        uint256 fraudProofId,
+        address[] memory candidate,
+        bytes memory fraudProof
+    ) private view returns (bool) {
+        bytes32 digest = IAggregatorFraudDigest(aggregator).fraudProofDigest(fraudProofId, candidate);
+        return _verify(verifier, digest, fraudProofId, candidate, fraudProof);
+    }
+
+    /// @dev A deterministic address that is guaranteed NOT to be in `guiltyGuardians`
+    ///      (and never address(0), which the aggregator rejects anyway). Derived, not
+    ///      hard-coded, so the fixture cannot be gamed by a verifier that allow-lists a
+    ///      known test address.
+    function _syntheticGuardian(address[] memory guiltyGuardians, uint256 salt)
+        private
+        pure
+        returns (address candidate)
+    {
+        bytes32 seed = keccak256(abi.encode("CC-48 conformance synthetic guardian", guiltyGuardians, salt));
+        while (true) {
+            candidate = address(uint160(uint256(seed)));
+            bool collides = candidate == address(0);
+            for (uint256 i = 0; i < guiltyGuardians.length && !collides; ++i) {
+                if (guiltyGuardians[i] == candidate) collides = true;
+            }
+            if (!collides) return candidate;
+            seed = keccak256(abi.encode(seed));
         }
     }
 

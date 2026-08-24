@@ -22,6 +22,72 @@ contract KeyScanFraudVerifier {
 }
 
 /**
+ * @notice A stand-in for the aggregators that are ACTUALLY DEPLOYED today — Sepolia's
+ *         `BLSAggregator-4.3.0` (and `4.1.0` before it). It forwards the key-table
+ *         surface that 4.3.0 really has to a live aggregator, and — the point of the
+ *         fixture — it has NO fallback and NO guardian-slash getters, so
+ *         `pendingGuardianSlashCount`, `guardianSlashCases`, `fraudProofVerifier`,
+ *         `GUARDIAN_SLASH_CASE_WINDOW` and `guardianExitRequests` all revert on it,
+ *         exactly as they do on-chain (verified by `cast call` against
+ *         0x174b60bB...0158 and 0xF51c0298...8B13).
+ *
+ *         CC-48 round-5 HIGH-1 exists because the whole preflight was only ever run
+ *         against a 4.9.0 "old" aggregator in CI, so the legacy shape had zero coverage
+ *         and a suite that was fully green hid a migration that could not run at all.
+ */
+contract Legacy43AggregatorStub {
+    BLSAggregator public immutable INNER;
+
+    constructor(BLSAggregator inner) {
+        INNER = inner;
+    }
+
+    function MAX_VALIDATORS() external view returns (uint256) {
+        return INNER.MAX_VALIDATORS();
+    }
+
+    function validatorAtSlot(uint8 slot) external view returns (address) {
+        return INNER.validatorAtSlot(slot);
+    }
+
+    function getBLSPublicKey(address validator)
+        external
+        view
+        returns (BLS.G1Point memory publicKey, uint8 slot, bool isActive)
+    {
+        return INNER.getBLSPublicKey(validator);
+    }
+
+    function blsKeyOwner(bytes32 keyHash) external view returns (address) {
+        return INNER.blsKeyOwner(keyHash);
+    }
+
+    function defaultThreshold() external view returns (uint256) {
+        return INNER.defaultThreshold();
+    }
+
+    function minThreshold() external view returns (uint256) {
+        return INNER.minThreshold();
+    }
+
+    function slashThresholds(uint8 level) external view returns (uint8) {
+        return INNER.slashThresholds(level);
+    }
+
+    function REGISTRY() external view returns (address) {
+        return address(INNER.REGISTRY());
+    }
+
+    function domainSeparator() external view returns (bytes32) {
+        return INNER.domainSeparator();
+    }
+
+    function version() external pure returns (string memory) {
+        return "BLSAggregator-4.3.0";
+    }
+}
+
+/**
  * @title CC48KeyScanPreflight
  * @notice CC-48 round-3 MEDIUM-4: the migration preflight is only a gate if something
  *         runs it. This suite runs `BLSKeyScanLib` — the exact library
@@ -79,7 +145,7 @@ contract CC48KeyScanPreflight is Test {
     }
 
     /// An empty (or under-populated) fresh deployment must fail BEFORE it is wired into
-    /// Registry. This is the governance-outage case: a 4.8.0 starts with no keys, and
+    /// Registry. This is the governance-outage case: a 4.9.0 starts with no keys, and
     /// cutting over first means every BLS-gated path reverts until onboarding finishes.
     function test_UnderPopulatedFreshDeploymentFailsTheGate() public {
         _skipWithoutPrague();
@@ -180,6 +246,57 @@ contract CC48KeyScanPreflight is Test {
         // Once resolved, the cutover is clear.
         oldAgg.executeGuardianSlash(1, accused, hex"01");
         this.callRequireNoPendingCases(address(oldAgg));
+    }
+
+    // =====================================================================
+    // CC-48 round-5 HIGH-1: the preflight must RUN against the real predecessor
+    // =====================================================================
+
+    /// The regression the whole HIGH is about. Against the shape that is actually
+    /// deployed today, round-3's preflight reverted on a missing selector before it ever
+    /// reached the tainted-key scan — and the only value of OLD_BLS_AGGREGATOR that made
+    /// the script run (0) skipped that scan too. Now: the pending check proves the
+    /// predecessor cannot hold a case and steps aside; the key scan runs and BITES.
+    function test_LegacyPredecessorIsScannableAndStillBlocksATaintedCarryOver() public {
+        _skipWithoutPrague();
+        BLSAggregator oldAgg = _freshAggregator();
+        _seatValidators(oldAgg, 3, 1); // the experiment stack: public scalars 1, 2, 3
+        Legacy43AggregatorStub legacy = new Legacy43AggregatorStub(oldAgg);
+
+        // 1. The capability probe recognises the legacy shape from its ABI surface alone.
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(legacy))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Absent),
+            "4.3.0 has no guardian-slash surface"
+        );
+
+        // 2. ...so the pending-case check completes instead of reverting on a selector
+        //    that does not exist. This call is the one that used to kill the migration.
+        this.callRequireNoPendingCases(address(legacy));
+
+        // 3. And the check that actually matters still fires against the legacy ABI.
+        BLSAggregator newAgg = _freshAggregator();
+        address v = address(uint160(0x3000));
+        BLS.G1Point memory pk = _publicKey(1);
+        newAgg.registerBLSPublicKey(v, pk, 1, _pop(newAgg, v, pk, 1));
+
+        bytes32 keyHash = keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b));
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSKeyScanLib.TaintedKeyCarriedOver.selector, keyHash, v, v)
+        );
+        this.callRequireNoTaintedKeyCarriedOver(address(legacy), address(newAgg));
+    }
+
+    /// A predecessor that DOES have the feature is not given the legacy exemption: the
+    /// skip is capability-proven, not version-trusting.
+    function test_ModernPredecessorStillGetsTheFullPendingScan() public {
+        _skipWithoutPrague();
+        BLSAggregator oldAgg = _freshAggregator();
+        _seatValidators(oldAgg, 3, 1000);
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(oldAgg))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Present)
+        );
     }
 
     /// Fail CLOSED without EIP-2537. A weak-key scan that cannot run must never be

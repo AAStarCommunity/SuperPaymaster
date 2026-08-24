@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
 import {IRegistry} from "src/interfaces/v3/IRegistry.sol";
 import {IGTokenStaking} from "src/interfaces/v3/IGTokenStaking.sol";
-import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
+import {FraudProofVerifierConformance as Conformance, IAggregatorFraudDigest}
+    from "../helpers/FraudProofVerifierConformance.sol";
 
 /// @notice REFERENCE implementation for repo:dvt. It binds `domainDigest` into the
 ///         signed pre-image, which is the property the conformance fixture checks.
@@ -56,6 +57,83 @@ contract DomainIgnoringFraudProofVerifier {
         returns (bool)
     {
         return fraudProof.length == 32 && uint256(bytes32(fraudProof)) == fraudProofId;
+    }
+}
+
+/// @notice ANTI-reference #2 (CC-48 round-5 MEDIUM-1): perfectly DOMAIN-bound, and still
+///         broken. It recomputes the digest from the very (id, guardians) it was handed,
+///         against a hard-coded aggregator — so it passes all three `assertDomainBound`
+///         assertions — and then checks only "every address I was given is guilty". That
+///         predicate is self-consistent on any SUBSET, which is the shape an
+///         evidence-checking verifier (e.g. the coming `OverIssueFraudProofVerifier`)
+///         naturally has. Against a single-use `fraudProofId` this is the front-run vector.
+contract SubsetLenientEvidenceVerifier {
+    address public immutable AGGREGATOR;
+    bytes32 public immutable PROOF_HASH;
+    mapping(uint256 => mapping(address => bool)) public guilty;
+
+    constructor(address aggregator, bytes32 proofHash) {
+        AGGREGATOR = aggregator;
+        PROOF_HASH = proofHash;
+    }
+
+    function markGuilty(uint256 fraudProofId, address guardian) external {
+        guilty[fraudProofId][guardian] = true;
+    }
+
+    function verify(
+        bytes32 domainDigest,
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external view returns (bool) {
+        if (domainDigest != IAggregatorFraudDigest(AGGREGATOR).fraudProofDigest(fraudProofId, guiltyGuardians)) {
+            return false;
+        }
+        if (keccak256(fraudProof) != PROOF_HASH) return false;
+        for (uint256 i = 0; i < guiltyGuardians.length; ++i) {
+            if (!guilty[fraudProofId][guiltyGuardians[i]]) return false;
+        }
+        return guiltyGuardians.length != 0;
+    }
+}
+
+/// @notice ANTI-reference #3: the mirror-image mistake — "every guardian I know to be
+///         guilty appears in the list". Accepts a SUPERSET, so an innocent address can be
+///         appended to the accused set and lose 100% of its ROLE_DVT lock.
+contract SupersetLenientEvidenceVerifier {
+    address public immutable AGGREGATOR;
+    bytes32 public immutable PROOF_HASH;
+    mapping(uint256 => address[]) internal known;
+
+    constructor(address aggregator, bytes32 proofHash) {
+        AGGREGATOR = aggregator;
+        PROOF_HASH = proofHash;
+    }
+
+    function markGuilty(uint256 fraudProofId, address guardian) external {
+        known[fraudProofId].push(guardian);
+    }
+
+    function verify(
+        bytes32 domainDigest,
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external view returns (bool) {
+        if (domainDigest != IAggregatorFraudDigest(AGGREGATOR).fraudProofDigest(fraudProofId, guiltyGuardians)) {
+            return false;
+        }
+        if (keccak256(fraudProof) != PROOF_HASH) return false;
+        address[] storage expected = known[fraudProofId];
+        for (uint256 i = 0; i < expected.length; ++i) {
+            bool found;
+            for (uint256 j = 0; j < guiltyGuardians.length && !found; ++j) {
+                if (guiltyGuardians[j] == expected[i]) found = true;
+            }
+            if (!found) return false;
+        }
+        return expected.length != 0;
     }
 }
 
@@ -184,6 +262,106 @@ contract CC48VerifierConformance is Test {
             bytes4(0x61077735),
             "IFraudProofVerifier.verify selector changed - notify repo:dvt and repo:sdk"
         );
+    }
+
+    // =====================================================================
+    // CC-48 round-5 MEDIUM-1: set completeness
+    // =====================================================================
+
+    /// The reference verifier is set-bound as well as domain-bound: its pre-image
+    /// contains the full `guiltyGuardians` array, so any perturbation changes `expected`.
+    function test_ReferenceVerifierPassesSetBound() public view {
+        Conformance.assertSetBound(address(good), address(aggA), 42, guardians, _proofForA(42));
+    }
+
+    /// The vector that motivated this assertion. A verifier can be flawlessly
+    /// domain-bound and still let a front-runner open the case on a strict subset,
+    /// burning the single-use `fraudProofId` for the guardians it drops.
+    function test_SubsetLenientVerifierPassesDomainBoundButFailsSetBound() public {
+        bytes memory proof = abi.encode(keccak256("over-issue evidence blob"));
+        SubsetLenientEvidenceVerifier lenient =
+            new SubsetLenientEvidenceVerifier(address(aggA), keccak256(proof));
+        lenient.markGuilty(77, guardians[0]);
+        lenient.markGuilty(77, guardians[1]);
+
+        // It is genuinely domain-bound — the existing gate says nothing is wrong.
+        Conformance.assertDomainBound(address(lenient), address(aggA), address(aggB), 77, guardians, proof);
+
+        // ...and it accepts {guardians[1]} alone for the same proof.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Conformance.VerifierAcceptsGuardianSubset.selector, address(lenient), guardians[0]
+            )
+        );
+        this.callAssertSetBound(address(lenient), address(aggA), 77, guardians, proof);
+    }
+
+    /// The mirror-image failure: appending an innocent address is accepted, and that
+    /// address would lose 100% of its ROLE_DVT lock. Proves assertion (3) is not vacuous.
+    function test_SupersetLenientVerifierFailsSetBound() public {
+        bytes memory proof = abi.encode(keccak256("over-issue evidence blob"));
+        SupersetLenientEvidenceVerifier lenient =
+            new SupersetLenientEvidenceVerifier(address(aggA), keccak256(proof));
+        lenient.markGuilty(78, guardians[0]);
+        lenient.markGuilty(78, guardians[1]);
+
+        Conformance.assertDomainBound(address(lenient), address(aggA), address(aggB), 78, guardians, proof);
+
+        (bool ok, bytes memory ret) = address(this).staticcall(
+            abi.encodeWithSelector(
+                this.callAssertSetBound.selector, address(lenient), address(aggA), uint256(78), guardians, proof
+            )
+        );
+        assertFalse(ok, "a superset-lenient verifier must not pass assertSetBound");
+        assertEq(bytes4(ret), Conformance.VerifierAcceptsGuardianSuperset.selector);
+    }
+
+    /// A verifier that rejects everything must not be mistaken for "set bound" either.
+    function test_AlwaysFalseVerifierFailsSetBound() public {
+        DomainBoundFraudProofVerifier other = new DomainBoundFraudProofVerifier(keccak256("different attester"));
+        bytes memory proof = _proofForA(44);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Conformance.VerifierRejectedItsOwnGuardianSet.selector,
+                address(other),
+                keccak256(abi.encode(guardians))
+            )
+        );
+        this.callAssertSetBound(address(other), address(aggA), 44, guardians, proof);
+    }
+
+    /// A one-element accused set has no non-empty strict subset, so the fixture would be
+    /// silently weaker than it looks. It refuses instead of pretending to have checked.
+    function test_SetBoundRefusesASingleGuardianSet() public {
+        address[] memory single = new address[](1);
+        single[0] = guardians[0];
+        vm.expectRevert(
+            abi.encodeWithSelector(Conformance.SetBoundNeedsAtLeastTwoGuardians.selector, uint256(1))
+        );
+        this.callAssertSetBound(address(good), address(aggA), 45, single, hex"00");
+    }
+
+    /// The synthetic addresses the fixture invents for the superset/unrelated cases must
+    /// never collide with the real accused set — otherwise assertion (3)/(4) could be
+    /// testing the committed set against itself.
+    function test_SyntheticGuardiansNeverCollideWithTheAccusedSet() public view {
+        // A three-element set exercises subset generation as well.
+        address[] memory three = new address[](3);
+        three[0] = guardians[0];
+        three[1] = guardians[1];
+        three[2] = address(0x9003);
+        bytes memory proof = good.attest(aggA.fraudProofDigest(46, three), 46, three);
+        Conformance.assertSetBound(address(good), address(aggA), 46, three, proof);
+    }
+
+    function callAssertSetBound(
+        address verifier,
+        address aggregator,
+        uint256 id,
+        address[] memory g,
+        bytes memory proof
+    ) external view {
+        Conformance.assertSetBound(verifier, aggregator, id, g, proof);
     }
 
     function callAssertDomainBound(

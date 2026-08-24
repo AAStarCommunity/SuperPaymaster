@@ -39,7 +39,7 @@ interface ITimelockBatch {
  *         proxy to 5.7.0. All three steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
- *   2. setBLSAggregator(BLSAggregator 4.8.0)
+ *   2. setBLSAggregator(BLSAggregator 4.9.0)
  *   3. setCreditPolicy(perProposalCap, totalCap, exposureBaseline, true)
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
@@ -55,21 +55,24 @@ interface ITimelockBatch {
  *
  * CC-48 round-2 migration constraints — read before scheduling:
  *
- *   - BLSAggregator is NOT upgradeable. 4.8.0 is a fresh deployment at a NEW address,
+ *   - BLSAggregator is NOT upgradeable. 4.9.0 is a fresh deployment at a NEW address,
  *     and the domain separator commits to that address, so EVERY in-flight proof
  *     signed against the old aggregator becomes unverifiable the moment step (2)
  *     lands. Drain the proposal queue first; do not schedule the batch while a
  *     reputation or slash proposal is awaiting submission.
  *   - Validator BLS keys do NOT migrate. `blsKeyOwner` and `_blsKeys` are per-contract
  *     state, and a proof-of-possession is now bound to (validator, aggregator, chain),
- *     so every validator must re-file a freshly signed PoP against 4.8.0. Run
+ *     so every validator must re-file a freshly signed PoP against 4.9.0. Run
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
- *     otherwise the freeze it represents is silently lifted.
+ *     otherwise the freeze it represents is silently lifted. A predecessor that
+ *     predates the feature entirely (Sepolia is on `BLSAggregator-4.3.0`, which has
+ *     none of those getters) cannot hold a case; the preflight proves that from the
+ *     deployed ABI surface and skips ONLY that one check — never the key scan.
  *   - The compromised experiment stack (aggregator 0xc037...1273, slots 1/2/3 holding
  *     the public scalars 1/2/3) must never be a migration source. Its keys are known;
  *     re-registering them anywhere is equivalent to publishing the validator set's
@@ -82,14 +85,18 @@ interface ITimelockBatch {
  *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
- *   NEW_BLS_AGGREGATOR           BLSAggregator 4.8.0 (already deployed + wired)
+ *   NEW_BLS_AGGREGATOR           BLSAggregator 4.9.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
  *   CREDIT_EXPOSURE_BASELINE     aPNT wei, sum of existing users' credit limits
  *                                (computed off-chain from GlobalReputationUpdated)
- *   OLD_BLS_AGGREGATOR           predecessor aggregator to preflight; 0 = first-ever
- *                                deployment with no predecessor (REQUIRED, no default:
- *                                forgetting it must fail loudly, not skip the check)
+ *   OLD_BLS_AGGREGATOR           predecessor aggregator to preflight. REQUIRED, no
+ *                                default, and CHECKED: it must equal
+ *                                `Registry.blsAggregator()` as it reads RIGHT NOW.
+ *                                0 is accepted only when the live Registry genuinely has
+ *                                no aggregator wired — a live migration cannot declare
+ *                                itself "first-ever" to make the preflight quiet down
+ *                                (CC-48 round-5 HIGH-1).
  *   MIN_DISTINCT_KEYS (optional) override the distinct-active-key floor; defaults to the
  *                                largest threshold the new aggregator itself configures
  *   TIMELOCK (optional)          if set, also print scheduleBatch/executeBatch calldata
@@ -144,8 +151,8 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.8.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.8.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.9.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.9.0"
         );
 
         // Byte-level domain agreement, checked HERE rather than printed for a human to
@@ -161,7 +168,7 @@ contract UpgradeRegistryTo570 is Script {
         );
 
         // ---- CC-48 round-3 MEDIUM-4: validator-set preflight, enforced not suggested ----
-        // A fresh 4.8.0 starts with an EMPTY key table. Wiring it in before validators
+        // A fresh 4.9.0 starts with an EMPTY key table. Wiring it in before validators
         // have re-filed their PoPs points every BLS-gated path at an aggregator with no
         // signers — a real governance outage whose fix is another full timelock cycle.
         uint256 requiredKeys = vm.envOr("MIN_DISTINCT_KEYS", BLSKeyScanLib.maxRequiredThreshold(newAggregator));
@@ -170,20 +177,37 @@ contract UpgradeRegistryTo570 is Script {
         console.log("new aggregator distinct keys  :", newScan.distinctKeys);
         console.log("required distinct keys        :", requiredKeys);
 
-        // The OLD aggregator, when one exists, is checked for two things: an unresolved
-        // guardian-slash case (whose freeze would be silently lifted by the cutover) and
-        // any duplicated/publicly-known key that must never be re-onboarded. Set
-        // OLD_BLS_AGGREGATOR=0 ONLY for a first-ever deployment with no predecessor.
+        // ---- CC-48 round-5 HIGH-1: the predecessor is not a free-text parameter ----
+        // OLD_BLS_AGGREGATOR must be the aggregator Registry is wired to right now.
+        // Registry knows this; asking it is what stops "0" from doubling as both "there
+        // is no predecessor" and "make the preflight stop failing". The latter reading is
+        // how the tainted-key gate gets switched off by accident, and that gate is the
+        // only on-chain thing standing between the experiment stack's publicly-known
+        // keys (scalars 1/2/3) and a fresh production aggregator.
         address oldAggregator = vm.envAddress("OLD_BLS_AGGREGATOR");
+        BLSKeyScanLib.requireDeclaredPredecessor(proxy, oldAggregator);
         if (oldAggregator != address(0)) {
-            BLSKeyScanLib.requireNoPendingCases(oldAggregator);
+            // Order matters. The carry-over scan runs FIRST and UNCONDITIONALLY: it is the
+            // irreversible one (a publicly-known key re-onboarded onto the new aggregator
+            // cannot be un-published), and round-3 had it sitting behind a pending-case
+            // check that reverts on a missing selector against every aggregator actually
+            // deployed today. It never got to run against a real predecessor.
             BLSKeyScanLib.requireNoTaintedKeyCarriedOver(oldAggregator, newAggregator);
+            console.log("old aggregator tainted-key scan: PASSED");
+
+            // Then the pending-case check, which tolerates a predecessor that provably
+            // predates the guardian-slash feature (it skips ONLY that check, and says so)
+            // and refuses to guess about anything in between.
+            BLSKeyScanLib.requireNoPendingCases(oldAggregator);
             console.log("old aggregator checked        :", oldAggregator);
             console.log("  (note: an accused address that no longer holds a slot is not");
             console.log("   enumerable on-chain -- cross-check GuardianSlashQueued events)");
         } else {
-            console.log("OLD_BLS_AGGREGATOR = 0: declared first-ever deployment, no predecessor checks");
+            console.log("first-ever deployment: Registry.blsAggregator() is address(0),");
+            console.log("so there is no predecessor to scan. Verified against the live");
+            console.log("Registry, not taken on the operator's word.");
         }
+
 
         vm.startBroadcast();
         Registry newImpl = new Registry();

@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {BLS} from "src/utils/BLS.sol";
+import {console} from "forge-std/console.sol";
 
 interface IAggregatorKeyScan {
     function MAX_VALIDATORS() external view returns (uint256);
@@ -18,6 +19,17 @@ interface IAggregatorKeyScan {
     function version() external view returns (string memory);
     function REGISTRY() external view returns (address);
     function domainSeparator() external view returns (bytes32);
+    function guardianSlashCases(uint256 fraudProofId)
+        external
+        view
+        returns (bytes32, bytes32, uint64, uint8, uint16, uint16, address);
+    function fraudProofVerifier() external view returns (address);
+    function GUARDIAN_SLASH_CASE_WINDOW() external view returns (uint256);
+    function guardianExitRequests(address guardian) external view returns (uint64, uint64);
+}
+
+interface IRegistryWiring {
+    function blsAggregator() external view returns (address);
 }
 
 /**
@@ -44,7 +56,7 @@ interface IAggregatorKeyScan {
  *         stack was found in, and it is indistinguishable from a legitimate key by
  *         shape alone.
  *
- *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.8.0 starts with
+ *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.9.0 starts with
  *         an EMPTY key table. Wiring it into Registry before validators have re-filed
  *         their PoPs points the reputation / blacklist paths at an aggregator with no
  *         signers: every proposal reverts with InsufficientConsensus until onboarding
@@ -79,6 +91,27 @@ library BLSKeyScanLib {
     error TooFewDistinctKeys(address aggregator, uint256 distinctKeys, uint256 required);
     error TaintedKeyCarriedOver(bytes32 keyHash, address oldHolder, address newHolder);
     error PendingCaseOnOldAggregator(address aggregator, address guardian, uint256 pendingCount);
+    /// @dev CC-48 round-5 HIGH-1: the predecessor exposes SOME of the guardian-slash
+    ///      surface but not `pendingGuardianSlashCount`, or answers a probe with
+    ///      undecodable data (a catch-all fallback). Either way the "it cannot hold a
+    ///      case" argument is not provable, so the migration stops rather than skipping.
+    error AmbiguousGuardianSlashCapability(address aggregator);
+    /// @dev CC-48 round-5 HIGH-1: `OLD_BLS_AGGREGATOR` does not match the aggregator this
+    ///      Registry is wired to right now. Declaring 0 ("first-ever deployment") on a
+    ///      Registry that already has a predecessor is the exact way the tainted-key gate
+    ///      gets switched off by accident.
+    error PredecessorMismatch(address registry, address declared, address wired);
+
+    /// @notice What a predecessor aggregator can do about guardian slashing.
+    /// @dev    `Absent` is a POSITIVE proof, not an assumption: a pending case can only
+    ///         be created by `queueGuardianSlash`, which exists only in builds that also
+    ///         expose the four public getters probed below. A contract exposing none of
+    ///         them has no code path that can produce one.
+    enum GuardianSlashCapability {
+        Absent,
+        Present,
+        Ambiguous
+    }
 
     /// @notice Enumerate the ACTIVE key table of `aggregator` and classify it.
     function scan(address aggregator) internal view returns (ScanResult memory result) {
@@ -180,7 +213,39 @@ library BLSKeyScanLib {
     ///         revoked holds no slot and cannot be enumerated on-chain. Watchers must
     ///         cross-check `GuardianSlashQueued` events for the case window before
     ///         scheduling the batch; this function covers the enumerable majority.
+    ///
+    /// @dev    CC-48 round-5 HIGH-1 — LEGACY PREDECESSORS. `pendingGuardianSlashCount`
+    ///         arrived with the guardian-slash feature (CC-89); the aggregators actually
+    ///         deployed today (Sepolia `BLSAggregator-4.3.0`, and `4.1.0` before it) do
+    ///         not have that selector at all. Round-3 called this function first and
+    ///         unconditionally, so pointing the migration at the REAL predecessor made
+    ///         the whole preflight revert on a missing selector — and the only way to
+    ///         make the script run was `OLD_BLS_AGGREGATOR=0`, which ALSO skipped
+    ///         `requireNoTaintedKeyCarriedOver`, the sole on-chain gate stopping the
+    ///         experiment stack's publicly-known keys from being re-onboarded. A gate
+    ///         whose only usable setting disables a second gate is worse than no gate.
+    ///
+    ///         The skip is therefore narrow and PROVEN, never assumed:
+    ///           • if `pendingGuardianSlashCount` answers, nothing is skipped;
+    ///           • it is skipped only when the predecessor exposes NONE of the
+    ///             guardian-slash surface, which means no code path in it can create a
+    ///             case (see `guardianSlashCapability`);
+    ///           • any in-between shape reverts with `AmbiguousGuardianSlashCapability`.
+    ///         The caller keeps running `requireNoTaintedKeyCarriedOver` regardless —
+    ///         that check works fine against 4.3.0's ABI and is not what was failing.
     function requireNoPendingCases(address oldAggregator) internal view {
+        GuardianSlashCapability capability = guardianSlashCapability(oldAggregator);
+        if (capability == GuardianSlashCapability.Ambiguous) {
+            revert AmbiguousGuardianSlashCapability(oldAggregator);
+        }
+        if (capability == GuardianSlashCapability.Absent) {
+            console.log("  WARNING: predecessor has no guardian-slash surface at all:", oldAggregator);
+            console.log("           version:", _versionOrUnknown(oldAggregator));
+            console.log("           pending-case check SKIPPED (it cannot hold a case);");
+            console.log("           tainted/weak/duplicate key carry-over check still ENFORCED.");
+            return;
+        }
+
         IAggregatorKeyScan agg = IAggregatorKeyScan(oldAggregator);
         uint256 maxValidators = agg.MAX_VALIDATORS();
         for (uint8 slot = 1; slot <= uint8(maxValidators); slot++) {
@@ -189,6 +254,90 @@ library BLSKeyScanLib {
             uint256 pending = agg.pendingGuardianSlashCount(validator);
             if (pending != 0) revert PendingCaseOnOldAggregator(oldAggregator, validator, pending);
         }
+    }
+
+    /// @notice Decide, from the deployed bytecode's own ABI surface, whether `aggregator`
+    ///         can hold a guardian-slash case at all.
+    /// @dev    `Present` iff `pendingGuardianSlashCount(address)` decodes — that is the
+    ///         only getter the pending scan needs, so nothing else matters once it
+    ///         answers.
+    ///
+    ///         `Absent` requires ALL FOUR of the remaining guardian-slash getters to be
+    ///         missing too: `guardianSlashCases`, `fraudProofVerifier`,
+    ///         `GUARDIAN_SLASH_CASE_WINDOW`, `guardianExitRequests`. They ship in the
+    ///         same feature as `queueGuardianSlash` — the ONLY function that can create a
+    ///         pending case — so their joint absence is positive evidence that no case
+    ///         can exist, not an inference from a single missing selector.
+    ///
+    ///         Everything else is `Ambiguous` and must stop the migration: a partial
+    ///         surface means an unrecognised build, and a contract with a catch-all
+    ///         fallback answers every probe with empty/short returndata, which must never
+    ///         be read as "feature absent". Fail closed, loudly.
+    function guardianSlashCapability(address aggregator) internal view returns (GuardianSlashCapability) {
+        (bool pendingOk, bool pendingDecodable) =
+            _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.pendingGuardianSlashCount, (address(1))), 32);
+        if (pendingOk && pendingDecodable) return GuardianSlashCapability.Present;
+        if (pendingOk) return GuardianSlashCapability.Ambiguous; // answered, but not as a uint256
+
+        bool anyOther;
+        bool anyUndecodable;
+        (bool ok, bool decodable) =
+            _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.guardianSlashCases, (uint256(0))), 224);
+        anyOther = anyOther || (ok && decodable);
+        anyUndecodable = anyUndecodable || (ok && !decodable);
+        (ok, decodable) = _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.fraudProofVerifier, ()), 32);
+        anyOther = anyOther || (ok && decodable);
+        anyUndecodable = anyUndecodable || (ok && !decodable);
+        (ok, decodable) =
+            _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.GUARDIAN_SLASH_CASE_WINDOW, ()), 32);
+        anyOther = anyOther || (ok && decodable);
+        anyUndecodable = anyUndecodable || (ok && !decodable);
+        (ok, decodable) =
+            _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.guardianExitRequests, (address(1))), 64);
+        anyOther = anyOther || (ok && decodable);
+        anyUndecodable = anyUndecodable || (ok && !decodable);
+
+        if (anyOther || anyUndecodable) return GuardianSlashCapability.Ambiguous;
+        return GuardianSlashCapability.Absent;
+    }
+
+    /// @notice The declared predecessor must be the aggregator this Registry is wired to
+    ///         RIGHT NOW.
+    /// @dev    CC-48 round-5 HIGH-1. `OLD_BLS_AGGREGATOR` has no default precisely so a
+    ///         forgotten predecessor fails loudly — but "loudly" only helps if the value
+    ///         is also CHECKED. Without this, 0 is both "there is no predecessor" and
+    ///         "make the preflight stop complaining", and the two are indistinguishable
+    ///         to the script. Registry knows the answer, so ask it: a live migration
+    ///         cannot declare itself first-ever, and a typo'd or stale predecessor
+    ///         address (scanning the wrong contract for tainted keys) is caught too.
+    function requireDeclaredPredecessor(address registry, address declaredOld)
+        internal
+        view
+        returns (address wired)
+    {
+        wired = IRegistryWiring(registry).blsAggregator();
+        if (declaredOld != wired) revert PredecessorMismatch(registry, declaredOld, wired);
+    }
+
+    /// @dev staticcall probe. Returns (the call succeeded, the returndata is at least the
+    ///      expected ABI width). Split in two because "reverted" and "answered with
+    ///      something undecodable" mean very different things here: the first is a missing
+    ///      selector on a fallback-less contract (informative), the second is a fallback
+    ///      swallowing the call (never trustworthy).
+    function _probe(address target, bytes memory callData, uint256 minReturnLength)
+        private
+        view
+        returns (bool ok, bool decodable)
+    {
+        bytes memory ret;
+        (ok, ret) = target.staticcall(callData);
+        decodable = ret.length >= minReturnLength;
+    }
+
+    function _versionOrUnknown(address aggregator) private view returns (string memory) {
+        (bool ok, bytes memory ret) = aggregator.staticcall(abi.encodeCall(IAggregatorKeyScan.version, ()));
+        if (!ok || ret.length < 64) return "<no version() getter>";
+        return abi.decode(ret, (string));
     }
 
     /// @dev Recomputes g1 * s for the small public scalars and compares.

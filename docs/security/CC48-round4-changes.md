@@ -107,9 +107,21 @@ A verifier that was **already** malicious/compromised at queue time can open a b
 and freezing its verdict makes that case durable. That is unchanged from every previous
 round and is the design premise of the seam: the verifier IS the authority on fraud.
 Round-4 narrows *when* that authority applies (once, at queue time, on the record) rather
-than leaving it open-ended for the life of the case. Governance's remedy against a bad
-verifier is rotation — which stops it opening *new* cases — plus the bounded 4-day window
-and permissionless expiry on the cases it already opened.
+than leaving it open-ended for the life of the case.
+
+> **Corrected in round-5 (MEDIUM-2).** As originally written this paragraph named
+> "rotation" as governance's remedy without saying how long it takes. At the time,
+> rotation was the ONLY off-switch and cost `VERIFIER_ROTATION_DELAY` = 4 days, while a
+> compromised verifier can queue and fully execute a 100%-of-lock slash inside a single
+> block — i.e. the described remedy could not act on the timescale of the attack.
+> `emergencyDisarmFraudProofVerifier()` (owner-only, immediate, strictly power-reducing)
+> now provides the same-block stop; re-arming still costs the full 4-day cycle, and cases
+> already queued still run to their frozen verdict. See
+> [`CC48-round5-changes.md` §3](./CC48-round5-changes.md).
+
+Governance's remedy against a bad verifier is therefore: immediate emergency disarm (stops
+it opening *new* cases in the same block), plus the bounded 4-day window and permissionless
+expiry on the cases it already opened.
 
 ---
 
@@ -214,6 +226,12 @@ be pure functions of `(domainDigest, fraudProofId, guiltyGuardians, fraudProof)`
 ---
 
 ## 6. Migration gates
+
+> **Superseded by [`CC48-round5-changes.md` §8](./CC48-round5-changes.md).** Round-5's
+> HIGH-1 found that the gate described below could not run against the aggregator actually
+> deployed on Sepolia (`BLSAggregator-4.3.0`, which has no `pendingGuardianSlashCount`),
+> and that its only unlock (`OLD_BLS_AGGREGATOR=0`) also disabled the tainted-key scan.
+> Version pins are now `BLSAggregator-4.9.0`. Read §8 of round-5 before scheduling.
 
 `contracts/script/v3/UpgradeRegistryTo570.s.sol` and
 `contracts/script/v3/DeployRepCreditSepolia.s.sol` now require

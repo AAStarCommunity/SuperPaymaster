@@ -1247,6 +1247,219 @@ contract CC48MutableProxyVerifierTest is Test {
 }
 
 /// Minimal registry/staking stubs for the exit-notice suite (no real staking).
+// =====================================================================
+// CC-48 round-5 MEDIUM-2 — emergency disarm of the fraud-proof verifier
+// =====================================================================
+
+/// @notice Before round-5 the ONLY way to take a lying verifier off-line was
+///         `proposeFraudProofVerifier(0)` + `VERIFIER_ROTATION_DELAY` (4 days) +
+///         `applyFraudProofVerifier`. A compromised verifier can open a case and have
+///         100% of every accused guardian's lock taken in a SINGLE block, so a four-day
+///         remedy was not a remedy — and round-4's own documentation described the
+///         remedy as stronger than the contract actually made it.
+///
+///         The addition is deliberately asymmetric, and these tests pin that asymmetry:
+///         disarming is immediate because it only ever REMOVES power; re-arming still
+///         costs the full delay; and an already-queued case is decided by its frozen
+///         verdict, so the owner cannot use "emergency" as a way to rescue an accused
+///         colluder.
+contract CC48VerifierDisarmTest is Test {
+    Registry registry;
+    GTokenStaking staking;
+    GToken gtoken;
+    BLSAggregator bls;
+    CC48MockFraudVerifier verifier;
+
+    address constant NOT_OWNER = address(0x7777);
+    address g1 = address(0x6101);
+    address g2 = address(0x6102);
+
+    function setUp() public {
+        vm.warp(365 days);
+        CC48MockSBT sbt = new CC48MockSBT();
+        registry = UUPSDeployHelper.deployRegistryProxy(address(this), address(0), address(sbt));
+        gtoken = new GToken(1_000_000 ether);
+        staking = new GTokenStaking(address(gtoken), address(this), address(registry));
+        registry.setStaking(address(staking));
+        bls = new BLSAggregator(address(registry), address(0x5050), address(0xD57));
+        verifier = new CC48MockFraudVerifier();
+        registry.setBLSAggregator(address(bls));
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+        staking.setAuthorizedSlasher(address(bls), true);
+
+        IRegistry.RoleConfig memory dvtConfig = registry.getRoleConfig(ROLE_DVT);
+        dvtConfig.roleLockDuration = 0;
+        registry.configureRole(ROLE_DVT, dvtConfig);
+
+        _seat(g1);
+        _seat(g2);
+    }
+
+    function _seat(address g) internal {
+        gtoken.mint(g, 100 ether);
+        vm.prank(g);
+        gtoken.approve(address(staking), 100 ether);
+        vm.prank(g);
+        registry.registerRole(ROLE_DVT, g, abi.encode(uint256(30 ether)));
+    }
+
+    function _both() internal view returns (address[] memory a) {
+        a = new address[](2);
+        a[0] = g1;
+        a[1] = g2;
+    }
+
+    /// The whole point: it takes effect in THIS block, not in four days.
+    function test_DisarmIsImmediateAndStopsNewCases() public {
+        address[] memory accused = _both();
+        // Armed: a case can be opened right now.
+        bls.queueGuardianSlash(1, accused, hex"01");
+
+        bls.emergencyDisarmFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(0), "verifier cleared in the same tx");
+
+        vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
+        bls.queueGuardianSlash(2, accused, hex"02");
+
+        // Not merely "later" — no amount of waiting re-arms it.
+        vm.warp(block.timestamp + 3650 days);
+        vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
+        bls.queueGuardianSlash(3, accused, hex"03");
+    }
+
+    /// A rotation already in flight is part of the attack surface being removed: leaving
+    /// it queued would let the pending verifier install itself when its delay matures.
+    function test_DisarmAlsoClearsAnInFlightRotation() public {
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+        bls.proposeFraudProofVerifier(address(next));
+        assertEq(bls.pendingFraudProofVerifier(), address(next));
+        assertTrue(bls.pendingFraudProofVerifierReadyAt() != 0);
+
+        bls.emergencyDisarmFraudProofVerifier();
+
+        assertEq(bls.pendingFraudProofVerifier(), address(0), "pending rotation cleared");
+        assertEq(bls.pendingFraudProofVerifierReadyAt(), 0);
+
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY() + 1);
+        vm.expectRevert(BLSAggregator.NoPendingVerifierRotation.selector);
+        bls.applyFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(0), "nothing matured into place");
+    }
+
+    /// The asymmetry that makes immediacy safe: an owner cannot use disarm as a fast
+    /// path to a verifier of its choosing. Coming back on-line is still four days.
+    function test_ReArmingStillCostsAFullRotationDelay() public {
+        bls.emergencyDisarmFraudProofVerifier();
+
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+        bls.proposeFraudProofVerifier(address(next));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.VerifierRotationNotReady.selector, bls.pendingFraudProofVerifierReadyAt()
+            )
+        );
+        bls.applyFraudProofVerifier();
+
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY() - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSAggregator.VerifierRotationNotReady.selector, bls.pendingFraudProofVerifierReadyAt()
+            )
+        );
+        bls.applyFraudProofVerifier();
+
+        vm.warp(block.timestamp + 1);
+        bls.applyFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(next));
+    }
+
+    /// The other half of the asymmetry: the owner may stop FUTURE accusations, and may
+    /// NOT rescue an already-accused colluder. Execution reads the verdict frozen at
+    /// queue time and never touches `fraudProofVerifier`, so disarming is invisible to it.
+    function test_AQueuedCaseStillExecutesOnItsFrozenVerdictAfterDisarm() public {
+        address[] memory accused = _both();
+        bls.queueGuardianSlash(9, accused, hex"09");
+
+        bls.emergencyDisarmFraudProofVerifier();
+        // Belt and braces: even a verifier that would now say "innocent" is irrelevant.
+        verifier.setValid(false);
+
+        bls.executeGuardianSlash(9, accused, hex"09");
+
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "frozen verdict still executed");
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0);
+        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(9);
+        assertEq(status, 2, "case resolved");
+        assertEq(resolved, 2);
+    }
+
+    /// ...and the pre-existing case can still be dropped the normal way, on its own
+    /// bounded window — disarm neither shortens nor extends it.
+    function test_DisarmDoesNotChangeAQueuedCaseDeadline() public {
+        address[] memory accused = _both();
+        bls.queueGuardianSlash(10, accused, hex"10");
+        (,, uint64 deadline,,,,) = bls.guardianSlashCases(10);
+        uint256 caseDeadline = uint256(deadline);
+
+        bls.emergencyDisarmFraudProofVerifier();
+        (,, uint64 after_,,,,) = bls.guardianSlashCases(10);
+        assertEq(uint256(after_), caseDeadline, "deadline untouched");
+
+        vm.warp(caseDeadline + 1);
+        bls.expireGuardianSlashCase(10, accused);
+        assertEq(bls.pendingGuardianSlashCount(g1), 0);
+        assertEq(bls.pendingGuardianSlashCount(g2), 0);
+    }
+
+    /// Permission: it is a governance lever, not a public panic button. A permissionless
+    /// disarm would let anyone shut the collusion deterrent off for four days (the cost
+    /// of re-arming) for the price of one transaction.
+    function test_DisarmIsOwnerOnly() public {
+        vm.prank(NOT_OWNER);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, NOT_OWNER));
+        bls.emergencyDisarmFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(verifier), "still armed");
+    }
+
+    /// Refuse rather than emit a "disarmed" trail that took nothing away — monitors key
+    /// off this event, and a no-op emergency stop is exactly the kind of thing that gets
+    /// mistaken for one that worked.
+    function test_DisarmRevertsWhenAlreadyDormant() public {
+        bls.emergencyDisarmFraudProofVerifier();
+        vm.expectRevert(BLSAggregator.VerifierAlreadyDisarmed.selector);
+        bls.emergencyDisarmFraudProofVerifier();
+    }
+
+    /// A pending rotation with NO active verifier is still something to clear, so the
+    /// "already dormant" guard must not swallow it.
+    function test_DisarmWorksWithOnlyAPendingRotationToClear() public {
+        bls.emergencyDisarmFraudProofVerifier();
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+        bls.proposeFraudProofVerifier(address(next));
+
+        bls.emergencyDisarmFraudProofVerifier();
+        assertEq(bls.pendingFraudProofVerifier(), address(0));
+        assertEq(bls.pendingFraudProofVerifierReadyAt(), 0);
+    }
+
+    /// The audit trail: the routine events fire AND a distinct emergency marker, so a
+    /// monitor can tell an emergency stop apart from a scheduled rotation landing.
+    function test_DisarmEmitsTheRoutineEventsAndAnEmergencyMarker() public {
+        CC48MockFraudVerifier next = new CC48MockFraudVerifier();
+        bls.proposeFraudProofVerifier(address(next));
+
+        vm.expectEmit(true, true, false, false);
+        emit BLSAggregator.FraudProofVerifierUpdated(address(verifier), address(0));
+        vm.expectEmit(true, false, false, false);
+        emit BLSAggregator.FraudProofVerifierRotationCancelled(address(next));
+        vm.expectEmit(true, true, false, false);
+        emit BLSAggregator.FraudProofVerifierEmergencyDisarmed(address(verifier), address(next));
+        bls.emergencyDisarmFraudProofVerifier();
+    }
+}
+
 contract CC48StakingStub {
     mapping(address => uint128) public lockedAmount;
     function setLocked(address user, uint128 amount) external { lockedAmount[user] = amount; }
