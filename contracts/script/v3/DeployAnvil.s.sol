@@ -293,7 +293,7 @@ contract DeployAnvil is V54Bootstrap {
         // the production default of seven remains unchanged outside this mode.
         if (vm.envOr("REPCREDIT_EVIDENCE_MODE", false)) {
             registry.setCreditTier(1, 0);
-            registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+            registry.setCreditPolicy(600 ether, 3_000 ether, 0, true);
             aggregator.setDefaultThreshold(3);
         }
         // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)

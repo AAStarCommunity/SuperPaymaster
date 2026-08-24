@@ -199,7 +199,9 @@ contract GuardianSlashE2ETest is Test {
         test_E2E_A_CommitmentStoredAndReproducible();
 
         vm.prank(owner);
-        bls.setFraudProofVerifier(address(verifier)); // real verifier swaps in here
+        bls.proposeFraudProofVerifier(address(verifier)); // real verifier swaps in here
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
 
         // The (mock) verifier attests these two signers colluded on the fraudulent slash.
         address[] memory guilty = new address[](2);
@@ -235,7 +237,9 @@ contract GuardianSlashE2ETest is Test {
     function test_E2E_B_RejectsUnanchoredProof() public {
         test_E2E_A_CommitmentStoredAndReproducible(); // commitment exists for pid 42 ONLY
         vm.prank(owner);
-        bls.setFraudProofVerifier(address(verifier));
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
 
         address[] memory guilty = new address[](1);
         guilty[0] = signers[0];

@@ -78,7 +78,9 @@ contract GuardianSlashTest is Test {
 
     function _wireVerifier() internal {
         vm.prank(owner);
-        bls.setFraudProofVerifier(address(verifier));
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
     }
 
     function _one(address a) internal pure returns (address[] memory s) {
@@ -98,10 +100,21 @@ contract GuardianSlashTest is Test {
         bls.queueGuardianSlash(1, _one(guardian1), "");
     }
 
-    function test_SetFraudProofVerifier_OnlyOwner() public {
+    function test_ProposeFraudProofVerifier_OnlyOwner() public {
         vm.prank(attacker);
         vm.expectRevert();
-        bls.setFraudProofVerifier(address(verifier));
+        bls.proposeFraudProofVerifier(address(verifier));
+    }
+
+    /// CC-48 MEDIUM-1: rotation cannot be applied before the delay matures.
+    function test_ApplyFraudProofVerifier_RequiresDelay() public {
+        vm.prank(owner);
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.expectRevert();
+        bls.applyFraudProofVerifier();
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+        assertEq(bls.fraudProofVerifier(), address(verifier));
     }
 
     // ---- shape / verifier gating ----
@@ -217,6 +230,6 @@ contract GuardianSlashTest is Test {
     // ---- version bump ----
 
     function test_VersionBumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.4.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.5.0"));
     }
 }

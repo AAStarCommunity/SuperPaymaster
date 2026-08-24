@@ -107,6 +107,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         bytes32 guardiansHash;
         uint64 deadline;
         uint8 status; // 0=none, 1=pending, 2=executed, 3=expired
+        // CC-48 HIGH-2: a case is only "executed" once EVERY accused guardian has
+        // been individually resolved. Partial progress keeps status == 1 so the
+        // case stays retryable instead of collapsing into an all-or-nothing batch.
+        uint16 guardianCount;
+        uint16 resolvedCount;
     }
 
     struct GuardianExitRequest {
@@ -216,12 +221,41 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     mapping(address => GuardianExitRequest) public guardianExitRequests;
     mapping(address => uint256) public pendingGuardianSlashCount;
 
-    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 2 days;
+    /// @notice CC-48 HIGH-2: per-(case, guardian) release marker. Set exactly once,
+    ///         when that guardian's `pendingGuardianSlashCount` contribution for the
+    ///         case is given back — either because the slash succeeded, because the
+    ///         guardian had nothing left to slash, or because the case expired. A
+    ///         guardian whose `slashByDVT` reverted stays UNresolved and frozen, so a
+    ///         single staking-side failure can no longer release the whole set.
+    mapping(uint256 => mapping(address => bool)) public guardianCaseResolved;
+
+    /// @notice CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new
+    ///         exit notice after cancelling one. Kills request/cancel flip-flopping as
+    ///         a cheap, repeatable lever on the signer set.
+    mapping(address => uint64) public guardianExitCooldownUntil;
+
+    /// @notice CC-48 MEDIUM-1: two-step, delay-guarded fraud-proof verifier rotation.
+    ///         `pendingFraudProofVerifierReadyAt != 0` means a rotation is in flight.
+    address public pendingFraudProofVerifier;
+    uint64 public pendingFraudProofVerifierReadyAt;
+
+    /// @dev CC-48 HIGH-2: the case window MUST strictly dominate a full exit notice
+    ///      (delay + consumption window). At 2 days each, an accused guardian could
+    ///      line up `readyAt` with the case deadline and walk the moment the case
+    ///      expired. 4 > 2 + 1 leaves no such alignment: an exit notice opened at or
+    ///      after the queueing block always expires before the case does.
+    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 4 days;
     uint256 public constant GUARDIAN_EXIT_DELAY = 2 days;
     uint256 public constant GUARDIAN_EXIT_WINDOW = 1 days;
+    /// @notice Quiet period imposed after cancelling an exit notice (BLOCKER-1).
+    uint256 public constant GUARDIAN_EXIT_COOLDOWN = 1 days;
+    /// @notice Verifier rotations mature no faster than a full case window, so
+    ///         governance cannot retroactively kill a queued case by swapping in a
+    ///         verifier that returns false (CC-48 MEDIUM-1).
+    uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.4.0";
+        return "BLSAggregator-4.5.0";
     }
 
 
@@ -265,8 +299,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
     event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
     event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
+    /// @notice A case whose accused guardians have all been individually resolved.
+    event GuardianSlashCaseResolved(uint256 indexed fraudProofId);
+    /// @notice A single guardian's slash reverted on the staking side. The case stays
+    ///         pending and this guardian stays frozen — the call is simply retryable.
+    event GuardianSlashFailed(uint256 indexed fraudProofId, address indexed guardian);
     event GuardianExitRequested(address indexed guardian, uint256 readyAt, uint256 expiresAt);
-    event GuardianExitCancelled(address indexed guardian);
+    event GuardianExitCancelled(address indexed guardian, uint256 cooldownUntil);
+    event FraudProofVerifierRotationProposed(address indexed verifier, uint256 readyAt);
+    event FraudProofVerifierRotationCancelled(address indexed verifier);
     event GuardianExitConsumed(address indexed guardian);
 
     // ====================================
@@ -355,6 +396,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error GuardianExitBlockedBySlash(address guardian, uint256 pendingCount);
     error NotRegistry(address caller);
     error SlotValidatorExitPending(uint8 slot, address validator);
+    error GuardianExitCooldownActive(address guardian, uint256 cooldownUntil);
+    error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
+    error NoPendingVerifierRotation();
+    error VerifierRotationNotReady(uint256 readyAt);
 
     // ====================================
     // Constructor
@@ -892,7 +937,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (!REGISTRY.hasRole(roleDvt, v)) {
                 revert SlotValidatorRoleRevoked(slot, v);
             }
-            if (guardianExitRequests[v].readyAt != 0) {
+            // CC-48 BLOCKER-1: an exit NOTICE must not take effect in the block it is
+            // filed. Pre-fix, `readyAt != 0` alone disqualified the slot, so any single
+            // ROLE_DVT member could watch the mempool, front-run a quorum transaction
+            // with requestGuardianExit() (~1 SSTORE), make it revert, then immediately
+            // cancelGuardianExit() — a free, repeatable, self-erasing 1-of-N halt on
+            // every BLS-gated governance path. Honouring the notice only once
+            // `block.timestamp >= readyAt` means the exclusion is always announced
+            // GUARDIAN_EXIT_DELAY in advance: it cannot touch an in-flight proof, and
+            // governance has the whole notice period to seat a replacement.
+            uint64 exitReadyAt = guardianExitRequests[v].readyAt;
+            if (exitReadyAt != 0 && block.timestamp >= uint256(exitReadyAt)) {
                 revert SlotValidatorExitPending(slot, v);
             }
             (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
@@ -1155,19 +1210,47 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         stage 2 detection layer, supplied by the DVT repo). Owner-gated.
     ///         Setting address(0) disables executeGuardianSlash (feature dormant).
     /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
-    ///         100%-of-lock slash path. Before wiring a verifier, `owner` MUST be a
-    ///         TimelockController (or multisig-behind-timelock) so verifier rotation is
-    ///         delay-guarded — do NOT arm this from a hot EOA owner. Enforced by
-    ///         deployment/governance, not in-contract, to keep this a thin entry.
+    ///         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,
+    ///         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.
+    ///         The delay is >= GUARDIAN_SLASH_CASE_WINDOW precisely so that a queued
+    ///         case always outlives any rotation started after it; an owner can no
+    ///         longer swap in an always-false verifier mid-case to let colluders time
+    ///         out. `owner` should still be a multisig behind a TimelockController —
+    ///         that is defence in depth, no longer the only defence.
     /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
     ///         unbonding delay. The request immediately removes the guardian from
     ///         valid signer masks; a verifier-approved queued case increments the
     ///         pending counter and Registry cannot consume the exit until all cases
     ///         resolve. Governance must wire this aggregator into Registry before
     ///         arming the verifier.
-    function setFraudProofVerifier(address verifier) external onlyOwner {
-        emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
-        fraudProofVerifier = verifier;
+    function proposeFraudProofVerifier(address verifier) external onlyOwner {
+        uint64 readyAt = uint64(block.timestamp + VERIFIER_ROTATION_DELAY);
+        pendingFraudProofVerifier = verifier;
+        pendingFraudProofVerifierReadyAt = readyAt;
+        emit FraudProofVerifierRotationProposed(verifier, readyAt);
+    }
+
+    /// @notice Abandon an in-flight verifier rotation.
+    function cancelFraudProofVerifierRotation() external onlyOwner {
+        if (pendingFraudProofVerifierReadyAt == 0) revert NoPendingVerifierRotation();
+        emit FraudProofVerifierRotationCancelled(pendingFraudProofVerifier);
+        delete pendingFraudProofVerifier;
+        delete pendingFraudProofVerifierReadyAt;
+    }
+
+    /// @notice Finalise a matured verifier rotation.
+    /// @dev    Permissionless on purpose: the decision was already taken by `owner`
+    ///         and has served its full delay, so anyone may push the button. Keeping
+    ///         it owner-only would just hand the owner a second, unbounded veto.
+    function applyFraudProofVerifier() external {
+        uint64 readyAt = pendingFraudProofVerifierReadyAt;
+        if (readyAt == 0) revert NoPendingVerifierRotation();
+        if (block.timestamp < uint256(readyAt)) revert VerifierRotationNotReady(uint256(readyAt));
+        address next = pendingFraudProofVerifier;
+        delete pendingFraudProofVerifier;
+        delete pendingFraudProofVerifierReadyAt;
+        emit FraudProofVerifierUpdated(fraudProofVerifier, next);
+        fraudProofVerifier = next;
     }
 
     /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
@@ -1181,16 +1264,91 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert GuardianExitBlockedBySlash(msg.sender, pendingGuardianSlashCount[msg.sender]);
         }
         if (guardianExitRequests[msg.sender].readyAt != 0) revert GuardianExitAlreadyRequested(msg.sender);
+        uint64 cooldownUntil = guardianExitCooldownUntil[msg.sender];
+        if (block.timestamp < uint256(cooldownUntil)) {
+            revert GuardianExitCooldownActive(msg.sender, uint256(cooldownUntil));
+        }
+        _requireCommitteeSurvivesExit(msg.sender);
         uint64 readyAt = uint64(block.timestamp + GUARDIAN_EXIT_DELAY);
         uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_EXIT_WINDOW);
         guardianExitRequests[msg.sender] = GuardianExitRequest(readyAt, expiresAt);
         emit GuardianExitRequested(msg.sender, readyAt, expiresAt);
     }
 
+    /// @notice Withdraw an exit notice and re-enter the signer set.
+    /// @dev    CC-48 BLOCKER-1 / MEDIUM-5. Two changes over the original: an accused
+    ///         guardian (pending case) may no longer cancel back into the signing set,
+    ///         and every cancel arms a GUARDIAN_EXIT_COOLDOWN quiet period before a new
+    ///         notice may be filed, so request/cancel cannot be cycled. This is also the
+    ///         supported way to clear an EXPIRED notice: the record survives expiry (and
+    ///         keeps excluding the slot), and cancelling is what puts the guardian back.
     function cancelGuardianExit() external {
         if (guardianExitRequests[msg.sender].readyAt == 0) revert GuardianExitNotRequested(msg.sender);
+        uint256 pending = pendingGuardianSlashCount[msg.sender];
+        if (pending != 0) revert GuardianExitBlockedBySlash(msg.sender, pending);
         delete guardianExitRequests[msg.sender];
-        emit GuardianExitCancelled(msg.sender);
+        uint64 cooldownUntil = uint64(block.timestamp + GUARDIAN_EXIT_COOLDOWN);
+        guardianExitCooldownUntil[msg.sender] = cooldownUntil;
+        emit GuardianExitCancelled(msg.sender, cooldownUntil);
+    }
+
+    /// @notice Highest signer count any BLS-gated path can demand right now.
+    /// @dev    Reputation/blacklist proposals clear `defaultThreshold`; slash proposals
+    ///         clear the per-severity `slashThresholds`. The committee floor has to
+    ///         respect whichever is largest, otherwise exits could quietly strand the
+    ///         severity with the strictest quorum.
+    function _maxRequiredThreshold() internal view returns (uint256 required) {
+        required = defaultThreshold;
+        for (uint8 lvl = 0; lvl <= uint8(ISuperPaymasterSlash.SlashLevel.MAJOR); ) {
+            uint256 t = uint256(slashThresholds[lvl]);
+            if (t > required) required = t;
+            unchecked { ++lvl; }
+        }
+    }
+
+    /// @notice Count the guardians that would still be able to sign once every
+    ///         outstanding exit notice (including `leaving`'s) has matured.
+    /// @dev    CC-48 MEDIUM-2 / BLOCKER-1 (second half). Guardians that merely
+    ///         ANNOUNCED an exit are excluded here even before `readyAt`, because the
+    ///         floor has to hold at the end state, not just today. Stake is not
+    ///         re-read: `_reconstructPkAgg` already enforces minStake at verification
+    ///         time, and pulling every lock here would make a routine notice cost a
+    ///         full committee sweep of external staking reads.
+    ///
+    ///         Consequence, stated plainly: with N eligible guardians and a required
+    ///         threshold of N, NO guardian can open an exit notice until governance
+    ///         seats a replacement or lowers the threshold. That is deliberate — the
+    ///         alternative is letting one member unilaterally park the committee below
+    ///         quorum. Deployments running N == threshold (the RepCredit 3-of-3
+    ///         evidence stack) must seat a spare before any operator can leave.
+    ///
+    ///         The check only fires when THIS exit is what breaks quorum. If the
+    ///         committee is already short of the threshold, the BLS paths are dead
+    ///         anyway and holding guardians hostage buys nothing — so exits stay open
+    ///         and the fix is governance's (raise the set, or lower the threshold).
+    function _requireCommitteeSurvivesExit(address leaving) internal view {
+        // A guardian with no active BLS key is not part of any signer mask, so its
+        // departure cannot move the committee below quorum — nothing to check.
+        if (!_blsKeys[leaving].isActive) return;
+        bytes32 roleDvt = keccak256("DVT");
+        uint256 remaining;
+        bool leavingEligible;
+        for (uint8 slot = 1; slot <= MAX_VALIDATORS; ) {
+            address v = validatorAtSlot[slot];
+            unchecked { ++slot; }
+            if (v == address(0)) continue;
+            if (!_blsKeys[v].isActive) continue;
+            // Guardians that merely ANNOUNCED an exit are excluded even before
+            // readyAt: the floor has to hold at the end state, not just today.
+            if (v != leaving && guardianExitRequests[v].readyAt != 0) continue;
+            if (!REGISTRY.hasRole(roleDvt, v)) continue;
+            if (v == leaving) { leavingEligible = true; continue; }
+            unchecked { ++remaining; }
+        }
+        uint256 required = _maxRequiredThreshold();
+        if (!leavingEligible) return;
+        if (remaining + 1 < required) return; // already below quorum without this exit
+        if (remaining < required) revert GuardianExitWouldBreakQuorum(remaining, required);
     }
 
     /// @notice Registry-only atomic gate called by Registry.exitRole(ROLE_DVT).
@@ -1230,6 +1388,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         slashCase.guardiansHash = guardiansHash;
         slashCase.deadline = deadline;
         slashCase.status = 1;
+        slashCase.guardianCount = uint16(guiltyGuardians.length);
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
             unchecked { ++i; }
@@ -1251,8 +1410,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert GuardianSetMismatch(fraudProofId);
         }
         slashCase.status = 3;
+        // CC-48 HIGH-2: guardians already released by a successful (or no-op) partial
+        // execution must not be decremented twice — expiry only frees the stragglers.
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
-            pendingGuardianSlashCount[guiltyGuardians[i]] -= 1;
+            address guardian = guiltyGuardians[i];
+            if (!guardianCaseResolved[fraudProofId][guardian]) {
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+            }
             unchecked { ++i; }
         }
         emit GuardianSlashCaseExpired(fraudProofId);
@@ -1320,31 +1485,57 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         bytes32 roleDvt = keccak256("DVT");
-        slashCase.status = 2;
 
+        // CC-48 HIGH-2: advance guardian-by-guardian. Pre-fix this loop marked the
+        // whole case executed up front and let any single `slashByDVT` revert take the
+        // entire transaction down; if that condition (staking paused, authorization
+        // rotated, an odd lock state) simply outlasted the deadline, expiry then
+        // released EVERY accused guardian at once. Now each guardian is settled on its
+        // own: successes are banked, failures leave that guardian frozen and the case
+        // pending, and the caller can retry until the deadline.
+        uint256 released;
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             address guardian = guiltyGuardians[i];
-            // Idempotent per (proof, guardian): a guardian already slashed under this
-            // proof is silently skipped (no double-slash, no revert of the batch).
-            if (!guardianSlashed[fraudProofId][guardian]) {
-                (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
-                if (amount != 0) {
-                    // Mark ONLY when actually slashing (CEI: effect before interaction;
-                    // nonReentrant backstop). An exited/0-lock guardian is NOT marked,
-                    // so it consumes nothing on behalf of the still-staked colluders.
-                    guardianSlashed[fraudProofId][guardian] = true;
-                    IGTokenStakingSlash(address(staking)).slashByDVT(
-                        guardian, roleDvt, uint256(amount), "DVT collusion"
-                    );
-                    emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
-                } else {
-                    // Exited / already-ejected: nothing to slash and no id burned, so
-                    // still-staked colluders under this same proof remain slashable.
-                    emit GuardianSlashSkipped(fraudProofId, guardian);
-                }
-            }
-            pendingGuardianSlashCount[guardian] -= 1;
             unchecked { ++i; }
+            if (guardianCaseResolved[fraudProofId][guardian]) continue;
+
+            (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
+            if (amount == 0) {
+                // Exited / already-ejected: nothing left to take. Settle it so the
+                // still-staked colluders are not held hostage by this entry.
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+                unchecked { ++released; }
+                emit GuardianSlashSkipped(fraudProofId, guardian);
+                continue;
+            }
+
+            // Effects deliberately AFTER the call here: `nonReentrant` already blocks
+            // re-entry into this contract's guarded entry points, and leaving
+            // `pendingGuardianSlashCount` untouched for the duration of the external
+            // call keeps Registry.exitRole -> consumeGuardianExit closed against a
+            // guardian that tries to walk out from inside its own slash.
+            try IGTokenStakingSlash(address(staking)).slashByDVT(
+                guardian, roleDvt, uint256(amount), "DVT collusion"
+            ) {
+                guardianSlashed[fraudProofId][guardian] = true;
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+                unchecked { ++released; }
+                emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
+            } catch {
+                // Stays unresolved and stays frozen — retryable until the deadline.
+                emit GuardianSlashFailed(fraudProofId, guardian);
+            }
+        }
+
+        if (released != 0) {
+            uint16 resolved = slashCase.resolvedCount + uint16(released);
+            slashCase.resolvedCount = resolved;
+            if (resolved == slashCase.guardianCount) {
+                slashCase.status = 2;
+                emit GuardianSlashCaseResolved(fraudProofId);
+            }
         }
     }
 

@@ -61,7 +61,7 @@ contract RepCreditPragueE2E is Test {
         registry.setBLSAggregator(address(aggregator));
         registry.setReputationSource(address(aggregator), true);
         registry.setCreditTier(1, 0);
-        registry.setMaxAggregateCreditUpliftPerProposal(type(uint256).max);
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max, 0, false);
         aggregator.setMinThreshold(3);
         aggregator.setDefaultThreshold(3);
 

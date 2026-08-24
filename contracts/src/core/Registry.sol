@@ -24,7 +24,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.5.0";
+        return "Registry-5.6.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -114,6 +114,10 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // budget. Existing UUPS proxies read zero after upgrade, which also
         // fails closed for positive uplifts until governance configures a cap.
         maxAggregateCreditUpliftPerProposal = 2000 ether;
+        // CC-48 HIGH-1: fresh deployments start with a finite protocol-wide ceiling
+        // (100x the per-proposal guard). Governance is expected to set the real number
+        // via setCreditPolicy before opening the reputation path to production traffic.
+        maxTotalCreditExposure = 200_000 ether;
 
         levelThresholds.push(13);
         levelThresholds.push(34);
@@ -403,8 +407,17 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     event GlobalReputationUpdated(address indexed user, uint256 newScore, uint256 epoch);
     event CreditTierUpdated(uint256 level, uint256 creditLimit);
     event ReputationSourceUpdated(address indexed source, bool isActive);
-    event AggregateCreditUpliftCapUpdated(uint256 oldCap, uint256 newCap);
-    event ReputationProposalUplift(uint256 indexed proposalId, uint256 aggregateUplift, uint256 cap);
+    /// @notice Full credit accounting for one reputation proposal: what it issued,
+    ///         the transaction-level guard it cleared, and the resulting protocol-wide
+    ///         outstanding exposure against its ceiling.
+    event ReputationProposalUplift(
+        uint256 indexed proposalId,
+        uint256 aggregateUplift,
+        uint256 cap,
+        uint256 totalExposure,
+        uint256 totalCap
+    );
+    event CreditPolicyUpdated(uint256 perProposalCap, uint256 totalCap, uint256 exposureBaseline);
 
     /// @dev Shared BLS decode + threshold check + verify helper.
     function _verifyBLS(bytes calldata proof, bytes32 messageHash) internal {
@@ -441,6 +454,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         )));
 
         uint256 aggregateUplift;
+        uint256 aggregateRelease;
         for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
             if (epoch <= lastReputationEpoch[user]) {
@@ -454,6 +468,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             uint256 oldLimit = _creditLimitForReputation(_old);
             uint256 newLimit = _creditLimitForReputation(clamped);
             if (newLimit > oldLimit) aggregateUplift += newLimit - oldLimit;
+            else if (oldLimit > newLimit) aggregateRelease += oldLimit - newLimit;
             globalReputation[user] = clamped;
             lastReputationEpoch[user] = epoch;
             emit GlobalReputationUpdated(user, clamped, epoch);
@@ -461,7 +476,20 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
         uint256 cap = maxAggregateCreditUpliftPerProposal;
         if (aggregateUplift > cap) revert AggregateCreditUpliftExceeded(aggregateUplift, cap);
-        emit ReputationProposalUplift(proposalId, aggregateUplift, cap);
+
+        // CC-48 HIGH-1: the per-proposal cap above is only a transaction-level guard —
+        // a colluding quorum can emit N proposals in one block and mint N * cap. The
+        // real bound is this running stock of outstanding credit exposure, which every
+        // proposal is measured against no matter how the work is sliced. Saturating
+        // subtraction keeps a governance-seeded baseline that under-counts pre-upgrade
+        // users from ever underflowing; it can only make the bound more conservative.
+        uint256 total = totalCreditExposure + aggregateUplift;
+        total = total > aggregateRelease ? total - aggregateRelease : 0;
+        uint256 totalCap = maxTotalCreditExposure;
+        if (total > totalCap) revert TotalCreditExposureExceeded(total, totalCap);
+        totalCreditExposure = total;
+
+        emit ReputationProposalUplift(proposalId, aggregateUplift, cap, total, totalCap);
     }
 
     function updateOperatorBlacklist(
@@ -506,11 +534,31 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit CreditTierUpdated(level, limit);
     }
 
-    /// @notice Set the maximum sum of positive aPNT credit-limit changes in one
-    ///         reputation proposal. Zero is intentionally fail-closed.
-    function setMaxAggregateCreditUpliftPerProposal(uint256 cap) external onlyOwner {
-        emit AggregateCreditUpliftCapUpdated(maxAggregateCreditUpliftPerProposal, cap);
-        maxAggregateCreditUpliftPerProposal = cap;
+    /// @notice Set both credit bounds (and, during migration, the exposure baseline)
+    ///         in one owner call.
+    /// @dev    Deliberately a single entry point: the two caps are one policy, and an
+    ///         upgrade batch that set them in separate transactions would leave a
+    ///         window where the protocol-wide ceiling was still 0 (fail-closed, but a
+    ///         governance outage) or still unbounded.
+    /// @param perProposalCap   Transaction-level guard: max positive credit-limit
+    ///                         uplift summed within a single proposal.
+    /// @param totalCap         Protocol-wide ceiling on outstanding credit exposure.
+    /// @param exposureBaseline Outstanding exposure already implied by existing users'
+    ///                         reputation. Only written when `applyBaseline` is true;
+    ///                         an upgraded proxy MUST seed this, otherwise the running
+    ///                         total starts at 0 and silently under-counts pre-upgrade
+    ///                         issuance.
+    /// @param applyBaseline    Whether to overwrite `totalCreditExposure`.
+    function setCreditPolicy(
+        uint256 perProposalCap,
+        uint256 totalCap,
+        uint256 exposureBaseline,
+        bool applyBaseline
+    ) external onlyOwner {
+        maxAggregateCreditUpliftPerProposal = perProposalCap;
+        maxTotalCreditExposure = totalCap;
+        if (applyBaseline) totalCreditExposure = exposureBaseline;
+        emit CreditPolicyUpdated(perProposalCap, totalCap, totalCreditExposure);
     }
 
     function setReputationSource(address source, bool active) external onlyOwner {
@@ -612,9 +660,27 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     uint256 public blacklistNonce;
 
     /// @notice Maximum positive credit-limit uplift (aPNT, 18 decimals) per proposal.
+    /// @dev    Transaction-level guard only. It bounds one proposal, NOT total
+    ///         issuance — see totalCreditExposure for the protocol-wide bound.
     uint256 public maxAggregateCreditUpliftPerProposal;
 
     error AggregateCreditUpliftExceeded(uint256 aggregateUplift, uint256 cap);
 
-    uint256[49] private __gap;
+    /// @notice Protocol-wide OUTSTANDING aPNT credit exposure created by the
+    ///         reputation path: the running sum, over all users, of the credit limit
+    ///         implied by their current global reputation.
+    /// @dev    CC-48 HIGH-1. This is a STOCK, not a flow, which is what makes the
+    ///         bound real: splitting a mint across many proposals, many blocks, or
+    ///         many rolling windows changes nothing, because every proposal is
+    ///         measured against the same accumulated total. Downgrades subtract from
+    ///         it, so genuine reputation loss returns budget instead of leaving the
+    ///         protocol permanently wedged.
+    uint256 public totalCreditExposure;
+
+    /// @notice Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed.
+    uint256 public maxTotalCreditExposure;
+
+    error TotalCreditExposureExceeded(uint256 total, uint256 cap);
+
+    uint256[47] private __gap;
 }

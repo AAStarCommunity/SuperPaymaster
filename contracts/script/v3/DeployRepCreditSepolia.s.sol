@@ -123,7 +123,7 @@ contract DeployRepCreditSepolia is Script {
         // Evidence fixture: make the same operation fail before contribution,
         // and require a genuine three-signer proof to unlock it.
         registry.setCreditTier(1, 0);
-        registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+        registry.setCreditPolicy(600 ether, 3_000 ether, 0, true);
         blsAggregator.setDefaultThreshold(3);
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer);

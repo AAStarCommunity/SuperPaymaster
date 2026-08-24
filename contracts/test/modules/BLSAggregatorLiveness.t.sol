@@ -231,17 +231,33 @@ contract BLSAggregatorLivenessTest is Test {
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
-    function test_ReconstructPkAgg_RevertsWhileGuardianExitNoticeIsActive() public {
+    /// CC-48 BLOCKER-1: the exit notice excludes the slot only once it has MATURED.
+    /// Before the fix this test asserted the opposite — request/cancel toggled
+    /// consensus on and off within a single block, which is exactly the free,
+    /// self-erasing 1-of-N halt the fix removes.
+    function test_ReconstructPkAgg_ExitNoticeExcludesSlotOnlyAfterDelay() public {
+        // 7-of-7 would make any exit quorum-breaking; drop to 6 so the notice is
+        // permitted and we can observe the timing rather than the floor.
+        vm.prank(owner);
+        bls.setDefaultThreshold(6);
+
         address slot3v = address(uint160(uint256(3) + 0x100));
         vm.prank(slot3v);
         bls.requestGuardianExit();
 
+        // Same block, and right up to one second before readyAt: unaffected.
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() - 1);
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
+
+        // Once matured, the slot is excluded.
+        vm.warp(block.timestamp + 1);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), slot3v));
-        bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
+        bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes());
 
         vm.prank(slot3v);
         bls.cancelGuardianExit();
-        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes()));
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
     }
 
     function test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() public view {
@@ -321,6 +337,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.4.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.5.0"));
     }
 }

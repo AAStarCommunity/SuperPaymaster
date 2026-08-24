@@ -68,7 +68,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_ExactCapAccepted() public {
-        registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
         (address[] memory users, uint256[] memory scores) = _one(user1, 100);
         _submit(1, users, scores, 1);
         assertEq(registry.globalReputation(user1), 100);
@@ -76,7 +76,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_AttackBatchAboveCapAtomicallyRevertsAndCanRetry() public {
-        registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
         address[] memory users = new address[](2);
         uint256[] memory scores = new uint256[](2);
         users[0] = user1;
@@ -90,18 +90,18 @@ contract AggregateUpliftCapTest is Test {
         assertEq(registry.globalReputation(user1), 0, "first write rolled back");
         assertEq(registry.globalReputation(user2), 0, "second write rolled back");
 
-        registry.setMaxAggregateCreditUpliftPerProposal(1200 ether);
+        registry.setCreditPolicy(1200 ether, type(uint256).max, 0, false);
         _submit(2, users, scores, 2);
         assertEq(registry.globalReputation(user1), 100, "proposal id remained retryable");
         assertEq(registry.globalReputation(user2), 100);
     }
 
     function test_ZeroCapFailsClosedForPositiveUpliftButAllowsDecrease() public {
-        registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
         (address[] memory users, uint256[] memory scores) = _one(user1, 100);
         _submit(3, users, scores, 1);
 
-        registry.setMaxAggregateCreditUpliftPerProposal(0);
+        registry.setCreditPolicy(0, type(uint256).max, 0, false);
         scores[0] = 0;
         _submit(4, users, scores, 2);
         assertEq(registry.globalReputation(user1), 0, "risk-reducing update remains live");
@@ -113,7 +113,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_DuplicateAndStaleEntriesCannotInflateAccounting() public {
-        registry.setMaxAggregateCreditUpliftPerProposal(600 ether);
+        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
         address[] memory duplicates = new address[](2);
         uint256[] memory scores = new uint256[](2);
         duplicates[0] = user1;
@@ -149,7 +149,9 @@ contract PendingGuardianExitFreezeTest is Test {
         bls = new BLSAggregator(address(registry), address(0x5050), address(0xD57));
         verifier = new RepCreditMockFraudVerifier();
         registry.setBLSAggregator(address(bls));
-        bls.setFraudProofVerifier(address(verifier));
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
         staking.setAuthorizedSlasher(address(bls), true);
 
         IRegistry.RoleConfig memory dvtConfig = registry.getRoleConfig(ROLE_DVT);
@@ -213,7 +215,9 @@ contract PendingGuardianExitFreezeTest is Test {
         bls.queueGuardianSlash(4, guardians, hex"04");
         assertEq(bls.pendingGuardianSlashCount(guardian), 2);
 
-        vm.warp(block.timestamp + 1 days + 1);
+        // Case 3's deadline is one full GUARDIAN_SLASH_CASE_WINDOW after it was
+        // queued, i.e. one day before case 4's.
+        vm.warp(block.timestamp + bls.GUARDIAN_SLASH_CASE_WINDOW() - 1 days + 1);
         bls.expireGuardianSlashCase(3, guardians);
         assertEq(bls.pendingGuardianSlashCount(guardian), 1);
         vm.prank(guardian);
@@ -224,16 +228,38 @@ contract PendingGuardianExitFreezeTest is Test {
         assertEq(bls.pendingGuardianSlashCount(guardian), 0);
     }
 
-    function test_ExpiredCaseCanBeReleasedPermissionlessly() public {
+    /// CC-48 HIGH-2: expiry is still permissionless, but it no longer hands the
+    /// accused guardian a ready-to-use exit. GUARDIAN_SLASH_CASE_WINDOW now strictly
+    /// outlasts GUARDIAN_EXIT_DELAY + GUARDIAN_EXIT_WINDOW, so the notice filed at
+    /// queue time is already dead by the time the case expires and the guardian has
+    /// to serve a fresh notice.
+    function test_ExpiredCaseReleasesFreezeButNotAReadyExit() public {
         address[] memory guardians = _guardians();
         vm.prank(guardian);
         bls.requestGuardianExit();
+        (, uint64 expiresAtRaw) = bls.guardianExitRequests(guardian);
+        uint256 noticeExpiry = uint256(expiresAtRaw);
         bls.queueGuardianSlash(5, guardians, hex"05");
+
         vm.warp(block.timestamp + bls.GUARDIAN_SLASH_CASE_WINDOW() + 1);
         vm.prank(address(0xB0B));
         bls.expireGuardianSlashCase(5, guardians);
         assertEq(bls.pendingGuardianSlashCount(guardian), 0);
 
+        // The old notice expired while the case was still open.
+        vm.prank(guardian);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitRequestExpired.selector, guardian, noticeExpiry)
+        );
+        registry.exitRole(ROLE_DVT);
+
+        // Clearing it costs a cooldown, and leaving costs another full notice.
+        vm.prank(guardian);
+        bls.cancelGuardianExit();
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_COOLDOWN());
+        vm.prank(guardian);
+        bls.requestGuardianExit();
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY());
         vm.prank(guardian);
         registry.exitRole(ROLE_DVT);
         assertFalse(registry.hasRole(ROLE_DVT, guardian));

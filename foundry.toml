@@ -120,3 +120,31 @@ runs = 256              # independent invariant campaigns per test
 depth = 500             # handler calls per run
 fail_on_revert = false  # handlers intentionally swallow expected reverts
                         # (bound() guards, rate cooldowns, replay rejections)
+
+# ============================================
+# Registry size profile (CC-48 / EIP-170)
+# ============================================
+# Registry is the contract closest to the 24,576-byte EIP-170 ceiling. Compiling
+# just this file at a lower optimizer_runs buys real deployment headroom while
+# leaving SuperPaymaster's ERC-4337 validation path (the gas-sensitive one)
+# untouched. This is a stopgap, not the fix: the credit/reputation subsystem
+# still has to be split out of Registry before it grows again.
+[[profile.default.additional_compiler_profiles]]
+name = "registry-size"
+optimizer_runs = 200
+via_ir = true
+
+[[profile.default.compilation_restrictions]]
+paths = "contracts/src/core/Registry.sol"
+max_optimizer_runs = 200
+
+# Same restriction for the v3-only deployment profile, so `--profile v3-only`
+# cannot silently rebuild Registry at runs=10000 and blow past EIP-170.
+[[profile.v3-only.additional_compiler_profiles]]
+name = "registry-size"
+optimizer_runs = 200
+via_ir = false
+
+[[profile.v3-only.compilation_restrictions]]
+paths = "contracts/src/core/Registry.sol"
+max_optimizer_runs = 200

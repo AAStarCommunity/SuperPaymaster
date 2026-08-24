@@ -313,11 +313,29 @@
     "type": "uint256"
   },
   {
-    "label": "__gap",
+    "label": "maxAggregateCreditUpliftPerProposal",
     "slot": "24",
     "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "totalCreditExposure",
+    "slot": "25",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "maxTotalCreditExposure",
+    "slot": "26",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "__gap",
+    "slot": "27",
+    "offset": 0,
     "type": {
-      "array": "uint256[50]",
+      "array": "uint256[47]",
       "base": "uint256"
     }
   }
