@@ -38,11 +38,12 @@ interface ITimelockBatch {
 /**
  * @title UpgradeRegistryTo570
  * @notice CC-48 MEDIUM-3: build the ONE governance batch that takes a live Registry
- *         proxy to 5.7.0. All three steps must land in a single transaction.
+ *         proxy to 5.8.0. All four steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
  *   2. setBLSAggregator(BLSAggregator 4.10.0)
- *   3. setCreditPolicy(perProposalCap, totalCap, exposureBaseline, true)
+ *   3. setCreditPolicy(perProposalCap, totalCap)
+ *   4. seedCreditPopulation(users, users.length, true)
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
  *
@@ -112,8 +113,28 @@ interface ITimelockBatch {
  *   NEW_BLS_AGGREGATOR           BLSAggregator 4.10.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
- *   CREDIT_EXPOSURE_BASELINE     aPNT wei, sum of existing users' credit limits
- *                                (computed off-chain from GlobalReputationUpdated)
+ *   CREDIT_POPULATION_USERS      comma-separated addresses: every address that has EVER
+ *                                been the subject of a reputation proposal on the live
+ *                                Registry (i.e. every `GlobalReputationUpdated` subject,
+ *                                de-duplicated). REPLACES the old CREDIT_EXPOSURE_BASELINE
+ *                                aPNT number, which round-9 review found to be wrong BY
+ *                                CONSTRUCTION: its documented derivation summed only the
+ *                                event stream, so every address still holding the
+ *                                `initialize` tier-1 default was omitted from a figure the
+ *                                protocol-wide cap was then measured against.
+ *                                What replaces it is not a better number, it is NO number:
+ *                                governance declares MEMBERSHIP and the contract reads each
+ *                                member's level out of its own `globalReputation` storage.
+ *                                This script re-reads it too, over RPC, and refuses to emit
+ *                                a batch whose derived stock does not fit under the cap.
+ *                                Omitted addresses are not silently lost either: an
+ *                                unseeded proxy cannot run ANY proposal, and a member the
+ *                                list missed is booked at its full standing limit by the
+ *                                first proposal that touches it.
+ *   CREDIT_POPULATION_EXPECTED   (optional) headcount cross-check. Defaults to the length
+ *                                of CREDIT_POPULATION_USERS; set it to the number your
+ *                                own event scan produced and a truncated env var is caught
+ *                                here rather than on-chain.
  *   OLD_BLS_AGGREGATOR           predecessor aggregator to preflight. REQUIRED, no
  *                                default, and CHECKED: it must equal
  *                                `Registry.blsAggregator()` as it reads RIGHT NOW.
@@ -147,7 +168,7 @@ contract UpgradeRegistryTo570 is Script {
         address newAggregator = vm.envAddress("NEW_BLS_AGGREGATOR");
         uint256 perProposalCap = vm.envUint("CREDIT_PER_PROPOSAL_CAP");
         uint256 totalCap = vm.envUint("CREDIT_TOTAL_CAP");
-        uint256 baseline = vm.envUint("CREDIT_EXPOSURE_BASELINE");
+        address[] memory seedUsers = vm.envAddress("CREDIT_POPULATION_USERS", ",");
 
         Registry registry = Registry(proxy);
         address owner = registry.owner();
@@ -200,12 +221,47 @@ contract UpgradeRegistryTo570 is Script {
             newAggregator, IOwned(newAggregator).owner(), "BLSAggregator (disarm authority)"
         );
 
-        require(
-            totalCap >= baseline,
-            "CC-48: totalCap below the seeded baseline would freeze the reputation path on day one"
-        );
         require(perProposalCap <= totalCap, "CC-48: per-proposal cap above the protocol ceiling is meaningless");
         require(totalCap > 0, "CC-48: zero protocol ceiling is fail-closed; set a real number");
+
+        // ---- CC-48 round-9 MEDIUM-HIGH-B3: the baseline is DERIVED here, not declared ----
+        // Round-8 shipped `CREDIT_EXPOSURE_BASELINE`, an aPNT number nothing on-chain could
+        // check and whose documented derivation (sum the GlobalReputationUpdated stream)
+        // structurally under-counts a live deployment. This block computes the same
+        // quantity the CONTRACT will compute, from the SAME source the contract will read --
+        // live `globalReputation` over RPC -- and refuses the migration if it does not fit.
+        // Nothing here is taken on the operator's word except which addresses to look at,
+        // and that one input is cross-checked against a declared headcount.
+        uint256 declaredPopulation = vm.envOr("CREDIT_POPULATION_EXPECTED", seedUsers.length);
+        require(
+            declaredPopulation == seedUsers.length,
+            "CC-48: CREDIT_POPULATION_USERS length disagrees with CREDIT_POPULATION_EXPECTED"
+        );
+        uint256 floorLimit = registry.creditTierConfig(1);
+        uint256 derivedExposure;
+        uint256 promoted;
+        for (uint256 i = 0; i < seedUsers.length; i++) {
+            for (uint256 j = 0; j < i; j++) {
+                require(seedUsers[i] != seedUsers[j], "CC-48: duplicate address in CREDIT_POPULATION_USERS");
+            }
+            uint256 limit = registry.getCreditLimit(seedUsers[i]);
+            if (limit > floorLimit) {
+                derivedExposure += limit - floorLimit;
+                promoted++;
+            }
+        }
+        console.log("credit population declared    :", seedUsers.length);
+        console.log("  of which above the tier-1 floor:", promoted);
+        console.log("derived exposure (aPNT wei)   :", derivedExposure);
+        console.log("declared protocol ceiling     :", totalCap);
+        require(
+            totalCap >= derivedExposure,
+            "CC-48: ceiling is below the exposure this deployment already carries; raise it or the batch reverts"
+        );
+        // Level-1 is the permissionless floor every address holds, so it is deliberately
+        // NOT in the number above -- see Registry.totalCreditExposure. Print it so the
+        // operator sees the budget that this cap does not govern.
+        console.log("tier-1 floor per address (NOT bounded by the cap):", floorLimit);
 
         // ---- CC-48 round-2: domain wiring gate ----
         // The BLS domain separator commits to BOTH contracts. An aggregator whose
@@ -280,8 +336,8 @@ contract UpgradeRegistryTo570 is Script {
         vm.stopBroadcast();
         console.log("new Registry impl   :", address(newImpl));
         require(
-            keccak256(bytes(newImpl.version())) == keccak256("Registry-5.7.0"),
-            "CC-48: freshly built impl is not Registry-5.7.0"
+            keccak256(bytes(newImpl.version())) == keccak256("Registry-5.8.0"),
+            "CC-48: freshly built impl is not Registry-5.8.0"
         );
 
         // CC-48 round-8 LOW-5: the batch shape, its salt and its predecessor live in
@@ -289,7 +345,7 @@ contract UpgradeRegistryTo570 is Script {
         // definition instead of a copy of it. Editing the batch here without editing the
         // test is no longer possible; there is only one definition to edit.
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = RegistryUpgradeBatchLib
-            .buildBatch(proxy, address(newImpl), newAggregator, perProposalCap, totalCap, baseline);
+            .buildBatch(proxy, address(newImpl), newAggregator, perProposalCap, totalCap, seedUsers);
 
         console.log("--- atomic governance batch (execute as ONE transaction) ---");
         for (uint256 i = 0; i < RegistryUpgradeBatchLib.BATCH_LENGTH; i++) {
@@ -329,10 +385,12 @@ contract UpgradeRegistryTo570 is Script {
         }
 
         console.log("--- post-execution assertions to run before declaring success ---");
-        console.log("  registry.version()                       == Registry-5.7.0");
+        console.log("  registry.version()                       == Registry-5.8.0");
         console.log("  registry.blsAggregator()                 ==", newAggregator);
         console.log("  registry.maxTotalCreditExposure()        ==", totalCap);
-        console.log("  registry.totalCreditExposure()           ==", baseline);
+        console.log("  registry.totalCreditExposure()           ==", derivedExposure);
+        console.log("  registry.creditPopulationTotal()          ==", seedUsers.length);
+        console.log("  registry.creditPopulationSeededAt()        > 0  (reputation path open)");
         console.log("  registry.owner()                         ==", owner);
         console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator()");
         console.log("     (pre-checked above by recomputing the post-batch value)");

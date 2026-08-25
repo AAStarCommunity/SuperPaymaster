@@ -80,9 +80,18 @@ contract V3_Function_BoostTest is Test {
     }
 
     function test_Registry_CreditTierConfig() public {
+        // Level 6 is the top level the default 5 thresholds can reach.
         vm.prank(owner);
-        registry.setCreditTier(10, 5000 ether);
-        assertEq(registry.creditTierConfig(10), 5000 ether);
+        registry.setCreditTier(6, 5000 ether);
+        assertEq(registry.creditTierConfig(6), 5000 ether);
+    }
+
+    /// @dev CC-48 round-9. 20 thresholds is the hard cap, so level 21 is the highest level
+    ///      that can ever be reachable; beyond that a write would be permanently dead.
+    function test_Registry_CreditTierConfig_RejectsLevelBeyondTheHardCap() public {
+        vm.prank(owner);
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.setCreditTier(22, 5000 ether);
     }
 
     function test_Registry_HistoryAndMembers() public {

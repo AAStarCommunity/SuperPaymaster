@@ -84,7 +84,7 @@ contract RepCreditDomainReplay is Test {
         registry.setReputationSource(address(aggA), true);
         registry.setReputationSource(address(aggB), true);
         registry.setCreditTier(1, 0);
-        registry.setCreditPolicy(type(uint256).max, type(uint256).max, 0, false);
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max);
 
         for (uint256 i = 0; i < VALIDATOR_COUNT; ++i) {
             aggA.setMinThreshold(2);

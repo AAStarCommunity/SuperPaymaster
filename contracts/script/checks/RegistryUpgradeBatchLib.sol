@@ -39,7 +39,7 @@ library RegistryUpgradeBatchLib {
 
     /// @dev Number of calls in the batch. Named so a reader can check the arrays below
     ///      against the three steps the header documents.
-    uint256 internal constant BATCH_LENGTH = 3;
+    uint256 internal constant BATCH_LENGTH = 4;
 
     /// @notice Build the batch exactly as it is scheduled and executed.
     /// @param proxy          the live Registry ERC1967 proxy — the ONLY target of all three
@@ -48,14 +48,20 @@ library RegistryUpgradeBatchLib {
     /// @param newAggregator  `BLSAggregator` 4.10.0
     /// @param perProposalCap transaction-level aggregate uplift guard, aPNT wei
     /// @param totalCap       protocol-wide outstanding ceiling, aPNT wei
-    /// @param baseline       sum of existing users' credit limits, aPNT wei
+    /// @param seedUsers      every address that has EVER been the subject of a reputation
+    ///                       proposal on the live Registry. Only membership matters: the
+    ///                       contract reads each one's level out of its own
+    ///                       `globalReputation` storage, so no operator arithmetic enters
+    ///                       the stock. Addresses that were never promoted may be included
+    ///                       harmlessly (they contribute zero) but must then be counted in
+    ///                       the declared total, which is `seedUsers.length` here.
     function buildBatch(
         address proxy,
         address newImpl,
         address newAggregator,
         uint256 perProposalCap,
         uint256 totalCap,
-        uint256 baseline
+        address[] memory seedUsers
     )
         internal
         pure
@@ -73,9 +79,15 @@ library RegistryUpgradeBatchLib {
         // 2. re-point the aggregator, so ROLE_DVT exits have something to consume.
         targets[1] = proxy;
         payloads[1] = abi.encodeCall(Registry.setBLSAggregator, (newAggregator));
-        // 3. seed the caps AND the baseline, so the new slots are never live at 0.
+        // 3. seed the caps, so the new slots are never live at 0.
         targets[2] = proxy;
-        payloads[2] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap, baseline, true));
+        payloads[2] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap));
+        // 4. count the existing population and open the reputation path. Ordered AFTER (3)
+        //    because finalizing the count checks the derived stock against the ceiling: a
+        //    migration whose real exposure already exceeds the cap it declared fails here,
+        //    atomically, instead of going live and wedging on the first proposal.
+        targets[3] = proxy;
+        payloads[3] = abi.encodeCall(Registry.seedCreditPopulation, (seedUsers, seedUsers.length, true));
     }
 
     /// @notice The "governance operator splits the batch to be careful" counterfactual:

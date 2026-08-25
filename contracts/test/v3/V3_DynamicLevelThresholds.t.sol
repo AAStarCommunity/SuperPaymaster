@@ -33,7 +33,7 @@ contract V3_DynamicLevelThresholds_Test is Test {
         // This suite isolates dynamic tier lookup. Some flows intentionally
         // create >2,000-token uplifts, so disable the separate proposal-cap
         // control here; its normal, boundary, and attack paths have dedicated tests.
-        registry.setCreditPolicy(type(uint256).max, type(uint256).max, 0, false);
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max);
 
         // P0-1: Registry now routes BLS verification through the aggregator.
         // Wire a permissive mock that always returns true so reputation update
@@ -101,11 +101,16 @@ contract V3_DynamicLevelThresholds_Test is Test {
     }
 
     function test_AddLevelThreshold_Success() public {
-        vm.prank(admin);
+        vm.startPrank(admin);
+        // CC-48 round-9 LOW-B6: price level 7 BEFORE the schedule grows onto it, otherwise
+        // the new top level would read 0 and the highest-reputation users would end up
+        // below the level under them.
+        registry.setCreditTier(7, 5000 ether);
         // Add Level 7 by appending 1597 to existing thresholds
         uint256[] memory t = new uint256[](6);
         t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
         registry.setLevelThresholds(t);
+        vm.stopPrank();
 
         assertEq(registry.levelThresholds(5), 1597);
     }
@@ -199,11 +204,11 @@ contract V3_DynamicLevelThresholds_Test is Test {
     function test_GetCreditLimit_AfterAddingNewLevel() public {
         vm.startPrank(admin);
         
-        // Add Level 7 with threshold 1597
+        // Add Level 7 with threshold 1597. The tier is priced first (round-9 LOW-B6).
+        registry.setCreditTier(7, 5000 ether);
         uint256[] memory t = new uint256[](6);
         t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
         registry.setLevelThresholds(t);
-        registry.setCreditTier(7, 5000 ether);
         
         // User with rep=2000 should be Level 7
         // Update in steps to reach 2000
@@ -261,6 +266,22 @@ contract V3_DynamicLevelThresholds_Test is Test {
         registry.setLevelThresholds(t1); // Level 3 now requires rep >= 60
         assertEq(registry.getCreditLimit(user1), 100 ether); // Downgraded to Level 2
 
+        // CC-48 round-9 HIGH-B1: that threshold move just changed the credit limit of
+        // every tracked user without a single proposal. The protocol-wide ledger cannot
+        // follow it (there is no enumerable user set), so it is DISCARDED and the
+        // reputation path is shut until governance re-counts. Previously this call
+        // silently left `totalCreditExposure` measuring a world that no longer existed.
+        assertEq(registry.creditPopulationSeededAt(), 0, "threshold move shut the path");
+        assertEq(registry.totalCreditExposure(), 0, "and discarded the stale stock");
+        vm.expectRevert(Registry.CreditPopulationNotSeeded.selector);
+        registry.batchUpdateGlobalReputation(99, users, scores, 999, _dummyProof());
+
+        // Re-count from the contract's own storage, then carry on.
+        address[] memory seed = new address[](1);
+        seed[0] = user1;
+        registry.seedCreditPopulation(seed, 1, true);
+        assertEq(registry.totalCreditExposure(), 0, "user1 is at level 2, i.e. exactly at the floor");
+
         // 3. User improves reputation
         scores[0] = 70;
         registry.batchUpdateGlobalReputation(2, users, scores, 201, _dummyProof());
@@ -269,8 +290,9 @@ contract V3_DynamicLevelThresholds_Test is Test {
         // 4. Add new high-tier level
         uint256[] memory t2 = new uint256[](6);
         t2[0] = 13; t2[1] = 60; t2[2] = 89; t2[3] = 233; t2[4] = 610; t2[5] = 1597;
+        registry.setCreditTier(7, 10000 ether); // price it before growing onto it
         registry.setLevelThresholds(t2); // Level 7
-        registry.setCreditTier(7, 10000 ether);
+        registry.seedCreditPopulation(seed, 1, true);
         
         // 5. User reaches top tier (need multiple updates to reach 2000)
         for (uint256 i = 0; i < 20; i++) {
@@ -292,6 +314,10 @@ contract V3_DynamicLevelThresholds_Test is Test {
         uint256[] memory t = new uint256[](20);
         for (uint256 i = 0; i < 20; i++) {
             t[i] = (i + 1) * 100;
+        }
+        // Price levels 7..21 before growing onto them (round-9 LOW-B6).
+        for (uint256 level = 7; level <= 21; level++) {
+            registry.setCreditTier(level, 2000 ether);
         }
         registry.setLevelThresholds(t);
         assertEq(registry.levelThresholds(19), 2000);

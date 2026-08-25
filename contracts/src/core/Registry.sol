@@ -24,7 +24,7 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.7.0";
+        return "Registry-5.8.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -83,13 +83,33 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         GTOKEN_STAKING = IGTokenStaking(_gtokenStaking);
         MYSBT = IMySBT(_mysbt);
 
-        _initRole(ROLE_PAYMASTER_AOA, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, _owner, 30 days);
-        _initRole(ROLE_PAYMASTER_SUPER, 50 ether, 5 ether, 10, 2, 1, 10, 1000, 2 ether, _owner, 30 days);
-        _initRole(ROLE_DVT, 30 ether, 3 ether, 10, 2, 1, 10, 1000, 1 ether, _owner, 30 days);
-        _initRole(ROLE_ANODE, 20 ether, 2 ether, 15, 1, 1, 5, 1000, 1 ether, _owner, 30 days);
-        _initRole(ROLE_KMS, 100 ether, 10 ether, 5, 5, 2, 20, 1000, 5 ether, _owner, 30 days);
-        _initRole(ROLE_COMMUNITY, 0, 30 ether, 0, 0, 0, 0, 0, 0, _owner, 0);
-        _initRole(ROLE_ENDUSER, 0, 0.3 ether, 0, 0, 0, 0, 0, 0, _owner, 0);
+        // CC-48 round-9 (EIP-170): these seven bootstrap rows used to be seven separate
+        // `_initRole(...)` call sites. `via_ir` inlined the callee at every one of them,
+        // costing ~552 runtime bytes EACH -- about 3.8 KB of the contract, spent on writing
+        // seven rows of a table. Driving them through ONE call site from a memory array
+        // keeps exactly the same values and the same writes (asserted field-by-field by
+        // `test_RoleBootstrapMatrixUnchanged`) and hands the headroom back to the credit
+        // subsystem this round grows. The rows read in the same order as before.
+        bytes32[7] memory ids = [
+            ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER, ROLE_DVT, ROLE_ANODE,
+            ROLE_KMS, ROLE_COMMUNITY, ROLE_ENDUSER
+        ];
+        uint256[7] memory mins = [uint256(30 ether), 50 ether, 30 ether, 20 ether, 100 ether, 0, 0];
+        uint256[7] memory tickets =
+            [uint256(3 ether), 5 ether, 3 ether, 2 ether, 10 ether, 30 ether, 0.3 ether];
+        uint32[7] memory threshs = [uint32(10), 10, 10, 15, 5, 0, 0];
+        uint32[7] memory bases = [uint32(2), 2, 2, 1, 5, 0, 0];
+        uint32[7] memory incs = [uint32(1), 1, 1, 1, 2, 0, 0];
+        uint32[7] memory maxes = [uint32(10), 10, 10, 5, 20, 0, 0];
+        uint16[7] memory exitFees = [uint16(1000), 1000, 1000, 1000, 1000, 0, 0];
+        uint256[7] memory minExitFees = [uint256(1 ether), 2 ether, 1 ether, 1 ether, 5 ether, 0, 0];
+        uint256[7] memory locks = [uint256(30 days), 30 days, 30 days, 30 days, 30 days, 0, 0];
+        for (uint256 r = 0; r < 7; r++) {
+            _initRole(
+                ids[r], mins[r], tickets[r], threshs[r], bases[r], incs[r], maxes[r],
+                exitFees[r], minExitFees[r], _owner, locks[r]
+            );
+        }
 
         // AUDIT H-1: level-1 (new / zero-reputation users) MUST default to a NON-ZERO
         // credit ceiling. SuperPaymaster now enforces the ceiling in validation
@@ -126,6 +146,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         levelThresholds.push(610);
 
         isReputationSource[_owner] = true;
+
+        // CC-48 round-9 MEDIUM-HIGH-B3: a FRESH Registry has no users, so its credit
+        // population is empty and its derived exposure is zero -- provably, not by
+        // operator assertion. Marking it seeded here is what keeps the fail-closed gate in
+        // `updateGlobalReputation` aimed exclusively at UPGRADED proxies, whose population
+        // slots read empty while real promoted users exist on-chain.
+        creditPopulationSeededAt = block.timestamp;
     }
 
 
@@ -406,6 +433,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     event GlobalReputationUpdated(address indexed user, uint256 newScore, uint256 epoch);
     event CreditTierUpdated(uint256 level, uint256 creditLimit);
+    /// @dev CC-48 round-9. Emitted by every owner call that can move protocol-wide
+    ///      exposure without a proposal, so a monitor sees the ledger move with the policy.
+    event CreditExposureResynced(uint256 newExposure);
     event ReputationSourceUpdated(address indexed source, bool isActive);
     /// @notice Full credit accounting for one reputation proposal: what it issued,
     ///         the transaction-level guard it cleared, and the resulting protocol-wide
@@ -480,6 +510,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // L-C: epoch=0 would skip every user (epoch <= lastReputationEpoch, default 0)
         // yet still burn the proposalId below — a permanently wasted, un-retryable proposal.
         if (epoch == 0) revert InvalidParam();
+        // CC-48 round-9 MEDIUM-HIGH-B3: a freshly upgraded proxy reads zero in the
+        // population slots while real, already-promoted users exist on-chain. Deriving
+        // exposure from that empty population would under-count the live stock by exactly
+        // the pre-upgrade issuance, so the reputation path stays SHUT until governance has
+        // seeded the population and declared it complete. Fresh deployments are seeded in
+        // `initialize`, where the population provably IS empty.
+        if (creditPopulationSeededAt == 0) revert CreditPopulationNotSeeded();
         if (executedProposals[proposalId]) revert ProposalAlreadyExecuted();
 
         executedProposals[proposalId] = true;
@@ -487,6 +524,9 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
         uint256 aggregateUplift;
         uint256 aggregateRelease;
+        uint256 backfill;
+        uint256 marker = creditPopulationEpoch + 1;
+        uint256 floorLimit = creditTierConfig[1];
         for (uint256 i = 0; i < users.length; ) {
             address user = users[i];
             if (epoch <= lastReputationEpoch[user]) {
@@ -497,10 +537,20 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             uint256 clamped = (_new > _old)
                 ? ((_new - _old > 100) ? _old + 100 : _new)
                 : ((_old > _new && _old - _new > 100) ? _old - 100 : _new);
-            uint256 oldLimit = _creditLimitForReputation(_old);
-            uint256 newLimit = _creditLimitForReputation(clamped);
+            uint256 oldLimit = creditTierConfig[_levelForReputation(_old)];
+            uint256 newLimit = creditTierConfig[_levelForReputation(clamped)];
             if (newLimit > oldLimit) aggregateUplift += newLimit - oldLimit;
             else if (oldLimit > newLimit) aggregateRelease += oldLimit - newLimit;
+            // CC-48 round-9 MEDIUM-HIGH-B3: self-healing. A promoted user the migration
+            // seed missed carries stock this ledger has never seen, so the FIRST proposal
+            // that touches them books their whole standing above-floor limit. Counted as
+            // `backfill` rather than as uplift so it cannot spuriously trip the
+            // per-proposal cap, which measures what THIS proposal issued.
+            if (creditPopulationEpochOf[user] != marker) {
+                creditPopulationEpochOf[user] = marker;
+                creditPopulationTotal += 1;
+                if (oldLimit > floorLimit) backfill += oldLimit - floorLimit;
+            }
             globalReputation[user] = clamped;
             lastReputationEpoch[user] = epoch;
             emit GlobalReputationUpdated(user, clamped, epoch);
@@ -509,13 +559,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         uint256 cap = maxAggregateCreditUpliftPerProposal;
         if (aggregateUplift > cap) revert AggregateCreditUpliftExceeded(aggregateUplift, cap);
 
-        // CC-48 HIGH-1: the per-proposal cap above is only a transaction-level guard —
-        // a colluding quorum can emit N proposals in one block and mint N * cap. The
-        // real bound is this running stock of outstanding credit exposure, which every
-        // proposal is measured against no matter how the work is sliced. Saturating
-        // subtraction keeps a governance-seeded baseline that under-counts pre-upgrade
-        // users from ever underflowing; it can only make the bound more conservative.
-        uint256 total = totalCreditExposure + aggregateUplift;
+        // CC-48 HIGH-1: the per-proposal cap above is only a transaction-level guard --
+        // a colluding quorum can emit N proposals in one block and mint N * cap. The real
+        // bound is this running stock of outstanding credit exposure, which every proposal
+        // is measured against no matter how the work is sliced.
+        //
+        // The stock is exact rather than approximate because the ONLY other things that can
+        // move a user's credit limit -- `setCreditTier` and `setLevelThresholds` -- do not
+        // edit this number, they INVALIDATE it (round-9 HIGH-B1): they shut this path until
+        // governance re-counts. So between two re-counts the tier schedule is frozen and
+        // these deltas are the whole of the movement.
+        //
+        // Saturating subtraction keeps the running total from ever underflowing. Round-8
+        // established the comparison that matters: the alternative to saturating is
+        // REVERTING, which would leave the downgrade unapplied and the user holding the
+        // HIGHER limit -- strictly worse for the bound. It can only be more conservative.
+        uint256 total = totalCreditExposure + aggregateUplift + backfill;
         total = total > aggregateRelease ? total - aggregateRelease : 0;
         uint256 totalCap = maxTotalCreditExposure;
         if (total > totalCap) revert TotalCreditExposureExceeded(total, totalCap);
@@ -561,36 +620,158 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit ProposalMarkedExecuted(proposalId, msg.sender);
     }
 
+    /// @notice Set the aPNT credit limit of one reputation level.
+    /// @dev    CC-48 round-9 HIGH-B1. This call changes the credit limit of EVERY user
+    ///         sitting at `level`, so it necessarily changes protocol-wide exposure -- and
+    ///         round-8 let it do that while `totalCreditExposure` sat still, which is how
+    ///         one owner call moved the drawable total 16.6x without the protocol-wide cap
+    ///         noticing. It is not allowed to leave the ledger behind any more: the
+    ///         population is INVALIDATED in the same call (`_invalidateCreditPopulation`),
+    ///         which discards the now-meaningless stock and shuts the reputation path until
+    ///         governance re-counts. There is no "remember to re-seed afterwards" step to
+    ///         forget, because forgetting it stops issuance rather than un-bounding it.
+    ///
+    ///         CC-48 round-9 LOW-B6: `initialize` documents the schedule as monotonic
+    ///         ("higher reputation never lowers credit"). That invariant is now ENFORCED
+    ///         against the immediate neighbours, which is sufficient by induction because
+    ///         every level is written through this function.
     function setCreditTier(uint256 level, uint256 limit) external onlyOwner {
+        uint256 maxLevel = levelThresholds.length + 1;
+        // 20 thresholds is the hard cap (`setLevelThresholds`), so 21 is the highest level
+        // that can ever be reachable. Levels ABOVE the currently reachable top are allowed
+        // deliberately: `setLevelThresholds` refuses to grow the schedule onto a level whose
+        // price is still 0, so a growth has to price the new top FIRST. The two rules meet
+        // in the middle -- a level's price must exist before the level does -- and neither
+        // can be satisfied by writing a number nobody checks.
+        if (level == 0 || level > 21) revert InvalidParam();
+        if (level > 1 && limit < creditTierConfig[level - 1]) revert CreditTiersNotMonotonic();
+        if (level < maxLevel && limit > creditTierConfig[level + 1]) revert CreditTiersNotMonotonic();
+        // Re-writing the price it already has moves nobody's credit limit, so it must not
+        // cost a governance outage. Everything below this line assumes the schedule really
+        // changed.
+        if (creditTierConfig[level] == limit) return;
         creditTierConfig[level] = limit;
         emit CreditTierUpdated(level, limit);
+        _invalidateCreditPopulation();
     }
 
-    /// @notice Set both credit bounds (and, during migration, the exposure baseline)
-    ///         in one owner call.
+    /// @dev CC-48 round-9 HIGH-B1. The one place that answers "what happens to the ledger
+    ///      when the schedule moves under it". Re-pricing a tier or moving a threshold
+    ///      changes the credit limit of users this contract cannot enumerate, so the
+    ///      outstanding stock becomes unknowable from storage alone. It is therefore
+    ///      DISCARDED, not adjusted, and the reputation path is shut
+    ///      (`creditPopulationSeededAt = 0`) until governance re-counts through
+    ///      `seedCreditPopulation`, which reads every user's level out of this contract's
+    ///      own storage. Bumping the epoch un-counts every address at once -- there is no
+    ///      enumerable user set to iterate, and this needs none.
+    ///
+    ///      The failure mode is a governance outage (no new reputation credit until the
+    ///      re-count lands), never a bound that silently stops measuring reality.
+    function _invalidateCreditPopulation() internal {
+        // Nothing counted means this ledger is tracking nobody, so there is no stock for a
+        // schedule change to invalidate and nothing to re-count -- shutting the path would
+        // be pure governance damage. That is the state a fresh deployment configures its
+        // tier economics in, and the state an upgraded proxy sits in before it is seeded
+        // (already shut: `creditPopulationSeededAt` starts at zero and only seeding opens
+        // it).
+        //
+        // Note precisely what this does NOT claim: it does not claim no promoted address
+        // exists. An operator who finalized a seed with an incomplete list leaves promoted
+        // addresses uncounted, and those keep their real credit limits. They are not lost
+        // and they are not silently under-bounded either -- the first proposal that touches
+        // one books its whole standing above-floor limit against whatever schedule is in
+        // force by then. Uncounted addresses are the backfill's job, not this branch's.
+        if (creditPopulationTotal == 0) return;
+        creditPopulationEpoch += 1;
+        creditPopulationTotal = 0;
+        creditPopulationSeededAt = 0;
+        totalCreditExposure = 0;
+        emit CreditExposureResynced(0);
+    }
+
+    /// @notice Set both credit bounds in one owner call.
     /// @dev    Deliberately a single entry point: the two caps are one policy, and an
-    ///         upgrade batch that set them in separate transactions would leave a
-    ///         window where the protocol-wide ceiling was still 0 (fail-closed, but a
-    ///         governance outage) or still unbounded.
-    /// @param perProposalCap   Transaction-level guard: max positive credit-limit
-    ///                         uplift summed within a single proposal.
+    ///         upgrade batch that set them in separate transactions would leave a window
+    ///         where the protocol-wide ceiling was still 0 (fail-closed, but a governance
+    ///         outage) or still unbounded.
+    ///
+    ///         CC-48 round-9 MEDIUM-HIGH-B3: the exposure BASELINE is gone from this
+    ///         signature. It used to be an operator-supplied aPNT number that nothing
+    ///         on-chain could check and that the documented derivation computed WRONG on a
+    ///         live deployment. The only thing governance still declares is the population
+    ///         MEMBERSHIP -- see `seedCreditPopulation`, where the contract reads each
+    ///         member's reputation out of its own storage instead of trusting a total.
+    /// @param perProposalCap   Transaction-level guard: max positive credit-limit uplift
+    ///                         summed within a single proposal.
     /// @param totalCap         Protocol-wide ceiling on outstanding credit exposure.
-    /// @param exposureBaseline Outstanding exposure already implied by existing users'
-    ///                         reputation. Only written when `applyBaseline` is true;
-    ///                         an upgraded proxy MUST seed this, otherwise the running
-    ///                         total starts at 0 and silently under-counts pre-upgrade
-    ///                         issuance.
-    /// @param applyBaseline    Whether to overwrite `totalCreditExposure`.
-    function setCreditPolicy(
-        uint256 perProposalCap,
-        uint256 totalCap,
-        uint256 exposureBaseline,
-        bool applyBaseline
-    ) external onlyOwner {
+    function setCreditPolicy(uint256 perProposalCap, uint256 totalCap) external onlyOwner {
         maxAggregateCreditUpliftPerProposal = perProposalCap;
         maxTotalCreditExposure = totalCap;
-        if (applyBaseline) totalCreditExposure = exposureBaseline;
-        emit CreditPolicyUpdated(perProposalCap, totalCap, totalCreditExposure);
+        // Refuse a ceiling BELOW the exposure that already exists, rather than accepting it
+        // and freezing the reputation path on the next proposal.
+        uint256 exposure = totalCreditExposure;
+        if (exposure > totalCap) revert TotalCreditExposureExceeded(exposure, totalCap);
+        emit CreditPolicyUpdated(perProposalCap, totalCap, exposure);
+    }
+
+    /// @notice Seed (or re-count) the credit population from this contract's own storage.
+    /// @dev    CC-48 round-9 MEDIUM-HIGH-B3. Two situations need it: an UPGRADED proxy,
+    ///         whose population slots read empty while promoted users already exist, and a
+    ///         schedule change (`setCreditTier` / `setLevelThresholds`), which invalidates
+    ///         the count it was computed from. Both leave
+    ///         `creditPopulationSeededAt == 0`, which shuts `updateGlobalReputation`, so
+    ///         neither can quietly issue credit against a wrong stock.
+    ///
+    ///         Governance supplies ONLY an address list. Each address's level is read from
+    ///         `globalReputation` here, so no operator arithmetic — and in particular no
+    ///         repetition of the old, structurally wrong "sum the GlobalReputationUpdated
+    ///         events into an aPNT baseline" recipe — can misstate a tier.
+    ///         `expectedPopulationTotal` is a declared headcount checked against what the
+    ///         contract actually counted, so a truncated batch cannot be finalized.
+    ///
+    ///         Addresses that were never promoted may be omitted: they sit at level 1 and
+    ///         contribute exactly zero to the derived stock (see `totalCreditExposure`).
+    ///         A promoted address missed here is self-healing — the next proposal touching
+    ///         it counts it at its then-current level.
+    ///
+    ///         Re-running this after finalization is harmless rather than forbidden: an
+    ///         address already counted in the current epoch is skipped, so the only effect
+    ///         of a second call is to count addresses that were missed. Refusing it would
+    ///         buy nothing and would make the migration batch order-dependent on whether
+    ///         the proxy had ever been initialized by this implementation.
+    /// @param users                   candidate addresses. Already-counted ones are skipped,
+    ///                                so the list may be split into batches and may overlap.
+    /// @param expectedPopulationTotal headcount governance declares; checked on finalize.
+    /// @param finalize                declare the count complete and re-open the path.
+    function seedCreditPopulation(
+        address[] calldata users,
+        uint256 expectedPopulationTotal,
+        bool finalize
+    ) external onlyOwner {
+        uint256 marker = creditPopulationEpoch + 1;
+        uint256 counted = creditPopulationTotal;
+        uint256 exposure = totalCreditExposure;
+        uint256 floor = creditTierConfig[1];
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+            if (creditPopulationEpochOf[user] == marker) continue;
+            creditPopulationEpochOf[user] = marker;
+            counted += 1;
+            uint256 limit = creditTierConfig[_levelForReputation(globalReputation[user])];
+            if (limit > floor) exposure += limit - floor;
+        }
+        creditPopulationTotal = counted;
+        totalCreditExposure = exposure;
+        // Checked on EVERY batch, not only the finalizing one: a partial count that already
+        // exceeds the ceiling can only get worse, and leaving an over-ceiling number in the
+        // slot between batches is a state no later call would re-examine.
+        uint256 cap = maxTotalCreditExposure;
+        if (exposure > cap) revert TotalCreditExposureExceeded(exposure, cap);
+        if (finalize) {
+            if (counted != expectedPopulationTotal) revert CreditPopulationCountMismatch();
+            creditPopulationSeededAt = block.timestamp;
+        }
+        emit CreditExposureResynced(exposure);
     }
 
     function setReputationSource(address source, bool active) external onlyOwner {
@@ -598,6 +779,23 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         emit ReputationSourceUpdated(source, active);
     }
 
+    /// @notice Replace the reputation thresholds.
+    /// @dev    CC-48 round-9 HIGH-B1. Moving a threshold moves users between levels with no
+    ///         proposal involved, so like `setCreditTier` it changes the credit limit of
+    ///         users this contract cannot enumerate. Same treatment, for the same reason:
+    ///         the population is DISCARDED and the reputation path shuts
+    ///         (`creditPopulationSeededAt` back to zero) until governance re-counts through
+    ///         `seedCreditPopulation`, which reads every level out of this contract's own
+    ///         `globalReputation` storage. Bumping `creditPopulationEpoch` un-counts every
+    ///         address at once without needing an enumerable user set.
+    ///
+    ///         The alternative considered and rejected was accepting an operator-supplied
+    ///         re-bucketing (a per-level headcount passed as calldata). It would keep the
+    ///         path open across a threshold move, but the numbers in it are exactly the
+    ///         kind of unverifiable operator arithmetic round-9 exists to remove.
+    ///
+    ///         The failure mode is a governance outage (no new credit until the re-count
+    ///         lands), never a silent decoupling of the bound from reality.
     function setLevelThresholds(uint256[] calldata thresholds) external onlyOwner {
         if (thresholds.length > 20) revert TooManyLevels();
         delete levelThresholds;
@@ -605,21 +803,30 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
             if (i > 0 && thresholds[i] <= thresholds[i - 1]) revert ThreshNotAscending();
             levelThresholds.push(thresholds[i]);
         }
+        // CC-48 round-9 LOW-B6, second half. `setCreditTier` cannot make the table
+        // non-monotonic, but GROWING the schedule here can: a new top level whose tier was
+        // never configured reads 0, so the highest-reputation users would drop to a limit
+        // BELOW the level under them -- precisely the "higher reputation never lowers
+        // credit" invariant, broken from the other side. Check the resulting table, not
+        // just the thresholds.
+        uint256 maxLevel = thresholds.length + 1;
+        for (uint256 level = 2; level <= maxLevel; level++) {
+            if (creditTierConfig[level] < creditTierConfig[level - 1]) revert CreditTiersNotMonotonic();
+        }
+        _invalidateCreditPopulation();
     }
 
     function getCreditLimit(address user) external view returns (uint256) {
-        return _creditLimitForReputation(globalReputation[user]);
+        return creditTierConfig[_levelForReputation(globalReputation[user])];
     }
 
-    function _creditLimitForReputation(uint256 rep) internal view returns (uint256) {
-        uint256 level = 1;
+    function _levelForReputation(uint256 rep) internal view returns (uint256) {
         for (uint256 i = levelThresholds.length; i > 0; i--) {
             if (rep >= levelThresholds[i - 1]) {
-                level = i + 1;
-                break;
+                return i + 1;
             }
         }
-        return creditTierConfig[level];
+        return 1;
     }
 
     function _validateAndProcessRole(bytes32 roleId, address user, bytes calldata roleData)
@@ -698,21 +905,70 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
 
     error AggregateCreditUpliftExceeded(uint256 aggregateUplift, uint256 cap);
 
-    /// @notice Protocol-wide OUTSTANDING aPNT credit exposure created by the
-    ///         reputation path: the running sum, over all users, of the credit limit
-    ///         implied by their current global reputation.
-    /// @dev    CC-48 HIGH-1. This is a STOCK, not a flow, which is what makes the
-    ///         bound real: splitting a mint across many proposals, many blocks, or
-    ///         many rolling windows changes nothing, because every proposal is
-    ///         measured against the same accumulated total. Downgrades subtract from
-    ///         it, so genuine reputation loss returns budget instead of leaving the
-    ///         protocol permanently wedged.
+    /// @notice Protocol-wide OUTSTANDING aPNT credit exposure created by the REPUTATION
+    ///         path: the sum, over every address, of the credit limit its current global
+    ///         reputation buys it ABOVE the permissionless level-1 floor.
+    /// @dev    CC-48 HIGH-1, corrected in round-9 (LOW-B4). This is a STOCK, and round-9
+    ///         is what makes that word true. It is COMPUTED from on-chain reputation at
+    ///         every re-count (`seedCreditPopulation` reads each member's level out of this
+    ///         contract's storage) and then moved only by proposal deltas -- and those
+    ///         deltas are exact, because the two calls that could move a limit without a
+    ///         proposal (`setCreditTier`, `setLevelThresholds`) do not edit this number,
+    ///         they discard it and shut the path. So the tier schedule is frozen for the
+    ///         whole life of any value this slot ever holds. Splitting a mint across many
+    ///         proposals, many blocks or many rolling windows changes nothing, and neither
+    ///         does an owner re-pricing a tier.
+    ///
+    ///         WHAT IT DELIBERATELY DOES NOT COVER, stated plainly because the previous
+    ///         wording claimed otherwise: the level-1 floor (`creditTierConfig[1]`) is
+    ///         granted to EVERY address by construction -- including addresses that have
+    ///         never been the subject of a proposal and addresses that do not yet exist.
+    ///         That population is unbounded, so NO counter in this contract can bound the
+    ///         floor, and pretending otherwise is what made the old "sum over all users"
+    ///         docstring false. Measuring exposure above the floor makes this number a
+    ///         complete stock over all addresses, because every uncounted address
+    ///         contributes exactly zero to it. The floor is bounded elsewhere and by
+    ///         different means -- per-operator deposits and debt limits in SuperPaymaster,
+    ///         and the tier-1 economics themselves -- and raising `creditTierConfig[1]` is
+    ///         a decision about that other budget, not about this one.
     uint256 public totalCreditExposure;
 
     /// @notice Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed.
     uint256 public maxTotalCreditExposure;
 
     error TotalCreditExposureExceeded(uint256 total, uint256 cap);
+    error CreditTiersNotMonotonic();
+    error CreditPopulationNotSeeded();
+    error CreditPopulationCountMismatch();
 
-    uint256[47] private __gap;
+    /// @notice How many addresses are counted into `totalCreditExposure` in the current
+    ///         population epoch.
+    /// @dev    CC-48 round-9. Checked against the headcount governance declares when it
+    ///         finalizes a re-count, so a truncated calldata batch cannot be declared
+    ///         complete.
+    uint256 public creditPopulationTotal;
+
+    /// @notice Population marker: `creditPopulationEpoch + 1` for an address counted in
+    ///         the current epoch, anything else (including the untouched zero) for one that
+    ///         is not.
+    /// @dev    Comparing against a global epoch is what lets an invalidation un-count every
+    ///         address at once — this contract has no enumerable user set to iterate.
+    ///
+    ///         The OFFSET is load-bearing, and a round-9 regression test is what found
+    ///         that out. On a genuinely pre-5.8.0 proxy BOTH this slot and
+    ///         `creditPopulationEpoch` read zero, so storing the raw epoch made every
+    ///         never-counted address look ALREADY counted: the migration seed would have
+    ///         counted nobody, and (thanks to the declared-headcount check) reverted --
+    ///         fail-closed, but a migration that could not be performed at all. With the
+    ///         +1 offset, an untouched slot can never equal a live marker.
+    mapping(address => uint256) internal creditPopulationEpochOf;
+
+    /// @notice Bumped whenever the credit population is invalidated wholesale.
+    uint256 internal creditPopulationEpoch;
+
+    /// @notice When governance declared the credit population complete. Zero means the
+    ///         reputation path is shut (fail-closed for an upgraded proxy).
+    uint256 public creditPopulationSeededAt;
+
+    uint256[43] private __gap;
 }

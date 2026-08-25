@@ -38,7 +38,7 @@ contract TimelockMockBLS {
  * @notice CC-48 round-7, from the archived original security checklist:
  *
  *           "proxy 升级新 cap slot 初值为 0：UpgradeRegistryTo570 已把
- *            setCreditPolicy(perProposal,total,baseline,true) 放入同一批计划；round 7
+ *            setCreditPolicy(perProposal,total) 放入同一批计划；round 7
  *            必须补一个真实 Timelock schedule/execute 测试，证明 upgrade + baseline/caps
  *            不存在中间可执行窗口。"
  *           "setCreditPolicy 仍是 immediate onlyOwner ... 若是 Timelock，部署/迁移门禁和
@@ -70,7 +70,11 @@ contract CC48RegistryTimelockGovernance is Test {
 
     uint256 internal constant PER_PROPOSAL_CAP = 600 ether;
     uint256 internal constant TOTAL_CAP = 200_000 ether;
-    uint256 internal constant BASELINE = 12_345 ether;
+    /// @dev CC-48 round-9: the batch no longer carries an operator-supplied aPNT baseline.
+    ///      It carries the POPULATION, and the contract derives the stock from its own
+    ///      `globalReputation` storage. `_seedUsers()` returns that membership list.
+    address internal constant SEED_USER_A = address(0xA11CE);
+    address internal constant SEED_USER_B = address(0xB0B);
 
     Registry internal registry;
     TimelockController internal timelock;
@@ -89,7 +93,7 @@ contract CC48RegistryTimelockGovernance is Test {
         // coming from a build that predates these slots reads 0 for both, which is exactly
         // the window step (3) of the batch exists to close. Writing them to 0 through the
         // contract's own setter models that without hard-coding a storage slot index.
-        registry.setCreditPolicy(0, 0, 0, true);
+        registry.setCreditPolicy(0, 0);
         assertEq(registry.maxTotalCreditExposure(), 0, "pre-batch cap must read 0");
 
         address[] memory proposers = new address[](1);
@@ -144,7 +148,7 @@ contract CC48RegistryTimelockGovernance is Test {
             assertEq(values[i], 0, "no ether moves");
         }
         // CC-48 round-8 LOW-5: capture the implementation the proxy points at BEFORE the
-        // batch. `assertEq(registry.version(), "Registry-5.7.0")` after execution is a
+        // batch. `assertEq(registry.version(), "Registry-5.8.0")` after execution is a
         // VACUOUS assertion -- `UUPSDeployHelper` already deployed 5.7.0, so it held before
         // the batch too. The implementation SLOT moving is the non-vacuous statement that
         // step (1) actually executed.
@@ -169,7 +173,7 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock.executeBatch(targets, values, payloads, NO_PREDECESSOR, BATCH_SALT);
 
         // Nothing has moved: this is the window, and it is not executable.
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.8.0"));
         assertEq(registry.maxTotalCreditExposure(), 0, "caps still unset while pending");
         assertEq(registry.blsAggregator(), address(0), "aggregator still unwired while pending");
 
@@ -202,10 +206,17 @@ contract CC48RegistryTimelockGovernance is Test {
         assertTrue(timelock.isOperationDone(opId), "executed");
         address implAfter = address(uint160(uint256(vm.load(address(registry), implSlot))));
         assertTrue(implAfter != implBefore, "step (1) actually re-pointed the proxy");
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"), "and to a 5.7.0 impl");
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.8.0"), "and to a 5.8.0 impl");
         assertEq(registry.blsAggregator(), newAggregator, "aggregator wired");
         assertEq(registry.maxTotalCreditExposure(), TOTAL_CAP, "protocol ceiling seeded");
-        assertEq(registry.totalCreditExposure(), BASELINE, "baseline seeded, not left at 0");
+        // Round-9: the stock is DERIVED, so what the batch has to prove is that the
+        // population landed and the path is open -- not that an operator's number was
+        // copied into a slot. Both seeded addresses sit at level 1 here, so the derived
+        // above-floor stock is exactly zero, and that zero is a computed fact rather than
+        // an unseeded default: `creditPopulationSeededAt` is what distinguishes them.
+        assertEq(registry.creditPopulationTotal(), 2, "population counted inside the batch");
+        assertGt(registry.creditPopulationSeededAt(), 0, "reputation path opened by the batch");
+        assertEq(registry.totalCreditExposure(), 0, "no promoted user in this fixture");
         assertEq(registry.maxAggregateCreditUpliftPerProposal(), PER_PROPOSAL_CAP, "per-proposal cap seeded");
         assertEq(registry.owner(), address(timelock), "ownership unchanged by the batch");
 
@@ -231,7 +242,7 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock.executeBatch(t, v, p, NO_PREDECESSOR, BATCH_SALT);
 
         // The upgrade landed...
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.8.0"));
         // ...into a Registry whose protocol-wide ceiling is 0 and whose aggregator is
         // unwired. Fail-closed in the right direction, but it is a governance halt on the
         // reputation path that lasts another full timelock cycle -- which is precisely why
@@ -251,8 +262,14 @@ contract CC48RegistryTimelockGovernance is Test {
     {
         Registry newImpl = new Registry();
         return RegistryUpgradeBatchLib.buildBatch(
-            address(registry), address(newImpl), newAggregator, PER_PROPOSAL_CAP, TOTAL_CAP, BASELINE
+            address(registry), address(newImpl), newAggregator, PER_PROPOSAL_CAP, TOTAL_CAP, _seedUsers()
         );
+    }
+
+    function _seedUsers() internal pure returns (address[] memory users) {
+        users = new address[](2);
+        users[0] = SEED_USER_A;
+        users[1] = SEED_USER_B;
     }
 
     function _upgradeOnlySubBatch(

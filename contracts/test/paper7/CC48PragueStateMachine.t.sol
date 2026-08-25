@@ -131,7 +131,7 @@ contract CC48PragueStateMachine is Test {
         registry.setBLSAggregator(address(agg));
         registry.setReputationSource(address(agg), true);
         registry.setCreditTier(1, 0);
-        registry.setCreditPolicy(type(uint256).max, type(uint256).max, 0, false);
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max);
         staking.setAuthorizedSlasher(address(agg), true);
 
         // ROLE_DVT with no lock duration, so `exitRole` timing is governed by the
@@ -250,7 +250,7 @@ contract CC48PragueStateMachine is Test {
     /// without limit.
     function test_Prague_TotalExposureCeilingSurvivesProposalSlicing() public {
         _skipWithoutPrague();
-        registry.setCreditPolicy(type(uint256).max, type(uint256).max, 0, true);
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max);
 
         (address[] memory u1, uint256[] memory s1) = _batch(address(0xC0F1), 50);
         bytes32 h1 = _reputationHash(7201, u1, s1, 1);
@@ -262,7 +262,7 @@ contract CC48PragueStateMachine is Test {
         // per-proposal cap generous. Any further issuance must now be refused however it
         // is sliced — that is the difference between a transaction-level guard and a
         // stock bound.
-        registry.setCreditPolicy(type(uint256).max, perUser, 0, false);
+        registry.setCreditPolicy(type(uint256).max, perUser);
 
         vm.roll(block.number + 1);
         (address[] memory u2, uint256[] memory s2) = _batch(address(0xC0F2), 50);

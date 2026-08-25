@@ -145,7 +145,7 @@ contract CC48TotalCreditExposureTest is Test {
     /// per-proposal cap, minting N x cap in aggregate. The stock budget stops it.
     function test_SameBlockProposalSplittingCannotExceedTotalBudget() public {
         // per-proposal 600, protocol-wide 1200 => at most two users may reach L1.
-        registry.setCreditPolicy(600 ether, 1200 ether, 0, true);
+        registry.setCreditPolicy(600 ether, 1200 ether);
         uint256 startBlock = block.number;
 
         _submit(1, _user(1), 100, 1);
@@ -170,7 +170,7 @@ contract CC48TotalCreditExposureTest is Test {
     /// A rolling-window rate limit would refill on the next window. A stock budget
     /// does not: time buys nothing.
     function test_TimePassingDoesNotRefillTheBudget() public {
-        registry.setCreditPolicy(600 ether, 600 ether, 0, true);
+        registry.setCreditPolicy(600 ether, 600 ether);
         _submit(1, _user(1), 100, 1);
         assertEq(registry.totalCreditExposure(), 600 ether);
 
@@ -191,7 +191,7 @@ contract CC48TotalCreditExposureTest is Test {
     /// Genuine downgrades must give budget back, otherwise the protocol wedges
     /// permanently the first time it reaches the ceiling.
     function test_DowngradeReleasesBudgetAndAllowsReissue() public {
-        registry.setCreditPolicy(600 ether, 600 ether, 0, true);
+        registry.setCreditPolicy(600 ether, 600 ether);
         _submit(1, _user(1), 100, 1);
         assertEq(registry.totalCreditExposure(), 600 ether);
 
@@ -204,7 +204,7 @@ contract CC48TotalCreditExposureTest is Test {
 
     /// Mixed batches must net out rather than counting only the uplift side.
     function test_MixedBatchNetsUpAgainstDown() public {
-        registry.setCreditPolicy(type(uint256).max, 600 ether, 0, true);
+        registry.setCreditPolicy(type(uint256).max, 600 ether);
         _submit(1, _user(1), 100, 1);
 
         address[] memory users = new address[](2);
@@ -217,16 +217,25 @@ contract CC48TotalCreditExposureTest is Test {
         assertEq(registry.totalCreditExposure(), 600 ether, "net zero change");
     }
 
-    /// Zero ceiling is fail-closed for issuance but must never block de-risking.
-    function test_ZeroTotalCapFailsClosedButAllowsDowngrade() public {
-        registry.setCreditPolicy(type(uint256).max, 600 ether, 0, true);
+    /// A ceiling pinned to what is already outstanding is fail-closed for NEW issuance
+    /// but must never block de-risking.
+    ///
+    /// CC-48 round-9: the old shape of this test set the ceiling to 0 while 600 aPNT was
+    /// outstanding. That is refused now — a ceiling below live exposure is a wedge waiting
+    /// to happen, and `setCreditPolicy` says so at the point of the mistake rather than on
+    /// the next proposal. The security property being pinned here is unchanged.
+    function test_CeilingAtLiveExposureFailsClosedButAllowsDowngrade() public {
+        registry.setCreditPolicy(type(uint256).max, 600 ether);
         _submit(1, _user(1), 100, 1);
 
-        registry.setCreditPolicy(type(uint256).max, 0, 0, false);
+        vm.expectRevert(
+            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 600 ether, 0)
+        );
+        registry.setCreditPolicy(type(uint256).max, 0);
 
         vm.prank(source);
         vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 0)
+            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 600 ether)
         );
         address[] memory users = new address[](1);
         uint256[] memory scores = new uint256[](1);
@@ -234,27 +243,41 @@ contract CC48TotalCreditExposureTest is Test {
         scores[0] = 100;
         registry.batchUpdateGlobalReputation(2, users, scores, 1, _proof());
 
-        // Downgrade still lands: total goes to 0, which satisfies cap 0.
+        // Downgrade still lands and gives the budget back.
         _submit(3, _user(1), 0, 2);
         assertEq(registry.totalCreditExposure(), 0);
     }
 
-    /// An under-counted migration baseline must saturate at zero, never underflow.
-    function test_UnderSeededBaselineSaturatesInsteadOfUnderflowing() public {
-        registry.setCreditPolicy(type(uint256).max, 10_000 ether, 0, true);
+    /// An under-counted migration population must never underflow the stock — and under
+    /// round-9 it does better than not-underflowing: the missing stock is BOOKED on first
+    /// touch, so the release it then applies is netted against the real number.
+    function test_UnderSeededPopulationBackfillsInsteadOfUnderflowing() public {
+        registry.setCreditPolicy(type(uint256).max, 10_000 ether);
         _submit(1, _user(1), 100, 1);
-        // Governance mistakenly resets the baseline below true outstanding exposure.
-        registry.setCreditPolicy(type(uint256).max, 10_000 ether, 0, true);
-        assertEq(registry.totalCreditExposure(), 0);
+        assertEq(registry.totalCreditExposure(), 600 ether);
+
+        // Simulate the state a migration reaches when the seed list omitted _user(1):
+        // the slots a pre-5.8.0 proxy carries, plus a finalized count of nobody.
+        vm.store(address(registry), bytes32(uint256(25)), bytes32(0)); // totalCreditExposure
+        vm.store(address(registry), bytes32(uint256(27)), bytes32(0)); // creditPopulationTotal
+        vm.store(address(registry), bytes32(uint256(29)), bytes32(0)); // creditPopulationEpoch
+        vm.store(address(registry), bytes32(uint256(30)), bytes32(0)); // creditPopulationSeededAt
+        vm.store(address(registry), keccak256(abi.encode(_user(1), uint256(28))), bytes32(0));
+        registry.seedCreditPopulation(new address[](0), 0, true);
+        assertEq(registry.totalCreditExposure(), 0, "under-seeded: the ledger has never seen _user(1)");
 
         _submit(2, _user(1), 0, 2); // releases 600 against a 0 total
-        assertEq(registry.totalCreditExposure(), 0, "saturating subtraction, no revert");
+        assertEq(
+            registry.totalCreditExposure(),
+            0,
+            "backfill 600 then release 600 nets to zero; no underflow, and no phantom stock"
+        );
     }
 
     function test_CreditPolicyIsOwnerGated() public {
         vm.prank(address(0xBAD));
         vm.expectRevert();
-        registry.setCreditPolicy(1, 1, 0, false);
+        registry.setCreditPolicy(1, 1);
     }
 
     function test_FreshInitializerSeedsAFiniteProtocolCeiling() public view {

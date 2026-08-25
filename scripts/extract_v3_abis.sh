@@ -100,6 +100,17 @@ for CONTRACT in "${CONTRACTS[@]}"; do
     if [ -z "$FILE" ]; then
         FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
     fi
+    # CC-48 round-9: a contract compiled under MORE THAN ONE compiler profile is not
+    # emitted as `<C>.json` at all -- foundry writes `<C>.default.json` alongside
+    # `<C>.<other-profile>.json`. Since round-3 added the `registry-size` profile, that is
+    # exactly what happens to `TimelockController`, so this generator could not run to
+    # completion on this branch. Fall back to the DEFAULT-profile artifact by name: it is
+    # the profile `deploy-core` ships under, and it is named, never guessed -- picking
+    # whatever `find` happened to return first would silently publish an ABI compiled with
+    # settings the deployment does not use.
+    if [ -z "$FILE" ]; then
+        FILE=$(find out -name "${CONTRACT}.default.json" | head -n 1)
+    fi
     
     if [ -f "$FILE" ]; then
         echo "✅ Extracting ABI & Bytecode for $CONTRACT from $FILE..."

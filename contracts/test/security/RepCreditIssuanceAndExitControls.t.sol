@@ -68,7 +68,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_ExactCapAccepted() public {
-        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
+        registry.setCreditPolicy(600 ether, type(uint256).max);
         (address[] memory users, uint256[] memory scores) = _one(user1, 100);
         _submit(1, users, scores, 1);
         assertEq(registry.globalReputation(user1), 100);
@@ -76,7 +76,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_AttackBatchAboveCapAtomicallyRevertsAndCanRetry() public {
-        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
+        registry.setCreditPolicy(600 ether, type(uint256).max);
         address[] memory users = new address[](2);
         uint256[] memory scores = new uint256[](2);
         users[0] = user1;
@@ -90,18 +90,18 @@ contract AggregateUpliftCapTest is Test {
         assertEq(registry.globalReputation(user1), 0, "first write rolled back");
         assertEq(registry.globalReputation(user2), 0, "second write rolled back");
 
-        registry.setCreditPolicy(1200 ether, type(uint256).max, 0, false);
+        registry.setCreditPolicy(1200 ether, type(uint256).max);
         _submit(2, users, scores, 2);
         assertEq(registry.globalReputation(user1), 100, "proposal id remained retryable");
         assertEq(registry.globalReputation(user2), 100);
     }
 
     function test_ZeroCapFailsClosedForPositiveUpliftButAllowsDecrease() public {
-        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
+        registry.setCreditPolicy(600 ether, type(uint256).max);
         (address[] memory users, uint256[] memory scores) = _one(user1, 100);
         _submit(3, users, scores, 1);
 
-        registry.setCreditPolicy(0, type(uint256).max, 0, false);
+        registry.setCreditPolicy(0, type(uint256).max);
         scores[0] = 0;
         _submit(4, users, scores, 2);
         assertEq(registry.globalReputation(user1), 0, "risk-reducing update remains live");
@@ -113,7 +113,7 @@ contract AggregateUpliftCapTest is Test {
     }
 
     function test_DuplicateAndStaleEntriesCannotInflateAccounting() public {
-        registry.setCreditPolicy(600 ether, type(uint256).max, 0, false);
+        registry.setCreditPolicy(600 ether, type(uint256).max);
         address[] memory duplicates = new address[](2);
         uint256[] memory scores = new uint256[](2);
         duplicates[0] = user1;

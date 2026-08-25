@@ -331,11 +331,39 @@
     "type": "uint256"
   },
   {
-    "label": "__gap",
+    "label": "creditPopulationTotal",
     "slot": "27",
     "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "creditPopulationEpochOf",
+    "slot": "28",
+    "offset": 0,
     "type": {
-      "array": "uint256[47]",
+      "mapping": "mapping(address => uint256)",
+      "key": "address",
+      "value": "uint256"
+    }
+  },
+  {
+    "label": "creditPopulationEpoch",
+    "slot": "29",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "creditPopulationSeededAt",
+    "slot": "30",
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "__gap",
+    "slot": "31",
+    "offset": 0,
+    "type": {
+      "array": "uint256[43]",
       "base": "uint256"
     }
   }
