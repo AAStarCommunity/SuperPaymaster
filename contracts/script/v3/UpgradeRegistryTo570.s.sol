@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "src/core/Registry.sol";
 import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
 import {GovernanceOwnerGate, IOwned} from "../checks/GovernanceOwnerGate.sol";
+import {RegistryUpgradeBatchLib} from "../checks/RegistryUpgradeBatchLib.sol";
 
 interface IAggregatorDomain {
     function REGISTRY() external view returns (address);
@@ -100,7 +101,8 @@ interface ITimelockBatch {
  * for a stronger reason. 4.10.0's `emergencyDisarmFraudProofVerifier()` is immediate and
  * unannounced, so that owner can censor every FUTURE guardian-slash accusation by
  * front-running it in the mempool. A TimelockController cannot cover that path (a
- * timelocked emergency stop is not an emergency stop), which makes the Safe multisig the
+ * timelocked emergency stop is not an emergency stop), which makes the Safe-compatible
+ * M-of-N owner — an interface-and-threshold property, NOT a proof of canonicity — the
  * only governance defence there; the in-contract 4-day delay only governs RE-arming, and
  * already-queued cases are unreachable either way. Both gates are strict outside anvil —
  * a migration rehearsal that runs with an EOA owner rehearses a different system.
@@ -121,6 +123,14 @@ interface ITimelockBatch {
  *                                (CC-48 round-5 HIGH-1).
  *   MIN_DISTINCT_KEYS (optional) override the distinct-active-key floor; defaults to the
  *                                largest threshold the new aggregator itself configures
+ *   GOVERNANCE_OWNER             REQUIRED whenever NEW_BLS_AGGREGATOR's owner is gated as
+ *                                Safe-compatible M-of-N. Must EQUAL the live
+ *                                `NEW_BLS_AGGREGATOR.owner()`; a mismatch is refused, and
+ *                                so is acceptance with nothing declared (round-8 LOW-2).
+ *   REGISTRY_GOVERNANCE_OWNER    the same, for `Registry` — but only on the branch where
+ *                                `TIMELOCK` is unset. Registry and the aggregator are two
+ *                                independent governance questions and need not be the same
+ *                                Safe, so they carry two declarations.
  *   TIMELOCK (optional)          the TimelockController that owns Registry. If set, the
  *                                script ASSERTS Registry.owner() == TIMELOCK and
  *                                TIMELOCK.getMinDelay() > 0 (not merely prints calldata),
@@ -163,18 +173,25 @@ contract UpgradeRegistryTo570 is Script {
         // show that the Timelock actually imposes a delay AND is actually the owner --
         // printing scheduleBatch calldata proves neither.
         address timelock = vm.envOr("TIMELOCK", address(0));
+        // CC-48 round-8 LOW-2: each subject binds to its OWN declaration. `TIMELOCK` is
+        // already an explicit declaration checked against the live owner; the M-of-N branch
+        // gets `REGISTRY_GOVERNANCE_OWNER` so it is held to the same standard rather than
+        // accepting whatever contract happens to answer the interface.
         if (timelock != address(0)) {
             GovernanceOwnerGate.requireTimelockOwner(proxy, owner, timelock, "Registry");
         } else {
-            GovernanceOwnerGate.requireGovernanceOwnerStrict(proxy, owner, "Registry");
+            GovernanceOwnerGate.requireGovernanceOwnerStrictDeclaredAs(
+                proxy, owner, "Registry", "REGISTRY_GOVERNANCE_OWNER"
+            );
         }
 
         // CC-48 round-6 HIGH-1: the aggregator's OWN owner is now a distinct governance
         // question, and until this round nothing checked it. 4.10.0 gave that owner
         // `emergencyDisarmFraudProofVerifier()` — immediate, no notice, and enough to
         // front-run every future `queueGuardianSlash` out of the mempool for one
-        // transaction's gas. A Timelock cannot cover an emergency stop, so the Safe
-        // M-of-N owner is the only governance defence on that path; wiring an EOA-owned
+        // transaction's gas. A Timelock cannot cover an emergency stop, so the
+        // Safe-compatible M-of-N owner is the only governance defence on that path (an
+        // interface-and-threshold property, not a proof of canonicity); wiring an EOA-owned
         // aggregator into a live Registry hands one hot key a permanent, silent veto over
         // the entire collusion deterrent. Checked before the batch is emitted, not after.
         // Round-7: a Timelock is deliberately NOT accepted here even though it is accepted
@@ -217,7 +234,7 @@ contract UpgradeRegistryTo570 is Script {
         );
 
         // ---- CC-48 round-3 MEDIUM-4: validator-set preflight, enforced not suggested ----
-        // A fresh 4.9.0 starts with an EMPTY key table. Wiring it in before validators
+        // A fresh 4.10.0 starts with an EMPTY key table. Wiring it in before validators
         // have re-filed their PoPs points every BLS-gated path at an aggregator with no
         // signers — a real governance outage whose fix is another full timelock cycle.
         uint256 requiredKeys = vm.envOr("MIN_DISTINCT_KEYS", BLSKeyScanLib.maxRequiredThreshold(newAggregator));
@@ -267,19 +284,15 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: freshly built impl is not Registry-5.7.0"
         );
 
-        address[] memory targets = new address[](3);
-        uint256[] memory values = new uint256[](3);
-        bytes[] memory payloads = new bytes[](3);
-
-        targets[0] = proxy;
-        payloads[0] = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(newImpl), bytes(""));
-        targets[1] = proxy;
-        payloads[1] = abi.encodeCall(Registry.setBLSAggregator, (newAggregator));
-        targets[2] = proxy;
-        payloads[2] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap, baseline, true));
+        // CC-48 round-8 LOW-5: the batch shape, its salt and its predecessor live in
+        // `RegistryUpgradeBatchLib` so `CC48RegistryTimelockGovernance` asserts against THIS
+        // definition instead of a copy of it. Editing the batch here without editing the
+        // test is no longer possible; there is only one definition to edit.
+        (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = RegistryUpgradeBatchLib
+            .buildBatch(proxy, address(newImpl), newAggregator, perProposalCap, totalCap, baseline);
 
         console.log("--- atomic governance batch (execute as ONE transaction) ---");
-        for (uint256 i = 0; i < 3; i++) {
+        for (uint256 i = 0; i < RegistryUpgradeBatchLib.BATCH_LENGTH; i++) {
             console.log("target", i, targets[i]);
             console.logBytes(payloads[i]);
         }
@@ -290,14 +303,27 @@ contract UpgradeRegistryTo570 is Script {
             console.logBytes(
                 abi.encodeCall(
                     ITimelockBatch.scheduleBatch,
-                    (targets, values, payloads, bytes32(0), bytes32(uint256(0x5600)), delay)
+                    (
+                        targets,
+                        values,
+                        payloads,
+                        RegistryUpgradeBatchLib.NO_PREDECESSOR,
+                        RegistryUpgradeBatchLib.BATCH_SALT,
+                        delay
+                    )
                 )
             );
             console.log("--- TimelockController.executeBatch calldata ---");
             console.logBytes(
                 abi.encodeCall(
                     ITimelockBatch.executeBatch,
-                    (targets, values, payloads, bytes32(0), bytes32(uint256(0x5600)))
+                    (
+                        targets,
+                        values,
+                        payloads,
+                        RegistryUpgradeBatchLib.NO_PREDECESSOR,
+                        RegistryUpgradeBatchLib.BATCH_SALT
+                    )
                 )
             );
         }

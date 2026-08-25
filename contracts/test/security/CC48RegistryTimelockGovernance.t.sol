@@ -6,6 +6,7 @@ import "src/core/Registry.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {GovernanceOwnerGate} from "../../script/checks/GovernanceOwnerGate.sol";
+import {RegistryUpgradeBatchLib} from "../../script/checks/RegistryUpgradeBatchLib.sol";
 import {IMySBT} from "src/interfaces/v3/IMySBT.sol";
 
 contract TimelockMockSBT is IMySBT {
@@ -50,15 +51,20 @@ contract TimelockMockBLS {
  *         nothing about whether the operation can be executed, executed in pieces, or
  *         executed at all.
  *
- *         The salt and predecessor below are exactly the ones the script emits
- *         (`bytes32(uint256(0x5600))`, `bytes32(0)`), so this test binds to the shipped
- *         parameters rather than to a convenient reimplementation of them.
+ *         CC-48 round-8 LOW-5 — WHAT "BINDS TO THE SHIPPED PARAMETERS" NOW MEANS. Round 7
+ *         claimed that here while holding its OWN `BATCH_SALT` constant and its OWN
+ *         hand-written copy of the batch, so changing the salt in `UpgradeRegistryTo570`
+ *         left this test green. That claim was false and is retracted. Salt, predecessor
+ *         and all three payloads now come from `RegistryUpgradeBatchLib`, which the SCRIPT
+ *         also calls — there is one definition in the repository, so an edit to the shipped
+ *         batch is an edit to what this test asserts, by construction rather than by
+ *         discipline.
  */
 contract CC48RegistryTimelockGovernance is Test {
-    /// @dev The script's own salt/predecessor. Changing either in the script without
-    ///      changing it here makes this test fail — which is the point.
-    bytes32 internal constant BATCH_SALT = bytes32(uint256(0x5600));
-    bytes32 internal constant NO_PREDECESSOR = bytes32(0);
+    /// @dev NOT re-declared here: aliased straight to the shipped definition, so there is
+    ///      no second value that could drift from the script's.
+    bytes32 internal constant BATCH_SALT = RegistryUpgradeBatchLib.BATCH_SALT;
+    bytes32 internal constant NO_PREDECESSOR = RegistryUpgradeBatchLib.NO_PREDECESSOR;
 
     uint256 internal constant MIN_DELAY = 2 days;
 
@@ -128,6 +134,23 @@ contract CC48RegistryTimelockGovernance is Test {
     function test_UpgradeAndCapsLandInOneTransactionWithNoIntermediateWindow() public {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = _batch();
 
+        // The batch under test IS the shipped shape: three calls, every one of them
+        // addressed to the proxy. A batch that reached any other address would not be the
+        // operation `UpgradeRegistryTo570` schedules, and everything below would be
+        // asserting about something else.
+        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "three calls");
+        for (uint256 i = 0; i < targets.length; ++i) {
+            assertEq(targets[i], address(registry), "every call targets the Registry proxy");
+            assertEq(values[i], 0, "no ether moves");
+        }
+        // CC-48 round-8 LOW-5: capture the implementation the proxy points at BEFORE the
+        // batch. `assertEq(registry.version(), "Registry-5.7.0")` after execution is a
+        // VACUOUS assertion -- `UUPSDeployHelper` already deployed 5.7.0, so it held before
+        // the batch too. The implementation SLOT moving is the non-vacuous statement that
+        // step (1) actually executed.
+        bytes32 implSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        address implBefore = address(uint160(uint256(vm.load(address(registry), implSlot))));
+
         // ---- schedule ----
         vm.prank(stranger);
         vm.expectRevert(); // AccessControlUnauthorizedAccount: only the proposer may schedule
@@ -177,7 +200,9 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock.executeBatch(targets, values, payloads, NO_PREDECESSOR, BATCH_SALT);
 
         assertTrue(timelock.isOperationDone(opId), "executed");
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"), "upgraded");
+        address implAfter = address(uint160(uint256(vm.load(address(registry), implSlot))));
+        assertTrue(implAfter != implBefore, "step (1) actually re-pointed the proxy");
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.7.0"), "and to a 5.7.0 impl");
         assertEq(registry.blsAggregator(), newAggregator, "aggregator wired");
         assertEq(registry.maxTotalCreditExposure(), TOTAL_CAP, "protocol ceiling seeded");
         assertEq(registry.totalCreditExposure(), BASELINE, "baseline seeded, not left at 0");
@@ -219,24 +244,15 @@ contract CC48RegistryTimelockGovernance is Test {
     // Helpers
     // =================================================================
 
-    /// The batch exactly as `UpgradeRegistryTo570` emits it.
+    /// The batch exactly as `UpgradeRegistryTo570` emits it — because it is the same call.
     function _batch()
         internal
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        address proxy = address(registry);
         Registry newImpl = new Registry();
-
-        targets = new address[](3);
-        values = new uint256[](3);
-        payloads = new bytes[](3);
-
-        targets[0] = proxy;
-        payloads[0] = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(newImpl), bytes(""));
-        targets[1] = proxy;
-        payloads[1] = abi.encodeCall(Registry.setBLSAggregator, (newAggregator));
-        targets[2] = proxy;
-        payloads[2] = abi.encodeCall(Registry.setCreditPolicy, (PER_PROPOSAL_CAP, TOTAL_CAP, BASELINE, true));
+        return RegistryUpgradeBatchLib.buildBatch(
+            address(registry), address(newImpl), newAggregator, PER_PROPOSAL_CAP, TOTAL_CAP, BASELINE
+        );
     }
 
     function _upgradeOnlySubBatch(
@@ -244,11 +260,6 @@ contract CC48RegistryTimelockGovernance is Test {
         uint256[] memory values,
         bytes[] memory payloads
     ) internal pure returns (address[] memory t, uint256[] memory v, bytes[] memory p) {
-        t = new address[](1);
-        v = new uint256[](1);
-        p = new bytes[](1);
-        t[0] = targets[0];
-        v[0] = values[0];
-        p[0] = payloads[0];
+        return RegistryUpgradeBatchLib.upgradeOnlySubBatch(targets, values, payloads);
     }
 }

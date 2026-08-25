@@ -17,7 +17,7 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.9.0 (A' commitment + bounded guardian exit + CC-48
+/// @notice Deploys BLSAggregator 4.10.0 (A' commitment + bounded guardian exit + CC-48
 ///         round-3 verifier pinning) to Sepolia,
 ///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
@@ -81,7 +81,13 @@ contract DeployBLSAggregatorSepolia is Script {
         GovernanceOwnerGate.requireGovernanceOwner(address(agg), agg.owner(), "BLSAggregator");
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
-        console.log("BLSAggregator 4.9.0 (A' + exit gate + frozen verdict) deployed at:", address(agg));
+        // CC-48 round-8 LOW-3: the transcript must print the version that was actually
+        // deployed. This line said 4.9.0 while the build was 4.10.0, so the deployment
+        // EVIDENCE named a contract that was never deployed -- read off the contract
+        // instead of restating a literal that has to be remembered.
+        console.log(
+            string.concat(agg.version(), " (A' + exit gate + frozen verdict) deployed at:"), address(agg)
+        );
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
         console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");

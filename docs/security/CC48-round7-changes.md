@@ -151,8 +151,16 @@ that was never actually asked anything. That is precisely the fail-open step 0 e
 close, reopened by the shape of the probe.
 
 **Fix:** the sentinel is sent with the argument list its own pre-image declares —
-`abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0), uint256(0))` — so it is
-indistinguishable from a genuine call to a real method.
+`abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0), uint256(0))`.
+
+> **SUPERSEDED BY ROUND 8 — the sentence that used to close this paragraph
+> ("…so it is indistinguishable from a genuine call to a real method") was FALSE and is
+> retracted.** 68 bytes was the *only* 68-byte probe in the library, so one
+> `gt(calldatasize(), 36)` separated it from every real getter — the exact mirror of the
+> `lt` that defeated round 6. Round 8 sends the sentinel at 4, 36 **and** 68 bytes (every
+> width this library uses) and states the honest scope: step 0 rejects a **shape**-based
+> catch-all and cannot detect a **selector**-whitelist liar at all. See
+> `docs/security/CC48-round8-changes.md` §1.
 
 `test_AnArgStrictCatchAllCannotForgePresentOrZeroPending` asserts the **defect first**
 (the fixture really does fabricate a clean zero word, and really does evade the round-6
@@ -288,10 +296,19 @@ unconditionally, so a fork rehearsal of a production chain "passed" a gate that 
 executed — false assurance in exactly the rehearsal that exists to produce assurance.
 Nothing on-chain distinguishes a fork from a fresh local node, so the distinction is made by
 a human: `LOCAL_DEV_GOVERNANCE_ACK=true`, and the skip is **printed** so a transcript shows
-the gate was skipped rather than satisfied. Both anvil entry points (`./deploy-core anvil` and
-`scripts/deploy-core.sh anvil`) set it — a genuinely local node started by this repo's own
-tooling; no other environment sets it, and `run_full_regression.sh` reaches anvil only
-through `./deploy-core`.
+the gate was skipped rather than satisfied.
+
+> **PARTIALLY SUPERSEDED BY ROUND 8 (LOW-1).** The paragraph that used to continue here
+> said both anvil entry points set the ack because anvil is "a genuinely local node started
+> by this repo's own tooling". That justification was **FALSE and is retracted**: nothing in
+> this repo starts anvil (`run_full_regression.sh` only tells the operator to start one, and
+> `deprecated/scripts/test-anvil.sh` starts `anvil --fork-url $SEPOLIA_RPC_URL`), so on the
+> fork-rehearsal path the ack was set automatically and **nobody acknowledged anything** —
+> the hole this section claims to close. Round 8 makes both halves real: the shell entry
+> points **probe** the node (chain id 31337 **and** a head block below the ceiling) before
+> pre-setting the ack, and the gate itself refuses a 31337 node whose head block is at or
+> above `LOCAL_FRESH_BLOCK_CEILING` no matter who set the ack. See
+> `docs/security/CC48-round8-changes.md` §3.
 
 Demonstrated end to end against a live anvil node:
 

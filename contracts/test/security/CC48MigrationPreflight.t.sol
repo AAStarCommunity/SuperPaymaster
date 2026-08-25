@@ -140,6 +140,95 @@ contract ArgStrictCatchAllStub {
     }
 }
 
+/// @notice CC-48 round-8 MEDIUM-1. Round 7's fix moved the evasion, it did not remove it.
+///
+///         Round 7 sent the sentinel at 68 bytes (`selector + bytes32 + uint256`) and
+///         declared it "indistinguishable from a genuine call to a real method". It was the
+///         only 68-byte probe in the entire library, so ONE instruction told it apart:
+///         `if gt(calldatasize(), 36) { revert }` — the exact mirror image of the `lt` that
+///         defeated round 6. Under round 7 this fixture
+///           • reverted on the 68-byte sentinel                     -> "not a catch-all",
+///           • fabricated a clean 32-byte word for every real getter -> `Present`,
+///           • fabricated `MAX_VALIDATORS() == 0`                    -> "no keys, no taint",
+///         so `requireDeclaredPredecessor` + the taint scan + the pending scan ALL reported
+///         clean for a contract that was never actually asked anything.
+///
+///         Round 8 probes the sentinel at 4, 36 AND 68 bytes, and every real getter in the
+///         library is 4 or 36. So a fallback answering anything the library will later
+///         trust answers a sentinel of the same width, and no `calldatasize` predicate in
+///         either direction can separate them.
+contract SizeDiscriminatingCatchAllStub {
+    fallback() external {
+        assembly {
+            // The mirror of `ArgStrictCatchAllStub`: serve the SHORT shapes, refuse the
+            // long one that round 7 happened to pick for its sentinel.
+            if gt(calldatasize(), 36) { revert(0, 0) }
+            mstore(0x00, 0)
+            return(0x00, 0x20)
+        }
+    }
+}
+
+/// @notice CC-48 round-8 MEDIUM-1, one level below `SizeDiscriminatingCatchAllStub`: a
+///         catch-all that discriminates on the ARGUMENT WORD rather than on
+///         `calldatasize`. It serves only calls whose first argument word is non-zero,
+///         which is exactly the shape `pendingGuardianSlashCount(address(1))` and
+///         `guardianExitRequests(address(1))` have — so under a sentinel probed only with
+///         a zero argument it would fabricate a clean `Present` and a clean zero count
+///         while refusing every probe sent to check on it.
+///
+///         The 36-byte sentinel is therefore sent with BOTH argument values the real
+///         probes use (0 and 1), so this predicate cannot separate them in either
+///         direction.
+contract ArgValueDiscriminatingCatchAllStub {
+    fallback() external {
+        assembly {
+            if lt(calldatasize(), 36) { revert(0, 0) }
+            if iszero(calldataload(4)) { revert(0, 0) } // <- only serves non-zero arguments
+            mstore(0x00, 0)
+            return(0x00, 0x20)
+        }
+    }
+}
+
+/// @notice CC-48 round-8 MEDIUM-1, the HONEST LIMIT of step 0 — this fixture is NOT
+///         detected, and the test that uses it asserts exactly that.
+///
+///         It is an ordinary contract with no fallback at all. It implements precisely the
+///         selectors the preflight probes, answers each with the right width, and lies in
+///         the values:
+///           `pendingGuardianSlashCount` -> 0   ("no pending case")
+///           `MAX_VALIDATORS`            -> 0   ("no slots, so no key to be tainted")
+///         Because it has no fallback, every sentinel — at any width, present or future —
+///         reverts against it, so no probe can distinguish it from a genuine getter set.
+///         That is not a defect in the sentinel; it is what "implements this function"
+///         means over a `staticcall` interface.
+///
+///         What keeps it out is `requireDeclaredPredecessor`: the preflight only ever scans
+///         whatever `Registry.blsAggregator()` returns right now, so this contract is only
+///         reachable if governance has ALREADY wired it into the live Registry.
+contract SelectorWhitelistLiarStub {
+    function pendingGuardianSlashCount(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function MAX_VALIDATORS() external pure returns (uint256) {
+        return 0;
+    }
+
+    function validatorAtSlot(uint8) external pure returns (address) {
+        return address(0);
+    }
+
+    function blsKeyOwner(bytes32) external pure returns (address) {
+        return address(0);
+    }
+
+    function version() external pure returns (string memory) {
+        return "BLSAggregator-4.3.0";
+    }
+}
+
 /// @notice Answers the pending getter, but not as a `uint256`: 64 bytes where the ABI says
 ///         32. Not what its ABI claims, therefore not trustworthy.
 contract WrongWidthPendingStub {
@@ -380,6 +469,151 @@ contract CC48MigrationPreflight is Test {
             )
         );
         this.callRequireNoPendingCases(address(selective));
+    }
+
+    /// CC-48 round-8 MEDIUM-1. The MIRROR of the test above, and the finding that reopened
+    /// it: round 7 replaced `lt(calldatasize(), 36)` with a 68-byte probe, which one
+    /// `gt(calldatasize(), 36)` separates from every real getter just as cleanly.
+    ///
+    /// Asserts the DEFECT first (this fixture really does fabricate clean answers to the
+    /// getters the preflight trusts) and only then the fix, so the second half cannot pass
+    /// against a fixture that answers nothing.
+    function test_ASizeDiscriminatingCatchAllCannotEvadeTheSentinelEither() public {
+        SizeDiscriminatingCatchAllStub selective = new SizeDiscriminatingCatchAllStub();
+
+        // 1. It fabricates a clean 32-byte zero for the getter `Present` is built on.
+        (bool ok, bytes memory ret) = address(selective).staticcall(
+            abi.encodeWithSignature("pendingGuardianSlashCount(address)", address(1))
+        );
+        assertTrue(ok && ret.length == 32, "fixture must fabricate a full word");
+        assertEq(abi.decode(ret, (uint256)), 0, "and the fabrication is a zero pending count");
+
+        // 2. ...and for the getter the TAINT scan is built on: zero slots, zero keys.
+        (ok, ret) = address(selective).staticcall(abi.encodeWithSignature("MAX_VALIDATORS()"));
+        assertTrue(ok && ret.length == 32, "fixture must fabricate MAX_VALIDATORS too");
+        assertEq(abi.decode(ret, (uint256)), 0, "so the key scan would iterate zero times");
+
+        // 3. It evades the ROUND-7 probe shape — 68 bytes — reproduced here so this test
+        //    fails again if the probe ever regresses to a single wide width.
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0), uint256(0))
+        );
+        assertFalse(ok, "the round-7 probe shape is evadable; that is the whole finding");
+
+        // 4. ...but not the 4-byte and 36-byte shapes, which are the widths every real
+        //    getter in the library actually uses.
+        (ok,) = address(selective).staticcall(abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL));
+        assertTrue(ok, "a 4-byte sentinel matches every no-argument getter's shape");
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0))
+        );
+        assertTrue(ok, "a 36-byte sentinel matches every one-argument getter's shape");
+
+        // 5. So the classifier refuses it instead of reading its fabricated zero.
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(selective))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Ambiguous),
+            "a size-discriminating catch-all must never classify as Present"
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.AmbiguousGuardianSlashCapability.selector, address(selective)
+            )
+        );
+        this.callRequireNoPendingCases(address(selective));
+    }
+
+    /// CC-48 round-8 MEDIUM-1, one level below the test above: a catch-all keyed on the
+    /// ARGUMENT WORD instead of on `calldatasize`. Sending the 36-byte sentinel with a
+    /// single argument value would have reopened the same fail-open a third time, so it is
+    /// sent with both values the real probes carry.
+    function test_AnArgValueDiscriminatingCatchAllCannotEvadeTheSentinelEither() public {
+        ArgValueDiscriminatingCatchAllStub selective = new ArgValueDiscriminatingCatchAllStub();
+
+        // 1. The defect: it fabricates a clean zero for the getter `Present` is built on,
+        //    which is probed with `address(1)`.
+        (bool ok, bytes memory ret) = address(selective).staticcall(
+            abi.encodeWithSignature("pendingGuardianSlashCount(address)", address(1))
+        );
+        assertTrue(ok && ret.length == 32, "fixture must fabricate a full word");
+        assertEq(abi.decode(ret, (uint256)), 0, "and the fabrication is a zero pending count");
+
+        // 2. A zero-argument 36-byte sentinel does NOT see it -- that is the finding.
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0))
+        );
+        assertFalse(ok, "a single-value sentinel is evadable; that is why two are sent");
+
+        // 3. The non-zero one does.
+        (ok,) = address(selective).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(uint256(1)))
+        );
+        assertTrue(ok, "the second argument value closes the mirror case");
+
+        // 4. So it is refused rather than believed.
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(selective))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Ambiguous)
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.AmbiguousGuardianSlashCapability.selector, address(selective)
+            )
+        );
+        this.callRequireNoPendingCases(address(selective));
+    }
+
+    /// CC-48 round-8 MEDIUM-1 — THE STATED LIMIT, asserted rather than promised.
+    ///
+    /// Rounds 6 and 7 both wrote that the sentinel made forgery detectable. It does not,
+    /// and cannot: a contract that discriminates by SELECTOR rather than by calldata shape
+    /// is indistinguishable from a genuine getter set over a `staticcall` interface, at any
+    /// sentinel width. This test pins that down so nobody re-derives the false claim:
+    ///   - the liar answers every probed getter with a clean, wrong value;
+    ///   - EVERY sentinel width reverts against it;
+    ///   - so it classifies `Present` -- the preflight believes it is a real, fully
+    ///     featured aggregator -- and then the pending scan RUNS, is fed
+    ///     `MAX_VALIDATORS() == 0`, iterates zero times and reports clean.
+    /// Note this is NOT the `Absent`/skip path: the check is not skipped, it is executed
+    /// against fabricated inputs, which no amount of probing can fix.
+    /// The backstop is `requireDeclaredPredecessor` (exercised at the end), not step 0.
+    function test_ASelectorWhitelistLiarIsNotDetectableAtTheProbeLayer() public {
+        SelectorWhitelistLiarStub liar = new SelectorWhitelistLiarStub();
+
+        // No sentinel width can see it: it has no fallback, so unknown selectors revert.
+        (bool ok,) = address(liar).staticcall(abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL));
+        assertFalse(ok, "4-byte sentinel reverts");
+        (ok,) = address(liar).staticcall(abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0)));
+        assertFalse(ok, "36-byte sentinel reverts");
+        (ok,) = address(liar).staticcall(
+            abi.encodeWithSelector(BLSKeyScanLib.CATCH_ALL_SENTINEL, bytes32(0), uint256(0))
+        );
+        assertFalse(ok, "68-byte sentinel reverts");
+
+        // And it is NOT caught. Recorded as the honest scope of step 0, not as a pass.
+        assertEq(
+            uint256(BLSKeyScanLib.guardianSlashCapability(address(liar))),
+            uint256(BLSKeyScanLib.GuardianSlashCapability.Present),
+            "step 0 cannot detect a selector-whitelist liar -- this is the stated limit"
+        );
+        // The pending scan runs in full and still reports clean, because every input it
+        // reads is fabricated. `MAX_VALIDATORS() == 0` makes the loop body unreachable.
+        this.callRequireNoPendingCases(address(liar));
+
+        // The thing that actually keeps it out: it is not what Registry is wired to. A
+        // migration can only scan the live predecessor, so reaching the fail-open above
+        // requires governance to have already wired this contract in.
+        RegistryWiringStub wiring = new RegistryWiringStub();
+        wiring.setBLSAggregator(address(0xFEED));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BLSKeyScanLib.PredecessorMismatch.selector,
+                address(wiring),
+                address(liar),
+                address(0xFEED)
+            )
+        );
+        this.callRequireDeclaredPredecessor(address(wiring), address(liar));
     }
 
     /// The width test is `==`, not `>=`: a contract answering the pending getter with the

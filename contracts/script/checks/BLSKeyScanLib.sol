@@ -61,7 +61,7 @@ interface IRegistryWiring {
  *         stack was found in, and it is indistinguishable from a legitimate key by
  *         shape alone.
  *
- *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.9.0 starts with
+ *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.10.0 starts with
  *         an EMPTY key table. Wiring it into Registry before validators have re-filed
  *         their PoPs points the reputation / blacklist paths at an aggregator with no
  *         signers: every proposal reverts with InsufficientConsensus until onboarding
@@ -83,7 +83,9 @@ library BLSKeyScanLib {
     /// @dev CC-48 round-6 MEDIUM-1. A selector no build of this aggregator implements or
     ///      ever will: a contract that ANSWERS it (rather than reverting) is running a
     ///      catch-all fallback, so nothing else it returns can be trusted. Probed FIRST,
-    ///      before any real getter. Derived from a string, so the value is auditable and
+    ///      before any real getter, and — since round-8 MEDIUM-1 — at every calldata width
+    ///      this library ever sends, so no `calldatasize` predicate can tell the sentinel
+    ///      apart from a real getter. Derived from a string, so the value is auditable and
     ///      cannot silently collide with a real function — `BLSAggregator` classifying as
     ///      `Present` in the suite is the standing proof that it does not collide.
     bytes4 internal constant CATCH_ALL_SENTINEL =
@@ -309,15 +311,14 @@ library BLSKeyScanLib {
     ///         it proved nothing about case storage and broke the only usable path.
     ///
     ///         The classification, in order:
-    ///           0. CATCH-ALL DETECTION FIRST. A selector that cannot exist on any build
-    ///              is probed before anything else, WITH ITS FULL DECLARED ARGUMENT LIST
-    ///              (round-7 MEDIUM-1: a selector-only probe was itself evadable by any
-    ///              fallback that checks `calldatasize`, which is one `lt` instruction).
-    ///              If it ANSWERS — with any returndata,
-    ///              empty or 32+ bytes — the contract has a catch-all fallback and every
-    ///              subsequent answer is fabricated. Unconditionally `Ambiguous`; see
-    ///              `_probe`. (Round-5 only caught the empty-returndata half of this: a
-    ///              proxy fallback returning >= 32 bytes was read as a REAL
+    ///           0. SHAPE-CATCH-ALL DETECTION FIRST. A selector that cannot exist on any
+    ///              build is probed before anything else, AT EVERY CALLDATA WIDTH THIS
+    ///              LIBRARY EVER SENDS (round-8 MEDIUM-1; see `_answersAnySentinelShape`).
+    ///              If it ANSWERS at ANY of those widths — with any returndata, empty or
+    ///              32+ bytes — the contract has a catch-all fallback and every subsequent
+    ///              answer is fabricated. Unconditionally `Ambiguous`; see `_probe`.
+    ///              (Round-5 only caught the empty-returndata half of this: a proxy
+    ///              fallback returning >= 32 bytes was read as a REAL
     ///              `pendingGuardianSlashCount`, and a fabricated 0 reported "no pending
     ///              cases" for a contract that was never asked.)
     ///           1. `Present` iff `pendingGuardianSlashCount(address)` returns EXACTLY
@@ -329,7 +330,32 @@ library BLSKeyScanLib {
     ///              surface is an unrecognised build, and a wrong-width answer is a
     ///              contract that is not what its ABI claims. Fail closed, loudly.
     ///
-    ///         STATED LIMITATION: every probe is a `staticcall`, so a fallback that WRITES
+    ///         STATED LIMITATION 1 — WHAT STEP 0 PROVES IS NARROWER THAN ROUNDS 6 AND 7
+    ///         CLAIMED (CC-48 round-8 MEDIUM-1). Step 0 proves ONE thing: a contract that
+    ///         answers by CALLDATA SHAPE rather than by selector — a catch-all fallback,
+    ///         with or without a `calldatasize` filter in either direction — is refused.
+    ///         It proves NOTHING about a contract that answers by SELECTOR. One that
+    ///         declares exactly the probed selectors, returns a fabricated value of the
+    ///         correct width for each, and has no fallback is INDISTINGUISHABLE from a
+    ///         genuine getter set at the probe layer, at any sentinel width, by
+    ///         construction — that is what "implements this function" means over a
+    ///         `staticcall` interface. The claim this NatSpec used to make ("the sentinel
+    ///         is indistinguishable from a genuine call to a real method", therefore no
+    ///         forgery survives) is FALSE and is retracted.
+    ///           Concretely, such a contract classifies `Present` — not `Absent` — so the
+    ///           pending scan is not skipped: it RUNS, reads a fabricated
+    ///           `MAX_VALIDATORS() == 0`, iterates zero times and reports clean. Probing
+    ///           harder cannot fix that; the inputs, not the classification, are the lie.
+    ///           What keeps such a contract out is NOT this step. It is
+    ///           `requireDeclaredPredecessor`: the scan target is pinned to whatever
+    ///           `Registry.blsAggregator()` returns RIGHT NOW, so reaching this fail-open
+    ///           requires governance to have already wired a hostile aggregator into the
+    ///           live Registry. Step 0 is defence in depth against an accidental proxy or
+    ///           a shape-based forgery, not a proof of honesty.
+    ///           `CC48MigrationPreflight.test_ASelectorWhitelistLiarIsNotDetectableAtTheProbeLayer`
+    ///           is the standing, executable statement of this limit.
+    ///
+    ///         STATED LIMITATION 2: every probe is a `staticcall`, so a fallback that WRITES
     ///         state reverts on all of them and classifies as `Absent`. Such a contract
     ///         also cannot answer the pending scan, so the migration would be reasoning
     ///         about a shape no aggregator in this repo's history has ever had; the
@@ -337,18 +363,7 @@ library BLSKeyScanLib {
     ///         to the one Registry is actually wired to.
     function guardianSlashCapability(address aggregator) internal view returns (GuardianSlashCapability) {
         // 0. Catch-all fallback detection, BEFORE any known getter is trusted.
-        // CC-48 round-7 MEDIUM-1: the probe carries the sentinel's FULL declared argument
-        // list, not a bare 4-byte selector. A catch-all fallback that decodes its arguments
-        // -- `if lt(calldatasize(), 36) { revert }` is enough -- reverted on the 4-byte
-        // probe, so round 6 classified it as NOT catch-all and then read the very same
-        // fallback's fabricated 32-byte `pendingGuardianSlashCount` as a real answer of
-        // zero. That is the fail-open this step exists to close, reopened by the shape of
-        // the probe itself. Sent with exactly the (bytes32,uint256) the selector's
-        // pre-image names, so it is indistinguishable from a call to a real method.
-        (bool sentinelAnswered,) = _probe(
-            aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0), uint256(0)), 0
-        );
-        if (sentinelAnswered) return GuardianSlashCapability.Ambiguous;
+        if (_answersAnySentinelShape(aggregator)) return GuardianSlashCapability.Ambiguous;
 
         (bool pendingOk, bool pendingDecodable) =
             _probe(aggregator, abi.encodeCall(IAggregatorKeyScan.pendingGuardianSlashCount, (address(1))), 32);
@@ -372,6 +387,61 @@ library BLSKeyScanLib {
 
         if (anyOther || anyUndecodable) return GuardianSlashCapability.Ambiguous;
         return GuardianSlashCapability.Absent;
+    }
+
+    /// @dev CC-48 round-8 MEDIUM-1. Send `CATCH_ALL_SENTINEL` at EVERY calldata width this
+    ///      library ever puts on the wire, and treat an answer at ANY of them as a
+    ///      catch-all.
+    ///
+    ///      WHY WIDTH, NOT "REALISM". Rounds 6 and 7 each picked ONE width and called it
+    ///      indistinguishable from a real call, and each time one `calldatasize` comparison
+    ///      separated it from every real getter:
+    ///        • round 6 sent 4 bytes  -> `if lt(calldatasize(), 36) { revert }` evaded it
+    ///          while still fabricating a clean 32-byte `pendingGuardianSlashCount`;
+    ///        • round 7 sent 68 bytes -> `if gt(calldatasize(), 36) { revert }` evaded THAT
+    ///          while still fabricating clean answers to every real getter. 68 was the only
+    ///          68-byte probe in the whole library, so it was the easiest thing in the file
+    ///          to fingerprint. Symmetric defect, opposite sign.
+    ///
+    ///      The fix is not a better single width, it is the SET of widths. This library
+    ///      makes exactly nine distinct calls to an aggregator, and every one of them is
+    ///      either 4 bytes — `MAX_VALIDATORS`, `defaultThreshold`, `minThreshold`,
+    ///      `version`, `GUARDIAN_SLASH_CASE_WINDOW` — or 36 bytes — `validatorAtSlot`,
+    ///      `getBLSPublicKey`, `blsKeyOwner`, `pendingGuardianSlashCount`,
+    ///      `slashThresholds`, `guardianSlashCases`, `guardianExitRequests`. Every probed
+    ///      argument list is exactly one static word; nothing here sends a dynamic type.
+    ///      So a fallback that answers ANY call this library will later trust necessarily
+    ///      answers a sentinel of the SAME width, and no `calldatasize` predicate — `lt`,
+    ///      `gt`, `eq`, a range, or a set — can admit the one and refuse the other. The
+    ///      68-byte pre-image width is kept as well, so round 7's property is not lost.
+    ///
+    ///      ARGUMENT VALUES, NOT JUST WIDTHS. The 36-byte shape is sent TWICE, carrying 0
+    ///      and 1. Every one-argument probe this library makes carries one of those two
+    ///      values in practice (`guardianSlashCases(0)`, `validatorAtSlot(0)` vs
+    ///      `pendingGuardianSlashCount(address(1))`, `guardianExitRequests(address(1))`), so
+    ///      a fallback keyed on `iszero(calldataload(4))` in EITHER direction — the same
+    ///      mirror-image trick one level down from `calldatasize` — cannot admit a real
+    ///      probe while refusing the sentinel.
+    ///
+    ///      WHAT THIS STILL DOES NOT PROVE: see STATED LIMITATION 1 on
+    ///      `guardianSlashCapability`. A predicate over the SELECTOR, or over the argument
+    ///      value across its whole unbounded domain, is out of reach of any finite set of
+    ///      probes — a fixed probe set cannot cover an unbounded one. This step closes the
+    ///      shape-based class; the predecessor binding is what covers the rest.
+    function _answersAnySentinelShape(address aggregator) private view returns (bool) {
+        // 4 bytes — the width of every no-argument getter this library reads.
+        (bool ok,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL), 0);
+        if (ok) return true;
+        // 36 bytes — the width of every one-argument getter this library reads, including
+        // `pendingGuardianSlashCount(address)`, the single answer `Present` is built on.
+        // Both argument values the real probes actually use.
+        (ok,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0)), 0);
+        if (ok) return true;
+        (ok,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(uint256(1))), 0);
+        if (ok) return true;
+        // 68 bytes — the sentinel's own declared `(bytes32,uint256)` pre-image (round 7).
+        (ok,) = _probe(aggregator, abi.encodeWithSelector(CATCH_ALL_SENTINEL, bytes32(0), uint256(0)), 0);
+        return ok;
     }
 
     /// @notice The declared predecessor must be the aggregator this Registry is wired to

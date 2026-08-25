@@ -181,7 +181,8 @@ Solidity 0.8.33, optimizer enabled (**500 runs**; `Registry.sol` is further rest
 - Any change to a public ABI, to a struct returned by a public getter, or to the storage
   layout requires a `version()` bump, a regenerated `abis/*.json`, and a note to the
   downstream repos (`repo:dvt`, `repo:sdk`). Current record:
-  `docs/security/CC48-round7-changes.md` (supersedes §3 and annotates §1 of
+  `docs/security/CC48-round8-changes.md` (supersedes §2 and §7 of
+  `docs/security/CC48-round7-changes.md`, which supersedes §3 and annotates §1 of
   `docs/security/CC48-round6-changes.md`, which supersedes §1/§3 of
   `docs/security/CC48-round5-changes.md`, which supersedes §2/§6 of
   `docs/security/CC48-round4-changes.md`, which supersedes §1.1 of

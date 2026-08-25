@@ -65,10 +65,31 @@ interface ISafeCompatibleMofN {
  *          The RepCredit evidence stack and the CC-89 E2E aggregator genuinely need a hot
  *          owner to drive an experiment; pretending otherwise just gets the gate commented
  *          out. There is NO acknowledgement that works on a production chain.
- *        • `LOCAL_DEV_GOVERNANCE_ACK=true` — chainid 31337 only. Round 6 made 31337 an
- *          unconditional no-op, and `anvil --fork-url <mainnet>` reports 31337, so a
- *          mainnet-fork rehearsal passed the gate silently and gave false assurance. The
- *          ack is now typed by a human, and it is printed.
+ *        • `LOCAL_DEV_GOVERNANCE_ACK=true` — chainid 31337 only, AND only on a node that
+ *          passes a POSITIVE freshness judgement (`block.number < LOCAL_FRESH_BLOCK_CEILING`).
+ *          Round 6 made 31337 an unconditional no-op and `anvil --fork-url <mainnet>`
+ *          reports 31337, so a mainnet-fork rehearsal passed the gate silently. Round 7
+ *          made the skip require a typed ack — but `deploy-core anvil` then set that ack
+ *          for the operator unconditionally, so on a fork rehearsal driven through this
+ *          repo's own tooling NOBODY typed it and the skip was automatic again (round-8
+ *          LOW-1). Both halves are now real: the shell entry points only pre-set the ack
+ *          after PROBING the node (chain id 31337 and a low head block), and the gate
+ *          itself refuses a 31337 node whose head block is above the ceiling no matter
+ *          who set the ack.
+ *
+ * @dev GOVERNANCE_OWNER IS A BINDING DECLARATION, NOT A HINT (CC-48 round-8 LOW-2). Round 7
+ *      read `GOVERNANCE_OWNER` only to choose between two failure MESSAGES: unset passed,
+ *      and set-to-the-wrong-address passed as long as the actual owner happened to satisfy
+ *      the gate. It is now checked:
+ *        • declared and NOT equal to the live owner  -> REFUSED on every chain. This is the
+ *          "the transfer did not land" case, and it is the one that silently produced an
+ *          EOA-owned aggregator on a testnet under `TESTNET_EOA_OWNER_ACK`.
+ *        • an owner ACCEPTED as Safe-compatible M-of-N while `GOVERNANCE_OWNER` is unset
+ *          -> REFUSED. Deployment evidence has to be reconcilable against a declared
+ *          intent; "whatever address ended up owning it satisfied the interface" is not a
+ *          governance decision anyone made.
+ *      The EOA / 7702 acknowledgement paths still work with no declaration, because those
+ *      deployments are declaring the opposite — that there is no governance owner.
  *
  *      Scope, stated plainly: this gate covers the OWNER OF THE DISARM AUTHORITY —
  *      `BLSAggregator` — plus the `Registry` owner that the 5.7.0 migration already gated.
@@ -80,6 +101,24 @@ library GovernanceOwnerGate {
 
     /// @dev anvil. Still needs `LOCAL_DEV_GOVERNANCE_ACK`; see LOW-4 above.
     uint256 internal constant LOCAL_CHAIN_ID = 31337;
+
+    /// @dev CC-48 round-8 LOW-1. The POSITIVE half of "this really is a local node".
+    ///      `anvil --fork-url <chain>` reports chain id 31337 but inherits the forked
+    ///      chain's HEAD BLOCK NUMBER, and every chain this repo targets is far past this
+    ///      height (Ethereum ~23M, Sepolia ~9M, OP ~1.4e8). A fresh `anvil` starts at 0 and
+    ///      a full `deploy-core anvil` run mines a few hundred blocks, so the gap is four
+    ///      orders of magnitude — this is a discriminator, not a coin flip.
+    ///
+    ///      STATED LIMITATION, because the last three rounds were lost to overstated
+    ///      absence proofs: this is a HEURISTIC, not a proof. Forking a chain whose head is
+    ///      below the ceiling would still pass, and nothing on-chain can prove a node is
+    ///      not a fork. What it does buy is that the realistic mistake — rehearsing against
+    ///      a fork of a LIVE chain — can no longer skip the gate, whoever set the ack.
+    uint256 internal constant LOCAL_FRESH_BLOCK_CEILING = 1_000_000;
+
+    /// @dev The env var carrying the operator's DECLARED governance owner. Named once so
+    ///      the failure text and the binding check can never drift apart.
+    string internal constant GOVERNANCE_OWNER_ENV = "GOVERNANCE_OWNER";
 
     /// @dev EIP-7702 delegation designator prefix. A delegated EOA's code is exactly
     ///      `0xef0100 ‖ address` (23 bytes) and its private key still signs everything, so
@@ -164,7 +203,7 @@ library GovernanceOwnerGate {
     ///                  the address the script *intended* to set
     /// @param label     contract name, so a failure names what is mis-owned
     function requireGovernanceOwner(address subject, address ownerAddr, string memory label) internal view {
-        _gate(subject, ownerAddr, label, false);
+        _gate(subject, ownerAddr, label, false, GOVERNANCE_OWNER_ENV);
     }
 
     /// @notice Convenience: read the owner off-chain and gate it in one call.
@@ -182,7 +221,25 @@ library GovernanceOwnerGate {
         internal
         view
     {
-        _gate(subject, ownerAddr, label, true);
+        _gate(subject, ownerAddr, label, true, GOVERNANCE_OWNER_ENV);
+    }
+
+    /// @notice The strict gate, bound to a NAMED declaration env var rather than the
+    ///         default `GOVERNANCE_OWNER`.
+    /// @dev    CC-48 round-8 LOW-2. The 5.7.0 migration gates TWO subjects with two
+    ///         independent owners — the live `Registry` and the freshly deployed
+    ///         `BLSAggregator` — and there is no reason they must be the same Safe. One
+    ///         global env var could only bind one of them, so the migration names each
+    ///         one's declaration separately and both are checked. `declEnv` appears
+    ///         verbatim in every failure message, so an operator is told which variable to
+    ///         set, not just that something is undeclared.
+    function requireGovernanceOwnerStrictDeclaredAs(
+        address subject,
+        address ownerAddr,
+        string memory label,
+        string memory declEnv
+    ) internal view {
+        _gate(subject, ownerAddr, label, true, declEnv);
     }
 
     /// @notice Assert that `ownerAddr` is the TimelockController at `timelock`, and that
@@ -232,24 +289,31 @@ library GovernanceOwnerGate {
     /// @notice The Safe to hand ownership to, or address(0) if the operator did not name
     ///         one. Deploy scripts transfer ownership to it as their LAST owner-gated
     ///         action, then call `requireGovernanceOwner` on the result.
-    /// @dev    Deliberately optional at READ time so local development needs no env var;
-    ///         "not declared" and "declared wrong" are told apart inside `_gate`, which
-    ///         emits a different message for each.
+    /// @dev    Deliberately optional at READ time so local development needs no env var,
+    ///         and so a deploy script can tell "hand it to the Safe" from "leave it with
+    ///         the deployer". It is NOT optional at GATE time any more (CC-48 round-8
+    ///         LOW-2): `_gate` refuses a declared-but-mismatched owner on every path, and
+    ///         refuses to ACCEPT an M-of-N owner that was never declared at all.
     function declaredGovernanceOwner() internal view returns (address) {
-        return vm.envOr("GOVERNANCE_OWNER", address(0));
+        return vm.envOr(GOVERNANCE_OWNER_ENV, address(0));
     }
 
     // =====================================================================
     // Internals
     // =====================================================================
 
-    function _gate(address subject, address ownerAddr, string memory label, bool strict) private view {
+    function _gate(
+        address subject,
+        address ownerAddr,
+        string memory label,
+        bool strict,
+        string memory declEnv
+    ) private view {
         if (block.chainid == LOCAL_CHAIN_ID) {
             // CC-48 round-7 LOW-4. `anvil --fork-url <mainnet>` also reports 31337, so an
             // unconditional no-op here let a mainnet-fork rehearsal "pass" a gate that had
-            // never run. Nothing on-chain distinguishes a fork from a fresh local node, so
-            // the distinction is made by a human typing the ack — and it is printed, so a
-            // transcript shows the gate was skipped rather than satisfied.
+            // never run. The distinction is made by a human typing the ack — and it is
+            // printed, so a transcript shows the gate was skipped rather than satisfied.
             require(
                 vm.envOr("LOCAL_DEV_GOVERNANCE_ACK", false),
                 string.concat(
@@ -261,12 +325,37 @@ library GovernanceOwnerGate {
                     " rehearse."
                 )
             );
+            // CC-48 round-8 LOW-1. The ack alone is not enough, because the shell entry
+            // points can set it for the operator. This is the POSITIVE half: a fork of a
+            // live chain inherits that chain's head block, so it cannot pass here no
+            // matter who typed the ack. See LOCAL_FRESH_BLOCK_CEILING for what this
+            // heuristic does and does not buy.
+            require(
+                block.number < LOCAL_FRESH_BLOCK_CEILING,
+                string.concat(
+                    "CC-48 round-8 LOW-1: chainid is 31337 and LOCAL_DEV_GOVERNANCE_ACK is set,",
+                    " but this node's head block is far above anything a fresh anvil reaches --",
+                    " it is a FORK of a live chain. The local-development skip does not apply to a",
+                    " fork rehearsal: the gate you would be skipping for ",
+                    label,
+                    " is the one you came to rehearse. Run against a fresh anvil, or point the",
+                    " rehearsal at the real chain and satisfy the gate."
+                )
+            );
             console.log(string.concat("  [gov-gate] SKIPPED on local chain 31337 for ", label), ownerAddr);
-            console.log("  [gov-gate] acknowledged via LOCAL_DEV_GOVERNANCE_ACK. Nothing about the");
-            console.log("  [gov-gate] owner was verified. If this was an --fork-url rehearsal, it");
-            console.log("  [gov-gate] rehearsed a system with no governance gate.");
+            console.log("  [gov-gate] acknowledged via LOCAL_DEV_GOVERNANCE_ACK, and the node's head");
+            console.log("  [gov-gate] block is below the fresh-node ceiling. block.number:", block.number);
+            console.log("  [gov-gate] Nothing about the owner was verified. This is a HEURISTIC, not");
+            console.log("  [gov-gate] a proof that the node is not a fork.");
             return;
         }
+
+        // CC-48 round-8 LOW-2: the declaration is BINDING on every path below, including
+        // the acknowledged testnet ones. Read here, ENFORCED at the end of each path —
+        // deliberately not up front, so a wrong declaration never masks the more specific
+        // diagnosis ("this owner is an EIP-7702 delegated EOA", "threshold < 2"), which is
+        // the thing the operator actually has to fix first.
+        address declared = vm.envOr(declEnv, address(0));
 
         OwnerKind kind = ownerKind(ownerAddr);
 
@@ -282,11 +371,28 @@ library GovernanceOwnerGate {
                     ". Required: getThreshold() >= 2 and getOwners() a canonical address[] of",
                     " distinct non-zero owners with length >= threshold. A 1-of-1 forwarder is one",
                     " hot key wearing a contract's address, and this owner holds an immediate,",
-                    " zero-notice emergencyDisarmFraudProofVerifier(). Set GOVERNANCE_OWNER to the",
-                    " Safe and re-run."
+                    " zero-notice emergencyDisarmFraudProofVerifier(). Set ",
+                    declEnv,
+                    " to the Safe and re-run."
                 )
             );
-            _logAccepted(subject, ownerAddr, label, cfg);
+            // CC-48 round-8 LOW-2, both halves, checked before the owner is ACCEPTED.
+            _requireDeclarationMatches(declared, ownerAddr, label, declEnv);
+            require(
+                declared != address(0),
+                string.concat(
+                    "CC-48 round-8 LOW-2: ",
+                    label,
+                    " owner satisfies the Safe-compatible M-of-N interface, but ",
+                    declEnv,
+                    " is NOT SET, so no governance owner was ever declared for this deployment.",
+                    " An owner that merely happens to answer getThreshold()/getOwners() is not a",
+                    " governance decision anyone made. Set ",
+                    declEnv,
+                    " to the address you intend to own this contract and re-run."
+                )
+            );
+            _logAccepted(subject, ownerAddr, label, cfg, declEnv);
             return;
         }
 
@@ -307,7 +413,7 @@ library GovernanceOwnerGate {
                 " A production chain requires a Safe-compatible M-of-N owner: an EOA owner holds",
                 " an immediate, zero-notice emergencyDisarmFraudProofVerifier() -- i.e. the power",
                 " to censor every future guardian-slash accusation by front-running it.",
-                _declarationHint()
+                _declarationHint(declEnv)
             )
         );
         require(
@@ -319,7 +425,7 @@ library GovernanceOwnerGate {
                 " The MIGRATION gate requires a Safe-compatible M-of-N owner and has no testnet",
                 " acknowledgement: a migration rehearsal whose ownership model differs from",
                 " production rehearses a different system.",
-                _declarationHint()
+                _declarationHint(declEnv)
             )
         );
         require(
@@ -332,9 +438,16 @@ library GovernanceOwnerGate {
                 " TESTNET_EOA_OWNER_ACK=true, which acknowledges that this deployment has no",
                 " governance defence against an immediate verifier disarm. Production chains",
                 " cannot set it.",
-                _declarationHint()
+                _declarationHint(declEnv)
             )
         );
+        // CC-48 round-8 LOW-2: an acknowledged hot-key deployment still may not CONTRADICT
+        // its own declaration. "GOVERNANCE_OWNER names the Safe, the transfer did not land,
+        // TESTNET_EOA_OWNER_ACK waves the EOA through" is exactly how a stack ends up
+        // EOA-owned while its transcript names a Safe. Checked last so the ack messages
+        // above still explain the primary problem.
+        _requireDeclarationMatches(declared, ownerAddr, label, declEnv);
+
         console.log(string.concat("  [gov-gate] WARNING: ", label, " owner is a hot key on testnet:"), ownerAddr);
         console.log("  [gov-gate]   kind               :", kind == OwnerKind.Delegated7702 ? "EIP-7702 delegated EOA" : "EOA");
         console.log("  [gov-gate] acknowledged via TESTNET_EOA_OWNER_ACK. This deployment has NO");
@@ -347,14 +460,21 @@ library GovernanceOwnerGate {
     ///      carry the owner, the threshold, the owner count AND the criterion that was
     ///      applied — including what the criterion does NOT prove, so a downstream reader
     ///      cannot upgrade "Safe-compatible" into "canonical Safe" on their own.
-    function _logAccepted(address subject, address ownerAddr, string memory label, MofN memory cfg)
-        private
-        view
-    {
+    function _logAccepted(
+        address subject,
+        address ownerAddr,
+        string memory label,
+        MofN memory cfg,
+        string memory declEnv
+    ) private view {
         console.log(string.concat("  [gov-gate] ", label, " owner is Safe-compatible M-of-N:"), ownerAddr);
         console.log("  [gov-gate]   getThreshold()     :", cfg.threshold);
         console.log("  [gov-gate]   getOwners().length :", cfg.ownerCount);
         console.log("  [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct");
+        // CC-48 round-8 LOW-2: the transcript records that the owner was DECLARED, and
+        // under which variable, so the evidence can be reconciled against intent rather
+        // than merely against the interface.
+        console.log(string.concat("  [gov-gate]   declared via       : ", declEnv, " (checked == owner)"));
         console.log("  [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no");
         console.log("  [gov-gate]                        runtime-codehash / factory allowlist exists yet)");
         _logOwners(ownerAddr, cfg.ownerCount);
@@ -370,17 +490,56 @@ library GovernanceOwnerGate {
         }
     }
 
-    /// @dev "GOVERNANCE_OWNER was never declared" and "GOVERNANCE_OWNER was declared and is
-    ///      wrong" used to be indistinguishable — both simply landed on the gate. They are
-    ///      different operator mistakes with different fixes, so they get different text.
-    function _declarationHint() private view returns (string memory) {
-        address declared = declaredGovernanceOwner();
+    /// @dev CC-48 round-8 LOW-2. A declared governance owner that is NOT the live owner is
+    ///      a stop condition on every path: either the ownership transfer did not land or
+    ///      the declaration is wrong, and in both cases the deployment evidence would name
+    ///      an address that does not hold the keys. Round 7 read `GOVERNANCE_OWNER` only to
+    ///      choose between two failure MESSAGES, so this case passed whenever the live
+    ///      owner happened to satisfy the gate on its own.
+    function _requireDeclarationMatches(
+        address declared,
+        address ownerAddr,
+        string memory label,
+        string memory declEnv
+    ) private pure {
+        require(
+            declared == address(0) || declared == ownerAddr,
+            string.concat(
+                "CC-48 round-8 LOW-2: ",
+                declEnv,
+                " was declared, but ",
+                label,
+                ".owner() is a DIFFERENT address. Either the ownership transfer did not land or",
+                " the declaration is wrong; both are stop conditions, because the deployment",
+                " evidence would name an owner that does not hold the keys."
+            )
+        );
+    }
+
+    /// @dev "not declared" and "declared and wrong" used to be indistinguishable — both
+    ///      simply landed on the gate. They are different operator mistakes with different
+    ///      fixes, so they get different text.
+    /// @dev CC-48 round-8 LOW-2 keeps this as the TEXT half only, and makes it accurate in
+    ///      all three states. The BINDING half is `_requireDeclarationMatches`, which runs
+    ///      at the end of each path so that the owner-shape diagnosis above is never masked
+    ///      by a declaration problem the operator would have to fix second.
+    function _declarationHint(string memory declEnv) private view returns (string memory) {
+        address declared = vm.envOr(declEnv, address(0));
         if (declared == address(0)) {
-            return " GOVERNANCE_OWNER is NOT SET: this deployment never named a governance owner"
-                " at all. Set it to the Safe before deploying, not after.";
+            return string.concat(
+                " ",
+                declEnv,
+                " is NOT SET: this deployment never named a governance owner at all. Set it to"
+                " the Safe before deploying, not after."
+            );
         }
-        return " GOVERNANCE_OWNER is set, but the owner above is not it (or the transfer did not"
-            " land) -- compare the two before re-running.";
+        return string.concat(
+            " ",
+            declEnv,
+            " IS set -- so either the ownership transfer did not land, or it landed on an"
+            " address that is not the one declared. Compare the two before re-running; a"
+            " mismatch is refused outright once the owner-shape problem above is fixed."
+        );
     }
 
     /// @dev staticcall returning EXACTLY one uint256 word. Anything else is a refusal, not

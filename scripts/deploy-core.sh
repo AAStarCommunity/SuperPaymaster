@@ -23,12 +23,27 @@ fi
 export CONFIG_FILE="config.$ENV.json"
 export ENV="$ENV"
 
-# CC-48 round-7 LOW-4: chainid 31337 no longer skips GovernanceOwnerGate silently.
-# Same reasoning as the root `deploy-core`: this is a genuinely local node started by this
-# repo's own tooling, so the acknowledgement is exactly what we mean. It is deliberately
-# NOT set for any other environment.
-if [ "$ENV" == "anvil" ]; then
-    export LOCAL_DEV_GOVERNANCE_ACK=true
+# CC-48 round-7 LOW-4 / round-8 LOW-1: same change, same reason, as the root `deploy-core`.
+# The round-7 justification ("a genuinely local node started by this repo's own tooling")
+# was false — nothing here starts anvil, and `anvil --fork-url <chain>` also reports 31337 —
+# so the ack is PROBED FOR rather than assumed. Unreachable node, missing `cast` or a
+# fork-shaped answer all leave it unset and hand the decision back to a human.
+LOCAL_FRESH_BLOCK_CEILING=1000000
+if [ "$ENV" == "anvil" ] && [ -z "${LOCAL_DEV_GOVERNANCE_ACK:-}" ]; then
+    PROBED_CHAIN_ID=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    PROBED_BLOCK=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    if [ "$PROBED_CHAIN_ID" == "31337" ] && [ -n "$PROBED_BLOCK" ] \
+        && [ "$PROBED_BLOCK" -lt "$LOCAL_FRESH_BLOCK_CEILING" ] 2>/dev/null; then
+        echo "  [gov-gate] probed $RPC_URL: chain id 31337, head block $PROBED_BLOCK"
+        echo "  [gov-gate] -> fresh local node, pre-setting LOCAL_DEV_GOVERNANCE_ACK=true."
+        echo "  [gov-gate]    This is a HEURISTIC, not a proof that the node is not a fork."
+        export LOCAL_DEV_GOVERNANCE_ACK=true
+    else
+        echo "  [gov-gate] probed $RPC_URL: chain id '${PROBED_CHAIN_ID:-<unreachable>}', head block"
+        echo "  [gov-gate] '${PROBED_BLOCK:-<unreachable>}' -- not a fresh local anvil, so"
+        echo "  [gov-gate] LOCAL_DEV_GOVERNANCE_ACK is NOT being set for you. Set it yourself if you"
+        echo "  [gov-gate] really mean to rehearse against this node with no governance gate."
+    fi
 fi
 SCRIPT_NAME=$([ "$ENV" == "anvil" ] && echo "DeployAnvil" || echo "DeployLive")
 

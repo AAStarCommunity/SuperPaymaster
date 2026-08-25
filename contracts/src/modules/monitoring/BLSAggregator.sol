@@ -1505,12 +1505,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
     ///         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,
     ///         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.
-    ///         `owner` MUST be a Safe multisig. For THIS function a TimelockController in
-    ///         front of it is genuine defence in depth (arming is delayed anyway, so an
-    ///         extra delay costs nothing); for `emergencyDisarmFraudProofVerifier` it is
-    ///         not, because a timelocked emergency stop is not an emergency stop — see the
-    ///         residual-risk paragraph there. The deployment/migration gate in
-    ///         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the multisig.
+    ///         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a
+    ///         TimelockController in front of it is genuine defence in depth (arming is
+    ///         delayed anyway, so an extra delay costs nothing); for
+    ///         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked
+    ///         emergency stop is not an emergency stop — see the residual-risk paragraph
+    ///         there. The deployment/migration gate in
+    ///         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N
+    ///         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical
+    ///         array of distinct non-zero owners of at least that length, owner not an
+    ///         EIP-7702 delegation designator). It does NOT prove the owner is a canonical
+    ///         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,
+    ///         which does not exist yet.
     /// @dev    WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an
     ///         owner from swapping in an always-false verifier mid-case so colluders
     ///         could time out; round-4's frozen verdict provides that property
@@ -1600,16 +1606,28 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             100% of every accused guardian's lock inside ONE block, so a four-day
     ///             remedy is not a remedy, and censoring future accusations is strictly
     ///             less damaging than that. It is a trade, not a free win.
-    ///           • WHAT CARRIES THE RESIDUAL RISK: the owner being a Safe multisig, and
+    ///           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and
     ///             nothing else. A TimelockController cannot cover this path — a
     ///             timelocked emergency stop is not an emergency stop — so for the DISARM
-    ///             path the multisig is the ONLY governance defence, not defence in depth.
+    ///             path the Safe-compatible M-of-N owner is the ONLY governance defence,
+    ///             not defence in depth.
     ///             The in-contract 4-day delay still governs RE-ARMING: there is no
     ///             counterpart that sets a non-zero verifier, so coming back on-line
     ///             remains propose -> 4 days -> apply, and disarm is not a fast path to a
     ///             verifier of the owner's choosing.
-    ///             `contracts/script/checks/GovernanceOwnerGate.sol` is what turns "owner
-    ///             should be a multisig" into a deploy/migration gate that fails closed.
+    ///           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8
+    ///             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns
+    ///             "owner should be M-of-N" into a deploy/migration gate that fails closed
+    ///             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an
+    ///             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus
+    ///             `getOwners()` as a canonical array of distinct non-zero owners of at
+    ///             least that length. It does NOT prove the owner is a canonical Gnosis
+    ///             Safe: a contract can implement both methods and return whatever it
+    ///             likes while one key still controls execution. Downstream threat models
+    ///             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.
+    ///             Earlier revisions of this comment asserted canonicity outright and
+    ///             claimed the gate enforced it; both are RETRACTED as overstatements of
+    ///             what any on-chain check in this repo can show.
     function emergencyDisarmFraudProofVerifier() external onlyOwner {
         address current = fraudProofVerifier;
         address pending = pendingFraudProofVerifier;

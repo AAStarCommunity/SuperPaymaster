@@ -47,12 +47,35 @@ CONTRACTS=(
 # self-consistent either way. Use this when a change touches one contract's ABI and you do
 # not want to sweep unrelated artifacts into the same commit.
 #
-# KNOWN DRIFT (CC-48 round-5): a few artifacts in $OUTPUT_DIR predate the current
-# `{abi, bytecode}` output shape and are still bare ABI arrays (GToken, GTokenStaking,
-# MySBT, xPNTsToken, xPNTsFactory, MicroPaymentChannel, PolicyRegistry, TimelockController,
-# X402Facilitator, GTokenAuthorization). A full run normalises them, which is a BREAKING
-# shape change for any consumer reading them as an array — repo:sdk must be notified first.
-# Do not sweep that into an unrelated commit; it needs its own change and its own notice.
+# KNOWN DRIFT — MEASURED, NOT ASSUMED (CC-48 round-5, corrected in round-8 LOW-4).
+#
+# Round 7's delivery note said the committed artifacts differ from a clean regeneration
+# only "in the trailing newline (plus GToken's legacy bare-array format)". That is FALSE
+# and is retracted. Reproduce with: regenerate every contract in the list above into a
+# scratch directory and diff, e.g.
+#     for C in "${CONTRACTS[@]}"; do
+#       jq '{abi: .abi, bytecode: .bytecode.object}' "$(find out -name "$C.json" | head -1)" \
+#         > "/tmp/abi-check/$C.json"
+#     done; diff -rq abis /tmp/abi-check
+#
+# The measured breakdown over the 17 contracts this script regenerates:
+#   • byte-identical (4)  : BLSAggregator, LivenessRegistry, ReputationSystem, SuperPaymaster
+#   • trailing newline (1): Registry — and ONLY Registry
+#   • legacy BARE ARRAY, i.e. a real shape change (9): GToken, GTokenStaking,
+#     MicroPaymentChannel, MySBT, PolicyRegistry, TimelockController, X402Facilitator,
+#     xPNTsFactory, xPNTsToken  (GTokenAuthorization is the same shape but is not in the
+#     list above, so this script never touches it)
+#   • SAME SHAPE, STALE CONTENT (3): DVTValidator, Paymaster, PaymasterFactory. These are
+#     NOT a formatting difference — the committed ABI is genuinely older than the current
+#     build (e.g. DVTValidator.json is ~22.1 kB committed vs ~25.4 kB regenerated).
+#     `abis/DVTValidator.json` is the file repo:dvt consumes, so a consumer pinning it
+#     today pins a stale interface. Regenerate before consuming.
+#
+# The manifest in abi.config.json is SELF-CONSISTENT with what is committed — the drift is
+# against the current build, not within abis/ — so nothing here is silently broken today.
+# A full run normalises all 13 drifting files at once, which is a BREAKING change for any
+# consumer reading the 9 bare arrays as arrays: repo:sdk must be notified first. Do not
+# sweep that into an unrelated commit; it needs its own change and its own notice.
 if [ "$#" -gt 0 ]; then
     CONTRACTS=("$@")
     echo "🔍 ABI extraction restricted to: ${CONTRACTS[*]}"

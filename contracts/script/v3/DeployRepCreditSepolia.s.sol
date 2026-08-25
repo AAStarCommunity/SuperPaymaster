@@ -144,7 +144,7 @@ contract DeployRepCreditSepolia is Script {
         // agree produces a stack that looks wired and verifies nothing.
         require(
             keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.10.0"),
-            "BLSAggregator is not 4.9.0"
+            "BLSAggregator is not 4.10.0"
         );
         require(blsAggregator.REGISTRY() == address(registry), "aggregator bound to another Registry");
         require(
