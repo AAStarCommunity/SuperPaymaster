@@ -326,8 +326,16 @@ consequences for a migration:
   `(finalized, head]` provisionally — that is an honest status; "clean" full stop is not.
 
 ```bash
-FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n')
-echo "firm through $FIN; provisional for $((FIN+1))..$HEAD"
+# Report coverage of what was ACTUALLY scanned. Finality can advance past $HEAD while the
+# scan runs, and blocks above $HEAD were never looked at — being finalized does not make
+# them scanned, so the firm bound is capped at $HEAD.
+FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n') || exit 1
+if [ "$FIN" -lt "$HEAD" ]; then FIRM=$FIN; else FIRM=$HEAD; fi
+if [ "$FIRM" -lt "$HEAD" ]; then
+  echo "scanned [$DEPLOY, $HEAD]: firm through $FIRM, provisional $((FIRM+1))..$HEAD"
+else
+  echo "scanned [$DEPLOY, $HEAD]: firm throughout (finality has passed $HEAD)"
+fi
 ```
 
 **3. Repeat the paired scan K times and require every round to agree** (K >= 5; every round
