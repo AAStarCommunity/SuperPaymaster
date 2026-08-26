@@ -27,6 +27,16 @@ on:
 # GitHub's `paths:` filter, which only inspects the first 300 changed files and could
 # therefore skip the real tests on a large PR with contract changes buried past that limit.
 # The job always reports success/failure on its own merits; it is never "skipped".
+#
+# WHERE THE DECISION LIVES (CC-48 round-11)
+# -----------------------------------------
+# Each job below calls .github/scripts/detect-contract-changes.sh instead of inlining the
+# predicate. Round-10 had four byte-identical inline copies; both defects they shared
+# (errexit not applying inside an `if` condition, and `printf | grep -q` inverting under
+# `pipefail` on a diff larger than the pipe buffer) made the gate answer "skip" -- a GREEN
+# required check that ran nothing. One copy means one fix. The script fails CLOSED: if it
+# cannot compute or fully scan the diff it APPLIES the gate. Its behaviour, including both
+# regressions, is pinned by the ungated `gate-self-test` job in security.yml.
 
 jobs:
   test:
@@ -44,20 +54,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
-          if [ "$EVENT" != "pull_request" ]; then
-            echo "contract=true" >> "$GITHUB_OUTPUT"
-            echo "Push event — always running the full gate."
-            exit 0
-          fi
-          if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
-             | grep -qE '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$)'; then
-            echo "contract=true" >> "$GITHUB_OUTPUT"
-            echo "Contract-path changes detected — running the full gate."
-          else
-            echo "contract=false" >> "$GITHUB_OUTPUT"
-            echo "No contract-path changes — forge test cannot be affected by this PR."
-          fi
+          bash .github/scripts/detect-contract-changes.sh "test" \
+            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
         if: steps.changes.outputs.contract == 'true'

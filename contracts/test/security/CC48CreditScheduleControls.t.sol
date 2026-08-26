@@ -432,6 +432,157 @@ contract CC48CreditScheduleControlsTest is Test {
     }
 
     // =================================================================
+    // LOW-L1 / LOW-L2 (round-11) — what the invalidation costs, and what the
+    // ceiling guard can actually promise
+    // =================================================================
+
+    /// LOW-L1. Growing the schedule is forced to price the new top level FIRST
+    /// (`test_ScheduleCannotGrowOntoAnUnpricedLevel`). Round-9 charged that mandatory first
+    /// step a full governance outage even though it moves nobody's credit limit.
+    function test_PricingAnUnreachableLevelCostsNoOutage() public {
+        address a = _user(1);
+        _submit(1, a, 200, 1);              // clamped to rep 100 => level 4
+        _seed(_list(a));
+
+        uint256 limitBefore = registry.getCreditLimit(a);
+        uint256 stockBefore = registry.totalCreditExposure();
+        uint256 countedBefore = registry.creditPopulationTotal();
+        assertGt(stockBefore, 0, "fixture must have a live stock to lose");
+        assertGt(registry.creditPopulationSeededAt(), 0, "path must start open");
+
+        // Level 7 is above the reachable top (5 default thresholds => maxLevel 6).
+        registry.setCreditTier(7, 3000 ether);
+
+        assertEq(registry.creditTierConfig(7), 3000 ether, "the price is written");
+        assertEq(registry.getCreditLimit(a), limitBefore, "nobody's limit moved");
+        assertEq(registry.totalCreditExposure(), stockBefore, "so the stock is still exact");
+        assertEq(registry.creditPopulationTotal(), countedBefore, "and nobody was un-counted");
+        assertGt(registry.creditPopulationSeededAt(), 0, "the reputation path stays open");
+
+        // Still open in the sense that matters: proposals land and are booked. The
+        // reputation clamp is +/-100 per proposal, so reaching level 5 (threshold 233)
+        // from rep 100 takes two more.
+        _submit(2, a, 300, 2);              // rep 200 -- still level 4
+        assertEq(registry.getCreditLimit(a), TIER4);
+        _submit(3, a, 300, 3);              // rep 300 => level 5
+        assertEq(registry.getCreditLimit(a), TIER5);
+        assertEq(registry.totalCreditExposure(), TIER5 - TIER1, "and the ledger followed");
+    }
+
+    /// The exemption is bounded by reachability, not by level number: the same call against
+    /// a level that IS reachable still discards the ledger.
+    function test_PricingAReachableLevelStillCostsTheOutage() public {
+        address a = _user(1);
+        _submit(1, a, 200, 1);
+        _seed(_list(a));
+        assertGt(registry.totalCreditExposure(), 0);
+
+        registry.setCreditTier(6, 5000 ether);   // maxLevel is 6 -- reachable
+
+        assertEq(registry.totalCreditExposure(), 0, "stale stock discarded, not kept");
+        assertEq(registry.creditPopulationSeededAt(), 0, "and the path is shut");
+    }
+
+    /// The exemption cannot be used to smuggle a price in and have it apply un-counted: the
+    /// step that makes the level reachable invalidates on its own.
+    function test_PrePricedLevelIsInvalidatedWhenItBecomesReachable() public {
+        address a = _user(1);
+        _submit(1, a, 200, 1);
+        _seed(_list(a));
+
+        registry.setCreditTier(7, 3000 ether);
+        assertGt(registry.creditPopulationSeededAt(), 0, "not yet reachable, path still open");
+
+        uint256[] memory t = new uint256[](6);
+        t[0] = 13; t[1] = 34; t[2] = 89; t[3] = 233; t[4] = 610; t[5] = 1597;
+        registry.setLevelThresholds(t);          // level 7 now reachable
+
+        assertEq(registry.totalCreditExposure(), 0, "the growth discards the ledger");
+        assertEq(registry.creditPopulationSeededAt(), 0, "and shuts the path");
+    }
+
+    /// LOW-L2. The ceiling guard in `setCreditPolicy` reads `totalCreditExposure`, which is
+    /// ZERO inside the invalidation window -- so it cannot refuse a ceiling below what is
+    /// really drawable there. This test pins the honest behaviour the NatSpec now states:
+    /// the window is fail-closed because the RE-COUNT refuses, not because this line does.
+    function test_CeilingGuardIsVacuousInTheWindowAndTheRecountIsNot() public {
+        address a = _user(1);
+        _submit(1, a, 700, 1);                   // clamped to rep 100 => level 4
+        _seed(_list(a));
+        assertEq(registry.getCreditLimit(a), TIER4);
+
+        // Seeded: the guard bites, exactly as advertised for the ordinary case.
+        vm.expectRevert(
+            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, TIER4 - TIER1, 1)
+        );
+        registry.setCreditPolicy(type(uint256).max, 1);
+
+        // Re-price a REACHABLE level -> invalidation window. Level 5 is above this user,
+        // so their drawable limit does not move: only the ledger's view of it does.
+        registry.setCreditTier(5, 1100 ether);
+        assertEq(registry.totalCreditExposure(), 0, "ledger discarded");
+        assertEq(registry.getCreditLimit(a), TIER4, "while TIER4 is still really drawable");
+
+        // In the window the same rejected call now SUCCEEDS -- the guard is vacuous here,
+        // because the number it compares against was just zeroed.
+        registry.setCreditPolicy(type(uint256).max, 1);
+        assertEq(registry.maxTotalCreditExposure(), 1);
+        assertEq(registry.getCreditLimit(a), TIER4, "and the ceiling did not claw it back");
+
+        // The protection that does hold: the re-count refuses to re-open the path.
+        vm.expectRevert(
+            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, TIER4 - TIER1, 1)
+        );
+        registry.seedCreditPopulation(_list(a), 1, true);
+        assertEq(registry.creditPopulationSeededAt(), 0, "path stays shut -- fail-closed");
+
+        // Raising the ceiling and re-counting is the way out.
+        registry.setCreditPolicy(type(uint256).max, type(uint256).max);
+        registry.seedCreditPopulation(_list(a), 1, true);
+        assertGt(registry.creditPopulationSeededAt(), 0);
+        assertEq(registry.totalCreditExposure(), TIER4 - TIER1);
+    }
+
+    /// LOW-L1, stated as the invariant rather than as three examples: for ANY level and
+    /// ANY price, if `setCreditTier` left the ledger standing then it must also have left
+    /// every real credit limit standing, and the ledger must still equal reality. This is
+    /// the property the exemption claims; a fuzz run is what makes the claim a claim about
+    /// all levels rather than about the three the examples happen to pick.
+    function testFuzz_SkippingTheOutageImpliesNobodyMoved(uint256 level, uint256 limit) public {
+        level = bound(level, 1, 21);
+        // Stay inside the monotonic band around the target so the call is not rejected for
+        // an unrelated reason; the interesting axis here is the level, not the price.
+        uint256 lo = level > 1 ? registry.creditTierConfig(level - 1) : 0;
+        uint256 hi = level < 6 ? registry.creditTierConfig(level + 1) : type(uint128).max;
+        if (hi < lo) return;
+        limit = bound(limit, lo, hi);
+
+        address[] memory both = _list(_user(1), _user(2));
+        _submit(1, _user(1), 100, 1);   // level 4
+        _submit(2, _user(2), 20, 1);    // level 2
+        _seed(both);
+
+        uint256[] memory limitsBefore = new uint256[](both.length);
+        for (uint256 i = 0; i < both.length; i++) limitsBefore[i] = registry.getCreditLimit(both[i]);
+        uint256 stockBefore = registry.totalCreditExposure();
+        assertEq(stockBefore, _realExposureAboveFloor(both), "fixture starts exact");
+
+        registry.setCreditTier(level, limit);
+
+        if (registry.creditPopulationSeededAt() != 0) {
+            // The outage was skipped. That is only allowed when nothing moved.
+            for (uint256 i = 0; i < both.length; i++) {
+                assertEq(registry.getCreditLimit(both[i]), limitsBefore[i], "limit moved without an outage");
+            }
+            assertEq(registry.totalCreditExposure(), stockBefore, "stock changed without an outage");
+            assertEq(registry.totalCreditExposure(), _realExposureAboveFloor(both), "ledger drifted from reality");
+        } else {
+            // The outage happened: the stock is discarded, never left stale.
+            assertEq(registry.totalCreditExposure(), 0, "invalidated but stock kept");
+        }
+    }
+
+    // =================================================================
     // EIP-170 refactor guard — the bootstrap matrix must be byte-identical
     // =================================================================
 

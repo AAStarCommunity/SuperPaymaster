@@ -631,6 +631,11 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     ///         governance re-counts. There is no "remember to re-seed afterwards" step to
     ///         forget, because forgetting it stops issuance rather than un-bounding it.
     ///
+    ///         Two writes are exempt, and only because neither can move anybody's credit
+    ///         limit: re-writing the price a level already has, and pricing a level above
+    ///         the currently reachable top (CC-48 round-11 LOW-L1). See the branches
+    ///         below for why each is safe; every write that CAN move a limit invalidates.
+    ///
     ///         CC-48 round-9 LOW-B6: `initialize` documents the schedule as monotonic
     ///         ("higher reputation never lowers credit"). That invariant is now ENFORCED
     ///         against the immediate neighbours, which is sufficient by induction because
@@ -652,7 +657,21 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         if (creditTierConfig[level] == limit) return;
         creditTierConfig[level] = limit;
         emit CreditTierUpdated(level, limit);
-        _invalidateCreditPopulation();
+        // CC-48 round-11 LOW-L1. Same principle as the no-op early return above: a write
+        // that moves NOBODY's credit limit must not cost a governance outage. Levels above
+        // `maxLevel` are exactly that -- `_levelForReputation` never returns more than
+        // `levelThresholds.length + 1`, so no `getCreditLimit`, no proposal delta and no
+        // re-count can read this slot while it stays out of reach, and the outstanding
+        // stock is therefore still exact. It matters because pricing an unreachable level
+        // is the MANDATORY first step of growing the schedule (`setLevelThresholds` refuses
+        // to grow onto an unpriced level), so round-9 charged a full re-count for the one
+        // move that has to happen first.
+        //
+        // Nothing escapes through this branch: the step that makes such a level reachable
+        // is `setLevelThresholds`, which invalidates unconditionally. The ledger is
+        // therefore discarded at the moment the price starts applying to someone, not
+        // before.
+        if (level <= maxLevel) _invalidateCreditPopulation();
     }
 
     /// @dev CC-48 round-9 HIGH-B1. The one place that answers "what happens to the ledger
@@ -707,8 +726,27 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     function setCreditPolicy(uint256 perProposalCap, uint256 totalCap) external onlyOwner {
         maxAggregateCreditUpliftPerProposal = perProposalCap;
         maxTotalCreditExposure = totalCap;
-        // Refuse a ceiling BELOW the exposure that already exists, rather than accepting it
-        // and freezing the reputation path on the next proposal.
+        // Refuse a ceiling below the exposure this ledger is currently TRACKING.
+        //
+        // CC-48 round-11 LOW-L2, stated exactly rather than generously. Round-9 described
+        // this line as preventing a frozen reputation path, which overclaims: while the
+        // population is invalidated (`creditPopulationSeededAt == 0`, after a
+        // `setCreditTier` / `setLevelThresholds` that moved a live schedule)
+        // `totalCreditExposure` reads 0 by construction, so this comparison passes for ANY
+        // ceiling while real, drawable limits are still outstanding. In that window it
+        // guards nothing.
+        //
+        // It is not the protection, and it was never the only one. The protection is
+        // `seedCreditPopulation`, which recomputes exposure from this contract's own
+        // storage and reverts the whole batch when the recount exceeds the ceiling -- so a
+        // too-low ceiling set in the window cannot open the reputation path, it can only
+        // keep it shut until governance raises the ceiling and re-counts. Fail-closed, just
+        // reported later. This line's real job is the narrower one it can actually do:
+        // catch the mistake immediately in the ordinary, seeded case.
+        //
+        // Deliberately NOT fixed by refusing to lower the ceiling while unseeded: lowering
+        // it is the conservative move, and an outage window is when governance is most
+        // likely to need it.
         uint256 exposure = totalCreditExposure;
         if (exposure > totalCap) revert TotalCreditExposureExceeded(exposure, totalCap);
         emit CreditPolicyUpdated(perProposalCap, totalCap, exposure);
