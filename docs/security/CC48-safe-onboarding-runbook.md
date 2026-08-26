@@ -179,54 +179,53 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 
 ### Before reading a clean scan as evidence
 
-An empty result proves nothing on its own — a correctly-pointed scan of a clean aggregator
-and a truncated scan of a compromised one return the identical answer. And a merely
-*non-empty* scan is not enough either: a node that serves only recent history returns the
-last few logs (non-empty!) while silently dropping everything older, which is precisely
-where an unresolved case would sit.
+Start from the limitation, because it decides the whole procedure: **you cannot establish
+that a log scan was complete by looking at what it returned.** A range the node dropped and
+a range that genuinely holds no event produce byte-identical answers. Every "the data looks
+right" heuristic fails here, including ones that seem sound:
 
-So anchor the scan to state that does **not** come from logs, and check the counts agree:
+- *non-empty result* — a node serving only recent history returns the newest logs and drops
+  the older range, which is exactly where an unresolved case sits;
+- *count reconciles with on-chain state* (e.g. `BLSPublicKeyRegistered` count >= occupied
+  slot count) — the registrations may themselves be recent. Deploy at block 1000, register
+  at 9000, queue a case at 5000, serve only the last 2000 blocks: the counts reconcile
+  perfectly and the case is invisible. It rules out some broken scans; it proves nothing
+  about coverage.
 
-1. **Fix the scan range.** Start at the aggregator's deployment block, not at "recent". A
-   window opening after a case was queued misses it and still looks clean.
+So verify the **source's capability** and add redundancy, rather than inferring from output.
 
-2. **Coverage check — reconcile log count against on-chain state.** Every occupied slot got
-   there by emitting `BLSPublicKeyRegistered`, so the log scan must find at least as many of
-   those as there are occupied slots:
-
-   ```
-   state : count non-zero validatorAtSlot(1..MAX_VALIDATORS)      -> N
-   logs  : count BLSPublicKeyRegistered  0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3
-                 over [deployBlock, head]                          -> M
-   require M >= N
-   ```
-
-   `M < N` means the scan cannot see history it provably should — stop, the result is not
-   evidence. (`M > N` is normal: revoked-then-reregistered slots emit more than once.)
-
-   Measured on Sepolia's current aggregator over its whole life:
+1. **Probe the endpoint at the depth you need — with a state read.**
 
    ```
-   0x174b60bB…   N (occupied slots)              3
-                 M (BLSPublicKeyRegistered)      3   -> coverage reconciles
-                 GuardianSlashQueued 0xbd29882a… 0   -> and now this 0 is evidence
+   cast balance <any-address> --block <aggregatorDeployBlock> --rpc-url <endpoint>
    ```
 
-   Do **not** substitute "replay a known historical case" for this. Most aggregators never
-   had a case, so there is nothing to replay and the check degrades to nothing exactly when
-   it is needed. Replaying a real case is a stronger check where one exists — use it in
-   addition, never instead.
+   An archive endpoint answers; a pruned one fails with `state at block N is pruned`. Note
+   `cast block <deployBlock>` is **not** a substitute — pruned nodes serve old *headers*
+   fine, so that check passes on both and tells you nothing about log retention. Probe at
+   the deployment block, not at some recent block.
 
-3. **Know what this does and does not establish.** Reconciling `M >= N` proves the scan
-   reaches back to the earliest registration and returns complete results there. It does not
-   individually certify every block in between. For a high-value cutover, corroborate with a
-   second independent archive endpoint and require both to agree on `M` and on the
-   `GuardianSlashQueued` count.
+2. **Scan from the aggregator's deployment block**, never from "recent".
 
-4. **If the counts do not reconcile, or `N` is 0 and the address has no logs at all, stop.**
-   Check the deployment block and the address's transaction count before concluding
-   anything. A pruned or non-archive endpoint answers historical log queries with an empty
-   set and **no error** — indistinguishable from a clean scan.
+3. **Corroborate with a second, independently operated archive endpoint.** Require both to
+   agree on the `GuardianSlashQueued` count. Two providers silently truncating the same
+   range in the same way is the residual risk, and it is far smaller than one provider doing
+   it. For a production cutover this is the control that carries the weight — not any
+   property of the returned data.
+
+4. **Use `M >= N` as a fast fail, not as proof.** Counting `BLSPublicKeyRegistered`
+   (`0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3`) against non-zero
+   `validatorAtSlot` entries catches an obviously broken scan cheaply — a shortfall means
+   stop. Passing it means nothing more than "not obviously broken". Sepolia's current
+   aggregator reads `N = 3, M = 3, GuardianSlashQueued = 0`; that 0 is credible because of
+   steps 1 and 3, not because the counts line up.
+
+5. **Replaying a known past case** is the strongest check available — where one exists. Most
+   aggregators never had one, so it cannot be the primary control; use it in addition.
+
+If any of this cannot be satisfied, say so in the migration record and treat the pending-case
+question as **unresolved** rather than clean. "We could not verify" is a usable status;
+"clean" obtained from an unverifiable scan is not.
 
 ### One special case worth naming
 
