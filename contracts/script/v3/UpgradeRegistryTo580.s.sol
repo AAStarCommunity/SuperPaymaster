@@ -81,14 +81,18 @@ interface ITimelockBatch {
  *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
  *     is invisible on-chain; this event scan is the documented compensating control for that
  *     blind spot (docs/security/CC48-round3-changes.md 1.5). An empty scan proves nothing by
- *     itself, so before believing it: start the range at the aggregator's DEPLOYMENT block,
- *     and pull that address's logs with NO topic filter as a positive control — a non-empty
- *     count is what makes the empty target-topic result meaningful. (Sepolia's current
- *     aggregator: 5 logs total, 0 of them GuardianSlashQueued.) Do not substitute "replay a
- *     known case" for that control: most aggregators never had one, so the check silently
- *     degrades to nothing. If the positive control is also empty, stop and find out why — a
- *     non-archive endpoint answers historical log queries with an empty set and no error.
- *     See runbook section 5b.
+ *     itself, and a merely non-empty one does not either — a node serving only recent history
+ *     returns the newest logs while dropping exactly the older range a case would sit in. So
+ *     anchor the scan to non-log state: start at the aggregator's DEPLOYMENT block, then
+ *     require count(BLSPublicKeyRegistered
+ *     0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3) >= the number of
+ *     non-zero validatorAtSlot entries — every occupied slot provably emitted one, so a
+ *     shortfall means the scan cannot see history it should. (Sepolia's current aggregator:
+ *     3 occupied slots, 3 registration logs, 0 GuardianSlashQueued — reconciles, so that 0
+ *     is evidence.) This proves reach back to the earliest registration, not every block in
+ *     between; for a high-value cutover corroborate with a second archive endpoint. Do not
+ *     substitute "replay a known case": most aggregators never had one, so that check
+ *     degrades to nothing. See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,

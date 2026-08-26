@@ -180,35 +180,53 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 ### Before reading a clean scan as evidence
 
 An empty result proves nothing on its own — a correctly-pointed scan of a clean aggregator
-and a misconfigured scan of a compromised one return the identical answer. Establish that
-the scan **can** see this contract's logs before believing what it says about one topic:
+and a truncated scan of a compromised one return the identical answer. And a merely
+*non-empty* scan is not enough either: a node that serves only recent history returns the
+last few logs (non-empty!) while silently dropping everything older, which is precisely
+where an unresolved case would sit.
+
+So anchor the scan to state that does **not** come from logs, and check the counts agree:
 
 1. **Fix the scan range.** Start at the aggregator's deployment block, not at "recent". A
-   window that begins after a case was queued misses it, and the result still looks clean.
+   window opening after a case was queued misses it and still looks clean.
 
-2. **Positive control — pull the address's logs with NO topic filter.** A non-empty result
-   proves the pipeline reaches this contract, this range, this node. Record the count; it
-   is the evidence, not the empty target-topic result. Real example, Sepolia's current
-   aggregator scanned over its whole life:
+2. **Coverage check — reconcile log count against on-chain state.** Every occupied slot got
+   there by emitting `BLSPublicKeyRegistered`, so the log scan must find at least as many of
+   those as there are occupied slots:
 
    ```
-   0x174b60bB…  all logs                          5
-                GuardianSlashQueued (0xbd29882a…) 0   <- and now this 0 means something
+   state : count non-zero validatorAtSlot(1..MAX_VALIDATORS)      -> N
+   logs  : count BLSPublicKeyRegistered  0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3
+                 over [deployBlock, head]                          -> M
+   require M >= N
    ```
 
-   Do **not** substitute "replay a known historical case" for this step. Most aggregators
-   have never had a case, so there is nothing to replay, and the check silently degrades to
-   nothing exactly when you need it. If a known case does exist, replaying it is a stronger
-   check — use it in addition, never instead.
+   `M < N` means the scan cannot see history it provably should — stop, the result is not
+   evidence. (`M > N` is normal: revoked-then-reregistered slots emit more than once.)
 
-3. **If the positive control is ALSO empty, stop.** Zero total logs means one of: the
-   contract is newly deployed and has genuinely never emitted anything; the range is wrong;
-   or the node does not serve historical logs for this range. Distinguish them before
-   proceeding — check the deployment block and the address's transaction count. A pruned or
-   non-archive endpoint returns empty log queries **without erroring**, which is
-   indistinguishable from a clean scan. Use an archive endpoint.
+   Measured on Sepolia's current aggregator over its whole life:
 
-4. Only with a non-empty positive control does "no `GuardianSlashQueued`" mean no case.
+   ```
+   0x174b60bB…   N (occupied slots)              3
+                 M (BLSPublicKeyRegistered)      3   -> coverage reconciles
+                 GuardianSlashQueued 0xbd29882a… 0   -> and now this 0 is evidence
+   ```
+
+   Do **not** substitute "replay a known historical case" for this. Most aggregators never
+   had a case, so there is nothing to replay and the check degrades to nothing exactly when
+   it is needed. Replaying a real case is a stronger check where one exists — use it in
+   addition, never instead.
+
+3. **Know what this does and does not establish.** Reconciling `M >= N` proves the scan
+   reaches back to the earliest registration and returns complete results there. It does not
+   individually certify every block in between. For a high-value cutover, corroborate with a
+   second independent archive endpoint and require both to agree on `M` and on the
+   `GuardianSlashQueued` count.
+
+4. **If the counts do not reconcile, or `N` is 0 and the address has no logs at all, stop.**
+   Check the deployment block and the address's transaction count before concluding
+   anything. A pruned or non-archive endpoint answers historical log queries with an empty
+   set and **no error** — indistinguishable from a clean scan.
 
 ### One special case worth naming
 
