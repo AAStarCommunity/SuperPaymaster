@@ -41,12 +41,15 @@ library RegistryUpgradeBatchLib {
     /// @dev No predecessor: this batch does not depend on another queued operation.
     bytes32 internal constant NO_PREDECESSOR = bytes32(0);
 
-    /// @dev Number of calls in the batch. Named so a reader can check the arrays below
-    ///      against the steps the header documents.
-    uint256 internal constant BATCH_LENGTH = 5;
+    /// @dev Number of calls in the batch. Six when there is a predecessor to disarm, five
+    ///      on a first-ever deployment where there is nothing to revoke. Read
+    ///      `targets.length` rather than assuming one of them.
+    uint256 internal constant BATCH_LENGTH = 6;
+    uint256 internal constant BATCH_LENGTH_FIRST_DEPLOY = 5;
 
     /// @notice Build the batch exactly as it is scheduled and executed.
-    /// @param staking        GTokenStaking, target of the slasher authorisation in (3)
+    /// @param oldAggregator  predecessor to DISARM in (4); address(0) on a first deployment
+    /// @param staking        GTokenStaking, target of the slasher calls in (3) and (4)
     /// @param proxy          the live Registry ERC1967 proxy — target of every step except (3)
     ///                       calls, so a batch that touches any other address is not this one
     /// @param newImpl        freshly built `Registry` 5.7.0 implementation
@@ -64,6 +67,7 @@ library RegistryUpgradeBatchLib {
         address proxy,
         address newImpl,
         address newAggregator,
+        address oldAggregator,
         address staking,
         uint256 perProposalCap,
         uint256 totalCap,
@@ -73,9 +77,12 @@ library RegistryUpgradeBatchLib {
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        targets = new address[](BATCH_LENGTH);
-        values = new uint256[](BATCH_LENGTH);
-        payloads = new bytes[](BATCH_LENGTH);
+        // A first-ever deployment has no predecessor authorisation to revoke; every
+        // upgrade does. Deciding the length here keeps the caller from having to know.
+        uint256 len = oldAggregator == address(0) ? BATCH_LENGTH_FIRST_DEPLOY : BATCH_LENGTH;
+        targets = new address[](len);
+        values = new uint256[](len);
+        payloads = new bytes[](len);
 
         // 1. upgrade. `upgradeToAndCall(address,bytes)` is encoded by signature rather than
         //    by `abi.encodeCall` because it lives on the UUPS proxy surface, not on the
@@ -101,15 +108,30 @@ library RegistryUpgradeBatchLib {
         //    assertion below becomes the only guard.
         targets[2] = staking;
         payloads[2] = abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true));
-        // 4. seed the caps, so the new slots are never live at 0.
-        targets[3] = proxy;
-        payloads[3] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap));
-        // 5. count the existing population and open the reputation path. Ordered AFTER (4)
+        // 4. REVOKE the predecessor's slasher authorisation. `authorizedSlashers` is keyed
+        //    by address and nothing clears it, so an aggregator that is no longer wired to
+        //    anything keeps full authority to call `slashByDVT` and `slash` on every DVT's
+        //    stake. Rotating away from a contract is not the same as disarming it: the
+        //    deprecated build stays armed, including whatever bug or compromise motivated
+        //    the rotation, and its own owner can still reach it. Granting the new authority
+        //    without withdrawing the old one leaves the migration strictly permission-additive.
+        //    Skipped only when there is no predecessor at all.
+        uint256 next = 3;
+        if (oldAggregator != address(0)) {
+            targets[next] = staking;
+            payloads[next] = abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (oldAggregator, false));
+            unchecked { ++next; }
+        }
+        // 5. seed the caps, so the new slots are never live at 0.
+        targets[next] = proxy;
+        payloads[next] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap));
+        unchecked { ++next; }
+        // 6. count the existing population and open the reputation path. Ordered AFTER (5)
         //    because finalizing the count checks the derived stock against the ceiling: a
         //    migration whose real exposure already exceeds the cap it declared fails here,
         //    atomically, instead of going live and wedging on the first proposal.
-        targets[4] = proxy;
-        payloads[4] = abi.encodeCall(Registry.seedCreditPopulation, (seedUsers, seedUsers.length, true));
+        targets[next] = proxy;
+        payloads[next] = abi.encodeCall(Registry.seedCreditPopulation, (seedUsers, seedUsers.length, true));
     }
 
     /// @notice The "governance operator splits the batch to be careful" counterfactual:

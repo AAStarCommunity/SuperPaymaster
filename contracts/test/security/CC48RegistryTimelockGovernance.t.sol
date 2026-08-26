@@ -6,7 +6,7 @@ import "src/core/Registry.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {GovernanceOwnerGate} from "../../script/checks/GovernanceOwnerGate.sol";
-import {RegistryUpgradeBatchLib} from "../../script/checks/RegistryUpgradeBatchLib.sol";
+import {RegistryUpgradeBatchLib, IStakingSlasherAuth} from "../../script/checks/RegistryUpgradeBatchLib.sol";
 import {IMySBT} from "src/interfaces/v3/IMySBT.sol";
 
 contract TimelockMockSBT is IMySBT {
@@ -79,6 +79,7 @@ contract CC48RegistryTimelockGovernance is Test {
     Registry internal registry;
     TimelockController internal timelock;
     address internal newAggregator;
+    address internal oldAggregator;
 
     address internal proposer = address(0x9401);
     address internal executor = address(0x9402);
@@ -92,6 +93,10 @@ contract CC48RegistryTimelockGovernance is Test {
             address(this), address(new TimelockMockStaking()), address(new TimelockMockSBT())
         );
         newAggregator = address(new TimelockMockBLS());
+        // Every real upgrade rotates AWAY from something, and that predecessor keeps its
+        // slasher authorisation unless the batch revokes it. Modelling it as a distinct
+        // address is what lets the shape assertions below see the revoke step at all.
+        oldAggregator = address(new TimelockMockBLS());
 
         // Model the state an UPGRADED proxy is actually in. `initialize` seeds
         // `maxTotalCreditExposure`, but `initialize` does not run on an upgrade: a proxy
@@ -149,12 +154,12 @@ contract CC48RegistryTimelockGovernance is Test {
         // everything below would be asserting about something else. Pinning the exception by
         // index rather than allowing "proxy or staking" anywhere keeps the ordering asserted
         // too: the authorisation has to be step (3), inside the same atomic operation.
-        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "five calls");
+        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "six calls: five plus the predecessor disarm");
         address stakingTarget = address(registry.GTOKEN_STAKING());
         assertTrue(stakingTarget != address(0), "staking must be wired for the batch to be meaningful");
         for (uint256 i = 0; i < targets.length; ++i) {
-            if (i == 2) {
-                assertEq(targets[i], stakingTarget, "step 3 authorises the slasher on GTokenStaking");
+            if (i == 2 || i == 3) {
+                assertEq(targets[i], stakingTarget, "steps 3 and 4 are the slasher grant and revoke");
             } else {
                 assertEq(targets[i], address(registry), "every other call targets the Registry proxy");
             }
@@ -268,6 +273,34 @@ contract CC48RegistryTimelockGovernance is Test {
     // Helpers
     // =================================================================
 
+    /// A first-ever deployment has no predecessor to disarm, so the batch is one call
+    /// shorter and contains no revoke. Asserted separately because the length is now
+    /// conditional, and a silently-wrong length would move every later index.
+    function test_FirstDeploymentBatchOmitsTheRevokeStep() public {
+        Registry newImpl = new Registry();
+        (address[] memory targets,, bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            address(0), // no predecessor
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
+        );
+        assertEq(
+            targets.length,
+            RegistryUpgradeBatchLib.BATCH_LENGTH_FIRST_DEPLOY,
+            "no predecessor means no revoke call"
+        );
+        bytes4 setSlasher = IStakingSlasherAuth.setAuthorizedSlasher.selector;
+        uint256 slasherCalls;
+        for (uint256 i = 0; i < payloads.length; ++i) {
+            if (bytes4(payloads[i]) == setSlasher) ++slasherCalls;
+        }
+        assertEq(slasherCalls, 1, "exactly the grant, and no revoke");
+    }
+
     /// The batch exactly as `UpgradeRegistryTo580` emits it — because it is the same call.
     function _batch()
         internal
@@ -278,6 +311,7 @@ contract CC48RegistryTimelockGovernance is Test {
             address(registry),
             address(newImpl),
             newAggregator,
+            oldAggregator,
             address(registry.GTOKEN_STAKING()),
             PER_PROPOSAL_CAP,
             TOTAL_CAP,

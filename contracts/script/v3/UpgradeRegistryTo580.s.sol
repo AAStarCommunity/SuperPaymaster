@@ -371,10 +371,12 @@ contract UpgradeRegistryTo580 is Script {
         // definition instead of a copy of it. Editing the batch here without editing the
         // test is no longer possible; there is only one definition to edit.
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = RegistryUpgradeBatchLib
-            .buildBatch(proxy, address(newImpl), newAggregator, staking, perProposalCap, totalCap, seedUsers);
+            .buildBatch(
+                proxy, address(newImpl), newAggregator, oldAggregator, staking, perProposalCap, totalCap, seedUsers
+            );
 
         console.log("--- atomic governance batch (execute as ONE transaction) ---");
-        for (uint256 i = 0; i < RegistryUpgradeBatchLib.BATCH_LENGTH; i++) {
+        for (uint256 i = 0; i < targets.length; i++) {
             console.log("target", i, targets[i]);
             console.logBytes(payloads[i]);
         }
