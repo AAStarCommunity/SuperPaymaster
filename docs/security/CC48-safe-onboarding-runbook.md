@@ -188,8 +188,17 @@ count and the range move:
 
 | endpoint | `BLSPublicKeyRegistered` (expected 3 at the time) | verdict |
 |---|---|---|
-| `ethereum-sepolia-rpc.publicnode.com` | `0 0 3 0 3 3 0 3 0 0 3 3` — **6 of 12 wrong, 0 errors** | unusable as a sole source |
-| Alchemy (`~/Dev/.env` `SEPOLIA_RPC`) | `3 3 3 3 3 3 3 3 3 3` — 10 of 10 | stable in this sample |
+| a public no-key endpoint (`ethereum-sepolia-rpc.publicnode.com`) | `0 0 3 0 3 3 0 3 0 0 3 3` — **6 of 12 wrong, 0 errors** | unusable as a sole source |
+| one particular Alchemy **key** | `3 3 3 3 3 3 3 3 3 3` — 10 of 10 | stable *for that key, in that sample* |
+
+⚠️ **The second row is a property of a key, not of a provider.** This repo alone carries three
+different Alchemy Sepolia keys under near-identical names — `.env.sepolia` has both `RPC_URL`
+and `SEPOLIA_RPC_URL`, and operators commonly have another in a personal env — and they sit on
+**different tiers**. Measured on the same full-span query: one answered in one call, another
+was refused outright for the block range, and a third had been disabled for the network
+entirely (HTTP 403). Reading a verdict off the provider name and picking whichever variable
+looks right is how you end up running this procedure on an endpoint that cannot execute it.
+**Re-measure on the exact key you are about to use.**
 
 Note what this is **not**: it is not a chunking artefact. The whole-range call and chunked
 calls both exhibit it, so "don't chunk" is not a fix. It is per-call non-determinism.
@@ -200,6 +209,29 @@ every time either way. So a bare "I scanned and found no cases" is not evidence,
 many times it was repeated.
 
 What makes it evidence is pairing it with a query whose answer you already know:
+
+**0. Put a wall-clock cap on every RPC call.** A refusal is not the only failure mode: the
+same query that a raw `eth_getLogs` rejects loudly can make `cast logs` **hang with no output,
+no error, and no exit** — measured here at 90 s with an empty stdout *and* an empty stderr,
+still running when it was killed. Every `|| exit 1` in this section is unreachable in that
+state, and to an operator "still working" and "wedged" look identical. This is the same
+indistinguishability the section is about, moved into the time dimension, so it needs the same
+treatment: make it fail, loudly, on a clock.
+
+```bash
+# Portable wall-clock cap. Use it for EVERY cast/curl call below.
+rpc() {  # usage: rpc <seconds> <command...>
+  local secs=$1; shift
+  if   command -v timeout  >/dev/null 2>&1; then timeout  "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"
+  else perl -e 'alarm shift; exec @ARGV' "$secs" "$@"; fi
+}
+# A timed-out call is a FAILED call: abort the round, never treat it as "no events".
+```
+
+Wrap each call as `rpc 60 cast ...` and keep the existing `|| { ...; exit 1; }`. With the cap
+in place a wedged endpoint exits non-zero (124 from `timeout`, 142 from the `perl` fallback)
+and the guard fires as intended.
 
 **1. Deployment block.** Binary-search the first block with code:
 `cast code <agg> --block <n>` — treat an RPC *error* as unknown, never as "no code", or the
@@ -215,17 +247,20 @@ identical range, and compare against state. Nothing below is hard-coded to one d
 EP=<rpc-url>
 AGG=<aggregator-address>
 DEPLOY=<deployBlock from step 1>          # NOT a constant: re-derive per aggregator
-HEAD=$(cast block-number --rpc-url "$EP")
+HEAD=$(rpc 30 cast block-number --rpc-url "$EP") \
+  || { echo "block-number read failed/timed out — abort" >&2; exit 1; }
 REG_TOPIC=0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3   # BLSPublicKeyRegistered(address,uint8)
 Q_TOPIC=<the topic0 this aggregator's version emits — see the table above>
 
 # N — from state. Count only well-formed non-zero addresses; an RPC error must
 # abort, never be counted as an occupied slot (that would inflate N) nor skipped
 # silently (that would deflate it).
-MAXV=$(cast call "$AGG" 'MAX_VALIDATORS()(uint256)' --rpc-url "$EP") || exit 1
+MAXV=$(rpc 30 cast call "$AGG" 'MAX_VALIDATORS()(uint256)' --rpc-url "$EP") \
+  || { echo "MAX_VALIDATORS read failed/timed out (rc=$?) — abort" >&2; exit 1; }
 N=0
 for s in $(seq 1 "$MAXV"); do
-  a=$(cast call "$AGG" 'validatorAtSlot(uint8)(address)' "$s" --rpc-url "$EP") || exit 1
+  a=$(rpc 30 cast call "$AGG" 'validatorAtSlot(uint8)(address)' "$s" --rpc-url "$EP") \
+    || { echo "slot $s read failed/timed out (rc=$?) — abort" >&2; exit 1; }
   case "$a" in
     0x0000000000000000000000000000000000000000) ;;
     0x*[0-9a-fA-F]) N=$((N+1)) ;;
@@ -235,10 +270,12 @@ done
 
 # M and Q — same endpoint, same range, same chunking, adjacent in time.
 # A failed call aborts the round; it never contributes an empty list.
-M=$(cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
-      --address "$AGG" "$REG_TOPIC" --json) || exit 1
-Q=$(cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
-      --address "$AGG" "$Q_TOPIC"   --json) || exit 1
+M=$(rpc 120 cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
+      --address "$AGG" "$REG_TOPIC" --json) \
+  || { rc=$?; echo "health-probe query failed (rc=$rc$( [ $rc = 124 ] || [ $rc = 142 ] && printf ' = TIMEOUT' )) — abort, this is NOT 'no events'" >&2; exit 1; }
+Q=$(rpc 120 cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
+      --address "$AGG" "$Q_TOPIC"   --json) \
+  || { rc=$?; echo "GuardianSlashQueued query failed (rc=$rc$( [ $rc = 124 ] || [ $rc = 142 ] && printf ' = TIMEOUT' )) — abort, this is NOT 'no cases'" >&2; exit 1; }
 M=$(printf '%s' "$M" | jq 'length')
 Q=$(printf '%s' "$Q" | jq 'length')
 echo "N=$N M=$M Q=$Q"
@@ -291,7 +328,7 @@ preference:
    # A fixed height is only immutable once it is finalized. Resolve finality in its own
    # step: in a pipeline `||` sees only the last command, so a dead RPC would leave FIN
    # empty and the failure would surface as the misleading "BASE_TO is above finalized=".
-   FIN_JSON=$(cast block finalized --rpc-url "$EP" --json) \
+   FIN_JSON=$(rpc 30 cast block finalized --rpc-url "$EP" --json) \
      || { echo "finality lookup failed — cannot validate the baseline" >&2; exit 1; }
    FIN=$(printf '%s' "$FIN_JSON" | jq -r '.number // empty')
    [ -n "$FIN" ] || { echo "finalized block missing from response" >&2; exit 1; }
@@ -300,18 +337,30 @@ preference:
    [ "$BASE_TO" -le "$FIN" ] || {
      echo "BASE_TO=$BASE_TO is above finalized=$FIN — reorgable, not a baseline" >&2; exit 1; }
 
-   got=$(cast logs --rpc-url "$EP" --from-block "$BASE_FROM" --to-block "$BASE_TO" \
-           --address "$BASE_ADDR" --json) || exit 1
+   got=$(rpc 120 cast logs --rpc-url "$EP" --from-block "$BASE_FROM" --to-block "$BASE_TO" \
+           --address "$BASE_ADDR" --json) \
+     || { echo "baseline query failed/timed out — cannot validate the baseline" >&2; exit 1; }
    [ "$(printf '%s' "$got" | jq 'length')" -eq "$BASE_EXPECT" ] || {
      echo "endpoint failed the frozen baseline — do not trust this batch" >&2; exit 1; }
    ```
 
    Measured here: Registry `0xf5Bf37ca…` over the frozen, finalized range
    `[11492045, 11570000]` returns **10**, identical across repeats. The real scan still runs
-   to `head`; only the baseline is frozen. Be honest about the strength: a baseline is an empirical constant, not
+   to `head`; only the baseline is frozen.
+
+   **Record the endpoint and key the baseline was taken on, alongside the numbers.** A
+   baseline is a claim about one endpoint's behaviour, so carrying it to a different key —
+   even at the same provider, see the warning above — compares against something that was
+   never measured. Store `(BASE_ADDR, BASE_FROM, BASE_TO, BASE_EXPECT, endpoint, key id)` as
+   one record, and re-take it when the key changes. Be honest about the strength: a baseline is an empirical constant, not
    derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
    stopped answering, not one that was always wrong.
 3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
+
+   Note the baseline in (2) does **not** degenerate the way `M >= N` does at `N == 0`: its
+   expected value is a recorded non-zero constant, so a false empty fails it. What it cannot
+   do is prove the endpoint was healthy for the *other* call in the batch — that limit is the
+   same one stated for `M >= N`, and it is why step 4 does the heavy lifting on this path.
 
 In all three, cross-endpoint agreement (step 4) does more work than it does in the `N >= 1`
 path, because it is the only remaining control that does not depend on this endpoint's own
@@ -341,7 +390,7 @@ consequences for a migration:
 # LAST command, so a dead RPC leaves FIN empty, `[ "" -lt N ]` errors to stderr, the `if`
 # takes its else branch, and the report announces "firm throughout" — the strongest status
 # this line can issue, produced by a lookup that wholly failed.
-FIN_JSON=$(cast block finalized --rpc-url "$EP" --json) \
+FIN_JSON=$(rpc 30 cast block finalized --rpc-url "$EP" --json) \
   || { echo "finality lookup failed — coverage unknown" >&2; exit 1; }
 FIN=$(printf '%s' "$FIN_JSON" | jq -r '.number // empty')
 [ -n "$FIN" ] || { echo "finalized block missing from response — coverage unknown" >&2; exit 1; }
