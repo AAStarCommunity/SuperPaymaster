@@ -179,11 +179,36 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 
 ### Before reading a clean scan as evidence
 
-1. Confirm the filter's topic matches the **scanned contract's** version, not the version
-   you are upgrading to.
-2. Replay a known historical case through the watcher and confirm it reports it. A scan
-   that cannot find an event you know exists is not evidence of anything.
-3. Only then treat "no pending cases" as clean.
+An empty result proves nothing on its own — a correctly-pointed scan of a clean aggregator
+and a misconfigured scan of a compromised one return the identical answer. Establish that
+the scan **can** see this contract's logs before believing what it says about one topic:
+
+1. **Fix the scan range.** Start at the aggregator's deployment block, not at "recent". A
+   window that begins after a case was queued misses it, and the result still looks clean.
+
+2. **Positive control — pull the address's logs with NO topic filter.** A non-empty result
+   proves the pipeline reaches this contract, this range, this node. Record the count; it
+   is the evidence, not the empty target-topic result. Real example, Sepolia's current
+   aggregator scanned over its whole life:
+
+   ```
+   0x174b60bB…  all logs                          5
+                GuardianSlashQueued (0xbd29882a…) 0   <- and now this 0 means something
+   ```
+
+   Do **not** substitute "replay a known historical case" for this step. Most aggregators
+   have never had a case, so there is nothing to replay, and the check silently degrades to
+   nothing exactly when you need it. If a known case does exist, replaying it is a stronger
+   check — use it in addition, never instead.
+
+3. **If the positive control is ALSO empty, stop.** Zero total logs means one of: the
+   contract is newly deployed and has genuinely never emitted anything; the range is wrong;
+   or the node does not serve historical logs for this range. Distinguish them before
+   proceeding — check the deployment block and the address's transaction count. A pruned or
+   non-archive endpoint returns empty log queries **without erroring**, which is
+   indistinguishable from a clean scan. Use an archive endpoint.
+
+4. Only with a non-empty positive control does "no `GuardianSlashQueued`" mean no case.
 
 ### One special case worth naming
 

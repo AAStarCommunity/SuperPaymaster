@@ -80,9 +80,15 @@ interface ITimelockBatch {
  *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
  *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
  *     is invisible on-chain; this event scan is the documented compensating control for that
- *     blind spot (docs/security/CC48-round3-changes.md 1.5). Replay a known historical case
- *     first — a scan that cannot find an event you know exists proves nothing — and only then
- *     read "no pending cases" as evidence. See the runbook section 5b.
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). An empty scan proves nothing by
+ *     itself, so before believing it: start the range at the aggregator's DEPLOYMENT block,
+ *     and pull that address's logs with NO topic filter as a positive control — a non-empty
+ *     count is what makes the empty target-topic result meaningful. (Sepolia's current
+ *     aggregator: 5 logs total, 0 of them GuardianSlashQueued.) Do not substitute "replay a
+ *     known case" for that control: most aggregators never had one, so the check silently
+ *     degrades to nothing. If the positive control is also empty, stop and find out why — a
+ *     non-archive endpoint answers historical log queries with an empty set and no error.
+ *     See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
