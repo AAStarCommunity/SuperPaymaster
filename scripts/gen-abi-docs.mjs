@@ -108,12 +108,27 @@ function collectContracts() {
     const dirPath = join(OUT_DIR, dir);
     if (!dir.endsWith(".sol") || !statSync(dirPath).isDirectory()) continue;
     if (dir.endsWith(".t.sol") || dir.endsWith(".s.sol")) continue; // tests / scripts
-    for (const file of readdirSync(dirPath)) {
-      if (!file.endsWith(".json")) continue;
+    const files = readdirSync(dirPath).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      // Skip secondary-compiler-profile artifacts. Since CC-48 round-3, foundry.toml
+      // declares an `additional_compiler_profiles` entry named `registry-size` (Registry.sol
+      // is pinned to runs=200 for EIP-170), so every contract in Registry's import closure is
+      // emitted TWICE: `<Contract>.json` (default profile) and `<Contract>.<profile>.json`.
+      // Solidity identifiers cannot contain `.`, so a multi-segment stem is always a profile
+      // variant, never a real contract. Documenting both would invent a phantom contract
+      // (e.g. "BLSAggregator.registry-size") with a duplicate of the real one's whole surface.
+      // Same failure mode already fixed in scripts/extract_v3_abis.sh (round 9): prefer the
+      // default-profile artifact by name, and only fall back to a variant if it is the sole
+      // artifact for that contract.
+      const stem = file.replace(/\.json$/, "");
+      const dotIdx = stem.indexOf(".");
+      if (dotIdx !== -1 && files.includes(`${stem.slice(0, dotIdx)}.json`)) continue;
       const artifact = JSON.parse(readFileSync(join(dirPath, file), "utf8"));
       const path = srcPathOf(artifact);
       if (!path || !path.startsWith("contracts/src/")) continue;
-      const name = file.replace(/\.json$/, "");
+      // If we got here via the fallback (only a profile variant exists), the contract's real
+      // name is still the first stem segment — never document the profile suffix.
+      const name = dotIdx === -1 ? stem : stem.slice(0, dotIdx);
       contracts.push({ name, file: dir, srcPath: path, artifact, ...natspec(artifact) });
     }
   }
