@@ -3,10 +3,14 @@ pragma solidity 0.8.33;
 
 import {Registry} from "src/core/Registry.sol";
 
+interface IStakingSlasherAuth {
+    function setAuthorizedSlasher(address slasher, bool authorized) external;
+}
+
 /**
  * @title RegistryUpgradeBatchLib
  * @notice The ONE definition of the 5.7.0 governance batch: its salt, its predecessor and
- *         the exact three payloads, in order.
+ *         the exact payloads, in order.
  *
  * @dev CC-48 round-8 LOW-5. `UpgradeRegistryTo580` built this batch inline and
  *      `CC48RegistryTimelockGovernance` rebuilt a hand-written copy of it, while the test's
@@ -38,11 +42,12 @@ library RegistryUpgradeBatchLib {
     bytes32 internal constant NO_PREDECESSOR = bytes32(0);
 
     /// @dev Number of calls in the batch. Named so a reader can check the arrays below
-    ///      against the three steps the header documents.
-    uint256 internal constant BATCH_LENGTH = 4;
+    ///      against the steps the header documents.
+    uint256 internal constant BATCH_LENGTH = 5;
 
     /// @notice Build the batch exactly as it is scheduled and executed.
-    /// @param proxy          the live Registry ERC1967 proxy — the ONLY target of all three
+    /// @param staking        GTokenStaking, target of the slasher authorisation in (3)
+    /// @param proxy          the live Registry ERC1967 proxy — target of every step except (3)
     ///                       calls, so a batch that touches any other address is not this one
     /// @param newImpl        freshly built `Registry` 5.7.0 implementation
     /// @param newAggregator  `BLSAggregator` 4.11.0
@@ -59,6 +64,7 @@ library RegistryUpgradeBatchLib {
         address proxy,
         address newImpl,
         address newAggregator,
+        address staking,
         uint256 perProposalCap,
         uint256 totalCap,
         address[] memory seedUsers
@@ -79,15 +85,31 @@ library RegistryUpgradeBatchLib {
         // 2. re-point the aggregator, so ROLE_DVT exits have something to consume.
         targets[1] = proxy;
         payloads[1] = abi.encodeCall(Registry.setBLSAggregator, (newAggregator));
-        // 3. seed the caps, so the new slots are never live at 0.
-        targets[2] = proxy;
-        payloads[2] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap));
-        // 4. count the existing population and open the reputation path. Ordered AFTER (3)
+        // 3. authorise the NEW aggregator to slash. BLSAggregator is not upgradeable, so
+        //    (2) points Registry at a FRESH ADDRESS, and `authorizedSlashers` is keyed by
+        //    address — the predecessor's authorisation does not carry over. Omit this and
+        //    `executeGuardianSlash` takes the try/catch path on every guardian
+        //    (`slashByDVT` reverts with NotAuthorizedSlasher), the case expires after its
+        //    window, every freeze is released, and the result is ZERO slashed, ZERO reverts
+        //    and zero alarms — a silently disarmed slash path. It belongs in this batch
+        //    rather than in a follow-up transaction for exactly that reason: the failure it
+        //    prevents is invisible.
+        //
+        //    Same owner, so it can ride along: Registry, GTokenStaking and BLSAggregator all
+        //    answer to one `owner()` (verified on Sepolia). If a deployment ever splits
+        //    them, this step must move to that owner's own transaction and the preflight
+        //    assertion below becomes the only guard.
+        targets[2] = staking;
+        payloads[2] = abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true));
+        // 4. seed the caps, so the new slots are never live at 0.
+        targets[3] = proxy;
+        payloads[3] = abi.encodeCall(Registry.setCreditPolicy, (perProposalCap, totalCap));
+        // 5. count the existing population and open the reputation path. Ordered AFTER (4)
         //    because finalizing the count checks the derived stock against the ceiling: a
         //    migration whose real exposure already exceeds the cap it declared fails here,
         //    atomically, instead of going live and wedging on the first proposal.
-        targets[3] = proxy;
-        payloads[3] = abi.encodeCall(Registry.seedCreditPopulation, (seedUsers, seedUsers.length, true));
+        targets[4] = proxy;
+        payloads[4] = abi.encodeCall(Registry.seedCreditPopulation, (seedUsers, seedUsers.length, true));
     }
 
     /// @notice The "governance operator splits the batch to be careful" counterfactual:

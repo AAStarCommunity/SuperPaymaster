@@ -85,7 +85,12 @@ contract CC48RegistryTimelockGovernance is Test {
     address internal stranger = address(0xBAD);
 
     function setUp() public {
-        registry = UUPSDeployHelper.deployRegistryProxy(address(this), address(0), address(new TimelockMockSBT()));
+        // A non-zero staking address is required, not incidental: step (3) of the batch
+        // authorises the new aggregator as a slasher ON GTokenStaking, so a proxy wired to
+        // address(0) would produce a batch whose third call goes nowhere.
+        registry = UUPSDeployHelper.deployRegistryProxy(
+            address(this), address(new TimelockMockStaking()), address(new TimelockMockSBT())
+        );
         newAggregator = address(new TimelockMockBLS());
 
         // Model the state an UPGRADED proxy is actually in. `initialize` seeds
@@ -138,13 +143,21 @@ contract CC48RegistryTimelockGovernance is Test {
     function test_UpgradeAndCapsLandInOneTransactionWithNoIntermediateWindow() public {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = _batch();
 
-        // The batch under test IS the shipped shape: three calls, every one of them
-        // addressed to the proxy. A batch that reached any other address would not be the
-        // operation `UpgradeRegistryTo580` schedules, and everything below would be
-        // asserting about something else.
-        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "three calls");
+        // The batch under test IS the shipped shape. Every call addresses the proxy EXCEPT
+        // the slasher authorisation, whichmust target GTokenStaking — a batch reaching any
+        // other address would not be the operation `UpgradeRegistryTo580` schedules, and
+        // everything below would be asserting about something else. Pinning the exception by
+        // index rather than allowing "proxy or staking" anywhere keeps the ordering asserted
+        // too: the authorisation has to be step (3), inside the same atomic operation.
+        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "five calls");
+        address stakingTarget = address(registry.GTOKEN_STAKING());
+        assertTrue(stakingTarget != address(0), "staking must be wired for the batch to be meaningful");
         for (uint256 i = 0; i < targets.length; ++i) {
-            assertEq(targets[i], address(registry), "every call targets the Registry proxy");
+            if (i == 2) {
+                assertEq(targets[i], stakingTarget, "step 3 authorises the slasher on GTokenStaking");
+            } else {
+                assertEq(targets[i], address(registry), "every other call targets the Registry proxy");
+            }
             assertEq(values[i], 0, "no ether moves");
         }
         // CC-48 round-8 LOW-5: capture the implementation the proxy points at BEFORE the
@@ -262,7 +275,13 @@ contract CC48RegistryTimelockGovernance is Test {
     {
         Registry newImpl = new Registry();
         return RegistryUpgradeBatchLib.buildBatch(
-            address(registry), address(newImpl), newAggregator, PER_PROPOSAL_CAP, TOTAL_CAP, _seedUsers()
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
         );
     }
 
@@ -279,4 +298,11 @@ contract CC48RegistryTimelockGovernance is Test {
     ) internal pure returns (address[] memory t, uint256[] memory v, bytes[] memory p) {
         return RegistryUpgradeBatchLib.upgradeOnlySubBatch(targets, values, payloads);
     }
+}
+
+/// @dev Only needs an address the batch can target; the batch is built, not executed, here.
+contract TimelockMockStaking {
+    mapping(address => bool) public authorizedSlashers;
+    function setAuthorizedSlasher(address slasher, bool ok) external { authorizedSlashers[slasher] = ok; }
+    function getLockedStake(address, bytes32) external pure returns (uint256) { return 0; }
 }

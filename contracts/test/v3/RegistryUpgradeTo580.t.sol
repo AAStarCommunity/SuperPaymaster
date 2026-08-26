@@ -265,7 +265,7 @@ contract RegistryUpgradeTo580Test is Test {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             RegistryUpgradeBatchLib.buildBatch(
                 address(registry), address(newImpl), address(rotatedAggregator),
-                600 ether, totalCap, _twoSeedUsers()
+                address(registry.GTOKEN_STAKING()), 600 ether, totalCap, _twoSeedUsers()
             );
         values; // the batch carries no value; silence the unused-return warning
         governance.executeBatch(targets, payloads);
@@ -311,7 +311,8 @@ contract RegistryUpgradeTo580Test is Test {
         address[] memory partialList = new address[](1);
         partialList[0] = _user(1); // _user(2) is MISSED, and also carries 600 aPNT
         (address[] memory targets, , bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
-            address(registry), address(newImpl), address(newAggregator), 600 ether, 5_000 ether, partialList
+            address(registry), address(newImpl), address(newAggregator),
+            address(registry.GTOKEN_STAKING()), 600 ether, 5_000 ether, partialList
         );
         governance.executeBatch(targets, payloads);
 
