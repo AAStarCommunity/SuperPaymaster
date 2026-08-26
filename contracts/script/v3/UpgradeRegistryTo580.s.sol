@@ -69,17 +69,20 @@ interface ITimelockBatch {
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
- *   - ⚠️ WATCHERS MUST BE REPOINTED BEFORE THIS PREFLIGHT IS TRUSTED. `GuardianSlashQueued`
- *     gained a `guiltyGuardians` array in 4.11.0, so its topic0 moved from
- *     0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82 to
- *     0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c. A watcher still
- *     subscribed to the old topic returns ZERO events and does not error — and "zero
- *     events" is indistinguishable from "no fraud cases". That matters here specifically:
- *     `requireNoPendingCases` enumerates guardians via `validatorAtSlot`, so an accused
- *     address whose key was already revoked holds no slot and is invisible on-chain. The
- *     documented compensating control is exactly this event scan (see
- *     docs/security/CC48-round3-changes.md 1.5). Repoint the watcher, confirm it replays
- *     known-good historical cases, and only then read its "no pending cases" as evidence.
+ *   - ⚠️ `GuardianSlashQueued` HAS TWO TOPICS, ONE PER AGGREGATOR VERSION. 4.11.0 added a
+ *     `guiltyGuardians` array, so <=4.10.0 emits
+ *     0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82 and >=4.11.0 emits
+ *     0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c. Do NOT globally
+ *     "switch the watcher to the new topic": this preflight scans the OLD aggregator, so it
+ *     must use the topic THAT contract emits. Scanning the old aggregator with the new topic
+ *     returns zero events, does not error, and reports a still-open case as clean. During the
+ *     migration window scan BOTH addresses, each with its own topic.
+ *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
+ *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
+ *     is invisible on-chain; this event scan is the documented compensating control for that
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). Replay a known historical case
+ *     first — a scan that cannot find an event you know exists proves nothing — and only then
+ *     read "no pending cases" as evidence. See the runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,

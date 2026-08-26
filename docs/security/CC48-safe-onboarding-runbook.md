@@ -144,35 +144,61 @@ rehearse.
 
 ---
 
-## 5b. Repoint your watcher before trusting the migration preflight
+## 5b. Which `GuardianSlashQueued` topic to scan — per aggregator, not globally
 
-`GuardianSlashQueued` gained a `guiltyGuardians` array in `BLSAggregator-4.11.0`, which
-moves its `topic0`:
+`GuardianSlashQueued` gained a `guiltyGuardians` array in `BLSAggregator-4.11.0`, so its
+`topic0` differs by aggregator version:
 
 ```
-old  GuardianSlashQueued(uint256,bytes32,uint256)
-     0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82
-new  GuardianSlashQueued(uint256,bytes32,uint256,address[])
-     0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c
+<= 4.10.0   GuardianSlashQueued(uint256,bytes32,uint256)
+            0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82
+>= 4.11.0   GuardianSlashQueued(uint256,bytes32,uint256,address[])
+            0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c
 ```
 
-A watcher still filtering on the old topic **returns zero events and raises no error**.
-Zero events is indistinguishable from "no fraud cases", and that ambiguity lands on a
-control this runbook depends on: `requireNoPendingCases` enumerates guardians through
-`validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
-cannot be seen on-chain. Scanning `GuardianSlashQueued` over the case window is the
-documented compensating control for exactly that blind spot
-(`docs/security/CC48-round3-changes.md` 1.5).
+**Do not "switch the watcher to the new topic".** The topic belongs to the contract that
+emitted the log, and the migration preflight scans the **OLD** aggregator — the one you are
+migrating away from — to prove it holds no unresolved case. Pointing that scan at the new
+topic makes a still-open case invisible and reports the old aggregator clean. That is the
+precise failure this section exists to prevent, so keep the two filters separate:
 
-Before reading a watcher's "no pending cases" as evidence for scheduling an upgrade batch:
+| what you are scanning | topic0 to use |
+|---|---|
+| OLD aggregator, history up to cutover | the topic **its own version** emits (table above) |
+| NEW aggregator (4.11.0+), from deployment on | `0xcf5c0505…` |
+| during the migration window | **both addresses, each with its own topic** |
 
-1. update the filter to the new topic (or to the regenerated ABI — `abis/BLSAggregator.json`);
-2. replay a known historical case and confirm the watcher reports it;
-3. only then treat a clean scan as clean.
+### Why this scan is load-bearing
 
-The array is now carried in the event itself, so a repointed watcher can reconstruct the
-exact `guiltyGuardians` set — which is also what `expireGuardianSlashCase` requires, and
-that array exists nowhere else once the queueing transaction's calldata is out of reach.
+`requireNoPendingCases` enumerates guardians through `validatorAtSlot`, so an accused
+address whose key was already revoked holds no slot and cannot be seen on-chain. Scanning
+`GuardianSlashQueued` over the case window is the documented compensating control for
+exactly that blind spot (`docs/security/CC48-round3-changes.md` 1.5). A filter on the wrong
+topic returns zero events and raises no error, and zero events is indistinguishable from
+"no fraud cases".
+
+### Before reading a clean scan as evidence
+
+1. Confirm the filter's topic matches the **scanned contract's** version, not the version
+   you are upgrading to.
+2. Replay a known historical case through the watcher and confirm it reports it. A scan
+   that cannot find an event you know exists is not evidence of anything.
+3. Only then treat "no pending cases" as clean.
+
+### One special case worth naming
+
+A predecessor that predates the feature emits this event **never**, at either topic —
+Sepolia's `BLSAggregator-4.3.0` has no `queueGuardianSlash` at all (`GUARDIAN_SLASH_CASE_WINDOW`,
+`pendingGuardianSlashCount` and friends all revert as non-existent functions). Its zero is
+real, but it is evidence of *the feature being absent*, not of *cases having been resolved*.
+Prove that from the deployed ABI surface — which is what the preflight does — rather than
+from an empty log scan, because an empty log scan looks identical when the watcher is simply
+misconfigured.
+
+From 4.11.0 on the event carries the guardian array itself, so a correctly-pointed watcher
+can reconstruct the exact `guiltyGuardians` set — which is what `expireGuardianSlashCase`
+requires, and that array exists nowhere else once the queueing transaction's calldata is out
+of reach.
 
 ## 6. What to keep
 
