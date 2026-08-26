@@ -441,7 +441,7 @@ contract CC48GovernanceOwnerGate is Test {
         string[3] memory files = [
             "contracts/src/modules/monitoring/BLSAggregator.sol",
             "contracts/script/checks/GovernanceOwnerGate.sol",
-            "contracts/script/v3/UpgradeRegistryTo570.s.sol"
+            "contracts/script/v3/UpgradeRegistryTo580.s.sol"
         ];
         // Phrases that assert canonicity, or assert that an on-chain check established it.
         string[4] memory banned =

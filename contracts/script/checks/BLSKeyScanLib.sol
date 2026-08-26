@@ -43,9 +43,9 @@ interface IRegistryWiring {
  *         both the standalone audit script and the migration preflight call.
  *
  * @dev Round-2 shipped these checks as a script nobody ran — `deploy-core`,
- *      `DeployBLSAggregatorSepolia` and `UpgradeRegistryTo570` all ignored it. An
+ *      `DeployBLSAggregatorSepolia` and `UpgradeRegistryTo580` all ignored it. An
  *      opt-in gate is not a gate, so the logic now lives here and
- *      `UpgradeRegistryTo570` calls it unconditionally.
+ *      `UpgradeRegistryTo580` calls it unconditionally.
  *
  *      What it checks and why each one is a real failure mode:
  *
@@ -61,7 +61,7 @@ interface IRegistryWiring {
  *         stack was found in, and it is indistinguishable from a legitimate key by
  *         shape alone.
  *
- *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.10.0 starts with
+ *      3. DISTINCT ACTIVE KEYS >= every threshold. A freshly deployed 4.11.0 starts with
  *         an EMPTY key table. Wiring it into Registry before validators have re-filed
  *         their PoPs points the reputation / blacklist paths at an aggregator with no
  *         signers: every proposal reverts with InsufficientConsensus until onboarding

@@ -394,7 +394,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.10.0";
+        return "BLSAggregator-4.11.0";
     }
 
 
@@ -439,7 +439,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         already-ejected). On-chain trace so monitors can tell "escaped via exit"
     ///         apart from "was never on the list"; no id/guardian is consumed here.
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
-    event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
+    /// @dev `guiltyGuardians` is emitted in full, not just its hash. `expireGuardianSlashCase`
+    ///      requires the caller to reproduce the exact array (order-sensitive), and the array
+    ///      otherwise exists only in the calldata of the original queue transaction. Without it
+    ///      here, a case whose queue calldata nobody retained — with only non-archive nodes
+    ///      available — can never be expired, so `pendingGuardianSlashCount` never returns to
+    ///      zero and the named guardians' stake stays locked forever.
+    event GuardianSlashQueued(
+        uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline, address[] guiltyGuardians
+    );
     event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
     /// @notice CC-48 round-4 HIGH: the verdict a queued case is permanently bound to.
     ///         `fraudProofHash` is the only thing execution checks; `verifier` is the
@@ -1219,6 +1227,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // `block.timestamp >= readyAt` means the exclusion is always announced
             // GUARDIAN_EXIT_DELAY in advance: it cannot touch an in-flight proof, and
             // governance has the whole notice period to seat a replacement.
+            // Note the exclusion is deliberately NOT bounded by `expiresAt`: a lapsed notice
+            // keeps excluding the slot, and cancelling (at the cost of a cooldown) is the only
+            // way back in. Letting an expired notice silently re-admit a guardian would be the
+            // looser of the two behaviours, and this gate errs toward exclusion —
+            // see test_ExpiredNoticeIsClearedByCancel.
             uint64 exitReadyAt = guardianExitRequests[v].readyAt;
             if (exitReadyAt != 0 && block.timestamp >= uint256(exitReadyAt)) {
                 revert SlotValidatorExitPending(slot, v);
@@ -1704,17 +1717,40 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         outstanding exit notice (including `leaving`'s) has matured.
     /// @dev    CC-48 MEDIUM-2 / BLOCKER-1 (second half). Guardians that merely
     ///         ANNOUNCED an exit are excluded here even before `readyAt`, because the
-    ///         floor has to hold at the end state, not just today. Stake is not
-    ///         re-read: `_reconstructPkAgg` already enforces minStake at verification
-    ///         time, and pulling every lock here would make a routine notice cost a
-    ///         full committee sweep of external staking reads.
+    ///         floor has to hold at the end state, not just today.
     ///
-    ///         Consequence, stated plainly: with N eligible guardians and a required
-    ///         threshold of N, NO guardian can open an exit notice until governance
-    ///         seats a replacement or lowers the threshold. That is deliberate — the
-    ///         alternative is letting one member unilaterally park the committee below
-    ///         quorum. Deployments running N == threshold (the RepCredit 3-of-3
-    ///         evidence stack) must seat a spare before any operator can leave.
+    ///         Stake IS re-read here, and the earlier reasoning for not doing so was
+    ///         wrong. That reasoning ran: `_reconstructPkAgg` already enforces minStake
+    ///         at verification time, so this gate need not. But "only checked at
+    ///         verification time" is precisely the hole — a guardian slashed below
+    ///         minStake still counted toward `remaining` here while being rejected as a
+    ///         signer there, so the gate approved exits that drop the real signing set
+    ///         below threshold. The two sides must apply the same eligibility predicate.
+    ///         The cost is bounded: MAX_VALIDATORS is small and exits are rare.
+    ///
+    ///         Consequence, stated plainly: with N guardians that can actually sign and
+    ///         a required threshold of N, NO guardian can open an exit notice until
+    ///         governance seats a replacement or lowers the threshold. That is
+    ///         deliberate — the alternative is letting one member unilaterally park the
+    ///         committee below quorum.
+    ///
+    ///         Note this bites on the way IN to that state, not out of it. A committee
+    ///         already short of its threshold (Sepolia at the time of writing: N = 3
+    ///         against defaultThreshold = 7) takes the early return below and exits stay
+    ///         open.
+    ///
+    ///         The repair is where the trap is. **Seat guardians until N reaches
+    ///         `_maxRequiredThreshold() + 1`** — that is the one remedy a single role can
+    ///         carry out. Lowering the bar instead is not one knob and is not the owner's
+    ///         to turn: `_maxRequiredThreshold()` is the MAX over `defaultThreshold` and
+    ///         all three `slashThresholds`, so every one of those inputs must come down.
+    ///         `setDefaultThreshold`/`setMinThreshold` are `onlyOwner` (floor 2), while
+    ///         `setSlashThreshold` requires `slashPolicyAdmin` (floor
+    ///         `SLASH_THRESHOLD_FLOOR`). An owner acting alone on the Sepolia figures
+    ///         above reaches `max(2, 2, 3, 3) = 3 == N` and freezes precisely the
+    ///         guardians it meant to free; clearing it needs four transactions across
+    ///         two roles. And with N <= 2 no combination works at all, because both
+    ///         floors are 2 — for such a committee, seating a guardian is the ONLY exit.
     ///
     ///         The check only fires when THIS exit is what breaks quorum. If the
     ///         committee is already short of the threshold, the BLS paths are dead
@@ -1725,6 +1761,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // departure cannot move the committee below quorum — nothing to check.
         if (!_blsKeys[leaving].isActive) return;
         bytes32 roleDvt = keccak256("DVT");
+        // Same eligibility predicate as `_reconstructPkAgg` — see the @dev note above for
+        // why counting members it would reject is what made this gate unsound.
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        // With no staking wired, no signature can verify at all (`_reconstructPkAgg` reverts
+        // with StakingNotConfigured), so there is no quorum left for this exit to break and
+        // blocking every exit would be pure damage. Fall back to the role-only count.
+        uint256 minStake = address(staking) == address(0) ? 0 : REGISTRY.getRoleConfig(roleDvt).minStake;
         uint256 remaining;
         bool leavingEligible;
         for (uint8 slot = 1; slot <= MAX_VALIDATORS; ) {
@@ -1736,6 +1779,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // readyAt: the floor has to hold at the end state, not just today.
             if (v != leaving && guardianExitRequests[v].readyAt != 0) continue;
             if (!REGISTRY.hasRole(roleDvt, v)) continue;
+            if (minStake != 0) {
+                (uint128 lockedAmount,,,,) = staking.roleLocks(v, roleDvt);
+                if (uint256(lockedAmount) < minStake) continue;
+            }
             if (v == leaving) { leavingEligible = true; continue; }
             unchecked { ++remaining; }
         }
@@ -1815,7 +1862,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
             unchecked { ++i; }
         }
-        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
+        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline, guiltyGuardians);
         emit GuardianSlashJudgmentFrozen(fraudProofId, verifier, proofHash, guardiansHash);
     }
 

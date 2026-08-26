@@ -16,7 +16,7 @@ import {BLSKeyScanLib, IAggregatorKeyScan} from "./BLSKeyScanLib.sol";
  * inspect an old one.
  *
  * Round-3 note: the logic moved into contracts/script/checks/BLSKeyScanLib.sol so the
- * migration preflight (UpgradeRegistryTo570) runs the SAME checks automatically. This
+ * migration preflight (UpgradeRegistryTo580) runs the SAME checks automatically. This
  * script remains the standalone, human-facing entry point.
  *
  * Usage:

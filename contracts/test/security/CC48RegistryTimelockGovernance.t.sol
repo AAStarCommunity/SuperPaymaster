@@ -37,7 +37,7 @@ contract TimelockMockBLS {
  * @title CC48RegistryTimelockGovernance
  * @notice CC-48 round-7, from the archived original security checklist:
  *
- *           "proxy 升级新 cap slot 初值为 0：UpgradeRegistryTo570 已把
+ *           "proxy 升级新 cap slot 初值为 0：UpgradeRegistryTo580 已把
  *            setCreditPolicy(perProposal,total) 放入同一批计划；round 7
  *            必须补一个真实 Timelock schedule/execute 测试，证明 upgrade + baseline/caps
  *            不存在中间可执行窗口。"
@@ -47,13 +47,13 @@ contract TimelockMockBLS {
  *         Everything here runs against a REAL `TimelockController` (OpenZeppelin v5.0.2)
  *         owning a REAL `ERC1967Proxy` Registry — no mock of the governance path, because
  *         the property being asserted IS the governance path. The previous evidence for
- *         this was `UpgradeRegistryTo570` printing `scheduleBatch` calldata, which proves
+ *         this was `UpgradeRegistryTo580` printing `scheduleBatch` calldata, which proves
  *         nothing about whether the operation can be executed, executed in pieces, or
  *         executed at all.
  *
  *         CC-48 round-8 LOW-5 — WHAT "BINDS TO THE SHIPPED PARAMETERS" NOW MEANS. Round 7
  *         claimed that here while holding its OWN `BATCH_SALT` constant and its OWN
- *         hand-written copy of the batch, so changing the salt in `UpgradeRegistryTo570`
+ *         hand-written copy of the batch, so changing the salt in `UpgradeRegistryTo580`
  *         left this test green. That claim was false and is retracted. Salt, predecessor
  *         and all three payloads now come from `RegistryUpgradeBatchLib`, which the SCRIPT
  *         also calls — there is one definition in the repository, so an edit to the shipped
@@ -112,7 +112,7 @@ contract CC48RegistryTimelockGovernance is Test {
 
     /// `Registry.setCreditPolicy` is immediate `onlyOwner`, so "Registry is behind a
     /// Timelock" is only true if the Timelock is BOTH the owner AND actually delaying.
-    /// `UpgradeRegistryTo570` now asserts exactly this pair when `TIMELOCK` is set.
+    /// `UpgradeRegistryTo580` now asserts exactly this pair when `TIMELOCK` is set.
     function test_GateAssertsOwnershipAndANonZeroMinDelay() public view {
         assertEq(registry.owner(), address(timelock), "owner is the Timelock");
         assertGt(timelock.getMinDelay(), 0, "and the Timelock actually delays");
@@ -140,7 +140,7 @@ contract CC48RegistryTimelockGovernance is Test {
 
         // The batch under test IS the shipped shape: three calls, every one of them
         // addressed to the proxy. A batch that reached any other address would not be the
-        // operation `UpgradeRegistryTo570` schedules, and everything below would be
+        // operation `UpgradeRegistryTo580` schedules, and everything below would be
         // asserting about something else.
         assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "three calls");
         for (uint256 i = 0; i < targets.length; ++i) {
@@ -255,7 +255,7 @@ contract CC48RegistryTimelockGovernance is Test {
     // Helpers
     // =================================================================
 
-    /// The batch exactly as `UpgradeRegistryTo570` emits it — because it is the same call.
+    /// The batch exactly as `UpgradeRegistryTo580` emits it — because it is the same call.
     function _batch()
         internal
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)

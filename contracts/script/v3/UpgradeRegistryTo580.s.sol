@@ -36,12 +36,12 @@ interface ITimelockBatch {
 }
 
 /**
- * @title UpgradeRegistryTo570
+ * @title UpgradeRegistryTo580
  * @notice CC-48 MEDIUM-3: build the ONE governance batch that takes a live Registry
  *         proxy to 5.8.0. All four steps must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
- *   2. setBLSAggregator(BLSAggregator 4.10.0)
+ *   2. setBLSAggregator(BLSAggregator 4.11.0)
  *   3. setCreditPolicy(perProposalCap, totalCap)
  *   4. seedCreditPopulation(users, users.length, true)
  *
@@ -58,17 +58,31 @@ interface ITimelockBatch {
  *
  * CC-48 round-2 migration constraints — read before scheduling:
  *
- *   - BLSAggregator is NOT upgradeable. 4.10.0 is a fresh deployment at a NEW address,
+ *   - BLSAggregator is NOT upgradeable. 4.11.0 is a fresh deployment at a NEW address,
  *     and the domain separator commits to that address, so EVERY in-flight proof
  *     signed against the old aggregator becomes unverifiable the moment step (2)
  *     lands. Drain the proposal queue first; do not schedule the batch while a
  *     reputation or slash proposal is awaiting submission.
  *   - Validator BLS keys do NOT migrate. `blsKeyOwner` and `_blsKeys` are per-contract
  *     state, and a proof-of-possession is now bound to (validator, aggregator, chain),
- *     so every validator must re-file a freshly signed PoP against 4.10.0. Run
+ *     so every validator must re-file a freshly signed PoP against 4.11.0. Run
  *     contracts/script/checks/ScanDuplicateBLSKeys.s.sol against the OLD aggregator
  *     first: if it reports duplicates, those validators were sharing a key and must
  *     not be re-onboarded with it.
+ *   - ⚠️ `GuardianSlashQueued` HAS TWO TOPICS, ONE PER AGGREGATOR VERSION. 4.11.0 added a
+ *     `guiltyGuardians` array, so <=4.10.0 emits
+ *     0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82 and >=4.11.0 emits
+ *     0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c. Do NOT globally
+ *     "switch the watcher to the new topic": this preflight scans the OLD aggregator, so it
+ *     must use the topic THAT contract emits. Scanning the old aggregator with the new topic
+ *     returns zero events, does not error, and reports a still-open case as clean. During the
+ *     migration window scan BOTH addresses, each with its own topic.
+ *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
+ *     `validatorAtSlot`, so an accused address whose key was revoked holds no slot and is
+ *     invisible on-chain; this event scan is the documented compensating control for that
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). An empty scan is NOT evidence on
+ *     its own — the procedure for establishing that lands in a follow-up PR; until then treat
+ *     a bare "no cases found" as UNRESOLVED. See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
@@ -99,7 +113,7 @@ interface ITimelockBatch {
  * Neither check proves the owner is a CANONICAL Gnosis Safe; see `GovernanceOwnerGate`.
  *
  * CC-48 round-6 HIGH-1: the NEW_BLS_AGGREGATOR's own owner is gated the same way, and
- * for a stronger reason. 4.10.0's `emergencyDisarmFraudProofVerifier()` is immediate and
+ * for a stronger reason. 4.11.0's `emergencyDisarmFraudProofVerifier()` is immediate and
  * unannounced, so that owner can censor every FUTURE guardian-slash accusation by
  * front-running it in the mempool. A TimelockController cannot cover that path (a
  * timelocked emergency stop is not an emergency stop), which makes the Safe-compatible
@@ -110,7 +124,7 @@ interface ITimelockBatch {
  *
  * Env:
  *   REGISTRY_PROXY               live Registry ERC1967 proxy
- *   NEW_BLS_AGGREGATOR           BLSAggregator 4.10.0 (already deployed + wired)
+ *   NEW_BLS_AGGREGATOR           BLSAggregator 4.11.0 (already deployed + wired)
  *   CREDIT_PER_PROPOSAL_CAP      aPNT wei, transaction-level guard
  *   CREDIT_TOTAL_CAP             aPNT wei, protocol-wide outstanding ceiling
  *   CREDIT_POPULATION_USERS      comma-separated addresses: every address that has EVER
@@ -162,7 +176,7 @@ interface ITimelockBatch {
  * Preflight requires an EIP-2537 (Prague) RPC: the weak-key scan recomputes g1*s and
  * must not be able to report "clean" simply because it could not run.
  */
-contract UpgradeRegistryTo570 is Script {
+contract UpgradeRegistryTo580 is Script {
     function run() external {
         address proxy = vm.envAddress("REGISTRY_PROXY");
         address newAggregator = vm.envAddress("NEW_BLS_AGGREGATOR");
@@ -207,7 +221,7 @@ contract UpgradeRegistryTo570 is Script {
         }
 
         // CC-48 round-6 HIGH-1: the aggregator's OWN owner is now a distinct governance
-        // question, and until this round nothing checked it. 4.10.0 gave that owner
+        // question, and until this round nothing checked it. The aggregator gives that owner
         // `emergencyDisarmFraudProofVerifier()` — immediate, no notice, and enough to
         // front-run every future `queueGuardianSlash` out of the mempool for one
         // transaction's gas. A Timelock cannot cover an emergency stop, so the
@@ -273,8 +287,8 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.10.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.10.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.11.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.11.0"
         );
 
         // Byte-level domain agreement, checked HERE rather than printed for a human to
@@ -290,7 +304,7 @@ contract UpgradeRegistryTo570 is Script {
         );
 
         // ---- CC-48 round-3 MEDIUM-4: validator-set preflight, enforced not suggested ----
-        // A fresh 4.10.0 starts with an EMPTY key table. Wiring it in before validators
+        // A fresh 4.11.0 starts with an EMPTY key table. Wiring it in before validators
         // have re-filed their PoPs points every BLS-gated path at an aggregator with no
         // signers — a real governance outage whose fix is another full timelock cycle.
         uint256 requiredKeys = vm.envOr("MIN_DISTINCT_KEYS", BLSKeyScanLib.maxRequiredThreshold(newAggregator));

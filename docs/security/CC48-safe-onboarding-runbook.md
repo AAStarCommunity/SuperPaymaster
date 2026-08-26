@@ -101,7 +101,7 @@ assumes it is one.
 
 ## 4. Registry: Safe or Timelock
 
-**Safe-owned** — nothing extra; `UpgradeRegistryTo570` holds Registry to the same M-of-N bar
+**Safe-owned** — nothing extra; `UpgradeRegistryTo580` holds Registry to the same M-of-N bar
 as the aggregator.
 
 **Timelock-owned** — deploy `TimelockController(minDelay, proposers, executors, admin)`
@@ -109,7 +109,7 @@ with `minDelay > 0` and `admin = address(0)` (nobody can re-grant roles to bypas
 delay), proposers = the Safe. Then:
 
 ```
-TIMELOCK=<timelock> forge script contracts/script/v3/UpgradeRegistryTo570.s.sol …
+TIMELOCK=<timelock> forge script contracts/script/v3/UpgradeRegistryTo580.s.sol …
 ```
 
 The script asserts `Registry.owner() == TIMELOCK` **and** `TIMELOCK.getMinDelay() > 0`
@@ -143,6 +143,48 @@ production chain on a fork, the gate you are acknowledging away is the one you c
 rehearse.
 
 ---
+
+## 5b. `GuardianSlashQueued` has two topics — one per aggregator version
+
+`BLSAggregator-4.11.0` added a `guiltyGuardians` array to the event, which changes its
+`topic0`:
+
+```
+<= 4.10.0   GuardianSlashQueued(uint256,bytes32,uint256)
+            0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82
+>= 4.11.0   GuardianSlashQueued(uint256,bytes32,uint256,address[])
+            0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c
+```
+
+A watcher filtering on the wrong topic returns **zero events and raises no error**, and zero
+events is indistinguishable from "no fraud cases".
+
+**Do not globally "switch the watcher to the new topic".** The topic belongs to the contract
+that emitted the log. The migration preflight scans the **OLD** aggregator — the one you are
+migrating away from — so it must use the topic *that* contract emits:
+
+| what you are scanning | topic0 |
+|---|---|
+| OLD aggregator, history up to cutover | the topic its **own version** emits (table above) |
+| NEW aggregator (4.11.0+), from deployment on | `0xcf5c0505…` |
+| during the migration window | **both addresses, each with its own topic** |
+
+### Why this scan is load-bearing
+
+`requireNoPendingCases` enumerates guardians through `validatorAtSlot`, so an accused address
+whose key was already revoked holds no slot and cannot be seen on-chain. Scanning
+`GuardianSlashQueued` over the case window is the documented compensating control for exactly
+that blind spot (`docs/security/CC48-round3-changes.md` 1.5). Note also that
+`_validateGuardianSet` is `pure` — it never checks whether an accused address holds a slot —
+so **zero occupied slots does not imply zero cases**.
+
+### Establishing that a clean scan is actually evidence
+
+An empty result proves nothing on its own, and the endpoint itself can return a successful,
+well-formed empty array for a non-empty range. The full procedure — endpoint health probing,
+frozen finalized baselines, coverage reporting and their failure modes — is being reviewed
+separately and lands in a follow-up PR. Until it does, treat a bare "the scan found no cases"
+as **UNRESOLVED**, not clean.
 
 ## 6. What to keep
 

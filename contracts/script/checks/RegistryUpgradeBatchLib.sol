@@ -8,7 +8,7 @@ import {Registry} from "src/core/Registry.sol";
  * @notice The ONE definition of the 5.7.0 governance batch: its salt, its predecessor and
  *         the exact three payloads, in order.
  *
- * @dev CC-48 round-8 LOW-5. `UpgradeRegistryTo570` built this batch inline and
+ * @dev CC-48 round-8 LOW-5. `UpgradeRegistryTo580` built this batch inline and
  *      `CC48RegistryTimelockGovernance` rebuilt a hand-written copy of it, while the test's
  *      own NatSpec claimed it "binds to the shipped parameters rather than to a convenient
  *      reimplementation of them". That was false and measurable: changing the salt in the
@@ -45,7 +45,7 @@ library RegistryUpgradeBatchLib {
     /// @param proxy          the live Registry ERC1967 proxy — the ONLY target of all three
     ///                       calls, so a batch that touches any other address is not this one
     /// @param newImpl        freshly built `Registry` 5.7.0 implementation
-    /// @param newAggregator  `BLSAggregator` 4.10.0
+    /// @param newAggregator  `BLSAggregator` 4.11.0
     /// @param perProposalCap transaction-level aggregate uplift guard, aPNT wei
     /// @param totalCap       protocol-wide outstanding ceiling, aPNT wei
     /// @param seedUsers      every address that has EVER been the subject of a reputation

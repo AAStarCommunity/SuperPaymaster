@@ -1359,7 +1359,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` | SuperPaymaster |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` | Registry |
 | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` | PolicyRegistry |
-| `0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82` | `GuardianSlashQueued(uint256,bytes32,uint256)` | BLSAggregator |
 | `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` | xPNTsToken |
 | `0xc01e569e10d83e340f392c404e4d6006701961fc894f6ac91d65194b023f5ccc` | `SignatureAggregated(uint256,bytes,uint256)` | BLSAggregator |
 | `0xc47a1536197401b36a117101725a5dfa1495e2643f664e4a10289c7bba944447` | `ProposalSigned(uint256,address)` | DVTValidator |
@@ -1376,6 +1375,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` | ISuperPaymaster |
 | `0xce8257866c47f4cae1c27b1b0190cb5d26540e5a908cbf35974d6f300c63e11c` | `BaseURIUpdated(string,uint256)` | MySBT |
 | `0xceb40be0a58aa33916c199e469842b614ef313295573c15d82f85cc9d1a89d32` | `TokenPriceUpdated(address,uint256)` | Paymaster |
+| `0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c` | `GuardianSlashQueued(uint256,bytes32,uint256,address[])` | BLSAggregator |
 | `0xd1b844701695237443dd884ed7193d9c8788f3befd35adc0910472eb166f3306` | `AgentRegistered(address,uint256)` | MockAgentIdentityRegistry |
 | `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` | SuperPaymaster |
 | `0xd2794706d75255bb986a6d764ce1c40b8ada9dd8ca3e12a3194fed9448085638` | `GuardianSlashCaseExpired(uint256)` | BLSAggregator |

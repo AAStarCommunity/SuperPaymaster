@@ -501,6 +501,67 @@ contract CC48ExitNoticeTest is Test {
         assertGt(uint256(readyAt), 0);
     }
 
+    /// CC-48 follow-up — the floor must count only guardians that could actually SIGN.
+    /// `_reconstructPkAgg` reverts with SlotValidatorStakeBelowMinimum for any signer whose
+    /// role lock sits under minStake, so a member slashed below the line contributes nothing
+    /// to quorum. Counting it inflated `remaining` and waved through an exit that drops the
+    /// real signing set below threshold.
+    function test_FloorIgnoresGuardiansWhoseStakeFellBelowMinimum() public {
+        // 5 signers, floor 3. Slash two below minStake: only 3 can still sign, so the next
+        // exit would leave 2 and must be refused.
+        staking.setLocked(_v(4), 1);
+        staking.setLocked(_v(5), 1);
+
+        vm.prank(_v(1));
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(2), uint256(3))
+        );
+        bls.requestGuardianExit();
+    }
+
+    /// Control for the test above: with every stake healthy the same call is allowed, so the
+    /// refusal is caused by the stake shortfall and not by an unconditionally stricter gate.
+    function test_FloorStillAllowsTheExitWhenEveryStakeIsHealthy() public {
+        vm.prank(_v(1));
+        bls.requestGuardianExit();
+        (uint64 readyAt,) = bls.guardianExitRequests(_v(1));
+        assertGt(uint256(readyAt), 0, "healthy committee must still permit the exit");
+    }
+
+    /// CC-48 follow-up — `expireGuardianSlashCase` needs the exact guardian array, which
+    /// otherwise lives only in the queue transaction's calldata. Emitting it lets anyone
+    /// reconstruct the case from logs; without it a case can become permanently
+    /// unexpirable and the named guardians' stake stays locked forever.
+    function test_QueuedCaseEmitsTheGuardianSetNotJustItsHash() public {
+        CC48MockFraudVerifier ok = new CC48MockFraudVerifier();
+        vm.prank(owner);
+        bls.proposeFraudProofVerifier(address(ok));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        address[] memory accused = new address[](2);
+        accused[0] = _v(2);
+        accused[1] = _v(4);
+
+        vm.recordLogs();
+        bls.queueGuardianSlash(42, accused, hex"2a");
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 topic = keccak256("GuardianSlashQueued(uint256,bytes32,uint256,address[])");
+        bool seen;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] != topic) continue;
+            seen = true;
+            (,, address[] memory emitted) = abi.decode(logs[i].data, (bytes32, uint256, address[]));
+            assertEq(emitted.length, accused.length, "guardian set must be recoverable from the log");
+            assertEq(emitted[0], accused[0]);
+            assertEq(emitted[1], accused[1]);
+            // The log alone must satisfy expire's order-sensitive hash check.
+            assertEq(keccak256(abi.encode(emitted)), keccak256(abi.encode(accused)));
+        }
+        assertTrue(seen, "GuardianSlashQueued not emitted");
+    }
+
     /// LOW — an expired notice keeps excluding the slot; cancelling is the
     /// supported way back in, and it costs a cooldown.
     function test_ExpiredNoticeIsClearedByCancel() public {
