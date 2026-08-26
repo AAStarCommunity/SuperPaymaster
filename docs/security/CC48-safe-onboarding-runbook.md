@@ -368,30 +368,33 @@ preference:
    `[11492045, 11570000]` returns **10**, identical across repeats. The real scan still runs
    to `head`; only the baseline is frozen.
 
-   ⚠️ **A baseline is established once, ahead of time, and only then is it usable as a
-   single-endpoint check.** That split is the whole point of it, so keep the two phases
-   distinct:
+   ⚠️ **What a baseline records is an on-chain fact, not an endpoint's behaviour.** Over a
+   frozen, finalized range the true log count is a property of the chain — here, 10. That
+   distinction settles how it may be used:
 
-   - **Establishing it** requires **two independently operated endpoints that agree** on the
-     count over the frozen range. Never derive it from the endpoint it will later check —
-     that is the endpoint certifying itself: if it was misbehaving when the baseline was
-     recorded, the baseline captures the wrong number and every later bad read matches it.
-     A correct value obtained that way is luck, and nothing afterwards distinguishes the two.
-   - **Using it** needs only one endpoint. That is what a baseline buys: the cross-endpoint
-     cost is paid once, and every later check compares against a value that did not come
-     from the endpoint under test.
+   - **Establishing it** requires **two independently operated endpoints that agree**. Not
+     because the number belongs to those endpoints, but because a single endpoint's answer could
+     be its own bad output, and nothing afterwards would distinguish a captured error from a
+     captured fact. Agreement between independent operators is what makes it a fact.
+   - **Once established it is endpoint-independent**, so it may be used to check **any**
+     endpoint — including the two that established it. Checking endpoint A against a value
+     that A helped confirm is not circular: the value was corroborated by B, and A is now
+     being asked whether it still reproduces a known chain fact.
+   - **Using it needs only one endpoint.** That asymmetry is the whole point: the
+     cross-endpoint cost is paid once, every later check is cheap.
 
-   So this option applies when you **already hold** such a record. If you do not, you are not
-   choosing between "baseline" and "cross-endpoint" — establishing one *is* a cross-endpoint
-   check, so run step 4 directly and, if you can, record the result as a baseline for next
-   time. With only a single endpoint available, neither is possible: record the pending-case
-   question as UNRESOLVED.
+   So this option applies when you **already hold** such a record. If you do not, establishing
+   one *is* a cross-endpoint check — run step 4 directly and record the result as a baseline
+   for next time. With only a single endpoint and nothing recorded, neither is possible:
+   record the pending-case question as UNRESOLVED.
 
-   **Record the endpoint and key the baseline was taken on, alongside the numbers.** A
-   baseline is a claim about one endpoint's behaviour, so carrying it to a different key —
-   even at the same provider, see the warning above — compares against something that was
-   never measured. Store `(BASE_ADDR, BASE_FROM, BASE_TO, BASE_EXPECT, endpoints agreed,
-   key ids)` as one record, and re-take it when a key changes. Be honest about the strength: a baseline is an empirical constant, not
+   **Record which endpoints and keys corroborated it, alongside the numbers** — as
+   provenance, not as a usage restriction. It tells a later reader how the value was
+   established and lets them re-open it if one of those operators is later found to have been
+   wrong. Store `(BASE_ADDR, BASE_FROM, BASE_TO, BASE_EXPECT, corroborating endpoints, key
+   ids, date)` as one record. It does **not** expire when you switch keys — the chain fact is
+   unchanged — but re-corroborate if the range is ever un-frozen or a corroborating operator
+   is discredited. Be honest about the strength: a baseline is an empirical constant, not
    derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
    stopped answering, not one that was always wrong.
 3. **No state-derived anchor and no pre-existing baseline ⇒ go straight to step 4**
