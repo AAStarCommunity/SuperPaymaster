@@ -288,8 +288,15 @@ preference:
    BASE_FROM=<fixed>  BASE_TO=<fixed>   # frozen; NOT $HEAD, and <= finalized
    BASE_EXPECT=<count verified when the baseline was taken>
 
-   # A fixed height is only immutable once it is finalized.
-   FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n') || exit 1
+   # A fixed height is only immutable once it is finalized. Resolve finality in its own
+   # step: in a pipeline `||` sees only the last command, so a dead RPC would leave FIN
+   # empty and the failure would surface as the misleading "BASE_TO is above finalized=".
+   FIN_JSON=$(cast block finalized --rpc-url "$EP" --json) \
+     || { echo "finality lookup failed — cannot validate the baseline" >&2; exit 1; }
+   FIN=$(printf '%s' "$FIN_JSON" | jq -r '.number // empty')
+   [ -n "$FIN" ] || { echo "finalized block missing from response" >&2; exit 1; }
+   FIN=$(printf '%d' "$FIN" 2>/dev/null) \
+     || { echo "unparseable finalized block: $FIN" >&2; exit 1; }
    [ "$BASE_TO" -le "$FIN" ] || {
      echo "BASE_TO=$BASE_TO is above finalized=$FIN — reorgable, not a baseline" >&2; exit 1; }
 
