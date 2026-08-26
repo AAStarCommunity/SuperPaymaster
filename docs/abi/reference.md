@@ -6063,7 +6063,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xfb0ded6c5884b8003728a994ad07cde0f4fb2e33757a0a67ec1af863368dfbd2` | `GuardianSlashed(uint256,address,uint256)` |
 | `0x6bd51446682378922b756998e80773c1d14773960614c8b060345cf400174e5b` | `GuardianSlashFailed(uint256,address)` |
 | `0xdb10a4bb77f11f7f6199af02c279c3f7fef0aca6cca7d7a5ab05310775ef9798` | `GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)` |
-| `0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82` | `GuardianSlashQueued(uint256,bytes32,uint256)` |
+| `0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c` | `GuardianSlashQueued(uint256,bytes32,uint256,address[])` |
 | `0x74f1672a7693ec3e083462539dac92a5be90f3bf050de20318cb40e6d6cede09` | `GuardianSlashSkipped(uint256,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x1a8b72448c86ca4cfd93a54c5ef39ab3afd44079dd8c7f304d6892dd8c52ed13` | `PermissionlessBLSRegistrationSet(bool)` |
