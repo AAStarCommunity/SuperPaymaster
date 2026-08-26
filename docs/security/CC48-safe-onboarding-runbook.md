@@ -267,27 +267,41 @@ preference:
 
 1. **A state-derived expectation on another contract.** Anything where you can compute the
    expected log count without trusting the log index, as `N` did.
-2. **A recorded baseline over a FROZEN range.** Pick a second address known to be active in
-   that range — the Registry is the natural one — and record its log count together with the
-   exact `[from, to]` you counted over. **`to` must be a fixed block number, never `head`.**
-   A range ending at `head` grows as the chain advances, so a fixed expected value is wrong
-   by tomorrow: demanding equality raises false alarms, and relaxing to `>=` gives up most of
-   the detection. A closed historical range is immutable, so it can be required to match
-   exactly:
+2. **A recorded baseline over a FROZEN, FINALIZED range.** Pick a second address known to be
+   active in that range — the Registry is the natural one — and record its log count together
+   with the exact `[from, to]` you counted over. Two separate requirements on `to`:
+
+   - **Not `head`.** A range ending at `head` grows as the chain advances, so a fixed
+     expected value is wrong by tomorrow: demanding equality raises false alarms, relaxing to
+     `>=` gives up most of the detection.
+   - **At or below the finalized block.** A fixed height is not a fixed history — blocks
+     above finality can be reorged, so the same height can hold different logs later and the
+     baseline would flag a healthy endpoint. Take it from `cast block finalized`, and leave
+     margin: when this was written Sepolia's finalized block lagged `latest` by ~80 blocks.
+     (The first baseline drafted here, `11570891`, was 43 blocks *above* finalized — the
+     mistake is easy to make, which is why the script asserts it.)
+
+   With both satisfied the range is genuinely immutable and can be required to match exactly:
 
    ```bash
    BASE_ADDR=<second contract>     # e.g. the Registry
-   BASE_FROM=<fixed>  BASE_TO=<fixed>   # frozen; NOT $HEAD
+   BASE_FROM=<fixed>  BASE_TO=<fixed>   # frozen; NOT $HEAD, and <= finalized
    BASE_EXPECT=<count verified when the baseline was taken>
+
+   # A fixed height is only immutable once it is finalized.
+   FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n') || exit 1
+   [ "$BASE_TO" -le "$FIN" ] || {
+     echo "BASE_TO=$BASE_TO is above finalized=$FIN — reorgable, not a baseline" >&2; exit 1; }
+
    got=$(cast logs --rpc-url "$EP" --from-block "$BASE_FROM" --to-block "$BASE_TO" \
            --address "$BASE_ADDR" --json) || exit 1
    [ "$(printf '%s' "$got" | jq 'length')" -eq "$BASE_EXPECT" ] || {
      echo "endpoint failed the frozen baseline — do not trust this batch" >&2; exit 1; }
    ```
 
-   Measured here: Registry `0xf5Bf37ca…` over the frozen range `[11492045, 11570891]`
-   returns **10**, identical across repeats. The real scan still runs to `head`; only the
-   baseline is frozen. Be honest about the strength: a baseline is an empirical constant, not
+   Measured here: Registry `0xf5Bf37ca…` over the frozen, finalized range
+   `[11492045, 11570000]` returns **10**, identical across repeats. The real scan still runs
+   to `head`; only the baseline is frozen. Be honest about the strength: a baseline is an empirical constant, not
    derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
    stopped answering, not one that was always wrong.
 3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
@@ -300,6 +314,21 @@ output.
 result. **`M >= N` licenses only the call that produced it.** The non-determinism is per-call,
 so a healthy `M` does not certify the `Q` call sitting next to it — it only removes batches
 you can already prove are broken.
+
+**2c. The real scan runs to `head`, and its tail is not final.** You must scan to `head` — a
+case queued a minute ago is exactly what you are looking for — but everything above the
+finalized block can still be reorged, so a `Q = 0` covering that tail is provisional. Two
+consequences for a migration:
+
+- Re-run the scan immediately before scheduling the batch, not once hours earlier.
+- Prefer to take the decision when the range you care about has finalized. If you cannot
+  wait, record explicitly that the clean result covers `[DEPLOY, finalized]` firmly and
+  `(finalized, head]` provisionally — that is an honest status; "clean" full stop is not.
+
+```bash
+FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n')
+echo "firm through $FIN; provisional for $((FIN+1))..$HEAD"
+```
 
 **3. Repeat the paired scan K times and require every round to agree** (K >= 5; every round
 must show `M >= N` *and* the same `GuardianSlashQueued` result). Any disagreement ⇒
