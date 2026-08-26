@@ -203,6 +203,19 @@ looks right is how you end up running this procedure on an endpoint that cannot 
 Note what this is **not**: it is not a chunking artefact. The whole-range call and chunked
 calls both exhibit it, so "don't chunk" is not a fix. It is per-call non-determinism.
 
+**And it is not binary.** Repeating one query against the flaky endpoint — Registry over the
+frozen range where the correct answer is 10 — produced:
+
+```
+10  3  7  0  7  3  10  3  0  0
+```
+
+Not just "complete or empty": **partial results**, with no error on any of them. That matters
+for how the checks here are read. `M >= N` still catches a shortfall, because a partial result
+for `BLSPublicKeyRegistered` falls below the occupied-slot count. But any check of the form
+"the number looks plausible" does not — and a baseline recorded from one of these partial
+reads becomes a wrong constant that later partial reads will match.
+
 **The hard part.** When the answer you are checking is *supposed* to be zero, a false empty
 and a true empty are identical, and repeating the query cannot separate them — you get zero
 every time either way. So a bare "I scanned and found no cases" is not evidence, no matter how
@@ -233,9 +246,15 @@ Wrap each call as `rpc 60 cast ...` and keep the existing `|| { ...; exit 1; }`.
 in place a wedged endpoint exits non-zero (124 from `timeout`, 142 from the `perl` fallback)
 and the guard fires as intended.
 
-**1. Deployment block.** Binary-search the first block with code:
-`cast code <agg> --block <n>` — treat an RPC *error* as unknown, never as "no code", or the
-search walks to the wrong block. For `0x174b60bB…` this is **11492045** (its Registry is a
+**1. Deployment block.** Binary-search the first block with code, using the same wall-clock
+wrapper — the search issues ~24 calls and any one of them can wedge:
+
+```bash
+rpc 30 cast code "$AGG" --block "$n" --rpc-url "$EP" \
+  || { echo "code read at $n failed/timed out — abort, do NOT treat as 'no code'" >&2; exit 1; }
+```
+
+Treat an RPC *error* as unknown, never as "no code", or the search walks to the wrong block. For `0x174b60bB…` this is **11492045** (its Registry is a
 different contract at a different block; do not reuse one for the other).
 
 **2. Health probe, in the same batch as every scan.** Immediately alongside each
@@ -348,11 +367,22 @@ preference:
    `[11492045, 11570000]` returns **10**, identical across repeats. The real scan still runs
    to `head`; only the baseline is frozen.
 
+   ⚠️ **Do not take the baseline from the endpoint you will then check with it.** That is
+   the endpoint certifying itself: if it was returning false empties when the baseline was
+   recorded, the baseline captures the wrong number and every later false empty matches it.
+   Even a correct value obtained that way is luck, not evidence — nothing in the procedure
+   distinguishes the two cases afterwards.
+
+   Establish `BASE_EXPECT` on **at least two independently operated endpoints** and require
+   them to agree before recording it. If only one endpoint is available you do not have a
+   baseline, you have that endpoint's opinion of itself — record the pending-case question as
+   UNRESOLVED instead.
+
    **Record the endpoint and key the baseline was taken on, alongside the numbers.** A
    baseline is a claim about one endpoint's behaviour, so carrying it to a different key —
    even at the same provider, see the warning above — compares against something that was
-   never measured. Store `(BASE_ADDR, BASE_FROM, BASE_TO, BASE_EXPECT, endpoint, key id)` as
-   one record, and re-take it when the key changes. Be honest about the strength: a baseline is an empirical constant, not
+   never measured. Store `(BASE_ADDR, BASE_FROM, BASE_TO, BASE_EXPECT, endpoints agreed,
+   key ids)` as one record, and re-take it when a key changes. Be honest about the strength: a baseline is an empirical constant, not
    derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
    stopped answering, not one that was always wrong.
 3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
