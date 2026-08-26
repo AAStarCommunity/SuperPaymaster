@@ -329,7 +329,18 @@ consequences for a migration:
 # Report coverage of what was ACTUALLY scanned. Finality can advance past $HEAD while the
 # scan runs, and blocks above $HEAD were never looked at — being finalized does not make
 # them scanned, so the firm bound is capped at $HEAD.
-FIN=$(cast block finalized --rpc-url "$EP" --json | jq -r '.number' | xargs printf '%d\n') || exit 1
+#
+# Resolve finality in its own step and validate it. In a pipeline, `|| exit` only sees the
+# LAST command, so a dead RPC leaves FIN empty, `[ "" -lt N ]` errors to stderr, the `if`
+# takes its else branch, and the report announces "firm throughout" — the strongest status
+# this line can issue, produced by a lookup that wholly failed.
+FIN_JSON=$(cast block finalized --rpc-url "$EP" --json) \
+  || { echo "finality lookup failed — coverage unknown" >&2; exit 1; }
+FIN=$(printf '%s' "$FIN_JSON" | jq -r '.number // empty')
+[ -n "$FIN" ] || { echo "finalized block missing from response — coverage unknown" >&2; exit 1; }
+FIN=$(printf '%d' "$FIN" 2>/dev/null) \
+  || { echo "unparseable finalized block: $FIN" >&2; exit 1; }
+
 if [ "$FIN" -lt "$HEAD" ]; then FIRM=$FIN; else FIRM=$HEAD; fi
 if [ "$FIRM" -lt "$HEAD" ]; then
   echo "scanned [$DEPLOY, $HEAD]: firm through $FIRM, provisional $((FIRM+1))..$HEAD"
