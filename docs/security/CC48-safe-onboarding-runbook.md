@@ -240,6 +240,8 @@ Q=$(cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
 M=$(printf '%s' "$M" | jq 'length')
 Q=$(printf '%s' "$Q" | jq 'length')
 echo "N=$N M=$M Q=$Q"
+# N==0 makes M>=N vacuous — see 2b. Refuse rather than report a meaningless pass.
+[ "$N" -gt 0 ] || { echo "N=0: this probe cannot certify anything here; use 2b" >&2; exit 2; }
 [ "$M" -ge "$N" ] || { echo "batch untrustworthy (M<N) — discard, including Q" >&2; exit 1; }
 ```
 
@@ -248,6 +250,33 @@ is not stable: the same host answered 78,693-block queries for one operator and 
 with `exceed maximum block range` for another, in the same hour. Do not hard-code a chunk
 size; react to what the endpoint returns, and if you chunk, chunks must tile `[DEPLOY, HEAD]`
 with no gap and any failed chunk aborts the round.
+
+**2b. When `N == 0` this probe is worthless — and that is the worst case, not a corner
+case.** `M >= N` becomes `M >= 0`, which every false empty satisfies. Worse, `N == 0` does
+**not** mean there are no cases to find: `_validateGuardianSet` is `pure` and checks only
+non-empty / length / non-zero / no-duplicates, so **any address can be an accused guardian,
+occupying a slot or not**. An aggregator whose keys were all revoked reads `N == 0` while
+being exactly the situation `requireNoPendingCases` cannot see — the blind spot this whole
+section compensates for is widest precisely where the probe goes blind.
+
+So when `N == 0`, do not run the check above and read a pass from it. Substitute a different
+known-answer anchor over the **same endpoint and the same range**, in this order of
+preference:
+
+1. **A state-derived expectation on another contract.** Anything where you can compute the
+   expected log count without trusting the log index, as `N` did.
+2. **A recorded baseline.** Pick a second address known to be active in that range — the
+   Registry is the natural one — take its log count at a moment you have independently
+   verified, and require later scans to reproduce it. Measured here over the same range
+   (`11492045..head`): Registry `0xf5Bf37ca…` returns **10**, stable across repeats, while
+   the aggregator itself returns 5. Be honest about the strength: a baseline is an empirical
+   constant, not derived from state, so it is weaker than `M >= N` — it detects an endpoint
+   that has stopped answering, not one that was always wrong.
+3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
+
+In all three, cross-endpoint agreement (step 4) does more work than it does in the `N >= 1`
+path, because it is the only remaining control that does not depend on this endpoint's own
+output.
 
 `M < N` ⇒ that batch is not trustworthy; discard it, including its `GuardianSlashQueued`
 result. **`M >= N` licenses only the call that produced it.** The non-determinism is per-call,
