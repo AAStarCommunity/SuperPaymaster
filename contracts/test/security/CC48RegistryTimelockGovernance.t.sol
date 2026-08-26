@@ -290,7 +290,7 @@ contract CC48RegistryTimelockGovernance is Test {
         );
         assertEq(
             targets.length,
-            RegistryUpgradeBatchLib.BATCH_LENGTH_FIRST_DEPLOY,
+            RegistryUpgradeBatchLib.BATCH_LENGTH_NO_REVOKE,
             "no predecessor means no revoke call"
         );
         bytes4 setSlasher = IStakingSlasherAuth.setAuthorizedSlasher.selector;
@@ -299,6 +299,35 @@ contract CC48RegistryTimelockGovernance is Test {
             if (bytes4(payloads[i]) == setSlasher) ++slasherCalls;
         }
         assertEq(slasherCalls, 1, "exactly the grant, and no revoke");
+    }
+
+    /// A Registry-only upgrade keeps the SAME aggregator. Revoking it would undo the grant
+    /// in the same atomic batch and hand back a silently disarmed slash path — the very
+    /// failure the grant exists to prevent — so the revoke must be skipped, not merely
+    /// ordered before the grant.
+    function test_SameAggregatorIsGrantedAndNotRevoked() public {
+        Registry newImpl = new Registry();
+        (address[] memory targets,, bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            newAggregator, // not rotating: predecessor IS the new aggregator
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
+        );
+        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH_NO_REVOKE, "no revoke when not rotating");
+        bytes memory grant =
+            abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true));
+        bytes memory revoke =
+            abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, false));
+        uint256 grants;
+        for (uint256 i = 0; i < payloads.length; ++i) {
+            assertTrue(keccak256(payloads[i]) != keccak256(revoke), "must never revoke the aggregator it just armed");
+            if (keccak256(payloads[i]) == keccak256(grant)) ++grants;
+        }
+        assertEq(grants, 1, "the grant survives");
     }
 
     /// The batch exactly as `UpgradeRegistryTo580` emits it — because it is the same call.

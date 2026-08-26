@@ -41,14 +41,17 @@ library RegistryUpgradeBatchLib {
     /// @dev No predecessor: this batch does not depend on another queued operation.
     bytes32 internal constant NO_PREDECESSOR = bytes32(0);
 
-    /// @dev Number of calls in the batch. Six when there is a predecessor to disarm, five
-    ///      on a first-ever deployment where there is nothing to revoke. Read
+    /// @dev Number of calls in the batch. Six when there is a DIFFERENT predecessor to
+    ///      disarm; five when there is none, or when the aggregator is not being rotated
+    ///      at all (a Registry-only upgrade keeps the same aggregator address). Read
     ///      `targets.length` rather than assuming one of them.
     uint256 internal constant BATCH_LENGTH = 6;
-    uint256 internal constant BATCH_LENGTH_FIRST_DEPLOY = 5;
+    uint256 internal constant BATCH_LENGTH_NO_REVOKE = 5;
 
     /// @notice Build the batch exactly as it is scheduled and executed.
-    /// @param oldAggregator  predecessor to DISARM in (4); address(0) on a first deployment
+    /// @param oldAggregator  predecessor to DISARM in (4). Pass address(0) on a first
+    ///                       deployment; passing the SAME address as `newAggregator`
+    ///                       (a Registry-only upgrade) correctly skips the revoke
     /// @param staking        GTokenStaking, target of the slasher calls in (3) and (4)
     /// @param proxy          the live Registry ERC1967 proxy — target of every step except (3)
     ///                       calls, so a batch that touches any other address is not this one
@@ -77,9 +80,12 @@ library RegistryUpgradeBatchLib {
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        // A first-ever deployment has no predecessor authorisation to revoke; every
-        // upgrade does. Deciding the length here keeps the caller from having to know.
-        uint256 len = oldAggregator == address(0) ? BATCH_LENGTH_FIRST_DEPLOY : BATCH_LENGTH;
+        // There is a revoke step only when an authorisation actually becomes stale: a
+        // first-ever deployment has no predecessor, and a Registry-only upgrade keeps the
+        // SAME aggregator, whose authorisation must survive. Deciding the length here keeps
+        // the caller from having to know.
+        bool revokes = oldAggregator != address(0) && oldAggregator != newAggregator;
+        uint256 len = revokes ? BATCH_LENGTH : BATCH_LENGTH_NO_REVOKE;
         targets = new address[](len);
         values = new uint256[](len);
         payloads = new bytes[](len);
@@ -115,9 +121,13 @@ library RegistryUpgradeBatchLib {
         //    deprecated build stays armed, including whatever bug or compromise motivated
         //    the rotation, and its own owner can still reach it. Granting the new authority
         //    without withdrawing the old one leaves the migration strictly permission-additive.
-        //    Skipped only when there is no predecessor at all.
+        //    Skipped when there is no predecessor, and — critically — when the predecessor
+        //    IS the new aggregator. A Registry-only upgrade passes the same address as both,
+        //    and revoking it here would undo the grant two lines above in the same atomic
+        //    batch: the slash path would come out of the migration silently disarmed, which
+        //    is the exact failure the grant was added to prevent.
         uint256 next = 3;
-        if (oldAggregator != address(0)) {
+        if (revokes) {
             targets[next] = staking;
             payloads[next] = abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (oldAggregator, false));
             unchecked { ++next; }
