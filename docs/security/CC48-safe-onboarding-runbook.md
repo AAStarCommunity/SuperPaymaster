@@ -205,21 +205,54 @@ search walks to the wrong block. For `0x174b60bB…` this is **11492045** (its R
 different contract at a different block; do not reuse one for the other).
 
 **2. Health probe, in the same batch as every scan.** Immediately alongside each
-`GuardianSlashQueued` query, issue the same-shape query for `BLSPublicKeyRegistered`
-(`0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3`) over the identical
-range, and compare against state:
+`GuardianSlashQueued` query, issue the same-shape query for `BLSPublicKeyRegistered` over the
+identical range, and compare against state. Nothing below is hard-coded to one deployment —
+`AGG` and `DEPLOY` come from step 1, and the slot ceiling is read from the contract:
 
 ```bash
-# N — from state, no log index involved
-for s in $(seq 1 13); do cast call <agg> 'validatorAtSlot(uint8)(address)' $s --rpc-url <ep>; done | grep -vc '^0x0\{40\}$'
-# M — same endpoint, same range, same chunking as the real scan
-cast logs --rpc-url <ep> --from-block 11492045 --to-block <head> --address <agg> 0x544d98ba… --json
+EP=<rpc-url>
+AGG=<aggregator-address>
+DEPLOY=<deployBlock from step 1>          # NOT a constant: re-derive per aggregator
+HEAD=$(cast block-number --rpc-url "$EP")
+REG_TOPIC=0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3   # BLSPublicKeyRegistered(address,uint8)
+Q_TOPIC=<the topic0 this aggregator's version emits — see the table above>
+
+# N — from state. Count only well-formed non-zero addresses; an RPC error must
+# abort, never be counted as an occupied slot (that would inflate N) nor skipped
+# silently (that would deflate it).
+MAXV=$(cast call "$AGG" 'MAX_VALIDATORS()(uint256)' --rpc-url "$EP") || exit 1
+N=0
+for s in $(seq 1 "$MAXV"); do
+  a=$(cast call "$AGG" 'validatorAtSlot(uint8)(address)' "$s" --rpc-url "$EP") || exit 1
+  case "$a" in
+    0x0000000000000000000000000000000000000000) ;;
+    0x*[0-9a-fA-F]) N=$((N+1)) ;;
+    *) echo "unparseable slot $s: $a" >&2; exit 1 ;;
+  esac
+done
+
+# M and Q — same endpoint, same range, same chunking, adjacent in time.
+# A failed call aborts the round; it never contributes an empty list.
+M=$(cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
+      --address "$AGG" "$REG_TOPIC" --json) || exit 1
+Q=$(cast logs --rpc-url "$EP" --from-block "$DEPLOY" --to-block "$HEAD" \
+      --address "$AGG" "$Q_TOPIC"   --json) || exit 1
+M=$(printf '%s' "$M" | jq 'length')
+Q=$(printf '%s' "$Q" | jq 'length')
+echo "N=$N M=$M Q=$Q"
+[ "$M" -ge "$N" ] || { echo "batch untrustworthy (M<N) — discard, including Q" >&2; exit 1; }
 ```
+
+If the endpoint rejects the span it will say so — the ceiling is whatever it reports, and it
+is not stable: the same host answered 78,693-block queries for one operator and refused them
+with `exceed maximum block range` for another, in the same hour. Do not hard-code a chunk
+size; react to what the endpoint returns, and if you chunk, chunks must tile `[DEPLOY, HEAD]`
+with no gap and any failed chunk aborts the round.
 
 `M < N` ⇒ that batch is not trustworthy; discard it, including its `GuardianSlashQueued`
 result. **`M >= N` licenses only the call that produced it.** The non-determinism is per-call,
-so a healthy `M` does not certify the `GuardianSlashQueued` call sitting next to it — it only
-removes batches you can already prove are broken.
+so a healthy `M` does not certify the `Q` call sitting next to it — it only removes batches
+you can already prove are broken.
 
 **3. Repeat the paired scan K times and require every round to agree** (K >= 5; every round
 must show `M >= N` *and* the same `GuardianSlashQueued` result). Any disagreement ⇒
