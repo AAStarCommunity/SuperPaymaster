@@ -323,9 +323,10 @@ preference:
 
 1. **A state-derived expectation on another contract.** Anything where you can compute the
    expected log count without trusting the log index, as `N` did.
-2. **A recorded baseline over a FROZEN, FINALIZED range.** Pick a second address known to be
-   active in that range — the Registry is the natural one — and record its log count together
-   with the exact `[from, to]` you counted over. Two separate requirements on `to`:
+2. **A PREVIOUSLY established baseline over a FROZEN, FINALIZED range** (see the boxed note
+   below for why it must pre-exist). Pick a second address known to be active in that range —
+   the Registry is the natural one — and record its log count together with the exact
+   `[from, to]` you counted over. Two separate requirements on `to`:
 
    - **Not `head`.** A range ending at `head` grows as the chain advances, so a fixed
      expected value is wrong by tomorrow: demanding equality raises false alarms, relaxing to
@@ -367,16 +368,24 @@ preference:
    `[11492045, 11570000]` returns **10**, identical across repeats. The real scan still runs
    to `head`; only the baseline is frozen.
 
-   ⚠️ **Do not take the baseline from the endpoint you will then check with it.** That is
-   the endpoint certifying itself: if it was returning false empties when the baseline was
-   recorded, the baseline captures the wrong number and every later false empty matches it.
-   Even a correct value obtained that way is luck, not evidence — nothing in the procedure
-   distinguishes the two cases afterwards.
+   ⚠️ **A baseline is established once, ahead of time, and only then is it usable as a
+   single-endpoint check.** That split is the whole point of it, so keep the two phases
+   distinct:
 
-   Establish `BASE_EXPECT` on **at least two independently operated endpoints** and require
-   them to agree before recording it. If only one endpoint is available you do not have a
-   baseline, you have that endpoint's opinion of itself — record the pending-case question as
-   UNRESOLVED instead.
+   - **Establishing it** requires **two independently operated endpoints that agree** on the
+     count over the frozen range. Never derive it from the endpoint it will later check —
+     that is the endpoint certifying itself: if it was misbehaving when the baseline was
+     recorded, the baseline captures the wrong number and every later bad read matches it.
+     A correct value obtained that way is luck, and nothing afterwards distinguishes the two.
+   - **Using it** needs only one endpoint. That is what a baseline buys: the cross-endpoint
+     cost is paid once, and every later check compares against a value that did not come
+     from the endpoint under test.
+
+   So this option applies when you **already hold** such a record. If you do not, you are not
+   choosing between "baseline" and "cross-endpoint" — establishing one *is* a cross-endpoint
+   check, so run step 4 directly and, if you can, record the result as a baseline for next
+   time. With only a single endpoint available, neither is possible: record the pending-case
+   question as UNRESOLVED.
 
    **Record the endpoint and key the baseline was taken on, alongside the numbers.** A
    baseline is a claim about one endpoint's behaviour, so carrying it to a different key —
@@ -385,7 +394,10 @@ preference:
    key ids)` as one record, and re-take it when a key changes. Be honest about the strength: a baseline is an empirical constant, not
    derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
    stopped answering, not one that was always wrong.
-3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
+3. **No state-derived anchor and no pre-existing baseline ⇒ go straight to step 4**
+   (two independent endpoints must agree on the `GuardianSlashQueued` count itself). Only if
+   that is unavailable too — a single endpoint and nothing recorded — is the answer
+   **UNRESOLVED**. Never fall back to "the scan returned no cases".
 
    Note the baseline in (2) does **not** degenerate the way `M >= N` does at `N == 0`: its
    expected value is a recorded non-zero constant, so a false empty fails it. What it cannot
