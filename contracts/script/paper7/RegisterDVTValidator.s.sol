@@ -10,13 +10,28 @@ pragma solidity ^0.8.26;
  *   2. Registry.safeMintForRole(ROLE_DVT, validator, ...) -- 30 GT stake
  *   3. DVTValidator.addValidator(validator)
  *   4. BLSAggregator.setMinThreshold(1) + setDefaultThreshold(1)
- *   5. BLSAggregator.registerBLSPublicKey(validator, G1_GENERATOR, slot=1)
+ *   5. BLSAggregator.registerBLSPublicKey(validator, <env-supplied key>, slot=1, <env PoP>)
+ *
+ * CC-48 round-3 — TWO breaking changes to this script, both deliberate:
+ *   - It used to register the BLS12-381 G1 GENERATOR, i.e. the public key for secret
+ *     scalar 1. That key's secret is public knowledge; a validator set holding it has no
+ *     security at all, and it is exactly the state the RepCredit experiment stack was
+ *     found in. The key is now supplied by env and REFUSED if its scalar is in the
+ *     publicly-scannable range.
+ *   - Proof-of-possession is now mandatory on the owner path too, so a PoP must be
+ *     supplied. Generate it off-chain as sk * H_pop(bls.popDigest(validator, pk)) — it is
+ *     bound to (domain, chain, aggregator, validator, key) and does not transfer.
  *
  * Run (Sepolia):
  *   forge script contracts/script/paper7/RegisterDVTValidator.s.sol  *     --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast -vvv
  *
  * Env: PRIVATE_KEY, ENV (sepolia|optimism)
+ *      BLS_PUBKEY   128-byte uncompressed G1 point (x_a‖x_b‖y_a‖y_b)
+ *      BLS_POP      256-byte G2 proof-of-possession over popDigest(validator, pubkey)
  * Optional: DVT_VALIDATOR_ADDR, BLS_AGGREGATOR_ADDR, REGISTRY_ADDR, GTOKEN_ADDR, STAKING_ADDR
+ *
+ * Requires an EIP-2537 (Prague) RPC: both the weak-key screen and the on-chain PoP
+ * verification use the BLS12-381 precompiles.
  */
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -24,17 +39,24 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 import "src/core/Registry.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
 
 contract RegisterDVTValidator is Script {
-    // BLS12-381 G1 generator (EIP-2537 uncompressed, 4x bytes32)
-    function _g1Gen() internal pure returns (BLS.G1Point memory p) {
-        p.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
-        p.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
-        p.y_a = bytes32(uint256(0x08b3f481e3aaa0f1a09e30ed741d8ae4));
-        p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
+    /// @dev The validator's REAL public key, supplied as 128 raw bytes. There is no
+    ///      default on purpose: the previous default was the G1 generator (scalar 1).
+    function _pubkeyFromEnv() internal view returns (BLS.G1Point memory p) {
+        bytes memory raw = vm.envBytes("BLS_PUBKEY");
+        require(raw.length == 128, "BLS_PUBKEY must be 128 bytes (x_a|x_b|y_a|y_b)");
+        (p.x_a, p.x_b, p.y_a, p.y_b) = abi.decode(raw, (bytes32, bytes32, bytes32, bytes32));
     }
 
-    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+    /// @dev PoP = sk * H_pop(bls.popDigest(validator, pubkey)), 256 raw bytes of G2.
+    function _popFromEnv() internal view returns (BLS.G2Point memory pop) {
+        bytes memory raw = vm.envBytes("BLS_POP");
+        require(raw.length == 256, "BLS_POP must be 256 bytes of uncompressed G2");
+        (pop.x_c0_a, pop.x_c0_b, pop.x_c1_a, pop.x_c1_b, pop.y_c0_a, pop.y_c0_b, pop.y_c1_a, pop.y_c1_b) =
+            abi.decode(raw, (bytes32, bytes32, bytes32, bytes32, bytes32, bytes32, bytes32, bytes32));
+    }
 
     function run() external {
         string memory network = vm.envOr("ENV", string("sepolia"));
@@ -98,8 +120,13 @@ contract RegisterDVTValidator is Script {
         }
 
         if (!keyActive) {
-            console.log("[5] registerBLSPublicKey(slot=1, G1_GEN)...");
-            bls.registerBLSPublicKey(v, _g1Gen(), 1, _emptyPoP());
+            BLS.G1Point memory pubkey = _pubkeyFromEnv();
+            require(
+                !BLSKeyScanLib.isWeakScalarKey(pubkey),
+                "CC-48: BLS_PUBKEY derives from a publicly-known scalar; generate a real key"
+            );
+            console.log("[5] registerBLSPublicKey(slot=1, env key + PoP)...");
+            bls.registerBLSPublicKey(v, pubkey, 1, _popFromEnv());
             console.log("    BLS key registered");
         } else {
             console.log("[5] BLS key already registered");

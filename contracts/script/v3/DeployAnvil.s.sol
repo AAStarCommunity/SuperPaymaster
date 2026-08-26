@@ -26,6 +26,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 // Module Imports
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 // Named import (same EIP712-collision reason as GTokenAuthorization above).
 import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
@@ -47,7 +48,10 @@ contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, 2000 * 1e8, 0, block.timestamp, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
 }
 
 /**
@@ -84,13 +88,13 @@ contract DeployAnvil is V54Bootstrap {
     MicroPaymentChannel microPaymentCh;
 
     function setUp() public {
-        deployer = vm.addr(deployerPK); 
+        deployer = vm.addr(deployerPK);
     }
 
     function run() external {
-        vm.warp(86400); 
+        vm.warp(86400);
         vm.startBroadcast(deployerPK);
-        
+
         priceFeedAddr = address(new MockPriceFeed());
         entryPointAddr = address(new EntryPoint());
 
@@ -133,25 +137,22 @@ contract DeployAnvil is V54Bootstrap {
         // CRITICAL: Must register COMMUNITY role BEFORE deploying xPNTs via factory
         gtoken.mint(deployer, 2000 ether);
         gtoken.approve(address(staking), 2000 ether);
-        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
-            name: "AAStar",
-            ensName: "aastar.eth",
-            stakeAmount: 30 ether
-        });
+        Registry.CommunityRoleData memory aaStarData =
+            Registry.CommunityRoleData({name: "AAStar", ensName: "aastar.eth", stakeAmount: 30 ether});
         registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
-        
+
         console.log("=== Step 4: Deploy aPNTs via Factory ===");
         // Use factory to deploy aPNTs (ensures factory binding consistency)
         xpntsFactory.deployxPNTsToken(
             "AAStar PNTs",
-            "aPNTs", 
+            "aPNTs",
             "GlobalHub",
             "local.eth",
             1e18,
             address(0) // No AOA paymaster
         );
         apnts = xPNTsToken(xpntsFactory.getTokenAddress(deployer));
-        
+
         // CRITICAL: Mint initial supply to Deployer so he can fund others (Anni) and himself
         apnts.mint(deployer, 2000 ether);
 
@@ -180,8 +181,8 @@ contract DeployAnvil is V54Bootstrap {
         console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
         superPaymaster.configureOperator(address(apnts), deployer);
-        
-        apnts.mint(deployer, 1000 ether);        // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
+
+        apnts.mint(deployer, 1000 ether); // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
         superPaymaster.depositFor(deployer, 1000 ether);
 
         // 2. 初始化 DemoCommunity (Anni)
@@ -189,24 +190,19 @@ contract DeployAnvil is V54Bootstrap {
         // Honors env override so .env.anvil + DeployAnvil agree on which key is "Anni",
         // avoiding the RoleNotGranted(COMMUNITY) failure when TestAccountPrepare reads
         // a different key than what DeployAnvil registered.
-        uint256 anniPK = vm.envOr(
-            "PRIVATE_KEY_ANNI",
-            uint256(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d)
-        );
+        uint256 anniPK =
+            vm.envOr("PRIVATE_KEY_ANNI", uint256(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d));
         address anni = vm.addr(anniPK);
-        Registry.CommunityRoleData memory demoData = Registry.CommunityRoleData({
-            name: "DemoCommunity",
-            ensName: "demo.eth",
-            stakeAmount: 30 ether
-        });
+        Registry.CommunityRoleData memory demoData =
+            Registry.CommunityRoleData({name: "DemoCommunity", ensName: "demo.eth", stakeAmount: 30 ether});
 
         // Jason 代付 Anni 的质押并注册社区
         registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(demoData));
-        
+
         // 关键：Anni 在 Anvil 下也需要点钱进行 Paymaster 注册
         gtoken.mint(anni, 100 ether);
         registry.safeMintForRole(ROLE_PAYMASTER_SUPER, anni, "");
-        
+
         // 补全 DemoCommunity 的 Operator 配置
         // 为 DemoCommunity 注入资金
         // 1. Anni 需要 aPNTs 来质押到 SuperPaymaster (Protocol Requirement)
@@ -214,11 +210,12 @@ contract DeployAnvil is V54Bootstrap {
         vm.startBroadcast(deployerPK);
         apnts.transfer(anni, 1000 ether); // Deployer funds Anni with aPNTs
         vm.stopBroadcast();
-        
+
         vm.startBroadcast(anniPK);
-        address dPNTs = xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
+        address dPNTs =
+            xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
         superPaymaster.configureOperator(dPNTs, anni);
-        
+
         // 2. Anni 存入 aPNTs -> SuperPaymaster
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.deposit(1000 ether);
@@ -229,7 +226,7 @@ contract DeployAnvil is V54Bootstrap {
 
         // 切换回 Deployer 继续后续操作
         vm.startBroadcast(deployerPK);
-        
+
         console.log("=== Step 9: Final Verification ===");
         _verifyWiring();
 
@@ -246,23 +243,37 @@ contract DeployAnvil is V54Bootstrap {
                 guardian,
                 address(0) // fresh timelock
             );
-            x402FacilitatorAddr    = v54.facilitator;
-            policyRegistryAddr     = v54.policyRegistry;
+            x402FacilitatorAddr = v54.facilitator;
+            policyRegistryAddr = v54.policyRegistry;
             timelockControllerAddr = v54.timelock;
             _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
         }
 
+        // CC-48 round-6 HIGH-1: same gate as every other entry point. On anvil (31337) it
+        // is a no-op by construction — the point is that this script cannot be repurposed
+        // for a live chain without the aggregator's disarm authority landing on a Safe.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) {
+            aggregator.transferOwnership(gov);
+            console.log("  BLSAggregator ownership transferred to governance:", gov);
+        }
+
         vm.stopBroadcast();
+        GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         _generateConfig();
     }
 
     function _executeWiring() internal {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
+        // The DVT reputation path calls Registry from BLSAggregator after the
+        // first threshold verification. Registry independently verifies the
+        // same proof, so the aggregator itself must be an authorized source.
+        registry.setReputationSource(address(aggregator), true);
         registry.setBLSAggregator(address(aggregator));
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
-        
+
         // CRITICAL: Update factory's SuperPaymaster address
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
 
@@ -274,15 +285,28 @@ contract DeployAnvil is V54Bootstrap {
 
         // Configure auto-approval for aPNTs (already deployed via factory)
         apnts.setSuperPaymasterAddress(address(superPaymaster));
-        
+
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        // initBLSAggregator above is the one-time fresh-deploy path. Do not
+        // queue/apply the same address: the 24-hour path is only for later
+        // replacements and vm.warp cannot advance timestamps between broadcast
+        // transactions on an external Anvil node.
         superPaymaster.updatePrice();
-        // HIGH-2: wire BLS_AGGREGATOR into SuperPaymaster so executeSlashWithBLS is callable.
-        // Anvil: queue + warp past 24h timelock + apply in one script run.
-        superPaymaster.queueBLSAggregator(address(aggregator));
-        vm.warp(block.timestamp + 24 hours + 1);
-        superPaymaster.applyBLSAggregator();
+        // A paymaster balance held in its own accounting contract is not an
+        // EntryPoint deposit. Fund the freshly deployed EntryPoint explicitly.
+        uint256 entryPointDeposit = vm.envOr("ANVIL_SP_ENTRYPOINT_DEPOSIT_WEI", uint256(10 ether));
+        superPaymaster.deposit{value: entryPointDeposit}();
+
+        // RepCredit evidence mode starts fresh users with no baseline credit so
+        // the pre-contribution reject and post-reputation unlock are observable.
+        // It also pins the requested local experiment to a real 3-node quorum;
+        // the production default of seven remains unchanged outside this mode.
+        if (vm.envOr("REPCREDIT_EVIDENCE_MODE", false)) {
+            registry.setCreditTier(1, 0);
+            registry.setCreditPolicy(600 ether, 3_000 ether);
+            aggregator.setDefaultThreshold(3);
+        }
         // Wire Agent Registries (enables Agent Sponsorship path in isEligibleForSponsorship)
         superPaymaster.setAgentRegistries(address(mockAgentIdentity), address(mockAgentReputation));
     }
@@ -293,6 +317,11 @@ contract DeployAnvil is V54Bootstrap {
         require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "aPNTs Firewall Failed");
         require(address(superPaymaster.REGISTRY()) == address(registry), "Paymaster Registry Immutable Failed");
         require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "SP BLS_AGGREGATOR Wiring Failed");
+        require(registry.isReputationSource(address(aggregator)), "BLS Reputation Source Wiring Failed");
+        require(IEntryPoint(entryPointAddr).balanceOf(address(superPaymaster)) > 0, "EntryPoint Deposit Missing");
+        if (vm.envOr("REPCREDIT_EVIDENCE_MODE", false)) {
+            require(aggregator.defaultThreshold() == 3, "RepCredit Quorum Must Be Three");
+        }
         console.log("All Wiring Assertions Passed!");
     }
 
@@ -303,7 +332,7 @@ contract DeployAnvil is V54Bootstrap {
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
         vm.serializeAddress(jsonObj, "staking", address(staking));
         vm.serializeAddress(jsonObj, "superPaymaster", address(superPaymaster));
-        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory)); 
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory));
         vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
         vm.serializeAddress(jsonObj, "sbt", address(mysbt));
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));

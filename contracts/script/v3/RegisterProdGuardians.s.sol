@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
 import "src/utils/BLS.sol";
 
 /// @title  RegisterProdGuardians — CC-89 Sepolia production activation
@@ -41,6 +42,14 @@ contract RegisterProdGuardians is Script {
             address eoa = vm.envAddress(string.concat("PROD_G", vm.toString(i), "_EOA"));
             BLS.G1Point memory pub = _g1(vm.envBytes(string.concat("PROD_G", vm.toString(i), "_PUBKEY")));
             BLS.G2Point memory pop = _g2(vm.envBytes(string.concat("PROD_G", vm.toString(i), "_POP")));
+            // CC-48 round-3: screen for a publicly-known secret scalar BEFORE it is bound.
+            // `blsKeyOwner` is permanent, so a bad key here is not merely a re-run away
+            // from being fixed. (`releaseKeyBinding` exists, but it is a governance
+            // action, not a retry.)
+            require(
+                !BLSKeyScanLib.isWeakScalarKey(pub),
+                "CC-48: guardian key derives from a publicly-known scalar"
+            );
             agg.registerBLSPublicKey(eoa, pub, i, pop);
         }
         vm.stopBroadcast();
@@ -48,6 +57,9 @@ contract RegisterProdGuardians is Script {
         require(agg.validatorAtSlot(1) == vm.envAddress("PROD_G1_EOA"), "slot1");
         require(agg.validatorAtSlot(2) == vm.envAddress("PROD_G2_EOA"), "slot2");
         require(agg.validatorAtSlot(3) == vm.envAddress("PROD_G3_EOA"), "slot3");
+        // Post-condition: the set that just became live must satisfy every threshold this
+        // aggregator configures, with no duplicates and no weak keys.
+        BLSKeyScanLib.requireHealthy(PRODAGG, BLSKeyScanLib.maxRequiredThreshold(PRODAGG));
         console.log("3 prod guardian BLS keys registered on", PRODAGG);
     }
 }

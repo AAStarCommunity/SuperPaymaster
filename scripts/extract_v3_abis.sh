@@ -31,11 +31,67 @@ CONTRACTS=(
     "ReputationSystem"
     "BLSAggregator"
     "DVTValidator"
-    "BLSValidator"
+    # CC-48 round-7 LOW-2: "BLSValidator" used to sit here. The standalone contract was
+    # DELETED long ago (see contracts/script/checks/Check08_Wiring.s.sol:73 -- "standalone
+    # BLSValidator was deleted; only the aggregator is wired now"), and there is no
+    # abis/BLSValidator.json either. Every regeneration since then printed
+    # "Warning: Could not find build artifact for BLSValidator" and exited 0, so the stale
+    # entry survived every ABI sync. Making a missing artifact fail-closed is what surfaced
+    # it -- which is the argument for the change, not a side effect of it.
     "MicroPaymentChannel"
 )
 
+# Optional positional args select a SUBSET of the list above, e.g.
+#   ./scripts/extract_v3_abis.sh BLSAggregator
+# The manifest is ALWAYS regenerated over everything currently in $OUTPUT_DIR, so it stays
+# self-consistent either way. Use this when a change touches one contract's ABI and you do
+# not want to sweep unrelated artifacts into the same commit.
+#
+# KNOWN DRIFT — MEASURED, NOT ASSUMED (CC-48 round-5, corrected in round-8 LOW-4).
+#
+# Round 7's delivery note said the committed artifacts differ from a clean regeneration
+# only "in the trailing newline (plus GToken's legacy bare-array format)". That is FALSE
+# and is retracted. Reproduce with: regenerate every contract in the list above into a
+# scratch directory and diff, e.g.
+#     for C in "${CONTRACTS[@]}"; do
+#       jq '{abi: .abi, bytecode: .bytecode.object}' "$(find out -name "$C.json" | head -1)" \
+#         > "/tmp/abi-check/$C.json"
+#     done; diff -rq abis /tmp/abi-check
+#
+# The measured breakdown over the 17 contracts this script regenerates:
+#   • byte-identical (4)  : BLSAggregator, LivenessRegistry, ReputationSystem, SuperPaymaster
+#   • trailing newline (1): Registry — and ONLY Registry
+#   • legacy BARE ARRAY, i.e. a real shape change (9): GToken, GTokenStaking,
+#     MicroPaymentChannel, MySBT, PolicyRegistry, TimelockController, X402Facilitator,
+#     xPNTsFactory, xPNTsToken  (GTokenAuthorization is the same shape but is not in the
+#     list above, so this script never touches it)
+#   • SAME SHAPE, STALE CONTENT (3): DVTValidator, Paymaster, PaymasterFactory. These are
+#     NOT a formatting difference — the committed ABI is genuinely older than the current
+#     build (e.g. DVTValidator.json is ~22.1 kB committed vs ~25.4 kB regenerated).
+#     `abis/DVTValidator.json` is the file repo:dvt consumes, so a consumer pinning it
+#     today pins a stale interface. Regenerate before consuming.
+#
+# The manifest in abi.config.json is SELF-CONSISTENT with what is committed — the drift is
+# against the current build, not within abis/ — so nothing here is silently broken today.
+# A full run normalises all 13 drifting files at once, which is a BREAKING change for any
+# consumer reading the 9 bare arrays as arrays: repo:sdk must be notified first. Do not
+# sweep that into an unrelated commit; it needs its own change and its own notice.
+if [ "$#" -gt 0 ]; then
+    CONTRACTS=("$@")
+    echo "🔍 ABI extraction restricted to: ${CONTRACTS[*]}"
+fi
+
 echo "🔍 Starting ABI extraction for V3/V4..."
+
+# CC-48 round-7 LOW-2: a missing build artifact is an ERROR, not a warning.
+# This loop used to print "❌ Warning: Could not find build artifact" and CARRY ON: the
+# manifest was rebuilt from whatever files happened to be in abis/, and the script exited
+# 0. The first reproduction of round-6's ABI evidence hit exactly that -- `out` was a
+# symlink, `find` did not follow it, every artifact was missing -- and got a green run with
+# a stale manifest. That is the same defect the LOW-4 jq/python3 fix was written to remove:
+# "silently did nothing" must not be indistinguishable from "passed". Failures are
+# ACCUMULATED so one run names every missing contract instead of stopping at the first.
+MISSING_ARTIFACTS=()
 
 for CONTRACT in "${CONTRACTS[@]}"; do
     # Foundry 的路径通常是 out/ContractName.sol/ContractName.json
@@ -44,15 +100,39 @@ for CONTRACT in "${CONTRACTS[@]}"; do
     if [ -z "$FILE" ]; then
         FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
     fi
+    # CC-48 round-9: a contract compiled under MORE THAN ONE compiler profile is not
+    # emitted as `<C>.json` at all -- foundry writes `<C>.default.json` alongside
+    # `<C>.<other-profile>.json`. Since round-3 added the `registry-size` profile, that is
+    # exactly what happens to `TimelockController`, so this generator could not run to
+    # completion on this branch. Fall back to the DEFAULT-profile artifact by name: it is
+    # the profile `deploy-core` ships under, and it is named, never guessed -- picking
+    # whatever `find` happened to return first would silently publish an ABI compiled with
+    # settings the deployment does not use.
+    if [ -z "$FILE" ]; then
+        FILE=$(find out -name "${CONTRACT}.default.json" | head -n 1)
+    fi
     
     if [ -f "$FILE" ]; then
         echo "✅ Extracting ABI & Bytecode for $CONTRACT from $FILE..."
         # 提取 abi 和 bytecode.object 并合并为 JSON
         jq '{abi: .abi, bytecode: .bytecode.object}' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
     else
-        echo "❌ Warning: Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
+        echo "❌ Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
+        MISSING_ARTIFACTS+=("$CONTRACT")
     fi
 done
+
+if [ ${#MISSING_ARTIFACTS[@]} -ne 0 ]; then
+    echo ""
+    echo "❌ ${#MISSING_ARTIFACTS[@]} of ${#CONTRACTS[@]} ABI artifacts could not be found:"
+    for C in "${MISSING_ARTIFACTS[@]}"; do echo "   - $C"; done
+    echo "   Nothing was regenerated for them, so $OUTPUT_DIR still holds the PREVIOUS"
+    echo "   build's ABI (or nothing at all) while the manifest below would be recomputed"
+    echo "   over it and reported as a success. Run 'forge build' first."
+    echo "   NOTE: if out/ is a symlink, plain 'find out' does not follow it -- that is how"
+    echo "   this failure mode was first hit. Use a real directory or 'find -L'."
+    exit 1
+fi
 
 echo "📄 Generating ABI manifest (abi.config.json)..."
 CONFIG_FILE="$OUTPUT_DIR/abi.config.json"
@@ -61,11 +141,17 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 TOTAL_HASH=$(find "$OUTPUT_DIR" -name "*.json" ! -name "abi.config.json" -type f -exec shasum -a 256 {} + | sort | shasum -a 256 | awk '{print $1}')
 
 # 初始化 JSON
+# NOTE (CC-48 round-5 MEDIUM-3): every emitted line must end at the last non-space
+# character. The four scalar fields below used to carry a literal trailing space inside
+# the echo string, so `git diff --check` reported trailing whitespace on abis/abi.config.json
+# after EVERY regeneration -- cleaning the file by hand fixed nothing, because the next
+# `forge build && ./scripts/extract_v3_abis.sh` put it straight back. The root cause is
+# here; the guard at the end of this script is what keeps it fixed.
 echo "{" > "$CONFIG_FILE"
-echo "  \"description\": \"SuperPaymaster Contract ABIs Manifest\", " >> "$CONFIG_FILE"
-echo "  \"source\": \"SuperPaymaster/contracts/src\", " >> "$CONFIG_FILE"
-echo "  \"buildTime\": \"$TIMESTAMP\", " >> "$CONFIG_FILE"
-echo "  \"totalHash\": \"$TOTAL_HASH\", " >> "$CONFIG_FILE"
+echo "  \"description\": \"SuperPaymaster Contract ABIs Manifest\"," >> "$CONFIG_FILE"
+echo "  \"source\": \"SuperPaymaster/contracts/src\"," >> "$CONFIG_FILE"
+echo "  \"buildTime\": \"$TIMESTAMP\"," >> "$CONFIG_FILE"
+echo "  \"totalHash\": \"$TOTAL_HASH\"," >> "$CONFIG_FILE"
 echo "  \"files\": [" >> "$CONFIG_FILE"
 
 # 遍历文件添加列表
@@ -82,5 +168,35 @@ done
 
 echo "  ]" >> "$CONFIG_FILE"
 echo "}" >> "$CONFIG_FILE"
+
+# Generator self-check (CC-48 round-5 MEDIUM-3). A whitespace defect in a GENERATED file
+# cannot be fixed by editing the file, so it is caught here, at the moment of generation,
+# rather than by whoever next runs `git diff --check` in a hurry before a release.
+# Checks every emitted artifact, not just the manifest, and covers spaces AND tabs.
+WS_OFFENDERS=$(grep -lE '[[:blank:]]+$' "$OUTPUT_DIR"/*.json 2>/dev/null || true)
+if [ -n "$WS_OFFENDERS" ]; then
+    echo "❌ Generated ABI artifacts contain trailing whitespace:"
+    echo "$WS_OFFENDERS"
+    echo "   Fix the emitting line in $0 -- do NOT strip the file by hand, it will regrow."
+    exit 1
+fi
+
+# The manifest must also still be valid JSON after any change to the emitting lines above.
+# CC-48 round-6 LOW-4: FAIL CLOSED. This used to be wrapped in `if command -v jq`, so on a
+# machine without jq the one check guarding the hand-quoted `echo` lines silently did
+# nothing -- and "silently did nothing" is indistinguishable from "passed" in CI output.
+# jq is preferred (it is already required by the extraction loop above); python3 is an
+# equivalent fallback; neither present is an ERROR, not a skip.
+if command -v jq >/dev/null 2>&1; then
+    jq empty "$CONFIG_FILE" || { echo "❌ $CONFIG_FILE is not valid JSON (jq)"; exit 1; }
+elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$CONFIG_FILE" \
+        || { echo "❌ $CONFIG_FILE is not valid JSON (python3)"; exit 1; }
+else
+    echo "❌ Neither jq nor python3 is available, so $CONFIG_FILE cannot be validated."
+    echo "   The manifest is emitted by hand-quoted echo lines; shipping it unvalidated is"
+    echo "   how a malformed ABI manifest reaches a consumer. Install jq (or python3)."
+    exit 1
+fi
 
 echo "✨ ABI extraction and manifest generation complete. Files saved in $OUTPUT_DIR/"

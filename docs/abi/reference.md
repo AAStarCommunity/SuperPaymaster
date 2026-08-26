@@ -11,7 +11,9 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Contracts
 
 - [GTokenStaking](#gtokenstaking) — `contracts/src/core/GTokenStaking.sol`
+- [LivenessRegistry](#livenessregistry) — `contracts/src/core/LivenessRegistry.sol`
 - [PolicyRegistry](#policyregistry) — `contracts/src/core/PolicyRegistry.sol`
+- [IGuardianExitGate](#iguardianexitgate) — `contracts/src/core/Registry.sol`
 - [Registry](#registry) — `contracts/src/core/Registry.sol`
 - [IERC1363Receiver](#ierc1363receiver) — `contracts/src/interfaces/IERC1363.sol`
 - [IPaymasterRouter](#ipaymasterrouter) — `contracts/src/interfaces/IPaymasterRouter.sol`
@@ -26,6 +28,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [IBLSAggregator](#iblsaggregator) — `contracts/src/interfaces/v3/IBLSAggregator.sol`
 - [IERC3009](#ierc3009) — `contracts/src/interfaces/v3/IERC3009.sol`
 - [IGTokenStaking](#igtokenstaking) — `contracts/src/interfaces/v3/IGTokenStaking.sol`
+- [ILivenessRegistry](#ilivenessregistry) — `contracts/src/interfaces/v3/ILivenessRegistry.sol`
 - [IMySBT](#imysbt) — `contracts/src/interfaces/v3/IMySBT.sol`
 - [IPolicyRegistry](#ipolicyregistry) — `contracts/src/interfaces/v3/IPolicyRegistry.sol`
 - [IRegistry](#iregistry) — `contracts/src/interfaces/v3/IRegistry.sol`
@@ -39,6 +42,8 @@ Authoritative, auto-generated reference for every external/public function, even
 - [TestSBT](#testsbt) — `contracts/src/mocks/TestSBT.sol`
 - [BLSAggregator](#blsaggregator) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [IDVTValidator](#idvtvalidator) — `contracts/src/modules/monitoring/BLSAggregator.sol`
+- [IFraudProofVerifier](#ifraudproofverifier) — `contracts/src/modules/monitoring/BLSAggregator.sol`
+- [IGTokenStakingSlash](#igtokenstakingslash) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [IRegistryStakingAwareBLS](#iregistrystakingawarebls) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [ISuperPaymasterSlash](#isuperpaymasterslash) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [DVTValidator](#dvtvalidator) — `contracts/src/modules/monitoring/DVTValidator.sol`
@@ -56,6 +61,8 @@ Authoritative, auto-generated reference for every external/public function, even
 - [GTokenAuthorization](#gtokenauthorization) — `contracts/src/tokens/GTokenAuthorization.sol`
 - [MySBT](#mysbt) — `contracts/src/tokens/MySBT.sol`
 - [xPNTsFactory](#xpntsfactory) — `contracts/src/tokens/xPNTsFactory.sol`
+- [ISPStakeView](#ispstakeview) — `contracts/src/tokens/xPNTsToken.sol`
+- [IxPNTsFactoryCap](#ixpntsfactorycap) — `contracts/src/tokens/xPNTsToken.sol`
 - [xPNTsToken](#xpntstoken) — `contracts/src/tokens/xPNTsToken.sol`
 - [BLS](#bls) — `contracts/src/utils/BLS.sol`
 
@@ -508,6 +515,199 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x03a16256` | `TotalStakeExceedsCap()` |
 | `0x82b42900` | `Unauthorized()` |
 
+## LivenessRegistry
+
+- **Source:** `contracts/src/core/LivenessRegistry.sol`
+- **Functions:** 13 · **Events:** 3 · **Errors:** 6
+- **Title:** LivenessRegistry — objective on-chain operator liveness oracle (CC-29)
+- Reference implementation of {ILivenessRegistry}. Operators self-attest; DVT reads the         resulting {isOffline}/{lastLive} (pinned to a finalized epoch block) to compute the         live-set / quorum denominator for the real malicious-slash paths. Offline is never         slashed by consensus — it auto-jails by exclusion (see the interface for the full model).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x51f1fe1a` | `areOffline(address[])` | view | — | Batch form of {isOffline} — one call to build a full live-set denominator. |
+| `0x0a9a8d99` | `attestLiveness(uint256,bytes32)` | nonpayable | — | Prove the caller is live *now*. Records `lastLive[msg.sender] = block.number`. |
+| `0x231e0340` | `isOffline(address)` | view | — | True iff `operator` is offline as of the block this call executes against. |
+| `0xe458779b` | `lastLive(address)` | view | — | Block number of `operator`'s most recent attestation (0 = never attested). |
+| `0x15c97887` | `livenessWindow()` | view | — | Fleet-wide liveness window, in blocks. offline ⇔ `blockNumber − lastLive > window`. |
+| `0xf901ac57` | `MAX_ATTEST_ANCHOR_AGE()` | view | — | Max age (in blocks) of the freshness anchor {attestLiveness} may reference. Bounded by         the EVM's 256-block `blockhash` window. |
+| `0xa641a722` | `MAX_LIVENESS_WINDOW()` | view | — | Upper bound on {livenessWindow} — fat-finger guard against an absurd value. |
+| `0xd4dcb45a` | `MIN_LIVENESS_WINDOW()` | view | — | Lower bound on {livenessWindow} — blocks a value so small a single missed ping would         mass-jail the fleet. |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x715018a6` | `renounceOwnership()` | pure | — | Disabled: renouncing ownership would freeze {livenessWindow} at its current value         forever, permanently locking the live-set partition — a governance footgun. Transfer         to a new timelock / multisig via {transferOwnership} instead. Always reverts. |
+| `0x84dfda79` | `setLivenessWindow(uint256)` | nonpayable | onlyOwner | Set the fleet-wide liveness window (blocks). Owner-only; owner SHOULD be a         TimelockController / multisig because SHRINKING the window is fleet-sensitive         (a sudden shrink can flip many operators to offline at once). Bounded to         [MIN_LIVENESS_WINDOW, MAX_LIVENESS_WINDOW] as a fat-finger guard. |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Contract version (see CLAUDE.md versioning convention). |
+
+### Functions
+
+#### `areOffline(address[] operators)`
+
+`0x51f1fe1a` · view · access: —
+
+> Batch form of {isOffline} — one call to build a full live-set denominator.
+
+| param | type | description |
+|---|---|---|
+| `operators` | `address[]` |  |
+
+| returns | type | description |
+|---|---|---|
+| `out` | `bool[]` |  |
+
+#### `attestLiveness(uint256 anchorBlock, bytes32 anchorHash)`
+
+`0x0a9a8d99` · nonpayable · access: —
+
+> Prove the caller is live *now*. Records `lastLive[msg.sender] = block.number`.
+
+*@dev* FRESHNESS BINDING (M-01): the caller must echo the hash of a recent block. A blockhash is      unpredictable until its block exists, and `blockhash()` only exposes the last 256 blocks,      so a transaction CANNOT be pre-signed to cover a future period — the signer must have      observed a block within the last `MAX_ATTEST_ANCHOR_AGE` blocks. This ties "live" to      recent signing capability and defeats a keeper replaying a batch of stale, pre-authorized      attestations to keep an abandoned-key operator in the live-set. (It does NOT, by itself,      stop an operator whose key is genuinely online but which refuses to co-sign slashes — that      residual griefer is caught at the DVT layer by excluding recent non-participants.)      Still cheap: one `blockhash` read + one warm SSTORE. Permissionless; consumers decide which      addresses count. A v2 MAY add a BLS-aggregated batch form.
+
+| param | type | description |
+|---|---|---|
+| `anchorBlock` | `uint256` | a recent block in `[block.number - MAX_ATTEST_ANCHOR_AGE, block.number - 1]`. |
+| `anchorHash` | `bytes32` | must equal `blockhash(anchorBlock)`. |
+
+#### `isOffline(address operator)`
+
+`0x231e0340` · view · access: —
+
+> True iff `operator` is offline as of the block this call executes against.
+
+*@dev* Uses `block.number` (the executing block) so an archival `eth_call` pinned to a finalized      epoch reproduces the exact live-set for that epoch. Written as `block.number - last` (NOT      `last + _livenessWindow`) so the arithmetic is overflow-proof for ALL inputs: `last <=      block.number` makes the subtraction safe, whereas `last + window` could in principle      overflow near `uint256.max`.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `lastLive(address operator)`
+
+`0xe458779b` · view · access: —
+
+> Block number of `operator`'s most recent attestation (0 = never attested).
+
+*@dev* Exposed for forensics / alerting (who went offline, from which block) and to make the      live-set denominator auditable. Not part of any slash content-address (no offline slash).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `livenessWindow()`
+
+`0x15c97887` · view · access: —
+
+> Fleet-wide liveness window, in blocks. offline ⇔ `blockNumber − lastLive > window`.
+
+*@dev* Governance-set and identical for the whole DVT fleet (NOT per-community) so every      co-signer computes the same live-set; DVT reads it (pinned to the same epoch block).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MAX_ATTEST_ANCHOR_AGE()`
+
+`0xf901ac57` · view · access: —
+
+> Max age (in blocks) of the freshness anchor {attestLiveness} may reference. Bounded by         the EVM's 256-block `blockhash` window.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MAX_LIVENESS_WINDOW()`
+
+`0xa641a722` · view · access: —
+
+> Upper bound on {livenessWindow} — fat-finger guard against an absurd value.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MIN_LIVENESS_WINDOW()`
+
+`0xd4dcb45a` · view · access: —
+
+> Lower bound on {livenessWindow} — blocks a value so small a single missed ping would         mass-jail the fleet.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · pure · access: —
+
+> Disabled: renouncing ownership would freeze {livenessWindow} at its current value         forever, permanently locking the live-set partition — a governance footgun. Transfer         to a new timelock / multisig via {transferOwnership} instead. Always reverts.
+
+#### `setLivenessWindow(uint256 newWindow)`
+
+`0x84dfda79` · nonpayable · access: onlyOwner
+
+> Set the fleet-wide liveness window (blocks). Owner-only; owner SHOULD be a         TimelockController / multisig because SHRINKING the window is fleet-sensitive         (a sudden shrink can flip many operators to offline at once). Bounded to         [MIN_LIVENESS_WINDOW, MAX_LIVENESS_WINDOW] as a fat-finger guard.
+
+| param | type | description |
+|---|---|---|
+| `newWindow` | `uint256` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Contract version (see CLAUDE.md versioning convention).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x2063ad0e5e02d8662f91343a706d6661b86a0fd54dee876f99763199bcebdb73` | `LivenessAttested(address,uint256)` |
+| `0x8580ef248ca1d6bb850bdefe489be0582d571973a1276ac11455204a7f901160` | `LivenessWindowUpdated(uint256,uint256)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x2ab917fc` | `BadAnchorHash(uint256)` |
+| `0x378972b5` | `InvalidWindow(uint256)` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x89051165` | `RenounceDisabled()` |
+| `0xfa7a8e24` | `StaleAnchor(uint256)` |
+
 ## PolicyRegistry
 
 - **Source:** `contracts/src/core/PolicyRegistry.sol`
@@ -831,10 +1031,31 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x75ae9c29` | `SenderIsFrozen()` |
 | `0xd92e233d` | `ZeroAddress()` |
 
+## IGuardianExitGate
+
+- **Source:** `contracts/src/core/Registry.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0xadc63987` | `consumeGuardianExit(address)` | nonpayable | — |  |
+
+### Functions
+
+#### `consumeGuardianExit(address guardian)`
+
+`0xadc63987` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `guardian` | `address` |  |
+
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 42 · **Events:** 19 · **Errors:** 33
+- **Functions:** 50 · **Events:** 23 · **Errors:** 38
 
 ### Function selector index
 
@@ -843,7 +1064,10 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1b02e44f` | `batchUpdateGlobalReputation(uint256,address[],uint256[],uint256,bytes)` | nonpayable | nonReentrant | Batch update global reputation |
 | `0xe20bce2e` | `blacklistNonce()` | view | — | Monotonic nonce for blacklist BLS proofs (P0-3 replay protection). |
 | `0xbe30742f` | `blsAggregator()` | view | — |  |
+| `0xe3136608` | `blsDomainSeparator()` | view | — | The BLS domain separator this Registry verifies under. |
 | `0x5ee05b17` | `configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))` | nonpayable | nonReentrant | Configure or create a role |
+| `0x6c72e835` | `creditPopulationSeededAt()` | view | — | When governance declared the credit population complete. Zero means the         reputation path is shut (fail-closed for an upgraded proxy). |
+| `0xce05a1ad` | `creditPopulationTotal()` | view | — | How many addresses are counted into `totalCreditExposure` in the current         population epoch. |
 | `0xaf5eda02` | `creditTierConfig(uint256)` | view | — |  |
 | `0x727b52a5` | `exitRole(bytes32)` | nonpayable | nonReentrant | Exit from a role |
 | `0xb1988995` | `getCommunityByENS(string)` | view | — |  |
@@ -861,15 +1085,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xbf28c98a` | `isReputationSource(address)` | view | — |  |
 | `0x5c445412` | `levelThresholds(uint256)` | view | — |  |
 | `0x424a3d77` | `markProposalExecuted(uint256)` | nonpayable | — | Mark a BLS proposal as executed (called by BLSAggregator for slash-only proposals) |
+| `0xad3358fc` | `maxAggregateCreditUpliftPerProposal()` | view | — | Maximum positive credit-limit uplift (aPNT, 18 decimals) per proposal. |
+| `0xb8a8f126` | `maxTotalCreditExposure()` | view | — | Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed. |
 | `0x19c46e81` | `MYSBT()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
 | `0x669d7762` | `registerRole(bytes32,address,bytes)` | nonpayable | nonReentrant | Register a user for a specific role (unified API) |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x17e1c595` | `safeMintForRole(bytes32,address,bytes)` | nonpayable | nonReentrant |  |
+| `0x00166507` | `seedCreditPopulation(address[],uint256,bool)` | nonpayable | onlyOwner | Seed (or re-count) the credit population from this contract's own storage. |
 | `0xbc959101` | `setBLSAggregator(address)` | nonpayable | onlyOwner |  |
-| `0x15de32ca` | `setCreditTier(uint256,uint256)` | nonpayable | onlyOwner | Configure credit limit for a level |
-| `0xbb2ae6bf` | `setLevelThresholds(uint256[])` | nonpayable | onlyOwner |  |
+| `0x510651c3` | `setCreditPolicy(uint256,uint256)` | nonpayable | onlyOwner | Set both credit bounds in one owner call. |
+| `0x15de32ca` | `setCreditTier(uint256,uint256)` | nonpayable | onlyOwner | Set the aPNT credit limit of one reputation level. |
+| `0xbb2ae6bf` | `setLevelThresholds(uint256[])` | nonpayable | onlyOwner | Replace the reputation thresholds. |
 | `0xcd5d1e74` | `setMySBT(address)` | nonpayable | onlyOwner |  |
 | `0x6229738c` | `setReputationSource(address,bool)` | nonpayable | onlyOwner |  |
 | `0x8ff39099` | `setStaking(address)` | nonpayable | onlyOwner | Update the GTokenStaking contract pointer. Auto-syncs all exit fees. |
@@ -877,6 +1105,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x919d1e2c` | `SUPER_PAYMASTER()` | view | — |  |
 | `0xbb8ca259` | `syncExitFees(bytes32[])` | nonpayable | onlyOwner | Admin-triggered batch sync. Emits SyncFailed for any role whose         call to staking reverts — indexers watch this topic for alerting. |
 | `0x7d960e37` | `syncStakeFromStaking(address,bytes32,uint256)` | nonpayable | — | Push a fresh stake snapshot from Staking into Registry's per-role cache. |
+| `0xfe201e68` | `totalCreditExposure()` | view | — | Protocol-wide OUTSTANDING aPNT credit exposure created by the REPUTATION         path: the sum, over every address, of the credit limit its current global         reputation buys it ABOVE the permissionless level-1 floor. |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
 | `0xce830e7b` | `updateOperatorBlacklist(address,address[],bool[],bytes)` | nonpayable | nonReentrant | Update operator blacklist (via DVT consensus) |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
@@ -917,6 +1146,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `blsDomainSeparator()`
+
+`0xe3136608` · view · access: —
+
+> The BLS domain separator this Registry verifies under.
+
+*@dev* MUST equal `BLSAggregator.domainSeparator()` of the configured         aggregator; asserted in tests and exposed for DVT/SDK pinning.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
 #### `configureRole(bytes32 roleId, (uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256) config)`
 
 `0x5ee05b17` · nonpayable · access: nonReentrant
@@ -927,6 +1168,26 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `roleId` | `bytes32` | Role to configure |
 | `config` | `(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256)` | New configuration (must include owner) |
+
+#### `creditPopulationSeededAt()`
+
+`0x6c72e835` · view · access: —
+
+> When governance declared the credit population complete. Zero means the         reputation path is shut (fail-closed for an upgraded proxy).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `creditPopulationTotal()`
+
+`0xce05a1ad` · view · access: —
+
+> How many addresses are counted into `totalCreditExposure` in the current         population epoch.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `creditTierConfig(uint256 arg0)`
 
@@ -1137,6 +1398,26 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `proposalId` | `uint256` |  |
 
+#### `maxAggregateCreditUpliftPerProposal()`
+
+`0xad3358fc` · view · access: —
+
+> Maximum positive credit-limit uplift (aPNT, 18 decimals) per proposal.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `maxTotalCreditExposure()`
+
+`0xb8a8f126` · view · access: —
+
+> Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `MYSBT()`
 
 `0x19c46e81` · view · access: —
@@ -1197,6 +1478,20 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `tokenId` | `uint256` |  |
 
+#### `seedCreditPopulation(address[] users, uint256 expectedPopulationTotal, bool finalize)`
+
+`0x00166507` · nonpayable · access: onlyOwner
+
+> Seed (or re-count) the credit population from this contract's own storage.
+
+*@dev* CC-48 round-9 MEDIUM-HIGH-B3. Two situations need it: an UPGRADED proxy,         whose population slots read empty while promoted users already exist, and a         schedule change (`setCreditTier` / `setLevelThresholds`), which invalidates         the count it was computed from. Both leave         `creditPopulationSeededAt == 0`, which shuts `updateGlobalReputation`, so         neither can quietly issue credit against a wrong stock.         Governance supplies ONLY an address list. Each address's level is read from         `globalReputation` here, so no operator arithmetic — and in particular no         repetition of the old, structurally wrong "sum the GlobalReputationUpdated         events into an aPNT baseline" recipe — can misstate a tier.         `expectedPopulationTotal` is a declared headcount checked against what the         contract actually counted, so a truncated batch cannot be finalized.         Addresses that were never promoted may be omitted: they sit at level 1 and         contribute exactly zero to the derived stock (see `totalCreditExposure`).         A promoted address missed here is self-healing — the next proposal touching         it counts it at its then-current level.         Re-running this after finalization is harmless rather than forbidden: an         address already counted in the current epoch is skipped, so the only effect         of a second call is to count addresses that were missed. Refusing it would         buy nothing and would make the migration batch order-dependent on whether         the proxy had ever been initialized by this implementation.
+
+| param | type | description |
+|---|---|---|
+| `users` | `address[]` | candidate addresses. Already-counted ones are skipped,                                so the list may be split into batches and may overlap. |
+| `expectedPopulationTotal` | `uint256` | headcount governance declares; checked on finalize. |
+| `finalize` | `bool` | declare the count complete and re-open the path. |
+
 #### `setBLSAggregator(address _aggregator)`
 
 `0xbc959101` · nonpayable · access: onlyOwner
@@ -1205,11 +1500,26 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_aggregator` | `address` |  |
 
+#### `setCreditPolicy(uint256 perProposalCap, uint256 totalCap)`
+
+`0x510651c3` · nonpayable · access: onlyOwner
+
+> Set both credit bounds in one owner call.
+
+*@dev* Deliberately a single entry point: the two caps are one policy, and an         upgrade batch that set them in separate transactions would leave a window         where the protocol-wide ceiling was still 0 (fail-closed, but a governance         outage) or still unbounded.         CC-48 round-9 MEDIUM-HIGH-B3: the exposure BASELINE is gone from this         signature. It used to be an operator-supplied aPNT number that nothing         on-chain could check and that the documented derivation computed WRONG on a         live deployment. The only thing governance still declares is the population         MEMBERSHIP -- see `seedCreditPopulation`, where the contract reads each         member's reputation out of its own storage instead of trusting a total.
+
+| param | type | description |
+|---|---|---|
+| `perProposalCap` | `uint256` | Transaction-level guard: max positive credit-limit uplift                         summed within a single proposal. |
+| `totalCap` | `uint256` | Protocol-wide ceiling on outstanding credit exposure. |
+
 #### `setCreditTier(uint256 level, uint256 limit)`
 
 `0x15de32ca` · nonpayable · access: onlyOwner
 
-> Configure credit limit for a level
+> Set the aPNT credit limit of one reputation level.
+
+*@dev* CC-48 round-9 HIGH-B1. This call changes the credit limit of EVERY user         sitting at `level`, so it necessarily changes protocol-wide exposure -- and         round-8 let it do that while `totalCreditExposure` sat still, which is how         one owner call moved the drawable total 16.6x without the protocol-wide cap         noticing. It is not allowed to leave the ledger behind any more: the         population is INVALIDATED in the same call (`_invalidateCreditPopulation`),         which discards the now-meaningless stock and shuts the reputation path until         governance re-counts. There is no "remember to re-seed afterwards" step to         forget, because forgetting it stops issuance rather than un-bounding it.         Two writes are exempt, and only because neither can move anybody's credit         limit: re-writing the price a level already has, and pricing a level above         the currently reachable top (CC-48 round-11 LOW-L1). See the branches         below for why each is safe; every write that CAN move a limit invalidates.         CC-48 round-9 LOW-B6: `initialize` documents the schedule as monotonic         ("higher reputation never lowers credit"). That invariant is now ENFORCED         against the immediate neighbours, which is sufficient by induction because         every level is written through this function.
 
 | param | type | description |
 |---|---|---|
@@ -1219,6 +1529,10 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `setLevelThresholds(uint256[] thresholds)`
 
 `0xbb2ae6bf` · nonpayable · access: onlyOwner
+
+> Replace the reputation thresholds.
+
+*@dev* CC-48 round-9 HIGH-B1. Moving a threshold moves users between levels with no         proposal involved, so like `setCreditTier` it changes the credit limit of         users this contract cannot enumerate. Same treatment, for the same reason:         the population is DISCARDED and the reputation path shuts         (`creditPopulationSeededAt` back to zero) until governance re-counts through         `seedCreditPopulation`, which reads every level out of this contract's own         `globalReputation` storage. Bumping `creditPopulationEpoch` un-counts every         address at once without needing an enumerable user set.         The alternative considered and rejected was accepting an operator-supplied         re-bucketing (a per-level headcount passed as calldata). It would keep the         path open across a threshold move, but the numbers in it are exactly the         kind of unverifiable operator arithmetic round-9 exists to remove.         The failure mode is a governance outage (no new credit until the re-count         lands), never a silent decoupling of the bound from reality.
 
 | param | type | description |
 |---|---|---|
@@ -1291,6 +1605,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | `roleId` | `bytes32` |  |
 | `newAmount` | `uint256` |  |
 
+#### `totalCreditExposure()`
+
+`0xfe201e68` · view · access: —
+
+> Protocol-wide OUTSTANDING aPNT credit exposure created by the REPUTATION         path: the sum, over every address, of the credit limit its current global         reputation buys it ABOVE the permissionless level-1 floor.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `transferOwnership(address newOwner)`
 
 `0xf2fde38b` · nonpayable · access: —
@@ -1351,12 +1675,15 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
 | `0xe80f99d9789e367c229c526d3d3f84d44d3daf77ea65f7bbe8510f176ac45a23` | `BurnExecuted(address,bytes32,uint256,string)` |
+| `0x7f6bf87ac1bc178bfcd6d6e057cd4722382aa04c508035f7caf9724ac0ccff97` | `CreditExposureResynced(uint256)` |
+| `0xe86c48e51a6d562b25768dc3b8b480737e5d175380c5a3e75c01768fd8220ea6` | `CreditPolicyUpdated(uint256,uint256,uint256)` |
 | `0x7e684e0b76ed13bc9cf7e4fbac7d11873036be9c9a83f9958382721eeda46010` | `CreditTierUpdated(uint256,uint256)` |
 | `0xbb42fde0252fd03324102c3666f457311508c4dd05f96e66e0fd26f0c28e8542` | `GlobalReputationUpdated(address,uint256,uint256)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x171f7dbde35aed7cddf3ece2dad8f4eb62443a3d6bf8616586da6fd03c6b4ed9` | `MySBTContractUpdated(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0xf2aa93d5b018c6d050bb3a6597b9d4a3cd7a9222079c7ce596ecf6c701216290` | `ProposalMarkedExecuted(uint256,address)` |
+| `0x9a12e4589099dde5227657d6f96fb3ecc16e2e7f8f85a1e78e02e776dfea9984` | `ReputationProposalUplift(uint256,uint256,uint256,uint256,uint256)` |
 | `0x6be30291a8f228c9342613e5e66df1a1b85aa570ac1bca9219f3ac7b7f73bbf3` | `ReputationSourceUpdated(address,bool)` |
 | `0x287e005099116032e1bba9482a5b0df09cc99f7e82a4482fa2810c52158d473d` | `RoleConfigured(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256),uint256)` |
 | `0x0d9361411a652b66cd4aed24a96d36c0b048899896c927d879a9d3ba2790d9c6` | `RoleExited(bytes32,address,uint256,uint256)` |
@@ -1364,6 +1691,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2c48d754bbf59f20e71c13710fac35aa1ea020da58dcbb366de0ef7f75c9377d` | `RoleRegistered(bytes32,address,uint256,uint256)` |
 | `0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b` | `RoleRevoked(bytes32,address,address)` |
 | `0xf6da96ea84a034d6f30b7b377637742735f36f14cfda9144397e4f1e69116f4a` | `SBTBurnFailed(address,bytes32)` |
+| `0x78b2b518370694dbabbd3a63a8babdbff376dff74a1b2b09c8c23f0f265cd161` | `SBTStatusSyncFailed(address,bytes32)` |
 | `0x7042586b23181180eb30b4798702d7a0233b7fc2551e89806770e8e5d9392e6a` | `StakingContractUpdated(address,address)` |
 | `0x1f7cd67c986d0cce4aa6f69075b5278a05438ef2a5d1abf6eeded51ba8123245` | `SuperPaymasterUpdated(address,address)` |
 | `0x3e9fc4a04e1f2759edf7001e63923124a42c59aef874442b88cdb30685c8833e` | `SyncFailed(address,bytes32)` |
@@ -1374,11 +1702,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | error |
 |---|---|
 | `0x9996b315` | `AddressEmptyCode(address)` |
+| `0xdb79c46a` | `AggregateCreditUpliftExceeded(uint256,uint256)` |
 | `0x0b7d62e2` | `BatchTooLarge()` |
 | `0xeeee2fe1` | `BLSFailed()` |
 | `0x85bbf36e` | `BLSNotConfigured()` |
 | `0xab338f96` | `BLSProofRequired()` |
 | `0x1e82e519` | `CallerNotCommunity()` |
+| `0x29949600` | `CreditPopulationCountMismatch()` |
+| `0x5bf731fe` | `CreditPopulationNotSeeded()` |
+| `0x89f9d354` | `CreditTiersNotMonotonic()` |
 | `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
 | `0xb398979f` | `ERC1967NonPayable()` |
 | `0x1425ea42` | `FailedInnerCall()` |
@@ -1402,6 +1734,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xcf8d29eb` | `SPNotSet()` |
 | `0xe685a9c6` | `ThreshNotAscending()` |
 | `0x3294781e` | `TooManyLevels()` |
+| `0x71b4da4a` | `TotalCreditExposureExceeded(uint256,uint256)` |
 | `0x82b42900` | `Unauthorized()` |
 | `0x5cfb0e7f` | `UnauthorizedSource()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
@@ -1622,7 +1955,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ISuperPaymaster
 
 - **Source:** `contracts/src/interfaces/ISuperPaymaster.sol`
-- **Functions:** 11 · **Events:** 6 · **Errors:** 0
+- **Functions:** 12 · **Events:** 6 · **Errors:** 0
 - **Title:** ISuperPaymaster - Multi-tenant SuperPaymaster Interface
 - Interface for SuperPaymaster V3 with per-operator configuration
 
@@ -1636,6 +1969,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Slash operator via BLS consensus |
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — |  |
+| `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether an operator currently has a slash queued (withdraw-blocking flag set). |
 | `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
 | `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — |  |
 | `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — |  |
@@ -1710,6 +2044,22 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isSlashPending(address operator)`
+
+`0xa98e43a5` · view · access: —
+
+> Whether an operator currently has a slash queued (withdraw-blocking flag set).
+
+*@dev* O(1) authoritative read used by DVT peer-failover to detect a queued-but-unexecuted      slash without reconstructing state from events.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
 
 | returns | type | description |
 |---|---|---|
@@ -1918,7 +2268,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IxPNTsFactory
 
 - **Source:** `contracts/src/interfaces/IxPNTsFactory.sol`
-- **Functions:** 4 · **Events:** 0 · **Errors:** 0
+- **Functions:** 9 · **Events:** 0 · **Errors:** 0
 - **Title:** IxPNTsFactory
 - Interface for xPNTsFactory contract
 
@@ -1926,12 +2276,37 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — | CC-28: aPNTs USD price (18 decimals) used to value issuance and backing. |
+| `0xdf74dee5` | `capRatioBps()` | view | — | CC-28: fraction of industryScaleUSD granted as baseline cap, in basis points. |
 | `0x59734e1a` | `getAPNTsPrice()` | view | — | Get current aPNTs USD price |
 | `0xb8d7b669` | `getTokenAddress(address)` | view | — | Get xPNTs token address for community |
 | `0x9bb0f599` | `hasToken(address)` | view | — | Check if community has deployed token |
+| `0x68894411` | `industryScaleUSD(string)` | view | — | CC-28: baseline issuance ceiling (USD, 18 dec) per industry category. |
 | `0x96e28d28` | `isXPNTs(address)` | view | — | Check if `token` was deployed via this factory and is therefore         a trusted xPNTs token (subject to firewall + per-tx caps). |
+| `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — | CC-28: the canonical, governance-set SuperPaymaster (the only trusted backing SP). |
+| `0x0ad026dd` | `tokenCategory(address)` | view | — | CC-28: governance-assigned industry category for a token (not community-set). |
 
 ### Functions
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+> CC-28: aPNTs USD price (18 decimals) used to value issuance and backing.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `capRatioBps()`
+
+`0xdf74dee5` · view · access: —
+
+> CC-28: fraction of industryScaleUSD granted as baseline cap, in basis points.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
 
 #### `getAPNTsPrice()`
 
@@ -1973,6 +2348,20 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `exists` | `bool` | True if token exists |
 
+#### `industryScaleUSD(string category)`
+
+`0x68894411` · view · access: —
+
+> CC-28: baseline issuance ceiling (USD, 18 dec) per industry category.
+
+| param | type | description |
+|---|---|---|
+| `category` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `isXPNTs(address token)`
 
 `0x96e28d28` · view · access: —
@@ -1989,10 +2378,34 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` | True iff the factory deployed this token (xPNTs). |
 
+#### `SUPERPAYMASTER()`
+
+`0x5ae48ba4` · view · access: —
+
+> CC-28: the canonical, governance-set SuperPaymaster (the only trusted backing SP).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `tokenCategory(address token)`
+
+`0x0ad026dd` · view · access: —
+
+> CC-28: governance-assigned industry category for a token (not community-set).
+
+| param | type | description |
+|---|---|---|
+| `token` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
 ## IxPNTsToken
 
 - **Source:** `contracts/src/interfaces/IxPNTsToken.sol`
-- **Functions:** 7 · **Events:** 0 · **Errors:** 0
+- **Functions:** 13 · **Events:** 0 · **Errors:** 0
 - **Title:** IxPNTsToken
 - Interface for xPNTsToken contract
 
@@ -2001,10 +2414,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0xeca9f014` | `approvedFacilitators(address)` | view | — | Check whether a facilitator is authorized by this community to         settle x402 Direct payments against this xPNTs token. |
+| `0x5b71d476` | `backingValueUSD()` | view | — | CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster. |
 | `0xb83aa2de` | `burnFromWithOpHash(address,uint256,bytes32)` | nonpayable | — | Secure burn by Paymaster with replay protection. Amount in aPNTs;         xPNTs burned = amountAPNTs * exchangeRate / 1e18 (ceil). |
+| `0xbdfbdffd` | `credibilityScore()` | view | — | CC-28: backing coverage as a 0-100 score (backing / issued value). |
+| `0x5089a6ff` | `effectiveCapUSD()` | view | — | CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing. |
 | `0x3ba0b9a9` | `exchangeRate()` | view | — | Get exchange rate with aPNTs |
 | `0x2dd31000` | `FACTORY()` | view | — | Get factory address that created this token |
 | `0x9a78e72e` | `getDebt(address)` | view | — | Get user debt amount in aPNTs (protocol unit) |
+| `0xbeaf15d9` | `isOverIssued()` | view | — | CC-28 rule ③: true when this community has over-issued its xPNTs — either the         absolute issuanceCap (if set) is breached, or the issued USD value exceeds the         effective cap (industry baseline + aPNTs staked in SuperPaymaster). This is the         single entry point DVT calls per xPNTs token. |
+| `0xb733b3f8` | `issuanceCap()` | view | — | CC-28 tier-1: absolute hard cap on totalSupply (xPNTs). 0 = disabled.         A voluntary community self-limit; DVT relies on tier-2 (isOverIssued value model). |
+| `0xc7341731` | `issuedValueUSD()` | view | — | CC-28: total issued xPNTs valued in USD (18 decimals). |
 | `0xfa74542d` | `recordDebt(address,uint256)` | nonpayable | — | Record user debt (only SuperPaymaster). Amount in aPNTs. |
 | `0x30f53441` | `recordDebtWithOpHash(address,uint256,bytes32)` | nonpayable | — | Record user debt with opHash replay protection (P1-17). Amount in aPNTs. |
 
@@ -2026,6 +2445,16 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` | True iff this xPNTs has authorized `facilitator`. |
 
+#### `backingValueUSD()`
+
+`0x5b71d476` · view · access: —
+
+> CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `burnFromWithOpHash(address from, uint256 amountAPNTs, bytes32 userOpHash)`
 
 `0xb83aa2de` · nonpayable · access: —
@@ -2037,6 +2466,26 @@ Authoritative, auto-generated reference for every external/public function, even
 | `from` | `address` | User address |
 | `amountAPNTs` | `uint256` | aPNTs amount to settle (converted to xPNTs internally) |
 | `userOpHash` | `bytes32` | UserOperation hash for replay protection |
+
+#### `credibilityScore()`
+
+`0xbdfbdffd` · view · access: —
+
+> CC-28: backing coverage as a 0-100 score (backing / issued value).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `effectiveCapUSD()`
+
+`0x5089a6ff` · view · access: —
+
+> CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `exchangeRate()`
 
@@ -2075,6 +2524,36 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `debt` | `uint256` | Debt amount in aPNTs |
+
+#### `isOverIssued()`
+
+`0xbeaf15d9` · view · access: —
+
+> CC-28 rule ③: true when this community has over-issued its xPNTs — either the         absolute issuanceCap (if set) is breached, or the issued USD value exceeds the         effective cap (industry baseline + aPNTs staked in SuperPaymaster). This is the         single entry point DVT calls per xPNTs token.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+> CC-28 tier-1: absolute hard cap on totalSupply (xPNTs). 0 = disabled.         A voluntary community self-limit; DVT relies on tier-2 (isOverIssued value model).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `issuedValueUSD()`
+
+`0xc7341731` · view · access: —
+
+> CC-28: total issued xPNTs valued in USD (18 decimals).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `recordDebt(address user, uint256 amountAPNTs)`
 
@@ -2210,7 +2689,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IBLSAggregator
 
 - **Source:** `contracts/src/interfaces/v3/IBLSAggregator.sol`
-- **Functions:** 5 · **Events:** 0 · **Errors:** 0
+- **Functions:** 7 · **Events:** 0 · **Errors:** 0
 
 ### Function selector index
 
@@ -2218,9 +2697,11 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|---|---|
 | `0x53f10a4b` | `defaultThreshold()` | view | — |  |
 | `0xc85501bb` | `minThreshold()` | view | — |  |
+| `0x47730efa` | `queueSlashWithConsensus(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: quorum pre-flags an operator (SP.queueSlash). |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | — |  |
+| `0xc312b093` | `slashThresholds(uint8)` | view | — | Per-severity slash consensus threshold (SlashLevel => required signatures). |
 | `0xfc3c298e` | `verify(bytes32,uint256,uint256,bytes)` | view | — | External BLS verification entry point (P0-1). |
-| `0x2399c309` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes)` | nonpayable | — |  |
+| `0xd38f1586` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes32,bytes)` | nonpayable | — |  |
 
 ### Functions
 
@@ -2240,6 +2721,19 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `queueSlashWithConsensus(address operator, uint8 slashLevel, uint256 epoch, bytes proof)`
+
+`0x47730efa` · nonpayable · access: —
+
+> Step 1 of the two-step slash: quorum pre-flags an operator (SP.queueSlash).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `slashLevel` | `uint8` |  |
+| `epoch` | `uint256` |  |
+| `proof` | `bytes` |  |
+
 #### `setDVTValidator(address _dvt)`
 
 `0x6578b0cc` · nonpayable · access: —
@@ -2247,6 +2741,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `_dvt` | `address` |  |
+
+#### `slashThresholds(uint8 slashLevel)`
+
+`0xc312b093` · view · access: —
+
+> Per-severity slash consensus threshold (SlashLevel => required signatures).
+
+| param | type | description |
+|---|---|---|
+| `slashLevel` | `uint8` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
 
 #### `verify(bytes32 expectedMessageHash, uint256 signerMask, uint256 requiredThreshold, bytes sigBytes)`
 
@@ -2267,9 +2775,9 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
-#### `verifyAndExecute(uint256 proposalId, address operator, uint8 slashLevel, address[] repUsers, uint256[] newScores, uint256 epoch, bytes proof)`
+#### `verifyAndExecute(uint256 proposalId, address operator, uint8 slashLevel, address[] repUsers, uint256[] newScores, uint256 epoch, bytes32 evidenceHash, bytes proof)`
 
-`0x2399c309` · nonpayable · access: —
+`0xd38f1586` · nonpayable · access: —
 
 | param | type | description |
 |---|---|---|
@@ -2279,6 +2787,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `repUsers` | `address[]` |  |
 | `newScores` | `uint256[]` |  |
 | `epoch` | `uint256` |  |
+| `evidenceHash` | `bytes32` |  |
 | `proof` | `bytes` |  |
 
 ## IERC3009
@@ -2581,6 +3090,155 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb095d4d7990b498e886fe544495d08fafb40e2675fd41d78e8abf3778ebcada4` | `SyncFailed(address,bytes)` |
 | `0xfd8455407fc2a5f2a6f1ea576385d9201fe1b9bd1b3ecb8bdab57d320cfbb475` | `TicketBurned(address,bytes32,uint256,address)` |
 | `0x6951689eba99e77d7e3b622f276c0ad8e36126c3c510f181b86d05d685eaa074` | `UserSlashed(address,uint256,string,uint256)` |
+
+## ILivenessRegistry
+
+- **Source:** `contracts/src/interfaces/v3/ILivenessRegistry.sol`
+- **Functions:** 9 · **Events:** 2 · **Errors:** 3
+- **Title:** ILivenessRegistry — objective, on-chain operator liveness signal (CC-29)
+- On-chain source of truth for "is an operator live?". Operators self-attest by calling         {attestLiveness}; DVT nodes read {isOffline} / {lastLive} to compute the *live-set*         (the quorum denominator) for the real malicious-slash paths (credit ①, over-issue ③).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x51f1fe1a` | `areOffline(address[])` | view | — | Batch form of {isOffline} — one call to build a full live-set denominator. |
+| `0x0a9a8d99` | `attestLiveness(uint256,bytes32)` | nonpayable | — | Prove the caller is live *now*. Records `lastLive[msg.sender] = block.number`. |
+| `0x231e0340` | `isOffline(address)` | view | — | True iff `operator` is offline as of the block this call executes against. |
+| `0xe458779b` | `lastLive(address)` | view | — | Block number of `operator`'s most recent attestation (0 = never attested). |
+| `0x15c97887` | `livenessWindow()` | view | — | Fleet-wide liveness window, in blocks. offline ⇔ `blockNumber − lastLive > window`. |
+| `0xf901ac57` | `MAX_ATTEST_ANCHOR_AGE()` | view | — | Max age (in blocks) of the freshness anchor {attestLiveness} may reference. Bounded by         the EVM's 256-block `blockhash` window. |
+| `0xa641a722` | `MAX_LIVENESS_WINDOW()` | view | — | Upper bound on {livenessWindow} — fat-finger guard against an absurd value. |
+| `0xd4dcb45a` | `MIN_LIVENESS_WINDOW()` | view | — | Lower bound on {livenessWindow} — blocks a value so small a single missed ping would         mass-jail the fleet. |
+| `0x84dfda79` | `setLivenessWindow(uint256)` | nonpayable | — | Set the fleet-wide liveness window (blocks). Owner-only; owner SHOULD be a         TimelockController / multisig because SHRINKING the window is fleet-sensitive         (a sudden shrink can flip many operators to offline at once). Bounded to         [MIN_LIVENESS_WINDOW, MAX_LIVENESS_WINDOW] as a fat-finger guard. |
+
+### Functions
+
+#### `areOffline(address[] operators)`
+
+`0x51f1fe1a` · view · access: —
+
+> Batch form of {isOffline} — one call to build a full live-set denominator.
+
+| param | type | description |
+|---|---|---|
+| `operators` | `address[]` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool[]` |  |
+
+#### `attestLiveness(uint256 anchorBlock, bytes32 anchorHash)`
+
+`0x0a9a8d99` · nonpayable · access: —
+
+> Prove the caller is live *now*. Records `lastLive[msg.sender] = block.number`.
+
+*@dev* FRESHNESS BINDING (M-01): the caller must echo the hash of a recent block. A blockhash is      unpredictable until its block exists, and `blockhash()` only exposes the last 256 blocks,      so a transaction CANNOT be pre-signed to cover a future period — the signer must have      observed a block within the last `MAX_ATTEST_ANCHOR_AGE` blocks. This ties "live" to      recent signing capability and defeats a keeper replaying a batch of stale, pre-authorized      attestations to keep an abandoned-key operator in the live-set. (It does NOT, by itself,      stop an operator whose key is genuinely online but which refuses to co-sign slashes — that      residual griefer is caught at the DVT layer by excluding recent non-participants.)      Still cheap: one `blockhash` read + one warm SSTORE. Permissionless; consumers decide which      addresses count. A v2 MAY add a BLS-aggregated batch form.
+
+| param | type | description |
+|---|---|---|
+| `anchorBlock` | `uint256` | a recent block in `[block.number - MAX_ATTEST_ANCHOR_AGE, block.number - 1]`. |
+| `anchorHash` | `bytes32` | must equal `blockhash(anchorBlock)`. |
+
+#### `isOffline(address operator)`
+
+`0x231e0340` · view · access: —
+
+> True iff `operator` is offline as of the block this call executes against.
+
+*@dev* `never attested (lastLive == 0)` ⇒ offline (must prove liveness before it counts).      Otherwise `block.number > lastLive[operator] + livenessWindow()`. See the DETERMINISM      CONTRACT above: pin `blockTag` to a finalized epoch for cross-node agreement.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `lastLive(address operator)`
+
+`0xe458779b` · view · access: —
+
+> Block number of `operator`'s most recent attestation (0 = never attested).
+
+*@dev* Exposed for forensics / alerting (who went offline, from which block) and to make the      live-set denominator auditable. Not part of any slash content-address (no offline slash).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `livenessWindow()`
+
+`0x15c97887` · view · access: —
+
+> Fleet-wide liveness window, in blocks. offline ⇔ `blockNumber − lastLive > window`.
+
+*@dev* Governance-set and identical for the whole DVT fleet (NOT per-community) so every      co-signer computes the same live-set; DVT reads it (pinned to the same epoch block).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MAX_ATTEST_ANCHOR_AGE()`
+
+`0xf901ac57` · view · access: —
+
+> Max age (in blocks) of the freshness anchor {attestLiveness} may reference. Bounded by         the EVM's 256-block `blockhash` window.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MAX_LIVENESS_WINDOW()`
+
+`0xa641a722` · view · access: —
+
+> Upper bound on {livenessWindow} — fat-finger guard against an absurd value.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MIN_LIVENESS_WINDOW()`
+
+`0xd4dcb45a` · view · access: —
+
+> Lower bound on {livenessWindow} — blocks a value so small a single missed ping would         mass-jail the fleet.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `setLivenessWindow(uint256 newWindow)`
+
+`0x84dfda79` · nonpayable · access: —
+
+> Set the fleet-wide liveness window (blocks). Owner-only; owner SHOULD be a         TimelockController / multisig because SHRINKING the window is fleet-sensitive         (a sudden shrink can flip many operators to offline at once). Bounded to         [MIN_LIVENESS_WINDOW, MAX_LIVENESS_WINDOW] as a fat-finger guard.
+
+| param | type | description |
+|---|---|---|
+| `newWindow` | `uint256` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x2063ad0e5e02d8662f91343a706d6661b86a0fd54dee876f99763199bcebdb73` | `LivenessAttested(address,uint256)` |
+| `0x8580ef248ca1d6bb850bdefe489be0582d571973a1276ac11455204a7f901160` | `LivenessWindowUpdated(uint256,uint256)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x2ab917fc` | `BadAnchorHash(uint256)` |
+| `0x378972b5` | `InvalidWindow(uint256)` |
+| `0xfa7a8e24` | `StaleAnchor(uint256)` |
 
 ## IMySBT
 
@@ -3002,7 +3660,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IRegistry
 
 - **Source:** `contracts/src/interfaces/v3/IRegistry.sol`
-- **Functions:** 18 · **Events:** 7 · **Errors:** 1
+- **Functions:** 18 · **Events:** 8 · **Errors:** 1
 - **Title:** IRegistry
 - Registry v3 interface with unified registerRole API
 
@@ -3276,6 +3934,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2c48d754bbf59f20e71c13710fac35aa1ea020da58dcbb366de0ef7f75c9377d` | `RoleRegistered(bytes32,address,uint256,uint256)` |
 | `0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b` | `RoleRevoked(bytes32,address,address)` |
 | `0xf6da96ea84a034d6f30b7b377637742735f36f14cfda9144397e4f1e69116f4a` | `SBTBurnFailed(address,bytes32)` |
+| `0x78b2b518370694dbabbd3a63a8babdbff376dff74a1b2b09c8c23f0f265cd161` | `SBTStatusSyncFailed(address,bytes32)` |
 
 ### Errors
 
@@ -3393,7 +4052,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## MockAgentIdentityRegistry
 
 - **Source:** `contracts/src/mocks/MockAgentIdentityRegistry.sol`
-- **Functions:** 8 · **Events:** 3 · **Errors:** 2
+- **Functions:** 9 · **Events:** 3 · **Errors:** 2
 - **Title:** MockAgentIdentityRegistry
 - Minimal ERC-721-like mock for ERC-8004 Agent Identity testing
 
@@ -3402,6 +4061,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0x70a08231` | `balanceOf(address)` | view | — | Check if address holds agent NFT(s) |
+| `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Dedicated SuperPaymaster eligibility view. |
 | `0x61b8ce8c` | `nextId()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x6352211e` | `ownerOf(uint256)` | view | — | Get owner of agent ID |
@@ -3425,6 +4085,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
+
+#### `isRegisteredAgent(address account)`
+
+`0xe21b38d2` · view · access: —
+
+> Dedicated SuperPaymaster eligibility view.
+
+| param | type | description |
+|---|---|---|
+| `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `nextId()`
 
@@ -3637,7 +4311,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## MockBLSAggregator
 
 - **Source:** `contracts/src/mocks/MockBLSAggregator.sol`
-- **Functions:** 8 · **Events:** 0 · **Errors:** 0
+- **Functions:** 11 · **Events:** 0 · **Errors:** 0
 - **Title:** MockBLSAggregator
 - Mock aggregator for unit tests — bypasses real BLS pairing.
 
@@ -3647,11 +4321,14 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|---|---|
 | `0x53f10a4b` | `defaultThreshold()` | view | — |  |
 | `0xc85501bb` | `minThreshold()` | view | — |  |
+| `0x47730efa` | `queueSlashWithConsensus(address,uint8,uint256,bytes)` | pure | — |  |
 | `0x6578b0cc` | `setDVTValidator(address)` | pure | — |  |
+| `0x9eb49527` | `setSlashThreshold(uint8,uint8)` | nonpayable | — |  |
 | `0xe3064a77` | `setThresholds(uint256,uint256)` | nonpayable | — |  |
 | `0xc7b6b080` | `setVerifyResult(bool)` | nonpayable | — |  |
+| `0xc312b093` | `slashThresholds(uint8)` | view | — |  |
 | `0xfc3c298e` | `verify(bytes32,uint256,uint256,bytes)` | view | — |  |
-| `0x2399c309` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes)` | pure | — |  |
+| `0xd38f1586` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes32,bytes)` | pure | — |  |
 | `0x0e514c72` | `verifyResult()` | view | — |  |
 
 ### Functions
@@ -3672,6 +4349,17 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `queueSlashWithConsensus(address arg0, uint8 arg1, uint256 arg2, bytes arg3)`
+
+`0x47730efa` · pure · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `uint8` |  |
+| `arg2` | `uint256` |  |
+| `arg3` | `bytes` |  |
+
 #### `setDVTValidator(address arg0)`
 
 `0x6578b0cc` · pure · access: —
@@ -3679,6 +4367,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `arg0` | `address` |  |
+
+#### `setSlashThreshold(uint8 level, uint8 threshold)`
+
+`0x9eb49527` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `level` | `uint8` |  |
+| `threshold` | `uint8` |  |
 
 #### `setThresholds(uint256 _min, uint256 _default)`
 
@@ -3697,6 +4394,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `ok` | `bool` |  |
 
+#### `slashThresholds(uint8 level)`
+
+`0xc312b093` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `level` | `uint8` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
 #### `verify(bytes32 arg0, uint256 arg1, uint256 arg2, bytes arg3)`
 
 `0xfc3c298e` · view · access: —
@@ -3712,9 +4421,9 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
-#### `verifyAndExecute(uint256 arg0, address arg1, uint8 arg2, address[] arg3, uint256[] arg4, uint256 arg5, bytes arg6)`
+#### `verifyAndExecute(uint256 arg0, address arg1, uint8 arg2, address[] arg3, uint256[] arg4, uint256 arg5, bytes32 arg6, bytes arg7)`
 
-`0x2399c309` · pure · access: —
+`0xd38f1586` · pure · access: —
 
 | param | type | description |
 |---|---|---|
@@ -3724,7 +4433,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `arg3` | `address[]` |  |
 | `arg4` | `uint256[]` |  |
 | `arg5` | `uint256` |  |
-| `arg6` | `bytes` |  |
+| `arg6` | `bytes32` |  |
+| `arg7` | `bytes` |  |
 
 #### `verifyResult()`
 
@@ -4446,7 +5156,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 26 · **Events:** 12 · **Errors:** 25
+- **Functions:** 72 · **Events:** 31 · **Errors:** 56
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -4455,30 +5165,76 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0x300b0b35` | `aggregatedSignatures(uint256)` | view | — |  |
+| `0x585d5bc0` | `applyFraudProofVerifier()` | nonpayable | — | Finalise a matured verifier rotation. |
+| `0xc9e4b4e3` | `blsKeyOwner(bytes32)` | view | — | CC-48 round-2: permanent binding of a G1 public key to the FIRST         validator address it was registered under. |
+| `0x58222d5d` | `cancelFraudProofVerifierRotation()` | nonpayable | onlyOwner | Abandon an in-flight verifier rotation. |
+| `0x38b91788` | `cancelGuardianExit()` | nonpayable | — | Withdraw an exit notice and re-enter the signer set. |
+| `0xadc63987` | `consumeGuardianExit(address)` | nonpayable | — | Registry-only atomic gate called by Registry.exitRole(ROLE_DVT). |
 | `0x53f10a4b` | `defaultThreshold()` | view | — |  |
+| `0x796f077b` | `DOMAIN_NAME()` | view | — | Versioned domain name shared by every BLS pre-image in this system. |
+| `0xf698da25` | `domainSeparator()` | view | — | The domain separator every pre-image on this contract commits to. |
 | `0xbc8efe75` | `DVT_VALIDATOR()` | view | — |  |
+| `0x296faebb` | `emergencyDisarmFraudProofVerifier()` | nonpayable | onlyOwner | EMERGENCY: disarm the fraud-proof verifier immediately — no delay.         Clears the active verifier AND any in-flight rotation, so no new         guardian-slash case can be opened from this block onwards. |
 | `0x3b60288a` | `executedProposals(uint256)` | view | — |  |
+| `0x05e44aaf` | `executeGuardianSlash(uint256,address[],bytes)` | nonpayable | nonReentrant | Slash the FULL ROLE_DVT stake of guardians proven (by the external         fraud-proof verifier) to have co-signed a fraudulent proposal. This         is the thin SP execution entry for the paper's ρ·S_op collusion         deterrent (Protocol B stage 1). It complements _executeSlash, which         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT         stake ≠ operator aPNTs, even if the addresses coincide). |
 | `0x5e1a03a2` | `executeProposal(uint256,address,bytes,uint256,bytes)` | nonpayable | — | Execute any proposal via BLS consensus (Generic DVT) |
+| `0xe6f59de2` | `expireGuardianSlashCase(uint256,address[])` | nonpayable | nonReentrant | Release an unexecuted case after its bounded pending window. |
+| `0xe35ae6f2` | `fraudProofDigest(uint256,address[])` | view | — | Canonical digest handed to `IFraudProofVerifier.verify`. |
+| `0x3c396ea4` | `fraudProofVerifier()` | view | — | DVT-supplied fraud-proof verifier for guardian-collusion slashing         (Protocol B stage 2). address(0) = feature dormant: NO NEW CASE can be         opened, because `queueGuardianSlash` — the only way to open one — reverts         with `FraudProofVerifierNotSet`. It does NOT stop a case that is already         queued: since round-4 the verdict is frozen at queue time, so         `executeGuardianSlash` never reads this slot at all (CC-48 round-5         MEDIUM-2: the pre-round-5 NatSpec claimed the opposite and would have led         an operator to believe zeroing this halts an in-flight slash).         This is the ONE seam the detection layer plugs into; the aggregator never         judges fraud itself. |
 | `0xc2e7cbdd` | `getBLSPublicKey(address)` | view | — | View accessor returning the stored G1 public key + slot for a validator. |
+| `0xa69dfb5e` | `GUARDIAN_EXIT_COOLDOWN()` | view | — | Quiet period imposed after cancelling an exit notice (BLOCKER-1). |
+| `0xb89c7362` | `GUARDIAN_EXIT_DELAY()` | view | — |  |
+| `0x12e360b4` | `GUARDIAN_EXIT_WINDOW()` | view | — |  |
+| `0x570e530f` | `GUARDIAN_SLASH_CASE_WINDOW()` | view | — |  |
+| `0x497fae81` | `guardianCaseResolved(uint256,address)` | view | — | CC-48 HIGH-2: per-(case, guardian) release marker. Set exactly once,         when that guardian's `pendingGuardianSlashCount` contribution for the         case is given back — either because the slash succeeded, because the         guardian had nothing left to slash, or because the case expired. A         guardian whose `slashByDVT` reverted stays UNresolved and frozen, so a         single staking-side failure can no longer release the whole set. |
+| `0x6bdb96f6` | `guardianExitCooldownUntil(address)` | view | — | CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new         exit notice after cancelling one. Kills request/cancel flip-flopping as         a cheap, repeatable lever on the signer set. |
+| `0x7d43f48e` | `guardianExitRequests(address)` | view | — |  |
+| `0xee02231c` | `guardianSlashCases(uint256)` | view | — | Two-step guardian-slash lifecycle. Queueing a verifier-approved         case freezes every accused guardian's ROLE_DVT exit in Registry;         execution or permissionless expiry releases exactly one count. |
+| `0x5478442e` | `guardianSlashed(uint256,address)` | view | — | Per-(fraudProofId, guardian) slash record for executeGuardianSlash.         Consumption is tracked PER GUARDIAN — and only for guardians actually         slashed — so submitting an already-exited co-signer can never burn the         proof for the still-staked colluders (the global-id-consumption flaw this         replaces). Own id-space; never collides with slash/reputation proposalIds. |
 | `0x714897df` | `MAX_VALIDATORS()` | view | — |  |
 | `0xc85501bb` | `minThreshold()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x37abe80b` | `pendingFraudProofVerifier()` | view | — | CC-48 MEDIUM-1: two-step, delay-guarded fraud-proof verifier rotation.         `pendingFraudProofVerifierReadyAt != 0` means a rotation is in flight. |
+| `0xd9a010e4` | `pendingFraudProofVerifierReadyAt()` | view | — |  |
+| `0xed8f4299` | `pendingGuardianSlashCount(address)` | view | — |  |
 | `0x0d8b9eab` | `permissionlessBLSRegistration()` | view | — | H-02: when true, a staked ROLE_DVT validator may self-register their OWN         BLS key (with proof-of-possession) instead of requiring an owner call.         Default false — onboarding stays owner-gated (off-chain trust established         first) until governance flips it on. Closes the otherwise-inconsistent         path where Registry ROLE_DVT is permissionless (self-service stake) but         BLS-key registration here was owner-only. |
+| `0xbaeb0e66` | `popDigest(address,(bytes32,bytes32,bytes32,bytes32))` | view | — | Canonical proof-of-possession digest for (validator, publicKey). |
 | `0xa74c1ca8` | `proposalNonces(uint256)` | view | — |  |
+| `0xfa3608ff` | `proposalSignersCommitment(uint256)` | view | — | A' attribution (CC-89 stage-2): commitment to the exact signer         ADDRESS set of each executed proposal, snapshotted at execution time         before any revokeBLSPublicKey can reassign a slot. A fraud-proof         verifier matches proof-supplied claimedSigners against this to         attribute a fraudulent slash to real addresses. It is a 1-slot         fingerprint and is NOT reversible — the address list's data         availability is the DVT detection layer's (redundant watchers) job. |
+| `0xb3b8b48f` | `proposeFraudProofVerifier(address)` | nonpayable | onlyOwner | Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`. |
+| `0xa6777d00` | `queueGuardianSlash(uint256,address[],bytes)` | nonpayable | nonReentrant | Queue a verifier-approved guardian slash and freeze ROLE_DVT exits. |
+| `0x47730efa` | `queueSlashWithConsensus(address,uint8,uint256,bytes)` | nonpayable | nonReentrant | Step 1 of the two-step slash: a DVT quorum pre-flags `operator` for         slashing (SP.queueSlash), blocking their withdraw until the slash is         executed (verifyAndExecute) or the owner cancels it. Kept SEPARATE         from execution so the flag lands in an earlier tx — closing the         front-run window an atomic queue+execute would reopen. |
 | `0xaded17c5` | `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` | nonpayable | — | Register a BLS validator's public key into a deterministic slot. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
+| `0x25cad7a4` | `releaseKeyBinding(bytes32)` | nonpayable | onlyOwner | CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE         slot is using. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x79cada55` | `reputationMessageHash(uint256,address[],uint256[],uint256)` | view | — | Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`. |
+| `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof. |
 | `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | onlyOwner | Revoke a previously registered BLS validator key. |
 | `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
 | `0x7f39a939` | `setMinThreshold(uint256)` | nonpayable | onlyOwner | Set minimum consensus threshold (global floor) |
 | `0xa9ea1992` | `setPermissionlessBLSRegistration(bool)` | nonpayable | onlyOwner | H-02: toggle permissionless (stake + proof-of-possession) self-registration         of BLS validator keys. Default off — flip on once governance is ready to let         staked ROLE_DVT validators onboard their own keys without an owner call. |
+| `0x28e4e0a3` | `setSlashPolicyAdmin(address)` | nonpayable | onlyOwner | Rotate the slash-policy admin (owner only). |
+| `0x9eb49527` | `setSlashThreshold(uint8,uint8)` | nonpayable | — | Update the per-severity slash consensus threshold. |
 | `0xe79e9739` | `setSuperPaymaster(address)` | nonpayable | onlyOwner |  |
+| `0x777ff608` | `SLASH_THRESHOLD_FLOOR()` | view | — | Absolute signature floor enforced inside `_checkSignatures` for         EVERY verification path (a hard safety net; no path may verify         below this). The generic executeProposal path layers the stricter         `minThreshold` on top, so lowering the slash floor to 2 (for a         2-of-3 WARNING) does NOT widen the generic path — that stays at         minThreshold. Also the min a slash-table entry may be set to. |
+| `0xbf5790a6` | `slashPolicyAdmin()` | view | — | Address permitted to update `slashThresholds`. Set this to a         multisig for plain governance, or to a TimelockController(multisig)         to get timelocked policy changes WITHOUT building timelock logic         (and its bytecode) into this contract. Owner rotates it. |
+| `0xc312b093` | `slashThresholds(uint8)` | view | — | Per-severity slash consensus threshold, keyed by SlashLevel         (0=WARNING, 1=MINOR, 2=MAJOR). Bootstrap (N=3): 2/3/3. This         replaces the flat defaultThreshold for the slash-only path so the         bar scales with severity and with the validator set over time,         by governance table update rather than a code change. |
 | `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — |  |
+| `0xc168f542` | `TAG_EXECUTE_SLASH()` | view | — |  |
+| `0x2a931a74` | `TAG_FRAUD_PROOF()` | view | — |  |
+| `0x9a8c69db` | `TAG_POP()` | view | — |  |
+| `0xd40276c7` | `TAG_PROPOSAL()` | view | — |  |
+| `0xa86cb0f2` | `TAG_QUEUE_SLASH()` | view | — | Path tags. Distinct per path so a proof for one path is never a         valid proof for another, even with otherwise-identical fields. |
+| `0x4dbae183` | `TAG_REPUTATION()` | view | — |  |
+| `0xf5632e5a` | `TAG_SIGNERS_COMMITMENT()` | view | — |  |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0xd59311c5` | `usedSlashQueueHashes(bytes32)` | view | — | Replay guard for queueSlashWithConsensus. A queue proof commits to         (operator, slashLevel, epoch, chainid); once consumed it cannot be         replayed — otherwise the same signed proof could re-flag an operator         after the owner cancelled the slash or after it already executed         (a reusable withdraw-block DoS). A fresh, legitimate re-queue simply         uses a new epoch (→ new hash). |
 | `0xa3c57093` | `validatorAtSlot(uint8)` | view | — | 1-indexed slot → validator address. signerMask bit `i` (0-indexed)         corresponds to validator at slot `i+1`. |
+| `0x6d01be91` | `VERIFIER_ROTATION_DELAY()` | view | — | Verifier rotations mature no faster than a full case window, so         governance cannot retroactively kill a queued case by swapping in a         verifier that returns false (CC-48 MEDIUM-1). |
 | `0xfc3c298e` | `verify(bytes32,uint256,uint256,bytes)` | view | — | External BLS pairing verification used by Registry / ReputationSystem. |
-| `0x2399c309` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes)` | nonpayable | nonReentrant |  |
+| `0xd38f1586` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes32,bytes)` | nonpayable | nonReentrant |  |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
@@ -4498,6 +5254,52 @@ Authoritative, auto-generated reference for every external/public function, even
 | `timestamp` | `uint256` |  |
 | `verified` | `bool` |  |
 
+#### `applyFraudProofVerifier()`
+
+`0x585d5bc0` · nonpayable · access: —
+
+> Finalise a matured verifier rotation.
+
+*@dev* Permissionless on purpose: the decision was already taken by `owner`         and has served its full delay, so anyone may push the button. Keeping         it owner-only would just hand the owner a second, unbounded veto.
+
+#### `blsKeyOwner(bytes32 arg0)`
+
+`0xc9e4b4e3` · view · access: —
+
+> CC-48 round-2: permanent binding of a G1 public key to the FIRST         validator address it was registered under.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `cancelFraudProofVerifierRotation()`
+
+`0x58222d5d` · nonpayable · access: onlyOwner
+
+> Abandon an in-flight verifier rotation.
+
+#### `cancelGuardianExit()`
+
+`0x38b91788` · nonpayable · access: —
+
+> Withdraw an exit notice and re-enter the signer set.
+
+*@dev* CC-48 BLOCKER-1 / MEDIUM-5. Two changes over the original: an accused         guardian (pending case) may no longer cancel back into the signing set,         and every cancel arms a GUARDIAN_EXIT_COOLDOWN quiet period before a new         notice may be filed, so request/cancel cannot be cycled. This is also the         supported way to clear an EXPIRED notice: the record survives expiry (and         keeps excluding the slot), and cancelling is what puts the guardian back.
+
+#### `consumeGuardianExit(address guardian)`
+
+`0xadc63987` · nonpayable · access: —
+
+> Registry-only atomic gate called by Registry.exitRole(ROLE_DVT).
+
+| param | type | description |
+|---|---|---|
+| `guardian` | `address` |  |
+
 #### `defaultThreshold()`
 
 `0x53f10a4b` · view · access: —
@@ -4506,6 +5308,28 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `DOMAIN_NAME()`
+
+`0x796f077b` · view · access: —
+
+> Versioned domain name shared by every BLS pre-image in this system.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `domainSeparator()`
+
+`0xf698da25` · view · access: —
+
+> The domain separator every pre-image on this contract commits to.
+
+*@dev* Not cached in storage: `block.chainid` must stay live so a chain         fork cannot inherit the pre-fork domain, and both addresses are         immutable anyway, so there is nothing to cache.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
 #### `DVT_VALIDATOR()`
 
 `0xbc8efe75` · view · access: —
@@ -4513,6 +5337,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `emergencyDisarmFraudProofVerifier()`
+
+`0x296faebb` · nonpayable · access: onlyOwner
+
+> EMERGENCY: disarm the fraud-proof verifier immediately — no delay.         Clears the active verifier AND any in-flight rotation, so no new         guardian-slash case can be opened from this block onwards.
+
+*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a four-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a four-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 4-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 4 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
 
 #### `executedProposals(uint256 arg0)`
 
@@ -4525,6 +5357,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bool` |  |
+
+#### `executeGuardianSlash(uint256 fraudProofId, address[] guiltyGuardians, bytes fraudProof)`
+
+`0x05e44aaf` · nonpayable · access: nonReentrant
+
+> Slash the FULL ROLE_DVT stake of guardians proven (by the external         fraud-proof verifier) to have co-signed a fraudulent proposal. This         is the thin SP execution entry for the paper's ρ·S_op collusion         deterrent (Protocol B stage 1). It complements _executeSlash, which         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT         stake ≠ operator aPNTs, even if the addresses coincide).
+
+*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice and is immediately excluded           from BLS signer masks; any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
+
+| param | type | description |
+|---|---|---|
+| `fraudProofId` | `uint256` | Unique id of the fraud proof (own id-space; replay-guarded). |
+| `guiltyGuardians` | `address[]` | Addresses proven to have colluded (bound by the verifier at                         queue time); must hash to the case's `guardiansHash`. |
+| `fraudProof` | `bytes` | The SAME proof bytes the verifier approved at queue time;                         checked against `fraudProofHash`, not re-interpreted here. |
 
 #### `executeProposal(uint256 proposalId, address target, bytes callData, uint256 requiredThreshold, bytes proof)`
 
@@ -4542,6 +5388,44 @@ Authoritative, auto-generated reference for every external/public function, even
 | `requiredThreshold` | `uint256` | Required number of signatures (must be >= minThreshold) |
 | `proof` | `bytes` | BLS aggregated signature proof: abi.encode(uint256 signerMask, bytes sigG2) |
 
+#### `expireGuardianSlashCase(uint256 fraudProofId, address[] guiltyGuardians)`
+
+`0xe6f59de2` · nonpayable · access: nonReentrant
+
+> Release an unexecuted case after its bounded pending window.
+
+| param | type | description |
+|---|---|---|
+| `fraudProofId` | `uint256` |  |
+| `guiltyGuardians` | `address[]` |  |
+
+#### `fraudProofDigest(uint256 fraudProofId, address[] guiltyGuardians)`
+
+`0xe35ae6f2` · view · access: —
+
+> Canonical digest handed to `IFraudProofVerifier.verify`.
+
+*@dev* Public so DVT can reproduce it byte-for-byte off-chain.
+
+| param | type | description |
+|---|---|---|
+| `fraudProofId` | `uint256` |  |
+| `guiltyGuardians` | `address[]` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `fraudProofVerifier()`
+
+`0x3c396ea4` · view · access: —
+
+> DVT-supplied fraud-proof verifier for guardian-collusion slashing         (Protocol B stage 2). address(0) = feature dormant: NO NEW CASE can be         opened, because `queueGuardianSlash` — the only way to open one — reverts         with `FraudProofVerifierNotSet`. It does NOT stop a case that is already         queued: since round-4 the verdict is frozen at queue time, so         `executeGuardianSlash` never reads this slot at all (CC-48 round-5         MEDIUM-2: the pre-round-5 NatSpec claimed the opposite and would have led         an operator to believe zeroing this halts an in-flight slash).         This is the ONE seam the detection layer plugs into; the aggregator never         judges fraud itself.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
 #### `getBLSPublicKey(address validator)`
 
 `0xc2e7cbdd` · view · access: —
@@ -4557,6 +5441,117 @@ Authoritative, auto-generated reference for every external/public function, even
 | `publicKey` | `(bytes32,bytes32,bytes32,bytes32)` |  |
 | `slot` | `uint8` |  |
 | `isActive` | `bool` |  |
+
+#### `GUARDIAN_EXIT_COOLDOWN()`
+
+`0xa69dfb5e` · view · access: —
+
+> Quiet period imposed after cancelling an exit notice (BLOCKER-1).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `GUARDIAN_EXIT_DELAY()`
+
+`0xb89c7362` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `GUARDIAN_EXIT_WINDOW()`
+
+`0x12e360b4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `GUARDIAN_SLASH_CASE_WINDOW()`
+
+`0x570e530f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `guardianCaseResolved(uint256 arg0, address arg1)`
+
+`0x497fae81` · view · access: —
+
+> CC-48 HIGH-2: per-(case, guardian) release marker. Set exactly once,         when that guardian's `pendingGuardianSlashCount` contribution for the         case is given back — either because the slash succeeded, because the         guardian had nothing left to slash, or because the case expired. A         guardian whose `slashByDVT` reverted stays UNresolved and frozen, so a         single staking-side failure can no longer release the whole set.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+| `arg1` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `guardianExitCooldownUntil(address arg0)`
+
+`0x6bdb96f6` · view · access: —
+
+> CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new         exit notice after cancelling one. Kills request/cancel flip-flopping as         a cheap, repeatable lever on the signer set.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `guardianExitRequests(address arg0)`
+
+`0x7d43f48e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `readyAt` | `uint64` |  |
+| `expiresAt` | `uint64` |  |
+
+#### `guardianSlashCases(uint256 arg0)`
+
+`0xee02231c` · view · access: —
+
+> Two-step guardian-slash lifecycle. Queueing a verifier-approved         case freezes every accused guardian's ROLE_DVT exit in Registry;         execution or permissionless expiry releases exactly one count.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `guardiansHash` | `bytes32` |  |
+| `fraudProofHash` | `bytes32` |  |
+| `deadline` | `uint64` |  |
+| `status` | `uint8` |  |
+| `guardianCount` | `uint16` |  |
+| `resolvedCount` | `uint16` |  |
+| `verifier` | `address` |  |
+
+#### `guardianSlashed(uint256 arg0, address arg1)`
+
+`0x5478442e` · view · access: —
+
+> Per-(fraudProofId, guardian) slash record for executeGuardianSlash.         Consumption is tracked PER GUARDIAN — and only for guardians actually         slashed — so submitting an already-exited co-signer can never burn the         proof for the still-staked colluders (the global-id-consumption flaw this         replaces). Own id-space; never collides with slash/reputation proposalIds.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+| `arg1` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `MAX_VALIDATORS()`
 
@@ -4584,6 +5579,36 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `pendingFraudProofVerifier()`
+
+`0x37abe80b` · view · access: —
+
+> CC-48 MEDIUM-1: two-step, delay-guarded fraud-proof verifier rotation.         `pendingFraudProofVerifierReadyAt != 0` means a rotation is in flight.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingFraudProofVerifierReadyAt()`
+
+`0xd9a010e4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingGuardianSlashCount(address arg0)`
+
+`0xed8f4299` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `permissionlessBLSRegistration()`
 
 `0x0d8b9eab` · view · access: —
@@ -4593,6 +5618,23 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bool` |  |
+
+#### `popDigest(address validator, (bytes32,bytes32,bytes32,bytes32) publicKey)`
+
+`0xbaeb0e66` · view · access: —
+
+> Canonical proof-of-possession digest for (validator, publicKey).
+
+*@dev* CC-48 round-2 HIGH: the pre-image now binds the VALIDATOR ADDRESS         (and the domain). Previously it covered only the public key, so the         PoP sitting in one registrant's public calldata could be lifted by         any other ROLE_DVT address to register the same key at a second slot.         With the same key in N slots the reconstructed pkAgg is N*pk, and the         single key holder can produce N*sk*H(m) — one signer masquerading as         a quorum. Address binding kills the lift; `blsKeyOwner` (below) kills         the duplicate registration even when the key holder tries it himself.
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+| `publicKey` | `(bytes32,bytes32,bytes32,bytes32)` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
 
 #### `proposalNonces(uint256 arg0)`
 
@@ -4606,20 +5648,75 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `proposalSignersCommitment(uint256 arg0)`
+
+`0xfa3608ff` · view · access: —
+
+> A' attribution (CC-89 stage-2): commitment to the exact signer         ADDRESS set of each executed proposal, snapshotted at execution time         before any revokeBLSPublicKey can reassign a slot. A fraud-proof         verifier matches proof-supplied claimedSigners against this to         attribute a fraudulent slash to real addresses. It is a 1-slot         fingerprint and is NOT reversible — the address list's data         availability is the DVT detection layer's (redundant watchers) job.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `proposeFraudProofVerifier(address verifier)`
+
+`0xb3b8b48f` · nonpayable · access: onlyOwner
+
+> Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`.
+
+*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for four days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The request immediately removes the guardian from         valid signer masks; a verifier-approved queued case increments the         pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
+
+| param | type | description |
+|---|---|---|
+| `verifier` | `address` |  |
+
+#### `queueGuardianSlash(uint256 fraudProofId, address[] guiltyGuardians, bytes fraudProof)`
+
+`0xa6777d00` · nonpayable · access: nonReentrant
+
+> Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
+
+*@dev* The full proof is checked before any freeze is installed, so arbitrary      callers cannot lock honest guardians. A bounded window      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full      exit notice, see the constant's own comment) prevents an abandoned case      from becoming a permanent withdrawal denial.`fraudProofId` is consumed for ever by this call, whatever the case's      eventual outcome, and the accused set is chosen by the CALLER. Verifiers      therefore MUST reject any set that is not exactly the one the evidence      commits to — otherwise a front-runner can open the case on a subset and      burn the id for everyone else. See `IFraudProofVerifier` above and      `FraudProofVerifierConformance.assertSetBound`.
+
+| param | type | description |
+|---|---|---|
+| `fraudProofId` | `uint256` |  |
+| `guiltyGuardians` | `address[]` |  |
+| `fraudProof` | `bytes` |  |
+
+#### `queueSlashWithConsensus(address operator, uint8 slashLevel, uint256 epoch, bytes proof)`
+
+`0x47730efa` · nonpayable · access: nonReentrant
+
+> Step 1 of the two-step slash: a DVT quorum pre-flags `operator` for         slashing (SP.queueSlash), blocking their withdraw until the slash is         executed (verifyAndExecute) or the owner cancels it. Kept SEPARATE         from execution so the flag lands in an earlier tx — closing the         front-run window an atomic queue+execute would reopen.
+
+*@dev* Dedicated (not the generic executeProposal) so it (a) is gated at the         per-severity slash threshold, (b) does NOT consume a proposalId /         executedProposals slot (queueSlash is idempotent — re-flagging is a         no-op), leaving the execute-step proposalId intact, and (c) requires a         real quorum, so no single validator can DoS an operator's withdraw.         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof         can never be replayed as an execute proof.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `slashLevel` | `uint8` |  |
+| `epoch` | `uint256` |  |
+| `proof` | `bytes` |  |
+
 #### `registerBLSPublicKey(address validator, (bytes32,bytes32,bytes32,bytes32) publicKey, uint8 slot, (bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32) popSignature)`
 
 `0xaded17c5` · nonpayable · access: —
 
 > Register a BLS validator's public key into a deterministic slot.
 
-*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.SECURITY / TRUST ASSUMPTION — owner path deliberately skips PoP.         There are exactly two registration paths and only ONE of them omits the         proof-of-possession check:           • Owner path (`msg.sender == owner()`): PoP is NOT verified. This is             intentional and safe under the protocol trust model. `owner` is the             trusted bootstrap authority (deployer → DAO / governance multisig /             timelock) that curates the known-good validator set during onboarding             and vets each key's proof-of-possession OFF-CHAIN before calling. A             compromised owner is already game-over for BLS consensus by design —             it can register/revoke ANY key at ANY slot, move `setSuperPaymaster`,             `setDVTValidator`, and the thresholds — so skipping PoP grants it NO             extra power it doesn't already hold. The rogue-key attack             (`Pm = xG − Σ pk_honest`) is therefore NOT reachable by an untrusted             party through this path: an attacker cannot satisfy the `owner()` gate.           • Permissionless path (`permissionlessBLSRegistration == true`, off by             default): an untrusted staked ROLE_DVT validator self-registers its OWN             key, and PoP IS enforced here precisely because the caller is untrusted.         Defense-in-depth: even a key inserted via the owner path can only contribute         to an aggregate if its validator address still holds ROLE_DVT with locked         stake >= minStake at verification time (re-checked live in         `_reconstructPkAgg`); a key registered for an address lacking the role/stake         can never enter a slash/reputation proof.         Deploy runbook: after launch, transfer ownership to the governance         multisig/timelock and onboard validators owner-side (off-chain PoP vetting)         OR flip `setPermissionlessBLSRegistration(true)` to require on-chain PoP for         self-service onboarding. See docs/architecture/dvt-validator-workflow.md.
+*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.SECURITY — PoP is enforced on both registration paths.         There are exactly two registration paths and NEITHER of them skips the         proof-of-possession check:           • Owner path (`msg.sender == owner()`): the owner still decides WHO is             onboarded and at WHICH slot, but no longer decides whether the key is             really the registrant's. Before round-3 this path skipped PoP on the             argument that a compromised owner is game-over anyway. That argument             covers authorization, not this property: `blsKeyOwner` is a permanent,             deliberately irreversible binding, so one mistyped address bound a             third party's public key forever, and an owner could pre-empt a             validator's own self-registration by binding its key first. Both are             gone: producing `popSignature` requires the corresponding secret key.           • Permissionless path (`permissionlessBLSRegistration == true`, off by             default): an untrusted staked ROLE_DVT validator self-registers its OWN             key. Unchanged — PoP was always enforced here.         Recovery: `releaseKeyBinding` (owner-only, and only while NO active slot         holds the key) is the escape hatch for a binding created in error. It         cannot touch a live signer's binding, so the anti-duplicate property is         preserved; see the runbook in docs/architecture/dvt-validator-workflow.md.         Defense-in-depth: a registered key can only contribute to an aggregate if         its validator address still holds ROLE_DVT with locked stake >= minStake at         verification time (re-checked live in `_reconstructPkAgg`); a key registered         for an address lacking the role/stake can never enter a slash/reputation proof.
 
 | param | type | description |
 |---|---|---|
 | `validator` | `address` | validator address (used for events / dedup). |
 | `publicKey` | `(bytes32,bytes32,bytes32,bytes32)` | uncompressed EIP-2537 G1 point (4×32 bytes). |
 | `slot` | `uint8` | 1-indexed slot in [1..MAX_VALIDATORS]. Must not collide                    with another validator's already-bound slot. |
-| `popSignature` | `(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)` | proof-of-possession (G2): the validator's BLS signature over                    their own public key. Ignored on the owner path; REQUIRED and                    verified on the permissionless self-registration path. |
+| `popSignature` | `(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)` | proof-of-possession (G2): the validator's BLS signature over                    `popDigest(validator, publicKey)`. REQUIRED on BOTH paths                    (CC-48 round-3); a registration without a valid PoP reverts. |
 
 #### `REGISTRY()`
 
@@ -4629,11 +5726,48 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `releaseKeyBinding(bytes32 keyHash)`
+
+`0x25cad7a4` · nonpayable · access: onlyOwner
+
+> CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE         slot is using.
+
+*@dev* The binding is intentionally permanent on the normal paths — clearing it         on `revokeBLSPublicKey` would let a revoked key be re-claimed by a         different address, which is exactly the duplicate-key condition the         binding exists to prevent. This function is the ONE escape hatch for a         binding created in error, and it is deliberately narrow:           - owner-only (governance action, not a validator-facing one), and           - refuses while ANY active slot holds this key, so a live signer's             binding can never be released out from under it. Combined with the             now-mandatory PoP on both registration paths, the only way to reach             this function's precondition is a key that is registered nowhere.         Runbook: revoke the slot first (`revokeBLSPublicKey`), confirm         `getBLSPublicKey(...).isActive == false` for every holder, then release.         After release the key may be re-registered by whoever can produce a PoP         for it — i.e. its actual holder.
+
+| param | type | description |
+|---|---|---|
+| `keyHash` | `bytes32` | keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)). |
+
 #### `renounceOwnership()`
 
 `0x715018a6` · nonpayable · access: —
 
 *@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+
+#### `reputationMessageHash(uint256 proposalId, address[] users, uint256[] newScores, uint256 epoch)`
+
+`0x79cada55` · view · access: —
+
+> Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`.
+
+*@dev* Public so DVT/SDK can reproduce it without re-deriving the layout.
+
+| param | type | description |
+|---|---|---|
+| `proposalId` | `uint256` |  |
+| `users` | `address[]` |  |
+| `newScores` | `uint256[]` |  |
+| `epoch` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `requestGuardianExit()`
+
+`0xf7664c8d` · nonpayable · access: —
+
+> Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof.
 
 #### `revokeBLSPublicKey(address validator)`
 
@@ -4685,6 +5819,29 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `enabled` | `bool` |  |
 
+#### `setSlashPolicyAdmin(address newAdmin)`
+
+`0x28e4e0a3` · nonpayable · access: onlyOwner
+
+> Rotate the slash-policy admin (owner only).
+
+| param | type | description |
+|---|---|---|
+| `newAdmin` | `address` |  |
+
+#### `setSlashThreshold(uint8 slashLevel, uint8 threshold)`
+
+`0x9eb49527` · nonpayable · access: —
+
+> Update the per-severity slash consensus threshold.
+
+*@dev* Gated to `slashPolicyAdmin` (a multisig, or a TimelockController for         timelocked changes). Floored at SLASH_THRESHOLD_FLOOR and capped at         MAX_VALIDATORS. Operationally the value should stay <= the active         validator count, otherwise that severity becomes unslashable.
+
+| param | type | description |
+|---|---|---|
+| `slashLevel` | `uint8` |  |
+| `threshold` | `uint8` |  |
+
 #### `setSuperPaymaster(address _sp)`
 
 `0xe79e9739` · nonpayable · access: onlyOwner
@@ -4693,6 +5850,40 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_sp` | `address` |  |
 
+#### `SLASH_THRESHOLD_FLOOR()`
+
+`0x777ff608` · view · access: —
+
+> Absolute signature floor enforced inside `_checkSignatures` for         EVERY verification path (a hard safety net; no path may verify         below this). The generic executeProposal path layers the stricter         `minThreshold` on top, so lowering the slash floor to 2 (for a         2-of-3 WARNING) does NOT widen the generic path — that stays at         minThreshold. Also the min a slash-table entry may be set to.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `slashPolicyAdmin()`
+
+`0xbf5790a6` · view · access: —
+
+> Address permitted to update `slashThresholds`. Set this to a         multisig for plain governance, or to a TimelockController(multisig)         to get timelocked policy changes WITHOUT building timelock logic         (and its bytecode) into this contract. Owner rotates it.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `slashThresholds(uint8 arg0)`
+
+`0xc312b093` · view · access: —
+
+> Per-severity slash consensus threshold, keyed by SlashLevel         (0=WARNING, 1=MINOR, 2=MAJOR). Bootstrap (N=3): 2/3/3. This         replaces the flat defaultThreshold for the slash-only path so the         bar scales with severity and with the validator set over time,         by governance table update rather than a code change.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint8` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
 #### `SUPERPAYMASTER()`
 
 `0x5ae48ba4` · view · access: —
@@ -4700,6 +5891,64 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `TAG_EXECUTE_SLASH()`
+
+`0xc168f542` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_FRAUD_PROOF()`
+
+`0x2a931a74` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_POP()`
+
+`0x9a8c69db` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_PROPOSAL()`
+
+`0xd40276c7` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_QUEUE_SLASH()`
+
+`0xa86cb0f2` · view · access: —
+
+> Path tags. Distinct per path so a proof for one path is never a         valid proof for another, even with otherwise-identical fields.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_REPUTATION()`
+
+`0x4dbae183` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TAG_SIGNERS_COMMITMENT()`
+
+`0xf5632e5a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
 
 #### `transferOwnership(address newOwner)`
 
@@ -4710,6 +5959,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `newOwner` | `address` |  |
+
+#### `usedSlashQueueHashes(bytes32 arg0)`
+
+`0xd59311c5` · view · access: —
+
+> Replay guard for queueSlashWithConsensus. A queue proof commits to         (operator, slashLevel, epoch, chainid); once consumed it cannot be         replayed — otherwise the same signed proof could re-flag an operator         after the owner cancelled the slash or after it already executed         (a reusable withdraw-block DoS). A fresh, legitimate re-queue simply         uses a new epoch (→ new hash).
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `validatorAtSlot(uint8 arg0)`
 
@@ -4724,6 +5987,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `VERIFIER_ROTATION_DELAY()`
+
+`0x6d01be91` · view · access: —
+
+> Verifier rotations mature no faster than a full case window, so         governance cannot retroactively kill a queued case by swapping in a         verifier that returns false (CC-48 MEDIUM-1).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `verify(bytes32 expectedMessageHash, uint256 signerMask, uint256 requiredThreshold, bytes sigBytes)`
 
@@ -4744,9 +6017,9 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
-#### `verifyAndExecute(uint256 proposalId, address operator, uint8 slashLevel, address[] repUsers, uint256[] newScores, uint256 epoch, bytes proof)`
+#### `verifyAndExecute(uint256 proposalId, address operator, uint8 slashLevel, address[] repUsers, uint256[] newScores, uint256 epoch, bytes32 evidenceHash, bytes proof)`
 
-`0x2399c309` · nonpayable · access: nonReentrant
+`0xd38f1586` · nonpayable · access: nonReentrant
 
 | param | type | description |
 |---|---|---|
@@ -4756,6 +6029,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `repUsers` | `address[]` |  |
 | `newScores` | `uint256[]` |  |
 | `epoch` | `uint256` |  |
+| `evidenceHash` | `bytes32` |  |
 | `proof` | `bytes` |  |
 
 #### `version()`
@@ -4772,16 +6046,35 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | topic0 | event |
 |---|---|
+| `0xe6c2691d9671374dedbf769b5ff8979691c573d28b8276f3ed9231bb66b05f7f` | `BLSKeyBindingReleased(bytes32,address)` |
 | `0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3` | `BLSPublicKeyRegistered(address,uint8)` |
 | `0x2cd272f77807374f441a41070466b148ec96b0a2426251231e1f61c1161f61b5` | `BLSPublicKeyRevoked(address,uint8)` |
 | `0x25570636268585bc59ae9205d2d178daf60cb7751815b001ec09ba0ae72ba746` | `BLSVerificationStatus(uint256,bool)` |
 | `0xea8290e94fa93ea70e8ae04f89229012a6a3afb80b6b604792bb931c09cafcba` | `DVTValidatorUpdated(address,address)` |
+| `0x24fa75a5fdef8c9f6635efae6423c44072876384159db89bd03eb242872acfa1` | `FraudProofVerifierEmergencyDisarmed(address,address)` |
+| `0xf7f40a997298b1493301c9a89fab16693fe74ed97ec8abb07a500b1f2b7ec251` | `FraudProofVerifierRotationCancelled(address)` |
+| `0x5758c45a1762f36b1fbd06b032ecadc79a8701815ea401c2c0ad5a4fe9edbf62` | `FraudProofVerifierRotationProposed(address,uint256)` |
+| `0x0927c220b05679c8ddca1cd3f736241175bd4f477e2770c15fee70b62fc93321` | `FraudProofVerifierUpdated(address,address)` |
+| `0xff796b1598f410f38e156abe765be770a128bb0f2d61345b7e487d67b698f1f1` | `GuardianExitCancelled(address,uint256)` |
+| `0x5e767addaf0688fadc4c3c7cfdbbef3f4e2d54783f402f6eecfffc4a410bed68` | `GuardianExitConsumed(address)` |
+| `0xd3c05d0989dfa1d19e9342e249270f563f0f87b7ba8c0165ef1a12d4dd5ddf56` | `GuardianExitRequested(address,uint256,uint256)` |
+| `0xd2794706d75255bb986a6d764ce1c40b8ada9dd8ca3e12a3194fed9448085638` | `GuardianSlashCaseExpired(uint256)` |
+| `0xad57201344d82e44c23bb551694c67531406ce0c3f7c2978e760803ff7ea85d6` | `GuardianSlashCaseResolved(uint256)` |
+| `0xfb0ded6c5884b8003728a994ad07cde0f4fb2e33757a0a67ec1af863368dfbd2` | `GuardianSlashed(uint256,address,uint256)` |
+| `0x6bd51446682378922b756998e80773c1d14773960614c8b060345cf400174e5b` | `GuardianSlashFailed(uint256,address)` |
+| `0xdb10a4bb77f11f7f6199af02c279c3f7fef0aca6cca7d7a5ab05310775ef9798` | `GuardianSlashJudgmentFrozen(uint256,address,bytes32,bytes32)` |
+| `0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82` | `GuardianSlashQueued(uint256,bytes32,uint256)` |
+| `0x74f1672a7693ec3e083462539dac92a5be90f3bf050de20318cb40e6d6cede09` | `GuardianSlashSkipped(uint256,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x1a8b72448c86ca4cfd93a54c5ef39ab3afd44079dd8c7f304d6892dd8c52ed13` | `PermissionlessBLSRegistrationSet(bool)` |
 | `0xf75669458e39b3e450bebdf8e3f8396a4ca0b4057017be244aa5af43321b2807` | `ProposalExecuted(uint256,address,bytes32)` |
 | `0x5ce6898a418ad55caa812016e4cdd4a200158714e584a9627d17df3369316ef3` | `ReputationEpochTriggered(uint256,uint256)` |
 | `0xc01e569e10d83e340f392c404e4d6006701961fc894f6ac91d65194b023f5ccc` | `SignatureAggregated(uint256,bytes,uint256)` |
+| `0xdc03af820a47844ae941d24c94db31b6ecff21c6470f4c6b96932841ddab0e6a` | `SlashConsensusReached(uint256,uint8,uint256,bytes32)` |
 | `0x85137418138b73abf7daf3f3556f050e536be403436e0ee7649eaee69d1faaca` | `SlashExecuted(uint256,address,uint8)` |
+| `0x5a163cafd0e94f7603c97b468343661c51934d542f331a9fd362eb41072a8f49` | `SlashPolicyAdminUpdated(address,address)` |
+| `0x789ba69f40da5a5ba9dbb7eb67a11215eee411e82aea73cf0422afa36ccf23d2` | `SlashPreQueued(address,uint8,uint256,uint256)` |
+| `0x7458f8bb17b37f9bc565693adca9caf317743c40ecf2afcde261bdc8b04c943d` | `SlashThresholdUpdated(uint8,uint8,uint8)` |
 | `0x1f7cd67c986d0cce4aa6f69075b5278a05438ef2a5d1abf6eeded51ba8123245` | `SuperPaymasterUpdated(address,address)` |
 | `0xb06a54caabe58475c86c2bf9df3f2f06dd1213e9e10659c293117fe4893b274b` | `ThresholdUpdated(uint256,uint256)` |
 
@@ -4789,17 +6082,41 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | selector | error |
 |---|---|
+| `0xa3a3026e` | `CombinedProposalNotSupported()` |
+| `0x3f12f989` | `DuplicatePublicKey(bytes32,address)` |
+| `0x5ed09821` | `EmptyGuiltyGuardians()` |
+| `0xab894d0a` | `EmptyProposalNotSupported()` |
 | `0xe91340f2` | `EmptySignerMask()` |
+| `0xbccd864e` | `ForbiddenGenericSelector(bytes4)` |
+| `0xfacf04ce` | `FraudProofMismatch(uint256,bytes32,bytes32)` |
+| `0x765c7d16` | `FraudProofVerifierNotSet()` |
+| `0x8991d6e1` | `GuardianExitAlreadyRequested(address)` |
+| `0x2fb24c72` | `GuardianExitBlockedBySlash(address,uint256)` |
+| `0x3f57dc21` | `GuardianExitCooldownActive(address,uint256)` |
+| `0x870da60f` | `GuardianExitNotReady(address,uint256)` |
+| `0x837c6580` | `GuardianExitNotRequested(address)` |
+| `0x6a48f75d` | `GuardianExitRequestExpired(address,uint256)` |
+| `0xc7b157d0` | `GuardianExitWouldBreakQuorum(uint256,uint256)` |
+| `0xc60c8a4e` | `GuardianSetMismatch(uint256)` |
+| `0xdacbd32d` | `GuardianSlashCaseAlreadyOpened(uint256)` |
+| `0x4963404c` | `GuardianSlashCaseExpiredError(uint256,uint256)` |
+| `0xc7e8b9c1` | `GuardianSlashCaseNotExpired(uint256,uint256)` |
+| `0x45f4d1a0` | `GuardianSlashCaseNotPending(uint256)` |
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
 | `0x88a808ec` | `InvalidBLSKey()` |
 | `0xc5150ef8` | `InvalidBLSKeyNotInSubgroup()` |
 | `0x74f54c6c` | `InvalidBLSKeyNotOnCurve()` |
+| `0xe2545af4` | `InvalidFraudProof(uint256)` |
 | `0xaa33ade0` | `InvalidParameter(string)` |
 | `0x7392754a` | `InvalidPoP()` |
 | `0x0992f7ad` | `InvalidProposalId()` |
 | `0xd6022e8e` | `InvalidSignatureCount(uint256,uint256)` |
 | `0xd08525e9` | `InvalidTarget(address)` |
+| `0x49238207` | `KeyBindingStillActive(bytes32,address)` |
 | `0xb2153d3a` | `KeyNotActive(address)` |
+| `0x17e6c91f` | `NoPendingVerifierRotation()` |
+| `0x631a294a` | `NotRegistry(address)` |
+| `0xa1aefd4b` | `NotSlashPolicyAdmin(address)` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x9591c9c4` | `PermissionlessRegistrationDisabled()` |
@@ -4807,13 +6124,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x0418cb66` | `ProposalExecutionFailed(uint256,bytes)` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x729d0f6b` | `SignatureVerificationFailed()` |
+| `0x9aec0022` | `SlashQueueProofAlreadyUsed(bytes32)` |
+| `0x2c51845c` | `SlashThresholdOutOfRange(uint8)` |
 | `0x558bc2f1` | `SlotAlreadyTaken(uint8)` |
 | `0x839797cd` | `SlotOutOfRange(uint8)` |
+| `0x2476c169` | `SlotValidatorExitPending(uint8,address)` |
 | `0x4a2e5708` | `SlotValidatorRoleRevoked(uint8,address)` |
 | `0x2fd6c425` | `SlotValidatorStakeBelowMinimum(uint8,address,uint256,uint256)` |
 | `0x204cba09` | `StakingNotConfigured()` |
 | `0xd86ad9cf` | `UnauthorizedCaller(address)` |
 | `0xb9f63b78` | `UnknownValidatorSlot(uint8)` |
+| `0x38d2ef4f` | `VerifierAlreadyDisarmed()` |
+| `0x08a5d5c0` | `VerifierIsDelegatedEoa(address)` |
+| `0x18cc3e32` | `VerifierNotContract(address)` |
+| `0xe1e42df3` | `VerifierRotationNotReady(uint256)` |
 
 ## IDVTValidator
 
@@ -4835,6 +6159,60 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `proposalId` | `uint256` |  |
+
+## IFraudProofVerifier
+
+- **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- External, DVT-supplied fraud-proof verifier (Protocol B stage 2).         Returns true iff `fraudProofId` proves the referenced proposal was         fraudulent AND `guiltyGuardians` are exactly the co-signers to blame.         Guardians are identified by ADDRESS, not slot: slots are reassignable         (revokeBLSPublicKey frees a slot for reuse), so a slot captured at         fraud time could later resolve to an innocent validator. Address         binding is stable and is what the slash reads.         BLSAggregator treats this as the sole authority on "who colluded";         it does not itself judge fraud. Kept behind an interface so the         detection layer can evolve without touching this contract.         CC-48 round-2: `domainDigest` is supplied by the aggregator and equals         `BLSAggregator.fraudProofDigest(fraudProofId, guiltyGuardians)` =         keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId,         guiltyGuardians)). It binds the proof to (versioned domain name, chainid,         this aggregator, its Registry), so a fraud proof accepted on one         aggregator/chain is not byte-valid on another. Verifiers MUST bind         `domainDigest` into whatever they check; ignoring it re-opens         cross-contract replay.         CC-48 round-5 (MEDIUM-1) — EXACT-SET BINDING IS PART OF THE CONTRACT.         A verifier MUST return true only for the guardian set the evidence commits         to, EXACTLY. A strict SUBSET, a SUPERSET, and any unrelated set must all be         rejected for the same `(fraudProofId, fraudProof)`. "Every listed address is         provably a co-signer" is NOT sufficient — that predicate is self-consistent         on any subset, and evidence-checking verifiers (as opposed to the         attester-commitment reference implementation) satisfy it by construction.         Why this is a security property and not a nicety: `fraudProofId` is         SINGLE-USE FOR EVER. `guardianSlashCases[id].status != 0` blocks re-opening,         and status 2 (executed) and 3 (expired) block it just as permanently as 1         (pending). `queueGuardianSlash` is permissionless and the guardian set is         chosen by the CALLER. So if a verifier accepts subsets, a colluder who sees         an honest watcher's `queueGuardianSlash(id, {A,B,C}, proof)` in the mempool         can front-run it with `queueGuardianSlash(id, {A}, proof)`: the case opens on         {A} alone, executes, burns `id` permanently, and B and C become immune to         that evidence while the chain records the matter as settled.         The gate for this property is         `contracts/test/helpers/FraudProofVerifierConformance.sol` —         `assertDomainBound` (domain) + `assertSetBound` (set completeness). Both must         pass in the DVT repo's own CI before `fraudProofVerifier` leaves address(0).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x61077735` | `verify(bytes32,uint256,address[],bytes)` | view | — |  |
+
+### Functions
+
+#### `verify(bytes32 domainDigest, uint256 fraudProofId, address[] guiltyGuardians, bytes fraudProof)`
+
+`0x61077735` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `domainDigest` | `bytes32` |  |
+| `fraudProofId` | `uint256` |  |
+| `guiltyGuardians` | `address[]` |  |
+| `fraudProof` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+## IGTokenStakingSlash
+
+- **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- Narrow sub-view of GTokenStaking exposing only the directed         role-lock slash. `IGTokenStaking` (used elsewhere here for         `roleLocks`) does not surface `slashByDVT`, so we cast the same         staking pointer to this local interface rather than widening the         shared interface (which every mock/implementer would then have to         satisfy). The aggregator is already in `authorizedSlashers`.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x8f764848` | `slashByDVT(address,bytes32,uint256,string)` | nonpayable | — |  |
+
+### Functions
+
+#### `slashByDVT(address operator, bytes32 roleId, uint256 penaltyAmount, string reason)`
+
+`0x8f764848` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `roleId` | `bytes32` |  |
+| `penaltyAmount` | `uint256` |  |
+| `reason` | `string` |  |
 
 ## IRegistryStakingAwareBLS
 
@@ -4861,13 +6239,14 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ISuperPaymasterSlash
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- **Functions:** 2 · **Events:** 0 · **Errors:** 0
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — |  |
+| `0xad1c98d7` | `queueSlash(address)` | nonpayable | — |  |
 
 ### Functions
 
@@ -4881,10 +6260,18 @@ Authoritative, auto-generated reference for every external/public function, even
 | `level` | `uint8` |  |
 | `proof` | `bytes` |  |
 
+#### `queueSlash(address operator)`
+
+`0xad1c98d7` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
 ## DVTValidator
 
 - **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
-- **Functions:** 16 · **Events:** 7 · **Errors:** 14
+- **Functions:** 18 · **Events:** 7 · **Errors:** 14
 - **Title:** DVTValidator
 - Distributed Validator Technology for operator monitoring (V3)
 
@@ -4894,7 +6281,8 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|---|---|
 | `0x4d238c8e` | `addValidator(address)` | nonpayable | onlyOwner | Register a new DVT validator after verifying both role and stake. |
 | `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
-| `0x8e24bc9a` | `createProposal(address,uint8,string)` | nonpayable | — |  |
+| `0x2dcc352b` | `createProposal(address,uint8,string,bytes32)` | nonpayable | — | Create a slash proposal that commits to an off-chain evidence hash. |
+| `0x8e24bc9a` | `createProposal(address,uint8,string)` | nonpayable | — | Backward-compatible overload: creates a proposal with no committed         evidence hash (evidenceHash = 0). Prefer the 4-arg form for slashes         so the on-chain consensus binds the justifying evidence. |
 | `0x08f41334` | `executeWithProof(uint256,address[],uint256[],uint256,bytes)` | nonpayable | onlyAuthorizedExecutor | Direct execution with an aggregated proof |
 | `0xfacd743b` | `isValidator(address)` | view | — |  |
 | `0x424a3d77` | `markProposalExecuted(uint256)` | nonpayable | — | Mark proposal as executed (called by BLSAggregator after successful execution) |
@@ -4902,6 +6290,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x013cf08b` | `proposals(uint256)` | view | — |  |
 | `0x349a2c26` | `pruneValidator(address)` | nonpayable | — | Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up). |
+| `0x60153d92` | `queueSlashWithProof(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Owner-only forced removal — used when governance wants to evict         a validator regardless of their current role/stake state (e.g.         emergency response to an off-chain key compromise). |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
@@ -4931,9 +6320,28 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `createProposal(address operator, uint8 level, string reason, bytes32 evidenceHash)`
+
+`0x2dcc352b` · nonpayable · access: —
+
+> Create a slash proposal that commits to an off-chain evidence hash.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `level` | `uint8` |  |
+| `reason` | `string` |  |
+| `evidenceHash` | `bytes32` | content-addressed hash of the audit record justifying         the slash; bound into the BLS-signed message at execution time. |
+
+| returns | type | description |
+|---|---|---|
+| `id` | `uint256` |  |
+
 #### `createProposal(address operator, uint8 level, string reason)`
 
 `0x8e24bc9a` · nonpayable · access: —
+
+> Backward-compatible overload: creates a proposal with no committed         evidence hash (evidenceHash = 0). Prefer the 4-arg form for slashes         so the on-chain consensus binds the justifying evidence.
 
 | param | type | description |
 |---|---|---|
@@ -5016,6 +6424,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `reason` | `string` |  |
 | `executed` | `bool` |  |
 | `exists` | `bool` |  |
+| `evidenceHash` | `bytes32` |  |
 
 #### `pruneValidator(address v)`
 
@@ -5028,6 +6437,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `v` | `address` |  |
+
+#### `queueSlashWithProof(address operator, uint8 slashLevel, uint256 epoch, bytes proof)`
+
+`0x60153d92` · nonpayable · access: —
+
+> Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `slashLevel` | `uint8` |  |
+| `epoch` | `uint256` |  |
+| `proof` | `bytes` |  |
 
 #### `REGISTRY()`
 
@@ -5973,7 +7395,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 87 · **Events:** 40 · **Errors:** 34
+- **Functions:** 90 · **Events:** 41 · **Errors:** 34
 - **Title:** SuperPaymaster
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -6014,10 +7436,12 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc1d9cb08` | `getLatestSlash(address)` | view | — |  |
 | `0x66c36875` | `getSlashCount(address)` | view | — |  |
 | `0xa134d63a` | `getSlashHistory(address)` | view | — |  |
+| `0x39a73403` | `initBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0xcf756fdf` | `initialize(address,address,address,uint256)` | nonpayable | initializer | Initialize the UUPS proxy state |
 | `0x8e0d8ed9` | `isChainlinkStale()` | view | — |  |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — | V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent |
 | `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Check if an address is a registered ERC-8004 agent |
+| `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether `operator` currently has a slash queued (withdraw-blocking flag set). |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | nonpayable | nonReentrant | Handle ERC1363 transferAndCall (Push Mode) |
 | `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
 | `0x8da5cb5b` | `owner()` | view | — |  |
@@ -6030,6 +7454,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x07615815` | `priceMode()` | view | — | 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active). |
 | `0xbd111870` | `priceStalenessThreshold()` | view | — | Price staleness threshold (seconds) |
 | `0x82309dd8` | `priceValidUntil()` | view | — | Returns the timestamp after which the cached price is considered stale. |
+| `0xb955bc68` | `primeBlsSlashCooldown()` | nonpayable | onlyOwner | One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`. |
 | `0x96daa322` | `protocolFeeBPS()` | view | — |  |
 | `0x7af3816c` | `protocolRevenue()` | view | — |  |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
@@ -6392,6 +7817,14 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `(uint256,uint256,uint256,string,uint8)[]` |  |
 
+#### `initBLSAggregator(address _bls)`
+
+`0x39a73403` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `_bls` | `address` |  |
+
 #### `initialize(address _owner, address _apntsToken, address _protocolTreasury, uint256 _priceStalenessThreshold)`
 
 `0xcf756fdf` · nonpayable · access: initializer
@@ -6438,6 +7871,22 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isSlashPending(address operator)`
+
+`0xa98e43a5` · view · access: —
+
+> Whether `operator` currently has a slash queued (withdraw-blocking flag set).
+
+*@dev* O(1) authoritative read of the private `_pendingSlash` flag. DVT peers use this      for failover — when the node that queued a slash dies before executing, another      peer detects the pending state and continues to execute rather than re-queuing      (which the aggregator replay-guard would reject). Replaces off-chain reconstruction      from SlashQueued/SlashCancelled/OperatorSlashed events.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
 
 | returns | type | description |
 |---|---|---|
@@ -6587,6 +8036,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint48` |  |
+
+#### `primeBlsSlashCooldown()`
+
+`0xb955bc68` · nonpayable · access: onlyOwner
+
+> One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`.
+
+*@dev* Owner-only. Called atomically from the 5.4.2 upgrade (upgradeToAndCall data) so that,         immediately after the impl swap, no operator can be BLS-slashed for the cooldown         window — covering any operator that was slashed shortly before the upgrade and thus         has no per-operator `_blsSlashCd` recorded. Idempotent and harmless to re-call.
 
 #### `protocolFeeBPS()`
 
@@ -7001,6 +8458,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x75f4cc3f3f70100dc11e396f47f8af2dec5cf7ec94e06062222be779cf2f3dec` | `APNTsTokenUpdated(address,address)` |
 | `0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d` | `BLSAggregatorQueued(address,uint48)` |
 | `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
+| `0x18e257fa1330af492bc6ba2454ed697ff9a225a325b2ba1c8f436508e7b102c2` | `BlsSlashCooldownPrimed(uint48)` |
 | `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` |
 | `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
 | `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
@@ -7743,7 +9201,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Paymaster
 
 - **Source:** `contracts/src/paymasters/v4/Paymaster.sol`
-- **Functions:** 54 · **Events:** 17 · **Errors:** 26
+- **Functions:** 54 · **Events:** 17 · **Errors:** 27
 - **Title:** Paymaster
 - Paymaster with Registry management capabilities
 
@@ -8388,6 +9846,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xd7e6bcf8` | `NotInitializing()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x03646418` | `Paymaster__GasCostExceedsCap()` |
 | `0xa18ee550` | `Paymaster__InsufficientBalance()` |
 | `0x77fc5689` | `Paymaster__InvalidGasCostCap()` |
 | `0x89c61c06` | `Paymaster__InvalidOraclePrice()` |
@@ -8431,7 +9890,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## PaymasterBase
 
 - **Source:** `contracts/src/paymasters/v4/PaymasterBase.sol`
-- **Functions:** 48 · **Events:** 14 · **Errors:** 23
+- **Functions:** 48 · **Events:** 14 · **Errors:** 24
 - **Title:** PaymasterBase
 - V4 Deposit-Only Paymaster with Community Pricing
 
@@ -9001,6 +10460,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x227bc153` | `MathOverflowedMulDiv()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x03646418` | `Paymaster__GasCostExceedsCap()` |
 | `0xa18ee550` | `Paymaster__InsufficientBalance()` |
 | `0x77fc5689` | `Paymaster__InvalidGasCostCap()` |
 | `0x89c61c06` | `Paymaster__InvalidOraclePrice()` |
@@ -10348,7 +11808,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsFactory
 
 - **Source:** `contracts/src/tokens/xPNTsFactory.sol`
-- **Functions:** 34 · **Events:** 8 · **Errors:** 9
+- **Functions:** 42 · **Events:** 11 · **Errors:** 12
 - **Title:** xPNTsFactory
 - Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
@@ -10360,6 +11820,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa121377a` | `APNTS_PRICE_MAX()` | view | — |  |
 | `0x931c7065` | `APNTS_PRICE_MIN()` | view | — |  |
 | `0x594a6f23` | `aPNTsPriceUSD()` | view | — | aPNTs USD price (18 decimals, e.g., 0.02e18 = $0.02) |
+| `0xdf74dee5` | `capRatioBps()` | view | — | CC-28: fraction of industryScaleUSD granted as the baseline cap, in basis points. |
+| `0x32794a4f` | `categoryRegistered(string)` | view | — | CC-28: whether a category key has been governance-registered (via         setIndustryScaleUSD or constructor seeding). Distinguishes a DELIBERATE         zero-baseline category (registered, scale 0 → full stake-backing required)         from a typo'd category name (never registered) in setTokenCategory. |
 | `0x08c2ddcd` | `communityToToken(address)` | view | — | Mapping: community address => xPNTs token address |
 | `0xa137891e` | `DEFAULT_SAFETY_FACTOR()` | view | — | Default safety factor: 1.5x (50% buffer) |
 | `0xec81aadb` | `deployedTokens(uint256)` | view | — | List of all deployed tokens |
@@ -10374,7 +11836,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x9bb0f599` | `hasToken(address)` | view | — | Check if community has deployed token |
 | `0x5c60da1b` | `implementation()` | view | — | The address of the xPNTsToken implementation contract used for cloning. |
 | `0xab798449` | `industryMultipliers(string)` | view | — | Industry multipliers (name => value in 1e18) |
+| `0x68894411` | `industryScaleUSD(string)` | view | — | CC-28 over-issue model: baseline issuance ceiling per industry category         (USD, 18 decimals). The non-staked credit floor a category is trusted with.         Governance-set. 0 => the category has no baseline (a community in it must back         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD(). |
 | `0x96e28d28` | `isXPNTs(address)` | view | — | Whitelist of tokens this factory has deployed. |
+| `0x737a4fef` | `MAX_INDUSTRY_SCALE_USD()` | view | — | CC-28: safety ceiling on a category's baseline (guards effectiveCapUSD overflow). |
 | `0x8dbb03b1` | `MIN_SUGGESTED_AMOUNT()` | view | — | Minimum suggested amount: 100 aPNTs |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0xb2bcfd34` | `predictDepositAmount(address)` | view | — | AI-powered deposit amount prediction |
@@ -10382,9 +11846,13 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x67d7bc06` | `propagateSuperPaymaster(uint256,uint256)` | nonpayable | onlyOwner | Propagate current SUPERPAYMASTER address to a batch of deployed tokens. |
 | `0x06433b1b` | `REGISTRY()` | view | — | Registry contract address |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x433428fc` | `setCapRatioBps(uint16)` | nonpayable | onlyOwner | CC-28: set the global baseline cap ratio in basis points (0 < bps <= 10000). |
 | `0xa5509758` | `setIndustryMultiplier(string,uint256)` | nonpayable | onlyOwner | Set industry multiplier (only owner) |
+| `0x937aa202` | `setIndustryScaleUSD(string,uint256)` | nonpayable | onlyOwner | CC-28: set the baseline issuance ceiling (USD, 18 decimals) for a category. |
 | `0x7ade132c` | `setSuperPaymasterAddress(address)` | nonpayable | onlyOwner |  |
+| `0xf6cce899` | `setTokenCategory(address,string)` | nonpayable | onlyOwner | CC-28: assign the industry category for an xPNTs token. Governance-only so the         audited community cannot self-select a higher-baseline category to evade         over-issue detection. Empty string resets the token to the "default" baseline. |
 | `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — | SuperPaymaster contract address |
+| `0x0ad026dd` | `tokenCategory(address)` | view | — | CC-28: governance-assigned industry category per xPNTs token. |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
 | `0x2598c32a` | `updateAPNTsPrice(uint256)` | nonpayable | onlyOwner |  |
 | `0x358064a8` | `updatePrediction(uint256,uint256,string,uint256)` | nonpayable | — | Update prediction parameters |
@@ -10426,6 +11894,30 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
+
+#### `capRatioBps()`
+
+`0xdf74dee5` · view · access: —
+
+> CC-28: fraction of industryScaleUSD granted as the baseline cap, in basis points.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `categoryRegistered(string arg0)`
+
+`0x32794a4f` · view · access: —
+
+> CC-28: whether a category key has been governance-registered (via         setIndustryScaleUSD or constructor seeding). Distinguishes a DELIBERATE         zero-baseline category (registered, scale 0 → full stake-backing required)         from a typo'd category name (never registered) in setTokenCategory.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `communityToToken(address arg0)`
 
@@ -10614,6 +12106,20 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `industryScaleUSD(string arg0)`
+
+`0x68894411` · view · access: —
+
+> CC-28 over-issue model: baseline issuance ceiling per industry category         (USD, 18 decimals). The non-staked credit floor a category is trusted with.         Governance-set. 0 => the category has no baseline (a community in it must back         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD().
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `isXPNTs(address arg0)`
 
 `0x96e28d28` · view · access: —
@@ -10627,6 +12133,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bool` |  |
+
+#### `MAX_INDUSTRY_SCALE_USD()`
+
+`0x737a4fef` · view · access: —
+
+> CC-28: safety ceiling on a category's baseline (guards effectiveCapUSD overflow).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `MIN_SUGGESTED_AMOUNT()`
 
@@ -10708,6 +12224,16 @@ Authoritative, auto-generated reference for every external/public function, even
 
 *@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
 
+#### `setCapRatioBps(uint16 bps)`
+
+`0x433428fc` · nonpayable · access: onlyOwner
+
+> CC-28: set the global baseline cap ratio in basis points (0 < bps <= 10000).
+
+| param | type | description |
+|---|---|---|
+| `bps` | `uint16` |  |
+
 #### `setIndustryMultiplier(string industry, uint256 multiplier)`
 
 `0xa5509758` · nonpayable · access: onlyOwner
@@ -10719,6 +12245,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | `industry` | `string` | Industry name |
 | `multiplier` | `uint256` | Multiplier value (scaled by 1e18) |
 
+#### `setIndustryScaleUSD(string category, uint256 scaleUSD)`
+
+`0x937aa202` · nonpayable · access: onlyOwner
+
+> CC-28: set the baseline issuance ceiling (USD, 18 decimals) for a category.
+
+*@dev* 0 is allowed — it means the category has no baseline credit and communities in         it must back all issuance with staked aPNTs. Governance-controlled.
+
+| param | type | description |
+|---|---|---|
+| `category` | `string` |  |
+| `scaleUSD` | `uint256` |  |
+
 #### `setSuperPaymasterAddress(address _superPaymaster)`
 
 `0x7ade132c` · nonpayable · access: onlyOwner
@@ -10729,6 +12268,19 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_superPaymaster` | `address` |  |
 
+#### `setTokenCategory(address token, string category)`
+
+`0xf6cce899` · nonpayable · access: onlyOwner
+
+> CC-28: assign the industry category for an xPNTs token. Governance-only so the         audited community cannot self-select a higher-baseline category to evade         over-issue detection. Empty string resets the token to the "default" baseline.
+
+*@dev* L-1: the token must be one this factory deployed (isXPNTs), so a typo'd address         can't seed junk state. L-2: a non-empty category must already be REGISTERED (via         setIndustryScaleUSD or constructor), so a governance typo can't silently assign an         unknown zero-baseline category that forces 100% stake coverage. A deliberate         zero-baseline category is still assignable — register it with setIndustryScaleUSD         (any value, including 0). Pass "" to use the default baseline.
+
+| param | type | description |
+|---|---|---|
+| `token` | `address` |  |
+| `category` | `string` |  |
+
 #### `SUPERPAYMASTER()`
 
 `0x5ae48ba4` · view · access: —
@@ -10738,6 +12290,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `tokenCategory(address arg0)`
+
+`0x0ad026dd` · view · access: —
+
+> CC-28: governance-assigned industry category per xPNTs token.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
 
 #### `transferOwnership(address newOwner)`
 
@@ -10800,12 +12366,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | topic0 | event |
 |---|---|
 | `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
+| `0xa02c50e0f4c9c39686d753f1483900ff6da6ffaf49134611fdcfc0986e1e6f8c` | `CapRatioBpsSet(uint16,uint16)` |
 | `0x4bea76f3309d60543efdcea3904bba05cd2c7a2e58668e7de988d525fd6a3f96` | `IndustryMultiplierSet(string,uint256)` |
+| `0x0fa6b73052e306e24d4e65db9a430e3890436d6a8d6f7647898646aa7bbaa28d` | `IndustryScaleSet(string,uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x2b4eaa806f1ef4367c0f395b151c87df87dcd9a99bdfa956df2e02a9a24d805e` | `PredictionUpdated(address,uint256)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x41c3159aaba10d821e771f08c4f9f3370426fd58cb304fdbd96b5b9e75c872d1` | `SuperPaymasterPropagated(address,address)` |
 | `0x5d4bb2355e56aab4ce3c351d050e2a54fb3096e84130577503d5f4b940e0e59e` | `SuperPaymasterPropagationFailed(address,address)` |
+| `0x574f3ea27e1d303444a64d09b26a6e5a626093a6af7e469056593ab35c214064` | `TokenCategorySet(address,string)` |
 | `0xabfc2cb9c596be68324e2badae1694b9003727b1c82695e6c2cfa7ad8a587592` | `xPNTsTokenDeployed(address,address,string,string)` |
 
 ### Errors
@@ -10814,18 +12383,123 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0x29ab51bf` | `AlreadyDeployed(address)` |
 | `0x1e82e519` | `CallerNotCommunity()` |
+| `0xf7566e2a` | `CategoryNotSeeded()` |
 | `0xc2f868f4` | `ERC1167FailedCreateClone()` |
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
+| `0x77eb0977` | `InvalidCapRatio()` |
 | `0x6f12f3dc` | `InvalidMultiplier()` |
 | `0xe5239090` | `InvalidParameters()` |
 | `0x00bfc921` | `InvalidPrice()` |
+| `0xfefa4dc9` | `NotFactoryToken()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+
+## ISPStakeView
+
+- **Source:** `contracts/src/tokens/xPNTsToken.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
+
+### Functions
+
+#### `operators(address operator)`
+
+`0x13e7c9d8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `aPNTsBalance` | `uint128` |  |
+| `isConfigured` | `bool` |  |
+| `isPaused` | `bool` |  |
+| `xPNTsToken` | `address` |  |
+| `reputation` | `uint32` |  |
+| `minTxInterval` | `uint48` |  |
+| `treasury` | `address` |  |
+| `totalSpent` | `uint256` |  |
+| `totalTxSponsored` | `uint256` |  |
+
+## IxPNTsFactoryCap
+
+- **Source:** `contracts/src/tokens/xPNTsToken.sol`
+- **Functions:** 5 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
+| `0xdf74dee5` | `capRatioBps()` | view | — |  |
+| `0x68894411` | `industryScaleUSD(string)` | view | — |  |
+| `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — |  |
+| `0x0ad026dd` | `tokenCategory(address)` | view | — |  |
+
+### Functions
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `capRatioBps()`
+
+`0xdf74dee5` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `industryScaleUSD(string category)`
+
+`0x68894411` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `category` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `SUPERPAYMASTER()`
+
+`0x5ae48ba4` · view · access: —
+
+*@dev* The canonical, governance-set SuperPaymaster — the ONLY trusted backing source.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `tokenCategory(address token)`
+
+`0x0ad026dd` · view · access: —
+
+*@dev* Governance-assigned category for a token (community cannot self-select).
+
+| param | type | description |
+|---|---|---|
+| `token` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
 
 ## xPNTsToken
 
 - **Source:** `contracts/src/tokens/xPNTsToken.sol`
-- **Functions:** 63 · **Events:** 19 · **Errors:** 36
+- **Functions:** 70 · **Events:** 20 · **Errors:** 37
 - **Title:** xPNTsToken
 - Community points token with pre-authorization mechanism
 
@@ -10839,6 +12513,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x095ea7b3` | `approve(address,uint256)` | nonpayable | — |  |
 | `0xeca9f014` | `approvedFacilitators(address)` | view | — | Community-controlled whitelist of x402 facilitators. |
 | `0xf1d85d55` | `autoApprovedSpenders(address)` | view | — | Pre-authorized spenders (no approve needed) |
+| `0x5b71d476` | `backingValueUSD()` | view | — | CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster. |
 | `0x70a08231` | `balanceOf(address)` | view | — |  |
 | `0x9dc29fac` | `burn(address,uint256)` | nonpayable | — | Burn `amount` tokens from `from`. When `msg.sender != from`,         allowance must be sufficient AND the spender's per-day burn         cap (P0-8) must not be exceeded. |
 | `0x42966c68` | `burn(uint256)` | nonpayable | — |  |
@@ -10846,9 +12521,11 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x66b48f91` | `communityENS()` | view | — | Community ENS domain |
 | `0xc6d572ae` | `communityName()` | view | — | Community name |
 | `0x38518bfe` | `communityOwner()` | view | — | Community owner/admin address |
+| `0xbdfbdffd` | `credibilityScore()` | view | — | CC-28: backing coverage as a 0-100 score (backing / issued value). |
 | `0x2ecd4e7d` | `debts(address)` | view | — | User debt balance in aPNTs (protocol unit; converted to xPNTs at settlement) |
 | `0x313ce567` | `decimals()` | view | — |  |
 | `0x3644e515` | `DOMAIN_SEPARATOR()` | view | — |  |
+| `0x5089a6ff` | `effectiveCapUSD()` | view | — | CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing. |
 | `0x84b0196e` | `eip712Domain()` | view | — |  |
 | `0xae8866d9` | `emergencyDisabled()` | view | — | One-shot emergency switch. While true, every burn path that         can affect another holder's balance is blocked, including the         SuperPaymaster `burnFromWithOpHash` / `recordDebt` paths and         the autoApproved-spender `burn(address,uint256)` path. Users         can still self-burn their own balance via `burn(uint256)`. |
 | `0x20b05859` | `emergencyRevokedAddress()` | view | — | The SuperPaymaster address that was active when         `emergencyRevokePaymaster` was last called. |
@@ -10863,6 +12540,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x9a78e72e` | `getDebt(address)` | view | — |  |
 | `0x7a5b4f59` | `getMetadata()` | view | — |  |
 | `0xf0ce3dd2` | `initialize(string,string,address,string,string,uint256)` | nonpayable | initializer | Initialize token (replaces constructor for clone pattern) |
+| `0xbeaf15d9` | `isOverIssued()` | view | — | CC-28 rule ③: true when this community has over-issued xPNTs — either the         absolute issuanceCap (if set) is breached, or issued USD value exceeds the         effective cap (industry baseline + staked-aPNTs backing). DVT calls this.         Never reverts (safe for a DVT auditor). |
+| `0xb733b3f8` | `issuanceCap()` | view | — | CC-28 tier-1: absolute hard cap on totalSupply (in xPNTs). 0 = disabled. |
+| `0xc7341731` | `issuedValueUSD()` | view | — | CC-28: USD value (18 decimals) of all issued xPNTs. |
 | `0xb8441cd6` | `MAX_SINGLE_TX_LIMIT_CAP()` | view | — |  |
 | `0x2d6f3a3a` | `maxSingleTxLimit()` | view | — | Maximum allowed single transaction amount in aPNTs (anti-bug safeguard) |
 | `0x40c10f19` | `mint(address,uint256)` | nonpayable | onlyFactoryOrOwner |  |
@@ -10876,6 +12556,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc504e209` | `removeAutoApprovedSpender(address)` | nonpayable | — |  |
 | `0xd49bdad0` | `renounceFactory()` | nonpayable | — | Allow community owner to cut off Factory's management power |
 | `0x6b09de45` | `repayDebt(uint256)` | nonpayable | — | Manually repay debt by burning xPNTs. |
+| `0xca9f8d7b` | `setIssuanceCap(uint256)` | nonpayable | — | CC-28 tier-1: set the absolute hard cap on totalSupply (xPNTs). 0 = disabled. |
 | `0x4e4852f3` | `setMaxSingleTxLimit(uint256)` | nonpayable | — | P1-16: update the owner-configurable single-tx limit. |
 | `0x1eb6ca03` | `setSpenderDailyCap(uint256)` | nonpayable | — | P0-8: tune the per-spender daily burn cap. |
 | `0x433ae8eb` | `setSpenderDailyCapFor(address,uint256)` | nonpayable | — | P0-12c: pin a per-spender daily burn cap that overrides the global         `spenderDailyCapTokens` for one autoApproved spender. |
@@ -10981,6 +12662,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
+#### `backingValueUSD()`
+
+`0x5b71d476` · view · access: —
+
+> CC-28: USD value (18 decimals) of the community's aPNTs staked in SuperPaymaster.
+
+*@dev* Reads ONLY the canonical, governance-set SuperPaymaster (factory.SUPERPAYMASTER),         never the token's community-mutable SUPERPAYMASTER_ADDRESS — otherwise a         community could point at a fake SP returning an inflated balance. Counts the         stake only when SP confirms the operator is configured AND linked to THIS token,         so unrelated operators' stake can't be borrowed as backing.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `balanceOf(address account)`
 
 `0x70a08231` · view · access: —
@@ -11058,6 +12751,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `credibilityScore()`
+
+`0xbdfbdffd` · view · access: —
+
+> CC-28: backing coverage as a 0-100 score (backing / issued value).
+
+*@dev* 100 when issuance is zero or fully backed; a low score flags thin backing.         Factory renounced => backing unverifiable => 0 (worst) if anything is issued.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
 #### `debts(address arg0)`
 
 `0x2ecd4e7d` · view · access: —
@@ -11091,6 +12796,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bytes32` |  |
+
+#### `effectiveCapUSD()`
+
+`0x5089a6ff` · view · access: —
+
+> CC-28: effective issuance ceiling (USD, 18 dec) = industry baseline + aPNTs backing.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `eip712Domain()`
 
@@ -11241,6 +12956,40 @@ Authoritative, auto-generated reference for every external/public function, even
 | `_communityENS` | `string` | ENS name |
 | `_exchangeRate` | `uint256` | aPNTs exchange rate |
 
+#### `isOverIssued()`
+
+`0xbeaf15d9` · view · access: —
+
+> CC-28 rule ③: true when this community has over-issued xPNTs — either the         absolute issuanceCap (if set) is breached, or issued USD value exceeds the         effective cap (industry baseline + staked-aPNTs backing). DVT calls this.         Never reverts (safe for a DVT auditor).
+
+*@dev* If the factory was renounced, tier-2 is unverifiable (no price/baseline/backing         source). We must NOT grant a clean pass — renouncing the factory would otherwise         be an over-issue escape hatch — so any live issuance is conservatively flagged.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+> CC-28 tier-1: absolute hard cap on totalSupply (in xPNTs). 0 = disabled.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `issuedValueUSD()`
+
+`0xc7341731` · view · access: —
+
+> CC-28: USD value (18 decimals) of all issued xPNTs.
+
+*@dev* aPNTs-equivalent = totalSupply * 1e18 / exchangeRate; USD = aPNTs * price / 1e18.         Collapsed to totalSupply * price / exchangeRate. Rounded UP (Ceil) so a         community cannot sit exactly on the cap via a rounding-down false negative.         Returns 0 if the factory was renounced (price unknowable) — tier-2 then degrades.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `MAX_SINGLE_TX_LIMIT_CAP()`
 
 `0xb8441cd6` · view · access: —
@@ -11384,6 +13133,18 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `amountXPNTs` | `uint256` | xPNTs to burn; converts to aPNTs = floor(amountXPNTs * 1e18 / rate). |
+
+#### `setIssuanceCap(uint256 newCap)`
+
+`0xca9f8d7b` · nonpayable · access: —
+
+> CC-28 tier-1: set the absolute hard cap on totalSupply (xPNTs). 0 = disabled.
+
+*@dev* A voluntary community self-limit — DVT does not rely on this (see tier-2).
+
+| param | type | description |
+|---|---|---|
+| `newCap` | `uint256` |  |
 
 #### `setMaxSingleTxLimit(uint256 newLimit)`
 
@@ -11651,6 +13412,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x14b842314c1bed1881a6aaf3371cb59429fa3f849dbd8ad0698501dc4aa0574c` | `FacilitatorApproved(address)` |
 | `0xa8fe5b89f35f2ebd6f3f95a7ef215f4bd89179e10c101073ae76cffad14734cf` | `FacilitatorRemoved(address)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0xef63ce43724fdeb93d5f0c9cd6dd8e4adb86224b4f189d6073b8c3e2aa1b5452` | `IssuanceCapUpdated(uint256,uint256)` |
 | `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` |
 | `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` |
 | `0x68639863c58fa667262fab7192372355b1b2cb2731dcd7636cedbfcd1900f05d` | `SpenderDailyCapUpdated(uint256,uint256)` |
@@ -11686,6 +13448,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0xd2529034` | `InvalidParam()` |
 | `0xb3512b0c` | `InvalidShortString()` |
+| `0x227bc153` | `MathOverflowedMulDiv()` |
 | `0x5a0a27b2` | `MustUseBurnFromWithOpHash()` |
 | `0x54641f00` | `NoDebtToRepay()` |
 | `0xd7e6bcf8` | `NotInitializing()` |

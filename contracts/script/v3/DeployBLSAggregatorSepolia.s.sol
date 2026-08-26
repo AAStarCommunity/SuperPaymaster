@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
 /// @notice Narrow views on the existing Sepolia Registry (sanity checks only).
 interface IRegSepolia {
@@ -16,7 +17,8 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.3.0 (with A' proposalSignersCommitment) to Sepolia,
+/// @notice Deploys BLSAggregator 4.10.0 (A' commitment + bounded guardian exit + CC-48
+///         round-3 verifier pinning) to Sepolia,
 ///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
 ///         slashByDVT works). Does NOT rewire registry/dvt/sp — this is a dedicated
@@ -25,9 +27,18 @@ interface IStakingSlasher {
 ///           forge script contracts/script/v3/DeployBLSAggregatorSepolia.s.sol:DeployBLSAggregatorSepolia \
 ///             --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $PRIVATE_KEY_JASON
 ///         Post-deploy (separate steps — need DVT inputs, see CC-89):
-///           1. DVT deploys OverIssueFraudProofVerifier(thisAggregator) → gives verifier addr
-///           2. registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys)
-///           3. setFraudProofVerifier(verifier)
+///           1. DVT deploys OverIssueFraudProofVerifier(thisAggregator) → gives verifier addr,
+///              and proves it domain-bound with contracts/test/helpers/
+///              FraudProofVerifierConformance.sol (CC-48 round-3 MEDIUM-2). Until that
+///              conformance run exists, leave the verifier UNSET (dormant).
+///           2. registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys).
+///              PoP is MANDATORY on this path too as of 4.7.0 — the owner can no longer
+///              register a key it cannot prove the guardian holds.
+///           3. proposeFraudProofVerifier(verifier), wait VERIFIER_ROTATION_DELAY,
+///              applyFraudProofVerifier()
+///           4. BLS_AGGREGATOR=<this> forge script contracts/script/checks/
+///              ScanDuplicateBLSKeys.s.sol --rpc-url $SEPOLIA_RPC_URL
+///              (duplicate / publicly-known-scalar / quorum-reachability gate)
 ///         Addresses are chain-verified as of 2026-08-15.
 contract DeployBLSAggregatorSepolia is Script {
     address constant REGISTRY        = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71;
@@ -50,7 +61,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.3.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.10.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -58,13 +69,42 @@ contract DeployBLSAggregatorSepolia is Script {
         // guilty guardians' ROLE_DVT locks. (Owner == jason == deployer.)
         IStakingSlasher(STAKING).setAuthorizedSlasher(address(agg), true);
 
+        // CC-48 round-6 HIGH-1: whoever owns this aggregator can call
+        // `emergencyDisarmFraudProofVerifier()` in the same block a watcher tries to open
+        // a case. On a real chain that must be a Safe; this E2E stack may keep a hot owner
+        // ONLY with the explicit, testnet-bound TESTNET_EOA_OWNER_ACK acknowledgement.
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov != address(0)) agg.transferOwnership(gov);
+
         vm.stopBroadcast();
 
+        GovernanceOwnerGate.requireGovernanceOwner(address(agg), agg.owner(), "BLSAggregator");
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
 
-        console.log("BLSAggregator 4.3.0 (A') deployed at:", address(agg));
+        // CC-48 round-8 LOW-3: the transcript must print the version that was actually
+        // deployed. This line said 4.9.0 while the build was 4.10.0, so the deployment
+        // EVIDENCE named a contract that was never deployed -- read off the contract
+        // instead of restating a literal that has to be remembered.
+        console.log(
+            string.concat(agg.version(), " (A' + exit gate + frozen verdict) deployed at:"), address(agg)
+        );
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
-        console.log("      then registerBLSPublicKey x3 (DVT keys) + setFraudProofVerifier(verifier).");
+        console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
+        console.log("      followed by applyFraudProofVerifier() after VERIFIER_ROTATION_DELAY.");
+        console.log("CC-48 round-2: IFraudProofVerifier.verify takes a leading bytes32");
+        console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians);");
+        console.log("      selector 0x61077735. Verifiers built for 4.5.0 or earlier WILL NOT");
+        console.log("      decode; DVT must rebuild AND prove domain binding (round-3 MEDIUM-2).");
+        console.log("CC-48 round-4: queueGuardianSlash FREEZES the verdict - guardiansHash +");
+        console.log("      fraudProofHash = keccak256(fraudProof). execute/retry re-check those");
+        console.log("      two and never call the verifier again, so a rotation, a proxy");
+        console.log("      implementation swap at the same address, or a selfdestruct cannot");
+        console.log("      re-judge an open case. guardianSlashCases now returns 7 fields");
+        console.log("      (guardiansHash, fraudProofHash, deadline, status, guardianCount,");
+        console.log("      resolvedCount, verifier) - SDK/DVT decoders must follow. The");
+        console.log("      executor MUST re-present the exact proof bytes (FraudProofMismatch).");
+        console.log("aggregator domainSeparator:");
+        console.logBytes32(agg.domainSeparator());
     }
 }

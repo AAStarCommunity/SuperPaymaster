@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Toggleable staking stub — per-validator amount can be flipped to
 ///         simulate exits / partial unlocks / slashes.
@@ -140,11 +141,20 @@ contract BLSAggregatorLivenessTest is Test {
         // BLS precompile mocks. G1ADD + G1MUL must succeed for stub keys to
         // pass _validateG1Point during register; G1MUL returning 128 zero
         // bytes is interpreted as r*P == O ⇒ in prime-order subgroup.
+        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
+        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
+        // covers these paths with genuine keys and pairings.
+        if (MockedPrecompiles.skipIfReal()) return;
         vm.etch(address(0x0b), hex"60806000f3");
         vm.etch(address(0x0c), hex"60806000f3");
         vm.etch(address(0x0d), hex"6101006000f3");
         vm.etch(address(0x10), hex"60806000f3");
         vm.etch(address(0x11), hex"6101006000f3");
+        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+        // pairing precompile must answer before any registerBLSPublicKey call in this
+        // mocked-precompile harness. Real-pairing coverage of the same registrations
+        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         vm.startPrank(owner);
         registry = new MockRegistryToggleableBLS();
@@ -231,6 +241,35 @@ contract BLSAggregatorLivenessTest is Test {
         bls.verify(keccak256("msg"), uint256(0x7F), uint256(7), _sigBytes());
     }
 
+    /// CC-48 BLOCKER-1: the exit notice excludes the slot only once it has MATURED.
+    /// Before the fix this test asserted the opposite — request/cancel toggled
+    /// consensus on and off within a single block, which is exactly the free,
+    /// self-erasing 1-of-N halt the fix removes.
+    function test_ReconstructPkAgg_ExitNoticeExcludesSlotOnlyAfterDelay() public {
+        // 7-of-7 would make any exit quorum-breaking; drop to 6 so the notice is
+        // permitted and we can observe the timing rather than the floor.
+        vm.prank(owner);
+        bls.setDefaultThreshold(6);
+
+        address slot3v = address(uint160(uint256(3) + 0x100));
+        vm.prank(slot3v);
+        bls.requestGuardianExit();
+
+        // Same block, and right up to one second before readyAt: unaffected.
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() - 1);
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
+
+        // Once matured, the slot is excluded.
+        vm.warp(block.timestamp + 1);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), slot3v));
+        bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes());
+
+        vm.prank(slot3v);
+        bls.cancelGuardianExit();
+        assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
+    }
+
     function test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() public view {
         // If we DROP slot 3 from the mask (use only slots 1,2,4,5,6,7,8...) the
         // aggregator should not even look at slot 3. Confirms the per-slot check
@@ -308,6 +347,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.3.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.10.0"));
     }
 }

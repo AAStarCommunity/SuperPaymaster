@@ -1,18 +1,42 @@
 name: Forge Tests
 
+# TRIGGERS ON EVERY PR — deliberately. See "why there is no `paths:` filter" below.
 on:
   push:
     branches: [main, feature/*]
   pull_request:
     branches: [main]
-    # Skip on docs/script/ABI-only PRs — forge test only matters when Solidity or
-    # build inputs change. Pushes to main/feature still run regardless of paths.
-    paths:
-      - 'contracts/**'
-      - 'singleton-paymaster/**'
-      - 'foundry.toml'
-      - 'remappings.txt'
-      - '.github/workflows/test.yml'   # edits to this gate must re-run it (no self-bypass)
+
+# WHY THERE IS NO `paths:` FILTER (CC-48 round-10)
+# ------------------------------------------------
+# `test` is a branch-protection required check. Previously this workflow was
+# path-filtered to contract code, and a sibling workflow (ci-required-shim.yml) reported
+# the SAME check names on `paths-ignore:` so that docs-only PRs would not hang forever on
+# "Expected — waiting for status".
+#
+# That pairing is unsound: `paths:` and `paths-ignore:` are BOTH "does ANY changed file
+# match?" predicates, so they are not complements. A PR that touches contract code AND a
+# docs file satisfies both, and both workflows run and report a check named `test` — the
+# real one green, the shim red (its bypass guard correctly detected contract changes).
+# Two check runs share one required name, so branch protection blocks the PR forever.
+# PR #375 (51 contract files + 17 docs/ABI files) hit exactly this and could not be merged.
+#
+# The fix keeps the gate honest and STRENGTHENS it: this workflow now runs on every PR, so
+# each required check has exactly ONE check run and no shim is needed. Whether the contract
+# gate applies is decided BELOW, inside the job, from the complete `git diff` — not from
+# GitHub's `paths:` filter, which only inspects the first 300 changed files and could
+# therefore skip the real tests on a large PR with contract changes buried past that limit.
+# The job always reports success/failure on its own merits; it is never "skipped".
+#
+# WHERE THE DECISION LIVES (CC-48 round-11)
+# -----------------------------------------
+# Each job below calls .github/scripts/detect-contract-changes.sh instead of inlining the
+# predicate. Round-10 had four byte-identical inline copies; both defects they shared
+# (errexit not applying inside an `if` condition, and `printf | grep -q` inverting under
+# `pipefail` on a diff larger than the pipe buffer) made the gate answer "skip" -- a GREEN
+# required check that ran nothing. One copy means one fix. The script fails CLOSED: if it
+# cannot compute or fully scan the diff it APPLIES the gate. Its behaviour, including both
+# regressions, is pinned by the ungated `gate-self-test` job in security.yml.
 
 jobs:
   test:
@@ -21,13 +45,26 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
+          fetch-depth: 0   # full history so the base...head diff below is complete
+
+      - name: Detect contract-path changes (full diff — no 300-file limit)
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "test" \
+            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
+        if: steps.changes.outputs.contract == 'true'
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
       - name: Build
+        if: steps.changes.outputs.contract == 'true'
         run: forge build --sizes --skip test
 
       - name: Storage-layout drift guard (UUPS proxies — SuperPaymaster, Registry)
@@ -36,12 +73,15 @@ jobs:
         # inserted/resized slot corrupts live state (v5.3.2 shipped a broken upgrade
         # for exactly this reason — PR #196). An intentional change must regenerate
         # the snapshot: python3 scripts/check_storage_layout.py update
+        if: steps.changes.outputs.contract == 'true'
         run: python3 scripts/check_storage_layout.py
 
       - name: Run Tests
+        if: steps.changes.outputs.contract == 'true'
         run: forge test -v
 
       - name: Check EIP-170 Contract Sizes
+        if: steps.changes.outputs.contract == 'true'
         run: |
           REGISTRY_SIZE=$(forge build --sizes 2>&1 | grep "^| Registry " | awk '{print $4}')
           echo "Registry runtime size: ${REGISTRY_SIZE}B"
@@ -49,3 +89,9 @@ jobs:
             echo "::error::Registry exceeds EIP-170 limit (24576B)"
             exit 1
           fi
+
+      - name: Gate not applicable (no contract-path changes)
+        if: steps.changes.outputs.contract != 'true'
+        run: |
+          echo "This PR changes no Solidity or build input, so forge test cannot be"
+          echo "affected by it. Reporting success for the required check 'test'."

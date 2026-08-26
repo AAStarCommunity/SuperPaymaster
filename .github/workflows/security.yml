@@ -4,22 +4,43 @@ name: Security — Stage 1-3 (lint / test / static)
 # Deep scans (mythril / invariant / echidna — Stage 4) run via deep-scan.yml,
 # manually triggered before a release.
 
+# TRIGGERS ON EVERY PR — deliberately. See "why there is no `paths:` filter" below.
 on:
   push:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
-    # Only gate PRs that touch Solidity / build inputs. Docs, shell/JS scripts, ABIs
-    # and E2E test files cannot break the contracts, so they skip Stage 1-3 — this
-    # avoids running (and flaking) forge test + fuzz on docs-only PRs. Pushes to main
-    # always run the full suite regardless of paths.
-    paths:
-      - 'contracts/**'
-      - 'singleton-paymaster/**'
-      - 'foundry.toml'
-      - 'remappings.txt'
-      - 'echidna*.yaml'
-      - '.github/workflows/security.yml'   # edits to this gate must re-run it (no self-bypass)
+
+# WHY THERE IS NO `paths:` FILTER (CC-48 round-10)
+# ------------------------------------------------
+# "Stage 1 — solhint + build (EIP-170)" and "Stage 2 — forge test + fuzz" are
+# branch-protection required checks. Previously this workflow was path-filtered to
+# contract code, and a sibling workflow (ci-required-shim.yml) reported the SAME check
+# names on `paths-ignore:` so docs-only PRs would not hang on "Expected — waiting".
+#
+# That pairing is unsound: `paths:` and `paths-ignore:` are BOTH "does ANY changed file
+# match?" predicates, so they are not complements. A PR touching contract code AND a docs
+# file satisfies both; both workflows run and report checks under the same two names — the
+# real ones green, the shim's red (its bypass guard correctly detected contract changes).
+# Branch protection then sees a required name that is simultaneously green and red and
+# blocks the PR permanently. PR #375 (51 contract files + 17 docs/ABI files) hit exactly this.
+#
+# The fix keeps the gate honest and STRENGTHENS it: this workflow now runs on every PR, so
+# each required check has exactly ONE check run and no shim is needed. Whether the contract
+# gate applies is decided BELOW, inside each job, from the complete `git diff` — not from
+# GitHub's `paths:` filter, which only inspects the first 300 changed files and could
+# therefore skip the real security suite on a large PR with contract changes buried past
+# that limit. Jobs always report success/failure on their own merits; never "skipped".
+#
+# WHERE THE DECISION LIVES (CC-48 round-11)
+# -----------------------------------------
+# Each job below calls .github/scripts/detect-contract-changes.sh instead of inlining the
+# predicate. Round-10 had four byte-identical inline copies; both defects they shared
+# (errexit not applying inside an `if` condition, and `printf | grep -q` inverting under
+# `pipefail` on a diff larger than the pipe buffer) made the gate answer "skip" -- a GREEN
+# required check that ran nothing. One copy means one fix. The script fails CLOSED: if it
+# cannot compute or fully scan the diff it APPLIES the gate. Its behaviour, including both
+# regressions, is pinned by the ungated `gate-self-test` job at the bottom of this file.
 
 jobs:
   lint-build:
@@ -27,12 +48,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with: { submodules: recursive }
-      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          submodules: recursive
+          fetch-depth: 0   # full history so the base...head diff below is complete
+      - name: Detect contract-path changes (full diff — no 300-file limit)
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "Stage 1 — solhint + build (EIP-170)" \
+            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
+      - if: steps.changes.outputs.contract == 'true'
+        uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Install solhint
+        if: steps.changes.outputs.contract == 'true'
         run: npm install -g solhint
       - name: Solhint
+        if: steps.changes.outputs.contract == 'true'
         run: solhint 'contracts/src/**/*.sol' || true   # report-only until ruleset tuned
       - name: Build + EIP-170 size (deployable contracts only)
         # `forge build --sizes` exits non-zero if ANY built contract exceeds the 24576-byte
@@ -41,20 +76,55 @@ jobs:
         # contracts we actually deploy and is not tripped by test-only helpers — e.g.
         # SuperPaymasterV2Reinit, a thin SuperPaymaster subclass used purely for UUPS
         # reinitializer testing that is never deployed.
+        if: steps.changes.outputs.contract == 'true'
         run: forge build --sizes --skip test --skip script
+      - name: Gate not applicable (no contract-path changes)
+        if: steps.changes.outputs.contract != 'true'
+        run: |
+          echo "This PR changes no Solidity or build input, so Stage 1 cannot be affected"
+          echo "by it. Reporting success for the required check."
 
   test:
     name: Stage 2 — forge test + fuzz
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with: { submodules: recursive }
-      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          submodules: recursive
+          fetch-depth: 0   # full history so the base...head diff below is complete
+      - name: Detect contract-path changes (full diff — no 300-file limit)
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "Stage 2 — forge test + fuzz" \
+            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
+      - if: steps.changes.outputs.contract == 'true'
+        uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Unit + fuzz
+        if: steps.changes.outputs.contract == 'true'
         run: |
           forge test -vvv
           forge test --fuzz-runs 10000
+      - name: Prague (EIP-2537) real-precompile gate
+        # CC-48 round-3 MEDIUM-5. The default run is Cancun, where the BLS12-381
+        # precompiles do not exist and every BLS suite runs against `vm.etch`ed stubs —
+        # i.e. a mock decides whether a signature is valid. This job runs the same tree
+        # on a Prague EVM, where contracts/test/paper7/ exercises the domain, exit,
+        # credit-cap, key-scan and guardian-slash paths with REAL keys, REAL pairings and
+        # no injection. Suites that require injection skip themselves here (see
+        # contracts/test/helpers/MockedPrecompiles.sol), so this command must be GREEN,
+        # not "green except the known 15".
+        if: steps.changes.outputs.contract == 'true'
+        run: forge test --evm-version prague
+      - name: Gate not applicable (no contract-path changes)
+        if: steps.changes.outputs.contract != 'true'
+        run: |
+          echo "This PR changes no Solidity or build input, so Stage 2 cannot be affected"
+          echo "by it. Reporting success for the required check."
 
   slither:
     name: Stage 3 — Slither static scan
@@ -62,8 +132,20 @@ jobs:
     continue-on-error: true   # via-IR support is partial; advisory until stabilised
     steps:
       - uses: actions/checkout@v7
-        with: { submodules: recursive }
-      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Detect contract-path changes (full diff — no 300-file limit)
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "Stage 3 — Slither static scan" \
+            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|echidna.*\.yaml$|\.github/workflows/security\.yml$|\.github/scripts/)'
+      - if: steps.changes.outputs.contract == 'true'
+        uses: foundry-rs/foundry-toolchain@v1
         with: { version: stable }   # pin avoids foundryup's GitHub-API release-tag lookup (403 rate-limit)
       - name: Slither
         # ADVISORY. crytic-compile/Slither cannot yet reliably compile this via-IR Foundry
@@ -74,9 +156,21 @@ jobs:
         # and surfaces findings as PR annotations. The per-line `slither-disable-next-line`
         # triage (docs/security/slither-triage.md) + fail-on:high stay so the gate enforces
         # automatically once via-IR support lands.
+        if: steps.changes.outputs.contract == 'true'
         continue-on-error: true
         uses: crytic/slither-action@v0.4.2
         with:
           target: 'contracts/src'
           slither-config: 'slither.config.json'
           fail-on: high
+
+  gate-self-test:
+    name: Gate self-test — contract-change detector
+    runs-on: ubuntu-latest
+    # DELIBERATELY UNGATED. This job tests the thing that decides whether the other jobs
+    # run, so gating it on that same decision would let a broken detector excuse itself.
+    # It is pure bash against a throwaway git repo: no foundry, no submodules, seconds.
+    steps:
+      - uses: actions/checkout@v7
+      - name: detect-contract-changes.sh
+        run: bash .github/scripts/test-detect-contract-changes.sh

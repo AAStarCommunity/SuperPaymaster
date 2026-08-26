@@ -186,8 +186,15 @@ contract BlacklistSyncTest is Test {
         // level-1 user needs a credit ceiling above this op's charge to pass. The fresh
         // test Registry bootstraps creditTierConfig[1] to 100 ether, which is below this
         // op's high-gas charge; set it well above the charge.
-        vm.prank(owner);
-        registry.setCreditTier(1, 100000 ether);
+        // CC-48 round-9 LOW-B6: the tier table is now enforced monotonic, so raising the
+        // level-1 floor above the levels above it is refused. Raise the whole schedule
+        // top-down instead -- same effect on this level-1 user, and it keeps the invariant
+        // the `initialize` comment has always claimed.
+        vm.startPrank(owner);
+        for (uint256 level = 6; level >= 1; level--) {
+            registry.setCreditTier(level, 100000 ether);
+        }
+        vm.stopPrank();
 
         // Block first
         address[] memory users = new address[](1);

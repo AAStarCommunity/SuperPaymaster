@@ -12,14 +12,19 @@ import "src/tokens/GToken.sol";
 ///         Registry's full registration flow is out of scope for this boundary test.
 contract MiniRegistry {
     address public staking;
+    mapping(address => uint256) public pending;
     function setStaking(address s) external { staking = s; }
     function GTOKEN_STAKING() external view returns (address) { return staking; }
+    function setGuardianSlashPending(address guardian, bool value) external {
+        if (value) pending[guardian]++;
+        else pending[guardian]--;
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
     fallback() external {}
 }
 
 contract IntgVerifier {
-    function verify(uint256, address[] calldata, bytes calldata) external pure returns (bool) { return true; }
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) { return true; }
 }
 
 /// @title  executeGuardianSlash — REAL GTokenStaking integration (pr-daemon §三)
@@ -44,7 +49,9 @@ contract GuardianSlashIntegrationTest is Test {
         registry.setStaking(address(staking));
         bls = new BLSAggregator(address(registry), address(0x5050), address(0xD57));
         verifier = new IntgVerifier();
-        bls.setFraudProofVerifier(address(verifier));
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
 
         // Give the guardian a real ROLE_DVT lock via the onlyRegistry entry point.
         gtoken.mint(guardian, 100 ether);
@@ -65,17 +72,36 @@ contract GuardianSlashIntegrationTest is Test {
     }
 
     // §三-a: the authorizedSlashers gate is REAL (mock could not prove this).
-    function test_Integration_UnauthorizedAggregator_Reverts() public {
-        // aggregator was NOT added to authorizedSlashers → slashByDVT must revert.
-        vm.expectRevert(); // GTokenStaking.NotAuthorizedSlasher
+    //        CC-48 HIGH-2 changed the FAILURE SHAPE, not the gate: a staking-side
+    //        revert no longer takes the whole batch down. The guardian is left
+    //        unresolved and frozen, the case stays pending, and the call is
+    //        retryable once governance authorizes the aggregator.
+    function test_Integration_UnauthorizedAggregator_SlashFailsButCaseSurvives() public {
+        bls.queueGuardianSlash(1, _one(guardian), "");
+
+        vm.expectEmit(true, true, false, false);
+        emit BLSAggregator.GuardianSlashFailed(1, guardian);
         bls.executeGuardianSlash(1, _one(guardian), "");
+
         assertEq(_lockedDvt(guardian), 30 ether, "nothing slashed");
+        assertFalse(bls.guardianSlashed(1, guardian));
+        assertFalse(bls.guardianCaseResolved(1, guardian), "not settled");
+        assertEq(bls.pendingGuardianSlashCount(guardian), 1, "still frozen");
+        (,,, uint8 status,,,) = bls.guardianSlashCases(1);
+        assertEq(status, 1, "case still pending, not burned");
+
+        // Governance fixes the authorization; the same case now executes.
+        staking.setAuthorizedSlasher(address(bls), true);
+        bls.executeGuardianSlash(1, _one(guardian), "");
+        assertEq(_lockedDvt(guardian), 0, "retry slashed the real lock");
+        assertEq(bls.pendingGuardianSlashCount(guardian), 0);
     }
 
     // §三-b: authorized path zeroes a REAL ROLE_DVT lock (→ falls below minStake → auto-eject).
     function test_Integration_RealSlashZerosLock() public {
         staking.setAuthorizedSlasher(address(bls), true);
         assertEq(_lockedDvt(guardian), 30 ether);
+        bls.queueGuardianSlash(1, _one(guardian), "");
         bls.executeGuardianSlash(1, _one(guardian), "");
         assertEq(_lockedDvt(guardian), 0, "real ROLE_DVT lock zeroed");
         assertTrue(bls.guardianSlashed(1, guardian));
@@ -89,6 +115,7 @@ contract GuardianSlashIntegrationTest is Test {
         staking.unlockAndTransfer(guardian, ROLE_DVT); // guardian exited
         assertEq(_lockedDvt(guardian), 0, "exited");
 
+        bls.queueGuardianSlash(1, _one(guardian), "");
         bls.executeGuardianSlash(1, _one(guardian), "");
         assertFalse(bls.guardianSlashed(1, guardian), "exited guardian not consumed");
     }

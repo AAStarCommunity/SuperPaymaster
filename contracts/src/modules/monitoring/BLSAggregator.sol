@@ -48,11 +48,45 @@ interface IGTokenStakingSlash {
 ///         BLSAggregator treats this as the sole authority on "who colluded";
 ///         it does not itself judge fraud. Kept behind an interface so the
 ///         detection layer can evolve without touching this contract.
+///
+///         CC-48 round-2: `domainDigest` is supplied by the aggregator and equals
+///         `BLSAggregator.fraudProofDigest(fraudProofId, guiltyGuardians)` =
+///         keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId,
+///         guiltyGuardians)). It binds the proof to (versioned domain name, chainid,
+///         this aggregator, its Registry), so a fraud proof accepted on one
+///         aggregator/chain is not byte-valid on another. Verifiers MUST bind
+///         `domainDigest` into whatever they check; ignoring it re-opens
+///         cross-contract replay.
+///
+///         CC-48 round-5 (MEDIUM-1) — EXACT-SET BINDING IS PART OF THE CONTRACT.
+///         A verifier MUST return true only for the guardian set the evidence commits
+///         to, EXACTLY. A strict SUBSET, a SUPERSET, and any unrelated set must all be
+///         rejected for the same `(fraudProofId, fraudProof)`. "Every listed address is
+///         provably a co-signer" is NOT sufficient — that predicate is self-consistent
+///         on any subset, and evidence-checking verifiers (as opposed to the
+///         attester-commitment reference implementation) satisfy it by construction.
+///
+///         Why this is a security property and not a nicety: `fraudProofId` is
+///         SINGLE-USE FOR EVER. `guardianSlashCases[id].status != 0` blocks re-opening,
+///         and status 2 (executed) and 3 (expired) block it just as permanently as 1
+///         (pending). `queueGuardianSlash` is permissionless and the guardian set is
+///         chosen by the CALLER. So if a verifier accepts subsets, a colluder who sees
+///         an honest watcher's `queueGuardianSlash(id, {A,B,C}, proof)` in the mempool
+///         can front-run it with `queueGuardianSlash(id, {A}, proof)`: the case opens on
+///         {A} alone, executes, burns `id` permanently, and B and C become immune to
+///         that evidence while the chain records the matter as settled.
+///
+///         The gate for this property is
+///         `contracts/test/helpers/FraudProofVerifierConformance.sol` —
+///         `assertDomainBound` (domain) + `assertSetBound` (set completeness). Both must
+///         pass in the DVT repo's own CI before `fraudProofVerifier` leaves address(0).
 interface IFraudProofVerifier {
-    function verify(uint256 fraudProofId, address[] calldata guiltyGuardians, bytes calldata fraudProof)
-        external
-        view
-        returns (bool);
+    function verify(
+        bytes32 domainDigest,
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external view returns (bool);
 }
 
 /**
@@ -103,6 +137,43 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         bool verified;
     }
 
+    struct GuardianSlashCase {
+        bytes32 guardiansHash;
+        // CC-48 round-4 HIGH: the VERDICT is frozen, not the judge. `queueGuardianSlash`
+        // runs the verifier exactly once and stores keccak256(fraudProof) here; every
+        // later execute/retry re-presents the same proof bytes and is checked against
+        // this hash instead of re-asking the verifier.
+        //
+        // Round-3 froze `verifier` (the address) and re-verified against it. That is not
+        // enough: a UUPS/Transparent/Beacon verifier keeps its address AND its
+        // extcodehash across an implementation swap, so governance (or a compromised
+        // proxy admin) could still flip an already-queued case to `false` and run it out
+        // to expiry — the exact round-3 timing attack, one indirection deeper. No
+        // on-chain check on the *address* (code.length, extcodehash, EXTCODECOPY) can
+        // prove the semantics behind it are immutable, so the address stopped being the
+        // thing we rely on. Freezing the verdict also makes the case immune to the
+        // verifier selfdestructing, being upgraded to a reverting implementation, or
+        // simply going down between a partial execution and its retry.
+        bytes32 fraudProofHash;
+        uint64 deadline;
+        uint8 status; // 0=none, 1=pending, 2=executed, 3=expired
+        // CC-48 HIGH-2: a case is only "executed" once EVERY accused guardian has
+        // been individually resolved. Partial progress keeps status == 1 so the
+        // case stays retryable instead of collapsing into an all-or-nothing batch.
+        uint16 guardianCount;
+        uint16 resolvedCount;
+        // AUDIT ONLY as of round-4: the verifier that authorized this case, recorded so
+        // an observer can attribute the verdict. Execution no longer calls it, and no
+        // code path reads it for a decision — a rotation, upgrade, or selfdestruct after
+        // queueing changes nothing about the case's fate.
+        address verifier;
+    }
+
+    struct GuardianExitRequest {
+        uint64 readyAt;
+        uint64 expiresAt;
+    }
+
     // ====================================
     // Storage
     // ====================================
@@ -141,6 +212,74 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         minThreshold. Also the min a slash-table entry may be set to.
     uint8 public constant SLASH_THRESHOLD_FLOOR = 2;
 
+    // ====================================
+    // CC-48 round-2: versioned domain separation
+    // ====================================
+    //
+    // Every signed pre-image on every path is
+    //     keccak256(abi.encode(domainSeparator(), <PATH_TAG>, ...fields))
+    // where
+    //     domainSeparator() = keccak256(abi.encode(DOMAIN_NAME, block.chainid,
+    //                                              address(this), address(REGISTRY)))
+    //
+    // Before this change a pre-image committed to chainid only. Two aggregators
+    // deployed on the SAME chain over the SAME validator keys/slots therefore
+    // accepted byte-identical proofs — an experiment-only deployment's signatures
+    // replayed verbatim against a production one. Refusing to *configure* the
+    // experimental contract is a policy control, not a cryptographic one; the
+    // domain now carries `address(this)` and the bound Registry, so a proof simply
+    // does not verify anywhere else. Registry re-derives the identical separator
+    // locally (see Registry.blsDomainSeparator) — it never asks the aggregator for
+    // it, keeping the second verification independent.
+    //
+    // Bump the *_v1 suffixes ONLY on a breaking encoding change; DVT/SDK pin them.
+
+    /// @notice Versioned domain name shared by every BLS pre-image in this system.
+    bytes32 public constant DOMAIN_NAME = keccak256("SuperPaymaster.BLSConsensus.v1");
+
+    /// @notice Path tags. Distinct per path so a proof for one path is never a
+    ///         valid proof for another, even with otherwise-identical fields.
+    bytes32 public constant TAG_QUEUE_SLASH = keccak256("SuperPaymaster.BLS.QueueSlash.v1");
+    bytes32 public constant TAG_EXECUTE_SLASH = keccak256("SuperPaymaster.BLS.ExecuteSlash.v1");
+    bytes32 public constant TAG_REPUTATION = keccak256("SuperPaymaster.BLS.Reputation.v1");
+    bytes32 public constant TAG_PROPOSAL = keccak256("SuperPaymaster.BLS.Proposal.v1");
+    bytes32 public constant TAG_POP = keccak256("SuperPaymaster.BLS.PoP.v1");
+    bytes32 public constant TAG_SIGNERS_COMMITMENT = keccak256("SuperPaymaster.BLS.SignersCommitment.v1");
+    bytes32 public constant TAG_FRAUD_PROOF = keccak256("SuperPaymaster.BLS.FraudProof.v1");
+
+    /// @notice The domain separator every pre-image on this contract commits to.
+    /// @dev    Not cached in storage: `block.chainid` must stay live so a chain
+    ///         fork cannot inherit the pre-fork domain, and both addresses are
+    ///         immutable anyway, so there is nothing to cache.
+    function domainSeparator() public view returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_NAME, block.chainid, address(this), address(REGISTRY)));
+    }
+
+    /// @notice Canonical digest handed to `IFraudProofVerifier.verify`.
+    /// @dev    Public so DVT can reproduce it byte-for-byte off-chain.
+    function fraudProofDigest(uint256 fraudProofId, address[] calldata guiltyGuardians)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId, guiltyGuardians));
+    }
+
+    /// @notice Canonical proof-of-possession digest for (validator, publicKey).
+    /// @dev    CC-48 round-2 HIGH: the pre-image now binds the VALIDATOR ADDRESS
+    ///         (and the domain). Previously it covered only the public key, so the
+    ///         PoP sitting in one registrant's public calldata could be lifted by
+    ///         any other ROLE_DVT address to register the same key at a second slot.
+    ///         With the same key in N slots the reconstructed pkAgg is N*pk, and the
+    ///         single key holder can produce N*sk*H(m) — one signer masquerading as
+    ///         a quorum. Address binding kills the lift; `blsKeyOwner` (below) kills
+    ///         the duplicate registration even when the key holder tries it himself.
+    function popDigest(address validator, BLS.G1Point calldata publicKey) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(domainSeparator(), TAG_POP, validator, publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b)
+        );
+    }
+
     /// @notice H-1: slash / consensus-marking selectors the GENERIC executeProposal
     ///         path may never invoke on any target. The aPNTs burn
     ///         (executeSlashWithBLS) and proposalId marking (markProposalExecuted)
@@ -177,9 +316,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     bool public permissionlessBLSRegistration;
 
     /// @notice DVT-supplied fraud-proof verifier for guardian-collusion slashing
-    ///         (Protocol B stage 2). address(0) = feature dormant: executeGuardianSlash
-    ///         reverts until governance wires a verifier. This is the ONE seam the
-    ///         detection layer plugs into; the aggregator never judges fraud itself.
+    ///         (Protocol B stage 2). address(0) = feature dormant: NO NEW CASE can be
+    ///         opened, because `queueGuardianSlash` — the only way to open one — reverts
+    ///         with `FraudProofVerifierNotSet`. It does NOT stop a case that is already
+    ///         queued: since round-4 the verdict is frozen at queue time, so
+    ///         `executeGuardianSlash` never reads this slot at all (CC-48 round-5
+    ///         MEDIUM-2: the pre-round-5 NatSpec claimed the opposite and would have led
+    ///         an operator to believe zeroing this halts an in-flight slash).
+    ///         This is the ONE seam the detection layer plugs into; the aggregator never
+    ///         judges fraud itself.
     address public fraudProofVerifier;
 
     /// @notice Per-(fraudProofId, guardian) slash record for executeGuardianSlash.
@@ -198,8 +343,58 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         availability is the DVT detection layer's (redundant watchers) job.
     mapping(uint256 => bytes32) public proposalSignersCommitment;
 
+    /// @notice Two-step guardian-slash lifecycle. Queueing a verifier-approved
+    ///         case freezes every accused guardian's ROLE_DVT exit in Registry;
+    ///         execution or permissionless expiry releases exactly one count.
+    mapping(uint256 => GuardianSlashCase) public guardianSlashCases;
+    mapping(address => GuardianExitRequest) public guardianExitRequests;
+    mapping(address => uint256) public pendingGuardianSlashCount;
+
+    /// @notice CC-48 HIGH-2: per-(case, guardian) release marker. Set exactly once,
+    ///         when that guardian's `pendingGuardianSlashCount` contribution for the
+    ///         case is given back — either because the slash succeeded, because the
+    ///         guardian had nothing left to slash, or because the case expired. A
+    ///         guardian whose `slashByDVT` reverted stays UNresolved and frozen, so a
+    ///         single staking-side failure can no longer release the whole set.
+    mapping(uint256 => mapping(address => bool)) public guardianCaseResolved;
+
+    /// @notice CC-48 round-2: permanent binding of a G1 public key to the FIRST
+    ///         validator address it was registered under.
+    /// @dev    Deliberately never cleared — not on `revokeBLSPublicKey`, not on exit.
+    ///         Clearing it would let a revoked key be re-claimed by a different
+    ///         address, which is exactly the duplicate-key condition this prevents.
+    ///         A validator re-registering its OWN key (rotation back, slot reuse)
+    ///         still passes because the binding matches.
+    ///         Key: keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)).
+    mapping(bytes32 => address) public blsKeyOwner;
+
+    /// @notice CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new
+    ///         exit notice after cancelling one. Kills request/cancel flip-flopping as
+    ///         a cheap, repeatable lever on the signer set.
+    mapping(address => uint64) public guardianExitCooldownUntil;
+
+    /// @notice CC-48 MEDIUM-1: two-step, delay-guarded fraud-proof verifier rotation.
+    ///         `pendingFraudProofVerifierReadyAt != 0` means a rotation is in flight.
+    address public pendingFraudProofVerifier;
+    uint64 public pendingFraudProofVerifierReadyAt;
+
+    /// @dev CC-48 HIGH-2: the case window MUST strictly dominate a full exit notice
+    ///      (delay + consumption window). At 2 days each, an accused guardian could
+    ///      line up `readyAt` with the case deadline and walk the moment the case
+    ///      expired. 4 > 2 + 1 leaves no such alignment: an exit notice opened at or
+    ///      after the queueing block always expires before the case does.
+    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 4 days;
+    uint256 public constant GUARDIAN_EXIT_DELAY = 2 days;
+    uint256 public constant GUARDIAN_EXIT_WINDOW = 1 days;
+    /// @notice Quiet period imposed after cancelling an exit notice (BLOCKER-1).
+    uint256 public constant GUARDIAN_EXIT_COOLDOWN = 1 days;
+    /// @notice Verifier rotations mature no faster than a full case window, so
+    ///         governance cannot retroactively kill a queued case by swapping in a
+    ///         verifier that returns false (CC-48 MEDIUM-1).
+    uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
+
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.3.0";
+        return "BLSAggregator-4.10.0";
     }
 
 
@@ -223,6 +418,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot);
     event PermissionlessBLSRegistrationSet(bool enabled);
     event BLSPublicKeyRevoked(address indexed validator, uint8 indexed slot);
+    /// @notice CC-48 round-3: an owner-initiated recovery released a key-to-owner binding
+    ///         that no active slot was using (misconfiguration escape hatch).
+    event BLSKeyBindingReleased(bytes32 indexed keyHash, address indexed previousOwner);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
@@ -241,6 +439,30 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         already-ejected). On-chain trace so monitors can tell "escaped via exit"
     ///         apart from "was never on the list"; no id/guardian is consumed here.
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
+    event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
+    event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
+    /// @notice CC-48 round-4 HIGH: the verdict a queued case is permanently bound to.
+    ///         `fraudProofHash` is the only thing execution checks; `verifier` is the
+    ///         audit trail of who authorized it, not an authority consulted again.
+    event GuardianSlashJudgmentFrozen(
+        uint256 indexed fraudProofId, address indexed verifier, bytes32 fraudProofHash, bytes32 guardiansHash
+    );
+    /// @notice A case whose accused guardians have all been individually resolved.
+    event GuardianSlashCaseResolved(uint256 indexed fraudProofId);
+    /// @notice A single guardian's slash reverted on the staking side. The case stays
+    ///         pending and this guardian stays frozen — the call is simply retryable.
+    event GuardianSlashFailed(uint256 indexed fraudProofId, address indexed guardian);
+    event GuardianExitRequested(address indexed guardian, uint256 readyAt, uint256 expiresAt);
+    event GuardianExitCancelled(address indexed guardian, uint256 cooldownUntil);
+    event FraudProofVerifierRotationProposed(address indexed verifier, uint256 readyAt);
+    event FraudProofVerifierRotationCancelled(address indexed verifier);
+    /// @notice CC-48 round-5 MEDIUM-2: the verifier was disarmed with immediate effect.
+    ///         `clearedVerifier` was active, `clearedPending` was the rotation in flight
+    ///         (either may be address(0)). Emitted in addition to the
+    ///         `FraudProofVerifierUpdated` / `FraudProofVerifierRotationCancelled` pair
+    ///         so monitors can tell an emergency stop apart from routine governance.
+    event FraudProofVerifierEmergencyDisarmed(address indexed clearedVerifier, address indexed clearedPending);
+    event GuardianExitConsumed(address indexed guardian);
 
     // ====================================
     // Constants (BLS12-381 Math)
@@ -316,6 +538,61 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     error InvalidFraudProof(uint256 fraudProofId);
     /// @notice executeGuardianSlash received an empty guiltyGuardians array.
     error EmptyGuiltyGuardians();
+    error GuardianSlashCaseAlreadyOpened(uint256 fraudProofId);
+    error GuardianSlashCaseNotPending(uint256 fraudProofId);
+    error GuardianSlashCaseExpiredError(uint256 fraudProofId, uint256 deadline);
+    error GuardianSlashCaseNotExpired(uint256 fraudProofId, uint256 deadline);
+    error GuardianSetMismatch(uint256 fraudProofId);
+    error GuardianExitAlreadyRequested(address guardian);
+    error GuardianExitNotRequested(address guardian);
+    error GuardianExitNotReady(address guardian, uint256 readyAt);
+    error GuardianExitRequestExpired(address guardian, uint256 expiresAt);
+    error GuardianExitBlockedBySlash(address guardian, uint256 pendingCount);
+    error NotRegistry(address caller);
+    error SlotValidatorExitPending(uint8 slot, address validator);
+    error GuardianExitCooldownActive(address guardian, uint256 cooldownUntil);
+    error GuardianExitWouldBreakQuorum(uint256 remainingActive, uint256 required);
+    error NoPendingVerifierRotation();
+    error VerifierRotationNotReady(uint256 readyAt);
+    /// @dev Emergency disarm called when there is neither an active verifier nor a
+    ///      pending rotation to clear — the contract is already in the dormant state.
+    error VerifierAlreadyDisarmed();
+    /// @dev CC-48 round-4 HIGH: `executeGuardianSlash` was handed proof bytes that do not
+    ///      hash to the ones the verifier actually approved at queue time. The frozen
+    ///      verdict covers exactly one (guardian set, proof) pair; substituting either
+    ///      half is a different case and must be queued as one.
+    error FraudProofMismatch(uint256 fraudProofId, bytes32 expected, bytes32 provided);
+    /// @dev CC-48 round-3: a verifier must be a contract at queue time; asking an EOA
+    ///      would "verify" against empty returndata (i.e. false) or worse, succeed
+    ///      vacuously if the decode ever loosened.
+    error VerifierNotContract(address verifier);
+    /// @dev CC-48 round-7 LOW-3: `code.length != 0` stopped meaning "is a contract" at
+    ///      Pectra. An EIP-7702 delegated EOA carries exactly 23 bytes of code
+    ///      (`0xef0100 || address`) while its private key still signs everything, and the
+    ///      implementation it points at can return `true` unconditionally. Since the
+    ///      verifier's answer is FROZEN into the case at queue time, letting a hot key
+    ///      author that verdict is strictly worse than the EOA case round 3 closed.
+    error VerifierIsDelegatedEoa(address verifier);
+    /// @dev CC-48 round-3: the key-to-owner binding may only be released while NO active
+    ///      slot holds that key. Otherwise releasing it would let a second address claim
+    ///      the key of a live signer.
+    error KeyBindingStillActive(bytes32 keyHash, address boundTo);
+    /// @dev CC-48 round-3: a proposal that carries no reputation batch, no operator and
+    ///      no severity does nothing but burn a proposalId in two contracts. It still
+    ///      requires a real quorum, so it is not an attack — but a consensus path with a
+    ///      no-op shape is a place for future divergence, so the shape is rejected.
+    error EmptyProposalNotSupported();
+    /// @dev CC-48 round-2: the same G1 public key may never be bound to two
+    ///      validator addresses. N slots holding one key make pkAgg = N*pk, which a
+    ///      single secret-key holder can sign for — a 1-of-N quorum forgery.
+    error DuplicatePublicKey(bytes32 keyHash, address boundTo);
+    /// @dev CC-48 round-2: the combined (reputation + slash) proposal shape is
+    ///      rejected outright. Its aggregator pre-image committed to the real
+    ///      operator/slashLevel while Registry re-derived the reputation pre-image
+    ///      with address(0)/0, so the two verifications could never agree on the same
+    ///      signature. Rather than invent a second reputation schema, the shape is
+    ///      forbidden: submit the slash and the reputation update as separate proposals.
+    error CombinedProposalNotSupported();
 
     // ====================================
     // Constructor
@@ -388,35 +665,32 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @param  slot       1-indexed slot in [1..MAX_VALIDATORS]. Must not collide
     ///                    with another validator's already-bound slot.
     /// @param  popSignature proof-of-possession (G2): the validator's BLS signature over
-    ///                    their own public key. Ignored on the owner path; REQUIRED and
-    ///                    verified on the permissionless self-registration path.
+    ///                    `popDigest(validator, publicKey)`. REQUIRED on BOTH paths
+    ///                    (CC-48 round-3); a registration without a valid PoP reverts.
     ///
-    /// @dev    SECURITY / TRUST ASSUMPTION — owner path deliberately skips PoP.
-    ///         There are exactly two registration paths and only ONE of them omits the
+    /// @dev    SECURITY — PoP is enforced on both registration paths.
+    ///         There are exactly two registration paths and NEITHER of them skips the
     ///         proof-of-possession check:
-    ///           • Owner path (`msg.sender == owner()`): PoP is NOT verified. This is
-    ///             intentional and safe under the protocol trust model. `owner` is the
-    ///             trusted bootstrap authority (deployer → DAO / governance multisig /
-    ///             timelock) that curates the known-good validator set during onboarding
-    ///             and vets each key's proof-of-possession OFF-CHAIN before calling. A
-    ///             compromised owner is already game-over for BLS consensus by design —
-    ///             it can register/revoke ANY key at ANY slot, move `setSuperPaymaster`,
-    ///             `setDVTValidator`, and the thresholds — so skipping PoP grants it NO
-    ///             extra power it doesn't already hold. The rogue-key attack
-    ///             (`Pm = xG − Σ pk_honest`) is therefore NOT reachable by an untrusted
-    ///             party through this path: an attacker cannot satisfy the `owner()` gate.
+    ///           • Owner path (`msg.sender == owner()`): the owner still decides WHO is
+    ///             onboarded and at WHICH slot, but no longer decides whether the key is
+    ///             really the registrant's. Before round-3 this path skipped PoP on the
+    ///             argument that a compromised owner is game-over anyway. That argument
+    ///             covers authorization, not this property: `blsKeyOwner` is a permanent,
+    ///             deliberately irreversible binding, so one mistyped address bound a
+    ///             third party's public key forever, and an owner could pre-empt a
+    ///             validator's own self-registration by binding its key first. Both are
+    ///             gone: producing `popSignature` requires the corresponding secret key.
     ///           • Permissionless path (`permissionlessBLSRegistration == true`, off by
     ///             default): an untrusted staked ROLE_DVT validator self-registers its OWN
-    ///             key, and PoP IS enforced here precisely because the caller is untrusted.
-    ///         Defense-in-depth: even a key inserted via the owner path can only contribute
-    ///         to an aggregate if its validator address still holds ROLE_DVT with locked
-    ///         stake >= minStake at verification time (re-checked live in
-    ///         `_reconstructPkAgg`); a key registered for an address lacking the role/stake
-    ///         can never enter a slash/reputation proof.
-    ///         Deploy runbook: after launch, transfer ownership to the governance
-    ///         multisig/timelock and onboard validators owner-side (off-chain PoP vetting)
-    ///         OR flip `setPermissionlessBLSRegistration(true)` to require on-chain PoP for
-    ///         self-service onboarding. See docs/architecture/dvt-validator-workflow.md.
+    ///             key. Unchanged — PoP was always enforced here.
+    ///         Recovery: `releaseKeyBinding` (owner-only, and only while NO active slot
+    ///         holds the key) is the escape hatch for a binding created in error. It
+    ///         cannot touch a live signer's binding, so the anti-duplicate property is
+    ///         preserved; see the runbook in docs/architecture/dvt-validator-workflow.md.
+    ///         Defense-in-depth: a registered key can only contribute to an aggregate if
+    ///         its validator address still holds ROLE_DVT with locked stake >= minStake at
+    ///         verification time (re-checked live in `_reconstructPkAgg`); a key registered
+    ///         for an address lacking the role/stake can never enter a slash/reputation proof.
     function registerBLSPublicKey(
         address validator,
         BLS.G1Point calldata publicKey,
@@ -426,34 +700,49 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
 
-        // Access control. The owner may always register any validator's key at the
-        // caller-chosen slot (the permissioned default; popSignature is not inspected).
-        // Otherwise — only when the permissionless switch is on — a validator may
-        // self-register their OWN key, provided they currently hold ROLE_DVT with
-        // sufficient stake AND supply a valid proof-of-possession. PoP blocks the
-        // rogue-key attack the owner would otherwise prevent by vetting keys off-chain.
+        // Access control ONLY. The owner may register any validator's key at the
+        // caller-chosen slot; otherwise — only when the permissionless switch is on — a
+        // validator may self-register their OWN key, provided they currently hold
+        // ROLE_DVT with sufficient stake. Authorization is the whole of what differs
+        // between the two paths: since round-3 a valid proof-of-possession is REQUIRED
+        // on BOTH of them (enforced unconditionally a few lines below), so neither the
+        // owner nor a self-registrant can bind a key they do not hold the secret for.
+        // PoP blocks the rogue-key attack that off-chain key vetting used to be relied
+        // on for.
         // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
         // caller reverts without paying for them; G1 is still validated before _verifyPoP.
-        if (msg.sender != owner()) {
+        bool ownerCall = msg.sender == owner();
+        if (!ownerCall) {
             if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
             if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
             _requireDVTStake(validator, slot);
-            _validateG1Point(publicKey);
-            if (!_verifyPoP(publicKey, popSignature)) revert InvalidPoP();
+        }
+
+        // CC-48 round-3: proof-of-possession is MANDATORY on BOTH paths. On-curve +
+        // prime-order subgroup membership is validated first, so `_verifyPoP` never
+        // pairs against a small-subgroup point.
+        _validateG1Point(publicKey);
+        if (!_verifyPoP(validator, publicKey, popSignature)) revert InvalidPoP();
+
+        if (!ownerCall) {
             // Permissionless callers do NOT choose their slot: the contract assigns the
             // lowest free slot deterministically (re-registration keeps the prior slot).
             // This removes the slot-squatting / front-running vector where a caller could
             // grab or deny a specific slot. (Filling the whole capped set still costs
             // minStake per identity and remains owner-revocable.)
             slot = _assignSlot(validator);
-        } else {
-            // Owner (trusted bootstrap authority) path: PoP is intentionally NOT verified —
-            // see the SECURITY / TRUST ASSUMPTION note on this function. The owner vets each
-            // key's proof-of-possession off-chain; a compromised owner already controls the
-            // whole validator set, so on-chain PoP here would add no security. On-curve +
-            // prime-order subgroup membership is still validated to block small-subgroup /
-            // key-cancellation contamination of the reconstructed pkAgg.
-            _validateG1Point(publicKey);
+        }
+
+        // CC-48 round-2: one public key, one validator address — forever. Enforced on
+        // the OWNER path too: the owner is trusted to curate keys, not to be immune to
+        // a copy-paste, and a duplicated key silently multiplies one signer's weight.
+        bytes32 keyHash =
+            keccak256(abi.encode(publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b));
+        address keyOwner = blsKeyOwner[keyHash];
+        if (keyOwner == address(0)) {
+            blsKeyOwner[keyHash] = validator;
+        } else if (keyOwner != validator) {
+            revert DuplicatePublicKey(keyHash, keyOwner);
         }
 
         BLSValidatorKey storage existing = _blsKeys[validator];
@@ -491,6 +780,48 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         existing.isActive = false;
         validatorAtSlot[slot] = address(0);
         emit BLSPublicKeyRevoked(validator, slot);
+    }
+
+    /// @notice CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE
+    ///         slot is using.
+    /// @dev    The binding is intentionally permanent on the normal paths — clearing it
+    ///         on `revokeBLSPublicKey` would let a revoked key be re-claimed by a
+    ///         different address, which is exactly the duplicate-key condition the
+    ///         binding exists to prevent. This function is the ONE escape hatch for a
+    ///         binding created in error, and it is deliberately narrow:
+    ///           - owner-only (governance action, not a validator-facing one), and
+    ///           - refuses while ANY active slot holds this key, so a live signer's
+    ///             binding can never be released out from under it. Combined with the
+    ///             now-mandatory PoP on both registration paths, the only way to reach
+    ///             this function's precondition is a key that is registered nowhere.
+    ///         Runbook: revoke the slot first (`revokeBLSPublicKey`), confirm
+    ///         `getBLSPublicKey(...).isActive == false` for every holder, then release.
+    ///         After release the key may be re-registered by whoever can produce a PoP
+    ///         for it — i.e. its actual holder.
+    /// @param  keyHash keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)).
+    function releaseKeyBinding(bytes32 keyHash) external onlyOwner {
+        address boundTo = blsKeyOwner[keyHash];
+        if (boundTo == address(0)) revert InvalidParameter("keyHash");
+        // Scan the (capped, 13-slot) active table rather than trusting `boundTo`'s own
+        // record: the key may have been rotated to a different address's slot, and the
+        // property we need is "no ACTIVE slot holds this key", not "boundTo is idle".
+        for (uint8 slot = 1; slot <= uint8(MAX_VALIDATORS); ) {
+            address holder = validatorAtSlot[slot];
+            if (holder != address(0)) {
+                BLSValidatorKey storage k = _blsKeys[holder];
+                if (
+                    k.isActive
+                        && keccak256(
+                            abi.encode(k.publicKey.x_a, k.publicKey.x_b, k.publicKey.y_a, k.publicKey.y_b)
+                        ) == keyHash
+                ) {
+                    revert KeyBindingStillActive(keyHash, holder);
+                }
+            }
+            unchecked { ++slot; }
+        }
+        delete blsKeyOwner[keyHash];
+        emit BLSKeyBindingReleased(keyHash, boundTo);
     }
 
     /// @notice View accessor returning the stored G1 public key + slot for a validator.
@@ -570,7 +901,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
         uint256 requiredThreshold = slashThresholds[slashLevel];
         bytes32 expectedMessageHash = keccak256(abi.encode(
-            keccak256("QUEUE_SLASH"), operator, slashLevel, epoch, block.chainid
+            domainSeparator(), TAG_QUEUE_SLASH, operator, slashLevel, epoch
         ));
         // Replay guard: a consumed queue proof cannot re-flag the operator after a
         // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
@@ -598,6 +929,30 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
+        // CC-48 round-2: reject the combined shape before any signature work. See
+        // CombinedProposalNotSupported — the aggregator and Registry pre-images for a
+        // reputation batch can only agree when operator/slashLevel are absent, so a
+        // reputation proposal carrying a slash target was never executable anyway
+        // (it reverted deep inside Registry with an opaque BLSFailed). Failing here,
+        // by name, turns a silent dead path into an explicit protocol rule.
+        if (repUsers.length != 0 && (operator != address(0) || slashLevel != 0)) {
+            revert CombinedProposalNotSupported();
+        }
+        // CC-48 round-3 LOW: pin the slash-only shape from the OTHER side too. The
+        // slash pre-image commits to (proposalId, operator, slashLevel, epoch,
+        // evidenceHash) and NOT to `newScores`, so a non-empty `newScores` here would be
+        // caller-controlled input that passed a signature check without being covered by
+        // any signature. It is unused on this branch today; requiring it empty means it
+        // can never become used-but-unsigned by a later edit.
+        if (repUsers.length == 0) {
+            if (newScores.length != 0) revert CombinedProposalNotSupported();
+            // A proposal with no batch, no target and no severity only burns a
+            // proposalId in this contract and in Registry. It needs a real quorum, so it
+            // is not an attack surface — but a no-op shape on a consensus path is a
+            // place for future divergence, and CC-48 is about making the protocol rules
+            // explicit rather than incidental.
+            if (operator == address(0) && slashLevel == 0) revert EmptyProposalNotSupported();
+        }
 
         // 1. Construct expected message + resolve the required threshold.
         // The signed message MUST commit to chainid to prevent cross-chain replay.
@@ -612,16 +967,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
             requiredThreshold = slashThresholds[slashLevel];
             expectedMessageHash = keccak256(abi.encode(
-                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid, evidenceHash
+                domainSeparator(), TAG_EXECUTE_SLASH, proposalId, operator, slashLevel, epoch, evidenceHash
             ));
         } else {
             // Reputation (or combined) path: unchanged 7-field encoding +
             // defaultThreshold, so Registry.batchUpdateGlobalReputation's
             // re-verification reconstructs the identical hash.
             requiredThreshold = defaultThreshold;
-            expectedMessageHash = keccak256(abi.encode(
-                proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid
-            ));
+            // Byte-identical to Registry._reputationMessageHash. operator/slashLevel
+            // are NOT fields here: they are pinned to zero by the combined-shape guard
+            // above, so including them could only re-introduce the divergence.
+            expectedMessageHash = _reputationMessageHash(proposalId, repUsers, newScores, epoch);
         }
 
         // 2. Verify BLS pairing using on-chain reconstructed pkAgg (P0-1).
@@ -701,11 +1057,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 2. Construct Generic Message Hash (includes requiredThreshold + chainid)
         bytes32 expectedMessageHash = keccak256(abi.encode(
+            domainSeparator(),
+            TAG_PROPOSAL,
             proposalId,
             target,
             keccak256(callData),
-            requiredThreshold,
-            block.chainid
+            requiredThreshold
         ));
 
         // 3. Verify BLS Signatures with custom threshold
@@ -853,6 +1210,19 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (!REGISTRY.hasRole(roleDvt, v)) {
                 revert SlotValidatorRoleRevoked(slot, v);
             }
+            // CC-48 BLOCKER-1: an exit NOTICE must not take effect in the block it is
+            // filed. Pre-fix, `readyAt != 0` alone disqualified the slot, so any single
+            // ROLE_DVT member could watch the mempool, front-run a quorum transaction
+            // with requestGuardianExit() (~1 SSTORE), make it revert, then immediately
+            // cancelGuardianExit() — a free, repeatable, self-erasing 1-of-N halt on
+            // every BLS-gated governance path. Honouring the notice only once
+            // `block.timestamp >= readyAt` means the exclusion is always announced
+            // GUARDIAN_EXIT_DELAY in advance: it cannot touch an in-flight proof, and
+            // governance has the whole notice period to seat a replacement.
+            uint64 exitReadyAt = guardianExitRequests[v].readyAt;
+            if (exitReadyAt != 0 && block.timestamp >= uint256(exitReadyAt)) {
+                revert SlotValidatorExitPending(slot, v);
+            }
             (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
             if (uint256(amount) < minStake) {
                 revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
@@ -914,14 +1284,38 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
 
         return keccak256(abi.encode(
-            "BLS_SIGNERS_COMMITMENT_V1",
-            block.chainid,
-            address(this),
+            domainSeparator(),
+            TAG_SIGNERS_COMMITMENT,
             proposalId,
             messageHash,
             signerMask,
             signers
         ));
+    }
+
+    /// @notice Canonical reputation-batch pre-image. MUST stay byte-identical to
+    ///         `Registry._reputationMessageHash` — Registry independently re-verifies
+    ///         the same signature, and any divergence turns every reputation proposal
+    ///         into an unexplained `BLSFailed`.
+    /// @dev    Public so DVT/SDK can reproduce it without re-deriving the layout.
+    function reputationMessageHash(
+        uint256 proposalId,
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch
+    ) external view returns (bytes32) {
+        return _reputationMessageHash(proposalId, users, newScores, epoch);
+    }
+
+    function _reputationMessageHash(
+        uint256 proposalId,
+        address[] calldata users,
+        uint256[] calldata newScores,
+        uint256 epoch
+    ) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(domainSeparator(), TAG_REPUTATION, proposalId, users, newScores, epoch)
+        );
     }
 
     function _checkSignatures(
@@ -1021,17 +1415,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      e(G1, pop) == e(pk, H_pop(pk)), i.e. e(G1, pop) · e(-pk, H_pop(pk)) == 1.
     ///      The "..._POP_v1" domain tag keeps PoP signatures disjoint from slash-consensus
     ///      message hashes, so neither can ever be replayed as the other.
-    function _verifyPoP(BLS.G1Point calldata publicKey, BLS.G2Point calldata popSignature)
+    function _verifyPoP(address validator, BLS.G1Point calldata publicKey, BLS.G2Point calldata popSignature)
         internal
         view
         returns (bool)
     {
-        BLS.G2Point memory msgG2 = BLS.hashToG2(
-            abi.encodePacked(
-                "BLS12381G1_XMD:SHA-256_POP_v1:",
-                publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b
-            )
-        );
+        BLS.G2Point memory msgG2 = BLS.hashToG2(abi.encodePacked(popDigest(validator, publicKey)));
         BLS.G1Point[] memory g1s = new BLS.G1Point[](2);
         BLS.G2Point[] memory g2s = new BLS.G2Point[](2);
         g1s[0] = _getG1Generator();
@@ -1109,23 +1498,361 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         defaultThreshold = _newThreshold;
     }
 
-    /// @notice Wire/rotate the guardian-collusion fraud-proof verifier (Protocol B
-    ///         stage 2 detection layer, supplied by the DVT repo). Owner-gated.
-    ///         Setting address(0) disables executeGuardianSlash (feature dormant).
+    /// @notice Propose wiring/rotating the guardian-collusion fraud-proof verifier
+    ///         (Protocol B stage 2 detection layer, supplied by the DVT repo).
+    ///         Owner-gated, and matured by `applyFraudProofVerifier` only after
+    ///         `VERIFIER_ROTATION_DELAY`.
     /// @dev    This is the SOLE authorization surface for an unbounded, permissionless,
-    ///         100%-of-lock slash path. Before wiring a verifier, `owner` MUST be a
-    ///         TimelockController (or multisig-behind-timelock) so verifier rotation is
-    ///         delay-guarded — do NOT arm this from a hot EOA owner. Enforced by
-    ///         deployment/governance, not in-contract, to keep this a thin entry.
-    /// @dev    Activation prerequisite (follow-up, not this PR): ROLE_DVT needs a
-    ///         pending-slash freeze / unbonding gate (mirroring SP.queueSlash's
-    ///         two-step) BEFORE a verifier is armed. Without it a guardian exits
-    ///         ahead of the fraud proof (Registry.exitRole, 10% fee) and the paper's
-    ///         ρ·S_op deterrent degrades to ~0.1·S_op. The A' attribution work
-    ///         (per CC-89) and this exit-freeze are both stage-2 gating items.
-    function setFraudProofVerifier(address verifier) external onlyOwner {
-        emit FraudProofVerifierUpdated(fraudProofVerifier, verifier);
-        fraudProofVerifier = verifier;
+    ///         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,
+    ///         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.
+    ///         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a
+    ///         TimelockController in front of it is genuine defence in depth (arming is
+    ///         delayed anyway, so an extra delay costs nothing); for
+    ///         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked
+    ///         emergency stop is not an emergency stop — see the residual-risk paragraph
+    ///         there. The deployment/migration gate in
+    ///         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N
+    ///         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical
+    ///         array of distinct non-zero owners of at least that length, owner not an
+    ///         EIP-7702 delegation designator). It does NOT prove the owner is a canonical
+    ///         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,
+    ///         which does not exist yet.
+    /// @dev    WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an
+    ///         owner from swapping in an always-false verifier mid-case so colluders
+    ///         could time out; round-4's frozen verdict provides that property
+    ///         structurally instead (execution never calls a verifier at all, see
+    ///         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay
+    ///         still buys is the direction that matters: ARMING or REPLACING the
+    ///         authority behind a 100%-of-lock slash is publicly visible for four days
+    ///         before it can act. It is deliberately NOT applied to disarming — see
+    ///         `emergencyDisarmFraudProofVerifier`, which is immediate because it only
+    ///         ever removes power (CC-48 round-5 MEDIUM-2).
+    /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
+    ///         unbonding delay. The request immediately removes the guardian from
+    ///         valid signer masks; a verifier-approved queued case increments the
+    ///         pending counter and Registry cannot consume the exit until all cases
+    ///         resolve. Governance must wire this aggregator into Registry before
+    ///         arming the verifier.
+    function proposeFraudProofVerifier(address verifier) external onlyOwner {
+        uint64 readyAt = uint64(block.timestamp + VERIFIER_ROTATION_DELAY);
+        pendingFraudProofVerifier = verifier;
+        pendingFraudProofVerifierReadyAt = readyAt;
+        emit FraudProofVerifierRotationProposed(verifier, readyAt);
+    }
+
+    /// @notice Abandon an in-flight verifier rotation.
+    function cancelFraudProofVerifierRotation() external onlyOwner {
+        if (pendingFraudProofVerifierReadyAt == 0) revert NoPendingVerifierRotation();
+        emit FraudProofVerifierRotationCancelled(pendingFraudProofVerifier);
+        delete pendingFraudProofVerifier;
+        delete pendingFraudProofVerifierReadyAt;
+    }
+
+    /// @notice Finalise a matured verifier rotation.
+    /// @dev    Permissionless on purpose: the decision was already taken by `owner`
+    ///         and has served its full delay, so anyone may push the button. Keeping
+    ///         it owner-only would just hand the owner a second, unbounded veto.
+    function applyFraudProofVerifier() external {
+        uint64 readyAt = pendingFraudProofVerifierReadyAt;
+        if (readyAt == 0) revert NoPendingVerifierRotation();
+        if (block.timestamp < uint256(readyAt)) revert VerifierRotationNotReady(uint256(readyAt));
+        address next = pendingFraudProofVerifier;
+        delete pendingFraudProofVerifier;
+        delete pendingFraudProofVerifierReadyAt;
+        emit FraudProofVerifierUpdated(fraudProofVerifier, next);
+        fraudProofVerifier = next;
+    }
+
+    /// @notice EMERGENCY: disarm the fraud-proof verifier immediately — no delay.
+    ///         Clears the active verifier AND any in-flight rotation, so no new
+    ///         guardian-slash case can be opened from this block onwards.
+    /// @dev    CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a
+    ///         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +
+    ///         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A
+    ///         compromised verifier can open a case and have it executed for 100% of
+    ///         every accused guardian's lock within a SINGLE block, so a four-day
+    ///         remedy was not a remedy. This call is the answer to "the verifier is
+    ///         lying, stop it now".
+    ///
+    ///         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since
+    ///         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict
+    ///         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`
+    ///         (line ~1730 below is its single non-governance read, inside
+    ///         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an
+    ///         already-queued case. Cases opened BEFORE the disarm run to their frozen
+    ///         verdict; use `expireGuardianSlashCase` after the deadline to drop one.
+    ///
+    ///         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier
+    ///         revisions of this comment claimed a stolen `owner` "gains nothing new"
+    ///         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal
+    ///         state. That is FALSE in the only dimension that matters here — TIME — and
+    ///         it is retracted:
+    ///           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in
+    ///             the same block. Its preconditions (`verifier != 0`,
+    ///             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,
+    ///             `_validateGuardianSet`, `verify()`) are untouched by every other
+    ///             onlyOwner function; `_validateGuardianSet` is `pure`, so even
+    ///             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.
+    ///           • From 4.9.0 the owner CAN, immediately and with no public notice,
+    ///             censor ALL FUTURE accusations. Concretely: an honest watcher's
+    ///             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a
+    ///             colluding or compromised owner front-runs it with this call for the
+    ///             price of one transaction, and the watcher reverts with
+    ///             `FraudProofVerifierNotSet`. Repeating it costs the owner one more
+    ///             transaction each time. On 4.8.0 the same owner had to take
+    ///             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could
+    ///             still open cases that round-4's frozen verdict then protected.
+    ///           • This power is accepted deliberately: a compromised verifier can slash
+    ///             100% of every accused guardian's lock inside ONE block, so a four-day
+    ///             remedy is not a remedy, and censoring future accusations is strictly
+    ///             less damaging than that. It is a trade, not a free win.
+    ///           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and
+    ///             nothing else. A TimelockController cannot cover this path — a
+    ///             timelocked emergency stop is not an emergency stop — so for the DISARM
+    ///             path the Safe-compatible M-of-N owner is the ONLY governance defence,
+    ///             not defence in depth.
+    ///             The in-contract 4-day delay still governs RE-ARMING: there is no
+    ///             counterpart that sets a non-zero verifier, so coming back on-line
+    ///             remains propose -> 4 days -> apply, and disarm is not a fast path to a
+    ///             verifier of the owner's choosing.
+    ///           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8
+    ///             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns
+    ///             "owner should be M-of-N" into a deploy/migration gate that fails closed
+    ///             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an
+    ///             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus
+    ///             `getOwners()` as a canonical array of distinct non-zero owners of at
+    ///             least that length. It does NOT prove the owner is a canonical Gnosis
+    ///             Safe: a contract can implement both methods and return whatever it
+    ///             likes while one key still controls execution. Downstream threat models
+    ///             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.
+    ///             Earlier revisions of this comment asserted canonicity outright and
+    ///             claimed the gate enforced it; both are RETRACTED as overstatements of
+    ///             what any on-chain check in this repo can show.
+    function emergencyDisarmFraudProofVerifier() external onlyOwner {
+        address current = fraudProofVerifier;
+        address pending = pendingFraudProofVerifier;
+        uint64 pendingReadyAt = pendingFraudProofVerifierReadyAt;
+        // Nothing to take away: refuse rather than emit a misleading "disarmed" trail.
+        if (current == address(0) && pendingReadyAt == 0) revert VerifierAlreadyDisarmed();
+
+        if (current != address(0)) {
+            fraudProofVerifier = address(0);
+            emit FraudProofVerifierUpdated(current, address(0));
+        }
+        if (pendingReadyAt != 0) {
+            delete pendingFraudProofVerifier;
+            delete pendingFraudProofVerifierReadyAt;
+            emit FraudProofVerifierRotationCancelled(pending);
+        }
+        emit FraudProofVerifierEmergencyDisarmed(current, pending);
+    }
+
+    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
+    ///         active request is excluded from BLS verification immediately,
+    ///         giving watchers the full delay to queue a fraud proof.
+    function requestGuardianExit() external {
+        if (!REGISTRY.hasRole(keccak256("DVT"), msg.sender)) {
+            revert SlotValidatorRoleRevoked(0, msg.sender);
+        }
+        if (pendingGuardianSlashCount[msg.sender] != 0) {
+            revert GuardianExitBlockedBySlash(msg.sender, pendingGuardianSlashCount[msg.sender]);
+        }
+        if (guardianExitRequests[msg.sender].readyAt != 0) revert GuardianExitAlreadyRequested(msg.sender);
+        uint64 cooldownUntil = guardianExitCooldownUntil[msg.sender];
+        if (block.timestamp < uint256(cooldownUntil)) {
+            revert GuardianExitCooldownActive(msg.sender, uint256(cooldownUntil));
+        }
+        _requireCommitteeSurvivesExit(msg.sender);
+        uint64 readyAt = uint64(block.timestamp + GUARDIAN_EXIT_DELAY);
+        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_EXIT_WINDOW);
+        guardianExitRequests[msg.sender] = GuardianExitRequest(readyAt, expiresAt);
+        emit GuardianExitRequested(msg.sender, readyAt, expiresAt);
+    }
+
+    /// @notice Withdraw an exit notice and re-enter the signer set.
+    /// @dev    CC-48 BLOCKER-1 / MEDIUM-5. Two changes over the original: an accused
+    ///         guardian (pending case) may no longer cancel back into the signing set,
+    ///         and every cancel arms a GUARDIAN_EXIT_COOLDOWN quiet period before a new
+    ///         notice may be filed, so request/cancel cannot be cycled. This is also the
+    ///         supported way to clear an EXPIRED notice: the record survives expiry (and
+    ///         keeps excluding the slot), and cancelling is what puts the guardian back.
+    function cancelGuardianExit() external {
+        if (guardianExitRequests[msg.sender].readyAt == 0) revert GuardianExitNotRequested(msg.sender);
+        uint256 pending = pendingGuardianSlashCount[msg.sender];
+        if (pending != 0) revert GuardianExitBlockedBySlash(msg.sender, pending);
+        delete guardianExitRequests[msg.sender];
+        uint64 cooldownUntil = uint64(block.timestamp + GUARDIAN_EXIT_COOLDOWN);
+        guardianExitCooldownUntil[msg.sender] = cooldownUntil;
+        emit GuardianExitCancelled(msg.sender, cooldownUntil);
+    }
+
+    /// @notice Highest signer count any BLS-gated path can demand right now.
+    /// @dev    Reputation/blacklist proposals clear `defaultThreshold`; slash proposals
+    ///         clear the per-severity `slashThresholds`. The committee floor has to
+    ///         respect whichever is largest, otherwise exits could quietly strand the
+    ///         severity with the strictest quorum.
+    function _maxRequiredThreshold() internal view returns (uint256 required) {
+        required = defaultThreshold;
+        for (uint8 lvl = 0; lvl <= uint8(ISuperPaymasterSlash.SlashLevel.MAJOR); ) {
+            uint256 t = uint256(slashThresholds[lvl]);
+            if (t > required) required = t;
+            unchecked { ++lvl; }
+        }
+    }
+
+    /// @notice Count the guardians that would still be able to sign once every
+    ///         outstanding exit notice (including `leaving`'s) has matured.
+    /// @dev    CC-48 MEDIUM-2 / BLOCKER-1 (second half). Guardians that merely
+    ///         ANNOUNCED an exit are excluded here even before `readyAt`, because the
+    ///         floor has to hold at the end state, not just today. Stake is not
+    ///         re-read: `_reconstructPkAgg` already enforces minStake at verification
+    ///         time, and pulling every lock here would make a routine notice cost a
+    ///         full committee sweep of external staking reads.
+    ///
+    ///         Consequence, stated plainly: with N eligible guardians and a required
+    ///         threshold of N, NO guardian can open an exit notice until governance
+    ///         seats a replacement or lowers the threshold. That is deliberate — the
+    ///         alternative is letting one member unilaterally park the committee below
+    ///         quorum. Deployments running N == threshold (the RepCredit 3-of-3
+    ///         evidence stack) must seat a spare before any operator can leave.
+    ///
+    ///         The check only fires when THIS exit is what breaks quorum. If the
+    ///         committee is already short of the threshold, the BLS paths are dead
+    ///         anyway and holding guardians hostage buys nothing — so exits stay open
+    ///         and the fix is governance's (raise the set, or lower the threshold).
+    function _requireCommitteeSurvivesExit(address leaving) internal view {
+        // A guardian with no active BLS key is not part of any signer mask, so its
+        // departure cannot move the committee below quorum — nothing to check.
+        if (!_blsKeys[leaving].isActive) return;
+        bytes32 roleDvt = keccak256("DVT");
+        uint256 remaining;
+        bool leavingEligible;
+        for (uint8 slot = 1; slot <= MAX_VALIDATORS; ) {
+            address v = validatorAtSlot[slot];
+            unchecked { ++slot; }
+            if (v == address(0)) continue;
+            if (!_blsKeys[v].isActive) continue;
+            // Guardians that merely ANNOUNCED an exit are excluded even before
+            // readyAt: the floor has to hold at the end state, not just today.
+            if (v != leaving && guardianExitRequests[v].readyAt != 0) continue;
+            if (!REGISTRY.hasRole(roleDvt, v)) continue;
+            if (v == leaving) { leavingEligible = true; continue; }
+            unchecked { ++remaining; }
+        }
+        uint256 required = _maxRequiredThreshold();
+        if (!leavingEligible) return;
+        if (remaining + 1 < required) return; // already below quorum without this exit
+        if (remaining < required) revert GuardianExitWouldBreakQuorum(remaining, required);
+    }
+
+    /// @notice Registry-only atomic gate called by Registry.exitRole(ROLE_DVT).
+    function consumeGuardianExit(address guardian) external {
+        if (msg.sender != address(REGISTRY)) revert NotRegistry(msg.sender);
+        GuardianExitRequest memory request = guardianExitRequests[guardian];
+        if (request.readyAt == 0) revert GuardianExitNotRequested(guardian);
+        if (pendingGuardianSlashCount[guardian] != 0) {
+            revert GuardianExitBlockedBySlash(guardian, pendingGuardianSlashCount[guardian]);
+        }
+        if (block.timestamp < request.readyAt) revert GuardianExitNotReady(guardian, request.readyAt);
+        if (block.timestamp > request.expiresAt) revert GuardianExitRequestExpired(guardian, request.expiresAt);
+        delete guardianExitRequests[guardian];
+        emit GuardianExitConsumed(guardian);
+    }
+
+    /// @notice Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
+    /// @dev The full proof is checked before any freeze is installed, so arbitrary
+    ///      callers cannot lock honest guardians. A bounded window
+    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full
+    ///      exit notice, see the constant's own comment) prevents an abandoned case
+    ///      from becoming a permanent withdrawal denial.
+    /// @dev `fraudProofId` is consumed for ever by this call, whatever the case's
+    ///      eventual outcome, and the accused set is chosen by the CALLER. Verifiers
+    ///      therefore MUST reject any set that is not exactly the one the evidence
+    ///      commits to — otherwise a front-runner can open the case on a subset and
+    ///      burn the id for everyone else. See `IFraudProofVerifier` above and
+    ///      `FraudProofVerifierConformance.assertSetBound`.
+    function queueGuardianSlash(
+        uint256 fraudProofId,
+        address[] calldata guiltyGuardians,
+        bytes calldata fraudProof
+    ) external nonReentrant {
+        address verifier = fraudProofVerifier;
+        if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        // The single verify below is the ONLY time this address is ever asked about this
+        // case, so it must be a contract: a call to an EOA succeeds with empty returndata,
+        // and nothing about that outcome should be allowed near a verdict that is then
+        // frozen for the life of the case.
+        if (verifier.code.length == 0) revert VerifierNotContract(verifier);
+        // CC-48 round-7 LOW-3: and it must not be an EIP-7702 delegation designator. See
+        // `VerifierIsDelegatedEoa` and `_isDelegatedEoa`.
+        if (_isDelegatedEoa(verifier)) revert VerifierIsDelegatedEoa(verifier);
+        if (fraudProofId == 0) revert InvalidProposalId();
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
+        bytes32 guardiansHash = _validateGuardianSet(guiltyGuardians);
+        if (
+            !IFraudProofVerifier(verifier).verify(
+                fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof
+            )
+        ) {
+            revert InvalidFraudProof(fraudProofId);
+        }
+
+        uint64 deadline = uint64(block.timestamp + GUARDIAN_SLASH_CASE_WINDOW);
+        // CC-48 round-4 HIGH: freeze the VERDICT here — the (guardian set, proof) pair the
+        // verifier just approved. From this line on the case's fate depends only on state
+        // in this contract, so nothing that happens to the verifier afterwards (rotation,
+        // proxy implementation swap at the same address and codehash, selfdestruct, an
+        // outage) can re-judge it. The verifier address is kept purely for attribution.
+        bytes32 proofHash = keccak256(fraudProof);
+        slashCase.guardiansHash = guardiansHash;
+        slashCase.fraudProofHash = proofHash;
+        slashCase.deadline = deadline;
+        slashCase.status = 1;
+        slashCase.guardianCount = uint16(guiltyGuardians.length);
+        slashCase.verifier = verifier;
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
+            unchecked { ++i; }
+        }
+        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
+        emit GuardianSlashJudgmentFrozen(fraudProofId, verifier, proofHash, guardiansHash);
+    }
+
+    /// @notice Release an unexecuted case after its bounded pending window.
+    function expireGuardianSlashCase(uint256 fraudProofId, address[] calldata guiltyGuardians)
+        external
+        nonReentrant
+    {
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
+        if (block.timestamp <= slashCase.deadline) {
+            revert GuardianSlashCaseNotExpired(fraudProofId, slashCase.deadline);
+        }
+        if (_validateGuardianSet(guiltyGuardians) != slashCase.guardiansHash) {
+            revert GuardianSetMismatch(fraudProofId);
+        }
+        slashCase.status = 3;
+        // CC-48 round-5 LOW-4, decoder note: `resolvedCount` is deliberately NOT advanced
+        // here. It counts guardians settled by EXECUTION (slashed or provably nothing to
+        // take); expiry releases the stragglers without adjudicating them, and conflating
+        // the two would make `status == 2` (fully executed) and "expired after a partial
+        // execution" indistinguishable after the fact. Decoders must therefore read
+        // `status == 3 && resolvedCount < guardianCount` as "expired with
+        // `guardianCount - resolvedCount` accused released unjudged", which is exactly
+        // what the `GuardianSlashed` / `GuardianSlashSkipped` event trail shows. This is
+        // documented for SDK consumers in docs/security/CC48-round5-changes.md.
+        // CC-48 HIGH-2: guardians already released by a successful (or no-op) partial
+        // execution must not be decremented twice — expiry only frees the stragglers.
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            address guardian = guiltyGuardians[i];
+            if (!guardianCaseResolved[fraudProofId][guardian]) {
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+            }
+            unchecked { ++i; }
+        }
+        emit GuardianSlashCaseExpired(fraudProofId);
     }
 
     /// @notice Slash the FULL ROLE_DVT stake of guardians proven (by the external
@@ -1142,78 +1869,166 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           the proof to stable addresses; the slash reads the accused's own
     ///           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed
     ///           address's lock is independent of whether it still holds a slot).
-    ///           ⚠️ It does NOT block Registry.exitRole: a guardian past
-    ///           roleLockDuration (ROLE_DVT = 30 days) can self-exit, pay the 10%
-    ///           exit fee, keep 90% AND retain re-staking eligibility; this loop
-    ///           then reads a 0 lock and skips him (GuardianSlashSkipped). Blocking
-    ///           the exit path is a stage-2 challenger concern (pending-slash freeze),
-    ///           out of scope for this thin entry — see setFraudProofVerifier.
-    ///         - Permissionless CALL, gated by the verifier: fraud validity — not
-    ///           caller identity — authorizes the slash. This deliberately bypasses
-    ///           the accused DVT quorum, which is the collusion set and would never
-    ///           slash itself (the circular-dependency escape).
+    ///           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian
+    ///           must first publish a bounded exit notice and is immediately excluded
+    ///           from BLS signer masks; any queued slash case freezes consumption.
+    ///           GuardianSlashSkipped remains for legacy/direct staking drift, but
+    ///           the coordinated Registry path cannot release a queued guardian.
+    ///         - Permissionless CALL, gated by the verdict frozen at queue time: fraud
+    ///           validity — not caller identity — authorizes the slash. This deliberately
+    ///           bypasses the accused DVT quorum, which is the collusion set and would
+    ///           never slash itself (the circular-dependency escape).
     ///         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg
     ///           auto-ejects the guardian on the next verify. No 30% cap: proven
     ///           collusion must lose eligibility, not merely pay a fee — but this
-    ///           holds only for a guardian who has NOT exited (an exited guardian
-    ///           does merely pay the 10% exit fee; see the exit caveat above). The
-    ///           operator-path cap protects honest operators from one bad epoch —
-    ///           a different threat model.
-    ///         - fail-closed: reverts until a verifier is wired.
+    ///           holds for a guardian whose case is queued inside the configured
+    ///           exit-notice window. The operator-path cap protects honest operators
+    ///           from one bad epoch — a different threat model.
+    ///         - fail-closed: no case can exist until a verifier is wired, because
+    ///           `queueGuardianSlash` — the only way to open one — reverts without it.
     /// @param  fraudProofId    Unique id of the fraud proof (own id-space; replay-guarded).
-    /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier).
-    /// @param  fraudProof      Opaque proof bytes interpreted solely by the verifier.
+    /// @param  guiltyGuardians Addresses proven to have colluded (bound by the verifier at
+    ///                         queue time); must hash to the case's `guardiansHash`.
+    /// @param  fraudProof      The SAME proof bytes the verifier approved at queue time;
+    ///                         checked against `fraudProofHash`, not re-interpreted here.
     function executeGuardianSlash(
         uint256 fraudProofId,
         address[] calldata guiltyGuardians,
         bytes calldata fraudProof
     ) external nonReentrant {
-        address verifier = fraudProofVerifier;
         // All fail-closed shape checks up front (fail-fast, before any external call).
-        if (verifier == address(0)) revert FraudProofVerifierNotSet();
+        // CC-48 round-5 LOW-4, kept deliberately: these two bounds are re-checked inside
+        // `_validateGuardianSet` further down, but that call happens only AFTER the case
+        // lookup and the deadline check. Running them here keeps a malformed call cheap
+        // and, more importantly, keeps the failure mode stable if the order of the
+        // checks below is ever rearranged. They are pure `calldatasize`-derived
+        // comparisons — no state, no external call — so the duplication costs a few gas
+        // on the revert path only. It is redundancy, not dead code: removing them is
+        // safe today and silently unsafe after the next reordering.
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
+        GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
+        if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
+        if (block.timestamp > slashCase.deadline) {
+            revert GuardianSlashCaseExpiredError(fraudProofId, slashCase.deadline);
+        }
+        // CC-48 round-4 HIGH: the case is decided by the verdict frozen at queue time, and
+        // the ONLY thing execution re-checks is that the caller re-presents exactly the
+        // (guardian set, proof) pair that verdict covers. There is no external verifier
+        // call on this path at all.
+        //
+        // Round-3 re-verified against the address pinned at queue time. That closed the
+        // rotation variant but not the general one: an upgradeable verifier (UUPS /
+        // Transparent / Beacon) survives an implementation swap with the SAME address and
+        // the SAME extcodehash, so a queued case could still be flipped to `false` after
+        // the fact and starved to expiry. `code.length`, an address snapshot and a plain
+        // extcodehash all fail to witness "the semantics behind this address did not
+        // change", so none of them can carry the property. Freezing the verdict removes
+        // the dependency instead of trying to constrain it — and as a bonus a verifier
+        // that selfdestructs, reverts, or is simply down can no longer strand a case.
+        if (_validateGuardianSet(guiltyGuardians) != slashCase.guardiansHash) {
+            revert GuardianSetMismatch(fraudProofId);
+        }
+        bytes32 providedProofHash = keccak256(fraudProof);
+        if (providedProofHash != slashCase.fraudProofHash) {
+            revert FraudProofMismatch(fraudProofId, slashCase.fraudProofHash, providedProofHash);
+        }
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
 
-        // Verify once (view): the verifier authorizes this (proof, guardians) set.
-        // Consumption is tracked per guardian below, NOT by a single global id here —
-        // so an already-exited co-signer can never burn the proof for the others.
-        if (!IFraudProofVerifier(verifier).verify(fraudProofId, guiltyGuardians, fraudProof)) {
-            revert InvalidFraudProof(fraudProofId);
-        }
-
+        // Consumption is tracked per guardian below, NOT by a single global id — so an
+        // already-exited co-signer can never burn the proof for the others.
         bytes32 roleDvt = keccak256("DVT");
 
+        // CC-48 HIGH-2: advance guardian-by-guardian. Pre-fix this loop marked the
+        // whole case executed up front and let any single `slashByDVT` revert take the
+        // entire transaction down; if that condition (staking paused, authorization
+        // rotated, an odd lock state) simply outlasted the deadline, expiry then
+        // released EVERY accused guardian at once. Now each guardian is settled on its
+        // own: successes are banked, failures leave that guardian frozen and the case
+        // pending, and the caller can retry until the deadline.
+        uint256 released;
         for (uint256 i = 0; i < guiltyGuardians.length; ) {
             address guardian = guiltyGuardians[i];
-            if (guardian == address(0)) revert InvalidTarget(guardian);
-            // Reject duplicate addresses (n ≤ MAX_VALIDATORS, so O(n²) is cheap) so a
-            // proof cannot list the same guardian twice.
-            for (uint256 j = 0; j < i; ) {
-                if (guiltyGuardians[j] == guardian) revert InvalidParameter("dup guardian");
-                unchecked { ++j; }
+            unchecked { ++i; }
+            if (guardianCaseResolved[fraudProofId][guardian]) continue;
+
+            (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
+            if (amount == 0) {
+                // Exited / already-ejected: nothing left to take. Settle it so the
+                // still-staked colluders are not held hostage by this entry.
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+                unchecked { ++released; }
+                emit GuardianSlashSkipped(fraudProofId, guardian);
+                continue;
             }
-            // Idempotent per (proof, guardian): a guardian already slashed under this
-            // proof is silently skipped (no double-slash, no revert of the batch).
-            if (!guardianSlashed[fraudProofId][guardian]) {
-                (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
-                if (amount != 0) {
-                    // Mark ONLY when actually slashing (CEI: effect before interaction;
-                    // nonReentrant backstop). An exited/0-lock guardian is NOT marked,
-                    // so it consumes nothing on behalf of the still-staked colluders.
-                    guardianSlashed[fraudProofId][guardian] = true;
-                    IGTokenStakingSlash(address(staking)).slashByDVT(
-                        guardian, roleDvt, uint256(amount), "DVT collusion"
-                    );
-                    emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
-                } else {
-                    // Exited / already-ejected: nothing to slash and no id burned, so
-                    // still-staked colluders under this same proof remain slashable.
-                    emit GuardianSlashSkipped(fraudProofId, guardian);
-                }
+
+            // Effects deliberately AFTER the call here: `nonReentrant` already blocks
+            // re-entry into this contract's guarded entry points, and leaving
+            // `pendingGuardianSlashCount` untouched for the duration of the external
+            // call keeps Registry.exitRole -> consumeGuardianExit closed against a
+            // guardian that tries to walk out from inside its own slash.
+            try IGTokenStakingSlash(address(staking)).slashByDVT(
+                guardian, roleDvt, uint256(amount), "DVT collusion"
+            ) {
+                guardianSlashed[fraudProofId][guardian] = true;
+                guardianCaseResolved[fraudProofId][guardian] = true;
+                pendingGuardianSlashCount[guardian] -= 1;
+                unchecked { ++released; }
+                emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
+            } catch {
+                // Stays unresolved and stays frozen — retryable until the deadline.
+                emit GuardianSlashFailed(fraudProofId, guardian);
+            }
+        }
+
+        if (released != 0) {
+            uint16 resolved = slashCase.resolvedCount + uint16(released);
+            slashCase.resolvedCount = resolved;
+            if (resolved == slashCase.guardianCount) {
+                slashCase.status = 2;
+                emit GuardianSlashCaseResolved(fraudProofId);
+            }
+        }
+    }
+
+    /// @dev CC-48 round-7 LOW-3. True iff `account` carries an EIP-7702 delegation
+    ///      designator: exactly 23 bytes of code beginning `0xef 0x01 0x00`. That encoding
+    ///      is fixed by EIP-7702 and no deployable contract can produce it — `0xef` is a
+    ///      reserved initial byte (EIP-3541), so a CREATE/CREATE2 runtime can never start
+    ///      with it. There is therefore no false positive to trade against.
+    ///
+    ///      Only the first three bytes are copied, so this costs one `EXTCODESIZE` plus one
+    ///      3-word `EXTCODECOPY` regardless of how large the target is.
+    function _isDelegatedEoa(address account) private view returns (bool) {
+        bytes3 prefix;
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
+            if eq(size, 23) {
+                // Scratch space (0x00-0x3f) is caller-free. Zero it first: EXTCODECOPY
+                // writes only the 3 bytes asked for, and a dirty tail in the same word
+                // would survive into the bytes3.
+                mstore(0x00, 0)
+                extcodecopy(account, 0x00, 0, 3)
+                prefix := mload(0x00)
+            }
+        }
+        return size == 23 && prefix == 0xef0100;
+    }
+
+    function _validateGuardianSet(address[] calldata guiltyGuardians) internal pure returns (bytes32) {
+        if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
+        if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
+        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+            if (guiltyGuardians[i] == address(0)) revert InvalidTarget(address(0));
+            for (uint256 j = 0; j < i; ) {
+                if (guiltyGuardians[j] == guiltyGuardians[i]) revert InvalidParameter("dup guardian");
+                unchecked { ++j; }
             }
             unchecked { ++i; }
         }
+        return keccak256(abi.encode(guiltyGuardians));
     }
 }

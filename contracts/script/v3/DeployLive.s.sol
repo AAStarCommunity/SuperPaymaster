@@ -25,6 +25,7 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 // Module Imports
 import "src/modules/reputation/ReputationSystem.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 import {MicroPaymentChannel} from "src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
 // BLSValidator standalone contract removed in P0-1 — Registry now verifies via BLSAggregator.
@@ -185,8 +186,28 @@ contract DeployLive is V54Bootstrap {
         console.log("=== Wiring Integrity Check (D-H4) ===");
         _assertWiring();
 
+        // CC-48 round-6 HIGH-1: hand the DISARM AUTHORITY to governance as the very last
+        // owner-gated action, then refuse to finish if it is still an EOA anywhere it
+        // matters. `emergencyDisarmFraudProofVerifier()` is immediate and unannounced, so
+        // an EOA-owned aggregator means one hot key can censor every future guardian-slash
+        // accusation by front-running it out of the mempool -- and no Timelock can cover
+        // that path. Everything above still runs deployer-owned; only this one owner moves.
+        _settleAggregatorGovernance();
+
         vm.stopBroadcast();
+        GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         _generateConfig();
+    }
+
+    /// @dev Transfers BLSAggregator ownership to `GOVERNANCE_OWNER` when the operator names
+    ///      one. Unset is the normal local path (the gate is a no-op on anvil) and is
+    ///      refused outright on a production chain by `requireGovernanceOwner`, rather than
+    ///      being silently defaulted to an address baked into this script.
+    function _settleAggregatorGovernance() internal {
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov == address(0)) return;
+        aggregator.transferOwnership(gov);
+        console.log("  BLSAggregator ownership transferred to governance:", gov);
     }
 
     /// @dev Deploy the three NEW v5.4 contracts and wire X402Facilitator on the

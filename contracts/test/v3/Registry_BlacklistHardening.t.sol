@@ -161,7 +161,23 @@ contract Registry_BlacklistHardeningTest is Test {
         view
         returns (bytes32)
     {
-        return keccak256(abi.encode(chainid_, nonce, operator, u, s));
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    abi.encode(
+                        keccak256("SuperPaymaster.BLSConsensus.v1"),
+                        chainid_,
+                        registry.blsAggregator(),
+                        address(registry)
+                    )
+                ),
+                keccak256("SuperPaymaster.BLS.Blacklist.v1"),
+                nonce,
+                operator,
+                u,
+                s
+            )
+        );
     }
 
     // ====================================

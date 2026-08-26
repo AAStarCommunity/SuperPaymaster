@@ -80,6 +80,43 @@ export CONFIG_FILE="config.$ENV.json"
 export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
 
+# CC-48 round-7 LOW-4 / round-8 LOW-1: chainid 31337 no longer skips GovernanceOwnerGate
+# silently, AND this entry point no longer satisfies the acknowledgement unconditionally.
+#
+# Round 7 turned the skip into a typed ack, then set that ack here for every
+# `deploy-core anvil` run on the grounds that it is "a genuinely local node started by this
+# repo's own tooling". That reason was FALSE and is retracted: deploy-core does not start
+# anvil (run_full_regression.sh only tells the operator to start one themselves, and
+# deprecated/scripts/test-anvil.sh starts `anvil --fork-url $SEPOLIA_RPC_URL`). So on the
+# fork-rehearsal path the ack was set automatically and nobody ever acknowledged anything —
+# exactly the hole round 7 claimed to close.
+#
+# The ack is now PROBED FOR, not assumed. It is pre-set only when the node answers as a
+# fresh local chain: chain id 31337 AND a head block below the ceiling the gate itself
+# enforces. Anything else — a fork, an unreachable node, a missing `cast` — leaves it unset
+# and the operator is told what to type. Fail-closed in the direction of asking a human.
+# `deploy-core sepolia` and up are untouched: they must satisfy the real gate.
+LOCAL_FRESH_BLOCK_CEILING=1000000
+if [ "$ENV" == "anvil" ] && [ -z "${LOCAL_DEV_GOVERNANCE_ACK:-}" ]; then
+    ANVIL_RPC="${RPC_URL:-http://127.0.0.1:8545}"
+    PROBED_CHAIN_ID=$(cast chain-id --rpc-url "$ANVIL_RPC" 2>/dev/null || echo "")
+    PROBED_BLOCK=$(cast block-number --rpc-url "$ANVIL_RPC" 2>/dev/null || echo "")
+    if [ "$PROBED_CHAIN_ID" == "31337" ] && [ -n "$PROBED_BLOCK" ] \
+        && [ "$PROBED_BLOCK" -lt "$LOCAL_FRESH_BLOCK_CEILING" ] 2>/dev/null; then
+        echo "  [gov-gate] probed $ANVIL_RPC: chain id 31337, head block $PROBED_BLOCK"
+        echo "  [gov-gate] -> fresh local node, pre-setting LOCAL_DEV_GOVERNANCE_ACK=true."
+        echo "  [gov-gate]    This is a HEURISTIC, not a proof that the node is not a fork."
+        export LOCAL_DEV_GOVERNANCE_ACK=true
+    else
+        echo "  [gov-gate] probed $ANVIL_RPC: chain id '${PROBED_CHAIN_ID:-<unreachable>}',"
+        echo "  [gov-gate] head block '${PROBED_BLOCK:-<unreachable>}' -- this does NOT look like a"
+        echo "  [gov-gate] fresh local anvil, so LOCAL_DEV_GOVERNANCE_ACK is NOT being set for you."
+        echo "  [gov-gate] If you really mean to rehearse against this node with no governance gate,"
+        echo "  [gov-gate] set LOCAL_DEV_GOVERNANCE_ACK=true yourself. Note the gate also refuses a"
+        echo "  [gov-gate] 31337 node whose head block is >= $LOCAL_FRESH_BLOCK_CEILING regardless."
+    fi
+fi
+
 # ─── Routing: Anvil → DeployAnvil, live fresh → DeployLive, live upgrade → UpgradeLive ───
 # From v5.3.3-beta onwards, ALL SuperPaymaster/Registry changes on live networks
 # MUST go through UpgradeLive (UUPS) to preserve proxy addresses and on-chain state.

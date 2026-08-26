@@ -39,7 +39,7 @@ contract SignersCommitmentTest is Test {
         internal view returns (bytes32)
     {
         return keccak256(abi.encode(
-            "BLS_SIGNERS_COMMITMENT_V1", block.chainid, address(h), pid, mh, mask, sorted
+            h.domainSeparator(), h.TAG_SIGNERS_COMMITMENT(), pid, mh, mask, sorted
         ));
     }
 
