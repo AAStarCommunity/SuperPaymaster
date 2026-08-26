@@ -179,65 +179,64 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 
 ### Before reading a clean scan as evidence
 
-You cannot establish completeness from what a scan returned — a range the node dropped and a
-range holding no event are byte-identical. So do not judge the endpoint by proxy; make it
-perform **the actual query**, and check the answer against state that does not come from
-logs.
+The failure this section defends against is not theoretical and not exotic: **an endpoint can
+answer `eth_getLogs` with a successful, well-formed, empty array when the range is not
+empty** — no error, no warning, exit code 0. Measured against this aggregator over its whole
+life (`11492045..head`, 78,693 blocks), same query repeated:
 
-**Do not gate on "is it an archive node".** Archive-ness is historical *state* retention,
-which is a different subsystem from log indexing. A pruned endpoint can return these logs
-correctly, and requiring archive would reject it while admitting endpoints that cannot
-complete the scan. Measured on this repo's aggregator (see the table below).
-
-**1. Get the aggregator's deployment block.** Binary-search the first block with code:
-
-```bash
-cast code <aggregator> --block <n> --rpc-url <ep>     # "0x" = not yet deployed
-```
-
-Treat an RPC *error* as unknown, not as "no code" — an endpoint that refuses old queries
-answers with an error string, and reading that as "no code" walks the search to the wrong
-block. For `0x174b60bB…` this is **11492045** (its Registry is a different contract and a
-different block — do not reuse one for the other).
-
-**2. Run the coverage assertion — the real query, checked against on-chain state.**
-
-Every occupied slot got there by emitting `BLSPublicKeyRegistered`, so that count is knowable
-without trusting the log index:
-
-```bash
-# N — from state
-for s in $(seq 1 13); do cast call <agg> 'validatorAtSlot(uint8)(address)' $s --rpc-url <ep>; done | grep -vc '^0x0\{40\}$'
-
-# M — from logs, same endpoint and same range you will use for the real scan
-cast logs --rpc-url <ep> --from-block <deployBlock> --to-block <head> \
-     --address <agg> 0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3 --json
-```
-
-`M < N` ⇒ **this endpoint, at this range, in this chunking, cannot see history it provably
-should. Stop.** Only after it passes does the `GuardianSlashQueued` count from the same
-endpoint and range mean anything.
-
-**3. If you chunk the range, re-run step 2 over the chunked path.** Chunking is not
-transparent. Measured, same node, same total range, same topic:
-
-| endpoint | one call over 78,693 blocks | 9 chunks × 9,000 |
+| endpoint | `BLSPublicKeyRegistered` (known = 3) | verdict |
 |---|---|---|
-| publicnode (pruned) | **M = 3** ✓ | **M = 0** ✗ |
-| Alchemy (archive) | **M = 3** ✓ | M = 3 ✓ |
+| `ethereum-sepolia-rpc.publicnode.com` | `0 0 3 0 3 3 0 3 0 0 3 3` — **6 of 12 wrong, 0 errors** | unusable as a sole source |
+| Alchemy (`~/Dev/.env` `SEPOLIA_RPC`) | `3 3 3 3 3 3 3 3 3 3` — 10 of 10 | stable in this sample |
 
-The pruned endpoint answers the whole-range query correctly and returns nothing when the
-same span is split. Whatever the cause, the lesson is that a chunking strategy is part of
-the query and must be re-validated as such — and that `M >= N` catches it. Chunks must also
-tile the range with no gap, and a failed chunk must abort rather than contribute an empty
-list.
+Note what this is **not**: it is not a chunking artefact. The whole-range call and chunked
+calls both exhibit it, so "don't chunk" is not a fix. It is per-call non-determinism.
 
-**4. Corroborate with a second, independently operated endpoint**, and require both to agree
-on `M` and on the `GuardianSlashQueued` count. Two providers failing identically is the
-residual risk; it is much smaller than one provider failing alone.
+**The hard part.** When the answer you are checking is *supposed* to be zero, a false empty
+and a true empty are identical, and repeating the query cannot separate them — you get zero
+every time either way. So a bare "I scanned and found no cases" is not evidence, no matter how
+many times it was repeated.
 
-**5. Replaying a known past case** is the strongest check where one exists — but most
-aggregators never had one, so it cannot be the primary control.
+What makes it evidence is pairing it with a query whose answer you already know:
+
+**1. Deployment block.** Binary-search the first block with code:
+`cast code <agg> --block <n>` — treat an RPC *error* as unknown, never as "no code", or the
+search walks to the wrong block. For `0x174b60bB…` this is **11492045** (its Registry is a
+different contract at a different block; do not reuse one for the other).
+
+**2. Health probe, in the same batch as every scan.** Immediately alongside each
+`GuardianSlashQueued` query, issue the same-shape query for `BLSPublicKeyRegistered`
+(`0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3`) over the identical
+range, and compare against state:
+
+```bash
+# N — from state, no log index involved
+for s in $(seq 1 13); do cast call <agg> 'validatorAtSlot(uint8)(address)' $s --rpc-url <ep>; done | grep -vc '^0x0\{40\}$'
+# M — same endpoint, same range, same chunking as the real scan
+cast logs --rpc-url <ep> --from-block 11492045 --to-block <head> --address <agg> 0x544d98ba… --json
+```
+
+`M < N` ⇒ that batch is not trustworthy; discard it, including its `GuardianSlashQueued`
+result. **`M >= N` licenses only the call that produced it.** The non-determinism is per-call,
+so a healthy `M` does not certify the `GuardianSlashQueued` call sitting next to it — it only
+removes batches you can already prove are broken.
+
+**3. Repeat the paired scan K times and require every round to agree** (K >= 5; every round
+must show `M >= N` *and* the same `GuardianSlashQueued` result). Any disagreement ⇒
+**UNRESOLVED**. With a per-call false-empty rate `p`, K agreeing rounds leave roughly `p^K`
+residual — which is why step 4 matters more than K does.
+
+**4. Use an endpoint that does not exhibit this, and prove it does not** by running step 3
+against it. Then corroborate with a second, independently operated endpoint and require both
+to agree. This is the control that actually carries the weight; K repetitions of a bad
+endpoint do not add up to a good one.
+
+**5. Error handling is part of the check.** A failed call must abort the round, never
+contribute an empty list to a sum — `... || echo 0` in a chunk loop silently converts every
+error into "no events found", which is the same false-clean by another route.
+
+**6. Replaying a known past case** is the strongest check where one exists; most aggregators
+never had one, so it cannot be the primary control.
 
 If these cannot be satisfied, record the pending-case question as **UNRESOLVED** rather than
 clean. "We could not verify" is a usable migration status; "clean" from an unverifiable scan

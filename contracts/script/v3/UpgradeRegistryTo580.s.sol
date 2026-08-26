@@ -80,20 +80,23 @@ interface ITimelockBatch {
  *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
  *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
  *     is invisible on-chain; this event scan is the documented compensating control for that
- *     blind spot (docs/security/CC48-round3-changes.md 1.5). Completeness of that scan cannot
- *     be read off its own output — a dropped range and an empty range are identical on the
- *     wire. Do NOT gate on "is it an archive node" either: archive-ness is historical STATE
- *     retention, a different subsystem from log indexing, and gating on it rejects endpoints
- *     that answer these queries correctly. Instead make the endpoint run the real query and
- *     check it against state: count BLSPublicKeyRegistered
- *     (0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3) over
- *     [deployBlock, head] and require it to be >= the number of non-zero validatorAtSlot
- *     entries. Below that, the endpoint cannot see history it provably should — stop.
- *     Re-run the assertion over the CHUNKED path if you chunk, because chunking is part of
- *     the query: measured on this aggregator, publicnode returns 3 for one 78,693-block call
- *     and 0 for the same span split into 9 chunks. Corroborate with a second independently
- *     operated endpoint. If none of this can be satisfied, record the pending-case question
- *     as UNRESOLVED, not clean. See runbook section 5b.
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). Treat a clean scan as evidence
+ *     only after establishing the endpoint answered at all: an endpoint can return a
+ *     SUCCESSFUL, well-formed, EMPTY array for a non-empty range, with no error and exit 0,
+ *     non-deterministically and PER CALL. Measured over [11492045, head] on this aggregator,
+ *     same query repeated: publicnode gave the known-correct 3 in only 6 of 12 attempts with
+ *     zero errors, while Alchemy gave 3 in 10 of 10. It is not a chunking artefact — whole
+ *     range and chunked both show it. And when the value under test is SUPPOSED to be zero,
+ *     a false empty and a true empty are indistinguishable no matter how often you repeat.
+ *     So pair every GuardianSlashQueued query, in the same batch and range, with a
+ *     BLSPublicKeyRegistered query (0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3)
+ *     and require its count >= the number of non-zero validatorAtSlot entries. That discards
+ *     provably broken batches; it does NOT certify the neighbouring call, because the
+ *     non-determinism is per call. Repeat the paired scan K>=5 times requiring full
+ *     agreement, use an endpoint proven not to exhibit this, and corroborate with a second
+ *     independently operated one. Never let a failed call contribute an empty list to a sum.
+ *     If this cannot be satisfied, record the pending-case question as UNRESOLVED, not clean.
+ *     See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
