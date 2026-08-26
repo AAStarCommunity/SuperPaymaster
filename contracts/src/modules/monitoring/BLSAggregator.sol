@@ -394,7 +394,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.10.0";
+        return "BLSAggregator-4.11.0";
     }
 
 
@@ -439,7 +439,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         already-ejected). On-chain trace so monitors can tell "escaped via exit"
     ///         apart from "was never on the list"; no id/guardian is consumed here.
     event GuardianSlashSkipped(uint256 indexed fraudProofId, address indexed guardian);
-    event GuardianSlashQueued(uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline);
+    /// @dev `guiltyGuardians` is emitted in full, not just its hash. `expireGuardianSlashCase`
+    ///      requires the caller to reproduce the exact array (order-sensitive), and the array
+    ///      otherwise exists only in the calldata of the original queue transaction. Without it
+    ///      here, a case whose queue calldata nobody retained — with only non-archive nodes
+    ///      available — can never be expired, so `pendingGuardianSlashCount` never returns to
+    ///      zero and the named guardians' stake stays locked forever.
+    event GuardianSlashQueued(
+        uint256 indexed fraudProofId, bytes32 guardiansHash, uint256 deadline, address[] guiltyGuardians
+    );
     event GuardianSlashCaseExpired(uint256 indexed fraudProofId);
     /// @notice CC-48 round-4 HIGH: the verdict a queued case is permanently bound to.
     ///         `fraudProofHash` is the only thing execution checks; `verifier` is the
@@ -1219,6 +1227,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // `block.timestamp >= readyAt` means the exclusion is always announced
             // GUARDIAN_EXIT_DELAY in advance: it cannot touch an in-flight proof, and
             // governance has the whole notice period to seat a replacement.
+            // Note the exclusion is deliberately NOT bounded by `expiresAt`: a lapsed notice
+            // keeps excluding the slot, and cancelling (at the cost of a cooldown) is the only
+            // way back in. Letting an expired notice silently re-admit a guardian would be the
+            // looser of the two behaviours, and this gate errs toward exclusion —
+            // see test_ExpiredNoticeIsClearedByCancel.
             uint64 exitReadyAt = guardianExitRequests[v].readyAt;
             if (exitReadyAt != 0 && block.timestamp >= uint256(exitReadyAt)) {
                 revert SlotValidatorExitPending(slot, v);
@@ -1725,6 +1738,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // departure cannot move the committee below quorum — nothing to check.
         if (!_blsKeys[leaving].isActive) return;
         bytes32 roleDvt = keccak256("DVT");
+        // CC-48 follow-up: count only guardians that could actually SIGN. `_reconstructPkAgg`
+        // reverts with SlotValidatorStakeBelowMinimum for any signer whose role lock sits
+        // under minStake, so a member slashed below the line contributes nothing to quorum.
+        // Counting it here inflated `remaining` and let this gate wave through an exit that
+        // drops the real signing set below threshold. A gate whose whole purpose is to be
+        // conservative must err on the blocking side; MAX_VALIDATORS is small and exits are
+        // rare, so the extra reads are affordable.
+        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
+        // With no staking wired, no signature can verify at all (`_reconstructPkAgg` reverts
+        // with StakingNotConfigured), so there is no quorum left for this exit to break and
+        // blocking every exit would be pure damage. Fall back to the role-only count.
+        uint256 minStake = address(staking) == address(0) ? 0 : REGISTRY.getRoleConfig(roleDvt).minStake;
         uint256 remaining;
         bool leavingEligible;
         for (uint8 slot = 1; slot <= MAX_VALIDATORS; ) {
@@ -1736,6 +1761,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // readyAt: the floor has to hold at the end state, not just today.
             if (v != leaving && guardianExitRequests[v].readyAt != 0) continue;
             if (!REGISTRY.hasRole(roleDvt, v)) continue;
+            if (minStake != 0) {
+                (uint128 lockedAmount,,,,) = staking.roleLocks(v, roleDvt);
+                if (uint256(lockedAmount) < minStake) continue;
+            }
             if (v == leaving) { leavingEligible = true; continue; }
             unchecked { ++remaining; }
         }
@@ -1815,7 +1844,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
             unchecked { ++i; }
         }
-        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline);
+        emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline, guiltyGuardians);
         emit GuardianSlashJudgmentFrozen(fraudProofId, verifier, proofHash, guardiansHash);
     }
 

@@ -101,7 +101,7 @@ assumes it is one.
 
 ## 4. Registry: Safe or Timelock
 
-**Safe-owned** — nothing extra; `UpgradeRegistryTo570` holds Registry to the same M-of-N bar
+**Safe-owned** — nothing extra; `UpgradeRegistryTo580` holds Registry to the same M-of-N bar
 as the aggregator.
 
 **Timelock-owned** — deploy `TimelockController(minDelay, proposers, executors, admin)`
@@ -109,7 +109,7 @@ with `minDelay > 0` and `admin = address(0)` (nobody can re-grant roles to bypas
 delay), proposers = the Safe. Then:
 
 ```
-TIMELOCK=<timelock> forge script contracts/script/v3/UpgradeRegistryTo570.s.sol …
+TIMELOCK=<timelock> forge script contracts/script/v3/UpgradeRegistryTo580.s.sol …
 ```
 
 The script asserts `Registry.owner() == TIMELOCK` **and** `TIMELOCK.getMinDelay() > 0`

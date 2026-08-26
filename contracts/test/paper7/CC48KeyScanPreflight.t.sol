@@ -112,7 +112,7 @@ contract Legacy43AggregatorStub {
  * @title CC48KeyScanPreflight
  * @notice CC-48 round-3 MEDIUM-4: the migration preflight is only a gate if something
  *         runs it. This suite runs `BLSKeyScanLib` — the exact library
- *         `UpgradeRegistryTo570` now calls before emitting a governance batch — against
+ *         `UpgradeRegistryTo580` now calls before emitting a governance batch — against
  *         live aggregators, so a regression in the gate fails CI instead of failing a
  *         mainnet cutover.
  *

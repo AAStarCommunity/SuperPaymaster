@@ -230,6 +230,6 @@ contract GuardianSlashTest is Test {
     // ---- version bump ----
 
     function test_VersionBumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.10.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.11.0"));
     }
 }

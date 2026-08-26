@@ -36,7 +36,7 @@ interface ITimelockBatch {
 }
 
 /**
- * @title UpgradeRegistryTo570
+ * @title UpgradeRegistryTo580
  * @notice CC-48 MEDIUM-3: build the ONE governance batch that takes a live Registry
  *         proxy to 5.8.0. All four steps must land in a single transaction.
  *
@@ -162,7 +162,7 @@ interface ITimelockBatch {
  * Preflight requires an EIP-2537 (Prague) RPC: the weak-key scan recomputes g1*s and
  * must not be able to report "clean" simply because it could not run.
  */
-contract UpgradeRegistryTo570 is Script {
+contract UpgradeRegistryTo580 is Script {
     function run() external {
         address proxy = vm.envAddress("REGISTRY_PROXY");
         address newAggregator = vm.envAddress("NEW_BLS_AGGREGATOR");
@@ -273,8 +273,8 @@ contract UpgradeRegistryTo570 is Script {
             "CC-48: NEW_BLS_AGGREGATOR is bound to a different Registry; domains can never match"
         );
         require(
-            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.10.0"),
-            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.10.0"
+            keccak256(bytes(IAggregatorDomain(newAggregator).version())) == keccak256("BLSAggregator-4.11.0"),
+            "CC-48: NEW_BLS_AGGREGATOR is not BLSAggregator-4.11.0"
         );
 
         // Byte-level domain agreement, checked HERE rather than printed for a human to

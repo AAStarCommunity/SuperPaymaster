@@ -59,7 +59,7 @@ contract BatchOwner {
     }
 }
 
-contract RegistryUpgradeTo570Test is Test {
+contract RegistryUpgradeTo580Test is Test {
     BatchOwner governance;
     Registry registry;
     UpgradeMockBLS newAggregator;
