@@ -80,19 +80,20 @@ interface ITimelockBatch {
  *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
  *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
  *     is invisible on-chain; this event scan is the documented compensating control for that
- *     blind spot (docs/security/CC48-round3-changes.md 1.5). Completeness of that scan CANNOT
- *     be established from what it returns — a dropped range and an empty range are identical
- *     on the wire, which defeats "non-empty" and also defeats "counts reconcile with on-chain
- *     state" (the registrations used as the anchor may themselves be recent: deploy at 1000,
- *     register at 9000, queue a case at 5000, serve the last 2000 blocks, and the counts
- *     reconcile while the case is invisible). Verify the SOURCE instead: probe the endpoint
- *     with a STATE read at the deployment block (`cast balance <addr> --block <deployBlock>`;
- *     pruned nodes fail with "state at block N is pruned", while `cast block` succeeds on
- *     them and proves nothing), scan from the deployment block, and corroborate with a SECOND
- *     independently operated archive endpoint — that redundancy is what carries the weight.
- *     Counting BLSPublicKeyRegistered against occupied slots is a cheap fast-fail only.
- *     If it cannot be satisfied, record the pending-case question as UNRESOLVED, not clean.
- *     See runbook section 5b.
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). Completeness of that scan cannot
+ *     be read off its own output — a dropped range and an empty range are identical on the
+ *     wire. Do NOT gate on "is it an archive node" either: archive-ness is historical STATE
+ *     retention, a different subsystem from log indexing, and gating on it rejects endpoints
+ *     that answer these queries correctly. Instead make the endpoint run the real query and
+ *     check it against state: count BLSPublicKeyRegistered
+ *     (0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3) over
+ *     [deployBlock, head] and require it to be >= the number of non-zero validatorAtSlot
+ *     entries. Below that, the endpoint cannot see history it provably should — stop.
+ *     Re-run the assertion over the CHUNKED path if you chunk, because chunking is part of
+ *     the query: measured on this aggregator, publicnode returns 3 for one 78,693-block call
+ *     and 0 for the same span split into 9 chunks. Corroborate with a second independently
+ *     operated endpoint. If none of this can be satisfied, record the pending-case question
+ *     as UNRESOLVED, not clean. See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
@@ -231,7 +232,7 @@ contract UpgradeRegistryTo580 is Script {
         }
 
         // CC-48 round-6 HIGH-1: the aggregator's OWN owner is now a distinct governance
-        // question, and until this round nothing checked it. 4.10.0 gave that owner
+        // question, and until this round nothing checked it. The aggregator gives that owner
         // `emergencyDisarmFraudProofVerifier()` — immediate, no notice, and enough to
         // front-run every future `queueGuardianSlash` out of the mempool for one
         // transaction's gas. A Timelock cannot cover an emergency stop, so the

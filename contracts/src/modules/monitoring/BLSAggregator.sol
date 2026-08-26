@@ -1737,9 +1737,20 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         Note this bites on the way IN to that state, not out of it. A committee
     ///         already short of its threshold (Sepolia at the time of writing: N = 3
     ///         against defaultThreshold = 7) takes the early return below and exits stay
-    ///         open. The trap is the repair: lowering the threshold to match N lands
-    ///         exactly on N == threshold and freezes every remaining guardian. Raise the
-    ///         set to threshold + 1 first, or lower the threshold below N — never to N.
+    ///         open.
+    ///
+    ///         The repair is where the trap is. **Seat guardians until N reaches
+    ///         `_maxRequiredThreshold() + 1`** — that is the one remedy a single role can
+    ///         carry out. Lowering the bar instead is not one knob and is not the owner's
+    ///         to turn: `_maxRequiredThreshold()` is the MAX over `defaultThreshold` and
+    ///         all three `slashThresholds`, so every one of those inputs must come down.
+    ///         `setDefaultThreshold`/`setMinThreshold` are `onlyOwner` (floor 2), while
+    ///         `setSlashThreshold` requires `slashPolicyAdmin` (floor
+    ///         `SLASH_THRESHOLD_FLOOR`). An owner acting alone on the Sepolia figures
+    ///         above reaches `max(2, 2, 3, 3) = 3 == N` and freezes precisely the
+    ///         guardians it meant to free; clearing it needs four transactions across
+    ///         two roles. And with N <= 2 no combination works at all, because both
+    ///         floors are 2 — for such a committee, seating a guardian is the ONLY exit.
     ///
     ///         The check only fires when THIS exit is what breaks quorum. If the
     ///         committee is already short of the threshold, the BLS paths are dead

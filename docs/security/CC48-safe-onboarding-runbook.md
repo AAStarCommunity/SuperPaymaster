@@ -179,53 +179,69 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 
 ### Before reading a clean scan as evidence
 
-Start from the limitation, because it decides the whole procedure: **you cannot establish
-that a log scan was complete by looking at what it returned.** A range the node dropped and
-a range that genuinely holds no event produce byte-identical answers. Every "the data looks
-right" heuristic fails here, including ones that seem sound:
+You cannot establish completeness from what a scan returned — a range the node dropped and a
+range holding no event are byte-identical. So do not judge the endpoint by proxy; make it
+perform **the actual query**, and check the answer against state that does not come from
+logs.
 
-- *non-empty result* — a node serving only recent history returns the newest logs and drops
-  the older range, which is exactly where an unresolved case sits;
-- *count reconciles with on-chain state* (e.g. `BLSPublicKeyRegistered` count >= occupied
-  slot count) — the registrations may themselves be recent. Deploy at block 1000, register
-  at 9000, queue a case at 5000, serve only the last 2000 blocks: the counts reconcile
-  perfectly and the case is invisible. It rules out some broken scans; it proves nothing
-  about coverage.
+**Do not gate on "is it an archive node".** Archive-ness is historical *state* retention,
+which is a different subsystem from log indexing. A pruned endpoint can return these logs
+correctly, and requiring archive would reject it while admitting endpoints that cannot
+complete the scan. Measured on this repo's aggregator (see the table below).
 
-So verify the **source's capability** and add redundancy, rather than inferring from output.
+**1. Get the aggregator's deployment block.** Binary-search the first block with code:
 
-1. **Probe the endpoint at the depth you need — with a state read.**
+```bash
+cast code <aggregator> --block <n> --rpc-url <ep>     # "0x" = not yet deployed
+```
 
-   ```
-   cast balance <any-address> --block <aggregatorDeployBlock> --rpc-url <endpoint>
-   ```
+Treat an RPC *error* as unknown, not as "no code" — an endpoint that refuses old queries
+answers with an error string, and reading that as "no code" walks the search to the wrong
+block. For `0x174b60bB…` this is **11492045** (its Registry is a different contract and a
+different block — do not reuse one for the other).
 
-   An archive endpoint answers; a pruned one fails with `state at block N is pruned`. Note
-   `cast block <deployBlock>` is **not** a substitute — pruned nodes serve old *headers*
-   fine, so that check passes on both and tells you nothing about log retention. Probe at
-   the deployment block, not at some recent block.
+**2. Run the coverage assertion — the real query, checked against on-chain state.**
 
-2. **Scan from the aggregator's deployment block**, never from "recent".
+Every occupied slot got there by emitting `BLSPublicKeyRegistered`, so that count is knowable
+without trusting the log index:
 
-3. **Corroborate with a second, independently operated archive endpoint.** Require both to
-   agree on the `GuardianSlashQueued` count. Two providers silently truncating the same
-   range in the same way is the residual risk, and it is far smaller than one provider doing
-   it. For a production cutover this is the control that carries the weight — not any
-   property of the returned data.
+```bash
+# N — from state
+for s in $(seq 1 13); do cast call <agg> 'validatorAtSlot(uint8)(address)' $s --rpc-url <ep>; done | grep -vc '^0x0\{40\}$'
 
-4. **Use `M >= N` as a fast fail, not as proof.** Counting `BLSPublicKeyRegistered`
-   (`0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3`) against non-zero
-   `validatorAtSlot` entries catches an obviously broken scan cheaply — a shortfall means
-   stop. Passing it means nothing more than "not obviously broken". Sepolia's current
-   aggregator reads `N = 3, M = 3, GuardianSlashQueued = 0`; that 0 is credible because of
-   steps 1 and 3, not because the counts line up.
+# M — from logs, same endpoint and same range you will use for the real scan
+cast logs --rpc-url <ep> --from-block <deployBlock> --to-block <head> \
+     --address <agg> 0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3 --json
+```
 
-5. **Replaying a known past case** is the strongest check available — where one exists. Most
-   aggregators never had one, so it cannot be the primary control; use it in addition.
+`M < N` ⇒ **this endpoint, at this range, in this chunking, cannot see history it provably
+should. Stop.** Only after it passes does the `GuardianSlashQueued` count from the same
+endpoint and range mean anything.
 
-If any of this cannot be satisfied, say so in the migration record and treat the pending-case
-question as **unresolved** rather than clean. "We could not verify" is a usable status;
-"clean" obtained from an unverifiable scan is not.
+**3. If you chunk the range, re-run step 2 over the chunked path.** Chunking is not
+transparent. Measured, same node, same total range, same topic:
+
+| endpoint | one call over 78,693 blocks | 9 chunks × 9,000 |
+|---|---|---|
+| publicnode (pruned) | **M = 3** ✓ | **M = 0** ✗ |
+| Alchemy (archive) | **M = 3** ✓ | M = 3 ✓ |
+
+The pruned endpoint answers the whole-range query correctly and returns nothing when the
+same span is split. Whatever the cause, the lesson is that a chunking strategy is part of
+the query and must be re-validated as such — and that `M >= N` catches it. Chunks must also
+tile the range with no gap, and a failed chunk must abort rather than contribute an empty
+list.
+
+**4. Corroborate with a second, independently operated endpoint**, and require both to agree
+on `M` and on the `GuardianSlashQueued` count. Two providers failing identically is the
+residual risk; it is much smaller than one provider failing alone.
+
+**5. Replaying a known past case** is the strongest check where one exists — but most
+aggregators never had one, so it cannot be the primary control.
+
+If these cannot be satisfied, record the pending-case question as **UNRESOLVED** rather than
+clean. "We could not verify" is a usable migration status; "clean" from an unverifiable scan
+is not.
 
 ### One special case worth naming
 
