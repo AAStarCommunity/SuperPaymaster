@@ -181,10 +181,12 @@ topic returns zero events and raises no error, and zero events is indistinguisha
 
 The failure this section defends against is not theoretical and not exotic: **an endpoint can
 answer `eth_getLogs` with a successful, well-formed, empty array when the range is not
-empty** — no error, no warning, exit code 0. Measured against this aggregator over its whole
-life (`11492045..head`, 78,693 blocks), same query repeated:
+empty** — no error, no warning, exit code 0. Measured 2026-08-26 against this aggregator over
+`[11492045, 11570738]` (78,693 blocks), same query repeated. The expected value 3 was the
+occupied-slot count at that time; re-derive it before reusing these figures, since both the
+count and the range move:
 
-| endpoint | `BLSPublicKeyRegistered` (known = 3) | verdict |
+| endpoint | `BLSPublicKeyRegistered` (expected 3 at the time) | verdict |
 |---|---|---|
 | `ethereum-sepolia-rpc.publicnode.com` | `0 0 3 0 3 3 0 3 0 0 3 3` — **6 of 12 wrong, 0 errors** | unusable as a sole source |
 | Alchemy (`~/Dev/.env` `SEPOLIA_RPC`) | `3 3 3 3 3 3 3 3 3 3` — 10 of 10 | stable in this sample |
@@ -265,13 +267,29 @@ preference:
 
 1. **A state-derived expectation on another contract.** Anything where you can compute the
    expected log count without trusting the log index, as `N` did.
-2. **A recorded baseline.** Pick a second address known to be active in that range — the
-   Registry is the natural one — take its log count at a moment you have independently
-   verified, and require later scans to reproduce it. Measured here over the same range
-   (`11492045..head`): Registry `0xf5Bf37ca…` returns **10**, stable across repeats, while
-   the aggregator itself returns 5. Be honest about the strength: a baseline is an empirical
-   constant, not derived from state, so it is weaker than `M >= N` — it detects an endpoint
-   that has stopped answering, not one that was always wrong.
+2. **A recorded baseline over a FROZEN range.** Pick a second address known to be active in
+   that range — the Registry is the natural one — and record its log count together with the
+   exact `[from, to]` you counted over. **`to` must be a fixed block number, never `head`.**
+   A range ending at `head` grows as the chain advances, so a fixed expected value is wrong
+   by tomorrow: demanding equality raises false alarms, and relaxing to `>=` gives up most of
+   the detection. A closed historical range is immutable, so it can be required to match
+   exactly:
+
+   ```bash
+   BASE_ADDR=<second contract>     # e.g. the Registry
+   BASE_FROM=<fixed>  BASE_TO=<fixed>   # frozen; NOT $HEAD
+   BASE_EXPECT=<count verified when the baseline was taken>
+   got=$(cast logs --rpc-url "$EP" --from-block "$BASE_FROM" --to-block "$BASE_TO" \
+           --address "$BASE_ADDR" --json) || exit 1
+   [ "$(printf '%s' "$got" | jq 'length')" -eq "$BASE_EXPECT" ] || {
+     echo "endpoint failed the frozen baseline — do not trust this batch" >&2; exit 1; }
+   ```
+
+   Measured here: Registry `0xf5Bf37ca…` over the frozen range `[11492045, 11570891]`
+   returns **10**, identical across repeats. The real scan still runs to `head`; only the
+   baseline is frozen. Be honest about the strength: a baseline is an empirical constant, not
+   derived from state, so it is weaker than `M >= N` — it detects an endpoint that has
+   stopped answering, not one that was always wrong.
 3. **Nothing available ⇒ UNRESOLVED.** Do not fall back to "the scan returned no cases".
 
 In all three, cross-endpoint agreement (step 4) does more work than it does in the `N >= 1`
