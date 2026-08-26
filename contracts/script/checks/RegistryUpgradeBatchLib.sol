@@ -45,7 +45,7 @@ library RegistryUpgradeBatchLib {
     /// @param proxy          the live Registry ERC1967 proxy — the ONLY target of all three
     ///                       calls, so a batch that touches any other address is not this one
     /// @param newImpl        freshly built `Registry` 5.7.0 implementation
-    /// @param newAggregator  `BLSAggregator` 4.10.0
+    /// @param newAggregator  `BLSAggregator` 4.11.0
     /// @param perProposalCap transaction-level aggregate uplift guard, aPNT wei
     /// @param totalCap       protocol-wide outstanding ceiling, aPNT wei
     /// @param seedUsers      every address that has EVER been the subject of a reputation

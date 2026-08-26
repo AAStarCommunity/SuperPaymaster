@@ -144,6 +144,36 @@ rehearse.
 
 ---
 
+## 5b. Repoint your watcher before trusting the migration preflight
+
+`GuardianSlashQueued` gained a `guiltyGuardians` array in `BLSAggregator-4.11.0`, which
+moves its `topic0`:
+
+```
+old  GuardianSlashQueued(uint256,bytes32,uint256)
+     0xbd29882a64fb25d3f96a8c3b657df25c01d1cf84f77df08564dbea8fc988fd82
+new  GuardianSlashQueued(uint256,bytes32,uint256,address[])
+     0xcf5c0505e0bff287d5bb2aaf75cb5409c172bdfa5972505e4431b3e76672958c
+```
+
+A watcher still filtering on the old topic **returns zero events and raises no error**.
+Zero events is indistinguishable from "no fraud cases", and that ambiguity lands on a
+control this runbook depends on: `requireNoPendingCases` enumerates guardians through
+`validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
+cannot be seen on-chain. Scanning `GuardianSlashQueued` over the case window is the
+documented compensating control for exactly that blind spot
+(`docs/security/CC48-round3-changes.md` 1.5).
+
+Before reading a watcher's "no pending cases" as evidence for scheduling an upgrade batch:
+
+1. update the filter to the new topic (or to the regenerated ABI — `abis/BLSAggregator.json`);
+2. replay a known historical case and confirm the watcher reports it;
+3. only then treat a clean scan as clean.
+
+The array is now carried in the event itself, so a repointed watcher can reconstruct the
+exact `guiltyGuardians` set — which is also what `expireGuardianSlashCase` requires, and
+that array exists nowhere else once the queueing transaction's calldata is out of reach.
+
 ## 6. What to keep
 
 For every production or rehearsal deployment, keep:

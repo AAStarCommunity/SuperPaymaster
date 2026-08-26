@@ -1717,17 +1717,29 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         outstanding exit notice (including `leaving`'s) has matured.
     /// @dev    CC-48 MEDIUM-2 / BLOCKER-1 (second half). Guardians that merely
     ///         ANNOUNCED an exit are excluded here even before `readyAt`, because the
-    ///         floor has to hold at the end state, not just today. Stake is not
-    ///         re-read: `_reconstructPkAgg` already enforces minStake at verification
-    ///         time, and pulling every lock here would make a routine notice cost a
-    ///         full committee sweep of external staking reads.
+    ///         floor has to hold at the end state, not just today.
     ///
-    ///         Consequence, stated plainly: with N eligible guardians and a required
-    ///         threshold of N, NO guardian can open an exit notice until governance
-    ///         seats a replacement or lowers the threshold. That is deliberate — the
-    ///         alternative is letting one member unilaterally park the committee below
-    ///         quorum. Deployments running N == threshold (the RepCredit 3-of-3
-    ///         evidence stack) must seat a spare before any operator can leave.
+    ///         Stake IS re-read here, and the earlier reasoning for not doing so was
+    ///         wrong. That reasoning ran: `_reconstructPkAgg` already enforces minStake
+    ///         at verification time, so this gate need not. But "only checked at
+    ///         verification time" is precisely the hole — a guardian slashed below
+    ///         minStake still counted toward `remaining` here while being rejected as a
+    ///         signer there, so the gate approved exits that drop the real signing set
+    ///         below threshold. The two sides must apply the same eligibility predicate.
+    ///         The cost is bounded: MAX_VALIDATORS is small and exits are rare.
+    ///
+    ///         Consequence, stated plainly: with N guardians that can actually sign and
+    ///         a required threshold of N, NO guardian can open an exit notice until
+    ///         governance seats a replacement or lowers the threshold. That is
+    ///         deliberate — the alternative is letting one member unilaterally park the
+    ///         committee below quorum.
+    ///
+    ///         Note this bites on the way IN to that state, not out of it. A committee
+    ///         already short of its threshold (Sepolia at the time of writing: N = 3
+    ///         against defaultThreshold = 7) takes the early return below and exits stay
+    ///         open. The trap is the repair: lowering the threshold to match N lands
+    ///         exactly on N == threshold and freezes every remaining guardian. Raise the
+    ///         set to threshold + 1 first, or lower the threshold below N — never to N.
     ///
     ///         The check only fires when THIS exit is what breaks quorum. If the
     ///         committee is already short of the threshold, the BLS paths are dead
@@ -1738,13 +1750,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // departure cannot move the committee below quorum — nothing to check.
         if (!_blsKeys[leaving].isActive) return;
         bytes32 roleDvt = keccak256("DVT");
-        // CC-48 follow-up: count only guardians that could actually SIGN. `_reconstructPkAgg`
-        // reverts with SlotValidatorStakeBelowMinimum for any signer whose role lock sits
-        // under minStake, so a member slashed below the line contributes nothing to quorum.
-        // Counting it here inflated `remaining` and let this gate wave through an exit that
-        // drops the real signing set below threshold. A gate whose whole purpose is to be
-        // conservative must err on the blocking side; MAX_VALIDATORS is small and exits are
-        // rare, so the extra reads are affordable.
+        // Same eligibility predicate as `_reconstructPkAgg` — see the @dev note above for
+        // why counting members it would reject is what made this gate unsound.
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         // With no staking wired, no signature can verify at all (`_reconstructPkAgg` reverts
         // with StakingNotConfigured), so there is no quorum left for this exit to break and
