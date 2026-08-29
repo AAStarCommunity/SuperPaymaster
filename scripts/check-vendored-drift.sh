@@ -36,6 +36,33 @@ ENTRIES=(
 unresolved=0
 drift=0
 
+# Contact the remote ONCE, up front, and refuse to continue if we could not. In the local
+# -repo mode this is the whole ballgame: `git show origin/<branch>:path` reads a CACHED ref
+# that can be arbitrarily old, so a swallowed fetch failure produces a check-2 that never
+# touched the network and still prints "still current". That is the one outcome this script
+# exists to make impossible, so a fetch failure is UNRESOLVED, never a pass.
+require_live_remote() {
+  if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
+    # WHICH remote is itself an unverified quantity. Point DVT_REPO_PATH at a fork, or at
+    # another local working clone, and every check below answers truthfully about the wrong
+    # repository — and a local clone's HEAD is whatever branch it has checked out, not the
+    # upstream default, so even "the default branch" would silently become something else.
+    local url
+    url="$(git -C "$DVT_REPO_PATH" remote get-url origin 2>/dev/null)"
+    if [[ "$url" != *"${UPSTREAM_REPO}"* ]]; then
+      echo "UNRESOLVED: $DVT_REPO_PATH has origin '$url', which is not ${UPSTREAM_REPO}."
+      echo "            Checks against it would be true statements about the wrong repo."
+      exit 2
+    fi
+    if ! git -C "$DVT_REPO_PATH" fetch -q origin 2>/dev/null; then
+      echo "UNRESOLVED: could not fetch from origin in $DVT_REPO_PATH."
+      echo "            check 2 would then compare against a cached ref of unknown age,"
+      echo "            which cannot establish freshness. This is NOT a pass."
+      exit 2
+    fi
+  fi
+}
+
 # $1 = ref, $2 = upstream path, $3 = destination file.
 # Writes to a FILE rather than returning content on stdout: command substitution strips
 # trailing newlines, and every sha256 recorded in a vendored header was taken over the
@@ -44,7 +71,6 @@ drift=0
 # this gate, which is worse than not having it.
 fetch_to() {
   if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
-    git -C "$DVT_REPO_PATH" fetch -q origin 2>/dev/null || true
     git -C "$DVT_REPO_PATH" show "$1:$2" > "$3" 2>/dev/null
   else
     gh api "repos/${UPSTREAM_REPO}/contents/${2}?ref=${1}" --jq '.content' 2>/dev/null \
@@ -53,21 +79,45 @@ fetch_to() {
   [[ -s "$3" ]]
 }
 
+# The default branch must come from the REMOTE. A local `refs/remotes/origin/HEAD` is just a
+# symlink this clone happens to hold; on a real clone here it pointed at
+# origin/chore/release-1.15.0, so check 2 would have declared a NON-default branch "still
+# current" and exited 0. Ask ls-remote, which cannot be answered from cache.
 default_ref() {
   if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
-    git -C "$DVT_REPO_PATH" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo "origin/master"
+    local head
+    head="$(git -C "$DVT_REPO_PATH" ls-remote --symref origin HEAD 2>/dev/null \
+            | awk '/^ref:/ {sub("refs/heads/","",$2); print $2; exit}')"
+    [[ -n "$head" ]] && echo "origin/$head"
   else
     gh api "repos/${UPSTREAM_REPO}" --jq '.default_branch' 2>/dev/null
   fi
 }
 
+# The commit check 2 actually compared against, so the output names its own evidence rather
+# than just asserting freshness.
+resolved_sha() {
+  if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
+    git -C "$DVT_REPO_PATH" rev-parse --short "$1" 2>/dev/null
+  else
+    gh api "repos/${UPSTREAM_REPO}/commits/${1}" --jq '.sha[0:7]' 2>/dev/null
+  fi
+}
+
+require_live_remote
 REF="$(default_ref)"
 if [[ -z "$REF" ]]; then
   echo "UNRESOLVED: could not determine ${UPSTREAM_REPO}'s default branch (no network, or no credential)."
   echo "            This is NOT a pass. Re-run where the remote is reachable."
   exit 2
 fi
-echo "upstream default branch: $REF"
+UPSTREAM_SHA="$(resolved_sha "$REF")"
+if [[ -z "$UPSTREAM_SHA" ]]; then
+  echo "UNRESOLVED: resolved the default branch ($REF) but could not resolve its commit."
+  exit 2
+fi
+echo "upstream default branch: $REF @ $UPSTREAM_SHA"
+echo "vendored pin           : $PINNED_COMMIT"
 
 for e in "${ENTRIES[@]}"; do
   local_file="${e%%:*}"; rest="${e#*:}"
@@ -112,4 +162,4 @@ if (( drift )); then
   echo "RESULT: DRIFT — the vendored copies no longer describe upstream."
   exit 1
 fi
-echo "RESULT: clean — pins intact and still current."
+echo "RESULT: clean — pins intact, and still current as of $REF @ $UPSTREAM_SHA."
