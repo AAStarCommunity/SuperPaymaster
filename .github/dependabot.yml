@@ -38,12 +38,17 @@
 # #357/#358/#360 on 4.3.9, which is the patched version and nothing newer. #367 is
 # the semver-MAJOR one precisely because crypto-js's fix is 3.x -> 4.0.0.
 #
-# Corroborating, not load-bearing: this `updates` entry is `weekly` (defaults to
-# Monday) and groups everything under `all-dependencies`. Its PRs are grouped and
-# land on Mondays — 2026-06-15 through 08-24, eight consecutive. All eight above
-# are UNGROUPED (`outputs.dependency-group` empty) and six fall on non-Mondays.
-# One grouped PR (#366, /packages/*, Thu 08-06) is off-pattern, so treat the day
-# of week as a hint and the alert match as the proof.
+# The alert match above is the whole case. Two things that LOOK like corroboration
+# were checked and do not discriminate — recorded so nobody re-runs them:
+#
+#   - Day of week. The entry is `weekly`, which defaults to Monday, so off-Monday
+#     PRs look like a second channel. They are not a signal: of 17 grouped npm PRs
+#     11 are Monday and 6 are not, and of 86 ungrouped ones 20 ARE Monday.
+#   - Grouping. The entry groups on `patterns: ["*"]`, so an ungrouped PR looks
+#     like it bypassed the entry. All eight above are indeed ungrouped
+#     (`outputs.dependency-group` empty), but ungrouped PRs also arrive under
+#     INCLUDED directories (#241/#359/#363, hono under /packages/*), so ungrouped
+#     does not imply "not from this entry".
 #
 # THE TRAP, recorded because it already cost one review round. It is tempting to
 # settle this from the `Dependabot auto-merge` run log, which prints
