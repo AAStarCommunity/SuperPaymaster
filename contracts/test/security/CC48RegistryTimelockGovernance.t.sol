@@ -115,6 +115,16 @@ contract CC48RegistryTimelockGovernance is Test {
         // admin = address(0): nobody can bypass the delay by re-granting roles later.
         timelock = new TimelockController(MIN_DELAY, proposers, executors, address(0));
 
+        // CC-48 round-10 (adversarial review): the predecessor is ARMED here, while this
+        // test contract still owns the stand-in. Without this the fixture's own claim --
+        // "that predecessor keeps its slasher authorisation unless the batch revokes it" --
+        // was never modelled: `authorizedSlashers[oldAggregator]` started false, so the
+        // post-batch `assertFalse` held vacuously and a batch (or a mock) that ignored the
+        // revoke entirely still passed. Arming it first is what turns that assertion into
+        // a statement about the revoke.
+        staking.setAuthorizedSlasher(oldAggregator, true);
+        assertTrue(staking.authorizedSlashers(oldAggregator), "predecessor starts ARMED, as on a live chain");
+
         registry.transferOwnership(address(timelock));
         // Both subjects answer to ONE principal — the deployment shape `UpgradeRegistryTo580`
         // asserts (`IOwned(staking).owner() == IOwned(proxy).owner()`) before it emits the
@@ -186,10 +196,20 @@ contract CC48RegistryTimelockGovernance is Test {
         // the aggregator that step (3) armed two calls earlier -- the reason this commit
         // exists at all. Pin the payload by value so both mutations are red.
         //
-        // Step (3)'s payload is deliberately NOT restated here: it is an unconditional
-        // line in `buildBatch`, so any mutation of it already reddens
-        // `test_SameAggregatorIsGrantedAndNotRevoked`, which asserts it by value. Adding a
-        // second copy would only make one defect fail two tests.
+        // Step (3) is pinned here TOO. An earlier version of this comment argued it was
+        // redundant because `test_SameAggregatorIsGrantedAndNotRevoked` already asserts
+        // that payload by value -- but that test only ever builds the `old == new` branch,
+        // and `test_FirstDeploymentBatchOmitsTheRevokeStep` only counts SELECTORS, so
+        // `(newAggregator, false)` still reads as one slasher call there. An
+        // input-dependent mutation -- emitting `false` only when `oldAggregator` is
+        // `address(0)`, say -- slips past both. "Unconditional line" was an argument about
+        // the code as written, not about the code as it might be edited, which is the only
+        // thing a test can defend.
+        assertEq(
+            keccak256(payloads[2]),
+            keccak256(abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true))),
+            "step (3) ARMS the new aggregator"
+        );
         assertEq(
             keccak256(payloads[3]),
             keccak256(abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (oldAggregator, false))),

@@ -38,12 +38,18 @@ interface ITimelockBatch {
 /**
  * @title UpgradeRegistryTo580
  * @notice CC-48 MEDIUM-3: build the ONE governance batch that takes a live Registry
- *         proxy to 5.8.0. All four steps must land in a single transaction.
+ *         proxy to 5.8.0. Every step must land in a single transaction.
  *
  *   1. upgradeToAndCall(newImpl, "")
  *   2. setBLSAggregator(BLSAggregator 4.11.0)
- *   3. setCreditPolicy(perProposalCap, totalCap)
- *   4. seedCreditPopulation(users, users.length, true)
+ *   3. GTokenStaking.setAuthorizedSlasher(newAggregator, true)
+ *   4. GTokenStaking.setAuthorizedSlasher(oldAggregator, false)   <- ONLY when rotating
+ *   5. setCreditPolicy(perProposalCap, totalCap)
+ *   6. seedCreditPopulation(users, users.length, true)
+ *
+ * Six calls when there is a DIFFERENT predecessor to disarm, five otherwise (a first
+ * deployment, or a Registry-only upgrade that keeps the same aggregator -- revoking there
+ * would undo (3) in the same batch). The shape lives in `RegistryUpgradeBatchLib`.
  *
  * Why atomic — each gap is a real, observable outage, not a theoretical one:
  *
@@ -421,10 +427,15 @@ contract UpgradeRegistryTo580 is Script {
         console.log("  registry.creditPopulationSeededAt()        > 0  (reputation path open)");
         console.log("  registry.owner()                         ==", owner);
         // CC-48 round-9 LOW: the owner checks above are time-of-check / time-of-use. They
-        // read `owner()` when the script runs, and the batch is executed later -- after a
-        // Timelock delay, or after a Safe collects its signatures. Ownership can move in
-        // between, and nothing on-chain re-checks it at execution time.
-        console.log("  RE-READ IMMEDIATELY BEFORE executeBatch (owner can move after this run):");
+        // read `owner()` when the script runs; the batch executes later -- after a Timelock
+        // delay, or after a Safe collects signatures -- and ownership can move in between.
+        // This is a LIVENESS precaution, not a safety one: `Registry`'s upgrade and config
+        // entry points and `GTokenStaking.setAuthorizedSlasher` are all `onlyOwner`, and
+        // the batch is atomic, so stale ownership reverts the WHOLE operation rather than
+        // letting a partial migration land. Re-reading just turns a wasted execution
+        // attempt (and, behind a Timelock, a wasted delay) into a caught precondition.
+        console.log("  RE-READ IMMEDIATELY BEFORE executeBatch (liveness, not safety --");
+        console.log("   a stale owner reverts the whole atomic batch, it cannot half-apply):");
         console.log("    registry.owner() and GTokenStaking.owner() still ==", owner);
         console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator()");
         console.log("     (pre-checked above by recomputing the post-batch value)");
