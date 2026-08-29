@@ -28,9 +28,16 @@
 # therefore looks like. .gitmodules DECLARES singleton-paymaster as a submodule,
 # but the index does not agree, and the index is what Dependabot walks:
 #
-#   git ls-files -s singleton-paymaster   -> mode 100644, 2496 ordinary files
-#   git ls-files -s contracts/lib/solady  -> mode 160000, 1 gitlink
+#   git ls-files -s singleton-paymaster | awk '{print $1}' | sort | uniq -c
+#     -> 2423 x 100644 + 73 x 100755, and ZERO 100000-series gitlinks
+#   git ls-files -s contracts/lib/solady  -> a single 160000 gitlink
 #   git submodule status                  -> 6 entries; singleton-paymaster absent
+#
+# The load-bearing fact is the ABSENCE of a 160000 entry, not the presence of any
+# particular blob mode: `git ls-files -s <path> | awk '$1=="160000"'` is the check.
+# (An earlier version of this note said "mode 100644, 2496 ordinary files" — that
+# mode came from the first row and was asserted over all 2496; 73 of them are
+# 100755 executables. The conclusion is unchanged, the summary was not.)
 #
 # The real submodules are gitlinks, so Dependabot sees one opaque commit id and
 # cannot scan inside them. singleton-paymaster is committed as ordinary files, so
