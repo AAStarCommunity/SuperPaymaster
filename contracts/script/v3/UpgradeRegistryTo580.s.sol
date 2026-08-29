@@ -84,11 +84,25 @@ interface ITimelockBatch {
  *     returns zero events, does not error, and reports a still-open case as clean. During the
  *     migration window scan BOTH addresses, each with its own topic.
  *     Why it is load-bearing: `requireNoPendingCases` enumerates guardians via
- *     `validatorAtSlot`, so an accused address whose key was revoked holds no slot and is
- *     invisible on-chain; this event scan is the documented compensating control for that
- *     blind spot (docs/security/CC48-round3-changes.md 1.5). An empty scan is NOT evidence on
- *     its own — the procedure for establishing that lands in a follow-up PR; until then treat
- *     a bare "no cases found" as UNRESOLVED. See runbook section 5b.
+ *     `validatorAtSlot`, so an accused address whose key was already revoked holds no slot and
+ *     is invisible on-chain; this event scan is the documented compensating control for that
+ *     blind spot (docs/security/CC48-round3-changes.md 1.5). Treat a clean scan as evidence
+ *     only after establishing the endpoint answered at all: an endpoint can return a
+ *     SUCCESSFUL, well-formed, EMPTY array for a non-empty range, with no error and exit 0,
+ *     non-deterministically and PER CALL. Measured over [11492045, head] on this aggregator,
+ *     same query repeated: publicnode gave the known-correct 3 in only 6 of 12 attempts with
+ *     zero errors, while Alchemy gave 3 in 10 of 10. It is not a chunking artefact — whole
+ *     range and chunked both show it. And when the value under test is SUPPOSED to be zero,
+ *     a false empty and a true empty are indistinguishable no matter how often you repeat.
+ *     So pair every GuardianSlashQueued query, in the same batch and range, with a
+ *     BLSPublicKeyRegistered query (0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3)
+ *     and require its count >= the number of non-zero validatorAtSlot entries. That discards
+ *     provably broken batches; it does NOT certify the neighbouring call, because the
+ *     non-determinism is per call. Repeat the paired scan K>=5 times requiring full
+ *     agreement, use an endpoint proven not to exhibit this, and corroborate with a second
+ *     independently operated one. Never let a failed call contribute an empty list to a sum.
+ *     If this cannot be satisfied, record the pending-case question as UNRESOLVED, not clean.
+ *     See runbook section 5b.
  *   - In-flight guardian-slash cases do NOT migrate either. `guardianSlashCases`,
  *     `pendingGuardianSlashCount` and `guardianExitRequests` all live in the old
  *     contract. Resolve or expire every pending case there before cutting over,
