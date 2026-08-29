@@ -145,9 +145,10 @@ require_ref_matches_remote "$REF" "$BRANCH" "$UPSTREAM_SHA"
 # an object no one else can resolve, and if the FILES happen to match upstream check 2 passes
 # too. Reproduced: pin 0b4ddb9, zero remote refs, RESULT clean exit 0.
 #
-# Note the modes were not equivalent before this: CI has no DVT_REPO_PATH, so its `gh api
-# ...?ref=<sha>` 404s into UNRESOLVED. Local — the mode a human runs before a release — was
-# the WEAKER of the two, which is exactly backwards.
+# Both modes need this, for different reasons. Local reads the pinned commit straight out of
+# the object database. API mode does 404 on a sha the repository does not hold at all — but
+# that is a WEAKER property than ancestry, and an earlier version of this file mistook one
+# for the other; see the API branch below for the measurement that settles it.
 require_pin_reachable() {
   if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
     if ! git -C "$DVT_REPO_PATH" merge-base --is-ancestor "$PINNED_COMMIT" "$REF" 2>/dev/null; then
@@ -157,8 +158,31 @@ require_pin_reachable() {
       echo "            checked against an object nobody else can resolve. This is NOT a pass."
       exit 2
     fi
+  else
+    # NOT implicit in API mode, though an earlier version of this comment claimed it was.
+    # The contents API serves a blob for ANY commit the repository holds — including one
+    # only reachable from a pull-request head or a deleted branch — so "the remote can
+    # resolve this sha" is much weaker than "this sha is on the default branch". Measured on
+    # the real thing: DVT #240 was squash-merged, so its head 6d00eb48 is not on master, yet
+    #   contents?ref=6d00eb48  -> 200, blob 3e71c4b5...
+    #   compare/6d00eb48...master -> "diverged"
+    # A pin parked there would have passed check 1 in CI, which is the mode the nightly gate
+    # runs in. Compare says it outright: base=pin, head=branch is "ahead" or "identical"
+    # exactly when the pin is an ancestor.
+    local status
+    status="$(gh api "repos/${UPSTREAM_REPO}/compare/${PINNED_COMMIT}...${BRANCH}" --jq '.status' 2>/dev/null)"
+    if [[ -z "$status" ]]; then
+      echo "UNRESOLVED: could not compare $PINNED_COMMIT against $BRANCH upstream."
+      exit 2
+    fi
+    if [[ "$status" != "ahead" && "$status" != "identical" ]]; then
+      echo "UNRESOLVED: $PINNED_COMMIT is '$status' relative to $BRANCH — not an ancestor."
+      echo "            The remote can resolve this commit, but it is not on the default"
+      echo "            branch (a squash-merged PR head, a deleted branch, a fork). Pin"
+      echo "            integrity would be checked against something upstream does not ship."
+      exit 2
+    fi
   fi
-  # In API mode this is enforced implicitly: a ref the remote does not have 404s below.
 }
 require_pin_reachable
 echo "upstream default branch: $REF @ ${UPSTREAM_SHA:0:7}"
