@@ -26,17 +26,27 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # patch + minor only: auto-approve and queue auto-merge.
-      # Actual merge is gated on all required CI checks passing (branch protection).
-      - name: Auto-approve patch/minor update
-        if: |
-          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-          steps.meta.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr review --approve "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # patch + minor only: queue auto-merge. The actual merge stays gated on branch
+      # protection — all required CI checks, plus the human approval it demands.
+      #
+      # There is deliberately NO auto-approve step here. GitHub refuses, by policy, to let
+      # GITHUB_TOKEN approve a pull request:
+      #
+      #   gh pr review --approve
+      #   -> failed to create review: GraphQL: GitHub Actions is not permitted to approve
+      #      pull requests. (addPullRequestReview)
+      #   -> Process completed with exit code 1
+      #
+      # That step ran first and had no continue-on-error, so the job died on it every single
+      # time and "Enable auto-merge" below NEVER EXECUTED. Nine Dependabot PRs sat open from
+      # 2026-07-20 for that reason, each showing a red `auto-merge` check that was this
+      # workflow failing on itself — not the dependency being unsafe.
+      #
+      # Do not "fix" this by re-adding the step with continue-on-error: that leaves a step
+      # which can never succeed looking merely tolerable, and the next reader assumes
+      # auto-approval works. If auto-approval is ever genuinely wanted it needs a PAT; the
+      # token this workflow has cannot do it. Approval currently comes from a human reviewer,
+      # which is what branch protection asks for anyway.
       - name: Enable auto-merge for patch/minor update
         if: |
           steps.meta.outputs.update-type == 'version-update:semver-patch' ||
