@@ -94,13 +94,32 @@ default_ref() {
   fi
 }
 
-# The commit check 2 actually compared against, so the output names its own evidence rather
-# than just asserting freshness.
-resolved_sha() {
+# The AUTHORITATIVE tip of a branch, asked of the remote. Never derived from a local ref.
+remote_sha() { # $1 = branch name, without the origin/ prefix
   if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
-    git -C "$DVT_REPO_PATH" rev-parse --short "$1" 2>/dev/null
+    git -C "$DVT_REPO_PATH" ls-remote origin "refs/heads/$1" 2>/dev/null | cut -f1
   else
-    gh api "repos/${UPSTREAM_REPO}/commits/${1}" --jq '.sha[0:7]' 2>/dev/null
+    gh api "repos/${UPSTREAM_REPO}/commits/${1}" --jq '.sha' 2>/dev/null
+  fi
+}
+
+# A SUCCESSFUL fetch does not mean the ref we are about to read was updated. `git fetch
+# origin` honours remote.origin.fetch, and a clone configured with a narrowed or renamed
+# refspec — or made with --single-branch — fetches cleanly while leaving origin/<default>
+# exactly where it was. Reproduced: refspec +refs/heads/master:refs/remotes/origin/upstream-copy,
+# fetch exit 0, ls-remote master 4fd5f99, local origin/master pinned at 8395c94, and check 2
+# read the STALE ref and reported "still current". So the local ref is compared against the
+# remote tip before any content is read from it.
+require_ref_matches_remote() { # $1 = origin/<branch>, $2 = branch, $3 = authoritative sha
+  [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]] || return 0
+  local have
+  have="$(git -C "$DVT_REPO_PATH" rev-parse "$1" 2>/dev/null)"
+  if [[ "$have" != "$3" ]]; then
+    echo "UNRESOLVED: local $1 is ${have:0:7}, but origin/$2 is ${3:0:7}."
+    echo "            The fetch succeeded without advancing this ref (narrowed refspec,"
+    echo "            single-branch clone, ...), so reading content from it would answer"
+    echo "            about a cached commit of unknown age. This is NOT a pass."
+    exit 2
   fi
 }
 
@@ -111,12 +130,14 @@ if [[ -z "$REF" ]]; then
   echo "            This is NOT a pass. Re-run where the remote is reachable."
   exit 2
 fi
-UPSTREAM_SHA="$(resolved_sha "$REF")"
+BRANCH="${REF#origin/}"
+UPSTREAM_SHA="$(remote_sha "$BRANCH")"
 if [[ -z "$UPSTREAM_SHA" ]]; then
   echo "UNRESOLVED: resolved the default branch ($REF) but could not resolve its commit."
   exit 2
 fi
-echo "upstream default branch: $REF @ $UPSTREAM_SHA"
+require_ref_matches_remote "$REF" "$BRANCH" "$UPSTREAM_SHA"
+echo "upstream default branch: $REF @ ${UPSTREAM_SHA:0:7}"
 echo "vendored pin           : $PINNED_COMMIT"
 
 for e in "${ENTRIES[@]}"; do
@@ -162,4 +183,4 @@ if (( drift )); then
   echo "RESULT: DRIFT — the vendored copies no longer describe upstream."
   exit 1
 fi
-echo "RESULT: clean — pins intact, and still current as of $REF @ $UPSTREAM_SHA."
+echo "RESULT: clean — pins intact, and still current as of $REF @ ${UPSTREAM_SHA:0:7}."
