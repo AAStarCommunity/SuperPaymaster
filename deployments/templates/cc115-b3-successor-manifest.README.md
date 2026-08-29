@@ -20,11 +20,20 @@ that records only those has recorded the script's intention, not the chain's sta
 ## Three traps this template exists to close
 
 **1. The build hash is not the on-chain hash.** `buildRuntimeKeccak` is
-`keccak256` of the artifact's `deployedBytecode`. Registry carries 2 immutable
-placeholders and BLSAggregator carries 10 — the deployer fills them at construction,
-so the deployed runtime *will* differ. Record both: the build hash identifies which
-source was compiled, `onchain.extcodehash` identifies what is actually there.
-Neither substitutes for the other.
+`keccak256` of the artifact's `deployedBytecode`. Each contract has **one**
+immutable variable, written into **several byte positions** of the runtime at
+construction — Registry's is inherited (`UUPSUpgradeable.__self`, 2 sites),
+BLSAggregator's is `REGISTRY` (`:181`, 10 sites). It is the *site* count that
+explains the difference, so the template records variables and sites separately;
+looking for ten `immutable` declarations in BLSAggregator.sol will find one.
+Record both hashes: the build hash identifies which source was compiled,
+`onchain.extcodehash` identifies what is actually there. Neither substitutes for
+the other.
+
+```bash
+jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|add)}' \
+   out/BLSAggregator.sol/BLSAggregator.json
+```
 
 **2. There is no direct verifier setter.** SP 4.11 arms a fraud-proof verifier only
 via `proposeFraudProofVerifier` (owner) → wait `VERIFIER_ROTATION_DELAY` (4 days) →
@@ -74,7 +83,8 @@ Built from `main` at the commit recorded in `source.commit`, profile `default`
 | `version()` | `Registry-5.8.0` | `BLSAggregator-4.11.0` |
 | runtime size | 23,038 B | 23,667 B |
 | EIP-170 headroom | 1,538 B | 909 B |
-| immutable placeholders | 2 | 10 |
+| immutable variables | 1 (inherited `__self`) | 1 (`REGISTRY`) |
+| immutable sites | 2 | 10 |
 
 Re-derive rather than trust this table — it is a snapshot, and sizes are
 branch-specific:
