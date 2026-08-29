@@ -9,7 +9,7 @@ interface IStakingSlasherAuth {
 
 /**
  * @title RegistryUpgradeBatchLib
- * @notice The ONE definition of the 5.7.0 governance batch: its salt, its predecessor and
+ * @notice The ONE definition of the 5.8.0 governance batch: its salt, its predecessor and
  *         the exact payloads, in order.
  *
  * @dev CC-48 round-8 LOW-5. `UpgradeRegistryTo580` built this batch inline and
@@ -24,11 +24,15 @@ interface IStakingSlasherAuth {
  *      what the script emits AND what the test asserts, in the same edit — which is what
  *      the old comment claimed and this arrangement actually delivers.
  *
- *      Why the batch must stay atomic (the property the test exercises):
- *        - between (1) and (3) the new `maxTotalCreditExposure` slot reads 0, so every
+ *      Why the batch must stay atomic (the property the test exercises). Step numbers
+ *      are the ones in `buildBatch` below and were re-checked when the revoke step was
+ *      inserted at (4), which pushed the caps and the population seed to (5) and (6):
+ *        - between (1) and (5) the new `maxTotalCreditExposure` slot reads 0, so every
  *          proposal carrying positive uplift reverts;
  *        - between (1) and (2) the still-wired predecessor has no `consumeGuardianExit`,
- *          so every ROLE_DVT `exitRole` reverts and DVT stake is stuck.
+ *          so every ROLE_DVT `exitRole` reverts and DVT stake is stuck;
+ *        - between (3) and (4) both aggregators are authorised slashers, which is the
+ *          permission-additive window the revoke closes inside the same operation.
  *      A TimelockController operation id commits to the whole tuple, so any proper subset
  *      hashes to an id that was never scheduled and cannot be executed.
  */
@@ -49,14 +53,15 @@ library RegistryUpgradeBatchLib {
     uint256 internal constant BATCH_LENGTH_NO_REVOKE = 5;
 
     /// @notice Build the batch exactly as it is scheduled and executed.
+    /// @param proxy          the live Registry ERC1967 proxy — target of every step EXCEPT
+    ///                       (3) and (4), which are the slasher calls, so a batch that
+    ///                       touches any other address is not this one
+    /// @param newImpl        freshly built `Registry` 5.8.0 implementation
+    /// @param newAggregator  `BLSAggregator` 4.11.0, armed as a slasher in (3)
     /// @param oldAggregator  predecessor to DISARM in (4). Pass address(0) on a first
     ///                       deployment; passing the SAME address as `newAggregator`
     ///                       (a Registry-only upgrade) correctly skips the revoke
     /// @param staking        GTokenStaking, target of the slasher calls in (3) and (4)
-    /// @param proxy          the live Registry ERC1967 proxy — target of every step except (3)
-    ///                       calls, so a batch that touches any other address is not this one
-    /// @param newImpl        freshly built `Registry` 5.7.0 implementation
-    /// @param newAggregator  `BLSAggregator` 4.11.0
     /// @param perProposalCap transaction-level aggregate uplift guard, aPNT wei
     /// @param totalCap       protocol-wide outstanding ceiling, aPNT wei
     /// @param seedUsers      every address that has EVER been the subject of a reputation

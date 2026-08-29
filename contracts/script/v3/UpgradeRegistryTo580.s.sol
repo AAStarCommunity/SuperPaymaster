@@ -420,6 +420,12 @@ contract UpgradeRegistryTo580 is Script {
         console.log("  registry.creditPopulationTotal()          ==", seedUsers.length);
         console.log("  registry.creditPopulationSeededAt()        > 0  (reputation path open)");
         console.log("  registry.owner()                         ==", owner);
+        // CC-48 round-9 LOW: the owner checks above are time-of-check / time-of-use. They
+        // read `owner()` when the script runs, and the batch is executed later -- after a
+        // Timelock delay, or after a Safe collects its signatures. Ownership can move in
+        // between, and nothing on-chain re-checks it at execution time.
+        console.log("  RE-READ IMMEDIATELY BEFORE executeBatch (owner can move after this run):");
+        console.log("    registry.owner() and GTokenStaking.owner() still ==", owner);
         console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator()");
         console.log("     (pre-checked above by recomputing the post-batch value)");
         console.log("     value:");
