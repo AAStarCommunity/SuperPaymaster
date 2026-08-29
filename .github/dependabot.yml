@@ -10,6 +10,22 @@
 # If Dependabot still opens PRs for vendored submodule package.json files
 # (e.g. singleton-paymaster/lib/**), these are transitive deps of upstream
 # tests/docs tooling that we never install, execute, or bundle. Close them.
+#
+# MEASURED, 2026-08-29 — why the exclusions below do not stop them, so the next
+# person does not re-derive it. The `!/singleton-paymaster/**` entries landed in
+# f23bd432 on 2026-04-26. Eight such PRs were nevertheless opened between
+# 2026-07-20 and 2026-08-09 (#355/356/357/358/360/361/365/367, all closed on
+# 2026-08-29). Three months after the exclusion is not a config that "has not
+# taken effect yet": these are SECURITY-ALERT driven updates, which are not
+# scoped by the `directories` list of an `updates` entry. The same explains the
+# `ignore` list below not suppressing them — axios and brace-expansion are both
+# ignored here and both still produced PRs.
+#
+# So the exclusions govern version updates only, and closing remains the standing
+# action for security updates under vendored paths. The upstream-correct fix for a
+# genuine vulnerability in one of those trees is to bump the SUBMODULE POINTER
+# after Pimlico/OpenZeppelin ship it — not to rewrite a vendored lockfile here,
+# which only makes our copy diverge from upstream.
 
 version: 2
 updates:
