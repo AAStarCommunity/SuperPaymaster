@@ -8,7 +8,7 @@ import "src/core/GTokenStaking.sol";
 import "src/tokens/GToken.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IMySBT.sol";
-import {RegistryUpgradeBatchLib} from "../../script/checks/RegistryUpgradeBatchLib.sol";
+import {RegistryUpgradeBatchLib, IStakingSlasherAuth} from "../../script/checks/RegistryUpgradeBatchLib.sol";
 
 /// @notice CC-48 MEDIUM-3 — the 5.6.0 migration must be executed as ONE governance
 ///         batch. These tests pin down what actually breaks in each gap, so the
@@ -178,6 +178,41 @@ contract RegistryUpgradeTo580Test is Test {
         users[1] = _user(2);
     }
 
+    /// @dev CC-48 round-11. These are the only tests that EXECUTE the batch, and until
+    ///      now they asserted nothing about its SHAPE -- only an enumerated list of
+    ///      end-state properties (version, aggregator, exposure, population, and the new
+    ///      aggregator's authorisation). An enumerated check is structurally blind to a
+    ///      call that was ADDED: appending `setAuthorizedSlasher(proxy, true)` to the
+    ///      batch -- granting slash authority over every DVT's stake to the Registry proxy
+    ///      itself -- left this suite 7/0 green while the construction-side suite caught it
+    ///      three times over on its literal length assertions. The suite that models what
+    ///      actually happens on chain was the blind one.
+    ///
+    ///      Length is asserted as a LITERAL for the same reason it is over there: sizing
+    ///      the expectation from `BATCH_LENGTH_NO_REVOKE` would be sized by the same
+    ///      constant `buildBatch` allocates from, and no change to the batch could fail it.
+    function _assertBatchShape(
+        address[] memory targets,
+        bytes[] memory payloads,
+        address armed
+    ) internal view {
+        assertEq(targets.length, 5, "five calls: no predecessor here, so no revoke step");
+        assertEq(payloads.length, targets.length, "one payload per target");
+        assertEq(targets[2], address(staking), "step (3) targets the wired GTokenStaking");
+        assertEq(
+            keccak256(payloads[2]),
+            keccak256(abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (armed, true))),
+            "step (3) ARMS the aggregator this batch installs, and nothing else"
+        );
+        bytes4 setSlasher = IStakingSlasherAuth.setAuthorizedSlasher.selector;
+        uint256 slasherCalls;
+        for (uint256 i = 0; i < payloads.length; ++i) {
+            if (i != 2) assertEq(targets[i], address(registry), "every other call targets the proxy");
+            if (bytes4(payloads[i]) == setSlasher) ++slasherCalls;
+        }
+        assertEq(slasherCalls, 1, "exactly one slasher call rides in this batch");
+    }
+
     function setUp() public {
         governance = new BatchOwner();
         UpgradeMockSBT sbt = new UpgradeMockSBT();
@@ -333,9 +368,7 @@ contract RegistryUpgradeTo580Test is Test {
                 address(0), address(registry.GTOKEN_STAKING()), 600 ether, totalCap, _twoSeedUsers()
             );
         values; // the batch carries no value; silence the unused-return warning
-        // The slasher step has to land on real code: `BatchOwner` calls raw, so a codeless
-        // target would report success and this test would assert nothing about step (3).
-        assertEq(targets[2], address(staking), "step (3) targets the wired GTokenStaking");
+        _assertBatchShape(targets, payloads, address(rotatedAggregator));
         assertFalse(staking.authorizedSlashers(address(rotatedAggregator)), "not armed before the batch");
         governance.executeBatch(targets, payloads);
         assertTrue(
@@ -387,7 +420,7 @@ contract RegistryUpgradeTo580Test is Test {
             address(registry), address(newImpl), address(newAggregator),
             address(0), address(registry.GTOKEN_STAKING()), 600 ether, 5_000 ether, partialList
         );
-        assertEq(targets[2], address(staking), "step (3) targets the wired GTokenStaking");
+        _assertBatchShape(targets, payloads, address(newAggregator));
         governance.executeBatch(targets, payloads);
         assertTrue(
             staking.authorizedSlashers(address(newAggregator)),
