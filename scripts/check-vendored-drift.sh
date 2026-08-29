@@ -137,6 +137,30 @@ if [[ -z "$UPSTREAM_SHA" ]]; then
   exit 2
 fi
 require_ref_matches_remote "$REF" "$BRANCH" "$UPSTREAM_SHA"
+
+# CHECK 0 (pin reachability). Everything below reads the pinned commit, and in local mode
+# that read is `git show $PINNED_COMMIT:path` — the local object database, which never asks
+# whether upstream has this commit at all. A pin left on a local-only commit (a rebase or
+# amend that was never pushed is the ordinary way to get one) then satisfies check 1 against
+# an object no one else can resolve, and if the FILES happen to match upstream check 2 passes
+# too. Reproduced: pin 0b4ddb9, zero remote refs, RESULT clean exit 0.
+#
+# Note the modes were not equivalent before this: CI has no DVT_REPO_PATH, so its `gh api
+# ...?ref=<sha>` 404s into UNRESOLVED. Local — the mode a human runs before a release — was
+# the WEAKER of the two, which is exactly backwards.
+require_pin_reachable() {
+  if [[ -n "${DVT_REPO_PATH:-}" && -d "${DVT_REPO_PATH}/.git" ]]; then
+    if ! git -C "$DVT_REPO_PATH" merge-base --is-ancestor "$PINNED_COMMIT" "$REF" 2>/dev/null; then
+      echo "UNRESOLVED: $PINNED_COMMIT is not an ancestor of $REF on the remote."
+      echo "            The pin names a commit upstream does not carry (a local-only rebase"
+      echo "            or amend, or a commit from a fork), so 'pin integrity' would be"
+      echo "            checked against an object nobody else can resolve. This is NOT a pass."
+      exit 2
+    fi
+  fi
+  # In API mode this is enforced implicitly: a ref the remote does not have 404s below.
+}
+require_pin_reachable
 echo "upstream default branch: $REF @ ${UPSTREAM_SHA:0:7}"
 echo "vendored pin           : $PINNED_COMMIT"
 

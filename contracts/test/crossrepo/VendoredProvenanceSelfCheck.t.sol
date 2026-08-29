@@ -28,7 +28,10 @@ import "forge-std/Test.sol";
  *             separately below; without that, re-pointing a header at another commit
  *             while leaving the code alone would pass every body assertion here.
  *           - CANNOT: notice that UPSTREAM moved. That needs the network, so it lives in
- *             `scripts/check-vendored-drift.sh` and is a release-gate step, not a unit test.
+ *             `scripts/check-vendored-drift.sh`, wired into
+ *             `.github/workflows/vendored-drift.yml` — nightly, plus any PR touching
+ *             these paths. Deliberately not left as just a file in the repo: a
+ *             freshness gate nobody runs fails the same way the thing it guards against.
  *             Running only this file does NOT establish freshness — see the script's own
  *             notes and treat a skipped/failed network check as UNRESOLVED, never as clean
  *             (`docs/security/CC48-safe-onboarding-runbook.md` §5b applies verbatim).
