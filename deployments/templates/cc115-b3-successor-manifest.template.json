@@ -28,7 +28,7 @@
       "buildRuntimeKeccak": "0x979aea38ad0e2dcb37344336faa0c09eb212597c2367471323d93035468a46ef",
       "_buildRuntimeKeccak": "keccak256 of the ARTIFACT's deployedBytecode, at main @ 6a5dc3e7, profile default. THIS IS NOT THE ON-CHAIN EXTCODEHASH: the deployer writes the immutables at construction time, changing the runtime. Use it to prove which build was deployed only together with onchain.extcodehash below; never in place of it.",
       "immutableVariables": 1,
-      "_immutableVariables": "Registry declares no `immutable` of its own — the one it has is inherited (UUPSUpgradeable's `__self`). Do not go looking for it in Registry.sol.",
+      "_immutableVariables": "Registry declares no `immutable` of its own. The one it has is inherited: `address private immutable __self = address(this)` at singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol:21. WHICH UUPSUpgradeable matters — this tree also vendors solady's, whose __self lives one level down in CallContextChecker.sol:23, and that one is NOT in Registry's chain (Registry.sol:7 imports the OpenZeppelin path). Confirm rather than trust: `grep -n immutable singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol` must hit, and the artifact's metadata must list that same file as the only UUPSUpgradeable source compiled in.",
       "immutableSites": 2,
       "_immutableSites": "Byte positions that ONE variable is written into. This is the number that explains why the on-chain runtime differs from the artifact; the variable count does not. Derive both: jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|add)}' out/Registry.sol/Registry.json",
       "onchain": {
