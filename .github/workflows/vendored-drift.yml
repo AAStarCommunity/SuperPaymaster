@@ -1,0 +1,49 @@
+name: Vendored upstream drift
+
+# The offline half of this problem runs in the test suite and cannot be skipped:
+# contracts/test/crossrepo/VendoredProvenanceSelfCheck.t.sol pins every vendored file
+# byte-for-byte and re-runs each header's own recipe. It proves a copy still matches the
+# commit it names. It cannot prove that commit is still worth naming — that needs the
+# network, which is what this workflow is for.
+#
+# Why a SCHEDULE and not just a PR gate: staleness is a function of TIME, not of anyone
+# touching this repository. A vendored copy goes out of date on a day when nobody opened a
+# pull request here at all, so a purely PR-triggered check would report clean for as long
+# as the repo is quiet — the same shape of failure the check exists to catch.
+#
+# Why ALSO on pull_request for the vendored paths: a PR that re-vendors, re-pins or edits
+# the guard itself should be answered before it lands, not on the next nightly.
+#
+# Fail-closed by construction: the script exits 2 (UNRESOLVED) when it cannot reach the
+# remote, when the pin is not an ancestor of upstream's default branch, or when the local
+# ref it would read was not advanced by the fetch. It never prints OK for "nothing came
+# back". Do not add continue-on-error here — see the note in dependabot-auto-merge.yml for
+# what that does to a step that can fail.
+
+on:
+  schedule:
+    - cron: '37 6 * * *'
+  pull_request:
+    paths:
+      - 'contracts/test/crossrepo/**'
+      - 'scripts/check-vendored-drift.sh'
+      - '.github/workflows/vendored-drift.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No DVT_REPO_PATH here on purpose: the API path asks GitHub directly for every value
+      # (default branch, its tip, file contents at a given ref) instead of reading anything
+      # derived from a local clone. AAStarCommunity/YetAnotherAA-Validator is public, so the
+      # job's own GITHUB_TOKEN suffices.
+      - name: Check vendored copies against upstream
+        run: ./scripts/check-vendored-drift.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
