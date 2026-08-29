@@ -22,10 +22,30 @@
 # ignored here and both still produced PRs.
 #
 # So the exclusions govern version updates only, and closing remains the standing
-# action for security updates under vendored paths. The upstream-correct fix for a
-# genuine vulnerability in one of those trees is to bump the SUBMODULE POINTER
-# after Pimlico/OpenZeppelin ship it — not to rewrite a vendored lockfile here,
-# which only makes our copy diverge from upstream.
+# action for security updates under vendored paths.
+#
+# WHY DEPENDABOT CAN SEE INSIDE singleton-paymaster AT ALL, and what remediation
+# therefore looks like. .gitmodules DECLARES singleton-paymaster as a submodule,
+# but the index does not agree, and the index is what Dependabot walks:
+#
+#   git ls-files -s singleton-paymaster   -> mode 100644, 2496 ordinary files
+#   git ls-files -s contracts/lib/solady  -> mode 160000, 1 gitlink
+#   git submodule status                  -> 6 entries; singleton-paymaster absent
+#
+# The real submodules are gitlinks, so Dependabot sees one opaque commit id and
+# cannot scan inside them. singleton-paymaster is committed as ordinary files, so
+# every lockfile in its vendored lib/ tree is, to Dependabot, a manifest in THIS
+# repository. That is the mechanism, and no `directories` rule changes it.
+#
+# It also means there is NO SUBMODULE POINTER TO BUMP here — an earlier version of
+# this note prescribed exactly that, which is not an action anyone can take. If a
+# vulnerability in one of those trees ever genuinely reaches our build, the options
+# are: re-vendor the affected files from upstream in a normal commit, or convert
+# singleton-paymaster into a real submodule so .gitmodules and the index agree
+# (a large change, and out of scope for a dependency bump).
+#
+# Note the premise is still almost always false: our build is Foundry over .sol,
+# and nothing in those JS trees is installed, executed or bundled.
 
 version: 2
 updates:
