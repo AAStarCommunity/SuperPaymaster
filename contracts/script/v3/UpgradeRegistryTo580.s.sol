@@ -354,15 +354,29 @@ contract UpgradeRegistryTo580 is Script {
             "CC-48: freshly built impl is not Registry-5.8.0"
         );
 
+        // The slasher authorisation in step (3) targets GTokenStaking, read from the live
+        // Registry rather than taken from env so it cannot drift from the deployment being
+        // upgraded. Assert the owners coincide: the batch executes as ONE principal, so a
+        // split ownership would make this step unschedulable here and it would have to move
+        // to the staking owner's own transaction.
+        address staking = address(Registry(proxy).GTOKEN_STAKING());
+        require(staking != address(0), "CC-48: Registry has no GTOKEN_STAKING wired");
+        require(
+            IOwned(staking).owner() == IOwned(proxy).owner(),
+            "CC-48: GTokenStaking and Registry have different owners - authorise the slasher separately"
+        );
+
         // CC-48 round-8 LOW-5: the batch shape, its salt and its predecessor live in
         // `RegistryUpgradeBatchLib` so `CC48RegistryTimelockGovernance` asserts against THIS
         // definition instead of a copy of it. Editing the batch here without editing the
         // test is no longer possible; there is only one definition to edit.
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = RegistryUpgradeBatchLib
-            .buildBatch(proxy, address(newImpl), newAggregator, perProposalCap, totalCap, seedUsers);
+            .buildBatch(
+                proxy, address(newImpl), newAggregator, oldAggregator, staking, perProposalCap, totalCap, seedUsers
+            );
 
         console.log("--- atomic governance batch (execute as ONE transaction) ---");
-        for (uint256 i = 0; i < RegistryUpgradeBatchLib.BATCH_LENGTH; i++) {
+        for (uint256 i = 0; i < targets.length; i++) {
             console.log("target", i, targets[i]);
             console.logBytes(payloads[i]);
         }
@@ -406,6 +420,12 @@ contract UpgradeRegistryTo580 is Script {
         console.log("  registry.creditPopulationTotal()          ==", seedUsers.length);
         console.log("  registry.creditPopulationSeededAt()        > 0  (reputation path open)");
         console.log("  registry.owner()                         ==", owner);
+        // CC-48 round-9 LOW: the owner checks above are time-of-check / time-of-use. They
+        // read `owner()` when the script runs, and the batch is executed later -- after a
+        // Timelock delay, or after a Safe collects its signatures. Ownership can move in
+        // between, and nothing on-chain re-checks it at execution time.
+        console.log("  RE-READ IMMEDIATELY BEFORE executeBatch (owner can move after this run):");
+        console.log("    registry.owner() and GTokenStaking.owner() still ==", owner);
         console.log("  registry.blsDomainSeparator()            == aggregator.domainSeparator()");
         console.log("     (pre-checked above by recomputing the post-batch value)");
         console.log("     value:");

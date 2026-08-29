@@ -946,16 +946,32 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     /// @notice Protocol-wide OUTSTANDING aPNT credit exposure created by the REPUTATION
     ///         path: the sum, over every address, of the credit limit its current global
     ///         reputation buys it ABOVE the permissionless level-1 floor.
-    /// @dev    CC-48 HIGH-1, corrected in round-9 (LOW-B4). This is a STOCK, and round-9
-    ///         is what makes that word true. It is COMPUTED from on-chain reputation at
-    ///         every re-count (`seedCreditPopulation` reads each member's level out of this
-    ///         contract's storage) and then moved only by proposal deltas -- and those
-    ///         deltas are exact, because the two calls that could move a limit without a
-    ///         proposal (`setCreditTier`, `setLevelThresholds`) do not edit this number,
-    ///         they discard it and shut the path. So the tier schedule is frozen for the
-    ///         whole life of any value this slot ever holds. Splitting a mint across many
-    ///         proposals, many blocks or many rolling windows changes nothing, and neither
-    ///         does an owner re-pricing a tier.
+    /// @dev    CC-48 HIGH-1, corrected in round-9 (LOW-B4). This is a STOCK: each member's
+    ///         LEVEL is read out of this contract's own storage at re-count
+    ///         (`seedCreditPopulation`), never supplied by the operator, and the number then
+    ///         moves only by proposal deltas -- exact, because the two calls that could move
+    ///         a limit without a proposal (`setCreditTier`, `setLevelThresholds`) do not edit
+    ///         it, they discard it and shut the path. So the tier schedule is frozen for the
+    ///         whole life of any value this slot holds, and splitting a mint across many
+    ///         proposals, blocks or rolling windows changes nothing.
+    ///
+    ///         WHAT IS NOT DERIVED FROM CHAIN STATE, stated because the previous wording
+    ///         ("COMPUTED from on-chain reputation") over-claimed: the MEMBERSHIP LIST is
+    ///         supplied by governance. This contract cannot enumerate its own users, so
+    ///         `seedCreditPopulation` counts exactly the addresses it is handed, and
+    ///         `expectedPopulationTotal` is checked against that same list -- both numbers
+    ///         come from the same caller in the same transaction, so the check catches a
+    ///         truncated calldata, not a short list. A governance operator who seeds an
+    ///         incomplete roster gets a stock below the truth, and the ceiling it is measured
+    ///         against is correspondingly loose.
+    ///
+    ///         Uncounted addresses are not lost -- the first proposal that touches one books
+    ///         its whole standing above-floor limit against whatever schedule is then in
+    ///         force -- but an address that is never touched again never enters the stock at
+    ///         all. So this bound holds relative to the population governance DECLARED, not
+    ///         relative to the population that exists. Deriving that roster off-chain (the
+    ///         `GlobalReputationUpdated` log is the source) and committing to it is the
+    ///         operator's job; nothing in this contract can check it for them.
     ///
     ///         WHAT IT DELIBERATELY DOES NOT COVER, stated plainly because the previous
     ///         wording claimed otherwise: the level-1 floor (`creditTierConfig[1]`) is

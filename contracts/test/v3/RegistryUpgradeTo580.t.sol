@@ -41,6 +41,54 @@ contract LegacyAggregatorNoExitGate {
     function verify(bytes32, uint256, uint256, bytes calldata) external pure returns (bool) { return true; }
 }
 
+/// @notice Stand-in for GTokenStaking, holding only what the batch touches. CC-48
+///         round-10 MEDIUM-2: the tests below EXECUTE the batch, and `BatchOwner` uses a
+///         bare `.call`, which returns ok=true against an address with no code. With the
+///         proxy initialized at `address(0)` staking, step (3) of the batch was dispatched
+///         into the void and the tests passed anyway -- the slasher authorisation was
+///         never exercised by the only tests that run the batch for real. Wiring a real
+///         stand-in makes that step observable, and `authorizedSlashers` below is what the
+///         tests read to prove it landed.
+///
+///         Both surfaces mirror production, because a mock that is more permissive than
+///         the contract it stands in for turns the assertion into a weaker statement than
+///         it reads as:
+///           - `setAuthorizedSlasher` is `onlyOwner` on the real `GTokenStaking`
+///             (`GTokenStaking.sol:474`). Without that gate the batch's step (3) would
+///             succeed no matter WHO executed it, and "the batch armed the aggregator"
+///             would say nothing about the property the deployment script actually
+///             requires: `IOwned(staking).owner() == IOwned(proxy).owner()`, i.e. that one
+///             principal owns both and can therefore do this inside one transaction. With
+///             the gate, the test passes only because `BatchOwner` owns the staking
+///             stand-in too, which is the deployment shape being modelled.
+///           - `setRoleExitFee` takes `(bytes32, uint256, uint256)`, the signature on
+///             `IGTokenStaking`. `Registry.initialize` pushes exit fees in through a
+///             fail-open low-level call, so a mock declaring `uint16` would hash to a
+///             different selector, miss silently, and leave the bootstrap emitting
+///             SyncFailed exactly as an absent function would.
+contract UpgradeMockStaking {
+    address public owner;
+
+    mapping(address => bool) public authorizedSlashers;
+
+    constructor(address _owner) {
+        owner = _owner;
+    }
+
+    /// @dev `onlyOwner`, as on the real GTokenStaking.
+    function setAuthorizedSlasher(address slasher, bool ok) external {
+        require(msg.sender == owner, "GTokenStaking: not owner");
+        authorizedSlashers[slasher] = ok;
+    }
+
+    /// @dev Production also accepts REGISTRY here; left open because the caller in these
+    ///      tests IS the Registry proxy and the sync is fail-open either way. The
+    ///      signature is what matters: it must hash to the selector Registry encodes.
+    function setRoleExitFee(bytes32, uint256, uint256) external {}
+
+    function getLockedStake(address, bytes32) external pure returns (uint256) { return 0; }
+}
+
 /// @notice Minimal governance stand-in: a contract owner, i.e. what the deployment
 ///         gate demands. Executes an arbitrary batch in ONE transaction.
 contract BatchOwner {
@@ -63,6 +111,7 @@ contract RegistryUpgradeTo580Test is Test {
     BatchOwner governance;
     Registry registry;
     UpgradeMockBLS newAggregator;
+    UpgradeMockStaking staking;
     address source = address(0x5150);
 
     function _user(uint256 i) internal pure returns (address) {
@@ -128,11 +177,22 @@ contract RegistryUpgradeTo580Test is Test {
         governance = new BatchOwner();
         UpgradeMockSBT sbt = new UpgradeMockSBT();
         Registry impl = new Registry();
+        // CC-48 round-10 MEDIUM-2: staking is wired from the start, NOT address(0). Step
+        // (3) of the migration batch authorises the new aggregator as a slasher ON
+        // GTokenStaking, and `BatchOwner` dispatches every step with a bare `.call` --
+        // which succeeds against a codeless address. A proxy initialized at address(0)
+        // therefore produced a batch whose slasher step went nowhere while the test still
+        // passed, i.e. the tests that execute the batch for real were not covering the
+        // step at all.
+        // Owned by the same principal that owns the Registry proxy — the deployment shape
+        // `UpgradeRegistryTo580` asserts before it emits the batch. Step (3) is `onlyOwner`
+        // on the real GTokenStaking, so this is what lets the batch carry it at all.
+        staking = new UpgradeMockStaking(address(governance));
         registry = Registry(
             address(
                 new ERC1967Proxy(
                     address(impl),
-                    abi.encodeCall(Registry.initialize, (address(governance), address(0), address(sbt)))
+                    abi.encodeCall(Registry.initialize, (address(governance), address(staking), address(sbt)))
                 )
             )
         );
@@ -265,10 +325,18 @@ contract RegistryUpgradeTo580Test is Test {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             RegistryUpgradeBatchLib.buildBatch(
                 address(registry), address(newImpl), address(rotatedAggregator),
-                600 ether, totalCap, _twoSeedUsers()
+                address(0), address(registry.GTOKEN_STAKING()), 600 ether, totalCap, _twoSeedUsers()
             );
         values; // the batch carries no value; silence the unused-return warning
+        // The slasher step has to land on real code: `BatchOwner` calls raw, so a codeless
+        // target would report success and this test would assert nothing about step (3).
+        assertEq(targets[2], address(staking), "step (3) targets the wired GTokenStaking");
+        assertFalse(staking.authorizedSlashers(address(rotatedAggregator)), "not armed before the batch");
         governance.executeBatch(targets, payloads);
+        assertTrue(
+            staking.authorizedSlashers(address(rotatedAggregator)),
+            "the batch ARMED the new aggregator to slash, in the same transaction"
+        );
 
         assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.8.0"));
         assertEq(registry.blsAggregator(), address(rotatedAggregator));
@@ -311,9 +379,15 @@ contract RegistryUpgradeTo580Test is Test {
         address[] memory partialList = new address[](1);
         partialList[0] = _user(1); // _user(2) is MISSED, and also carries 600 aPNT
         (address[] memory targets, , bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
-            address(registry), address(newImpl), address(newAggregator), 600 ether, 5_000 ether, partialList
+            address(registry), address(newImpl), address(newAggregator),
+            address(0), address(registry.GTOKEN_STAKING()), 600 ether, 5_000 ether, partialList
         );
+        assertEq(targets[2], address(staking), "step (3) targets the wired GTokenStaking");
         governance.executeBatch(targets, payloads);
+        assertTrue(
+            staking.authorizedSlashers(address(newAggregator)),
+            "the batch armed the new aggregator here too"
+        );
 
         assertEq(registry.totalCreditExposure(), 600 ether, "under-counted, as the operator asked");
 

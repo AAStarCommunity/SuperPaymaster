@@ -6,7 +6,7 @@ import "src/core/Registry.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {GovernanceOwnerGate} from "../../script/checks/GovernanceOwnerGate.sol";
-import {RegistryUpgradeBatchLib} from "../../script/checks/RegistryUpgradeBatchLib.sol";
+import {RegistryUpgradeBatchLib, IStakingSlasherAuth} from "../../script/checks/RegistryUpgradeBatchLib.sol";
 import {IMySBT} from "src/interfaces/v3/IMySBT.sol";
 
 contract TimelockMockSBT is IMySBT {
@@ -55,7 +55,7 @@ contract TimelockMockBLS {
  *         claimed that here while holding its OWN `BATCH_SALT` constant and its OWN
  *         hand-written copy of the batch, so changing the salt in `UpgradeRegistryTo580`
  *         left this test green. That claim was false and is retracted. Salt, predecessor
- *         and all three payloads now come from `RegistryUpgradeBatchLib`, which the SCRIPT
+ *         and every payload now comes from `RegistryUpgradeBatchLib`, which the SCRIPT
  *         also calls — there is one definition in the repository, so an edit to the shipped
  *         batch is an edit to what this test asserts, by construction rather than by
  *         discipline.
@@ -77,16 +77,28 @@ contract CC48RegistryTimelockGovernance is Test {
     address internal constant SEED_USER_B = address(0xB0B);
 
     Registry internal registry;
+    TimelockMockStaking internal staking;
     TimelockController internal timelock;
     address internal newAggregator;
+    address internal oldAggregator;
 
     address internal proposer = address(0x9401);
     address internal executor = address(0x9402);
     address internal stranger = address(0xBAD);
 
     function setUp() public {
-        registry = UUPSDeployHelper.deployRegistryProxy(address(this), address(0), address(new TimelockMockSBT()));
+        // A non-zero staking address is required, not incidental: step (3) of the batch
+        // authorises the new aggregator as a slasher ON GTokenStaking, so a proxy wired to
+        // address(0) would produce a batch whose third call goes nowhere.
+        staking = new TimelockMockStaking(address(this));
+        registry = UUPSDeployHelper.deployRegistryProxy(
+            address(this), address(staking), address(new TimelockMockSBT())
+        );
         newAggregator = address(new TimelockMockBLS());
+        // Every real upgrade rotates AWAY from something, and that predecessor keeps its
+        // slasher authorisation unless the batch revokes it. Modelling it as a distinct
+        // address is what lets the shape assertions below see the revoke step at all.
+        oldAggregator = address(new TimelockMockBLS());
 
         // Model the state an UPGRADED proxy is actually in. `initialize` seeds
         // `maxTotalCreditExposure`, but `initialize` does not run on an upgrade: a proxy
@@ -104,6 +116,12 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock = new TimelockController(MIN_DELAY, proposers, executors, address(0));
 
         registry.transferOwnership(address(timelock));
+        // Both subjects answer to ONE principal — the deployment shape `UpgradeRegistryTo580`
+        // asserts (`IOwned(staking).owner() == IOwned(proxy).owner()`) before it emits the
+        // batch. Steps (3) and (4) are `onlyOwner` on the real GTokenStaking, so without
+        // this the operation could not carry them and the atomicity property under test
+        // would not be available in the first place.
+        staking.transferOwnership(address(timelock));
     }
 
     // =================================================================
@@ -132,24 +150,54 @@ contract CC48RegistryTimelockGovernance is Test {
     }
 
     // =================================================================
-    // The batch: scheduled once, executed once, all three steps or none
+    // The batch: scheduled once, executed once, every step or none
     // =================================================================
 
     function test_UpgradeAndCapsLandInOneTransactionWithNoIntermediateWindow() public {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = _batch();
 
-        // The batch under test IS the shipped shape: three calls, every one of them
-        // addressed to the proxy. A batch that reached any other address would not be the
-        // operation `UpgradeRegistryTo580` schedules, and everything below would be
-        // asserting about something else.
-        assertEq(targets.length, RegistryUpgradeBatchLib.BATCH_LENGTH, "three calls");
+        // The batch under test IS the shipped shape. Every call addresses the proxy EXCEPT
+        // the slasher authorisation, which must target GTokenStaking — a batch reaching any
+        // other address would not be the operation `UpgradeRegistryTo580` schedules, and
+        // everything below would be asserting about something else. Pinning the exception by
+        // index rather than allowing "proxy or staking" anywhere keeps the ordering asserted
+        // too: the authorisation has to be step (3), inside the same atomic operation.
+        // CC-48 round-10 LOW: the length is a LITERAL here, not `RegistryUpgradeBatchLib.
+        // BATCH_LENGTH`. `buildBatch` sizes the array FROM that constant, so asserting the
+        // constant is a tautology that no shrink of the batch can fail. Writing six by hand
+        // means a batch that loses a step has to be typed twice before it is green.
+        assertEq(targets.length, 6, "six calls: five plus the predecessor disarm");
+        address stakingTarget = address(registry.GTOKEN_STAKING());
+        assertTrue(stakingTarget != address(0), "staking must be wired for the batch to be meaningful");
         for (uint256 i = 0; i < targets.length; ++i) {
-            assertEq(targets[i], address(registry), "every call targets the Registry proxy");
+            if (i == 2 || i == 3) {
+                assertEq(targets[i], stakingTarget, "steps 3 and 4 are the slasher grant and revoke");
+            } else {
+                assertEq(targets[i], address(registry), "every other call targets the Registry proxy");
+            }
             assertEq(values[i], 0, "no ether moves");
         }
+        // CC-48 round-10 MEDIUM-1: the loop above pins only the TARGET of steps (3) and
+        // (4), and a target cannot tell a grant from a revoke -- both are
+        // `setAuthorizedSlasher` on the same GTokenStaking address. Mutating step (4) from
+        // (oldAggregator, false) to (oldAggregator, true), or to (newAggregator, false),
+        // left the whole suite green. The second of those is exactly the failure the
+        // revoke step was written not to cause: disarming, inside the same atomic batch,
+        // the aggregator that step (3) armed two calls earlier -- the reason this commit
+        // exists at all. Pin the payload by value so both mutations are red.
+        //
+        // Step (3)'s payload is deliberately NOT restated here: it is an unconditional
+        // line in `buildBatch`, so any mutation of it already reddens
+        // `test_SameAggregatorIsGrantedAndNotRevoked`, which asserts it by value. Adding a
+        // second copy would only make one defect fail two tests.
+        assertEq(
+            keccak256(payloads[3]),
+            keccak256(abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (oldAggregator, false))),
+            "step (4) revokes the PREDECESSOR, not the aggregator step (3) just armed"
+        );
         // CC-48 round-8 LOW-5: capture the implementation the proxy points at BEFORE the
         // batch. `assertEq(registry.version(), "Registry-5.8.0")` after execution is a
-        // VACUOUS assertion -- `UUPSDeployHelper` already deployed 5.7.0, so it held before
+        // VACUOUS assertion -- `UUPSDeployHelper` already deployed 5.8.0, so it held before
         // the batch too. The implementation SLOT moving is the non-vacuous statement that
         // step (1) actually executed.
         bytes32 implSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -199,7 +247,7 @@ contract CC48RegistryTimelockGovernance is Test {
         // Still untouched after the failed slicing attempt.
         assertEq(registry.maxTotalCreditExposure(), 0);
 
-        // ---- execute: one transaction, all three effects ----
+        // ---- execute: one transaction, every effect ----
         vm.prank(executor);
         timelock.executeBatch(targets, values, payloads, NO_PREDECESSOR, BATCH_SALT);
 
@@ -219,6 +267,12 @@ contract CC48RegistryTimelockGovernance is Test {
         assertEq(registry.totalCreditExposure(), 0, "no promoted user in this fixture");
         assertEq(registry.maxAggregateCreditUpliftPerProposal(), PER_PROPOSAL_CAP, "per-proposal cap seeded");
         assertEq(registry.owner(), address(timelock), "ownership unchanged by the batch");
+        // Steps (3) and (4) as END STATE, not as calldata: the rotation leaves exactly one
+        // armed slasher. Reading it back off a mock that enforces the real `onlyOwner` gate
+        // is what makes this evidence that the Timelock could carry both calls, rather than
+        // evidence that a permissive stub accepted them.
+        assertTrue(staking.authorizedSlashers(newAggregator), "the new aggregator came out armed");
+        assertFalse(staking.authorizedSlashers(oldAggregator), "and the predecessor came out disarmed");
 
         // ---- and it cannot be replayed ----
         vm.prank(executor);
@@ -255,6 +309,60 @@ contract CC48RegistryTimelockGovernance is Test {
     // Helpers
     // =================================================================
 
+    /// A first-ever deployment has no predecessor to disarm, so the batch is one call
+    /// shorter and contains no revoke. Asserted separately because the length is now
+    /// conditional, and a silently-wrong length would move every later index.
+    function test_FirstDeploymentBatchOmitsTheRevokeStep() public {
+        Registry newImpl = new Registry();
+        (address[] memory targets,, bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            address(0), // no predecessor
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
+        );
+        // Literal, not `BATCH_LENGTH_NO_REVOKE`: see the note in the rotation test above.
+        assertEq(targets.length, 5, "no predecessor means no revoke call");
+        bytes4 setSlasher = IStakingSlasherAuth.setAuthorizedSlasher.selector;
+        uint256 slasherCalls;
+        for (uint256 i = 0; i < payloads.length; ++i) {
+            if (bytes4(payloads[i]) == setSlasher) ++slasherCalls;
+        }
+        assertEq(slasherCalls, 1, "exactly the grant, and no revoke");
+    }
+
+    /// A Registry-only upgrade keeps the SAME aggregator. Revoking it would undo the grant
+    /// in the same atomic batch and hand back a silently disarmed slash path — the very
+    /// failure the grant exists to prevent — so the revoke must be skipped, not merely
+    /// ordered before the grant.
+    function test_SameAggregatorIsGrantedAndNotRevoked() public {
+        Registry newImpl = new Registry();
+        (address[] memory targets,, bytes[] memory payloads) = RegistryUpgradeBatchLib.buildBatch(
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            newAggregator, // not rotating: predecessor IS the new aggregator
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
+        );
+        assertEq(targets.length, 5, "no revoke when not rotating");
+        bytes memory grant =
+            abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true));
+        bytes memory revoke =
+            abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, false));
+        uint256 grants;
+        for (uint256 i = 0; i < payloads.length; ++i) {
+            assertTrue(keccak256(payloads[i]) != keccak256(revoke), "must never revoke the aggregator it just armed");
+            if (keccak256(payloads[i]) == keccak256(grant)) ++grants;
+        }
+        assertEq(grants, 1, "the grant survives");
+    }
+
     /// The batch exactly as `UpgradeRegistryTo580` emits it — because it is the same call.
     function _batch()
         internal
@@ -262,7 +370,14 @@ contract CC48RegistryTimelockGovernance is Test {
     {
         Registry newImpl = new Registry();
         return RegistryUpgradeBatchLib.buildBatch(
-            address(registry), address(newImpl), newAggregator, PER_PROPOSAL_CAP, TOTAL_CAP, _seedUsers()
+            address(registry),
+            address(newImpl),
+            newAggregator,
+            oldAggregator,
+            address(registry.GTOKEN_STAKING()),
+            PER_PROPOSAL_CAP,
+            TOTAL_CAP,
+            _seedUsers()
         );
     }
 
@@ -279,4 +394,36 @@ contract CC48RegistryTimelockGovernance is Test {
     ) internal pure returns (address[] memory t, uint256[] memory v, bytes[] memory p) {
         return RegistryUpgradeBatchLib.upgradeOnlySubBatch(targets, values, payloads);
     }
+}
+
+/// @dev Stand-in for GTokenStaking, holding only what the batch touches — but holding it
+///      with the real contract's ACCESS CONTROL, because this batch is executed, not just
+///      built. `setAuthorizedSlasher` is `onlyOwner` on the real GTokenStaking
+///      (`GTokenStaking.sol:474`); a mock that accepted it from anyone would let step (3)
+///      succeed regardless of who executed the operation, and the assertion that the
+///      aggregator came out armed would no longer depend on the property the deployment
+///      script requires — that ONE principal owns both Registry and staking, which is why
+///      the authorisation can ride inside this operation at all. Ownership is handed to
+///      the Timelock in `setUp`, so the batch executes as that single principal.
+///      `setRoleExitFee` mirrors `IGTokenStaking`'s (bytes32,uint256,uint256): Registry
+///      pushes exit fees in through a fail-open low-level call during `initialize`, and a
+///      divergent signature would hash to another selector and miss in silence.
+contract TimelockMockStaking {
+    address public owner;
+    mapping(address => bool) public authorizedSlashers;
+
+    constructor(address _owner) { owner = _owner; }
+
+    function transferOwnership(address to) external {
+        require(msg.sender == owner, "GTokenStaking: not owner");
+        owner = to;
+    }
+
+    function setAuthorizedSlasher(address slasher, bool ok) external {
+        require(msg.sender == owner, "GTokenStaking: not owner");
+        authorizedSlashers[slasher] = ok;
+    }
+
+    function setRoleExitFee(bytes32, uint256, uint256) external {}
+    function getLockedStake(address, bytes32) external pure returns (uint256) { return 0; }
 }
