@@ -1,0 +1,230 @@
+{
+  "$schema": "./cc115-b3-successor-manifest.README.md",
+  "_": "CC-115 B3 successor-stack deployment manifest. Every field below is a RECEIPT to be filled at deploy time, not a value to be copied from this file. Fields whose value is knowable before deployment are pre-filled and marked source:build; everything else is null and must be replaced with an on-chain observation. A null that survives into an evidence bundle is an UNRESOLVED item, never an implicit pass.",
+  "manifest": {
+    "task": "CC-115 B3",
+    "producedAt": null,
+    "producedBy": null,
+    "network": null,
+    "chainId": null,
+    "stackKind": "fresh-isolated",
+    "_stackKind": "fresh-isolated | in-place-migration. CC-115 B3 is declared fresh-isolated (see CC-115 comment 070f7807): it does NOT execute a canonical predecessor migration, so the predecessor-revoke receipts below are NOT applicable and must stay null with reason 'n/a: fresh stack'. If this is ever changed to in-place-migration, the predecessorRevoke block becomes REQUIRED — see its own note."
+  },
+  "source": {
+    "repo": "AAStarCommunity/SuperPaymaster",
+    "commit": null,
+    "_commit": "The merged commit actually built from. As of this template: main @ 6a5dc3e7.",
+    "dirty": null,
+    "_dirty": "MUST be false. A dirty tree makes every hash below unverifiable.",
+    "foundryProfile": "default",
+    "_foundryProfile": "deploy-core never sets FOUNDRY_PROFILE, so [profile.default] is what ships."
+  },
+  "contracts": {
+    "Registry": {
+      "version": "Registry-5.8.0",
+      "versionSource": "build",
+      "runtimeSizeBytes": 23038,
+      "eip170HeadroomBytes": 1538,
+      "buildRuntimeKeccak": "0x979aea38ad0e2dcb37344336faa0c09eb212597c2367471323d93035468a46ef",
+      "_buildRuntimeKeccak": "keccak256 of the ARTIFACT's deployedBytecode, at main @ 6a5dc3e7, profile default. THIS IS NOT THE ON-CHAIN EXTCODEHASH: the deployer writes the immutables at construction time, changing the runtime. Use it to prove which build was deployed only together with onchain.extcodehash below; never in place of it.",
+      "immutableVariables": 1,
+      "_immutableVariables": "Registry declares no `immutable` of its own. The one it has is inherited: `address private immutable __self = address(this)` at singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol:21. WHICH UUPSUpgradeable matters — this tree also vendors solady's, whose __self lives one level down in CallContextChecker.sol:23, and that one is NOT in Registry's chain (Registry.sol:7 imports the OpenZeppelin path). Confirm rather than trust: `grep -n immutable singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol` must hit, and the artifact's metadata must list that same file as the only UUPSUpgradeable source compiled in.",
+      "immutableSites": 2,
+      "_immutableSites": "Byte positions that ONE variable is written into. This is the number that explains why the on-chain runtime differs from the artifact; the variable count does not. Derive both: jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|add)}' out/Registry.sol/Registry.json",
+      "onchain": {
+        "proxy": null,
+        "implementation": null,
+        "extcodehashImplementation": null,
+        "_extcodehashImplementation": "cast keccak $(cast code <implementation>) — the authoritative value. Expected to DIFFER from buildRuntimeKeccak wherever an immutable was filled.",
+        "versionCall": null,
+        "_versionCall": "cast call <proxy> 'version()(string)' — must read Registry-5.8.0.",
+        "owner": null,
+        "deployTxHash": null
+      }
+    },
+    "BLSAggregator": {
+      "version": "BLSAggregator-4.11.0",
+      "versionSource": "build",
+      "runtimeSizeBytes": 23667,
+      "eip170HeadroomBytes": 909,
+      "buildRuntimeKeccak": "0x1bb3577375bdb3e79cdfb5d79b2051fb5772ff4d73c5424dfbee9cc494d078a0",
+      "_buildRuntimeKeccak": "Same caveat, more strongly: ONE immutable variable, `REGISTRY` (BLSAggregator.sol:181), is written into TEN byte positions of the runtime, so the on-chain code WILL differ from the artifact. Not upgradeable — a fix means a new address and a new rotation.",
+      "immutableVariables": 1,
+      "_immutableVariables": "`REGISTRY` and nothing else — do not go looking for ten `immutable` declarations in the source.",
+      "immutableSites": 10,
+      "_immutableSites": "Byte positions that ONE variable is written into. This is the number that explains why the on-chain runtime differs from the artifact; the variable count does not. Derive both: jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|add)}' out/BLSAggregator.sol/BLSAggregator.json",
+      "onchain": {
+        "address": null,
+        "extcodehash": null,
+        "versionCall": null,
+        "owner": null,
+        "_owner": "Held to the M-of-N standard, NOT a Timelock: a Timelock cannot cover emergencyDisarmFraudProofVerifier, which is immediate by design.",
+        "registryImmutable": null,
+        "_registryImmutable": "cast call <aggregator> 'REGISTRY()(address)' — must equal the Registry PROXY above. It is immutable; a mismatch is unfixable in place.",
+        "domainSeparator": null,
+        "_domainSeparator": "cast call <aggregator> 'domainSeparator()(bytes32)'. Not cached on-chain (chainid is read live), so record the value AND the chainId it was read at.",
+        "deployTxHash": null
+      }
+    },
+    "GTokenStaking": {
+      "onchain": {
+        "address": null,
+        "owner": null,
+        "_owner": "UpgradeRegistryTo580 REQUIRES this to equal the Registry owner, because the slasher authorisation rides inside the same governance operation.",
+        "deployTxHash": null
+      }
+    }
+  },
+  "verifierArming": {
+    "_": "SP 4.11 has no direct setter. The ONLY path is propose (owner) -> wait VERIFIER_ROTATION_DELAY -> apply (permissionless). Every receipt below is required; a manifest that jumps from deploy to an active verifier is describing a contract that does not exist.",
+    "constants": {
+      "VERIFIER_ROTATION_DELAY": "4 days",
+      "_VERIFIER_ROTATION_DELAY": "BLSAggregator.sol:394 = GUARDIAN_SLASH_CASE_WINDOW; :386 = 4 days. Verify on-chain, do not trust this line: cast call <aggregator> 'VERIFIER_ROTATION_DELAY()(uint256)'."
+    },
+    "dormantAtDeploy": {
+      "fraudProofVerifierRead": null,
+      "_fraudProofVerifierRead": "MUST read address(0) immediately after deployment. The constructor takes no verifier; a non-zero value here means this is not the contract you think it is.",
+      "readAtBlock": null
+    },
+    "propose": {
+      "txHash": null,
+      "verifierProposed": null,
+      "proposedByOwner": null,
+      "readyAt": null,
+      "_readyAt": "cast call <aggregator> 'pendingFraudProofVerifierReadyAt()(uint64)' after the propose tx."
+    },
+    "apply": {
+      "txHash": null,
+      "appliedAtTimestamp": null,
+      "actualDelaySeconds": null,
+      "_actualDelaySeconds": "appliedAtTimestamp - propose block timestamp. MUST be >= VERIFIER_ROTATION_DELAY. Record the arithmetic, not just the claim.",
+      "appliedBy": null,
+      "_appliedBy": "applyFraudProofVerifier() is permissionless — record who actually sent it."
+    },
+    "activeVerifier": {
+      "address": null,
+      "extcodehash": null,
+      "sourceRepoCommit": null,
+      "_sourceRepoCommit": "The DVT commit the verifier was built from — the reviewed+merged one, not a local candidate.",
+      "digestParityCheck": null,
+      "_digestParityCheck": "Deploy-time assertion that the verifier's recomputed domain digest equals the aggregator's. Record the value compared, both sides."
+    }
+  },
+  "predecessorRevoke": {
+    "_": "NOT APPLICABLE to a fresh-isolated stack — leave every field null with reason 'n/a: fresh stack'. REQUIRED if manifest.stackKind is ever changed to in-place-migration, because of the following timing property.  WHY THE ORDERING MATTERS: During the 4-day arming window the successor is fail-closed (fraudProofVerifier == address(0)), so it can open no case. The DEPOSED predecessor, however, already has its verifier wired, its REGISTRY is immutable, and it never asks Registry whether it is still the registered aggregator — the slash path executeGuardianSlash -> REGISTRY.GTOKEN_STAKING() -> slashByDVT does not go through Registry at all. So for that whole window the only contract that can open a guardian-slash case is the one Registry no longer points at. The only switch that cuts it off is GTokenStaking.authorizedSlashers, which is step (4) of the upgrade batch.  THIS IS HISTORY, NOT THEORY: This is not theoretical. On Sepolia, 0xF51c0298... is STILL an authorized slasher: the 0x893b->0xF51c rotation revoked its predecessor by hand (tx 0x23562f9c...), and the very next rotation, 0xF51c->0x174b, forgot to. That is why the revoke is now an atomic step in the batch rather than a manual follow-up.",
+    "predecessorAddress": null,
+    "authorizedSlasherBeforeCutover": null,
+    "authorizedSlasherAfterBatch": null,
+    "_authorizedSlasherAfterBatch": "MUST read false, and MUST be read BEFORE the successor's arming window opens.",
+    "readAtBlock": null,
+    "batchTxHash": null
+  },
+  "governanceBatch": {
+    "_": "Shape comes from RegistryUpgradeBatchLib. Six calls when rotating to a DIFFERENT aggregator, five otherwise. Record what was actually scheduled, then what was actually executed, and check they hash to the same operation id.",
+    "salt": "0x0000000000000000000000000000000000000000000000000000000000005600",
+    "_salt": "RegistryUpgradeBatchLib.BATCH_SALT — fixed so an observer can recompute the operation id from published parameters.",
+    "predecessorOperationId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "callCount": null,
+    "_callCount": "5 or 6. Must equal targets.length as emitted; do not infer it from the contract's own constant.",
+    "targets": null,
+    "payloads": null,
+    "operationId": null,
+    "_operationId": "TimelockController.hashOperationBatch(targets, values, payloads, predecessor, salt), recomputed independently from the published tuple — not copied from the scheduling tx's logs.",
+    "scheduleTxHash": null,
+    "minDelaySeconds": null,
+    "executeTxHash": null,
+    "ownerRecheck": {
+      "_": "The script's owner assertions are time-of-check/time-of-use: it reads owner() when it runs, the batch executes later. This is a LIVENESS precaution, not a safety one — Registry's entry points and GTokenStaking.setAuthorizedSlasher are all onlyOwner and the batch is atomic, so a stale owner reverts the WHOLE operation rather than half-applying. Re-read immediately before executeBatch to avoid burning a delay on a doomed execution.",
+      "registryOwnerAtExecute": null,
+      "stakingOwnerAtExecute": null,
+      "readAtBlock": null
+    }
+  },
+  "postExecutionAssertions": {
+    "_": "Each MUST be an observed read after the batch executed, with the block it was read at. 'Expected' values are what the script prints; a manifest that only records the expectation has recorded nothing.",
+    "registryVersion": {
+      "expected": "Registry-5.8.0",
+      "observed": null,
+      "atBlock": null
+    },
+    "registryBlsAggregator": {
+      "expected": "<successor address>",
+      "observed": null,
+      "atBlock": null
+    },
+    "maxTotalCreditExposure": {
+      "expected": "<totalCap>",
+      "observed": null,
+      "atBlock": null
+    },
+    "totalCreditExposure": {
+      "expected": "<derivedExposure>",
+      "observed": null,
+      "atBlock": null
+    },
+    "creditPopulationTotal": {
+      "expected": "<seedUsers.length>",
+      "observed": null,
+      "atBlock": null
+    },
+    "creditPopulationSeededAt": {
+      "expected": "> 0",
+      "observed": null,
+      "atBlock": null
+    },
+    "registryOwner": {
+      "expected": "<governance owner>",
+      "observed": null,
+      "atBlock": null
+    },
+    "blsDomainSeparatorMatchesAggregator": {
+      "expected": true,
+      "observed": null,
+      "atBlock": null
+    },
+    "authorizedSlasherSuccessor": {
+      "expected": true,
+      "observed": null,
+      "atBlock": null
+    },
+    "everyValidatorRefiledPoP": {
+      "expected": true,
+      "observed": null,
+      "evidence": null
+    },
+    "noPendingCaseOnPredecessor": {
+      "expected": true,
+      "observed": null,
+      "evidence": null,
+      "_evidence": "See scanEvidence — a bare 'no cases found' does not satisfy this."
+    }
+  },
+  "scanEvidence": {
+    "_": "Per docs/security/CC48-safe-onboarding-runbook.md section 5b (PR #378). An endpoint can return a SUCCESSFUL, well-formed, EMPTY array for a non-empty range, with no error and exit 0, non-deterministically and PER CALL. When the value under test is supposed to be zero, a false empty and a true empty are byte-identical. So an unpaired, unrepeated clean scan is UNRESOLVED, not clean.",
+    "aggregatorScanned": null,
+    "_aggregatorScanned": "The OLD aggregator. Use the topic0 ITS OWN version emits — do not 'switch the watcher to the new topic'.",
+    "topic0Used": null,
+    "blockRange": null,
+    "positiveControl": {
+      "_": "Paired in the SAME batch and range: a BLSPublicKeyRegistered query whose count must be >= the number of non-zero validatorAtSlot entries. This DISCARDS provably broken batches; it does NOT certify the neighbouring call, because the non-determinism is per call.",
+      "topic0": "0x544d98ba9bb0b5ddc2f49ab57954b76f6ff7ffba5e89a9bcb73bbf77ffa31ed3",
+      "expectedMinimum": null,
+      "observed": null
+    },
+    "repetitions": {
+      "required": ">= 5 with full agreement",
+      "performed": null,
+      "allAgreed": null
+    },
+    "endpoints": {
+      "primary": null,
+      "corroborating": null,
+      "_corroborating": "A second, independently operated endpoint. Verifying the data source is the only available check — completeness cannot be inferred from returned data."
+    },
+    "result": null,
+    "_result": "clean | UNRESOLVED. If the requirements above cannot be satisfied, the honest value is UNRESOLVED. Never write clean because nothing came back."
+  },
+  "notDeployedNotReleased": {
+    "_": "Status vocabulary is CC-115's: implemented / reviewed / approved / merged / released / deployed are separate claims and none implies the next. This manifest becomes evidence for 'deployed' only when every null above is a real receipt."
+  }
+}
