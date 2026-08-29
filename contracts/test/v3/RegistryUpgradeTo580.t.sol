@@ -178,19 +178,28 @@ contract RegistryUpgradeTo580Test is Test {
         users[1] = _user(2);
     }
 
-    /// @dev CC-48 round-11. These are the only tests that EXECUTE the batch, and until
-    ///      now they asserted nothing about its SHAPE -- only an enumerated list of
-    ///      end-state properties (version, aggregator, exposure, population, and the new
-    ///      aggregator's authorisation). An enumerated check is structurally blind to a
-    ///      call that was ADDED: appending `setAuthorizedSlasher(proxy, true)` to the
-    ///      batch -- granting slash authority over every DVT's stake to the Registry proxy
-    ///      itself -- left this suite 7/0 green while the construction-side suite caught it
-    ///      three times over on its literal length assertions. The suite that models what
-    ///      actually happens on chain was the blind one.
+    /// @dev CC-48 round-11. The batch has TWO execution paths under test, and only one of
+    ///      them constrained what it was executing:
+    ///        - the SIX-call rotating shape, executed through a real `TimelockController`
+    ///          in `CC48RegistryTimelockGovernance`, which pins its length to a literal 6
+    ///          and both slasher payloads by value;
+    ///        - the FIVE-call no-revoke shape -- a first deployment, or a Registry-only
+    ///          upgrade -- executed through `BatchOwner` HERE, which asserted nothing
+    ///          about the batch at all, only an enumerated list of end-state properties
+    ///          (version, aggregator, exposure, population, the new aggregator's
+    ///          authorisation).
+    ///
+    ///      An enumerated check is structurally blind to a call that was ADDED, because
+    ///      every field it does look at is still correct. Appending
+    ///      `setAuthorizedSlasher(proxy, true)` -- granting slash authority over every
+    ///      DVT's locked stake to the Registry proxy itself -- left this suite 7/0 green.
+    ///      The rotating path caught that same mutation three times over on its length
+    ///      assertions, so the defect was not invisible repo-wide: it was invisible on the
+    ///      execution path nothing constrained, which is the path a first deployment takes.
     ///
     ///      Length is asserted as a LITERAL for the same reason it is over there: sizing
-    ///      the expectation from `BATCH_LENGTH_NO_REVOKE` would be sized by the same
-    ///      constant `buildBatch` allocates from, and no change to the batch could fail it.
+    ///      the expectation from `BATCH_LENGTH_NO_REVOKE` would size it from the very
+    ///      constant `buildBatch` allocates from, so no change to the batch could fail it.
     function _assertBatchShape(
         address[] memory targets,
         bytes[] memory payloads,
