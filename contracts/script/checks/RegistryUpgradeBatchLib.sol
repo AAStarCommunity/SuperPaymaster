@@ -25,14 +25,17 @@ interface IStakingSlasherAuth {
  *      the old comment claimed and this arrangement actually delivers.
  *
  *      Why the batch must stay atomic (the property the test exercises). Step numbers
- *      are the ones in `buildBatch` below and were re-checked when the revoke step was
- *      inserted at (4), which pushed the caps and the population seed to (5) and (6):
- *        - between (1) and (5) the new `maxTotalCreditExposure` slot reads 0, so every
- *          proposal carrying positive uplift reverts;
+ *      below are the SIX-CALL (rotating) shape. The revoke at (4) is conditional, so on
+ *      the five-call shape -- first deployment, or a Registry-only upgrade that keeps the
+ *      same aggregator -- the caps are (4) and the population seed is (5):
+ *        - between (1) and the caps call the new `maxTotalCreditExposure` slot reads 0,
+ *          so every proposal carrying positive uplift reverts;
  *        - between (1) and (2) the still-wired predecessor has no `consumeGuardianExit`,
  *          so every ROLE_DVT `exitRole` reverts and DVT stake is stuck;
- *        - between (3) and (4) both aggregators are authorised slashers, which is the
- *          permission-additive window the revoke closes inside the same operation.
+ *        - between (3) and (4), IF the predecessor was authorised to begin with (nothing
+ *          here checks that -- `authorizedSlashers` is not read), both aggregators hold
+ *          slash authority. That is the permission-additive window the revoke closes
+ *          inside the same operation rather than in a follow-up transaction.
  *      A TimelockController operation id commits to the whole tuple, so any proper subset
  *      hashes to an id that was never scheduled and cannot be executed.
  */
@@ -54,14 +57,15 @@ library RegistryUpgradeBatchLib {
 
     /// @notice Build the batch exactly as it is scheduled and executed.
     /// @param proxy          the live Registry ERC1967 proxy — target of every step EXCEPT
-    ///                       (3) and (4), which are the slasher calls, so a batch that
-    ///                       touches any other address is not this one
+    ///                       the slasher calls: (3) always, and (4) only when the batch
+    ///                       rotates. A batch touching any other address is not this one
     /// @param newImpl        freshly built `Registry` 5.8.0 implementation
     /// @param newAggregator  `BLSAggregator` 4.11.0, armed as a slasher in (3)
     /// @param oldAggregator  predecessor to DISARM in (4). Pass address(0) on a first
     ///                       deployment; passing the SAME address as `newAggregator`
     ///                       (a Registry-only upgrade) correctly skips the revoke
-    /// @param staking        GTokenStaking, target of the slasher calls in (3) and (4)
+    /// @param staking        GTokenStaking, target of the slasher calls: the grant at (3),
+    ///                       and the revoke at (4) when there is a predecessor to disarm
     /// @param perProposalCap transaction-level aggregate uplift guard, aPNT wei
     /// @param totalCap       protocol-wide outstanding ceiling, aPNT wei
     /// @param seedUsers      every address that has EVER been the subject of a reputation
@@ -113,10 +117,13 @@ library RegistryUpgradeBatchLib {
         //    rather than in a follow-up transaction for exactly that reason: the failure it
         //    prevents is invisible.
         //
-        //    Same owner, so it can ride along: Registry, GTokenStaking and BLSAggregator all
-        //    answer to one `owner()` (verified on Sepolia). If a deployment ever splits
-        //    them, this step must move to that owner's own transaction and the preflight
-        //    assertion below becomes the only guard.
+        //    Same owner, so it can ride along: Registry and GTokenStaking answer to one
+        //    `owner()`, and `UpgradeRegistryTo580` REQUIRES that equality before it emits
+        //    the batch. BLSAggregator is deliberately NOT part of that claim -- the script
+        //    holds its owner to its own, separate standard (M-of-N, no Timelock accepted,
+        //    because a Timelock cannot cover an immediate emergency disarm), so the three
+        //    are not asserted to be one principal. If Registry and staking are ever split,
+        //    this step must move to the staking owner's own transaction.
         targets[2] = staking;
         payloads[2] = abi.encodeCall(IStakingSlasherAuth.setAuthorizedSlasher, (newAggregator, true));
         // 4. REVOKE the predecessor's slasher authorisation. `authorizedSlashers` is keyed

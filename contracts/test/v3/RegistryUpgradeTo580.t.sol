@@ -50,9 +50,14 @@ contract LegacyAggregatorNoExitGate {
 ///         stand-in makes that step observable, and `authorizedSlashers` below is what the
 ///         tests read to prove it landed.
 ///
-///         Both surfaces mirror production, because a mock that is more permissive than
-///         the contract it stands in for turns the assertion into a weaker statement than
-///         it reads as:
+///         What is mirrored is exactly what this batch touches -- NOT the whole contract.
+///         `setRoleExitFee` here is a permissionless no-op: production restricts it to
+///         REGISTRY or `owner()`, caps the fee at 2000 BPS, persists the config and emits
+///         (`GTokenStaking.sol:454-461`), and `getLockedStake` reads a real mapping there
+///         (`:405-407`) rather than returning zero. None of that is on the batch's path,
+///         and the claim is deliberately narrowed to the two properties that are, because
+///         a mock more permissive than the contract it stands in for turns an assertion
+///         into a weaker statement than it reads as:
 ///           - `setAuthorizedSlasher` is `onlyOwner` on the real `GTokenStaking`
 ///             (`GTokenStaking.sol:474`). Without that gate the batch's step (3) would
 ///             succeed no matter WHO executed it, and "the batch armed the aggregator"
