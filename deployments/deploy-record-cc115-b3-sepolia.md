@@ -122,11 +122,24 @@ CURRENT STATE block at the top of this file.
 
 At that moment `batchUpdateGlobalReputation` reverted `CreditPopulationNotSeeded()` on
 this proxy. That is 5.8.0 doing what it says (`Registry.sol:519`, CC-48 round-9
-MEDIUM-HIGH-B3): a freshly UPGRADED proxy reads zero in the credit-population slots
-while real, already-promoted users exist on-chain, so deriving exposure from that empty
-population would under-count the live stock by exactly the pre-upgrade issuance. The
-path therefore stays shut until governance re-counts. Fresh deployments seed inside
-`initialize`, where the population provably is empty; an upgrade cannot.
+MEDIUM-HIGH-B3).
+
+The hazard the gate exists for, stated as the general case it is: a freshly UPGRADED
+proxy reads zero in the credit-population slots, and if promoted users already exist
+on-chain then exposure derived from that empty population under-counts the live stock by
+exactly the pre-upgrade issuance. Fresh deployments seed inside `initialize`, where the
+population provably IS empty; an upgrade cannot prove that, so the path stays shut until
+governance re-counts.
+
+**Note what that does and does not say about THIS proxy.** The gate is unconditional —
+it fires on any upgrade, because the contract cannot tell "zero because the slots are
+new" from "zero because nobody was ever promoted". Here it turned out to be the second:
+`GlobalReputationUpdated` has never been emitted on this Registry, so the re-count the
+gate demanded had nothing to count. That is why the seed was `([], 0, true)` — a
+formality that satisfies an unconditional gate, not a real re-count that happened to come
+back empty. The evidence for the emptiness, and the positive control behind it, are in
+the addendum at the end of this section; do not read the paragraph above as a claim that
+promoted users existed here.
 
 Measured on the proxy immediately after the swap (**historical — see the addendum at the
 end of this section for what these read today**):
