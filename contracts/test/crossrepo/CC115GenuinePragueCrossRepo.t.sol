@@ -46,17 +46,32 @@ import {XRegistry, XStaking, XDVT, XSP, XToken} from "./CC115CrossRepoConformanc
  *         in this file. That is the property the file is for, so it is asserted rather
  *         than merely intended — see `test_GenuinePrague_PrecompilesAreRealNotInjected`.
  *
- *         THE CONTROL THAT MATTERS. Under mocked pairing every signature verifies, so a
- *         green run says nothing about signature validity — the instrument cannot produce
- *         a failing reading. `test_GenuinePrague_WrongAggregateSignatureIsRejected` and
- *         `test_GenuinePrague_BelowThresholdIsRejected` are the readings that prove this
- *         one can: both are impossible to fail-check in the mocked suite and both must be
- *         red if the pairing here were stubbed.
+ *         THE CONTROL THAT MATTERS, and it is exactly ONE test. Under mocked pairing every
+ *         signature verifies, so a green run there says nothing about signature validity —
+ *         the instrument cannot produce a failing reading.
+ *         `test_GenuinePrague_WrongAggregateSignatureIsRejected` is the reading that proves
+ *         this one can: it asserts `SignatureVerificationFailed`, which only a real pairing
+ *         can raise, and it goes red the moment pairing returns a constant.
+ *
+ *         `test_GenuinePrague_BelowThresholdIsRejected` is NOT that control, and an earlier
+ *         version of this comment claimed it was. It asserts `InvalidSignatureCount(2,3)`,
+ *         raised at `BLSAggregator.sol:1352` from a popcount comparison that runs BEFORE the
+ *         pairing at :1360 — arithmetic on the signer mask, in which the curve takes no part.
+ *         It is perfectly writable in the mocked suite. It is kept here because the severity
+ *         table deserves a control, not because it is evidence about pairing. (Caught in
+ *         review of #388 by pr-daemon; verified against the two line numbers above.)
  *
  *         The scaffolding contracts (`XRegistry`, `XStaking`, `XDVT`, `XSP`, `XToken`) are
  *         imported from `CC115CrossRepoConformance.t.sol` rather than re-declared, so the
  *         ONLY difference between the mocked suite and this one is the cryptography. A
  *         divergence in the harness could otherwise explain a divergence in the result.
+ *
+ *         WHAT THIS DOES NOT ESTABLISH. The vendored verifier carries its own banner at
+ *         `vendor/OverIssueFraudProofVerifier.sol:65` — NOT PRODUCTION-SAFE / DO NOT WIRE TO
+ *         A SLASH-CAPABLE DEPLOYMENT, because step 5 reads the token's CURRENT
+ *         `isOverIssued()` rather than its state at the disputed epoch. B0 is an INTEGRATION
+ *         claim: SP and DVT agree on the encoding, over real cryptography. It is not a
+ *         clearance for deploying that verifier.
  *
  * Run:
  *   forge test --evm-version prague --match-contract CC115GenuinePragueCrossRepo -vv
@@ -142,19 +157,45 @@ contract CC115GenuinePragueCrossRepo is Test {
 
     /// The whole point of this file is that the curve arithmetic is real. If the suite
     /// ever runs somewhere it is not, that must be a skip, never a silent pass.
+    ///
+    /// @dev THIS TEST USED TO BE VACUOUS, and the way it was vacuous is worth keeping on
+    ///      the record. It asserted `address(0x0b).code.length == 0` and so on for each
+    ///      EIP-2537 address, reasoning that `vm.etch` leaves code behind. But on a Prague
+    ///      EVM `vm.etch` REFUSES those addresses outright — measured:
+    ///
+    ///        vm.etch(address(0x0e), hex"00")
+    ///        -> [FAIL: vm.etch: cannot use precompile 0x…0E as an argument]
+    ///
+    ///      which is the very reason `MockedPrecompiles.skipIfReal` exists. Nothing can put
+    ///      code at those addresses here, so `code.length == 0` was a constant dressed as a
+    ///      measurement — the same shape as a mocked pairing that always returns 1, in the
+    ///      one test whose job was to detect exactly that.
+    ///
+    ///      What replaces it is a reading that can come back either way. `e(G1, H)` for a
+    ///      single pair is not the identity, so a REAL pairing precompile answers false. A
+    ///      pairing stubbed to a constant 1 — the mocked suite's
+    ///      `vm.mockCall(0x0F, "", abi.encode(uint256(1)))` — answers true and this goes red.
+    ///      The other direction is covered by `setUp` itself: `verifyAndExecute` only got
+    ///      through because the same precompile answered TRUE for a valid signature.
     function test_GenuinePrague_PrecompilesAreRealNotInjected() public {
         _skipWithoutPrague();
         assertTrue(_hasPraguePrecompiles(), "EIP-2537 G1ADD must answer with 128 bytes");
-        // `vm.etch` leaves code at the address; a genuine precompile has none. This does
-        // not by itself prove pairing is unmocked — the behavioural proof of that is
-        // `test_GenuinePrague_WrongAggregateSignatureIsRejected`, which cannot pass if
-        // pairing returns a constant.
-        assertEq(address(0x0b).code.length, 0, "G1ADD must not carry injected code");
-        assertEq(address(0x0c).code.length, 0, "G1MSM must not carry injected code");
-        assertEq(address(0x0d).code.length, 0, "G2ADD must not carry injected code");
-        assertEq(address(0x0f).code.length, 0, "PAIRING must not carry injected code");
-        assertEq(address(0x10).code.length, 0, "MAP_FP_TO_G1 must not carry injected code");
-        assertEq(address(0x11).code.length, 0, "MAP_FP2_TO_G2 must not carry injected code");
+
+        // G2MSM (0x0e) is the precompile EVERY proof-of-possession and EVERY partial
+        // signature in this file goes through (`_multiplyG2` -> `BLS.msm` -> staticcall
+        // BLS12_G2MSM, BLS.sol:68/:197). The first version of this test listed the other
+        // six addresses and omitted this one. Probing it functionally: 1 * H == H.
+        BLS.G2Point memory h = BLS.hashToG2(abi.encodePacked(keccak256("CC-115 B0 instrument probe")));
+        BLS.G2Point memory hTimesOne = _multiplyG2(h, 1);
+        assertEq(keccak256(abi.encode(hTimesOne)), keccak256(abi.encode(h)), "G2MSM must compute 1*H == H");
+
+        // The decisive one. A single pair is not the identity, so the pairing check must
+        // answer FALSE. A stubbed pairing returns a constant 1 and this assertion fails.
+        BLS.G1Point[] memory g1s = new BLS.G1Point[](1);
+        BLS.G2Point[] memory g2s = new BLS.G2Point[](1);
+        g1s[0] = _g1Generator();
+        g2s[0] = h;
+        assertFalse(BLS.pairing(g1s, g2s), "e(G1,H) != 1: a real pairing says false, a stub says true");
     }
 
     // ==========================================================
@@ -424,6 +465,10 @@ contract CC115GenuinePragueCrossRepo is Test {
         return BLS.msm(points, scalars);
     }
 
+    /// @dev The canonical BLS12-381 G1 generator, as fixed by the ciphersuite (see
+    ///      draft-irtf-cfrg-pairing-friendly-curves, BLS12-381 G1 x/y) and split into the
+    ///      two 32-byte halves EIP-2537 encoding expects. Same constant as
+    ///      `paper7/BLSGasMeasurement.t.sol`.
     function _g1Generator() internal pure returns (BLS.G1Point memory generator) {
         generator.x_a = bytes32(uint256(0x17f1d3a73197d7942695638c4fa9ac0f));
         generator.x_b = bytes32(uint256(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb));
