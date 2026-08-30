@@ -131,13 +131,21 @@ exactly the pre-upgrade issuance. Fresh deployments seed inside `initialize`, wh
 population provably IS empty; an upgrade cannot prove that, so the path stays shut until
 governance re-counts.
 
-**Note what that does and does not say about THIS proxy.** The gate is unconditional —
-it fires on any upgrade, because the contract cannot tell "zero because the slots are
-new" from "zero because nobody was ever promoted". Here it turned out to be the second:
-`GlobalReputationUpdated` has never been emitted on this Registry, so the re-count the
-gate demanded had nothing to count. That is why the seed was `([], 0, true)` — a
-formality that satisfies an unconditional gate, not a real re-count that happened to come
-back empty. The evidence for the emptiness, and the positive control behind it, are in
+**Note what that does and does not say about THIS proxy.** The gate tests one slot:
+`creditPopulationSeededAt == 0` (`Registry.sol:519`). It is emphatically NOT "any
+upgrade" — a fresh deployment is seeded in `initialize` (`:155`) and an upgrade between
+two revisions that both already carry the slot leaves it non-zero, so neither trips it.
+What tripped it here is narrower and exact: an upgrade **from a revision predating the
+slot**, so the slot was new and therefore read zero. (The only other way to reach zero is
+`_invalidateCreditPopulation` (`:706`) after a schedule change, and that path returns
+early when `creditPopulationTotal == 0`.)
+
+The consequence for reading this record: a zero in that slot carries no information about
+whether anyone was ever promoted — it says the slot has not been written, nothing more.
+Here the population genuinely was empty: `GlobalReputationUpdated` has never been emitted
+on this Registry, so the re-count the gate demanded had nothing to count. That is why the
+seed was `([], 0, true)` — a formality satisfying a gate that fires on the slot rather
+than on the population, not a real re-count that happened to come back empty. The evidence for the emptiness, and the positive control behind it, are in
 the addendum at the end of this section; do not read the paragraph above as a claim that
 promoted users existed here.
 
