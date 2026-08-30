@@ -83,10 +83,54 @@ so the caveats live here:
    behalf, but the signature must come from that validator's BLS secret key. SP does
    not hold them. This step belongs to DVT / the node operators.
 
+## THE REPUTATION PATH IS SHUT AFTER THIS UPGRADE — this is deliberate in 5.8.0, and
+## it is not finished until governance opens it
+
+`batchUpdateGlobalReputation` reverts `CreditPopulationNotSeeded()` on this proxy right
+now. That is 5.8.0 doing what it says (`Registry.sol:519`, CC-48 round-9
+MEDIUM-HIGH-B3): a freshly UPGRADED proxy reads zero in the credit-population slots
+while real, already-promoted users exist on-chain, so deriving exposure from that empty
+population would under-count the live stock by exactly the pre-upgrade issuance. The
+path therefore stays shut until governance re-counts. Fresh deployments seed inside
+`initialize`, where the population provably is empty; an upgrade cannot.
+
+Measured on the proxy immediately after the swap:
+
+```
+creditPopulationSeededAt()              -> 0     <- this is the gate
+creditPopulationTotal()                 -> 0
+totalCreditExposure()                   -> 0
+maxTotalCreditExposure()                -> 0
+maxAggregateCreditUpliftPerProposal()   -> 0
+isReputationSource(new aggregator)      -> false
+isReputationSource(old aggregator)      -> false  <- already false BEFORE this upgrade
+```
+
+Three owner-gated steps are required, in this order, and **none of them was performed
+here** because two of them need governance-chosen numbers that are not mine to pick:
+
+1. `setCreditPolicy(perProposalCap, totalCap)` — both caps currently read 0.
+2. `seedCreditPopulation(address[] users, uint256 expectedPopulationTotal, bool finalize)`
+   — batched; the final call must pass `finalize = true` and the running count must equal
+   `expectedPopulationTotal` or it reverts `CreditPopulationCountMismatch`. Only then is
+   `creditPopulationSeededAt` set. Enumerating the already-promoted users is an
+   off-chain job against this Registry's history.
+3. `setReputationSource(0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D, true)`.
+
+Note the asymmetry in what this migration caused: **step 3's gap pre-existed** — the old
+aggregator was already not a reputation source — whereas **the seeding gate at step 1/2 is
+new, introduced by this upgrade.** Downstream work that calls
+`batchUpdateGlobalReputation` (the YAAA B5 registration → aggregation → reputation smoke,
+and the SDK B4 evidence runner) will fail until all three are done.
+
 ## Deliberately not done
 
-- `setReputationSource(newAggregator, true)` — the old aggregator reads `false`, so
-  this preserves the current permission surface rather than silently widening it.
+- The three governance steps above — see that section; they need owner-chosen caps and an
+  enumerated user list, and doing them with invented numbers would be worse than leaving
+  the gate visibly shut.
+- `setReputationSource(newAggregator, true)` on its own — it would not open the path
+  while the seeding gate is closed, and it would widen the permission surface for no
+  effect.
 - No verifier wired (see above).
 - No other contract touched.
 
