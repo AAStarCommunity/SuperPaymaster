@@ -65,11 +65,19 @@ Run twice: directly against the new contract before wiring, then through
 `deployments/config.sepolia.json` is a flat address map with no place for a caveat,
 so the caveats live here:
 
-1. **`blsFraudProofVerifier: 0x128847cFD6e0C8247ED297Fb27a1302f2ad66D51` is NO LONGER
-   WIRED.** It was the old three-parameter verifier on the 4.3.0 aggregator. The new
-   aggregator reads `fraudProofVerifier() == 0x0` — dormant by design. Arming it is
-   DVT's D1 flow (`proposeFraudProofVerifier` → 4 days → permissionless
-   `applyFraudProofVerifier`), not a field to hand-edit here.
+1. **`0x128847cFD6e0C8247ED297Fb27a1302f2ad66D51` can never serve the new aggregator** —
+   stronger than "not wired", which is how this note first put it. Measured:
+   `AGGREGATOR()` on that verifier returns `0x174b60bB…0158`, the PREVIOUS aggregator,
+   hard-bound at construction. The new aggregator reads `fraudProofVerifier() == 0x0`,
+   dormant by design; arming it is DVT's D1 flow (`proposeFraudProofVerifier` → 4 days →
+   permissionless `applyFraudProofVerifier`), not a field to hand-edit here.
+
+   The config key is therefore renamed `blsFraudProofVerifier` → **`blsFraudProofVerifierPrev`**,
+   so the JSON states what this paragraph states. A caveat that only lives in a markdown
+   file protects nobody reading the machine-readable map, and `config.sepolia.json` IS
+   machine-read (a dozen `contracts/script/v3/*.s.sol` load it). Renaming is free today:
+   grep over `contracts/script/` and `scripts/` finds no consumer of the old key.
+   (Raised by pr-daemon on #390; the `AGGREGATOR()` binding verified here before acting.)
 
 2. **`blsGuardians` (`0x5D870E13…`, `0x40F0b121…`, `0xD904A706…`) are NOT registered on
    the new aggregator.** `validatorAtSlot(1..13)` reads zero across the board. A new
@@ -82,6 +90,13 @@ so the caveats live here:
    `registerBLSPublicKey` is `external` and the owner may submit on a validator's
    behalf, but the signature must come from that validator's BLS secret key. SP does
    not hold them. This step belongs to DVT / the node operators.
+
+   > **2026-08-30, addendum — DONE.** DVT completed the re-registration. Read at
+   > `latest`: `validatorAtSlot(1..3)` = `0x5D870E13…7Eca3` / `0x40F0b121…bd1f` /
+   > `0xD904A706…1601`, slot 4 onward zero — the same three, back in the same order, so
+   > the MINOR threshold of 3 is met again. The paragraph above is accurate as HISTORY
+   > (read at block 11599371 the slots were all zero) and would mislead as CURRENT STATE,
+   > which is why this line exists rather than an edit to it.
 
 ## THE REPUTATION PATH IS SHUT AFTER THIS UPGRADE — this is deliberate in 5.8.0, and
 ## it is not finished until governance opens it
@@ -106,8 +121,9 @@ isReputationSource(new aggregator)      -> false
 isReputationSource(old aggregator)      -> false  <- already false BEFORE this upgrade
 ```
 
-Three owner-gated steps are required, in this order, and **none of them was performed
-here** because two of them need governance-chosen numbers that are not mine to pick:
+Three owner-gated steps are required, in this order. **They have since been performed —
+see the addendum at the end of this section** — but they were NOT part of the deployment
+above, and the numbers came from the repo owner, not from me:
 
 1. `setCreditPolicy(perProposalCap, totalCap)` — both caps currently read 0.
 2. `seedCreditPopulation(address[] users, uint256 expectedPopulationTotal, bool finalize)`
@@ -123,11 +139,41 @@ new, introduced by this upgrade.** Downstream work that calls
 `batchUpdateGlobalReputation` (the YAAA B5 registration → aggregation → reputation smoke,
 and the SDK B4 evidence runner) will fail until all three are done.
 
+> **2026-08-30, addendum — the reputation path is now OPEN.** The owner supplied the caps
+> and the three steps were executed. Read back afterwards:
+>
+> ```
+> creditPopulationSeededAt()              -> 1788104232   (was 0 — this is the gate)
+> creditPopulationTotal()                 -> 0
+> totalCreditExposure()                   -> 0
+> maxAggregateCreditUpliftPerProposal()   -> 10_000e18
+> maxTotalCreditExposure()                -> 50_000e18
+> isReputationSource(0xEaeC2F51…)         -> true
+> ```
+>
+> | step | tx |
+> |---|---|
+> | `setCreditPolicy(10_000e18, 50_000e18)` | `0xb7e6fdfe287faf01a1ce04ed30879b2b8f5632ffa9bff554f8298c5be425f971` |
+> | `seedCreditPopulation([], 0, true)` | `0x6b5b90fbce689d7deb7360aaebb8a44e93f926b1b4ccf3d179768c86172d6b09` |
+> | `setReputationSource(0xEaeC2F51…, true)` | see the CC-115 thread |
+>
+> **Why the seed list is empty, and why that is exact rather than lazy.** The population
+> this Registry had to re-count was zero: `GlobalReputationUpdated` has NEVER been emitted
+> on this proxy. That query was positive-controlled before being trusted — the same
+> `getLogs` call against the same address returns 6 `BLSAggregatorUpdated`, 6 `Upgraded`
+> and 3 `ReputationSourceUpdated`, so the zero is a real zero and not a broken filter.
+> No user has ever been promoted here, so `seedCreditPopulation([], 0, true)` is the
+> complete and exact seed, and `totalCreditExposure` legitimately reads 0.
+>
+> The caps were chosen by the repo owner against this schedule: tiers 1–3 all equal the
+> 300e18 floor, so promotions below reputation 89 cost NO exposure; level 4 (rep ≥ 89)
+> costs +300e18, level 5 (≥ 233) +700e18, level 6 (≥ 610) +1700e18. All 25 current
+> role-holders at the TOP tier would be 42,500e18, under the 50,000e18 ceiling.
+
 ## Deliberately not done
 
-- The three governance steps above — see that section; they need owner-chosen caps and an
-  enumerated user list, and doing them with invented numbers would be worse than leaving
-  the gate visibly shut.
+- Nothing here was decided unilaterally: the caps above are the owner's numbers. Until
+  they arrived the gate was left visibly shut rather than opened on invented values.
 - `setReputationSource(newAggregator, true)` on its own — it would not open the path
   while the seeding gate is closed, and it would widen the permission surface for no
   effect.
