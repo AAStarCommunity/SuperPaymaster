@@ -132,20 +132,29 @@ population provably IS empty; an upgrade cannot prove that, so the path stays sh
 governance re-counts.
 
 **Note what that does and does not say about THIS proxy.** The gate tests one slot:
-`creditPopulationSeededAt == 0` (`Registry.sol:519`). It is emphatically NOT "any
-upgrade" — a fresh deployment is seeded in `initialize` (`:155`) and an upgrade between
-two revisions that both already carry the slot leaves it non-zero, so neither trips it.
-What tripped it here is narrower and exact: an upgrade **from a revision predating the
-slot**, so the slot was new and therefore read zero. (The only other way to reach zero is
-`_invalidateCreditPopulation` (`:706`) after a schedule change, and that path returns
-early when `creditPopulationTotal == 0`.)
+`creditPopulationSeededAt == 0` (`Registry.sol:519`). Read it for exactly what it means:
 
-The consequence for reading this record: a zero in that slot carries no information about
-whether anyone was ever promoted — it says the slot has not been written, nothing more.
-Here the population genuinely was empty: `GlobalReputationUpdated` has never been emitted
-on this Registry, so the re-count the gate demanded had nothing to count. That is why the
-seed was `([], 0, true)` — a formality satisfying a gate that fires on the slot rather
-than on the population, not a real re-count that happened to come back empty. The evidence for the emptiness, and the positive control behind it, are in
+> **zero = there is no completed, still-valid population seed right now.**
+
+That is all. It is NOT "the slot has never been written" — `_invalidateCreditPopulation`
+(`:706`) writes zero back after a schedule change that moved a live schedule, so a slot
+that was written, and seeded, can read zero again. And it is NOT "any upgrade": a fresh
+deployment is seeded in `initialize` (`:155`), whose own comment says that is what keeps
+this gate aimed at upgraded proxies. Nor is the converse safe — an upgrade between two
+revisions that both carry the slot can still arrive at zero, if a schedule change
+invalidated the seed beforehand.
+
+So the slot alone cannot tell you which situation you are in, and **for this proxy the
+extra fact that settles it is what we upgraded FROM**: `Registry-5.4.2` predates the
+credit-population slots entirely, so here the slot was new and had never been written —
+a conclusion from the upgrade source, not from reading zero.
+
+Separately, and this is the part that matters for the evidence chain: the population
+really was empty. `GlobalReputationUpdated` has never been emitted on this Registry (see
+the addendum for the query and its positive control), so the re-count the gate demanded
+had nothing to count. That is why the seed was `([], 0, true)` — a formality satisfying a
+gate that fires on the slot rather than on the population, not a real re-count that
+happened to come back empty. The evidence for the emptiness, and the positive control behind it, are in
 the addendum at the end of this section; do not read the paragraph above as a claim that
 promoted users existed here.
 
