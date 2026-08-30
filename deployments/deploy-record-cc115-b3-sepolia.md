@@ -145,12 +145,14 @@ Three owner-gated steps are required, in this order. **They have since been perf
 see the addendum at the end of this section** — but they were NOT part of the deployment
 above, and the numbers came from the repo owner, not from me:
 
-1. `setCreditPolicy(perProposalCap, totalCap)` — both caps currently read 0.
+1. `setCreditPolicy(perProposalCap, totalCap)` — both caps **read 0 at this point**
+   (they now read `10_000e18` / `50_000e18`; see the addendum).
 2. `seedCreditPopulation(address[] users, uint256 expectedPopulationTotal, bool finalize)`
    — batched; the final call must pass `finalize = true` and the running count must equal
    `expectedPopulationTotal` or it reverts `CreditPopulationCountMismatch`. Only then is
-   `creditPopulationSeededAt` set. Enumerating the already-promoted users is an
-   off-chain job against this Registry's history.
+   `creditPopulationSeededAt` set. Enumerating the already-promoted users **was** an
+   off-chain job against this Registry's history — **it was done, and the answer was the
+   empty set**; see the addendum for why that is exact rather than a shortcut.
 3. `setReputationSource(0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D, true)`.
 
 Note the asymmetry in what this migration caused: **step 3's gap pre-existed** — the old
