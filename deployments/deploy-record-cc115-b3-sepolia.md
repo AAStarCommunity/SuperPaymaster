@@ -1,5 +1,20 @@
 # Deploy Record — CC-115 B3, Sepolia (2026-08-30)
 
+> ## CURRENT STATE, 2026-08-30 — read this before the sections below
+>
+> **This file is a RECORD OF A DEPLOYMENT, so most of it is written in the tense of the
+> moment it describes.** Two conditions it reports at length were true then and are NOT
+> true now. They are listed here rather than only in addenda further down, because a
+> reader who stops at a heading would otherwise carry away the opposite of the truth.
+>
+> | thing | as this file first described it | **now** |
+> |---|---|---|
+> | reputation path | SHUT (`creditPopulationSeededAt == 0`) | **OPEN** — `creditPopulationSeededAt` = `1788104232`, caps `10_000e18` / `50_000e18`, `isReputationSource(new)` = `true` |
+> | the three guardians | not registered on the new aggregator | **registered** — `validatorAtSlot(1..3)` hold them, in order; MINOR quorum of 3 is met |
+>
+> Everything else in this file still holds: Registry proxy address unchanged, aggregator
+> replaced, DVT's acceptance probes passing, and the rollback points still valid.
+
 **Nature:** Registry in-place UUPS impl swap + BLSAggregator generational replacement.
 Executed after DVT reported (CC-115) that B3 verifier arming was hard-blocked by the
 live aggregator still being 4.3.0.
@@ -60,7 +75,7 @@ Run twice: directly against the new contract before wiring, then through
 | `guardianExitRequests(address)` | revert | `(0, 0)` |
 | `setFraudProofVerifier(address)` | present | absent |
 
-## Two config entries that are now stale — read this before trusting them
+## Two config entries that were stale when this was written (item 2 has since been resolved)
 
 `deployments/config.sepolia.json` is a flat address map with no place for a caveat,
 so the caveats live here:
@@ -79,8 +94,9 @@ so the caveats live here:
    grep over `contracts/script/` and `scripts/` finds no consumer of the old key.
    (Raised by pr-daemon on #390; the `AGGREGATOR()` binding verified here before acting.)
 
-2. **`blsGuardians` (`0x5D870E13…`, `0x40F0b121…`, `0xD904A706…`) are NOT registered on
-   the new aggregator.** `validatorAtSlot(1..13)` reads zero across the board. A new
+2. **AS OF THE DEPLOYMENT (block 11599371) — SINCE RESOLVED, see the addendum below.**
+   `blsGuardians` (`0x5D870E13…`, `0x40F0b121…`, `0xD904A706…`) were NOT registered on
+   the new aggregator; `validatorAtSlot(1..13)` read zero across the board. A new
    aggregator starts empty and registrations do not migrate: the PoP is bound to the
    aggregator's domain separator, which includes its address, so every prior PoP is
    void by construction (CC-48 round-3 made PoP mandatory on both registration paths
@@ -98,21 +114,25 @@ so the caveats live here:
    > (read at block 11599371 the slots were all zero) and would mislead as CURRENT STATE,
    > which is why this line exists rather than an edit to it.
 
-## THE REPUTATION PATH IS SHUT AFTER THIS UPGRADE — this is deliberate in 5.8.0, and
-## it is not finished until governance opens it
+## THE UPGRADE SHUT THE REPUTATION PATH — deliberate in 5.8.0, and the deployment above
+## did not open it (it was opened later the same day; see the addendum ending this section)
 
-`batchUpdateGlobalReputation` reverts `CreditPopulationNotSeeded()` on this proxy right
-now. That is 5.8.0 doing what it says (`Registry.sol:519`, CC-48 round-9
+**Tense warning:** this section is written as of the swap. For the state today read the
+CURRENT STATE block at the top of this file.
+
+At that moment `batchUpdateGlobalReputation` reverted `CreditPopulationNotSeeded()` on
+this proxy. That is 5.8.0 doing what it says (`Registry.sol:519`, CC-48 round-9
 MEDIUM-HIGH-B3): a freshly UPGRADED proxy reads zero in the credit-population slots
 while real, already-promoted users exist on-chain, so deriving exposure from that empty
 population would under-count the live stock by exactly the pre-upgrade issuance. The
 path therefore stays shut until governance re-counts. Fresh deployments seed inside
 `initialize`, where the population provably is empty; an upgrade cannot.
 
-Measured on the proxy immediately after the swap:
+Measured on the proxy immediately after the swap (**historical — see the addendum at the
+end of this section for what these read today**):
 
 ```
-creditPopulationSeededAt()              -> 0     <- this is the gate
+creditPopulationSeededAt()              -> 0     <- the gate, as it read THEN
 creditPopulationTotal()                 -> 0
 totalCreditExposure()                   -> 0
 maxTotalCreditExposure()                -> 0
@@ -137,7 +157,7 @@ Note the asymmetry in what this migration caused: **step 3's gap pre-existed** �
 aggregator was already not a reputation source — whereas **the seeding gate at step 1/2 is
 new, introduced by this upgrade.** Downstream work that calls
 `batchUpdateGlobalReputation` (the YAAA B5 registration → aggregation → reputation smoke,
-and the SDK B4 evidence runner) will fail until all three are done.
+and the SDK B4 evidence runner) would fail until all three were done — which they now are.
 
 > **2026-08-30, addendum — the reputation path is now OPEN.** The owner supplied the caps
 > and the three steps were executed. Read back afterwards:
