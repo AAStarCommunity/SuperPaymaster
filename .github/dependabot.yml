@@ -10,6 +10,104 @@
 # If Dependabot still opens PRs for vendored submodule package.json files
 # (e.g. singleton-paymaster/lib/**), these are transitive deps of upstream
 # tests/docs tooling that we never install, execute, or bundle. Close them.
+#
+# MEASURED, 2026-08-30 — why the exclusions below do not stop them, so the next
+# person does not re-derive it. The `!/singleton-paymaster/**` entries landed in
+# f23bd432 on 2026-04-26. Eight such PRs were nevertheless opened between
+# 2026-07-20 and 2026-08-09 (#355/356/357/358/360/361/365/367, all closed on
+# 2026-08-29). Three months after the exclusion is not a config that "has not
+# taken effect yet": these are SECURITY-ALERT driven updates, which are not
+# scoped by the `directories` list of an `updates` entry.
+#
+# The evidence for that is per-PR, and it is the Dependabot ALERTS API — not the
+# `dependabot/fetch-metadata` outputs (see the trap below). For each of the eight,
+# an alert exists on the exact manifest path the PR touches, created the same day
+# the PR opened, and the PR bumps to at least that alert's `first_patched_version`:
+#
+#   PR    opened      alert (repos/:o/:r/dependabot/alerts)      bump
+#   #355  07-20 Mon   #1079 axios      oz-v5.1.0   patch 1.18.0  1.16.0 -> 1.18.1
+#   #356  07-21 Tue   #1083 axios      oz-v5.0.2   patch 1.18.0  1.16.0 -> 1.18.1
+#   #357  07-24 Fri   #1107 immutable  oz-v5.0.2   patch 4.3.9   4.3.4  -> 4.3.9
+#   #358  07-24 Fri   #1105 immutable  oz-v5.1.0   patch 4.3.9   4.3.4  -> 4.3.9
+#   #360  07-25 Sat   #1144 immutable  aa-v6       patch 4.3.9   4.1.0  -> 4.3.9
+#   #361  07-31 Fri   #1173 postcss    aa-v8       patch 8.5.12  8.5.1  -> 8.5.25
+#   #365  08-06 Thu   #1218 brace-exp  oz-v4.8.3   patch 1.1.18  1.1.11 -> 1.1.18
+#   #367  08-09 Sun   #1229 crypto-js  oz-v5.0.2   patch 4.0.0   3.3.0  -> 4.2.0
+#
+# Two of those are exact-equality, not merely "at least": #365 lands on 1.1.18 and
+# #357/#358/#360 on 4.3.9, which is the patched version and nothing newer. #367 is
+# the semver-MAJOR one precisely because crypto-js's fix is 3.x -> 4.0.0.
+#
+# The alert match above is the whole case. Two things that LOOK like corroboration
+# were checked and do not discriminate — recorded so nobody re-runs them:
+#
+#   - Day of week. The entry is `weekly`, which defaults to Monday, so off-Monday
+#     PRs look like a second channel. They are not a signal: of 17 grouped npm PRs
+#     11 are Monday and 6 are not, and of 86 ungrouped ones 20 ARE Monday.
+#   - Grouping. The entry groups on `patterns: ["*"]`, so an ungrouped PR looks
+#     like it bypassed the entry. All eight above are indeed ungrouped
+#     (`outputs.dependency-group` empty), but ungrouped PRs also arrive under
+#     INCLUDED directories (#241/#359/#363, hono under /packages/*), so ungrouped
+#     does not imply "not from this entry".
+#
+# THE TRAP, recorded because it already cost one review round. It is tempting to
+# settle this from the `Dependabot auto-merge` run log, which prints
+# `outputs.ghsa-id:` / `outputs.alert-state:` empty and `outputs.cvss: 0` on all
+# eight, i.e. it appears to say "not a security update". IT SAYS NOTHING. That
+# workflow does not pass the action's `alert-lookup` input, and in fetch-metadata
+# at the pinned SHA (main.ts: `if (core.getInput('alert-lookup'))`;
+# update_metadata.ts: `lookupFn = lookup ?? (() => Promise.resolve({alertState:
+# '', ghsaId: '', cvss: 0}))`) those three outputs are then HARD-CODED CONSTANTS.
+# A genuine security update prints exactly the same three lines. Reading them as
+# a measurement is reading a default as a finding.
+#
+# So: to re-check this for the next such PR, query the alerts API for its manifest
+# path and compare `first_patched_version` against the bump — do NOT read the run
+# log. Note `state=all` is NOT a valid filter there; it is silently accepted and
+# returns `[]`. Query open/fixed/dismissed/auto_dismissed separately, and use
+# `--paginate` (that endpoint rejects `?page=`). Making the run log answer this on
+# its own would need `alert-lookup: true` plus `security-events: read` on the job;
+# it is deliberately not set, since a 403 there would fail a job that has no
+# continue-on-error.
+#
+# One residual, unexplained: `ignore` did not suppress #355/#356/#365 either. For
+# axios that is consistent — its entry is scoped to
+# `update-types: [version-update:semver-minor]`, a token that only classifies
+# version updates. For brace-expansion, whose entry is unscoped, it is not
+# explained. Not investigated; recorded so it is not mistaken for evidence.
+#
+# So the exclusions govern version updates only, and closing remains the standing
+# action for security updates under vendored paths.
+#
+# WHY DEPENDABOT CAN SEE INSIDE singleton-paymaster AT ALL, and what remediation
+# therefore looks like. .gitmodules DECLARES singleton-paymaster as a submodule,
+# but the index does not agree, and the index is what Dependabot walks:
+#
+#   git ls-files -s singleton-paymaster | awk '{print $1}' | sort | uniq -c
+#     -> 2423 x 100644 + 73 x 100755, and ZERO 100000-series gitlinks
+#   git ls-files -s contracts/lib/solady  -> a single 160000 gitlink
+#   git submodule status                  -> 6 entries; singleton-paymaster absent
+#
+# The load-bearing fact is the ABSENCE of a 160000 entry, not the presence of any
+# particular blob mode: `git ls-files -s <path> | awk '$1=="160000"'` is the check.
+# (An earlier version of this note said "mode 100644, 2496 ordinary files" — that
+# mode came from the first row and was asserted over all 2496; 73 of them are
+# 100755 executables. The conclusion is unchanged, the summary was not.)
+#
+# The real submodules are gitlinks, so Dependabot sees one opaque commit id and
+# cannot scan inside them. singleton-paymaster is committed as ordinary files, so
+# every lockfile in its vendored lib/ tree is, to Dependabot, a manifest in THIS
+# repository. That is the mechanism, and no `directories` rule changes it.
+#
+# It also means there is NO SUBMODULE POINTER TO BUMP here — an earlier version of
+# this note prescribed exactly that, which is not an action anyone can take. If a
+# vulnerability in one of those trees ever genuinely reaches our build, the options
+# are: re-vendor the affected files from upstream in a normal commit, or convert
+# singleton-paymaster into a real submodule so .gitmodules and the index agree
+# (a large change, and out of scope for a dependency bump).
+#
+# Note the premise is still almost always false: our build is Foundry over .sol,
+# and nothing in those JS trees is installed, executed or bundled.
 
 version: 2
 updates:

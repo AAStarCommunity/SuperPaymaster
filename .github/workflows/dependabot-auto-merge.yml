@@ -56,20 +56,38 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # major version bump: label for manual review, never auto-merge.
-      #
-      # No continue-on-error here, and that is the point. It used to have one, and under it
-      # this step had NEVER once done its job: `major-update` did not exist as a label in
-      # this repository, so `gh pr edit --add-label` failed every time, the swallow turned
-      # the failure into a green step, and "major bumps get flagged for a human" was a thing
-      # the workflow claimed rather than did. Measured on #368 (actions/setup-node 6 -> 7):
-      # step conclusion `success`, labels actually on the PR `dependencies, github_actions`.
-      # The label has since been created; if it is ever deleted again this step must go RED
-      # rather than quietly resume lying.
-      #
-      # Safety was never the issue — auto-merge above is gated on patch||minor, so a major
-      # bump cannot reach it either way. Visibility was: a major bump sat indistinguishable
-      # from any other PR while the run said it had been flagged.
+  # major version bump: label for manual review, never auto-merge.
+  #
+  # A SEPARATE JOB, not a step of `auto-merge`, so that its failure is legible. It used to
+  # ride along there, and when it broke the red check on the PR was called `auto-merge` —
+  # which reads as "automatic merging failed" when what actually happened was "the label was
+  # not applied". A major bump can never auto-merge anyway (the job above is gated on
+  # patch||minor), so a reader chasing that red would have been chasing a thing that is not
+  # supposed to happen. The job name now says which of the two failed.
+  #
+  # No continue-on-error, and that is the point. It used to have one, and under it this step
+  # had NEVER once done its job: `major-update` did not exist as a label in this repository,
+  # so `gh pr edit --add-label` failed every time, the swallow turned the failure into a
+  # green step, and "major bumps get flagged for a human" was a thing the workflow claimed
+  # rather than did. Measured on #368 (actions/setup-node 6 -> 7): step conclusion `success`,
+  # labels actually on the PR `dependencies, github_actions`. The label exists now; if it is
+  # ever deleted this job must go RED rather than quietly resume lying.
+  #
+  # Safety was never the issue — visibility was: a major bump sat indistinguishable from any
+  # other PR while the run said it had been flagged.
+  label-major:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'AAStarCommunity/SuperPaymaster'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98  # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Label major update for manual review
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: gh pr edit "$PR_URL" --add-label "dependencies,major-update"
