@@ -237,12 +237,36 @@ and the SDK B4 evidence runner) would fail until all three were done — which t
 >
 > **The headroom, stated as a number rather than as "it fits".** At the top tier each
 > account costs 1,700e18 above the floor, so the 50,000e18 ceiling holds **29 accounts and
-> breaks at 30** (29 × 1,700 = 49,300; 30 × 1,700 = 51,000). Today's figure is 25, which is
-> `getRoleUserCount` summed over COMMUNITY 5 + DVT 17 + ENDUSER 3 — **(address, role) pairs,
-> not distinct people**, since one address holding two roles is counted twice. So 25 is an
-> upper bound on accounts and the real margin is about four more top-tier promotions, not
-> the comfortable gap "42,500 < 50,000" suggests. Raising the ceiling is a single
-> `setCreditPolicy` call and is not blocked by anything.
+> breaks at 30** (29 × 1,700 = 49,300; 30 × 1,700 = 51,000).
+>
+> **Count the right thing.** The number the ceiling keys on is DISTINCT ADDRESSES, because
+> `batchUpdateGlobalReputation` derives uplift from `globalReputation[user]` and
+> `creditTierConfig[_levelForReputation(...)]` with **no role filter anywhere** — an address
+> is charged once no matter how many roles it holds. Measured from `RoleRegistered`:
+>
+> ```
+> 32 events across all FIVE roles   DVT 17 / COMMUNITY 5 / PAYMASTER_SUPER 5 /
+>                                   ENDUSER 3 / PAYMASTER_AOA 2
+> 23 distinct addresses             (RoleGranted adds 11 more events but no new
+>                                    address — the union is still 23)
+> ```
+>
+> So today's load at the top tier is **23 × 1,700 = 39,100e18 of 50,000e18**, and the margin
+> is **six** more top-tier accounts.
+>
+> **The trap this replaces, spelled out because it nearly shipped.** An earlier version of
+> this paragraph derived "25" from `getRoleUserCount` over COMMUNITY + DVT + ENDUSER only,
+> without saying two roles had been dropped. `getRoleUserCount` is
+> `roleMembers[roleId].length` (`Registry.sol:902`), so summing it over roles counts
+> **(address, role) pairs**. A reader recomputing the natural way — sum ALL five roles —
+> gets **32**, which is above the 29 line this same paragraph establishes, and would
+> conclude the ceiling is already breached. It is not: those 32 pairs are 23 addresses, and
+> the two dropped roles contribute no address that is not already in the other three.
+> (Raised by pr-daemon on #395; the event counts, the de-duplication and the absence of a
+> role filter all re-measured here.)
+>
+> Raising the ceiling is a single `setCreditPolicy` call, `onlyOwner`, no timelock, and its
+> `totalCap >= totalCreditExposure` guard does not obstruct raising it.
 >
 > **Operational, for whoever runs the first real batch:** `maxAggregateCreditUpliftPerProposal`
 > = 10,000e18 admits about **five** floor→top promotions in ONE proposal (5 × 1,700 = 8,500 ✓;
