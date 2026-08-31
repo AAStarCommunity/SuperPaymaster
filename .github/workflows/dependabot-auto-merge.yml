@@ -70,7 +70,9 @@ jobs:
   # so `gh pr edit --add-label` failed every time, the swallow turned the failure into a
   # green step, and "major bumps get flagged for a human" was a thing the workflow claimed
   # rather than did. Measured on #368 (actions/setup-node 6 -> 7): step conclusion `success`,
-  # labels actually on the PR `dependencies, github_actions`. The label exists now; if it is
+  # labels on the PR AT THAT TIME `dependencies, github_actions`. (Checking #368 today shows
+  # three — `major-update` was backfilled once the label existed. That is what the fix looks
+  # like after the fact, not a contradiction of the measurement.) The label exists now; if it is
   # ever deleted this job must go RED rather than quietly resume lying.
   #
   # Safety was never the issue — visibility was: a major bump sat indistinguishable from any
