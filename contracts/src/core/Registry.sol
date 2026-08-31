@@ -117,15 +117,17 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // every fresh user even when they hold tokens. The defaults below keep the tier
         // monotonic (level 1 ≤ 2 ≤ … ≤ 6) so higher reputation never *lowers* credit.
         // NOTE: these are FRESH-INIT bootstrap values only — they apply when a new
-        // Registry is initialized, NOT to an already-initialized UUPS proxy (its stored
-        // tiers are untouched on upgrade — measured across the 5.4.2 -> 5.8.0 swap of
-        // 2026-08-30, where the stored schedule survived unchanged). This note used to
-        // add "the live Sepolia proxy keeps level 1 = 1000"; that is WRONG as of
-        // 2026-08-31 — `creditTierConfig(1)` on 0xf5Bf37ca…8E71 reads 300e18, and 1/2/3
-        // are all 300e18. Do not read a live-chain value out of a source comment: check
-        // it (`cast call <proxy> "creditTierConfig(uint256)(uint256)" 1`), because a
-        // comment cannot track a value only `setCreditTier` moves.
-        // 100 ether covers the MEASURED ~38 aPNTs per-op charge
+        // Registry is initialized, NOT to an already-initialized UUPS proxy, whose stored
+        // tiers survive an upgrade untouched (measured across the 5.4.2 -> 5.8.0 swap on
+        // 2026-08-30: the six-level schedule read identical either side of the impl swap).
+        // A live proxy's schedule is therefore whatever `setCreditTier` last left it at,
+        // which no comment can track. DO NOT state one here — read it:
+        //   cast call 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 \
+        //     "creditTierConfig(uint256)(uint256)" 1 --rpc-url "$SEPOLIA_RPC_URL"
+        // (This rule is not hypothetical: the figure removed from this note had never
+        // matched the chain at any block. See git blame and PR #396 for the trace.)
+        //
+        // The 100 ether floor below covers the MEASURED ~38 aPNTs per-op charge
         // with margin, but a high-maxFeePerGas op can exceed it — every deployment MUST
         // call setCreditTier() to cover its own worst-case charge + economic model.
         // Final tier economics are a team decision (tracked in audit issue #245).
