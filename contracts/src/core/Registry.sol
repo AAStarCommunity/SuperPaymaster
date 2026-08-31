@@ -32,6 +32,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
     address public SUPER_PAYMASTER;
     address public blsAggregator;
     mapping(bytes32 => RoleConfig) internal roleConfigs;
+    /// @notice Whether `user` currently holds `roleId`.
+    /// @dev    THIS DOES NOT IMPLY A LIVE STAKE. `hasRole` records the grant; the stake is
+    ///         tracked separately and can be zero while the flag is true — measured on the
+    ///         Sepolia proxy, where 0xb5600060…0E reads `hasRole(ROLE_DVT) == true` and
+    ///         `getEffectiveStake(that, ROLE_DVT) == 0`. Any check that means "this address
+    ///         is staked" must read BOTH, e.g. `hasRole[r][u] && getEffectiveStake(u, r) >=
+    ///         minStake`. Reported by repo:dvt, whose own `_isStaked` already does this.
     mapping(bytes32 => mapping(address => bool)) public hasRole;
     /// @notice Best-effort cache of locked stake amounts; use `getEffectiveStake()` for authoritative reads.
     mapping(bytes32 => mapping(address => uint256)) internal roleStakes;
@@ -294,6 +301,22 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         }
     }
 
+    /// @notice Register `user` into `roleId`, staking GToken on their behalf.
+    /// @dev    ALLOWANCE: a first-time registration pulls `minStake + ticketPrice`, NOT
+    ///         `minStake`. `_firstTimeRegister` charges the role's `ticketPrice` on top of
+    ///         the stake, so approving exactly `minStake` to GTOKEN_STAKING reverts with
+    ///         `ERC20InsufficientAllowance(spender, minStake, minStake + ticketPrice)`.
+    ///         Both figures are per role and readable together:
+    ///           cast call <registry> \
+    ///             "getRoleConfig(bytes32)((uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))" \
+    ///             $(cast keccak "DVT") --rpc-url "$RPC"
+    ///         where field 1 is `minStake` and field 2 is `ticketPrice` (see
+    ///         `IRegistry.RoleConfig`). Reported by repo:dvt after hitting it while
+    ///         onboarding three ROLE_DVT operators: on Sepolia that role is 30e18 + 3e18,
+    ///         so the approval must be at least 33e18.
+    /// @dev    RE-REGISTRATION: an address that already holds `roleId` cannot call this
+    ///         again for any role except ROLE_ENDUSER — see the `RoleAlreadyGranted` guard
+    ///         below. In particular there is no top-up path here for an existing holder.
     function registerRole(bytes32 roleId, address user, bytes calldata roleData) public nonReentrant {
         if (user == address(0)) revert InvalidParam();
         if (msg.sender != user) revert Unauthorized();
