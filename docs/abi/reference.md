@@ -1452,6 +1452,8 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Register a user for a specific role (unified API)
 
+*@dev* ALLOWANCE: a first-time registration pulls `minStake + ticketPrice`, NOT just `minStake` — `_firstTimeRegister` charges the role's `ticketPrice` on top of the stake, so approving exactly `minStake` to GTOKEN_STAKING reverts `ERC20InsufficientAllowance(spender, minStake, minStake + ticketPrice)`. Both figures live in `IRegistry.RoleConfig` fields 1 and 2 and are read together with `getRoleConfig(roleId)`; on Sepolia ROLE_DVT is 30e18 + 3e18, so the approval must be at least 33e18. Reported by repo:dvt after hitting it while onboarding three ROLE_DVT operators. Separately, an address that already holds `roleId` cannot call this again for any role except ROLE_ENDUSER (see the `RoleAlreadyGranted` guard below), so there is no top-up path here for an existing holder.
+
 | param | type | description |
 |---|---|---|
 | `roleId` | `bytes32` | Role identifier (e.g., ROLE_COMMUNITY, ROLE_PAYMASTER) |
