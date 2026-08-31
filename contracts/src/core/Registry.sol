@@ -120,8 +120,13 @@ contract Registry is Ownable, ReentrancyGuard, Initializable, UUPSUpgradeable, I
         // Registry is initialized, NOT to an already-initialized UUPS proxy, whose stored
         // tiers survive an upgrade untouched (measured across the 5.4.2 -> 5.8.0 swap on
         // 2026-08-30: the six-level schedule read identical either side of the impl swap).
-        // A live proxy's schedule is therefore whatever `setCreditTier` last left it at,
-        // which no comment can track. DO NOT state one here — read it:
+        // A live proxy's schedule is therefore THESE values as amended by whatever
+        // `setCreditTier` calls have since been made — and levels nobody has amended still
+        // hold exactly what is written below. (On the Sepolia proxy as of 2026-08-31 that
+        // is levels 4/5/6: every `CreditTierUpdated` ever emitted there touches only 1, 2,
+        // 3 and 7.) So the live schedule is neither "the constants below" nor "whatever
+        // setCreditTier says" — it is per level, and no comment can track it.
+        // DO NOT state one here — read it:
         //   cast call 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71 \
         //     "creditTierConfig(uint256)(uint256)" 1 --rpc-url "$SEPOLIA_RPC_URL"
         // (This rule is not hypothetical: the figure removed from this note had never
