@@ -149,6 +149,12 @@ extra fact that settles it is what we upgraded FROM**: `Registry-5.4.2` predates
 credit-population slots entirely, so here the slot was new and had never been written —
 a conclusion from the upgrade source, not from reading zero.
 
+That "5.4.2 predates the slots" is not a bare assertion, and it is load-bearing for
+everything above, so here is where it comes from: it is the same fact the pre-flight
+layout diff establishes — 5.8.0's seven credit-population variables occupy slots 24–30,
+which under 5.4.2 were part of the reserved `__gap`. See **"Pre-flight that gated this
+(per `uups-upgrade-v5.4.2-runbook.md`)"** above for the per-slot table.
+
 Separately, and this is the part that matters for the evidence chain: the population
 really was empty. `GlobalReputationUpdated` has never been emitted on this Registry (see
 the addendum for the query and its positive control), so the re-count the gate demanded
@@ -211,16 +217,63 @@ and the SDK B4 evidence runner) would fail until all three were done — which t
 >
 > **Why the seed list is empty, and why that is exact rather than lazy.** The population
 > this Registry had to re-count was zero: `GlobalReputationUpdated` has NEVER been emitted
-> on this proxy. That query was positive-controlled before being trusted — the same
-> `getLogs` call against the same address returns 6 `BLSAggregatorUpdated`, 6 `Upgraded`
-> and 3 `ReputationSourceUpdated`, so the zero is a real zero and not a broken filter.
+> on this proxy. That query was positive-controlled before being trusted — **read at the
+> time of seeding**, the same `getLogs` call against the same address returned 6
+> `BLSAggregatorUpdated`, 6 `Upgraded` and 3 `ReputationSourceUpdated`, so the zero was a
+> real zero and not a broken filter.
+>
+> **That control has itself moved, which is worth stating rather than quietly rebasing:**
+> `ReputationSourceUpdated` reads **4** today. The fourth is step 3 of this very addendum
+> — `setReputationSource(new, true)` — so "3 before step 3, 4 after". The `GlobalReputationUpdated`
+> zero is unaffected: nothing in these steps emits it. (Caught by pr-daemon on #391. A file
+> whose whole subject is "do not let a record read as current state" had written its own
+> control in the present tense — one level down, the same defect.)
 > No user has ever been promoted here, so `seedCreditPopulation([], 0, true)` is the
 > complete and exact seed, and `totalCreditExposure` legitimately reads 0.
 >
 > The caps were chosen by the repo owner against this schedule: tiers 1–3 all equal the
 > 300e18 floor, so promotions below reputation 89 cost NO exposure; level 4 (rep ≥ 89)
-> costs +300e18, level 5 (≥ 233) +700e18, level 6 (≥ 610) +1700e18. All 25 current
-> role-holders at the TOP tier would be 42,500e18, under the 50,000e18 ceiling.
+> costs +300e18, level 5 (≥ 233) +700e18, level 6 (≥ 610) +1700e18.
+>
+> **The headroom, stated as a number rather than as "it fits".** At the top tier each
+> account costs 1,700e18 above the floor, so the 50,000e18 ceiling holds **29 accounts and
+> breaks at 30** (29 × 1,700 = 49,300; 30 × 1,700 = 51,000).
+>
+> **Count the right thing.** The number the ceiling keys on is DISTINCT ADDRESSES, because
+> `batchUpdateGlobalReputation` derives uplift from `globalReputation[user]` and
+> `creditTierConfig[_levelForReputation(...)]` with **no role filter anywhere** — an address
+> is charged once no matter how many roles it holds. Measured from `RoleRegistered`:
+>
+> ```
+> 32 events across all FIVE roles   DVT 17 / COMMUNITY 5 / PAYMASTER_SUPER 5 /
+>                                   ENDUSER 3 / PAYMASTER_AOA 2
+> 23 distinct addresses             (RoleGranted adds 11 more events but no new
+>                                    address — the union is still 23)
+> ```
+>
+> So today's load at the top tier is **23 × 1,700 = 39,100e18 of 50,000e18**, and the margin
+> is **six** more top-tier accounts.
+>
+> **The trap this replaces, spelled out because it nearly shipped.** An earlier version of
+> this paragraph derived "25" from `getRoleUserCount` over COMMUNITY + DVT + ENDUSER only,
+> without saying two roles had been dropped. `getRoleUserCount` is
+> `roleMembers[roleId].length` (`Registry.sol:902`), so summing it over roles counts
+> **(address, role) pairs**. A reader recomputing the natural way — sum ALL five roles —
+> gets **32**, which is above the 29 line this same paragraph establishes, and would
+> conclude the ceiling is already breached. It is not: those 32 pairs are 23 addresses, and
+> the two dropped roles contribute no address that is not already in the other three.
+> (Raised by pr-daemon on #395; the event counts, the de-duplication and the absence of a
+> role filter all re-measured here.)
+>
+> Raising the ceiling is a single `setCreditPolicy` call, `onlyOwner`, no timelock, and its
+> `totalCap >= totalCreditExposure` guard does not obstruct raising it.
+>
+> **Operational, for whoever runs the first real batch:** `maxAggregateCreditUpliftPerProposal`
+> = 10,000e18 admits about **five** floor→top promotions in ONE proposal (5 × 1,700 = 8,500 ✓;
+> 6 × 1,700 = 10,200 ✗). That is far below the 200-entry batch limit in
+> `batchUpdateGlobalReputation`, so batches must be sized against the PER-PROPOSAL cap, not
+> against the array limit. (Both points raised by pr-daemon on #391; the arithmetic and the
+> `getRoleUserCount` semantics verified here.)
 
 ## Deliberately not done
 
