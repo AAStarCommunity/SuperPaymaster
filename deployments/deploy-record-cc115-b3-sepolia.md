@@ -149,6 +149,12 @@ extra fact that settles it is what we upgraded FROM**: `Registry-5.4.2` predates
 credit-population slots entirely, so here the slot was new and had never been written —
 a conclusion from the upgrade source, not from reading zero.
 
+That "5.4.2 predates the slots" is not a bare assertion, and it is load-bearing for
+everything above, so here is where it comes from: it is the same fact the pre-flight
+layout diff establishes — 5.8.0's seven credit-population variables occupy slots 24–30,
+which under 5.4.2 were part of the reserved `__gap`. See **"Pre-flight that gated this
+(per `uups-upgrade-v5.4.2-runbook.md`)"** above for the per-slot table.
+
 Separately, and this is the part that matters for the evidence chain: the population
 really was empty. `GlobalReputationUpdated` has never been emitted on this Registry (see
 the addendum for the query and its positive control), so the re-count the gate demanded
@@ -211,16 +217,39 @@ and the SDK B4 evidence runner) would fail until all three were done — which t
 >
 > **Why the seed list is empty, and why that is exact rather than lazy.** The population
 > this Registry had to re-count was zero: `GlobalReputationUpdated` has NEVER been emitted
-> on this proxy. That query was positive-controlled before being trusted — the same
-> `getLogs` call against the same address returns 6 `BLSAggregatorUpdated`, 6 `Upgraded`
-> and 3 `ReputationSourceUpdated`, so the zero is a real zero and not a broken filter.
+> on this proxy. That query was positive-controlled before being trusted — **read at the
+> time of seeding**, the same `getLogs` call against the same address returned 6
+> `BLSAggregatorUpdated`, 6 `Upgraded` and 3 `ReputationSourceUpdated`, so the zero was a
+> real zero and not a broken filter.
+>
+> **That control has itself moved, which is worth stating rather than quietly rebasing:**
+> `ReputationSourceUpdated` reads **4** today. The fourth is step 3 of this very addendum
+> — `setReputationSource(new, true)` — so "3 before step 3, 4 after". The `GlobalReputationUpdated`
+> zero is unaffected: nothing in these steps emits it. (Caught by pr-daemon on #391. A file
+> whose whole subject is "do not let a record read as current state" had written its own
+> control in the present tense — one level down, the same defect.)
 > No user has ever been promoted here, so `seedCreditPopulation([], 0, true)` is the
 > complete and exact seed, and `totalCreditExposure` legitimately reads 0.
 >
 > The caps were chosen by the repo owner against this schedule: tiers 1–3 all equal the
 > 300e18 floor, so promotions below reputation 89 cost NO exposure; level 4 (rep ≥ 89)
-> costs +300e18, level 5 (≥ 233) +700e18, level 6 (≥ 610) +1700e18. All 25 current
-> role-holders at the TOP tier would be 42,500e18, under the 50,000e18 ceiling.
+> costs +300e18, level 5 (≥ 233) +700e18, level 6 (≥ 610) +1700e18.
+>
+> **The headroom, stated as a number rather than as "it fits".** At the top tier each
+> account costs 1,700e18 above the floor, so the 50,000e18 ceiling holds **29 accounts and
+> breaks at 30** (29 × 1,700 = 49,300; 30 × 1,700 = 51,000). Today's figure is 25, which is
+> `getRoleUserCount` summed over COMMUNITY 5 + DVT 17 + ENDUSER 3 — **(address, role) pairs,
+> not distinct people**, since one address holding two roles is counted twice. So 25 is an
+> upper bound on accounts and the real margin is about four more top-tier promotions, not
+> the comfortable gap "42,500 < 50,000" suggests. Raising the ceiling is a single
+> `setCreditPolicy` call and is not blocked by anything.
+>
+> **Operational, for whoever runs the first real batch:** `maxAggregateCreditUpliftPerProposal`
+> = 10,000e18 admits about **five** floor→top promotions in ONE proposal (5 × 1,700 = 8,500 ✓;
+> 6 × 1,700 = 10,200 ✗). That is far below the 200-entry batch limit in
+> `batchUpdateGlobalReputation`, so batches must be sized against the PER-PROPOSAL cap, not
+> against the array limit. (Both points raised by pr-daemon on #391; the arithmetic and the
+> `getRoleUserCount` semantics verified here.)
 
 ## Deliberately not done
 
