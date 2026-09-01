@@ -134,11 +134,18 @@ elif [ "$appr" != "$head" ]; then
     # targeting release branches too, and reading the wrong branch's protection
     # would report a setting that does not govern this merge.
     base=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n')
-    if dsr=$(gh api "repos/$REPO/branches/${base:-main}/protection" \
+    if [ -z "$base" ]; then
+      # Do NOT fall back to main. Substituting a guess for an unread value is the
+      # fail-open this script refuses everywhere else: it would report main's
+      # setting for a PR that may target a release branch, and the right value
+      # from the wrong branch reads exactly like the right answer. Found by Codex.
+      echo "      (could not read this PR's base branch; not reporting a"
+      echo "       dismiss_stale_reviews value that might govern a different branch)"
+    elif dsr=$(gh api "repos/$REPO/branches/$base/protection" \
                --jq '.required_pull_request_reviews.dismiss_stale_reviews' 2>/dev/null); then
       [ "$dsr" = "true" ] \
-        && echo "      (dismiss_stale_reviews=true on ${base:-main}, so pushes retract approvals)" \
-        || echo "      AND dismiss_stale_reviews=$dsr on ${base:-main} — nothing enforces this at all."
+        && echo "      (dismiss_stale_reviews=true on $base, so pushes retract approvals)" \
+        || echo "      AND dismiss_stale_reviews=$dsr on $base — nothing enforces this at all."
     else
       echo "      (could not read branch protection; not claiming it is configured)"
     fi
