@@ -1,7 +1,9 @@
 # aPNTs 3.5.0 — Sepolia, current
 
-**Deployed 2026-09-01, chain 11155111.** Replaces the aPNTs in
-`config.sepolia.json`; the rest of the Sepolia stack is untouched (option A).
+**Deployed 2026-09-01, chain 11155111. NOT yet the configured aPNTs.** The token
+exists, is Safe-owned and funded; `config.sepolia.json` still points at the old
+`0x696A7370…` and must, until the cutover below is done. See "Why the config was
+not switched".
 
 | | |
 |---|---|
@@ -74,3 +76,36 @@ Downstream repos still point at the older ones. Notified; each has to decide its
 own cutover. The reason there are four: both deploy entry points had a
 `GOVERNANCE_OWNER` handover that moved only `BLSAggregator`, so every fresh
 deployment produced another EOA-owned token — fixed in #404.
+
+
+## Why the config was not switched
+
+Pointing `config.sepolia.json` at this token was wrong and was reverted. The token
+is not wired, and SuperPaymaster cannot be pointed at it today:
+
+```
+new 0x948C9d1B…   SUPERPAYMASTER_ADDRESS  0x0        autoApprovedSpenders[SP]  false
+old 0x696A7370…   SUPERPAYMASTER_ADDRESS  0x09DF0d2e  autoApprovedSpenders[SP]  true    <- control
+SuperPaymaster 0x09DF0d2e…   APNTS_TOKEN = 0x696A7370…  (the OLD token)
+```
+
+`SuperPaymaster.setAPNTsToken` queues behind a **7-day** `APNTS_TOKEN_TIMELOCK`
+and then needs an apply, so the pointer cannot move today. Flipping the config
+alone would have left the record naming one token while the paymaster charged
+another — the same shape as the 2026-08-30 aggregator split, created deliberately
+by me this time, and it would have broken the gasless path. Found by Codex at
+stop-time review.
+
+### Cutover sequence, when someone wants it
+
+1. **Safe** (it owns the token now): `setSuperPaymasterAddress(0x09DF0d2e…)` and
+   `addAutoApprovedSpender(0x09DF0d2e…)` on `0x948C9d1B…`.
+2. **SP owner**: `setAPNTsToken(0x948C9d1B…)`, wait 7 days, then apply.
+3. Only then flip `config.sepolia.json`, and re-run `15_VerifyAPNTs`.
+
+Steps 1 and 2 can run in parallel; step 3 must be last. Both halves of step 1 are
+Safe transactions, which is the intended steady state — but it is why the wiring
+could not simply ride along with the deploy: the factory was given
+`superPaymaster = address(0)`, so the token was born unwired and then handed over.
+Minting was moved before the handover for the same reason; the SP wiring was not,
+and that is the gap this section records.
