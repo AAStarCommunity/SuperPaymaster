@@ -8,7 +8,16 @@ import {xPNTsToken} from "src/tokens/xPNTsToken.sol";
 
 /**
  * @title 14_RedeployAPNTs
- * @notice Replace the OP-mainnet aPNTs with a governed, capped one.
+ * @notice Replace the OP-mainnet aPNTs with a governed one.
+ *
+ * @dev    WHAT THIS DOES AND DOES NOT FIX. It changes WHO may mint, not WHETHER minting
+ *         is bounded. `XPNTs-3.5.0` carries `issuanceCap`, but that is not a mint gate:
+ *         there is one `_mint` call site, guarded only by `onlyFactoryOrOwner`, and
+ *         `issuanceCap` is read in exactly one place — the view `isOverIssued()` that DVT
+ *         calls. It defaults to zero (unset) and is set afterwards by `communityOwner`.
+ *         So the Safe can still mint without bound; it just cannot do so unilaterally,
+ *         and over-issuance becomes visible instead of silent. Calling the result
+ *         "capped" would be claiming an enforcement that is not in the code.
  *
  * @dev    WHY A NEW TOKEN AND NOT A FIX.
  *
@@ -94,7 +103,9 @@ contract RedeployAPNTs is Script {
         console.log("  2. tell repo:airaccount the new address (they are blocked on it)");
         console.log("  3. the 140,000 old-token supply is NOT carried over; decide on");
         console.log("     migration separately, from the Safe");
-        console.log("  4. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
+        console.log("  4. Safe calls setIssuanceCap(...) — the cap is UNSET until it does,");
+        console.log("     and it is a view for DVT, never a mint gate");
+        console.log("  5. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
         console.log("     and addAutoApprovedSpender");
     }
 }
