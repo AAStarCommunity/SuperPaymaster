@@ -9,9 +9,17 @@
 #
 # Both legs are observable at push time: the approval-vs-head comparison is why
 # it re-reads the head on every push rather than trusting an earlier reading.
-# Make this a REQUIRED check to turn it from advice into a refusal.
+# NOT a required check, deliberately. Its three legs are each enforced by GitHub
+# itself — required contexts for the checks, dismiss_stale_reviews for
+# approval==head, reviewDecision for CHANGES_REQUESTED — and two of them this job
+# cannot even verify from a GITHUB_TOKEN. Listing it as required would have made
+# a green tick claim the approval legs were checked here. They are not.
+#
+# It runs to REPORT, and to make the script exercised rather than merely present
+# (which was its original gap). The refusal lives in branch protection and in the
+# strict pre-merge run of the same script.
 # =============================================================================
-name: merge-preflight
+name: merge-preflight-report
 
 on:
   pull_request:
@@ -26,7 +34,7 @@ permissions:
   statuses: read
 
 jobs:
-  preflight:
+  preflight-report:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

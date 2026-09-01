@@ -277,9 +277,10 @@ else
     # cannot speak for mergeability — reviewDecision and the required contexts
     # do. Saying "safe to merge" here would be the same over-claim the whole
     # gate argues against, one line from the end.
-    echo "PREFLIGHT PASS — nothing this job can see has failed at $head"
-    echo "                (mergeability is decided by reviewDecision and the"
-    echo "                 required contexts, not by this line)"
+    echo "REPORT ONLY — nothing this job can see has failed at $head."
+    echo "              This is NOT a merge gate: the approval legs above are"
+    echo "              enforced by dismiss_stale_reviews and reviewDecision and"
+    echo "              are NOT verified here. Run without --ci before merging."
   else
     echo "PREFLIGHT PASS — safe to merge $PR at $head"
   fi
