@@ -300,31 +300,44 @@ else
 
   # "Nothing failed" is not "everything required reported". A required context
   # that never RAN is absent, not green — and absence read as consent is the
-  # defect this whole script argues against, sitting in the script.
+  # defect this whole script argues against, sitting in the script. #413 had every
+  # run green with abi-docs never triggered; this said "safe to merge" and GitHub
+  # said BLOCKED, and GitHub was right.
   #
-  # Not hypothetical: #413 touched only scripts/ and a workflow, so `abi-docs`
-  # was outside its paths filter and never triggered. Every check that DID run
-  # was green, this script said "safe to merge", and GitHub said BLOCKED. GitHub
-  # was right. Paths-filtered workflows make this the normal case, not an edge.
-  api reqctx '.required_status_checks.contexts|join("\n")' \
-      "repos/$REPO/branches/${base_for_req:-main}/protection" 2>/dev/null \
-      || reqctx=""
-  if [ -z "$reqctx" ]; then
-    echo "INFO  could not read required contexts; not claiming they all reported"
-  else
-    missing=""
-    while IFS= read -r c; do
-      [ -z "$c" ] && continue
-      printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
-    done <<< "$reqctx"
-    if [ -n "$missing" ]; then
-      echo "FAIL  required context(s) never reported on this head: $missing"
-      echo "      A required check that did not run is ABSENT, not passing."
-      echo "      Usually a paths filter: the workflow was not triggered by these"
-      echo "      files. GitHub blocks on it; re-push or widen the filter."
-      fail=1
+  # STRICT ONLY. Reading required_status_checks needs branch-protection access,
+  # which a GITHUB_TOKEN does not have — the same limit already documented for
+  # two other legs in this file. Without this gate the lookup fails in Actions and
+  # takes the whole job red, which is how it shipped and how pr-daemon caught it.
+  # In --ci, GitHub enforces required contexts itself; there is nothing to add.
+  if [ "$CI_MODE" -ne 1 ]; then
+    # Deliberately NOT api(): that helper sets fail=1 as a side effect, which is
+    # right when a lookup is mandatory and wrong here — `|| reqctx=""` catches the
+    # return value and not the side effect, so an unreadable base still failed the
+    # run while printing "not claiming". Same shape as every other mismatch today:
+    # the verdict arriving by a path other than the one being read.
+    if [ -z "$base_for_req" ]; then
+      # No `:-main` fallback. That silent substitution was removed three commits
+      # ago and the reasoning is still on line ~143 of this file; reinstating it
+      # here would report a different branch's configuration as this PR's.
+      echo "INFO  base branch unreadable; required contexts not checked"
+    elif reqctx=$(gh api "repos/$REPO/branches/$base_for_req/protection" \
+                    --jq '.required_status_checks.contexts|join("\n")' 2>/dev/null); then
+      missing=""
+      while IFS= read -r c; do
+        [ -z "$c" ] && continue
+        printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
+      done <<< "$reqctx"
+      if [ -n "$missing" ]; then
+        echo "FAIL  required context(s) never reported on this head: $missing"
+        echo "      A required check that did not run is ABSENT, not passing."
+        echo "      Usually a paths filter: the workflow was not triggered by these"
+        echo "      files. GitHub blocks on it; re-push or widen the filter."
+        fail=1
+      else
+        echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
+      fi
     else
-      echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
+      echo "INFO  could not read required contexts; not claiming they all reported"
     fi
   fi
 fi
