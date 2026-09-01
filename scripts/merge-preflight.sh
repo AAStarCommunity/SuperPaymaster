@@ -109,8 +109,37 @@ elif [ "$appr" != "$head" ]; then
   # moment the branch moves, which is the same property GitHub-side and without a
   # check run to re-run. Strict mode (no --ci) still fails here, so the pre-merge
   # command keeps the belt.
-  [ "$CI_MODE" -eq 1 ] && echo "      (transient in --ci; enforced by dismiss_stale_reviews instead)"
-  [ "$CI_MODE" -eq 1 ] || fail=1
+  # Downgrading this in --ci is only sound if the guard it was MOVED to is
+  # actually on. Verify that instead of assuming it — relocating a guarantee and
+  # not checking the new home is the same mistake one level up. Found by Codex.
+  #
+  # Branch protection is not readable with GITHUB_TOKEN (no `administration`
+  # scope in Actions), so check the OBSERVABLE consequence: with
+  # dismiss_stale_reviews on, a push retracts the newest review, which the API
+  # then reports as DISMISSED. So the NEWEST review being DISMISSED is the guard
+  # working.
+  #
+  # Not "any stale APPROVED exists" — measured, that is wrong: GitHub dismisses
+  # only the most recent approval, so #412 kept APPROVED rows at 29a9e4b7,
+  # e67b7c32 and 5a12a0a6 while 2831c1bb went DISMISSED. Older approvals linger
+  # under a working guard, so their presence proves nothing.
+  if [ "$CI_MODE" -eq 1 ]; then
+    newest=$(printf '%s' "$revs" | python3 -c '
+import json,sys
+r=json.loads(sys.stdin.read().replace("][",","))
+print(sorted(r,key=lambda x:x["t"])[-1]["s"] if r else "")')
+    if [ "$newest" = "DISMISSED" ]; then
+      echo "      (transient in --ci: newest review is DISMISSED, so"
+      echo "       dismiss_stale_reviews is live and enforcing this)"
+    else
+      echo "      and the newest review is '$newest', not DISMISSED — so"
+      echo "      dismiss_stale_reviews is NOT retracting approvals and nothing"
+      echo "      is enforcing approval==head. Not downgrading."
+      fail=1
+    fi
+  else
+    fail=1
+  fi
 else
   echo "OK    approved SHA == head"
 fi
@@ -219,5 +248,15 @@ else
   echo "OK    commit statuses: $nst reported, state=$st"
 fi
 
-[ "$fail" -eq 0 ] && echo "PREFLIGHT PASS — safe to merge $PR at $head" || echo "PREFLIGHT FAIL — do not merge $PR"
+# "Passed" and "safe to merge" are different claims. With sibling checks still
+# running, this run establishes only that nothing has failed YET — saying safe is
+# the same over-claim this whole gate argues against. Raised by pr-daemon.
+if [ "$fail" -ne 0 ]; then
+  echo "PREFLIGHT FAIL — do not merge $PR"
+elif [ -n "${pend:-}" ]; then
+  echo "PREFLIGHT PASS (checks still running: ${pend}) — nothing has failed yet;"
+  echo "                merge is gated by the required contexts, not by this line"
+else
+  echo "PREFLIGHT PASS — safe to merge $PR at $head"
+fi
 exit "$fail"
