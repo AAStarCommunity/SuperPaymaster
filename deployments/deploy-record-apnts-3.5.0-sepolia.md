@@ -100,3 +100,19 @@ be zero — the cause was an HTTP 400: the RPC free tier caps `eth_getLogs` at a
 broken query and a clean token produce the identical reading. Re-run inside a
 10-block window it returns 2 events on the token and 3 on the factory. The zeros
 above are from the working instrument.
+
+### The rate check needed a second value
+
+`exchangeRate == 1 ether` on its own false-passes a touched token. `initialize`
+sets `exchangeRate` but **not** `exchangeRateUpdatedAt`, so a fresh clone carries
+zero there — and the cooldown guard reads
+`if (exchangeRateUpdatedAt != 0 && ...)`, so it does not apply to the first call.
+The deployer EOA could therefore call `updateExchangeRate(1 ether)` inside the
+ownership gap: same value, delta zero, in range, and it **succeeds**. The rate
+still reads 1 ether, the check still passes, and the token has been written to
+with the one-hour cooldown now armed against the Safe's first legitimate change.
+
+`exchangeRateUpdatedAt` is the discriminating value. `xPNTsToken.sol:1146` is its
+only write, inside `updateExchangeRate`, so zero means that function was never
+called. On the deployed token it reads **0**, alongside `exchangeRate` = 1e18 from
+the same contract — which is what makes the zero a reading rather than a silence.

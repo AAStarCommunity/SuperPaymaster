@@ -126,6 +126,19 @@ contract VerifyAPNTs is Script {
             // issuedValueUSD: a tainted rate survives a zero supply and silently
             // rescales every later over-issue verdict.
             require(xPNTsToken(token).exchangeRate() == 1 ether, "exchangeRate was moved off the deployed value");
+            // The value alone false-passes. `initialize` sets `exchangeRate` but NOT
+            // `exchangeRateUpdatedAt`, so a fresh clone carries zero there — and the
+            // cooldown guard reads `if (exchangeRateUpdatedAt != 0 && ...)`, meaning it
+            // does not apply to the first call. The EOA could therefore call
+            // updateExchangeRate(1 ether) in the gap: same value, delta zero, in range,
+            // and it SUCCEEDS. The rate still equals 1 ether and the check above still
+            // passes, while the token has been written to and the one-hour cooldown is
+            // now armed against the Safe's first legitimate rate change.
+            //
+            // `exchangeRateUpdatedAt` is the discriminating value: nothing but
+            // updateExchangeRate ever writes it, so zero means the function was never
+            // called. Found by Codex at stop-time review.
+            require(xPNTsToken(token).exchangeRateUpdatedAt() == 0, "updateExchangeRate was called on this token");
             // The mappings cannot be enumerated from a view call, so this is a targeted
             // probe of one address the caller names, not a sweep. See the scope note
             // printed with the verdict.
