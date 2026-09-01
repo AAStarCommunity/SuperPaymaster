@@ -267,8 +267,18 @@ else
         || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
     if ! printf '%s\n' "$allnames" | grep -qxF "$SELF_NAME"; then
       echo "FAIL  SELF_NAME='$SELF_NAME' matches no check run on this head."
-      echo "      It must equal the job id in merge-preflight.yml. A stale value"
-      echo "      excludes nothing and this run then counts itself."
+      echo "      TWO causes produce this, and the fix differs:"
+      echo "        (a) the value is stale — it must equal the job id in"
+      echo "            merge-preflight.yml; a stale value excludes nothing and"
+      echo "            this run then counts itself;"
+      echo "        (b) this job has never reported on THIS head — normal for a"
+      echo "            commit older than the workflow, or one not re-pushed since."
+      echo "            Re-push to get a run."
+      echo "      check runs present: $(printf '%s' "$allnames" | paste -sd, -)"
+      # Naming only (a) misdiagnoses (b), which is the common case on older heads.
+      # Reproduced immediately after merging: #398 predates this job, so a CORRECT
+      # SELF_NAME still matched nothing and the message blamed configuration.
+      # Raised by pr-daemon.
       fail=1
     fi
   fi
