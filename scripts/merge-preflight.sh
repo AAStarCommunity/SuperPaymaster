@@ -130,11 +130,15 @@ elif [ "$appr" != "$head" ]; then
     fail=1
     # Strict mode runs with a token that can read it, so check the guarantee has
     # a home instead of trusting that someone left it there.
-    if dsr=$(gh api "repos/$REPO/branches/main/protection" \
+    # The PR's own base, not a hardcoded main — this script is run against PRs
+    # targeting release branches too, and reading the wrong branch's protection
+    # would report a setting that does not govern this merge.
+    base=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n')
+    if dsr=$(gh api "repos/$REPO/branches/${base:-main}/protection" \
                --jq '.required_pull_request_reviews.dismiss_stale_reviews' 2>/dev/null); then
       [ "$dsr" = "true" ] \
-        && echo "      (dismiss_stale_reviews=true on main, so pushes retract approvals)" \
-        || echo "      AND dismiss_stale_reviews=$dsr on main — nothing enforces this at all."
+        && echo "      (dismiss_stale_reviews=true on ${base:-main}, so pushes retract approvals)" \
+        || echo "      AND dismiss_stale_reviews=$dsr on ${base:-main} — nothing enforces this at all."
     else
       echo "      (could not read branch protection; not claiming it is configured)"
     fi
@@ -158,7 +162,15 @@ if [ -n "$last_cr" ]; then
   # Third leg moved out of --ci for the same reason as the other two: a condition
   # that is TRANSIENT by construction cannot be a required check, because a check
   # run records a moment and a required check demands a steady state.
-  [ "$CI_MODE" -eq 1 ] && echo "      (transient in --ci; reviewDecision=CHANGES_REQUESTED blocks the merge)"
+  # Do not ASSERT which review state is blocking — it varies. At d1fcfbdd this
+  # PR read REVIEW_REQUIRED (approval count was the blocker) and minutes later
+  # CHANGES_REQUESTED (the CR was). Naming one of them in a comment made the
+  # justification wrong half the time even though the behaviour was safe. Ask.
+  # Raised by pr-daemon.
+  if [ "$CI_MODE" -eq 1 ]; then
+    rd=$(gh pr view "$PR" --repo "$REPO" --json reviewDecision -q '.reviewDecision' 2>/dev/null | tr -d ' \n')
+    echo "      (transient in --ci; GitHub reports reviewDecision=${rd:-<unreadable>})"
+  fi
   [ "$CI_MODE" -eq 1 ] || fail=1
 fi
 
