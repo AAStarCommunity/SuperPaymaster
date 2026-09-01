@@ -21,7 +21,22 @@
 # Exit 0 = safe to merge. Anything else = do not merge.
 # =============================================================================
 set -uo pipefail
-PR="${1:?usage: merge-preflight.sh <pr-number>}"
+# --ci downgrades the two conditions that are TRANSIENT during a PR's life:
+#   * no approval yet — every PR starts unapproved; review comes after CI
+#   * sibling checks still running — this job runs alongside them
+# In --ci mode those are reported and do not fail, so the job can reach green.
+# What still fails in BOTH modes is what is never transient: an approval that
+# names a DIFFERENT sha (the #408 shape) and a check that actually FAILED
+# (the #400/#405 shape).
+#
+# It also stops counting ITSELF. Run as a check-run, it is `in_progress`, so it
+# read its own name as a pending check and failed on it — and once red it read
+# its own failure as "a failing check" and stayed red. Verified on chain: on
+# cb0af21d, `preflight` was the ONLY failure among eleven runs.
+CI_MODE=0
+if [ "${1:-}" = "--ci" ]; then CI_MODE=1; shift; fi
+SELF_NAME="${SELF_NAME:-preflight}"
+PR="${1:?usage: merge-preflight.sh [--ci] <pr-number>}"
 REPO="${REPO:-AAStarCommunity/SuperPaymaster}"
 fail=0
 
@@ -69,7 +84,11 @@ c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
 print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")')
 
 if [ -z "$appr" ]; then
-  echo "FAIL  no APPROVED review found"; fail=1
+  if [ "$CI_MODE" -eq 1 ]; then
+    echo "INFO  no approval yet — transient, not failed in --ci"
+  else
+    echo "FAIL  no APPROVED review found"; fail=1
+  fi
 elif [ "$appr" != "$head" ]; then
   echo "FAIL  the approval names $appr, the branch is at $head"
   echo "      An approval is a statement about a SHA. Merging takes a branch."
@@ -89,15 +108,24 @@ api total '.total_count' "repos/$REPO/commits/$head/check-runs" \
 if [ "${total:-0}" -eq 0 ]; then
   echo "FAIL  no check runs for $head — 'all green' and 'never ran' are not the same reading"; fail=1
 else
-  api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join(", ")' \
+  api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-  api pend '[.check_runs[]|select(.status!="completed")|.name]|join(", ")' \
+  api pend '[.check_runs[]|select(.status!="completed")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-  [ -n "$bad" ]  && { echo "FAIL  failing checks: $bad"; fail=1; }
-  [ -n "$pend" ] && { echo "FAIL  still running: $pend"; fail=1; }
-  [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $total check runs, none failing or pending"
+  # Drop our own run from both lists before judging them.
+  bad=$(printf '%s\n' "$bad" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
+  pend=$(printf '%s\n' "$pend" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
+  [ -n "$bad" ] && { echo "FAIL  failing checks: $bad"; fail=1; }
+  if [ -n "$pend" ]; then
+    if [ "$CI_MODE" -eq 1 ]; then
+      echo "INFO  still running (transient, not failed in --ci): $pend"
+    else
+      echo "FAIL  still running: $pend"; fail=1
+    fi
+  fi
+  [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $total check runs, none failing or pending (excluding $SELF_NAME)"
 fi
 
 api st '.state' "repos/$REPO/commits/$head/status" \

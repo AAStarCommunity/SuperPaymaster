@@ -30,12 +30,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Its own checks are still running while it runs, so a red "still running"
-      # here is expected mid-CI and clears on the last push once everything
-      # settles. What it catches immediately and permanently is the approval
-      # naming a different SHA than the branch — the #408 shape.
+      # --ci, because a required check has to be able to go green. Without it
+      # this job can NEVER pass: a fresh PR has no approval yet, its sibling
+      # checks are still running while it runs, and it counted ITSELF — first as
+      # a pending check, then, once red, as a failing one. Verified on chain: on
+      # cb0af21d `preflight` was the ONLY failure among eleven runs, and its own
+      # log read `FAIL still running: ..., preflight, ...`.
+      #
+      # SELF_NAME must equal the check-run name GitHub gives this job, which is
+      # the JOB id (`preflight`), not the step name. Getting it wrong silently
+      # restores the self-reference — it would look configured and behave as it
+      # did before.
+      #
+      # --ci reports the two TRANSIENT conditions (no approval yet, siblings
+      # still running) without failing on them, and still fails on what is never
+      # transient: an approval naming a DIFFERENT sha (#408) and a check that
+      # actually failed (#400/#405). Re-approval re-runs this via
+      # pull_request_review, so the approval leg recovers without a push.
       - name: Approval names this SHA, and nothing is failing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-        run: ./scripts/merge-preflight.sh ${{ github.event.pull_request.number }}
+          SELF_NAME: preflight
+        run: ./scripts/merge-preflight.sh --ci ${{ github.event.pull_request.number }}
