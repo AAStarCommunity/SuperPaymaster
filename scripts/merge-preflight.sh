@@ -109,42 +109,35 @@ elif [ "$appr" != "$head" ]; then
   # moment the branch moves, which is the same property GitHub-side and without a
   # check run to re-run. Strict mode (no --ci) still fails here, so the pre-merge
   # command keeps the belt.
-  # Downgrading this in --ci is only sound if the guard it was MOVED to is
-  # actually on. Verify that instead of assuming it — relocating a guarantee and
-  # not checking the new home is the same mistake one level up. Found by Codex.
+  # This leg was MOVED to branch protection's dismiss_stale_reviews. Verify that
+  # where it CAN be verified, and say so plainly where it cannot — rather than
+  # inferring it from something that only correlates.
   #
-  # Branch protection is not readable with GITHUB_TOKEN (no `administration`
-  # scope in Actions), so check the OBSERVABLE consequence: with
-  # dismiss_stale_reviews on, a push retracts the newest review, which the API
-  # then reports as DISMISSED. So the NEWEST review being DISMISSED is the guard
-  # working.
-  #
-  # Not "any stale APPROVED exists" — measured, that is wrong: GitHub dismisses
-  # only the most recent approval, so #412 kept APPROVED rows at 29a9e4b7,
-  # e67b7c32 and 5a12a0a6 while 2831c1bb went DISMISSED. Older approvals linger
-  # under a working guard, so their presence proves nothing.
+  # Two inferences were tried and both are unsound. "Newest review is DISMISSED"
+  # breaks the moment a reviewer submits CHANGES_REQUESTED. "Any DISMISSED review
+  # exists" is worse: a human dismissing a review by hand produces an identical
+  # row (measured — both DISMISSED rows on this PR carry full ~3.8KB bodies, same
+  # as any review), and the row survives the setting being turned off afterwards.
+  # A historical event cannot evidence a current setting. Found by Codex.
   if [ "$CI_MODE" -eq 1 ]; then
-    # "Newest review is DISMISSED" was too narrow: a reviewer submitting
-    # CHANGES_REQUESTED makes the newest review something else without telling us
-    # anything about dismissal, so a normal review turned this red. What actually
-    # evidences the guard is that it has FIRED — any DISMISSED review on this PR.
-    # It only matters when the approval is stale, and by then the guard has had a
-    # push to act on.
-    newest=$(printf '%s' "$revs" | python3 -c '
-import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
-print("yes" if any(x["s"]=="DISMISSED" for x in r) else "no")')
-    if [ "$newest" = "yes" ]; then
-      echo "      (transient in --ci: this PR has a DISMISSED review, so"
-      echo "       dismiss_stale_reviews has demonstrably fired and enforces it)"
-    else
-      echo "      and NO review on this PR has ever been dismissed — so"
-      echo "      dismiss_stale_reviews has never retracted anything and nothing"
-      echo "      is demonstrably enforcing approval==head. Not downgrading."
-      fail=1
-    fi
+    # GITHUB_TOKEN has no `administration` scope, so a job cannot read branch
+    # protection. Do not manufacture a substitute: report the leg, name what is
+    # supposed to enforce it, and state that this run did NOT confirm it.
+    echo "      (not enforced by this job. dismiss_stale_reviews is supposed to"
+    echo "       enforce it; a GitHub Actions token cannot read branch protection,"
+    echo "       so THIS RUN HAS NOT CONFIRMED THAT. The strict pre-merge run does.)"
   else
     fail=1
+    # Strict mode runs with a token that can read it, so check the guarantee has
+    # a home instead of trusting that someone left it there.
+    if dsr=$(gh api "repos/$REPO/branches/main/protection" \
+               --jq '.required_pull_request_reviews.dismiss_stale_reviews' 2>/dev/null); then
+      [ "$dsr" = "true" ] \
+        && echo "      (dismiss_stale_reviews=true on main, so pushes retract approvals)" \
+        || echo "      AND dismiss_stale_reviews=$dsr on main — nothing enforces this at all."
+    else
+      echo "      (could not read branch protection; not claiming it is configured)"
+    fi
   fi
 else
   echo "OK    approved SHA == head"
