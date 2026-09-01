@@ -124,17 +124,23 @@ elif [ "$appr" != "$head" ]; then
   # e67b7c32 and 5a12a0a6 while 2831c1bb went DISMISSED. Older approvals linger
   # under a working guard, so their presence proves nothing.
   if [ "$CI_MODE" -eq 1 ]; then
+    # "Newest review is DISMISSED" was too narrow: a reviewer submitting
+    # CHANGES_REQUESTED makes the newest review something else without telling us
+    # anything about dismissal, so a normal review turned this red. What actually
+    # evidences the guard is that it has FIRED — any DISMISSED review on this PR.
+    # It only matters when the approval is stale, and by then the guard has had a
+    # push to act on.
     newest=$(printf '%s' "$revs" | python3 -c '
 import json,sys
 r=json.loads(sys.stdin.read().replace("][",","))
-print(sorted(r,key=lambda x:x["t"])[-1]["s"] if r else "")')
-    if [ "$newest" = "DISMISSED" ]; then
-      echo "      (transient in --ci: newest review is DISMISSED, so"
-      echo "       dismiss_stale_reviews is live and enforcing this)"
+print("yes" if any(x["s"]=="DISMISSED" for x in r) else "no")')
+    if [ "$newest" = "yes" ]; then
+      echo "      (transient in --ci: this PR has a DISMISSED review, so"
+      echo "       dismiss_stale_reviews has demonstrably fired and enforces it)"
     else
-      echo "      and the newest review is '$newest', not DISMISSED — so"
-      echo "      dismiss_stale_reviews is NOT retracting approvals and nothing"
-      echo "      is enforcing approval==head. Not downgrading."
+      echo "      and NO review on this PR has ever been dismissed — so"
+      echo "      dismiss_stale_reviews has never retracted anything and nothing"
+      echo "      is demonstrably enforcing approval==head. Not downgrading."
       fail=1
     fi
   else
@@ -144,7 +150,23 @@ else
   echo "OK    approved SHA == head"
 fi
 if [ -n "$last_cr" ]; then
-  echo "FAIL  a CHANGES_REQUESTED ($last_cr) is newer than the newest approval"; fail=1
+  echo "FAIL  a CHANGES_REQUESTED ($last_cr) is newer than the newest approval"
+  # Advisory in --ci, and this one is not a subtlety: requesting changes is NORMAL
+  # REVIEW, not a defect in the commit. Failing on it made a required check go red
+  # because someone reviewed the PR, and it STAYED red after the author pushed a
+  # fix, since re-approval necessarily comes later. A required check that reports
+  # "something is wrong with this commit" when what happened is "a human read it"
+  # trains people to ignore it. Found by Codex.
+  #
+  # GitHub already enforces this without a check run, verified rather than assumed:
+  # this PR reads reviewDecision=CHANGES_REQUESTED, mergeStateStatus=BLOCKED. So
+  # the property holds either way; only the reporting changes.
+  #
+  # Third leg moved out of --ci for the same reason as the other two: a condition
+  # that is TRANSIENT by construction cannot be a required check, because a check
+  # run records a moment and a required check demands a steady state.
+  [ "$CI_MODE" -eq 1 ] && echo "      (transient in --ci; reviewDecision=CHANGES_REQUESTED blocks the merge)"
+  [ "$CI_MODE" -eq 1 ] || fail=1
 fi
 
 # --- 2. no check-run and no commit STATUS may be failing ----------------------
@@ -257,6 +279,16 @@ elif [ -n "${pend:-}" ]; then
   echo "PREFLIGHT PASS (checks still running: ${pend}) — nothing has failed yet;"
   echo "                merge is gated by the required contexts, not by this line"
 else
-  echo "PREFLIGHT PASS — safe to merge $PR at $head"
+  if [ "$CI_MODE" -eq 1 ]; then
+    # In --ci this run has DOWNGRADED legs that GitHub enforces instead, so it
+    # cannot speak for mergeability — reviewDecision and the required contexts
+    # do. Saying "safe to merge" here would be the same over-claim the whole
+    # gate argues against, one line from the end.
+    echo "PREFLIGHT PASS — nothing this job can see has failed at $head"
+    echo "                (mergeability is decided by reviewDecision and the"
+    echo "                 required contexts, not by this line)"
+  else
+    echo "PREFLIGHT PASS — safe to merge $PR at $head"
+  fi
 fi
 exit "$fail"
