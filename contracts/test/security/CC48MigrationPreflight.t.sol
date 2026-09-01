@@ -39,7 +39,7 @@ contract ModernSurfaceStub {
     }
 
     function version() external pure returns (string memory) {
-        return "BLSAggregator-4.11.0";
+        return "BLSAggregator-4.12.0";
     }
 }
 

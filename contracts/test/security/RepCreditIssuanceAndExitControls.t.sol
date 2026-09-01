@@ -10,29 +10,53 @@ import "src/interfaces/v3/IMySBT.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 contract RepCreditMockSBT is IMySBT {
-    function mintForRole(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
-    function airdropMint(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
-    function getUserSBT(address) external pure returns (uint256) { return 1; }
+    function mintForRole(address, bytes32, bytes calldata) external pure returns (uint256, bool) {
+        return (1, true);
+    }
+
+    function airdropMint(address, bytes32, bytes calldata) external pure returns (uint256, bool) {
+        return (1, true);
+    }
+
+    function getUserSBT(address) external pure returns (uint256) {
+        return 1;
+    }
+
     function getSBTData(uint256) external pure returns (SBTData memory) {
         return SBTData(address(0), address(0), 0, 0);
     }
-    function verifyCommunityMembership(address, address) external pure returns (bool) { return true; }
+
+    function verifyCommunityMembership(address, address) external pure returns (bool) {
+        return true;
+    }
     function deactivateMembership(address, address) external pure {}
     function deactivateAllMemberships(address) external pure {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
-        external pure {}
+        external
+        pure {}
     function burnSBT(address) external pure {}
 }
 
 contract RepCreditMockBLS {
-    function defaultThreshold() external pure returns (uint256) { return 2; }
-    function verify(bytes32, uint256, uint256, bytes calldata) external pure returns (bool) { return true; }
+    function defaultThreshold() external pure returns (uint256) {
+        return 2;
+    }
+
+    function verify(bytes32, uint256, uint256, bytes calldata) external pure returns (bool) {
+        return true;
+    }
 }
 
 contract RepCreditMockFraudVerifier {
     bool public valid = true;
-    function setValid(bool value) external { valid = value; }
-    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return valid; }
+
+    function setValid(bool value) external {
+        valid = value;
+    }
+
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) {
+        return valid;
+    }
 }
 
 contract AggregateUpliftCapTest is Test {
@@ -133,6 +157,16 @@ contract AggregateUpliftCapTest is Test {
 }
 
 contract PendingGuardianExitFreezeTest is Test {
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
+    ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
+    ///      guardian below minStake and out of the very quorum the slash path protects.
+    ///      It now takes guardianSlashBps of what is there. Read through the getter so
+    ///      these assertions track the configured fraction instead of pinning today's
+    ///      default.
+    function _afterOneGuardianSlash(uint256 lock) internal view returns (uint256) {
+        return lock - (lock * uint256(bls.guardianSlashBps())) / 10000;
+    }
+
     Registry registry;
     GTokenStaking staking;
     GToken gtoken;
@@ -193,7 +227,7 @@ contract PendingGuardianExitFreezeTest is Test {
 
         bls.executeGuardianSlash(1, guardians, hex"01");
         assertEq(bls.pendingGuardianSlashCount(guardian), 0);
-        assertEq(staking.getLockedStake(guardian, ROLE_DVT), 0, "full DVT lock slashed");
+        assertEq(staking.getLockedStake(guardian, ROLE_DVT), _afterOneGuardianSlash(30 ether), "full DVT lock slashed");
         vm.prank(guardian);
         registry.exitRole(ROLE_DVT);
         assertFalse(registry.hasRole(ROLE_DVT, guardian));

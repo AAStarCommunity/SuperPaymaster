@@ -25,29 +25,53 @@ import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 ///             kill a queued case.
 
 contract CC48MockSBT is IMySBT {
-    function mintForRole(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
-    function airdropMint(address, bytes32, bytes calldata) external pure returns (uint256, bool) { return (1, true); }
-    function getUserSBT(address) external pure returns (uint256) { return 1; }
+    function mintForRole(address, bytes32, bytes calldata) external pure returns (uint256, bool) {
+        return (1, true);
+    }
+
+    function airdropMint(address, bytes32, bytes calldata) external pure returns (uint256, bool) {
+        return (1, true);
+    }
+
+    function getUserSBT(address) external pure returns (uint256) {
+        return 1;
+    }
+
     function getSBTData(uint256) external pure returns (SBTData memory) {
         return SBTData(address(0), address(0), 0, 0);
     }
-    function verifyCommunityMembership(address, address) external pure returns (bool) { return true; }
+
+    function verifyCommunityMembership(address, address) external pure returns (bool) {
+        return true;
+    }
     function deactivateMembership(address, address) external pure {}
     function deactivateAllMemberships(address) external pure {}
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
-        external pure {}
+        external
+        pure {}
     function burnSBT(address) external pure {}
 }
 
 contract CC48MockBLS {
-    function defaultThreshold() external pure returns (uint256) { return 2; }
-    function verify(bytes32, uint256, uint256, bytes calldata) external pure returns (bool) { return true; }
+    function defaultThreshold() external pure returns (uint256) {
+        return 2;
+    }
+
+    function verify(bytes32, uint256, uint256, bytes calldata) external pure returns (bool) {
+        return true;
+    }
 }
 
 contract CC48MockFraudVerifier {
     bool public valid = true;
-    function setValid(bool value) external { valid = value; }
-    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return valid; }
+
+    function setValid(bool value) external {
+        valid = value;
+    }
+
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) {
+        return valid;
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -74,6 +98,7 @@ contract CC48AlwaysFalseVerifierImpl {
 
 contract CC48RevertingVerifierImpl {
     error VerifierIsDown();
+
     function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
         revert VerifierIsDown();
     }
@@ -153,9 +178,7 @@ contract CC48TotalCreditExposureTest is Test {
         assertEq(registry.totalCreditExposure(), 1200 ether);
 
         vm.prank(source);
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1800 ether, 1200 ether)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1800 ether, 1200 ether));
         address[] memory users = new address[](1);
         uint256[] memory scores = new uint256[](1);
         users[0] = _user(3);
@@ -178,9 +201,7 @@ contract CC48TotalCreditExposureTest is Test {
         vm.roll(block.number + 1_000_000);
 
         vm.prank(source);
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 600 ether)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 600 ether));
         address[] memory users = new address[](1);
         uint256[] memory scores = new uint256[](1);
         users[0] = _user(2);
@@ -209,8 +230,10 @@ contract CC48TotalCreditExposureTest is Test {
 
         address[] memory users = new address[](2);
         uint256[] memory scores = new uint256[](2);
-        users[0] = _user(1); scores[0] = 0;   // -600
-        users[1] = _user(2); scores[1] = 100; // +600
+        users[0] = _user(1); // -600
+        scores[0] = 0;
+        users[1] = _user(2); // +600
+        scores[1] = 100;
         vm.prank(source);
         registry.batchUpdateGlobalReputation(2, users, scores, 2, _proof());
 
@@ -228,15 +251,11 @@ contract CC48TotalCreditExposureTest is Test {
         registry.setCreditPolicy(type(uint256).max, 600 ether);
         _submit(1, _user(1), 100, 1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 600 ether, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 600 ether, 0));
         registry.setCreditPolicy(type(uint256).max, 0);
 
         vm.prank(source);
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 600 ether)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, 1200 ether, 600 ether));
         address[] memory users = new address[](1);
         uint256[] memory scores = new uint256[](1);
         users[0] = _user(2);
@@ -598,7 +617,7 @@ contract CC48ExitNoticeTest is Test {
         vm.prank(owner);
         bls.proposeFraudProofVerifier(address(evil));
 
-        (,, uint64 caseDeadline,,,,) = bls.guardianSlashCases(7);
+        (,, uint64 caseDeadline,,,,,) = bls.guardianSlashCases(7);
         assertEq(uint256(caseDeadline), queuedAt + bls.GUARDIAN_SLASH_CASE_WINDOW());
         assertGe(
             uint256(bls.pendingFraudProofVerifierReadyAt()),
@@ -629,6 +648,16 @@ contract CC48ExitNoticeTest is Test {
 // =====================================================================
 
 contract CC48GuardianSlashRetryTest is Test {
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
+    ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
+    ///      guardian below minStake and out of the very quorum the slash path protects.
+    ///      It now takes guardianSlashBps of what is there. Read through the getter so
+    ///      these assertions track the configured fraction instead of pinning today's
+    ///      default.
+    function _afterOneGuardianSlash(uint256 lock) internal view returns (uint256) {
+        return lock - (lock * uint256(bls.guardianSlashBps())) / 10000;
+    }
+
     Registry registry;
     GTokenStaking staking;
     GToken gtoken;
@@ -697,13 +726,13 @@ contract CC48GuardianSlashRetryTest is Test {
         emit BLSAggregator.GuardianSlashFailed(1, g2);
         bls.executeGuardianSlash(1, accused, hex"01");
 
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "healthy guardian was slashed");
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "healthy guardian was slashed");
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "healthy guardian released");
         assertEq(bls.pendingGuardianSlashCount(g2), 1, "failing guardian still frozen");
         assertTrue(bls.guardianSlashed(1, g1));
         assertFalse(bls.guardianSlashed(1, g2));
 
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(1);
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case stays pending, not silently executed");
         assertEq(resolved, 1);
 
@@ -717,8 +746,8 @@ contract CC48GuardianSlashRetryTest is Test {
         vm.clearMockedCalls();
         bls.executeGuardianSlash(1, accused, hex"01");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
-        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0);
-        (,,, status,, resolved,) = bls.guardianSlashCases(1);
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether));
+        (,,, status,, resolved,,) = bls.guardianSlashCases(1);
         assertEq(status, 2, "case resolved once every guardian settled");
         assertEq(resolved, 2);
     }
@@ -765,7 +794,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.requestGuardianExit();
         bls.queueGuardianSlash(3, accused, hex"03");
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(3);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(3);
         (, uint64 expiresAt) = bls.guardianExitRequests(g1);
         // NOTE: read these into memory BEFORE any vm.warp — via-IR happily CSEs
         // block.timestamp across a cheatcode it cannot see.
@@ -784,9 +813,7 @@ contract CC48GuardianSlashRetryTest is Test {
         vm.warp(caseDeadline + 1);
         bls.expireGuardianSlashCase(3, accused);
         vm.prank(g1);
-        vm.expectRevert(
-            abi.encodeWithSelector(BLSAggregator.GuardianExitRequestExpired.selector, g1, noticeExpiry)
-        );
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitRequestExpired.selector, g1, noticeExpiry));
         registry.exitRole(ROLE_DVT);
     }
 
@@ -807,7 +834,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
         assertFalse(bls.guardianSlashed(4, g1), "nothing was taken from g1");
         assertTrue(bls.guardianSlashed(4, g2), "g2 was still slashed under the same proof");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(4);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(4);
         assertEq(status, 2);
     }
 
@@ -857,7 +884,7 @@ contract CC48GuardianSlashRetryTest is Test {
         address[] memory accused = new address[](1);
         accused[0] = g1;
         bls.queueGuardianSlash(10, accused, hex"10");
-        (,,,,,, address pinned) = bls.guardianSlashCases(10);
+        (,,,,,,, address pinned) = bls.guardianSlashCases(10);
         assertEq(pinned, address(verifier), "case pinned the verifier that authorized it");
 
         // One block later: fire the pre-armed rotation. Permissionless, and legitimate
@@ -867,8 +894,12 @@ contract CC48GuardianSlashRetryTest is Test {
 
         // Pre-fix this reverted InvalidFraudProof and kept doing so until expiry.
         bls.executeGuardianSlash(10, accused, hex"10");
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "the colluder was slashed under the pinned verifier");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(10);
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT),
+            _afterOneGuardianSlash(30 ether),
+            "the colluder was slashed under the pinned verifier"
+        );
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(10);
         assertEq(status, 2, "case resolved");
     }
 
@@ -900,12 +931,12 @@ contract CC48GuardianSlashRetryTest is Test {
         // The case deadline has NOT passed (window > rotation delay is not assumed;
         // assert it, because the retry has to be reachable for this test to mean
         // anything).
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(11);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(11);
         assertLe(block.timestamp, uint256(deadline), "retry window still open");
 
         bls.executeGuardianSlash(11, accused, hex"11");
         assertEq(bls.pendingGuardianSlashCount(g2), 0, "retry settled g2 under the pinned verifier");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(11);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(11);
         assertEq(status, 2);
     }
 
@@ -922,19 +953,17 @@ contract CC48GuardianSlashRetryTest is Test {
         vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
         bls.applyFraudProofVerifier();
 
-        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(12);
+        (,, uint64 rawDeadline,,,,,) = bls.guardianSlashCases(12);
         uint256 caseDeadline = uint256(rawDeadline);
         vm.warp(caseDeadline + 1);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(12), caseDeadline
-            )
+            abi.encodeWithSelector(BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(12), caseDeadline)
         );
         bls.executeGuardianSlash(12, accused, hex"12");
 
         bls.expireGuardianSlashCase(12, accused);
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry releases the freeze");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(12);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(12);
         assertEq(status, 3);
     }
 
@@ -958,14 +987,18 @@ contract CC48GuardianSlashRetryTest is Test {
 
         next.setValid(true);
         bls.queueGuardianSlash(13, accused, hex"13");
-        (,,,,,, address recorded) = bls.guardianSlashCases(13);
+        (,,,,,,, address recorded) = bls.guardianSlashCases(13);
         assertEq(recorded, address(next), "the case records the verifier that approved it");
 
         // ...and now that the verdict is frozen, the same verifier flipping to reject is
         // simply not consulted.
         next.setValid(false);
         bls.executeGuardianSlash(13, accused, hex"13");
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "frozen verdict survives the verifier's change of mind");
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT),
+            _afterOneGuardianSlash(30 ether),
+            "frozen verdict survives the verifier's change of mind"
+        );
     }
 
     /// A verifier that selfdestructs / is wiped must NOT be able to strand a queued case.
@@ -981,9 +1014,11 @@ contract CC48GuardianSlashRetryTest is Test {
         assertEq(address(verifier).code.length, 0, "verifier really is gone");
 
         bls.executeGuardianSlash(14, accused, hex"14");
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "slash lands without the verifier");
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "slash lands without the verifier"
+        );
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "freeze released by execution, not by expiry");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(14);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(14);
         assertEq(status, 2, "case resolved");
     }
 
@@ -1049,8 +1084,7 @@ contract CC48GuardianSlashRetryTest is Test {
             fail();
         } catch (bytes memory err) {
             assertTrue(
-                err.length < 4
-                    || bytes4(err) != BLSAggregator.VerifierIsDelegatedEoa.selector,
+                err.length < 4 || bytes4(err) != BLSAggregator.VerifierIsDelegatedEoa.selector,
                 "a 23-byte contract must not be classified as a 7702 delegation"
             );
         }
@@ -1087,6 +1121,16 @@ contract CC48GuardianSlashRetryTest is Test {
 /// with the guardian set, and execute/retry only re-check those two — no verifier call at
 /// all. Every test below asserts a property of that rule, not of a mock's flag.
 contract CC48MutableProxyVerifierTest is Test {
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
+    ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
+    ///      guardian below minStake and out of the very quorum the slash path protects.
+    ///      It now takes guardianSlashBps of what is there. Read through the getter so
+    ///      these assertions track the configured fraction instead of pinning today's
+    ///      default.
+    function _afterOneGuardianSlash(uint256 lock) internal view returns (uint256) {
+        return lock - (lock * uint256(bls.guardianSlashBps())) / 10000;
+    }
+
     Registry registry;
     GTokenStaking staking;
     GToken gtoken;
@@ -1177,23 +1221,23 @@ contract CC48MutableProxyVerifierTest is Test {
     function test_QueuedCaseSurvivesAnImplementationSwapAtTheSameAddress() public {
         address[] memory accused = _one(g1);
         bls.queueGuardianSlash(20, accused, PROOF);
-        (, bytes32 frozenProofHash,,,,, address recorded) = bls.guardianSlashCases(20);
+        (, bytes32 frozenProofHash,,,,,, address recorded) = bls.guardianSlashCases(20);
         assertEq(frozenProofHash, keccak256(PROOF), "verdict frozen as the proof hash");
         assertEq(recorded, address(proxy), "verifier recorded for audit");
 
         // The attack: same address, same codehash, opposite answer.
         proxy.upgradeTo(alwaysFalse);
         assertFalse(
-            IFraudProofVerifier(address(proxy)).verify(
-                bls.fraudProofDigest(20, accused), 20, accused, PROOF
-            ),
+            IFraudProofVerifier(address(proxy)).verify(bls.fraudProofDigest(20, accused), 20, accused, PROOF),
             "the live verifier now rejects the very proof it approved"
         );
 
         bls.executeGuardianSlash(20, accused, PROOF);
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "the colluder was slashed anyway");
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "the colluder was slashed anyway"
+        );
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
-        (,,, uint8 status,,,) = bls.guardianSlashCases(20);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(20);
         assertEq(status, 2, "case resolved");
     }
 
@@ -1205,10 +1249,7 @@ contract CC48MutableProxyVerifierTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                BLSAggregator.FraudProofMismatch.selector,
-                uint256(21),
-                keccak256(PROOF),
-                keccak256(OTHER_PROOF)
+                BLSAggregator.FraudProofMismatch.selector, uint256(21), keccak256(PROOF), keccak256(OTHER_PROOF)
             )
         );
         bls.executeGuardianSlash(21, accused, OTHER_PROOF);
@@ -1223,7 +1264,7 @@ contract CC48MutableProxyVerifierTest is Test {
 
         assertEq(bls.pendingGuardianSlashCount(g1), 1, "case untouched by the failed attempts");
         bls.executeGuardianSlash(21, accused, PROOF);
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether));
     }
 
     /// A substituted proof must be refused even when the CURRENT implementation would
@@ -1235,17 +1276,12 @@ contract CC48MutableProxyVerifierTest is Test {
 
         // Live verifier still says yes to anything, including OTHER_PROOF.
         assertTrue(
-            IFraudProofVerifier(address(proxy)).verify(
-                bls.fraudProofDigest(22, accused), 22, accused, OTHER_PROOF
-            )
+            IFraudProofVerifier(address(proxy)).verify(bls.fraudProofDigest(22, accused), 22, accused, OTHER_PROOF)
         );
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                BLSAggregator.FraudProofMismatch.selector,
-                uint256(22),
-                keccak256(PROOF),
-                keccak256(OTHER_PROOF)
+                BLSAggregator.FraudProofMismatch.selector, uint256(22), keccak256(PROOF), keccak256(OTHER_PROOF)
             )
         );
         bls.executeGuardianSlash(22, accused, OTHER_PROOF);
@@ -1264,20 +1300,20 @@ contract CC48MutableProxyVerifierTest is Test {
             "staking down"
         );
         bls.executeGuardianSlash(23, accused, PROOF);
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "g1 banked");
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "g1 banked");
         assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen and retryable");
         vm.clearMockedCalls();
 
         // Swap the implementation mid-case, then retry.
         proxy.upgradeTo(alwaysFalse);
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(23);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(23);
         assertLe(block.timestamp, uint256(deadline), "retry window still open");
 
         bls.executeGuardianSlash(23, accused, PROOF);
-        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0, "g2 settled after the upgrade");
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether), "g2 settled after the upgrade");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
-        (,,, uint8 status,,,) = bls.guardianSlashCases(23);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(23);
         assertEq(status, 2);
 
         // ...and the retry path is equally strict about the proof. (Opening a fresh case
@@ -1288,10 +1324,7 @@ contract CC48MutableProxyVerifierTest is Test {
         proxy.upgradeTo(alwaysFalse);
         vm.expectRevert(
             abi.encodeWithSelector(
-                BLSAggregator.FraudProofMismatch.selector,
-                uint256(24),
-                keccak256(PROOF),
-                keccak256(OTHER_PROOF)
+                BLSAggregator.FraudProofMismatch.selector, uint256(24), keccak256(PROOF), keccak256(OTHER_PROOF)
             )
         );
         bls.executeGuardianSlash(24, _one(g1), OTHER_PROOF);
@@ -1312,7 +1345,11 @@ contract CC48MutableProxyVerifierTest is Test {
         IFraudProofVerifier(address(proxy)).verify(digest, 25, accused, PROOF);
 
         bls.executeGuardianSlash(25, accused, PROOF);
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "outage cannot veto a frozen verdict");
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT),
+            _afterOneGuardianSlash(30 ether),
+            "outage cannot veto a frozen verdict"
+        );
     }
 
     /// Freezing the verdict must not make a case immortal: expiry is unchanged, still
@@ -1322,21 +1359,19 @@ contract CC48MutableProxyVerifierTest is Test {
         bls.queueGuardianSlash(26, accused, PROOF);
         proxy.upgradeTo(alwaysFalse);
 
-        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(26);
+        (,, uint64 rawDeadline,,,,,) = bls.guardianSlashCases(26);
         uint256 caseDeadline = uint256(rawDeadline);
         vm.warp(caseDeadline + 1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(26), caseDeadline
-            )
+            abi.encodeWithSelector(BLSAggregator.GuardianSlashCaseExpiredError.selector, uint256(26), caseDeadline)
         );
         bls.executeGuardianSlash(26, accused, PROOF);
 
         bls.expireGuardianSlashCase(26, accused);
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry still releases the freeze");
         assertEq(staking.getLockedStake(g1, ROLE_DVT), 30 ether, "and nothing was slashed");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(26);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(26);
         assertEq(status, 3);
     }
 
@@ -1352,11 +1387,11 @@ contract CC48MutableProxyVerifierTest is Test {
         bls.applyFraudProofVerifier();
         assertEq(bls.fraudProofVerifier(), address(evil));
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(27);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(27);
         assertLe(block.timestamp, uint256(deadline), "case still open");
 
         bls.executeGuardianSlash(27, accused, PROOF);
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0);
+        assertEq(staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether));
     }
 
     /// The guardian-set half of the frozen verdict is still enforced independently: a
@@ -1383,7 +1418,7 @@ contract CC48MutableProxyVerifierTest is Test {
 
         proxy.upgradeTo(alwaysTrue);
         bls.queueGuardianSlash(29, _one(g1), PROOF);
-        (, bytes32 frozen,,,,,) = bls.guardianSlashCases(29);
+        (, bytes32 frozen,,,,,,) = bls.guardianSlashCases(29);
         assertEq(frozen, keccak256(PROOF));
     }
 }
@@ -1406,6 +1441,16 @@ contract CC48MutableProxyVerifierTest is Test {
 ///         verdict, so the owner cannot use "emergency" as a way to rescue an accused
 ///         colluder.
 contract CC48VerifierDisarmTest is Test {
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
+    ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
+    ///      guardian below minStake and out of the very quorum the slash path protects.
+    ///      It now takes guardianSlashBps of what is there. Read through the getter so
+    ///      these assertions track the configured fraction instead of pinning today's
+    ///      default.
+    function _afterOneGuardianSlash(uint256 lock) internal view returns (uint256) {
+        return lock - (lock * uint256(bls.guardianSlashBps())) / 10000;
+    }
+
     Registry registry;
     GTokenStaking staking;
     GToken gtoken;
@@ -1530,9 +1575,11 @@ contract CC48VerifierDisarmTest is Test {
 
         bls.executeGuardianSlash(9, accused, hex"09");
 
-        assertEq(staking.getLockedStake(g1, ROLE_DVT), 0, "frozen verdict still executed");
-        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0);
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(9);
+        assertEq(
+            staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "frozen verdict still executed"
+        );
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether));
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(9);
         assertEq(status, 2, "case resolved");
         assertEq(resolved, 2);
     }
@@ -1557,7 +1604,7 @@ contract CC48VerifierDisarmTest is Test {
         bls.executeGuardianSlash(11, accused, hex"11");
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "g1 settled");
         assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen mid-case");
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(11);
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(11);
         assertEq(status, 1, "case still pending");
         assertEq(resolved, 1);
 
@@ -1572,10 +1619,10 @@ contract CC48VerifierDisarmTest is Test {
         bls.executeGuardianSlash(11, accused, hex"11");
 
         assertEq(bls.pendingGuardianSlashCount(g2), 0, "g2 settled by the retry");
-        assertEq(staking.getLockedStake(g2, ROLE_DVT), 0, "g2 actually slashed");
+        assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether), "g2 actually slashed");
         assertTrue(bls.guardianSlashed(11, g1));
         assertTrue(bls.guardianSlashed(11, g2));
-        (,,, status,, resolved,) = bls.guardianSlashCases(11);
+        (,,, status,, resolved,,) = bls.guardianSlashCases(11);
         assertEq(status, 2, "case resolved after the disarm");
         assertEq(resolved, 2, "g1 not double-counted on the retry");
 
@@ -1589,11 +1636,11 @@ contract CC48VerifierDisarmTest is Test {
     function test_DisarmDoesNotChangeAQueuedCaseDeadline() public {
         address[] memory accused = _both();
         bls.queueGuardianSlash(10, accused, hex"10");
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(10);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(10);
         uint256 caseDeadline = uint256(deadline);
 
         bls.emergencyDisarmFraudProofVerifier();
-        (,, uint64 after_,,,,) = bls.guardianSlashCases(10);
+        (,, uint64 after_,,,,,) = bls.guardianSlashCases(10);
         assertEq(uint256(after_), caseDeadline, "deadline untouched");
 
         vm.warp(caseDeadline + 1);
@@ -1651,10 +1698,18 @@ contract CC48VerifierDisarmTest is Test {
 
 contract CC48StakingStub {
     mapping(address => uint128) public lockedAmount;
-    function setLocked(address user, uint128 amount) external { lockedAmount[user] = amount; }
+
+    function setLocked(address user, uint128 amount) external {
+        lockedAmount[user] = amount;
+    }
+
     function roleLocks(address user, bytes32 roleId)
-        external view returns (uint128, uint128, uint48, bytes32, bytes memory)
-    { return (lockedAmount[user], 0, 0, roleId, ""); }
+        external
+        view
+        returns (uint128, uint128, uint48, bytes32, bytes memory)
+    {
+        return (lockedAmount[user], 0, 0, roleId, "");
+    }
 }
 
 contract CC48LivenessRegistryStub is IRegistry {
@@ -1662,28 +1717,63 @@ contract CC48LivenessRegistryStub is IRegistry {
     mapping(address => bool) public dvtRoleHolders;
     uint256 public minStake = 100;
 
-    function setStakingAddr(address s) external { stakingAddr = s; }
-    function setHasDvtRole(address v, bool has_) external { dvtRoleHolders[v] = has_; }
-    function GTOKEN_STAKING() external view returns (IGTokenStaking) { return IGTokenStaking(stakingAddr); }
-    function hasRole(bytes32, address user) external view override returns (bool) { return dvtRoleHolders[user]; }
+    function setStakingAddr(address s) external {
+        stakingAddr = s;
+    }
+
+    function setHasDvtRole(address v, bool has_) external {
+        dvtRoleHolders[v] = has_;
+    }
+
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return IGTokenStaking(stakingAddr);
+    }
+
+    function hasRole(bytes32, address user) external view override returns (bool) {
+        return dvtRoleHolders[user];
+    }
+
     function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
         return RoleConfig(minStake, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
     }
     function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
-        external override {}
+        external
+        override
+    {}
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
     function setCreditTier(uint256, uint256) external override {}
-    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
-    function isReputationSource(address) external pure override returns (bool) { return true; }
+
+    function getCreditLimit(address) external view override returns (uint256) {
+        return 100 ether;
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "CC48LivenessRegistryStub"; }
+
+    function version() external view override returns (string memory) {
+        return "CC48LivenessRegistryStub";
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
-    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 }

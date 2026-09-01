@@ -13,8 +13,15 @@ import "src/tokens/GToken.sol";
 contract MiniRegistry {
     address public staking;
     mapping(address => uint256) public pending;
-    function setStaking(address s) external { staking = s; }
-    function GTOKEN_STAKING() external view returns (address) { return staking; }
+
+    function setStaking(address s) external {
+        staking = s;
+    }
+
+    function GTOKEN_STAKING() external view returns (address) {
+        return staking;
+    }
+
     function setGuardianSlashPending(address guardian, bool value) external {
         if (value) pending[guardian]++;
         else pending[guardian]--;
@@ -24,7 +31,9 @@ contract MiniRegistry {
 }
 
 contract IntgVerifier {
-    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) { return true; }
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external pure returns (bool) {
+        return true;
+    }
 }
 
 /// @title  executeGuardianSlash — REAL GTokenStaking integration (pr-daemon §三)
@@ -87,13 +96,20 @@ contract GuardianSlashIntegrationTest is Test {
         assertFalse(bls.guardianSlashed(1, guardian));
         assertFalse(bls.guardianCaseResolved(1, guardian), "not settled");
         assertEq(bls.pendingGuardianSlashCount(guardian), 1, "still frozen");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(1);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case still pending, not burned");
 
         // Governance fixes the authorization; the same case now executes.
         staking.setAuthorizedSlasher(address(bls), true);
         bls.executeGuardianSlash(1, _one(guardian), "");
-        assertEq(_lockedDvt(guardian), 0, "retry slashed the real lock");
+        // 30% of what was left, not all of it. This assertion read `== 0` until
+        // `guardianSlashBps` landed: the path used to hand slashByDVT the entire remaining
+        // lock, so it could not express a partial slash at all.
+        assertEq(
+            _lockedDvt(guardian),
+            30 ether - (30 ether * uint256(bls.guardianSlashBps())) / 10000,
+            "retry slashed the real lock, by guardianSlashBps"
+        );
         assertEq(bls.pendingGuardianSlashCount(guardian), 0);
     }
 
@@ -103,7 +119,11 @@ contract GuardianSlashIntegrationTest is Test {
         assertEq(_lockedDvt(guardian), 30 ether);
         bls.queueGuardianSlash(1, _one(guardian), "");
         bls.executeGuardianSlash(1, _one(guardian), "");
-        assertEq(_lockedDvt(guardian), 0, "real ROLE_DVT lock zeroed");
+        assertEq(
+            _lockedDvt(guardian),
+            30 ether - (30 ether * uint256(bls.guardianSlashBps())) / 10000,
+            "real ROLE_DVT lock cut by guardianSlashBps (was: zeroed)"
+        );
         assertTrue(bls.guardianSlashed(1, guardian));
     }
 
