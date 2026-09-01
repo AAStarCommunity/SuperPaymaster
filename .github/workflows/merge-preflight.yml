@@ -37,10 +37,12 @@ jobs:
       # cb0af21d `preflight` was the ONLY failure among eleven runs, and its own
       # log read `FAIL still running: ..., preflight, ...`.
       #
-      # SELF_NAME must equal the check-run name GitHub gives this job, which is
-      # the JOB id (`preflight`), not the step name. Getting it wrong silently
-      # restores the self-reference — it would look configured and behave as it
-      # did before.
+      # No SELF_NAME here on purpose. The run DERIVES its own check-run name from
+      # GITHUB_RUN_ID (a check run's details_url is .../runs/<id>/job/<id>), so
+      # renaming the job or adding a `name:` cannot desynchronise it. An earlier
+      # version passed the name in and asserted it existed — which proves a run
+      # by that name exists, not that it is this one. This head carried TWO runs
+      # named `preflight`.
       #
       # --ci reports the two TRANSIENT conditions (no approval yet, siblings
       # still running) without failing on them, and still fails on what is never
@@ -51,5 +53,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          SELF_NAME: preflight
         run: ./scripts/merge-preflight.sh --ci ${{ github.event.pull_request.number }}

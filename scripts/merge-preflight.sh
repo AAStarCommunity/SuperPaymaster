@@ -119,24 +119,44 @@ else
   api pend '[.check_runs[]|select(.status!="completed")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-  # In CI, this run MUST be among the check-run names, because it IS one. If it
-  # is not, SELF_NAME does not match the check-run GitHub created — someone added
-  # a `name:` to the job, or renamed it — and every exclusion below silently
-  # stops excluding anything. That is the self-reference coming back looking
-  # configured. Fail loudly instead.
-  if [ "$CI_MODE" -eq 1 ]; then
+  # Identify THIS run, do not merely look for its name. The previous version
+  # asserted that SELF_NAME appeared among the head's check-run names — which
+  # proves a run with that name exists, not that it is mine. This head carried
+  # TWO check runs named `preflight` from two pushes, so presence was already
+  # satisfiable by something other than the current job. Found by Codex.
+  #
+  # A check run's `details_url` is .../actions/runs/<GITHUB_RUN_ID>/job/<id>, so
+  # in Actions the name can be DERIVED from the run id rather than configured.
+  # Deriving it removes the misconfiguration instead of shouting about it: rename
+  # the job, add a `name:`, and this still resolves to whatever GitHub actually
+  # called it.
+  if [ "$CI_MODE" -eq 1 ] && [ -n "${GITHUB_RUN_ID:-}" ]; then
+    api mine "[.check_runs[]|select(.details_url|test(\"/runs/${GITHUB_RUN_ID}/\"))|.name]|join(\"\\n\")" \
+        "repos/$REPO/commits/$head/check-runs" --paginate \
+        || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+    if [ -z "$mine" ]; then
+      echo "FAIL  no check run on $head belongs to GITHUB_RUN_ID=$GITHUB_RUN_ID."
+      echo "      Cannot identify this job's own check run, so it cannot exclude"
+      echo "      itself, so every judgement below would be self-poisoned."
+      fail=1
+    else
+      SELF_NAME="$mine"
+      echo "OK    self identified from GITHUB_RUN_ID=$GITHUB_RUN_ID -> '$SELF_NAME'"
+    fi
+  elif [ "$CI_MODE" -eq 1 ]; then
+    # Outside Actions there is no run id to key on. Fall back to the name, and
+    # say plainly that this is the weaker check — it establishes that A run by
+    # that name exists, not that it is this one.
     api names '[.check_runs[].name]|join("\n")' \
         "repos/$REPO/commits/$head/check-runs" --paginate \
         || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
     if ! printf '%s\n' "$names" | grep -qxF "$SELF_NAME"; then
       echo "FAIL  SELF_NAME='$SELF_NAME' is not among this commit's check runs."
-      echo "      It must equal the check-run name GitHub gives this job (the job"
-      echo "      id, unless the job sets \`name:\`). A mismatch silently restores"
-      echo "      the self-reference this flag exists to prevent."
       echo "      check runs here: $(printf '%s' "$names" | paste -sd, -)"
       fail=1
     else
-      echo "OK    SELF_NAME='$SELF_NAME' matches a real check run"
+      echo "INFO  no GITHUB_RUN_ID; matched SELF_NAME='$SELF_NAME' by NAME only"
+      echo "      (weaker: proves a run by that name exists, not that it is this one)"
     fi
   fi
 
