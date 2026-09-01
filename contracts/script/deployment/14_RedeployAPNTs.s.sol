@@ -110,18 +110,31 @@ contract RedeployAPNTs is Script {
         console.log("communityOwner:", xPNTsToken(token).communityOwner());
         console.log("aPNTs (old)  :", OLD_APNTS, "-- leave in place, do not migrate supply here");
         console.log("");
+        console.log("VERIFY ON CHAIN AFTER THE BROADCAST - the requires above ran in the");
+        console.log("simulation, not against the chain. This deploy is four separate");
+        console.log("transactions; if the two ownership transfers fail or are dropped after");
+        console.log("the first two land, an EOA owns a live token and nothing re-checks.");
+        console.log("  APNTS=<above> FACTORY=<above> forge script \\");
+        console.log("    contracts/script/deployment/15_VerifyAPNTs.s.sol:VerifyAPNTs \\");
+        console.log("    --rpc-url https://mainnet.optimism.io");
+        console.log("");
         console.log("NEXT, not done by this script:");
         console.log("  1. config.optimism.json: aPNTs + xPNTsFactory -> the addresses above");
         console.log("  2. tell repo:airaccount the new address (they are blocked on it)");
         console.log("  3. the 140,000 old-token supply is NOT carried over; decide on");
         console.log("     migration separately, from the Safe");
-        console.log("  4. the factory is Safe-owned from here: aPNTsPriceUSD,");
+        console.log("  4. factory.communityToToken is keyed on the DEPLOYER EOA, not the");
+        console.log("     Safe, so the one-token-per-community guard does not bind the");
+        console.log("     entity that now owns the factory. Read only inside the factory;");
+        console.log("     no other contract decides on it. Low, but do not be surprised");
+        console.log("     when hasToken(SAFE) reads false");
+        console.log("  5. the factory is Safe-owned from here: aPNTsPriceUSD,");
         console.log("     industryScaleUSD, capRatioBps and setTokenCategory all need a");
         console.log("     Safe tx. The 'default' category is seeded at $10,000 in the");
         console.log("     constructor, so the token is auditable with no further setup");
-        console.log("  5. Safe calls setIssuanceCap(...): the cap is UNSET until it does,");
+        console.log("  6. Safe calls setIssuanceCap(...): the cap is UNSET until it does,");
         console.log("     and it is a view for DVT, never a mint gate");
-        console.log("  6. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
+        console.log("  7. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
         console.log("     and addAutoApprovedSpender");
     }
 }
