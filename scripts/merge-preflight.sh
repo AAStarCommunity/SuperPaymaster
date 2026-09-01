@@ -97,7 +97,20 @@ if [ -z "$appr" ]; then
 elif [ "$appr" != "$head" ]; then
   echo "FAIL  the approval names $appr, the branch is at $head"
   echo "      An approval is a statement about a SHA. Merging takes a branch."
-  fail=1
+  # Transient in --ci for the same reason "no approval yet" is: at PUSH time no
+  # approval can possibly name the new head. Failing here left a RED check run
+  # on every head, and a superseded failure keeps GitHub's rollup FAILURE even
+  # after a later run succeeds — so a required check would need a manual re-run
+  # on every PR. Observed: 2831c1bb had preflight failure@14:20 and success@14:22
+  # and stayed BLOCKED with reviewDecision=APPROVED.
+  #
+  # This leg is NOT dropped, it is MOVED to where it can be enforced without a
+  # race: branch protection's dismiss_stale_reviews retracts the approval the
+  # moment the branch moves, which is the same property GitHub-side and without a
+  # check run to re-run. Strict mode (no --ci) still fails here, so the pre-merge
+  # command keeps the belt.
+  [ "$CI_MODE" -eq 1 ] && echo "      (transient in --ci; enforced by dismiss_stale_reviews instead)"
+  [ "$CI_MODE" -eq 1 ] || fail=1
 else
   echo "OK    approved SHA == head"
 fi
