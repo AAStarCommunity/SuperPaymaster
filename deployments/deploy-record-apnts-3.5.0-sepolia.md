@@ -69,9 +69,16 @@ figure is not the input they need. Nothing should be baked until that lands.
 
 ## OP mainnet
 
-Not deployed. Same scripts, `EXPECT_CHAIN_ID` defaults to 10 and `REGISTRY` to the
-OP-mainnet Registry-3.0.2. Blocked on the `optimism-deployer` keystore password.
-Dry-run against real OP-mainnet state is green; the addresses will differ.
+Not deployed here, and not pending on this repo's automation: **the mainnet run is
+executed manually by ops**, using these same scripts. `EXPECT_CHAIN_ID` defaults to
+10 and `REGISTRY` to the OP-mainnet Registry-3.0.2, so the mainnet invocation needs
+no extra arguments. Dry-run against real OP-mainnet state is green; the addresses
+will differ from the Sepolia ones above.
+
+Two things for whoever runs it: sign with `0x51Ac6949…` (keystore
+`optimism-deployer`), per the signer section above; and run `15_VerifyAPNTs`
+afterwards, because the deploy script's own assertions execute in the simulation
+and cannot see a half-applied chain.
 
 ## Event-log audit: the token was not touched in the ownership gap
 
