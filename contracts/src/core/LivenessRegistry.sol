@@ -28,7 +28,18 @@ import {ILivenessRegistry} from "../interfaces/v3/ILivenessRegistry.sol";
 ///      colluder (CC-29 review M-01). It does NOT prove the full DVT stack is online: an operator
 ///      whose key is genuinely online but which refuses to co-sign slashes still attests fine; that
 ///      residual griefer is caught at the DVT layer by excluding recent non-participants from quorum,
-///      NOT here. Offline itself carries NO slash — it only shrinks the live-set.
+///      NOT here.
+///
+/// @dev OFFLINE AND SLASHING — this contract carries NO slash, and that is a statement about
+///      THIS contract, not about the protocol. Ops has since decided that sustained downtime
+///      DOES cost the operator GToken, on a graduated scale: jail first, slash scaled to how
+///      long the operator stayed down, and re-entry to the live-set on recovery. None of that
+///      belongs here. This contract's job is to make "offline" an objective, cheap, on-chain
+///      FACT — `isOffline`/`lastLive` pinned to a finalized epoch block. Whoever prices that
+///      fact (Registry / GTokenStaking) reads it; putting the penalty here would weld the
+///      oracle to one penalty schedule and make every future tariff change an immutable-contract
+///      redeploy. So read this paragraph as "no slash is triggered FROM here", not as "downtime
+///      is free" — the latter was true when this was written and is no longer the plan.
 ///
 /// @dev GOVERNANCE — the window IS the definition of offline, so changing {livenessWindow}
 ///      deterministically RE-PARTITIONS the live-set at the next block, in BOTH directions and with
