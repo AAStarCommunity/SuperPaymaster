@@ -8,8 +8,14 @@ import "src/interfaces/v3/IGTokenStaking.sol";
 /// @notice Verifier stub whose verdict is test-controlled.
 contract MockVerifier {
     bool public ok = true;
-    function set(bool v) external { ok = v; }
-    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) { return ok; }
+
+    function set(bool v) external {
+        ok = v;
+    }
+
+    function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) {
+        return ok;
+    }
 }
 
 /// @notice Minimal GTokenStaking stub exposing only roleLocks + slashByDVT.
@@ -19,13 +25,11 @@ contract MockStaking {
     uint256 public lastPenalty;
     uint256 public slashCount;
 
-    function setLock(address u, uint128 a) external { lockAmt[u] = a; }
+    function setLock(address u, uint128 a) external {
+        lockAmt[u] = a;
+    }
 
-    function roleLocks(address user, bytes32)
-        external
-        view
-        returns (uint128, uint128, uint48, bytes32, bytes memory)
-    {
+    function roleLocks(address user, bytes32) external view returns (uint128, uint128, uint48, bytes32, bytes memory) {
         return (lockAmt[user], 0, 0, bytes32(0), "");
     }
 
@@ -42,8 +46,15 @@ contract MockStaking {
 contract MockRegistry {
     IGTokenStaking public immutable staking;
     mapping(address => uint256) public pending;
-    constructor(IGTokenStaking s) { staking = s; }
-    function GTOKEN_STAKING() external view returns (IGTokenStaking) { return staking; }
+
+    constructor(IGTokenStaking s) {
+        staking = s;
+    }
+
+    function GTOKEN_STAKING() external view returns (IGTokenStaking) {
+        return staking;
+    }
+
     function setGuardianSlashPending(address guardian, bool value) external {
         if (value) pending[guardian]++;
         else pending[guardian]--;
@@ -163,12 +174,16 @@ contract GuardianSlashTest is Test {
         bls.queueGuardianSlash(1, _one(guardian1), "");
 
         vm.expectEmit(true, true, false, true, address(bls));
-        emit BLSAggregator.GuardianSlashed(1, guardian1, 60 ether);
+        emit BLSAggregator.GuardianSlashed(1, guardian1, (60 ether * 3000) / 10000);
         bls.executeGuardianSlash(1, _one(guardian1), "");
 
         assertEq(staking.lastSlashed(), guardian1);
-        assertEq(staking.lastPenalty(), 60 ether, "full lock slashed");
-        assertEq(staking.lockAmt(guardian1), 0, "lock zeroed -> falls below minStake -> auto-eject");
+        // Was "full lock slashed" / "lock zeroed". guardianSlashBps makes the penalty a
+        // fraction; the eject still happens, but for the reason it always really did —
+        // the REMAINDER is below minStake, not that it is zero.
+        uint256 pen = (60 ether * uint256(bls.guardianSlashBps())) / 10000;
+        assertEq(staking.lastPenalty(), pen, "slashed by guardianSlashBps");
+        assertEq(staking.lockAmt(guardian1), 60 ether - pen, "remainder left, still under minStake -> eject");
         assertTrue(bls.guardianSlashed(1, guardian1));
     }
 
@@ -181,8 +196,9 @@ contract GuardianSlashTest is Test {
         two[1] = guardian2;
         _queueAndExecute(7, two);
         assertEq(staking.slashCount(), 2);
-        assertEq(staking.lockAmt(guardian1), 0);
-        assertEq(staking.lockAmt(guardian2), 0);
+        uint256 bps = uint256(bls.guardianSlashBps());
+        assertEq(staking.lockAmt(guardian1), 30 ether - (30 ether * bps) / 10000);
+        assertEq(staking.lockAmt(guardian2), 45 ether - (45 ether * bps) / 10000);
     }
 
     // ---- per-(proof,guardian) idempotency (replaces global-id replay) ----
@@ -214,7 +230,7 @@ contract GuardianSlashTest is Test {
 
     function test_ExitedGuardianDoesNotShieldColluder() public {
         _wireVerifier();
-        staking.setLock(guardian1, 0);        // exited co-signer (griefing bait)
+        staking.setLock(guardian1, 0); // exited co-signer (griefing bait)
         staking.setLock(guardian2, 60 ether); // still-staked colluder
 
         address[] memory two = new address[](2);
@@ -223,13 +239,17 @@ contract GuardianSlashTest is Test {
         _queueAndExecute(1, two);
         assertEq(staking.slashCount(), 1, "colluder slashed despite exited co-signer");
         assertFalse(bls.guardianSlashed(1, guardian1), "no id burned by exited guardian");
-        assertEq(staking.lockAmt(guardian2), 0);
+        assertEq(
+            staking.lockAmt(guardian2),
+            60 ether - (60 ether * uint256(bls.guardianSlashBps())) / 10000,
+            "colluder cut by guardianSlashBps (was: zeroed)"
+        );
         assertTrue(bls.guardianSlashed(1, guardian2));
     }
 
     // ---- version bump ----
 
     function test_VersionBumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.11.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.12.0"));
     }
 }

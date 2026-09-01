@@ -6,7 +6,7 @@ import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
-import { BLS } from "src/utils/BLS.sol";
+import {BLS} from "src/utils/BLS.sol";
 
 /// @notice Local sub-view of Registry used to fetch the staking pointer at
 ///         verification time. We cast `REGISTRY` to this narrower interface
@@ -19,7 +19,11 @@ interface IRegistryStakingAwareBLS {
 }
 
 interface ISuperPaymasterSlash {
-    enum SlashLevel { WARNING, MINOR, MAJOR }
+    enum SlashLevel {
+        WARNING,
+        MINOR,
+        MAJOR
+    }
     function queueSlash(address operator) external;
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 }
@@ -114,7 +118,6 @@ interface IFraudProofVerifier {
  *      ReputationSystem, DVTValidator) are routed through this aggregator.
  */
 contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
-
     // ====================================
     // Structs
     // ====================================
@@ -125,12 +128,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         decompression step.
     struct BLSValidatorKey {
         BLS.G1Point publicKey;
-        uint8 index;       // 1-indexed slot in [1..MAX_VALIDATORS]; 0 = unregistered
+        uint8 index; // 1-indexed slot in [1..MAX_VALIDATORS]; 0 = unregistered
         bool isActive;
     }
 
     struct AggregatedSignature {
-        bytes aggregatedSig;        // 256 bytes G2
+        bytes aggregatedSig; // 256 bytes G2
         address[] signers;
         bytes32 messageHash;
         uint256 timestamp;
@@ -200,7 +203,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     mapping(bytes32 => bool) public usedSlashQueueHashes;
     mapping(uint256 => uint256) public proposalNonces;
 
-    uint256 public minThreshold = 3;    // Floor for the GENERIC executeProposal path only
+    uint256 public minThreshold = 3; // Floor for the GENERIC executeProposal path only
     uint256 public defaultThreshold = 7; // Default for the reputation consensus path
     uint256 public constant MAX_VALIDATORS = 13;
 
@@ -257,11 +260,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Canonical digest handed to `IFraudProofVerifier.verify`.
     /// @dev    Public so DVT can reproduce it byte-for-byte off-chain.
-    function fraudProofDigest(uint256 fraudProofId, address[] calldata guiltyGuardians)
-        public
-        view
-        returns (bytes32)
-    {
+    function fraudProofDigest(uint256 fraudProofId, address[] calldata guiltyGuardians) public view returns (bytes32) {
         return keccak256(abi.encode(domainSeparator(), TAG_FRAUD_PROOF, fraudProofId, guiltyGuardians));
     }
 
@@ -276,7 +275,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         the duplicate registration even when the key holder tries it himself.
     function popDigest(address validator, BLS.G1Point calldata publicKey) public view returns (bytes32) {
         return keccak256(
-            abi.encode(domainSeparator(), TAG_POP, validator, publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b)
+            abi.encode(
+                domainSeparator(), TAG_POP, validator, publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b
+            )
         );
     }
 
@@ -306,6 +307,45 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         to get timelocked policy changes WITHOUT building timelock logic
     ///         (and its bytecode) into this contract. Owner rotates it.
     address public slashPolicyAdmin;
+
+    /// @notice Fraction of a colluding guardian's remaining ROLE_DVT lock burned per
+    ///         `executeGuardianSlash`, in basis points.
+    /// @dev    WHY THIS EXISTS. Before it, this path passed the guardian's ENTIRE remaining
+    ///         lock to `slashByDVT`, so `lock.amount == 0` was hit on every successful
+    ///         guardian slash and `_removeUserRole` fired every time: the contract could not
+    ///         express a partial slash at all. With registrations sitting exactly at
+    ///         `minStake` and the MINOR threshold equal to the registered count, one slash
+    ///         therefore dropped the slash quorum below its own threshold — the punishment
+    ///         mechanism disabling the mechanism. Over-staking could not fix that while the
+    ///         penalty was defined as "everything left".
+    ///
+    ///         WHAT THIS DOES AND DOES NOT FIX. A fraction makes over-staking meaningful,
+    ///         and that is all it does. It does NOT on its own stop the quorum from
+    ///         disabling itself, because the eligibility gate is an absolute comparison
+    ///         against `minStake`, not a relative one:
+    ///
+    ///           stake == minStake  (the CURRENT deployment: every ROLE_DVT lock is
+    ///                               exactly 30e18)      -> 30% slash leaves 0.7x minStake
+    ///                                                      -> still below the gate
+    ///                                                      -> still ejected
+    ///                                                      -> quorum still collapses
+    ///           stake >= minStake / (1 - bps)  (>= ~1.43x, i.e. 43e18 for a 30e18 gate)
+    ///                                              -> survives one slash, stays in quorum
+    ///
+    ///         So the cap is NECESSARY and NOT SUFFICIENT. The other half is an operational
+    ///         rule — stake above `minStake` — which nothing in this contract enforces.
+    ///         `GuardianSlashE2E` pins both halves: the margin-0 case still ejects, and the
+    ///         over-staked case does not. Do not read this parameter as having solved it.
+    ///
+    ///         It also does NOT make a guardian un-slashable: repeated collusion walks the
+    ///         balance down, and each case is a separate `fraudProofId`.
+    uint16 public guardianSlashBps;
+
+    /// @dev Fat-finger bounds, not policy. 0 would make the path a no-op that still marks
+    ///      the case resolved; above 100% is meaningless. Ops pick the real value.
+    uint16 public constant GUARDIAN_SLASH_BPS_MIN = 100; // 1%
+    uint16 public constant GUARDIAN_SLASH_BPS_MAX = 10000; // 100%
+    uint16 internal constant _BPS_DENOMINATOR = 10000;
 
     /// @notice H-02: when true, a staked ROLE_DVT validator may self-register their OWN
     ///         BLS key (with proof-of-possession) instead of requiring an owner call.
@@ -394,9 +434,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.11.0";
+        return "BLSAggregator-4.12.0";
     }
-
 
     // ====================================
     // Events
@@ -405,11 +444,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Emitted when governance updates a per-severity slash threshold.
     event SlashThresholdUpdated(uint8 indexed slashLevel, uint8 oldThreshold, uint8 newThreshold);
     /// @notice Emitted when the owner rotates the slash-policy admin.
+    event GuardianSlashBpsUpdated(uint16 oldBps, uint16 newBps);
     event SlashPolicyAdminUpdated(address indexed oldAdmin, address indexed newAdmin);
     /// @notice Emitted on a successful slash-only consensus, recording the
     ///         on-chain-committed evidence hash + the threshold it cleared, so
     ///         off-chain archives can bind their stored proof to the chain fact.
-    event SlashConsensusReached(uint256 indexed proposalId, uint8 slashLevel, uint256 requiredThreshold, bytes32 evidenceHash);
+    event SlashConsensusReached(
+        uint256 indexed proposalId, uint8 slashLevel, uint256 requiredThreshold, bytes32 evidenceHash
+    );
     /// @notice Emitted when a DVT quorum pre-flags an operator for slashing (the
     ///         reversible first step of the two-step slash; blocks withdraw until
     ///         execute or owner cancel).
@@ -606,11 +648,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     // Constructor
     // ====================================
 
-    constructor(
-        address _registry,
-        address _superPaymaster,
-        address _dvtValidator
-    ) Ownable(msg.sender) {
+    constructor(address _registry, address _superPaymaster, address _dvtValidator) Ownable(msg.sender) {
         if (_registry == address(0)) revert InvalidAddress(_registry);
         if (_superPaymaster == address(0)) revert InvalidAddress(_superPaymaster);
         if (_dvtValidator == address(0)) revert InvalidAddress(_dvtValidator);
@@ -622,11 +660,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // reputation ding only), MINOR/MAJOR 3-of-3 (real aPNTs at stake).
         // Governance raises these via setSlashThreshold as the validator set grows.
         slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.WARNING)] = 2;
-        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MINOR)]   = 3;
-        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)]   = 3;
+        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MINOR)] = 3;
+        slashThresholds[uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)] = 3;
 
         // Owner is the initial policy admin; rotate to a multisig / timelock post-deploy.
         slashPolicyAdmin = msg.sender;
+        // 30%, mirroring SuperPaymaster's automated-slash hardcap. That cap protects the
+        // operator's aPNTs balance; this one protects the guardian's GToken lock, which is
+        // the asset the committee-eligibility gate actually reads.
+        guardianSlashBps = 3000;
     }
 
     /// @notice Update the per-severity slash consensus threshold.
@@ -642,6 +684,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
         emit SlashThresholdUpdated(slashLevel, slashThresholds[slashLevel], threshold);
         slashThresholds[slashLevel] = threshold;
+    }
+
+    /// @notice Set the fraction of a colluding guardian's lock burned per slash.
+    /// @dev    Gated to `slashPolicyAdmin` exactly like `setSlashThreshold`: both decide how
+    ///         hard an automated path can hit someone's stake, so they share one admin.
+    function setGuardianSlashBps(uint16 newBps) external {
+        if (msg.sender != slashPolicyAdmin) revert NotSlashPolicyAdmin(msg.sender);
+        if (newBps < GUARDIAN_SLASH_BPS_MIN || newBps > GUARDIAN_SLASH_BPS_MAX) {
+            revert InvalidParameter("guardianSlashBps");
+        }
+        emit GuardianSlashBpsUpdated(guardianSlashBps, newBps);
+        guardianSlashBps = newBps;
     }
 
     /// @notice Rotate the slash-policy admin (owner only).
@@ -744,8 +798,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // CC-48 round-2: one public key, one validator address — forever. Enforced on
         // the OWNER path too: the owner is trusted to curate keys, not to be immune to
         // a copy-paste, and a duplicated key silently multiplies one signer's weight.
-        bytes32 keyHash =
-            keccak256(abi.encode(publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b));
+        bytes32 keyHash = keccak256(abi.encode(publicKey.x_a, publicKey.x_b, publicKey.y_a, publicKey.y_b));
         address keyOwner = blsKeyOwner[keyHash];
         if (keyOwner == address(0)) {
             blsKeyOwner[keyHash] = validator;
@@ -762,11 +815,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         address current = validatorAtSlot[slot];
         if (current != address(0) && current != validator) revert SlotAlreadyTaken(slot);
 
-        _blsKeys[validator] = BLSValidatorKey({
-            publicKey: publicKey,
-            index: slot,
-            isActive: true
-        });
+        _blsKeys[validator] = BLSValidatorKey({publicKey: publicKey, index: slot, isActive: true});
         validatorAtSlot[slot] = validator;
         emit BLSPublicKeyRegistered(validator, slot);
     }
@@ -813,20 +862,21 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // Scan the (capped, 13-slot) active table rather than trusting `boundTo`'s own
         // record: the key may have been rotated to a different address's slot, and the
         // property we need is "no ACTIVE slot holds this key", not "boundTo is idle".
-        for (uint8 slot = 1; slot <= uint8(MAX_VALIDATORS); ) {
+        for (uint8 slot = 1; slot <= uint8(MAX_VALIDATORS);) {
             address holder = validatorAtSlot[slot];
             if (holder != address(0)) {
                 BLSValidatorKey storage k = _blsKeys[holder];
                 if (
                     k.isActive
-                        && keccak256(
-                            abi.encode(k.publicKey.x_a, k.publicKey.x_b, k.publicKey.y_a, k.publicKey.y_b)
-                        ) == keyHash
+                        && keccak256(abi.encode(k.publicKey.x_a, k.publicKey.x_b, k.publicKey.y_a, k.publicKey.y_b))
+                            == keyHash
                 ) {
                     revert KeyBindingStillActive(keyHash, holder);
                 }
             }
-            unchecked { ++slot; }
+            unchecked {
+                ++slot;
+            }
         }
         delete blsKeyOwner[keyHash];
         emit BLSKeyBindingReleased(keyHash, boundTo);
@@ -852,12 +902,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @param  signerMask Bitmask of signing validator slots (bit i = slot i+1).
     /// @param  requiredThreshold Caller's minimum signer count requirement.
     /// @param  sigBytes abi.encode(BLS.G2Point) of the aggregated G2 signature.
-    function verify(
-        bytes32 expectedMessageHash,
-        uint256 signerMask,
-        uint256 requiredThreshold,
-        bytes calldata sigBytes
-    ) external view returns (bool) {
+    function verify(bytes32 expectedMessageHash, uint256 signerMask, uint256 requiredThreshold, bytes calldata sigBytes)
+        external
+        view
+        returns (bool)
+    {
         if (signerMask == 0) revert EmptySignerMask();
         if (requiredThreshold < minThreshold) {
             revert InvalidParameter("Threshold below minimum");
@@ -896,21 +945,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         real quorum, so no single validator can DoS an operator's withdraw.
     ///         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof
     ///         can never be replayed as an execute proof.
-    function queueSlashWithConsensus(
-        address operator,
-        uint8 slashLevel,
-        uint256 epoch,
-        bytes calldata proof
-    ) external nonReentrant {
+    function queueSlashWithConsensus(address operator, uint8 slashLevel, uint256 epoch, bytes calldata proof)
+        external
+        nonReentrant
+    {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
             revert UnauthorizedCaller(msg.sender);
         }
         if (operator == address(0)) revert InvalidTarget(operator);
         if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
         uint256 requiredThreshold = slashThresholds[slashLevel];
-        bytes32 expectedMessageHash = keccak256(abi.encode(
-            domainSeparator(), TAG_QUEUE_SLASH, operator, slashLevel, epoch
-        ));
+        bytes32 expectedMessageHash =
+            keccak256(abi.encode(domainSeparator(), TAG_QUEUE_SLASH, operator, slashLevel, epoch));
         // Replay guard: a consumed queue proof cannot re-flag the operator after a
         // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
         if (usedSlashQueueHashes[expectedMessageHash]) revert SlashQueueProofAlreadyUsed(expectedMessageHash);
@@ -974,9 +1020,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // byte-identical so Registry's independent re-verification still matches.
             if (slashLevel > uint8(ISuperPaymasterSlash.SlashLevel.MAJOR)) revert InvalidParameter("slashLevel");
             requiredThreshold = slashThresholds[slashLevel];
-            expectedMessageHash = keccak256(abi.encode(
-                domainSeparator(), TAG_EXECUTE_SLASH, proposalId, operator, slashLevel, epoch, evidenceHash
-            ));
+            expectedMessageHash = keccak256(
+                abi.encode(domainSeparator(), TAG_EXECUTE_SLASH, proposalId, operator, slashLevel, epoch, evidenceHash)
+            );
         } else {
             // Reputation (or combined) path: unchanged 7-field encoding +
             // defaultThreshold, so Registry.batchUpdateGlobalReputation's
@@ -995,8 +1041,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         //     set NOW — after signatures verified, before any revoke can reassign a
         //     slot — so a later fraud proof can attribute this proposal to the real
         //     addresses that signed it. Covers BOTH branches (slash-only + rep).
-        proposalSignersCommitment[proposalId] =
-            _computeSignersCommitment(proof, proposalId, expectedMessageHash);
+        proposalSignersCommitment[proposalId] = _computeSignersCommitment(proof, proposalId, expectedMessageHash);
 
         // 3. Update Global Reputation in Registry
         if (repUsers.length > 0) {
@@ -1064,14 +1109,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
 
         // 2. Construct Generic Message Hash (includes requiredThreshold + chainid)
-        bytes32 expectedMessageHash = keccak256(abi.encode(
-            domainSeparator(),
-            TAG_PROPOSAL,
-            proposalId,
-            target,
-            keccak256(callData),
-            requiredThreshold
-        ));
+        bytes32 expectedMessageHash = keccak256(
+            abi.encode(domainSeparator(), TAG_PROPOSAL, proposalId, target, keccak256(callData), requiredThreshold)
+        );
 
         // 3. Verify BLS Signatures with custom threshold
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
@@ -1112,10 +1152,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         //    during pkAgg reconstruction (e.g. P + O = P) — which is safe by
         //    itself, but an attacker could exploit the identity to register a
         //    "ghost" validator slot that passes pairing checks trivially.
-        if (
-            pk.x_a == bytes32(0) && pk.x_b == bytes32(0) &&
-            pk.y_a == bytes32(0) && pk.y_b == bytes32(0)
-        ) {
+        if (pk.x_a == bytes32(0) && pk.x_b == bytes32(0) && pk.y_a == bytes32(0) && pk.y_b == bytes32(0)) {
             revert InvalidBLSKeyNotOnCurve();
         }
 
@@ -1127,8 +1164,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         {
             // Input: P (128 bytes) || O (128 bytes of zeros).
             bytes memory g1AddInput = abi.encodePacked(
-                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
-                bytes32(0), bytes32(0), bytes32(0), bytes32(0)  // O (identity): 128 bytes
+                pk.x_a,
+                pk.x_b,
+                pk.y_a,
+                pk.y_b, // P: 128 bytes
+                bytes32(0),
+                bytes32(0),
+                bytes32(0),
+                bytes32(0) // O (identity): 128 bytes
             );
             (bool onCurve,) = address(0x0b).staticcall(g1AddInput);
             if (!onCurve) revert InvalidBLSKeyNotOnCurve();
@@ -1143,8 +1186,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             bytes32 r = bytes32(uint256(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001));
             // Input: P (128 bytes) || r (32-byte scalar).
             bytes memory g1MulInput = abi.encodePacked(
-                pk.x_a, pk.x_b, pk.y_a, pk.y_b,  // P: 128 bytes
-                r                                   // scalar r: 32 bytes
+                pk.x_a,
+                pk.x_b,
+                pk.y_a,
+                pk.y_b, // P: 128 bytes
+                r // scalar r: 32 bytes
             );
             (bool ok, bytes memory result) = address(0x0c).staticcall(g1MulInput);
             // The precompile call itself must succeed (point is on curve, already
@@ -1153,7 +1199,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // Result is a 128-byte G1 point. It must equal the identity (all zeros).
             // We check all four 32-byte words of the returned point.
             if (result.length != 128) revert InvalidBLSKeyNotInSubgroup();
-            bytes32 r0; bytes32 r1; bytes32 r2; bytes32 r3;
+            bytes32 r0;
+            bytes32 r1;
+            bytes32 r2;
+            bytes32 r3;
             assembly {
                 r0 := mload(add(result, 32))
                 r1 := mload(add(result, 64))
@@ -1183,11 +1232,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      cleared. Aggregator owns the trust decision (Registry + Staking) so
     ///      no callback into DVTValidator is needed — avoids a circular
     ///      BLSAggregator ↔ DVTValidator dependency.
-    function _reconstructPkAgg(uint256 signerMask)
-        internal
-        view
-        returns (BLS.G1Point memory pkAgg, uint256 count)
-    {
+    function _reconstructPkAgg(uint256 signerMask) internal view returns (BLS.G1Point memory pkAgg, uint256 count) {
         // Reject mask bits beyond MAX_VALIDATORS to prevent silent truncation —
         // a clever attacker could otherwise pad with high-order bits hoping the
         // contract ignored them.
@@ -1236,7 +1281,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             if (exitReadyAt != 0 && block.timestamp >= uint256(exitReadyAt)) {
                 revert SlotValidatorExitPending(slot, v);
             }
-            (uint128 amount,,,, ) = staking.roleLocks(v, roleDvt);
+            (uint128 amount,,,,) = staking.roleLocks(v, roleDvt);
             if (uint256(amount) < minStake) {
                 revert SlotValidatorStakeBelowMinimum(slot, v, uint256(amount), minStake);
             }
@@ -1265,18 +1310,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         off-chain verifier sorting claimedSigners the same way reproduces the
     ///         identical commitment. signerMask is bound in too (slot layout), and the
     ///         encoding is domain-separated to prevent cross-proposal/chain/contract reuse.
-    function _computeSignersCommitment(
-        bytes calldata proof,
-        uint256 proposalId,
-        bytes32 messageHash
-    ) internal view returns (bytes32) {
+    function _computeSignersCommitment(bytes calldata proof, uint256 proposalId, bytes32 messageHash)
+        internal
+        view
+        returns (bytes32)
+    {
         // proof = abi.encode(uint256 signerMask, bytes sigG2); its first 32-byte
         // word is the mask value. Decode ONLY that slice so we don't copy the
         // (unused here) sigG2 bytes — saves gas on this live consensus path.
         uint256 signerMask = abi.decode(proof[:32], (uint256));
         // popcount → exact array size.
         uint256 n;
-        { uint256 m = signerMask; while (m != 0) { m &= (m - 1); n++; } }
+        {
+            uint256 m = signerMask;
+            while (m != 0) {
+                m &= (m - 1);
+                n++;
+            }
+        }
 
         address[] memory signers = new address[](n);
         uint256 k;
@@ -1291,19 +1342,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             uint256 j = i;
             while (j > 0 && uint160(signers[j - 1]) > uint160(key)) {
                 signers[j] = signers[j - 1];
-                unchecked { j--; }
+                unchecked {
+                    j--;
+                }
             }
             signers[j] = key;
         }
 
-        return keccak256(abi.encode(
-            domainSeparator(),
-            TAG_SIGNERS_COMMITMENT,
-            proposalId,
-            messageHash,
-            signerMask,
-            signers
-        ));
+        return
+            keccak256(
+                abi.encode(domainSeparator(), TAG_SIGNERS_COMMITMENT, proposalId, messageHash, signerMask, signers)
+            );
     }
 
     /// @notice Canonical reputation-batch pre-image. MUST stay byte-identical to
@@ -1326,16 +1375,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         uint256[] calldata newScores,
         uint256 epoch
     ) internal view returns (bytes32) {
-        return keccak256(
-            abi.encode(domainSeparator(), TAG_REPUTATION, proposalId, users, newScores, epoch)
-        );
+        return keccak256(abi.encode(domainSeparator(), TAG_REPUTATION, proposalId, users, newScores, epoch));
     }
 
-    function _checkSignatures(
-        bytes calldata proof,
-        bytes32 expectedMessageHash,
-        uint256 requiredThreshold
-    ) internal view {
+    function _checkSignatures(bytes calldata proof, bytes32 expectedMessageHash, uint256 requiredThreshold)
+        internal
+        view
+    {
         // P0-1: proof = abi.encode(uint256 signerMask, bytes sigG2). pkG1 and
         // msgG2 are NEVER read from the proof — they're reconstructed/derived
         // on-chain so a forged proof cannot satisfy the pairing.
@@ -1415,7 +1461,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         if (address(staking) == address(0)) revert StakingNotConfigured();
         uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;
-        (uint128 amount,,,, ) = staking.roleLocks(validator, roleDvt);
+        (uint128 amount,,,,) = staking.roleLocks(validator, roleDvt);
         if (uint256(amount) < minStake) {
             revert SlotValidatorStakeBelowMinimum(slot, validator, uint256(amount), minStake);
         }
@@ -1706,10 +1752,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         severity with the strictest quorum.
     function _maxRequiredThreshold() internal view returns (uint256 required) {
         required = defaultThreshold;
-        for (uint8 lvl = 0; lvl <= uint8(ISuperPaymasterSlash.SlashLevel.MAJOR); ) {
+        for (uint8 lvl = 0; lvl <= uint8(ISuperPaymasterSlash.SlashLevel.MAJOR);) {
             uint256 t = uint256(slashThresholds[lvl]);
             if (t > required) required = t;
-            unchecked { ++lvl; }
+            unchecked {
+                ++lvl;
+            }
         }
     }
 
@@ -1770,9 +1818,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         uint256 minStake = address(staking) == address(0) ? 0 : REGISTRY.getRoleConfig(roleDvt).minStake;
         uint256 remaining;
         bool leavingEligible;
-        for (uint8 slot = 1; slot <= MAX_VALIDATORS; ) {
+        for (uint8 slot = 1; slot <= MAX_VALIDATORS;) {
             address v = validatorAtSlot[slot];
-            unchecked { ++slot; }
+            unchecked {
+                ++slot;
+            }
             if (v == address(0)) continue;
             if (!_blsKeys[v].isActive) continue;
             // Guardians that merely ANNOUNCED an exit are excluded even before
@@ -1783,8 +1833,13 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                 (uint128 lockedAmount,,,,) = staking.roleLocks(v, roleDvt);
                 if (uint256(lockedAmount) < minStake) continue;
             }
-            if (v == leaving) { leavingEligible = true; continue; }
-            unchecked { ++remaining; }
+            if (v == leaving) {
+                leavingEligible = true;
+                continue;
+            }
+            unchecked {
+                ++remaining;
+            }
         }
         uint256 required = _maxRequiredThreshold();
         if (!leavingEligible) return;
@@ -1818,11 +1873,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///      commits to — otherwise a front-runner can open the case on a subset and
     ///      burn the id for everyone else. See `IFraudProofVerifier` above and
     ///      `FraudProofVerifierConformance.assertSetBound`.
-    function queueGuardianSlash(
-        uint256 fraudProofId,
-        address[] calldata guiltyGuardians,
-        bytes calldata fraudProof
-    ) external nonReentrant {
+    function queueGuardianSlash(uint256 fraudProofId, address[] calldata guiltyGuardians, bytes calldata fraudProof)
+        external
+        nonReentrant
+    {
         address verifier = fraudProofVerifier;
         if (verifier == address(0)) revert FraudProofVerifierNotSet();
         // The single verify below is the ONLY time this address is ever asked about this
@@ -1837,11 +1891,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 0) revert GuardianSlashCaseAlreadyOpened(fraudProofId);
         bytes32 guardiansHash = _validateGuardianSet(guiltyGuardians);
-        if (
-            !IFraudProofVerifier(verifier).verify(
-                fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof
-            )
-        ) {
+        if (!IFraudProofVerifier(verifier)
+                .verify(fraudProofDigest(fraudProofId, guiltyGuardians), fraudProofId, guiltyGuardians, fraudProof)) {
             revert InvalidFraudProof(fraudProofId);
         }
 
@@ -1858,19 +1909,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         slashCase.status = 1;
         slashCase.guardianCount = uint16(guiltyGuardians.length);
         slashCase.verifier = verifier;
-        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+        for (uint256 i = 0; i < guiltyGuardians.length;) {
             pendingGuardianSlashCount[guiltyGuardians[i]] += 1;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         emit GuardianSlashQueued(fraudProofId, guardiansHash, deadline, guiltyGuardians);
         emit GuardianSlashJudgmentFrozen(fraudProofId, verifier, proofHash, guardiansHash);
     }
 
     /// @notice Release an unexecuted case after its bounded pending window.
-    function expireGuardianSlashCase(uint256 fraudProofId, address[] calldata guiltyGuardians)
-        external
-        nonReentrant
-    {
+    function expireGuardianSlashCase(uint256 fraudProofId, address[] calldata guiltyGuardians) external nonReentrant {
         GuardianSlashCase storage slashCase = guardianSlashCases[fraudProofId];
         if (slashCase.status != 1) revert GuardianSlashCaseNotPending(fraudProofId);
         if (block.timestamp <= slashCase.deadline) {
@@ -1891,13 +1941,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // documented for SDK consumers in docs/security/CC48-round5-changes.md.
         // CC-48 HIGH-2: guardians already released by a successful (or no-op) partial
         // execution must not be decremented twice — expiry only frees the stragglers.
-        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+        for (uint256 i = 0; i < guiltyGuardians.length;) {
             address guardian = guiltyGuardians[i];
             if (!guardianCaseResolved[fraudProofId][guardian]) {
                 guardianCaseResolved[fraudProofId][guardian] = true;
                 pendingGuardianSlashCount[guardian] -= 1;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         emit GuardianSlashCaseExpired(fraudProofId);
     }
@@ -1938,11 +1990,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///                         queue time); must hash to the case's `guardiansHash`.
     /// @param  fraudProof      The SAME proof bytes the verifier approved at queue time;
     ///                         checked against `fraudProofHash`, not re-interpreted here.
-    function executeGuardianSlash(
-        uint256 fraudProofId,
-        address[] calldata guiltyGuardians,
-        bytes calldata fraudProof
-    ) external nonReentrant {
+    function executeGuardianSlash(uint256 fraudProofId, address[] calldata guiltyGuardians, bytes calldata fraudProof)
+        external
+        nonReentrant
+    {
         // All fail-closed shape checks up front (fail-fast, before any external call).
         // CC-48 round-5 LOW-4, kept deliberately: these two bounds are re-checked inside
         // `_validateGuardianSet` further down, but that call happens only AFTER the case
@@ -1995,18 +2046,22 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // own: successes are banked, failures leave that guardian frozen and the case
         // pending, and the caller can retry until the deadline.
         uint256 released;
-        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+        for (uint256 i = 0; i < guiltyGuardians.length;) {
             address guardian = guiltyGuardians[i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
             if (guardianCaseResolved[fraudProofId][guardian]) continue;
 
-            (uint128 amount,,,, ) = staking.roleLocks(guardian, roleDvt);
+            (uint128 amount,,,,) = staking.roleLocks(guardian, roleDvt);
             if (amount == 0) {
                 // Exited / already-ejected: nothing left to take. Settle it so the
                 // still-staked colluders are not held hostage by this entry.
                 guardianCaseResolved[fraudProofId][guardian] = true;
                 pendingGuardianSlashCount[guardian] -= 1;
-                unchecked { ++released; }
+                unchecked {
+                    ++released;
+                }
                 emit GuardianSlashSkipped(fraudProofId, guardian);
                 continue;
             }
@@ -2016,14 +2071,21 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // `pendingGuardianSlashCount` untouched for the duration of the external
             // call keeps Registry.exitRole -> consumeGuardianExit closed against a
             // guardian that tries to walk out from inside its own slash.
-            try IGTokenStakingSlash(address(staking)).slashByDVT(
-                guardian, roleDvt, uint256(amount), "DVT collusion"
-            ) {
+            // Fraction of what is left, not all of it. Rounding down can reach zero on a
+            // dust-sized lock; taking the dust in full is the conservative branch, because
+            // a zero penalty would still mark the case resolved and let a colluder settle
+            // for nothing.
+            uint256 penalty = (uint256(amount) * guardianSlashBps) / _BPS_DENOMINATOR;
+            if (penalty == 0) penalty = uint256(amount);
+
+            try IGTokenStakingSlash(address(staking)).slashByDVT(guardian, roleDvt, penalty, "DVT collusion") {
                 guardianSlashed[fraudProofId][guardian] = true;
                 guardianCaseResolved[fraudProofId][guardian] = true;
                 pendingGuardianSlashCount[guardian] -= 1;
-                unchecked { ++released; }
-                emit GuardianSlashed(fraudProofId, guardian, uint256(amount));
+                unchecked {
+                    ++released;
+                }
+                emit GuardianSlashed(fraudProofId, guardian, penalty);
             } catch {
                 // Stays unresolved and stays frozen — retryable until the deadline.
                 emit GuardianSlashFailed(fraudProofId, guardian);
@@ -2068,13 +2130,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function _validateGuardianSet(address[] calldata guiltyGuardians) internal pure returns (bytes32) {
         if (guiltyGuardians.length == 0) revert EmptyGuiltyGuardians();
         if (guiltyGuardians.length > MAX_VALIDATORS) revert InvalidParameter("guiltyGuardians");
-        for (uint256 i = 0; i < guiltyGuardians.length; ) {
+        for (uint256 i = 0; i < guiltyGuardians.length;) {
             if (guiltyGuardians[i] == address(0)) revert InvalidTarget(address(0));
-            for (uint256 j = 0; j < i; ) {
+            for (uint256 j = 0; j < i;) {
                 if (guiltyGuardians[j] == guiltyGuardians[i]) revert InvalidParameter("dup guardian");
-                unchecked { ++j; }
+                unchecked {
+                    ++j;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return keccak256(abi.encode(guiltyGuardians));
     }
