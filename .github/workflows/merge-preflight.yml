@@ -1,0 +1,41 @@
+# =============================================================================
+# The preflight has to RUN, not merely exist.
+#
+# scripts/merge-preflight.sh was added as a command someone would remember to
+# type — and the failure it guards is forgetting. #408 was merged by someone who
+# knew the rule, minutes after reading a `gh pr view` that had already gone
+# stale. A rule that is "sometimes done" is done "often forgotten". Raised by
+# pr-daemon on #412.
+#
+# Both legs are observable at push time: the approval-vs-head comparison is why
+# it re-reads the head on every push rather than trusting an earlier reading.
+# Make this a REQUIRED check to turn it from advice into a refusal.
+# =============================================================================
+name: merge-preflight
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  statuses: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Its own checks are still running while it runs, so a red "still running"
+      # here is expected mid-CI and clears on the last push once everything
+      # settles. What it catches immediately and permanently is the approval
+      # naming a different SHA than the branch — the #408 shape.
+      - name: Approval names this SHA, and nothing is failing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: ./scripts/merge-preflight.sh ${{ github.event.pull_request.number }}

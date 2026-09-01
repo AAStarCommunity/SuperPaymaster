@@ -2,36 +2,73 @@
 # =============================================================================
 # merge-preflight.sh <pr-number>
 #
-# Refuses a merge that would violate either half of "the final SHA was approved
-# AND every check is green". Both halves were violated on this repo in the same
-# week, in opposite ways, and neither was visible in the fields I was reading:
+# Refuses a merge that violates "the final SHA was approved AND every check is
+# green". Both halves were violated on this repo in the same week:
 #
 #   #400 #402 #404 #405   merged with a FAILING check. `mergeStateStatus` said
-#                         UNSTABLE, which means "a check failed but merging is
-#                         not blocked" — I read it as "mergeable".
+#                         UNSTABLE, which MEANS "a check failed but merging is
+#                         not blocked" — read as "mergeable".
 #   #408                  merged a commit nobody reviewed. The approval named
 #                         b327086b, a background push moved the branch to
-#                         4b5084e7, and `gh pr merge` takes the BRANCH, not the
-#                         SHA. I had read the head several steps earlier.
+#                         4b5084e7, and `gh pr merge` takes the BRANCH.
 #
-# Neither `reviewDecision` nor `mergeStateStatus` answers either question, which
-# is why checking them felt like checking.
+# EVERY LOOKUP FAILS CLOSED. The first version read `gh api` output into a
+# variable and tested it for emptiness — so an auth error, a rate limit or a
+# typo'd path produced "" and was indistinguishable from "nothing is failing".
+# A gate whose instrument failure looks like success is the defect it exists to
+# catch. Each call's exit status is now checked before its output is believed.
 #
-# Exit 0 = safe to merge. Any other exit = do not merge.
+# Exit 0 = safe to merge. Anything else = do not merge.
 # =============================================================================
 set -uo pipefail
 PR="${1:?usage: merge-preflight.sh <pr-number>}"
 REPO="${REPO:-AAStarCommunity/SuperPaymaster}"
 fail=0
 
+# api <varname> <jq> <path...>
+#
+# Assigns into the CALLER's variable with printf -v and returns non-zero on
+# failure. It must not be used as `x=$(api ...)`: command substitution runs in a
+# subshell, so an `exit` inside it exits only the subshell and the caller sails on
+# with an empty string. The first version did exactly that — a broken lookup
+# printed FAIL to stderr and the run continued to PASS on empty values, which is
+# the fail-open this gate exists to close, reproduced inside the gate. Caught by
+# breaking one lookup and watching the exit code come back 1 for an unrelated
+# reason instead of refusing on the lookup.
+api() {
+  local __var="$1" __jq="$2"; shift 2
+  local __out __rc
+  __out=$(gh api "$@" --jq "$__jq" 2>/dev/null); __rc=$?
+  if [ $__rc -ne 0 ]; then
+    echo "FAIL  lookup failed (gh api $*) — refusing on an unread value, not passing"
+    fail=1
+    return 1
+  fi
+  printf -v "$__var" '%s' "$__out"
+  return 0
+}
+
 head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null | tr -d ' \n')
-[ -n "$head" ] || { echo "FAIL  could not read the PR head — refusing on an unread value"; exit 3; }
+[ -n "$head" ] || { echo "FAIL  could not read the PR head"; exit 3; }
 echo "head at this moment : $head"
 
-# --- 1. the approval must name THIS commit ------------------------------------
-appr=$(gh api "repos/$REPO/pulls/$PR/reviews" \
-        --jq '[.[]|select(.state=="APPROVED")|.commit_id]|last' 2>/dev/null | tr -d '" \n')
-if [ -z "$appr" ] || [ "$appr" = "null" ]; then
+# --- 1. the approval must name THIS commit, and nothing may have superseded it -
+api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at}]|tostring' \
+    "repos/$REPO/pulls/$PR/reviews" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+appr=$(printf '%s' "$revs" | python3 -c '
+import json,sys
+r=json.loads(sys.stdin.read().replace("][",","))
+a=[x for x in r if x["s"]=="APPROVED"]
+print(a[-1]["c"] if a else "")')
+last_cr=$(printf '%s' "$revs" | python3 -c '
+import json,sys
+r=json.loads(sys.stdin.read().replace("][",","))
+a=[x for x in r if x["s"]=="APPROVED"]
+c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
+# A change request submitted AFTER the newest approval still stands.
+print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")')
+
+if [ -z "$appr" ]; then
   echo "FAIL  no APPROVED review found"; fail=1
 elif [ "$appr" != "$head" ]; then
   echo "FAIL  the approval names $appr, the branch is at $head"
@@ -40,21 +77,37 @@ elif [ "$appr" != "$head" ]; then
 else
   echo "OK    approved SHA == head"
 fi
+if [ -n "$last_cr" ]; then
+  echo "FAIL  a CHANGES_REQUESTED ($last_cr) is newer than the newest approval"; fail=1
+fi
 
-# --- 2. no check may be failing -----------------------------------------------
-runs=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '.check_runs|length' 2>/dev/null | tr -d ' \n')
-if [ -z "$runs" ] || [ "$runs" = "0" ]; then
-  # An empty check list is not a green one. Refuse rather than read silence as success.
-  echo "FAIL  no check runs reported for $head — cannot distinguish 'all green' from 'never ran'"
-  fail=1
+# --- 2. no check-run and no commit STATUS may be failing ----------------------
+# These are two different APIs. check-runs covers GitHub Actions; the Status API
+# covers everything else, and a red status is invisible to the first one.
+api total '.total_count' "repos/$REPO/commits/$head/check-runs" \
+    || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+if [ "${total:-0}" -eq 0 ]; then
+  echo "FAIL  no check runs for $head — 'all green' and 'never ran' are not the same reading"; fail=1
 else
-  bad=$(gh api "repos/$REPO/commits/$head/check-runs" \
-         --jq '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled")|.name]|join(", ")' 2>/dev/null | tr -d '"')
-  pend=$(gh api "repos/$REPO/commits/$head/check-runs" \
-         --jq '[.check_runs[]|select(.status!="completed")|.name]|join(", ")' 2>/dev/null | tr -d '"')
-  if [ -n "$bad" ]; then echo "FAIL  failing checks: $bad"; fail=1; fi
-  if [ -n "$pend" ]; then echo "FAIL  still running: $pend"; fail=1; fi
-  [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $runs check runs, none failing or pending"
+  api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join(", ")' \
+      "repos/$REPO/commits/$head/check-runs" --paginate \
+      || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  api pend '[.check_runs[]|select(.status!="completed")|.name]|join(", ")' \
+      "repos/$REPO/commits/$head/check-runs" --paginate \
+      || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  [ -n "$bad" ]  && { echo "FAIL  failing checks: $bad"; fail=1; }
+  [ -n "$pend" ] && { echo "FAIL  still running: $pend"; fail=1; }
+  [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $total check runs, none failing or pending"
+fi
+
+api st '.state' "repos/$REPO/commits/$head/status" \
+    || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+api nst '.statuses|length' "repos/$REPO/commits/$head/status" \
+    || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+if [ "$nst" -gt 0 ] && [ "$st" != "success" ]; then
+  echo "FAIL  commit status is '$st' across $nst status(es) — a different API from check-runs"; fail=1
+else
+  echo "OK    commit statuses: $nst reported, state=$st"
 fi
 
 [ "$fail" -eq 0 ] && echo "PREFLIGHT PASS — safe to merge $PR at $head" || echo "PREFLIGHT FAIL — do not merge $PR"

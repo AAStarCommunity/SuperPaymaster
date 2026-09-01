@@ -61,7 +61,12 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   // rather than counting it as agreement: an empty comparison and a passing one
   // are the same reading otherwise.
   if (!FIRST_PARTY.has(name)) { external.push(name); continue; }
-  if (!compiled || !committed) { skipped.push(name); continue; }
+  // A first-party bundle whose artifact is missing is NOT a pass. The first
+  // version pushed it to `skipped` and exited 0, so a partial or stale `out/`
+  // turned every uncompared bundle into a silent agreement — the same
+  // fail-open this script exists to close, reproduced inside it.
+  if (!compiled) { console.error(`FAIL: abis/${file} — no compiled artifact at out/${name}.sol/${name}.json`); stale++; continue; }
+  if (!committed) { console.error(`FAIL: abis/${file} — unreadable or empty ABI`); stale++; continue; }
   checked++;
   const c = new Set(committed.map(shape));
   const o = new Set(compiled.map(shape));
