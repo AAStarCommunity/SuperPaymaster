@@ -209,4 +209,21 @@ contract Check11ClassifyTest is Test {
         assertFalse(holds);
         assertEq(why, "the declared target has no code on this chain");
     }
+
+    /// @notice A zero pointer is not "not moved yet" — a rotation never passes through
+    ///         zero, `setBLSAggregator` goes old -> new in one call. Reading it as benign
+    ///         let the declaration flag pass an unwired stack: SP.BLS_AGGREGATOR == 0 with
+    ///         a queue to the target classifies as RotationInFlight, which is releasable.
+    ///         Before the tightening this returned holds == true. Found by pr-daemon.
+    function test_Declared_AnUnsetPointerIsNotARotationState() public view {
+        (bool holds,, string memory why) = c.checkDeclaredTarget(A, NONE, A, A, A, true);
+        assertFalse(holds, "an unset SP pointer must not be waved through by a declaration");
+        assertEq(why, "a pointer is unset; that is not a rotation state");
+    }
+
+    /// @notice The op-sepolia shape exactly: SP torn out, DVT still on the old address.
+    function test_Declared_UnsetPointerRejectedEvenMidTransition() public view {
+        (bool holds,,) = c.checkDeclaredTarget(A, NONE, OLD, A, A, true);
+        assertFalse(holds);
+    }
 }

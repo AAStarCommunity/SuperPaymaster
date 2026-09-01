@@ -262,7 +262,19 @@ contract Check11_AggregatorPointers is Script {
     ) public pure returns (bool holds, address other, string memory why) {
         address[3] memory ptrs = [fromRegistry, fromSp, fromDvt];
         for (uint256 i = 0; i < 3; i++) {
-            if (ptrs[i] == expected || ptrs[i] == address(0)) continue;
+            if (ptrs[i] == expected) continue;
+            // Zero is NOT a benign "not moved yet". `setBLSAggregator(new)` is one call,
+            // old -> new; a rotation never passes through zero. The same reading means
+            // two things — "untouched" and "torn out" — and treating it as the benign
+            // one let a declared rotation turn an unwired stack green: with
+            // SP.BLS_AGGREGATOR == 0 and a queue to the target, classify returns
+            // RotationInFlight, which is inside the releasable set. op-sepolia is that
+            // shape today; it is held back only by its SP being too old to have
+            // pendingBLSAgg(), which is an accident of that deployment, not this
+            // predicate doing its job. Found by pr-daemon on review.
+            if (ptrs[i] == address(0)) {
+                return (false, other, "a pointer is unset; that is not a rotation state");
+            }
             if (other == address(0)) other = ptrs[i];
             else if (other != ptrs[i]) return (false, other, "the pointers name more than two distinct addresses");
         }
