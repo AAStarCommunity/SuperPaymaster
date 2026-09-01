@@ -103,7 +103,7 @@ contract RedeployAPNTs is Script {
         console.log("  2. tell repo:airaccount the new address (they are blocked on it)");
         console.log("  3. the 140,000 old-token supply is NOT carried over; decide on");
         console.log("     migration separately, from the Safe");
-        console.log("  4. Safe calls setIssuanceCap(...) — the cap is UNSET until it does,");
+        console.log("  4. Safe calls setIssuanceCap(...): the cap is UNSET until it does,");
         console.log("     and it is a view for DVT, never a mint gate");
         console.log("  5. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
         console.log("     and addAutoApprovedSpender");
