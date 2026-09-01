@@ -40,7 +40,14 @@ if [ "${1:-}" = "--ci" ]; then CI_MODE=1; shift; fi
 # check-run names: "configured correctly" and "impossible to misconfigure" are
 # different properties, and this gate exists to insist on the second. Raised by
 # pr-daemon on #412.
-SELF_NAME="${SELF_NAME:-${GITHUB_JOB:-preflight}}"
+# The literal is the JOB ID in .github/workflows/merge-preflight.yml. Renaming the
+# job there and not here desynchronises them silently: grep -vxF matches whole
+# lines, so a stale value excludes nothing and the run counts ITSELF as failing or
+# pending. That already happened once — the job became `preflight-report` while
+# this still said `preflight`. Under Actions GITHUB_JOB supplies it and the run-id
+# lookup overrides it anyway; this literal only bites the STRICT pre-merge run,
+# which is the path designated as the actual gate. Raised by pr-daemon.
+SELF_NAME="${SELF_NAME:-${GITHUB_JOB:-preflight-report}}"
 PR="${1:?usage: merge-preflight.sh [--ci] <pr-number>}"
 REPO="${REPO:-AAStarCommunity/SuperPaymaster}"
 fail=0
@@ -248,6 +255,21 @@ else
     else
       echo "INFO  no GITHUB_RUN_ID; matched SELF_NAME='$SELF_NAME' by NAME only"
       echo "      (weaker: proves a run by that name exists, not that it is this one)"
+    fi
+  fi
+
+  # Strict mode has no GITHUB_RUN_ID, so SELF_NAME is a literal here. Check it
+  # names something real before relying on it: a stale literal silently excludes
+  # nothing, which is how a rename turns this gate against itself.
+  if [ "$CI_MODE" -ne 1 ]; then
+    api allnames '[.check_runs[].name]|join("\n")' \
+        "repos/$REPO/commits/$head/check-runs" --paginate \
+        || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+    if ! printf '%s\n' "$allnames" | grep -qxF "$SELF_NAME"; then
+      echo "FAIL  SELF_NAME='$SELF_NAME' matches no check run on this head."
+      echo "      It must equal the job id in merge-preflight.yml. A stale value"
+      echo "      excludes nothing and this run then counts itself."
+      fail=1
     fi
   fi
 
