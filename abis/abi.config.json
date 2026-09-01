@@ -1,10 +1,10 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-08-26T08:36:47Z",
-  "totalHash": "796cdb86f25ae2177b180fe21d2f09770f416c755ebb72e68d7f8639a2b9b5dc",
+  "buildTime": "2026-09-01T13:05:47Z",
+  "totalHash": "57fbebe53cfd74a56dc61229f844b8ec50dce7a2e39260434de2bccdf2a7a862",
   "files": [
-    { "name": "BLSAggregator.json", "hash": "a43a9e01c40dab33d52ac6833a1324ac4ade141af8e0612d11c59f67219eb33d" },
+    { "name": "BLSAggregator.json", "hash": "4f20651ba7cc1ff325f56223dd99c9e91e567f03febbd7068e136877d9dd6447" },
     { "name": "DVTValidator.json", "hash": "24f8aff0ad9cab66232b765e3e05293632644de51acc8a622ade41fd9475a50f" },
     { "name": "EntryPoint.json", "hash": "fb52a7e1d92dfed8285b78d1849661936c09401227e27e2eceda905b20cd6844" },
     { "name": "GToken.json", "hash": "7cf4d406163244cc95a8867c81f8a7979cfec16d0f2b2b354b94f91e4168ad14" },
