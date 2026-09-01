@@ -100,7 +100,15 @@ contract VerifyAPNTs is Script {
         // what our factory arguments (superPaymaster = 0, paymasterAOA = 0) imply.
         // Found by Codex at stop-time review.
         if (!vm.envOr("ALLOW_POST_DEPLOY_ACTIVITY", false)) {
-            require(supply == 0, "token was minted before ownership reached the Safe");
+            // The deploy mints a starting float while the EOA still owns the token, so
+            // "supply is zero" is no longer the fresh-clone invariant. What still holds
+            // is that supply equals EXACTLY what the deploy was told to mint: anything
+            // else means a second mint happened in the ownership gap. Pass the same
+            // MINT_AMOUNT the deploy used; the default of 0 keeps the old meaning.
+            require(
+                supply == vm.envOr("MINT_AMOUNT", uint256(0)),
+                "supply does not equal the declared mint: something else minted"
+            );
             require(xPNTsToken(token).SUPERPAYMASTER_ADDRESS() == address(0), "a SuperPaymaster was set");
             require(xPNTsToken(token).issuanceCap() == 0, "an issuance cap was set");
             require(!xPNTsToken(token).emergencyDisabled(), "the token is in emergency state");

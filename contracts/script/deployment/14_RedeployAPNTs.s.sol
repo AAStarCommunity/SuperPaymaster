@@ -84,6 +84,17 @@ contract RedeployAPNTs is Script {
         address token = factory.deployxPNTsToken(
             TOKEN_NAME, TOKEN_SYMBOL, COMMUNITY_NAME, COMMUNITY_ENS, EXCHANGE_RATE, address(0)
         );
+        // Mint BEFORE the handover, not after. `mint` is onlyFactoryOrOwner, so once
+        // communityOwner is the Safe every future mint is a multisig transaction --
+        // correct as a steady state, wrong as a way to put a starting float on a token
+        // nobody has used yet. The official DeployLive does it in this order for the
+        // same reason. Zero is a valid amount and skips the call.
+        uint256 mintAmount = vm.envOr("MINT_AMOUNT", uint256(0));
+        address mintTo = vm.envOr("MINT_TO", msg.sender);
+        if (mintAmount > 0) {
+            xPNTsToken(token).mint(mintTo, mintAmount);
+        }
+
         xPNTsToken(token).transferCommunityOwnership(GOVERNANCE_SAFE);
         // The factory owner is not a bystander: it sets `aPNTsPriceUSD`,
         // `industryScaleUSD`, `capRatioBps` and `setTokenCategory` — every input
@@ -106,12 +117,17 @@ contract RedeployAPNTs is Script {
         require(xPNTsToken(token).communityOwner() == GOVERNANCE_SAFE, "owner did not land on the Safe");
         require(factory.owner() == GOVERNANCE_SAFE, "factory owner did not land on the Safe");
         require(token != OLD_APNTS, "sanity: address collision with the old token");
+        require(xPNTsToken(token).totalSupply() == mintAmount, "minted amount did not land");
+        if (mintAmount > 0) {
+            require(xPNTsToken(token).balanceOf(mintTo) == mintAmount, "mint went to the wrong address");
+        }
 
         console.log("--- aPNTs redeploy, OP mainnet ---");
         console.log("factory      :", address(factory), factory.version());
         console.log("factory owner:", factory.owner());
         console.log("implementation:", factory.implementation());
         console.log("aPNTs (new)  :", token, xPNTsToken(token).version());
+        console.log("  minted       :", mintAmount, "to", mintTo);
         console.log("communityOwner:", xPNTsToken(token).communityOwner());
         console.log("aPNTs (old)  :", OLD_APNTS, "-- leave in place, do not migrate supply here");
         console.log("");
