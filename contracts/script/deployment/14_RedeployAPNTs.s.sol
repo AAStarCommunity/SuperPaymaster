@@ -80,6 +80,16 @@ contract RedeployAPNTs is Script {
             TOKEN_NAME, TOKEN_SYMBOL, COMMUNITY_NAME, COMMUNITY_ENS, EXCHANGE_RATE, address(0)
         );
         xPNTsToken(token).transferCommunityOwnership(GOVERNANCE_SAFE);
+        // The factory owner is not a bystander: it sets `aPNTsPriceUSD`,
+        // `industryScaleUSD`, `capRatioBps` and `setTokenCategory` — every input
+        // `isOverIssued()` reads. Leaving it on the deployer EOA would move the
+        // over-issue verdict under the same key this whole deployment exists to
+        // remove, so the audited party would be choosing its own baseline. The price
+        // is also the denominator repo:airaccount's dollar-denominated transfer tiers
+        // are sized against. Ownable here is OZ v5 single-step, and the Safe has code
+        // on this chain (asserted above), so the handover completes in this call.
+        // Found by Codex at stop-time review.
+        xPNTsFactory(address(factory)).transferOwnership(GOVERNANCE_SAFE);
 
         vm.stopBroadcast();
 
@@ -89,10 +99,12 @@ contract RedeployAPNTs is Script {
             keccak256(bytes(xPNTsToken(token).version())) == keccak256(bytes("XPNTs-3.5.0")), "new token is not 3.5.0"
         );
         require(xPNTsToken(token).communityOwner() == GOVERNANCE_SAFE, "owner did not land on the Safe");
+        require(factory.owner() == GOVERNANCE_SAFE, "factory owner did not land on the Safe");
         require(token != OLD_APNTS, "sanity: address collision with the old token");
 
         console.log("--- aPNTs redeploy, OP mainnet ---");
         console.log("factory      :", address(factory), factory.version());
+        console.log("factory owner:", factory.owner());
         console.log("implementation:", factory.implementation());
         console.log("aPNTs (new)  :", token, xPNTsToken(token).version());
         console.log("communityOwner:", xPNTsToken(token).communityOwner());
@@ -103,9 +115,13 @@ contract RedeployAPNTs is Script {
         console.log("  2. tell repo:airaccount the new address (they are blocked on it)");
         console.log("  3. the 140,000 old-token supply is NOT carried over; decide on");
         console.log("     migration separately, from the Safe");
-        console.log("  4. Safe calls setIssuanceCap(...): the cap is UNSET until it does,");
+        console.log("  4. the factory is Safe-owned from here: aPNTsPriceUSD,");
+        console.log("     industryScaleUSD, capRatioBps and setTokenCategory all need a");
+        console.log("     Safe tx. The 'default' category is seeded at $10,000 in the");
+        console.log("     constructor, so the token is auditable with no further setup");
+        console.log("  5. Safe calls setIssuanceCap(...): the cap is UNSET until it does,");
         console.log("     and it is a view for DVT, never a mint gate");
-        console.log("  5. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
+        console.log("  6. when OP mainnet reaches V5: Safe calls setSuperPaymasterAddress");
         console.log("     and addAutoApprovedSpender");
     }
 }
