@@ -1,0 +1,64 @@
+# =============================================================================
+# The preflight has to RUN, not merely exist.
+#
+# scripts/merge-preflight.sh was added as a command someone would remember to
+# type — and the failure it guards is forgetting. #408 was merged by someone who
+# knew the rule, minutes after reading a `gh pr view` that had already gone
+# stale. A rule that is "sometimes done" is done "often forgotten". Raised by
+# pr-daemon on #412.
+#
+# Both legs are observable at push time: the approval-vs-head comparison is why
+# it re-reads the head on every push rather than trusting an earlier reading.
+# NOT a required check, deliberately. Its three legs are each enforced by GitHub
+# itself — required contexts for the checks, dismiss_stale_reviews for
+# approval==head, reviewDecision for CHANGES_REQUESTED — and two of them this job
+# cannot even verify from a GITHUB_TOKEN. Listing it as required would have made
+# a green tick claim the approval legs were checked here. They are not.
+#
+# It runs to REPORT, and to make the script exercised rather than merely present
+# (which was its original gap). The refusal lives in branch protection and in the
+# strict pre-merge run of the same script.
+# =============================================================================
+name: merge-preflight-report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  statuses: read
+
+jobs:
+  preflight-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # --ci, because a required check has to be able to go green. Without it
+      # this job can NEVER pass: a fresh PR has no approval yet, its sibling
+      # checks are still running while it runs, and it counted ITSELF — first as
+      # a pending check, then, once red, as a failing one. Verified on chain: on
+      # cb0af21d `preflight` was the ONLY failure among eleven runs, and its own
+      # log read `FAIL still running: ..., preflight, ...`.
+      #
+      # No SELF_NAME here on purpose. The run DERIVES its own check-run name from
+      # GITHUB_RUN_ID (a check run's details_url is .../runs/<id>/job/<id>), so
+      # renaming the job or adding a `name:` cannot desynchronise it. An earlier
+      # version passed the name in and asserted it existed — which proves a run
+      # by that name exists, not that it is this one. This head carried TWO runs
+      # named `preflight`.
+      #
+      # --ci reports the two TRANSIENT conditions (no approval yet, siblings
+      # still running) without failing on them, and still fails on what is never
+      # transient: an approval naming a DIFFERENT sha (#408) and a check that
+      # actually failed (#400/#405). Re-approval re-runs this via
+      # pull_request_review, so the approval leg recovers without a push.
+      - name: Approval names this SHA, and nothing is failing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: ./scripts/merge-preflight.sh --ci ${{ github.event.pull_request.number }}
