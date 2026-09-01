@@ -254,7 +254,8 @@ contract GuardianSlashE2ETest is Test {
             )
         );
         address[] memory sorted = new address[](7);
-        for (uint8 i = 0; // already ascending i < 7; i++) {
+        // already ascending
+        for (uint8 i = 0; i < 7; i++) {
             sorted[i] = signers[i];
         }
         bytes32 expected = keccak256(
@@ -362,7 +363,55 @@ contract GuardianSlashE2ETest is Test {
 
         uint256 remaining = staking.lockAmt(signers[0]);
         assertEq(remaining, overStake - (overStake * uint256(bls.guardianSlashBps())) / 10000, "fractional");
-        assertGe(remaining, MIN_STAKE, "still eligible: this is what the cap buys");
+        assertGe(remaining, MIN_STAKE, "survives ONE finding at this stake and this bps");
+    }
+
+    /// @notice The cap is per-finding, not cumulative, and this pins the difference.
+    ///         `amount` is re-read from staking.roleLocks on every execution
+    ///         (BLSAggregator.sol), so each finding takes 30% of what is LEFT: the
+    ///         sequence is 0.7^n, not 1 - 0.3n. At 50e18 over a 30e18 gate that buys
+    ///         exactly one finding of headroom — 35e18 after the first, 24.5e18 after
+    ///         the second, which is below the gate and ejects the guardian anyway.
+    ///         guardianCaseResolved is keyed by fraudProofId, so a second independent
+    ///         proof is not blocked by the first.
+    ///
+    ///         This is a limitation, not a bug: the fraction bounds a single finding.
+    ///         It is recorded because test_Cap_AboveThreshold_SurvivesOneSlash on its
+    ///         own reads like a property of the cap, when it is a property of the cap
+    ///         AT ONE FINDING. Raised by pr-daemon, who measured both rows.
+    function test_Cap_IsPerFinding_TwoProofsStillEject() public {
+        test_E2E_A_CommitmentStoredAndReproducible();
+        vm.prank(owner);
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+
+        uint128 overStake = 50 ether;
+        staking.setLock(signers[0], overStake);
+
+        address[] memory guilty = new address[](1);
+        guilty[0] = signers[0];
+
+        bytes memory proofOne = abi.encode(uint256(42));
+        bls.queueGuardianSlash(1, guilty, proofOne);
+        bls.executeGuardianSlash(1, guilty, proofOne);
+        uint256 afterFirst = staking.lockAmt(signers[0]);
+        assertEq(afterFirst, 35 ether, "first finding takes 30% of 50");
+        assertGe(afterFirst, MIN_STAKE, "control: still in the quorum after one");
+
+        // Same disputed proposal (42 is the only one with a commitment), different
+        // fraudProofId. That is the real shape: two independent findings about the
+        // same proposal. guardianCaseResolved is keyed by fraudProofId, so nothing
+        // stops the second.
+        bytes memory proofTwo = abi.encode(uint256(42));
+        bls.queueGuardianSlash(2, guilty, proofTwo);
+        bls.executeGuardianSlash(2, guilty, proofTwo);
+        uint256 afterSecond = staking.lockAmt(signers[0]);
+        // 35 - 30% of 35 = 24.5, i.e. geometric. A cumulative reading would predict
+        // 50 - 2*15 = 20; a fixed-base reading would predict 35 - 15 = 20 as well, so
+        // this number is what separates re-reading the lock from not.
+        assertEq(afterSecond, 24.5 ether, "second finding takes 30% of what is LEFT");
+        assertLt(afterSecond, MIN_STAKE, "ejected anyway: the cap buys one finding, not immunity");
     }
 
     // A fraud proof pointing at a proposalId with NO commitment (never executed, or
