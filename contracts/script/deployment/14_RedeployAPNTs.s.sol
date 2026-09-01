@@ -70,12 +70,17 @@ contract RedeployAPNTs is Script {
     uint256 constant EXCHANGE_RATE = 1e18;
 
     function run() external {
-        require(block.chainid == 10, "14_RedeployAPNTs: OP mainnet only");
+        // OP mainnet by default. The sepolia rehearsal passes 11155111 and its own
+        // REGISTRY; asserted rather than inferred so a broadcast cannot land on a
+        // network nobody chose. The governance Safe is the same address on both.
+        uint256 expectedChain = vm.envOr("EXPECT_CHAIN_ID", uint256(10));
+        address registry = vm.envOr("REGISTRY", OP_REGISTRY);
+        require(block.chainid == expectedChain, "14_RedeployAPNTs: wrong chain");
         require(GOVERNANCE_SAFE.code.length > 0, "governance Safe has no code on this chain");
 
         vm.startBroadcast();
 
-        xPNTsFactory factory = new xPNTsFactory(address(0), OP_REGISTRY);
+        xPNTsFactory factory = new xPNTsFactory(address(0), registry);
         address token = factory.deployxPNTsToken(
             TOKEN_NAME, TOKEN_SYMBOL, COMMUNITY_NAME, COMMUNITY_ENS, EXCHANGE_RATE, address(0)
         );
