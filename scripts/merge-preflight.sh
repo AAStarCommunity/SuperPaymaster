@@ -319,7 +319,12 @@ else
       # No `:-main` fallback. That silent substitution was removed three commits
       # ago and the reasoning is still on line ~143 of this file; reinstating it
       # here would report a different branch's configuration as this PR's.
-      echo "INFO  base branch unreadable; required contexts not checked"
+      # Strict mode is the designated gate, so an unread value is a refusal, not
+      # a note. Printing INFO and continuing was the fail-open this script removes
+      # everywhere else, reintroduced on the one path that is supposed to be
+      # strictest. Found by Codex.
+      echo "FAIL  base branch unreadable; cannot check required contexts"
+      fail=1
     elif reqctx=$(gh api "repos/$REPO/branches/$base_for_req/protection" \
                     --jq '.required_status_checks.contexts|join("\n")' 2>/dev/null); then
       missing=""
@@ -337,7 +342,10 @@ else
         echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
       fi
     else
-      echo "INFO  could not read required contexts; not claiming they all reported"
+      echo "FAIL  could not read $base_for_req's required contexts."
+      echo "      Not proceeding on an unread value: whether every required check"
+      echo "      reported is exactly what this leg exists to establish."
+      fail=1
     fi
   fi
 fi
