@@ -366,20 +366,29 @@ contract GuardianSlashE2ETest is Test {
         assertGe(remaining, MIN_STAKE, "survives ONE finding at this stake and this bps");
     }
 
-    /// @notice The cap is per-finding, not cumulative, and this pins the difference.
+    /// @notice The cap is per-finding, not cumulative, and this pins the arithmetic.
     ///         `amount` is re-read from staking.roleLocks on every execution
-    ///         (BLSAggregator.sol), so each finding takes 30% of what is LEFT: the
-    ///         sequence is 0.7^n, not 1 - 0.3n. At 50e18 over a 30e18 gate that buys
-    ///         exactly one finding of headroom — 35e18 after the first, 24.5e18 after
-    ///         the second, which is below the gate and ejects the guardian anyway.
-    ///         guardianCaseResolved is keyed by fraudProofId, so a second independent
-    ///         proof is not blocked by the first.
+    ///         (BLSAggregator.sol), so a second execution takes guardianSlashBps of
+    ///         what is LEFT: the sequence is 0.7^n, not 1 - 0.3n. At 50e18 over a
+    ///         30e18 gate that is 35e18 after the first and 24.5e18 after the second,
+    ///         below the gate and ejected. So the headroom this cap buys is one
+    ///         execution's worth, not immunity.
     ///
-    ///         This is a limitation, not a bug: the fraction bounds a single finding.
-    ///         It is recorded because test_Cap_AboveThreshold_SurvivesOneSlash on its
-    ///         own reads like a property of the cap, when it is a property of the cap
-    ///         AT ONE FINDING. Raised by pr-daemon, who measured both rows.
-    function test_Cap_IsPerFinding_TwoProofsStillEject() public {
+    ///         WHAT THIS TEST DOES NOT SHOW, because it would be false. The second
+    ///         case here reuses the SAME fraudProof bytes under a different
+    ///         fraudProofId. That is a replay, not a second independent finding, and
+    ///         it only passes because this file's mock verifier discards its first
+    ///         parameter — the `domainDigest` that BLSAggregator computes as
+    ///         fraudProofDigest(fraudProofId, guiltyGuardians) and that the interface
+    ///         requires verifiers to bind ("ignoring it re-opens cross-contract
+    ///         replay"). Against a conforming verifier these two cases would need two
+    ///         genuinely distinct proofs, each bound to its own id. An earlier version
+    ///         of this test called them independent findings; it was measuring the
+    ///         mock, not the protocol. Raised by Codex.
+    ///
+    ///         The arithmetic above is real regardless: it comes from re-reading the
+    ///         lock, which no verifier is involved in.
+    function test_Cap_IsPerFinding_SecondExecutionTakesFromWhatIsLeft() public {
         test_E2E_A_CommitmentStoredAndReproducible();
         vm.prank(owner);
         bls.proposeFraudProofVerifier(address(verifier));
@@ -396,22 +405,19 @@ contract GuardianSlashE2ETest is Test {
         bls.queueGuardianSlash(1, guilty, proofOne);
         bls.executeGuardianSlash(1, guilty, proofOne);
         uint256 afterFirst = staking.lockAmt(signers[0]);
-        assertEq(afterFirst, 35 ether, "first finding takes 30% of 50");
+        assertEq(afterFirst, 35 ether, "first execution takes 30% of 50");
         assertGe(afterFirst, MIN_STAKE, "control: still in the quorum after one");
 
-        // Same disputed proposal (42 is the only one with a commitment), different
-        // fraudProofId. That is the real shape: two independent findings about the
-        // same proposal. guardianCaseResolved is keyed by fraudProofId, so nothing
-        // stops the second.
-        bytes memory proofTwo = abi.encode(uint256(42));
-        bls.queueGuardianSlash(2, guilty, proofTwo);
-        bls.executeGuardianSlash(2, guilty, proofTwo);
+        // Same bytes, new id. See the note above: this is a replay the mock permits,
+        // used here only to reach a second execution and observe the base it uses.
+        bls.queueGuardianSlash(2, guilty, proofOne);
+        bls.executeGuardianSlash(2, guilty, proofOne);
         uint256 afterSecond = staking.lockAmt(signers[0]);
-        // 35 - 30% of 35 = 24.5, i.e. geometric. A cumulative reading would predict
-        // 50 - 2*15 = 20; a fixed-base reading would predict 35 - 15 = 20 as well, so
-        // this number is what separates re-reading the lock from not.
-        assertEq(afterSecond, 24.5 ether, "second finding takes 30% of what is LEFT");
-        assertLt(afterSecond, MIN_STAKE, "ejected anyway: the cap buys one finding, not immunity");
+        // 35 - 30% of 35 = 24.5. A cumulative reading predicts 50 - 2*15 = 20 and a
+        // fixed-base reading predicts 35 - 15 = 20, so this number is what separates
+        // re-reading the lock from not.
+        assertEq(afterSecond, 24.5 ether, "second execution takes 30% of what is LEFT");
+        assertLt(afterSecond, MIN_STAKE, "ejected anyway: the cap buys one execution, not immunity");
     }
 
     // A fraud proof pointing at a proposalId with NO commitment (never executed, or
