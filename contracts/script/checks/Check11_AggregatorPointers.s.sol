@@ -72,6 +72,7 @@ contract Check11_AggregatorPointers is Script {
         address fromSp = IAggPtrSuperPaymaster(sp).BLS_AGGREGATOR();
         address fromDvt = IAggPtrDVTValidator(dvt).BLS_AGGREGATOR();
         address pending = IAggPtrSuperPaymaster(sp).pendingBLSAgg();
+        address recorded = stdJson.readAddress(json, ".blsAggregator");
         uint48 eta = IAggPtrSuperPaymaster(sp).pendingBLSAggEta();
 
         console.log("--- Aggregator pointer consistency ---");
@@ -84,8 +85,19 @@ contract Check11_AggregatorPointers is Script {
         }
 
         bool agreedHasCode = fromRegistry != address(0) && fromRegistry.code.length > 0;
-        Verdict v = classify(fromRegistry, fromSp, fromDvt, pending, agreedHasCode);
+        Verdict v = classify(fromRegistry, fromSp, fromDvt, pending, agreedHasCode, recorded);
 
+        if (v == Verdict.RecordStale) {
+            console.log("RESULT: DEPLOYMENT RECORD STALE");
+            console.log("  The three on-chain pointers agree, but config .blsAggregator does not");
+            console.log("  match them. On-chain consistency is not the same as a correct record:");
+            console.log("  that file is machine-read by the deploy scripts and copied into");
+            console.log("  aastar-sdk by sync_to_sdk.sh, so every consumer stays pinned to the");
+            console.log("  old address while the chain has moved on.");
+            console.log("  recorded :", recorded);
+            console.log("  on-chain :", fromRegistry);
+            revert("Check11: deployments config .blsAggregator is stale");
+        }
         if (v == Verdict.NotAContract) {
             console.log("RESULT: NOT A CONTRACT");
             console.log("  All three agree on an address that has no code on this chain.");
@@ -140,7 +152,8 @@ contract Check11_AggregatorPointers is Script {
         RotationInFlight,
         SettledSplit,
         Unconfigured,
-        NotAContract
+        NotAContract,
+        RecordStale
     }
 
     /// @notice The whole decision, as a pure function so every branch can be tested.
@@ -152,11 +165,20 @@ contract Check11_AggregatorPointers is Script {
     /// @param agreedHasCode whether the address all three point at actually has code.
     ///        Passed in rather than read here so this stays pure and every branch is
     ///        testable; `run()` supplies it from `.code.length`.
-    function classify(address fromRegistry, address fromSp, address fromDvt, address pending, bool agreedHasCode)
-        public
-        pure
-        returns (Verdict)
-    {
+    /// @param recorded the `blsAggregator` value in deployments/config.<env>.json.
+    ///        Checked because the chain agreeing with itself says nothing about the record
+    ///        downstream actually reads: that file is machine-read by the deploy scripts and
+    ///        copied into aastar-sdk by sync_to_sdk.sh. A rotation that moves all three
+    ///        pointers and forgets the record leaves every consumer pinned to the previous
+    ///        aggregator while this check says OK.
+    function classify(
+        address fromRegistry,
+        address fromSp,
+        address fromDvt,
+        address pending,
+        bool agreedHasCode,
+        address recorded
+    ) public pure returns (Verdict) {
         bool agree = (fromRegistry == fromSp) && (fromSp == fromDvt);
         if (agree) {
             // Three zeros "agree", and the first version of this function called that Ok.
@@ -171,6 +193,7 @@ contract Check11_AggregatorPointers is Script {
             // four were "connected to a gate", "not stamp-skippable", "no queued rotation"
             // and "not all zero".
             if (!agreedHasCode) return Verdict.NotAContract;
+            if (recorded != fromRegistry) return Verdict.RecordStale;
             if (pending == address(0)) return Verdict.Ok;
             if (pending == fromSp) return Verdict.OkRequeueSameValue;
             return Verdict.ArmedSplit;

@@ -34,7 +34,7 @@ contract Check11ClassifyTest is Test {
     /// Three zeros "agree". The first two versions of this function called that Ok.
     function test_Unconfigured_ThreeZerosIsNotHealth() public view {
         assertEq(
-            uint256(c.classify(NONE, NONE, NONE, NONE, true)),
+            uint256(c.classify(NONE, NONE, NONE, NONE, true, NONE)),
             uint256(Check11_AggregatorPointers.Verdict.Unconfigured),
             "an unwired stack must not be reported as consistent"
         );
@@ -42,13 +42,15 @@ contract Check11ClassifyTest is Test {
 
     /// A zero among non-zeros is still a split, not an unconfigured stack.
     function test_SettledSplit_OnePointerZeroedWhileOthersSet() public view {
-        assertEq(uint256(c.classify(A, NONE, A, NONE, true)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit));
+        assertEq(
+            uint256(c.classify(A, NONE, A, NONE, true, A)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit)
+        );
     }
 
     /// Three pointers can agree on something that is not a contract at all.
     function test_NotAContract_ThreeAgreeOnACodelessAddress() public view {
         assertEq(
-            uint256(c.classify(A, A, A, NONE, false)),
+            uint256(c.classify(A, A, A, NONE, false, A)),
             uint256(Check11_AggregatorPointers.Verdict.NotAContract),
             "agreement says they were configured together, not that the target exists"
         );
@@ -58,24 +60,36 @@ contract Check11ClassifyTest is Test {
     /// (wire it vs fix the address), so the two must not collapse into one message.
     function test_Unconfigured_TakesPrecedenceOverMissingCode() public view {
         assertEq(
-            uint256(c.classify(NONE, NONE, NONE, NONE, false)), uint256(Check11_AggregatorPointers.Verdict.Unconfigured)
+            uint256(c.classify(NONE, NONE, NONE, NONE, false, NONE)),
+            uint256(Check11_AggregatorPointers.Verdict.Unconfigured)
+        );
+    }
+
+    /// The chain can be perfectly consistent while the file every consumer reads is not.
+    function test_RecordStale_ChainAgreesButConfigStillNamesTheOldAggregator() public view {
+        assertEq(
+            uint256(c.classify(A, A, A, NONE, true, B)),
+            uint256(Check11_AggregatorPointers.Verdict.RecordStale),
+            "on-chain agreement says nothing about the record downstream reads"
         );
     }
 
     function test_Ok_AllThreeAgreeAndNothingQueued() public view {
-        assertEq(uint256(c.classify(A, A, A, NONE, true)), uint256(Check11_AggregatorPointers.Verdict.Ok));
+        assertEq(uint256(c.classify(A, A, A, NONE, true, A)), uint256(Check11_AggregatorPointers.Verdict.Ok));
     }
 
     /// Re-queuing the value already in force is harmless: applying it changes nothing.
     function test_Ok_QueuedRotationTargetsTheSameAddress() public view {
-        assertEq(uint256(c.classify(A, A, A, A, true)), uint256(Check11_AggregatorPointers.Verdict.OkRequeueSameValue));
+        assertEq(
+            uint256(c.classify(A, A, A, A, true, A)), uint256(Check11_AggregatorPointers.Verdict.OkRequeueSameValue)
+        );
     }
 
     /// THE REGRESSION. Three agree, but SP is queued to move somewhere else.
     /// The first version of this check returned OK here.
     function test_ArmedSplit_QueuedRotationToAnotherAddressIsNotOk() public view {
         assertEq(
-            uint256(c.classify(A, A, A, B, true)),
+            uint256(c.classify(A, A, A, B, true, A)),
             uint256(Check11_AggregatorPointers.Verdict.ArmedSplit),
             "three agreeing pointers + a rotation queued elsewhere is a split waiting to happen"
         );
@@ -84,16 +98,16 @@ contract Check11ClassifyTest is Test {
     /// The state this repository was actually in on 2026-08-30..09-01: Registry moved
     /// first, SP and DVTValidator left behind, and an SP rotation queued to catch up.
     function test_RotationInFlight_MatchesTheRealIncidentShape() public view {
-        assertEq(uint256(c.classify(B, A, A, B, true)), uint256(Check11_AggregatorPointers.Verdict.RotationInFlight));
+        assertEq(uint256(c.classify(B, A, A, B, true, B)), uint256(Check11_AggregatorPointers.Verdict.RotationInFlight));
     }
 
     /// The same incident BEFORE the queue existed: one pointer moved, nothing pending.
     function test_SettledSplit_OnePointerMovedAndNothingPending() public view {
-        assertEq(uint256(c.classify(B, A, A, NONE, true)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit));
+        assertEq(uint256(c.classify(B, A, A, NONE, true, B)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit));
     }
 
     /// A split can also be DVTValidator alone lagging; it must not be reported as OK.
     function test_SettledSplit_DvtValidatorAloneLagging() public view {
-        assertEq(uint256(c.classify(B, B, A, NONE, true)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit));
+        assertEq(uint256(c.classify(B, B, A, NONE, true, B)), uint256(Check11_AggregatorPointers.Verdict.SettledSplit));
     }
 }
