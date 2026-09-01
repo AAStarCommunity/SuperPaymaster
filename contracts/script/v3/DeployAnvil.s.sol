@@ -256,10 +256,38 @@ contract DeployAnvil is V54Bootstrap {
         if (gov != address(0)) {
             aggregator.transferOwnership(gov);
             console.log("  BLSAggregator ownership transferred to governance:", gov);
+            // The gate moved exactly one contract, and the two it left behind are the
+            // two that decide how much of the community token can exist and what it is
+            // worth. aPNTs.mint is onlyFactoryOrOwner with NO cap check (issuanceCap is
+            // a view for DVT, not a mint gate, and is unset until someone sets it), so
+            // the owner mints without bound. xPNTsFactory.owner sets aPNTsPriceUSD,
+            // industryScaleUSD, capRatioBps and setTokenCategory - every input
+            // isOverIssued() reads - so it also grades its own over-issuance.
+            //
+            // Not hypothetical, and both were produced by this deployment path: OP
+            // mainnet aPNTs 0x0B41C780 has communityOwner 0x51Ac6949, an EOA, and a
+            // 1e24 mint simulates successfully against a 140,000 supply; Sepolia aPNTs
+            // 0x696A7370 has communityOwner 0x51C00187, also an EOA.
+            //
+            // Last owner-gated action, after the mint and all wiring, so nothing above
+            // becomes a governance transaction.
+            apnts.transferCommunityOwnership(gov);
+            xpntsFactory.transferOwnership(gov);
+            console.log("  aPNTs communityOwner transferred to governance:", gov);
+            console.log("  xPNTsFactory ownership transferred to governance:", gov);
         }
 
         vm.stopBroadcast();
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
+        // is not either. With the variable unset the gate REFUSES rather than passing,
+        // even when the owner is already a Safe -- it proves "this is the Safe the
+        // operator declared", not "this is a Safe" (pinned by
+        // test_SafeOwnedSubjectIsStillRefusedWhenNothingWasDeclared). So a guard here
+        // was redundant, and leaving it in meant the three subjects were gated by two
+        // different rules for no reason. Raised by pr-daemon on #404.
+        GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
+        GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
         _generateConfig();
     }
 

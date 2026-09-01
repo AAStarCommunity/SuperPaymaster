@@ -238,6 +238,17 @@ contract CC48GovernanceOwnerGate is Test {
         assertFalse(ok);
         assertTrue(_contains(reason, "GOVERNANCE_OWNER is NOT SET"), "an undeclared owner says so");
 
+        // Same missing declaration, but the owner is ALREADY a Safe. Reviewing #404,
+        // pr-daemon read this state as one where the gate PASSES -- which would make a
+        // `declaredGovernanceOwner() != 0` guard around a second gate a real hole. It
+        // does not pass: the gate proves "this is the Safe the operator declared", not
+        // "this is a Safe", so an undeclared owner is refused whatever shape it has.
+        // The existing coverage above only had the EOA case, which is why neither of us
+        // could point at this one.
+        (ok, reason) = _tryGate(subject, safe, "BLSAggregator");
+        assertFalse(ok, "a Safe owner does not excuse a missing declaration");
+        assertTrue(_contains(reason, "is NOT SET"), "and the reason names the variable");
+
         // Declared-and-not-landed reads differently from never-declared. On a PRODUCTION
         // chain an EOA owner is refused for being an EOA first, so this is the hint text,
         // not the round-8 binding check -- the binding check is asserted below, on the one
@@ -752,4 +763,5 @@ contract CC48GovernanceOwnerGate is Test {
         }
         return false;
     }
+
 }
