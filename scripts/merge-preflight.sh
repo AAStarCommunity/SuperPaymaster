@@ -40,7 +40,12 @@ if [ "${1:-}" = "--ci" ]; then CI_MODE=1; shift; fi
 # check-run names: "configured correctly" and "impossible to misconfigure" are
 # different properties, and this gate exists to insist on the second. Raised by
 # pr-daemon on #412.
-# The literal is the JOB ID in .github/workflows/merge-preflight.yml. Renaming the
+# The literal must match the CHECK-RUN NAME GitHub assigns, which is the job's
+# `name:` when it has one and the job id otherwise — not the job id unconditionally.
+# Verified in this repo: job `lint-build` reports as "Stage 1 — solhint + build
+# (EIP-170)". merge-preflight.yml therefore sets `name:` explicitly so the two
+# cannot drift apart. Raised by pr-daemon.
+# Renaming the
 # job there and not here desynchronises them silently: grep -vxF matches whole
 # lines, so a stale value excludes nothing and the run counts ITSELF as failing or
 # pending. That already happened once — the job became `preflight-report` while
@@ -267,8 +272,20 @@ else
         || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
     if ! printf '%s\n' "$allnames" | grep -qxF "$SELF_NAME"; then
       echo "FAIL  SELF_NAME='$SELF_NAME' matches no check run on this head."
-      echo "      It must equal the job id in merge-preflight.yml. A stale value"
-      echo "      excludes nothing and this run then counts itself."
+      echo "      TWO causes produce this, and the fix differs:"
+      echo "        (a) the value is stale — it must equal the CHECK-RUN NAME"
+      echo "            GitHub assigns, which is the job's \`name:\` when it has"
+      echo "            one and the job id otherwise (in this repo job lint-build"
+      echo "            reports as 'Stage 1 — solhint + build (EIP-170)'). A stale"
+      echo "            value excludes nothing and this run then counts itself;"
+      echo "        (b) this job has never reported on THIS head — normal for a"
+      echo "            commit older than the workflow, or one not re-pushed since."
+      echo "            Re-push to get a run."
+      echo "      check runs present: $(printf '%s' "$allnames" | paste -sd, -)"
+      # Naming only (a) misdiagnoses (b), which is the common case on older heads.
+      # Reproduced immediately after merging: #398 predates this job, so a CORRECT
+      # SELF_NAME still matched nothing and the message blamed configuration.
+      # Raised by pr-daemon.
       fail=1
     fi
   fi
