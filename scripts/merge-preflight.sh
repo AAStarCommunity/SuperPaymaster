@@ -134,14 +134,29 @@ else
     api mine "[.check_runs[]|select(.details_url|test(\"/runs/${GITHUB_RUN_ID}/\"))|.name]|join(\"\\n\")" \
         "repos/$REPO/commits/$head/check-runs" --paginate \
         || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+    n_mine=$(printf '%s\n' "$mine" | grep -c '^..*$')
     if [ -z "$mine" ]; then
       echo "FAIL  no check run on $head belongs to GITHUB_RUN_ID=$GITHUB_RUN_ID."
       echo "      Cannot identify this job's own check run, so it cannot exclude"
       echo "      itself, so every judgement below would be self-poisoned."
       fail=1
+    elif [ "$n_mine" -ne 1 ]; then
+      # GITHUB_RUN_ID names the WORKFLOW RUN, and every job in it shares that id
+      # in its details_url. With one job the match is unique by accident, not by
+      # construction — add a second job here and this silently becomes a
+      # multi-line SELF_NAME that excludes nothing. Refuse rather than guess
+      # which of them is me. Found by Codex.
+      echo "FAIL  GITHUB_RUN_ID=$GITHUB_RUN_ID owns $n_mine check runs on this head:"
+      # Quoted and line-oriented: check-run names contain spaces ("Stage 2 —
+      # forge test + fuzz"), and an unquoted expansion word-splits them into
+      # nonsense exactly when the operator most needs to read the list.
+      printf '%s\n' "$mine" | sed 's/^/        /' 
+      echo "      That id identifies the workflow RUN, not this JOB. Make the"
+      echo "      exclusion job-precise before this workflow grows a second job."
+      fail=1
     else
       SELF_NAME="$mine"
-      echo "OK    self identified from GITHUB_RUN_ID=$GITHUB_RUN_ID -> '$SELF_NAME'"
+      echo "OK    self identified from GITHUB_RUN_ID=$GITHUB_RUN_ID -> '$SELF_NAME' (sole job in the run)"
     fi
   elif [ "$CI_MODE" -eq 1 ]; then
     # Outside Actions there is no run id to key on. Fall back to the name, and
@@ -160,7 +175,14 @@ else
     fi
   fi
 
-  # Drop our own run from both lists before judging them.
+  # Drop our own run by NAME, deliberately, even though the identification just
+  # above is by run id. Excluding by run id would keep a SUPERSEDED failing run
+  # of this same job in `bad` for ever — which is the self-holding trap from two
+  # rounds ago wearing different clothes: red once, red always. Name-exclusion
+  # drops every run of this job, including the stale failures a re-push replaces.
+  # This is a deliberate widening immediately after a deliberate narrowing, so it
+  # is written down: the identification must be precise, the exclusion must not.
+  # Raised by pr-daemon.
   bad=$(printf '%s\n' "$bad" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
   pend=$(printf '%s\n' "$pend" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
   [ -n "$bad" ] && { echo "FAIL  failing checks: $bad"; fail=1; }
