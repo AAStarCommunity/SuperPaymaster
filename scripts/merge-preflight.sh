@@ -325,8 +325,21 @@ else
       # strictest. Found by Codex.
       echo "FAIL  base branch unreadable; cannot check required contexts"
       fail=1
-    elif reqctx=$(gh api "repos/$REPO/branches/$base_for_req/protection" \
-                    --jq '(.required_status_checks.contexts // [])|join("\n")' 2>/dev/null); then
+    elif prot=$(gh api "repos/$REPO/branches/$base_for_req/protection" 2>/dev/null) \
+         && [ "$(printf '%s' "$prot" | jq -r 'has("enforce_admins")' 2>/dev/null)" = "true" ]; then
+      # TWO steps, because `// []` alone cannot tell "this branch requires
+      # nothing" from "I could not see what it requires". A partial response, a
+      # permission problem, or an error object all leave the field absent, and
+      # `// []` turned every one of them into "requires nothing" — which PASSES.
+      # That silently converted a fail-closed path into a fail-open one, in the
+      # commit that was fixing a misdiagnosis. Found by Codex.
+      #
+      # So: first prove a real protection object was read (`enforce_admins` is present on every
+      # protection object and on nothing else; `.url` was the first choice and did
+      # NOT work — the required_signatures sub-endpoint returns {url, enabled} and
+      # sailed straight through the guard), and only
+      # then treat a missing required_status_checks as a genuine zero.
+      reqctx=$(printf '%s' "$prot" | jq -r '(.required_status_checks.contexts // [])|join("\n")' 2>/dev/null)
       # `// []` above matters. Without it, a branch WITH protection but NO required
       # status checks makes jq error on null ("Cannot iterate over null", rc 5), gh
       # returns 1, and this lands in the unreadable branch — reporting "could not
