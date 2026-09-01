@@ -10,7 +10,11 @@ on:
     paths:
       - 'contracts/src/**'
       - 'scripts/gen-abi-docs.mjs'
+      - 'abis/**'
+      - 'scripts/check-abi-bundle.mjs'
       - 'docs/abi/**'
+      - 'abis/**'
+      - 'scripts/check-abi-bundle.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/abi-docs.yml'
@@ -19,6 +23,8 @@ on:
       - 'contracts/src/**'
       - 'scripts/gen-abi-docs.mjs'
       - 'docs/abi/**'
+      - 'abis/**'
+      - 'scripts/check-abi-bundle.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/abi-docs.yml'
@@ -52,3 +58,10 @@ jobs:
 
       - name: Verify ABI docs are up to date (pnpm gen:abi-docs:check)
         run: pnpm gen:abi-docs:check
+
+      # gen:abi-docs:check only recomputes docs/abi/*.md. It never reads
+      # abis/*.json -- the bundle sync_to_sdk.sh copies into aastar-sdk. That is
+      # how abis/BLSAggregator.json drifted four functions behind the contract
+      # for six days with this job green (#410, #411).
+      - name: ABI bundles match the compiled contracts
+        run: node scripts/check-abi-bundle.mjs
