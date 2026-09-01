@@ -193,9 +193,14 @@ contract DeployLive is V54Bootstrap {
         // accusation by front-running it out of the mempool -- and no Timelock can cover
         // that path. Everything above still runs deployer-owned; only this one owner moves.
         _settleAggregatorGovernance();
+        _settleTokenGovernance();
 
         vm.stopBroadcast();
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        if (GovernanceOwnerGate.declaredGovernanceOwner() != address(0)) {
+            GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
+            GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
+        }
         _generateConfig();
     }
 
@@ -208,6 +213,36 @@ contract DeployLive is V54Bootstrap {
         if (gov == address(0)) return;
         aggregator.transferOwnership(gov);
         console.log("  BLSAggregator ownership transferred to governance:", gov);
+    }
+
+    /// @dev Hands aPNTs and the xPNTsFactory to governance, with the same gate the
+    ///      aggregator uses above. That gate has moved exactly one contract since
+    ///      CC-48 round-6, and the two it left behind are the two that decide how much
+    ///      of the community token can exist and what it is worth:
+    ///
+    ///        aPNTs.communityOwner   mint() is onlyFactoryOrOwner with NO cap check.
+    ///                               issuanceCap is a view for DVT, not a mint gate,
+    ///                               and stays unset until setIssuanceCap is called.
+    ///        xPNTsFactory.owner     updateAPNTsPrice, setIndustryScaleUSD,
+    ///                               setCapRatioBps and setTokenCategory are every
+    ///                               input isOverIssued() reads.
+    ///
+    ///      So an EOA left here both mints without bound and grades its own
+    ///      over-issuance. Both live examples came out of this path: OP mainnet aPNTs
+    ///      0x0B41C780 (communityOwner 0x51Ac6949, an EOA, 1e24 mint simulates fine
+    ///      against a 140,000 supply) and Sepolia aPNTs 0x696A7370 (communityOwner
+    ///      0x51C00187, also an EOA).
+    ///
+    ///      Runs after the mint and all wiring, so nothing above becomes a governance
+    ///      transaction. Unset GOVERNANCE_OWNER is the local path and a no-op, as for
+    ///      the aggregator.
+    function _settleTokenGovernance() internal {
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov == address(0)) return;
+        apnts.transferCommunityOwnership(gov);
+        xpntsFactory.transferOwnership(gov);
+        console.log("  aPNTs communityOwner transferred to governance:", gov);
+        console.log("  xPNTsFactory ownership transferred to governance:", gov);
     }
 
     /// @dev Deploy the three NEW v5.4 contracts and wire X402Facilitator on the
