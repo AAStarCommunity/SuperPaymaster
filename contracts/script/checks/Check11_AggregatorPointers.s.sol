@@ -55,14 +55,18 @@ interface IAggVersion {
  *         pending value) or a mistake. This check distinguishes those two.
  *
  * Run:
- *   CONFIG_FILE=sepolia.json forge script \
+ *   CONFIG_FILE=config.sepolia.json forge script \
  *     contracts/script/checks/Check11_AggregatorPointers.s.sol:Check11_AggregatorPointers \
  *     --rpc-url "$SEPOLIA_RPC_URL"
+ *
+ *   The file lives in deployments/ and every real caller passes the
+ *   `config.<env>.json` form; the default below matches that form so a bare
+ *   run fails on a missing file rather than on a filename shape nobody uses.
  */
 contract Check11_AggregatorPointers is Script {
     function run() external view {
         string memory json = vm.readFile(
-            string.concat(vm.projectRoot(), "/deployments/", vm.envOr("CONFIG_FILE", string("anvil.json")))
+            string.concat(vm.projectRoot(), "/deployments/", vm.envOr("CONFIG_FILE", string("config.anvil.json")))
         );
         address registry = stdJson.readAddress(json, ".registry");
         address sp = stdJson.readAddress(json, ".superPaymaster");
@@ -71,9 +75,34 @@ contract Check11_AggregatorPointers is Script {
         address fromRegistry = IAggPtrRegistry(registry).blsAggregator();
         address fromSp = IAggPtrSuperPaymaster(sp).BLS_AGGREGATOR();
         address fromDvt = IAggPtrDVTValidator(dvt).BLS_AGGREGATOR();
-        address pending = IAggPtrSuperPaymaster(sp).pendingBLSAgg();
         address recorded = stdJson.readAddress(json, ".blsAggregator");
-        uint48 eta = IAggPtrSuperPaymaster(sp).pendingBLSAggEta();
+
+        // Both pending reads are optional: `pendingBLSAgg`/`pendingBLSAggEta` arrived
+        // with the P0-3 timelock, and a SuperPaymaster older than that has neither
+        // selector. Read unconditionally, this check died with a bare "EvmError: Revert"
+        // on exactly the deployments it was written to diagnose — op-sepolia is split
+        // right now (Registry == DVTValidator, SP.BLS_AGGREGATOR == 0) and running
+        // SuperPaymaster-3.2.2, so it reverted before reaching classify() on a value
+        // whose answer it did not need.
+        //
+        // The fallback is NOT `pending = address(0)`. "This SP has no timelock" and
+        // "this SP has a timelock and nothing is queued" are different states, and
+        // collapsing them would give Verdict.Ok two meanings — the second of which
+        // silently asserts a delay that does not exist. `timelockSupported` carries
+        // the difference into classify() instead.
+        address pending;
+        uint48 eta;
+        bool timelockSupported = true;
+        try IAggPtrSuperPaymaster(sp).pendingBLSAgg() returns (address p) {
+            pending = p;
+        } catch {
+            timelockSupported = false;
+        }
+        if (timelockSupported) {
+            try IAggPtrSuperPaymaster(sp).pendingBLSAggEta() returns (uint48 e) {
+                eta = e;
+            } catch {}
+        }
 
         console.log("--- Aggregator pointer consistency ---");
         console.log("Registry.blsAggregator       :", fromRegistry, _ver(fromRegistry));
@@ -84,8 +113,22 @@ contract Check11_AggregatorPointers is Script {
             console.log("  matures at (unix)          :", uint256(eta));
         }
 
+        // A coordinated rotation spends the whole 24h timelock in a verdict that
+        // reverts — queue-first lands in ArmedSplit, move-Registry-and-DVT-first lands
+        // in RotationInFlight — so for one day `./deploy-sepolia.sh` and
+        // `./audit-core sepolia` are both red on a rotation that is going exactly to
+        // plan, and an unrelated hotfix cannot ship. That is a real cost, but a plain
+        // "skip this check" flag would delete the gate on the day it matters most.
+        //
+        // EXPECT_AGGREGATOR_ROTATION_TO is narrower: it does not suppress the check, it
+        // states the intended end address. The rotation passes ONLY if every pointer
+        // that has already moved, and any queued value, equals that address — i.e. the
+        // operator's declared target and the chain agree. Point it at the wrong address
+        // and it still fails; set it during a split nobody declared and it still fails.
+        address expected = vm.envOr("EXPECT_AGGREGATOR_ROTATION_TO", address(0));
+
         bool agreedHasCode = fromRegistry != address(0) && fromRegistry.code.length > 0;
-        Verdict v = classify(fromRegistry, fromSp, fromDvt, pending, agreedHasCode, recorded);
+        Verdict v = classify(fromRegistry, fromSp, fromDvt, pending, agreedHasCode, recorded, timelockSupported);
 
         if (v == Verdict.RecordStale) {
             console.log("RESULT: DEPLOYMENT RECORD STALE");
@@ -113,6 +156,17 @@ contract Check11_AggregatorPointers is Script {
             console.log("  unreachable. Wire it before treating this deployment as done.");
             revert("Check11: no aggregator configured");
         }
+        if (v == Verdict.LegacyNoTimelock) {
+            console.log("RESULT: OK (LEGACY SP - NO ROTATION TIMELOCK)");
+            console.log("  All three agree and the record matches, so the invariant this");
+            console.log("  check guards holds. What does NOT hold is the assumption behind");
+            console.log("  it: this SuperPaymaster predates P0-3 and exposes no");
+            console.log("  pendingBLSAgg(), so changing WHO MAY SLASH is a single");
+            console.log("  transaction with no 24h delay. Reported separately from OK");
+            console.log("  because a plain OK would be claiming a delay that is not there.");
+            console.log("  Not a failure of this check; upgrade SP to gate that change.");
+            return;
+        }
         if (v == Verdict.Ok) {
             console.log("RESULT: OK - all three agree, no rotation queued");
             return;
@@ -120,6 +174,31 @@ contract Check11_AggregatorPointers is Script {
         if (v == Verdict.OkRequeueSameValue) {
             console.log("RESULT: OK - all three agree; queued rotation targets the SAME address");
             return;
+        }
+        if (expected != address(0) && (v == Verdict.ArmedSplit || v == Verdict.RotationInFlight)) {
+            // A rotation in progress is a TWO-address state, not "moved or zero": a
+            // pointer that has not been touched yet still holds the OLD aggregator.
+            // The declaration is accepted only when the chain looks like a transition
+            // between exactly two addresses, one of them the declared target, with
+            // nothing queued anywhere else. A third address anywhere means whatever is
+            // happening is not the rotation that was declared.
+            (bool declarationHolds, address other, string memory why) =
+                checkDeclaredTarget(fromRegistry, fromSp, fromDvt, pending, expected, expected.code.length > 0);
+            if (declarationHolds) {
+                console.log("RESULT: ROTATION IN PROGRESS, MATCHES DECLARED TARGET");
+                console.log("  declared EXPECT_AGGREGATOR_ROTATION_TO:", expected, _ver(expected));
+                console.log("  rotating away from                    :", other, _ver(other));
+                console.log("  Every pointer holds either the declared target or the one");
+                console.log("  address being rotated away from, and nothing is queued");
+                console.log("  elsewhere. Passing so a 24h timelock does not also freeze");
+                console.log("  unrelated deployments. Remove this variable once");
+                console.log("  applyBLSAggregator() has landed: it asserts an in-flight");
+                console.log("  change, it does not mute the check.");
+                return;
+            }
+            console.log("DECLARED TARGET DOES NOT MATCH THE CHAIN - falling through to the failure");
+            console.log("  EXPECT_AGGREGATOR_ROTATION_TO:", expected);
+            console.log("  reason:", why);
         }
         if (v == Verdict.ArmedSplit) {
             console.log("RESULT: ARMED SPLIT");
@@ -137,7 +216,13 @@ contract Check11_AggregatorPointers is Script {
             revert("Check11: aggregator pointers disagree (rotation in flight)");
         }
         console.log("RESULT: MISMATCH - settled split");
-        console.log("  No SP rotation is pending, so this is NOT a transition window.");
+        if (timelockSupported) {
+            console.log("  No SP rotation is pending, so this is NOT a transition window.");
+        } else {
+            console.log("  This SuperPaymaster predates P0-3 and has no pendingBLSAgg(), so");
+            console.log("  no rotation CAN be in flight on it. Same conclusion, different");
+            console.log("  reason: read as 'no such mechanism', not 'queue read and empty'.");
+        }
         console.log("  Someone moved one pointer and not the others. Rotating requires ALL THREE:");
         console.log("    Registry.setBLSAggregator(new)");
         console.log("    DVTValidator.setBLSAggregator(new)");
@@ -153,7 +238,43 @@ contract Check11_AggregatorPointers is Script {
         SettledSplit,
         Unconfigured,
         NotAContract,
-        RecordStale
+        RecordStale,
+        LegacyNoTimelock
+    }
+
+    /// @notice Does the chain look like the rotation the operator declared?
+    /// @dev    Pure for the same reason `classify` is: this decides whether a red gate
+    ///         goes green, so every way it can say yes has to be reachable from a test.
+    ///         A rotation in progress is a TWO-address state — a pointer nobody has
+    ///         touched yet still holds the OLD aggregator, it does not read zero — so
+    ///         "already moved or zero" was the wrong shape and rejected the very
+    ///         rotation this exists to allow (measured on live sepolia).
+    /// @return holds whether the declaration may stand in for the check
+    /// @return other the single address being rotated away from, for the log
+    /// @return why the specific reason it does not hold, empty when it does
+    function checkDeclaredTarget(
+        address fromRegistry,
+        address fromSp,
+        address fromDvt,
+        address pending,
+        address expected,
+        bool expectedHasCode
+    ) public pure returns (bool holds, address other, string memory why) {
+        address[3] memory ptrs = [fromRegistry, fromSp, fromDvt];
+        for (uint256 i = 0; i < 3; i++) {
+            if (ptrs[i] == expected || ptrs[i] == address(0)) continue;
+            if (other == address(0)) other = ptrs[i];
+            else if (other != ptrs[i]) return (false, other, "the pointers name more than two distinct addresses");
+        }
+        if (!expectedHasCode) return (false, other, "the declared target has no code on this chain");
+        if (pending != address(0) && pending != expected) {
+            return (false, other, "SP has a rotation queued to a different address");
+        }
+        // Declaring a target nothing is moving toward is not a rotation, it is a wish.
+        if (pending != expected && fromRegistry != expected && fromSp != expected && fromDvt != expected) {
+            return (false, other, "nothing on-chain points at, or is queued to, the target");
+        }
+        return (true, other, "");
     }
 
     /// @notice The whole decision, as a pure function so every branch can be tested.
@@ -177,7 +298,8 @@ contract Check11_AggregatorPointers is Script {
         address fromDvt,
         address pending,
         bool agreedHasCode,
-        address recorded
+        address recorded,
+        bool timelockSupported
     ) public pure returns (Verdict) {
         bool agree = (fromRegistry == fromSp) && (fromSp == fromDvt);
         if (agree) {
@@ -194,6 +316,10 @@ contract Check11_AggregatorPointers is Script {
             // and "not all zero".
             if (!agreedHasCode) return Verdict.NotAContract;
             if (recorded != fromRegistry) return Verdict.RecordStale;
+            // Reached only when the three agree and the record matches. On a
+            // pre-P0-3 SuperPaymaster there is no pending value to consult and no
+            // 24h delay on changing who may slash, so this is not the same Ok.
+            if (!timelockSupported) return Verdict.LegacyNoTimelock;
             if (pending == address(0)) return Verdict.Ok;
             if (pending == fromSp) return Verdict.OkRequeueSameValue;
             return Verdict.ArmedSplit;

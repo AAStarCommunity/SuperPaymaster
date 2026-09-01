@@ -65,3 +65,44 @@ All active pointers resolve to the NEW modules; the OLD aggregator is fully de-a
 Note: `staking.authorizedSlashers[new DVT]` is intentionally false — the slasher role is held by the
 BLSAggregator (which calls `staking.slashByDVT`), not the DVTValidator directly. DVT → BLSAggregator →
 staking is the path.
+
+---
+
+## 2026-09-04 rotation to BLSAggregator-4.11.0 — the agreed path (option A)
+
+The 2026-08-30 rotation moved `Registry.blsAggregator` to 4.11.0 (`0xEaeC2F51…`) and nothing else,
+leaving `SuperPaymaster.BLS_AGGREGATOR` and `DVTValidator.BLS_AGGREGATOR` on 4.3.0
+(`0x174b60bB…`). The split ran for two days and was found by repo:sdk, not here.
+`Check11_AggregatorPointers` exists because of it.
+
+The SP leg is already queued (`pendingBLSAgg` = `0xEaeC2F51…`), so the remaining work is the two
+pointer switches. **All three legs go to 4.11.0 on 09-04. 4.12.0 is scheduled separately** — it
+needs a fresh BLSAggregator deployment, which would void DVT's four-day arming and push B3 out by
+the same four days, and the guardian slash path it changes is unreachable while slash is closed.
+
+Order, after DVT confirms its `fraudProofVerifier` readback is non-zero:
+
+1. `DVTValidator.setBLSAggregator(0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D)` — immediate.
+2. `SuperPaymaster.applyBLSAggregator()` — the eta (`1788322908`, 2026-09-03) has already passed,
+   so this needs no further wait.
+3. Flip `deployments/config.sepolia.json` `.blsAggregator` to `0xEaeC2F51…`. Check11 fails with
+   `RECORD STALE` if this is skipped: that file is copied into aastar-sdk by `sync_to_sdk.sh`, so
+   the chain moving without the record moves every consumer onto a dead address.
+4. `CONFIG_FILE=config.sepolia.json forge script …Check11_AggregatorPointers` must print
+   `RESULT: OK`. Report four readbacks: the three pointers and `pendingBLSAgg` (now zero).
+
+### Deploying during the rotation window
+
+Between step 1 and step 2 the three pointers legitimately disagree, and Check11 is red for the
+whole window — which also blocks `./deploy-sepolia.sh` and `./audit-core sepolia`, including an
+unrelated hotfix. There is no skip flag, deliberately. Instead, declare the target:
+
+```
+EXPECT_AGGREGATOR_ROTATION_TO=0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D ./deploy-sepolia.sh
+```
+
+This is an assertion, not a mute. It passes only when every pointer holds either the declared
+target or the single address being rotated away from, nothing is queued anywhere else, and
+something on-chain actually points at or is queued to the target. A wrong address, a third
+address, or a queue pointing elsewhere all still fail. **Remove it once step 2 has landed** —
+left set, it would keep accepting a rotation that is no longer in flight.
