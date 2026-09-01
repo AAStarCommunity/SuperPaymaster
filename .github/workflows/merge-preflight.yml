@@ -35,6 +35,9 @@ permissions:
 
 jobs:
   preflight-report:
+    # Set explicitly: the check-run name comes from name: when present, so
+    # pinning it here keeps it equal to the job id the script falls back to.
+    name: preflight-report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
