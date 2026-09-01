@@ -326,7 +326,15 @@ else
       echo "FAIL  base branch unreadable; cannot check required contexts"
       fail=1
     elif reqctx=$(gh api "repos/$REPO/branches/$base_for_req/protection" \
-                    --jq '.required_status_checks.contexts|join("\n")' 2>/dev/null); then
+                    --jq '(.required_status_checks.contexts // [])|join("\n")' 2>/dev/null); then
+      # `// []` above matters. Without it, a branch WITH protection but NO required
+      # status checks makes jq error on null ("Cannot iterate over null", rc 5), gh
+      # returns 1, and this lands in the unreadable branch — reporting "could not
+      # read" for a branch that simply requires nothing, so strict could never pass
+      # there. Verified with jq directly, both ways. Raised by pr-daemon.
+      if [ -z "$reqctx" ]; then
+        echo "INFO  $base_for_req requires no status checks; nothing to verify reported"
+      else
       missing=""
       while IFS= read -r c; do
         [ -z "$c" ] && continue
@@ -340,6 +348,7 @@ else
         fail=1
       else
         echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
+      fi
       fi
     else
       echo "FAIL  could not read $base_for_req's required contexts."
