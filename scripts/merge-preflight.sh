@@ -196,6 +196,11 @@ api total '.total_count' "repos/$REPO/commits/$head/check-runs" \
 if [ "${total:-0}" -eq 0 ]; then
   echo "FAIL  no check runs for $head — 'all green' and 'never ran' are not the same reading"; fail=1
 else
+  api allcheck '[.check_runs[].name]|join("\n")' \
+      "repos/$REPO/commits/$head/check-runs" --paginate \
+      || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n')
+
   api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
@@ -292,6 +297,36 @@ else
     fi
   fi
   [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $total check runs, none failing or pending (excluding $SELF_NAME)"
+
+  # "Nothing failed" is not "everything required reported". A required context
+  # that never RAN is absent, not green — and absence read as consent is the
+  # defect this whole script argues against, sitting in the script.
+  #
+  # Not hypothetical: #413 touched only scripts/ and a workflow, so `abi-docs`
+  # was outside its paths filter and never triggered. Every check that DID run
+  # was green, this script said "safe to merge", and GitHub said BLOCKED. GitHub
+  # was right. Paths-filtered workflows make this the normal case, not an edge.
+  api reqctx '.required_status_checks.contexts|join("\n")' \
+      "repos/$REPO/branches/${base_for_req:-main}/protection" 2>/dev/null \
+      || reqctx=""
+  if [ -z "$reqctx" ]; then
+    echo "INFO  could not read required contexts; not claiming they all reported"
+  else
+    missing=""
+    while IFS= read -r c; do
+      [ -z "$c" ] && continue
+      printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
+    done <<< "$reqctx"
+    if [ -n "$missing" ]; then
+      echo "FAIL  required context(s) never reported on this head: $missing"
+      echo "      A required check that did not run is ABSENT, not passing."
+      echo "      Usually a paths filter: the workflow was not triggered by these"
+      echo "      files. GitHub blocks on it; re-push or widen the filter."
+      fail=1
+    else
+      echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
+    fi
+  fi
 fi
 
 api st '.state' "repos/$REPO/commits/$head/status" \
