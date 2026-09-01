@@ -22,7 +22,11 @@ contract PragueStateMachineDVTStub {
 ///      judge fraud itself.
 contract PragueStateMachineVerifier {
     bool public valid = true;
-    function setValid(bool value) external { valid = value; }
+
+    function setValid(bool value) external {
+        valid = value;
+    }
+
     function verify(bytes32, uint256, address[] calldata, bytes calldata) external view returns (bool) {
         return valid;
     }
@@ -225,9 +229,7 @@ contract CC48PragueStateMachine is Test {
         // But re-opening a notice is blocked for the cooldown.
         uint256 cooldownUntil = uint256(agg.guardianExitCooldownUntil(validators[2]));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BLSAggregator.GuardianExitCooldownActive.selector, validators[2], cooldownUntil
-            )
+            abi.encodeWithSelector(BLSAggregator.GuardianExitCooldownActive.selector, validators[2], cooldownUntil)
         );
         vm.prank(validators[2]);
         agg.requestGuardianExit();
@@ -268,9 +270,7 @@ contract CC48PragueStateMachine is Test {
         (address[] memory u2, uint256[] memory s2) = _batch(address(0xC0F2), 50);
         bytes32 h2 = _reputationHash(7202, u2, s2, 2);
         bytes memory proof2 = _proof(h2, 3);
-        vm.expectRevert(
-            abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, perUser * 2, perUser)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Registry.TotalCreditExposureExceeded.selector, perUser * 2, perUser));
         agg.verifyAndExecute(7202, address(0), 0, u2, s2, 2, bytes32(0), proof2);
         assertEq(registry.totalCreditExposure(), perUser, "rejected proposal moved nothing");
     }
@@ -303,7 +303,11 @@ contract CC48PragueStateMachine is Test {
         assertEq(agg.fraudProofVerifier(), address(evil));
 
         agg.executeGuardianSlash(7301, accused, hex"73");
-        assertEq(staking.getLockedStake(validators[4], ROLE_DVT), 0, "collusion stake taken in full");
+        assertEq(
+            staking.getLockedStake(validators[4], ROLE_DVT),
+            _afterOneGuardianSlash(7301, DVT_STAKE),
+            "collusion stake taken in full"
+        );
         (,,, uint8 status,,,,) = agg.guardianSlashCases(7301);
         assertEq(status, 2);
     }
@@ -318,7 +322,7 @@ contract CC48PragueStateMachine is Test {
         accused[0] = validators[2];
         agg.queueGuardianSlash(7311, accused, hex"74");
         agg.executeGuardianSlash(7311, accused, hex"74");
-        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), 0);
+        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), _afterOneGuardianSlash(7311, DVT_STAKE));
 
         (address[] memory users, uint256[] memory scores) = _batch(address(0xC0F3), 20);
         bytes32 h = _reputationHash(7312, users, scores, 1);
@@ -329,7 +333,11 @@ contract CC48PragueStateMachine is Test {
                 BLSAggregator.SlotValidatorStakeBelowMinimum.selector,
                 uint8(3),
                 validators[2],
-                uint256(0),
+                // Not 0: a guardian slash now takes the frozen fraction, not the whole
+                // lock, so the ejected validator still holds a remainder and the revert
+                // payload reports it. The rejection is unchanged -- the remainder is
+                // still below DVT_STAKE -- only the number it names moved.
+                _afterOneGuardianSlash(7311, DVT_STAKE),
                 DVT_STAKE
             )
         );
@@ -382,7 +390,11 @@ contract CC48PragueStateMachine is Test {
 
         // ...and the real proof still executes despite the flipped implementation.
         agg.executeGuardianSlash(7331, accused, hex"76");
-        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), 0, "collusion stake taken in full");
+        assertEq(
+            staking.getLockedStake(validators[2], ROLE_DVT),
+            _afterOneGuardianSlash(7331, DVT_STAKE),
+            "collusion stake taken in full"
+        );
         (,,, uint8 status,,,,) = agg.guardianSlashCases(7331);
         assertEq(status, 2);
 
@@ -396,7 +408,11 @@ contract CC48PragueStateMachine is Test {
                 BLSAggregator.SlotValidatorStakeBelowMinimum.selector,
                 uint8(3),
                 validators[2],
-                uint256(0),
+                // Not 0: a guardian slash now takes the frozen fraction, not the whole
+                // lock, so the ejected validator still holds a remainder and the revert
+                // payload reports it. The rejection is unchanged -- the remainder is
+                // still below DVT_STAKE -- only the number it names moved.
+                _afterOneGuardianSlash(7331, DVT_STAKE),
                 DVT_STAKE
             )
         );
@@ -426,11 +442,7 @@ contract CC48PragueStateMachine is Test {
     // Helpers
     // =================================================================
 
-    function _pop(address validator, BLS.G1Point memory pk, uint256 sk)
-        internal
-        view
-        returns (BLS.G2Point memory)
-    {
+    function _pop(address validator, BLS.G1Point memory pk, uint256 sk) internal view returns (BLS.G2Point memory) {
         return _multiplyG2(BLS.hashToG2(abi.encodePacked(agg.popDigest(validator, pk))), sk);
     }
 
@@ -514,5 +526,25 @@ contract CC48PragueStateMachine is Test {
 
     function _skipWithoutPrague() internal {
         if (!pragueAvailable) vm.skip(true);
+    }
+
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash of the case
+    ///      `fraudProofId`. It used to be zero: executeGuardianSlash took the whole
+    ///      lock, so a single finding put the guardian below minStake and out of the
+    ///      very quorum the slash path protects.
+    ///
+    ///      The fraction is read from the CASE, not from `agg.guardianSlashBps()`.
+    ///      Those are different sources: the live value can be moved by
+    ///      setGuardianSlashBps at any moment, while execute prices the case from the
+    ///      snapshot taken at queue. An expectation computed from the live value would
+    ///      silently follow the admin and could not detect the very defect the snapshot
+    ///      was added to close (#400 B3). Found by Codex.
+    ///
+    ///      These assertions live only in the Prague tree, so a `forge test` run on the
+    ///      default EVM never executes them — which is how they survived the Cancun-side
+    ///      fix in the first place.
+    function _afterOneGuardianSlash(uint256 fraudProofId, uint256 lock) internal view returns (uint256) {
+        (,,,,,, uint16 bps,) = agg.guardianSlashCases(fraudProofId);
+        return lock - (lock * uint256(bps)) / 10000;
     }
 }
