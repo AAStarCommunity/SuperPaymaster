@@ -752,4 +752,31 @@ contract CC48GovernanceOwnerGate is Test {
         }
         return false;
     }
+    /// @notice The state pr-daemon named while reviewing #404: a real chain, a Safe-owned
+    ///         subject, and GOVERNANCE_OWNER never set. The review assumed that gate
+    ///         PASSES, which would make a `declaredGovernanceOwner() != 0` guard around a
+    ///         second gate a real hole. It does not pass — an undeclared owner is refused
+    ///         even when the owner is already a Safe, because the gate proves "this is the
+    ///         Safe the operator declared", not "this is a Safe".
+    ///
+    ///         Pinned because the #404 fix (removing that guard) is correct for a
+    ///         different reason than the one given, and the next reader deserves the real
+    ///         one: with the env unset every gate refuses, so the guard was redundant
+    ///         rather than load-bearing, and removing it costs nothing while removing the
+    ///         need to reason about ordering at all.
+    function test_SafeOwnedSubjectIsStillRefusedWhenNothingWasDeclared() public {
+        _ack(true);
+        _declared(address(0));
+        vm.chainId(ETH_MAINNET);
+        (bool ok, string memory reason) = _tryGate(subject, safe, "BLSAggregator");
+        assertFalse(ok, "a Safe owner does not excuse a missing declaration");
+        assertTrue(_contains(reason, "is NOT SET"), "and the reason says which variable");
+
+        // Control: the identical call with the declaration present must pass, so the
+        // refusal above is attributable to the missing env var and nothing else.
+        _declared(safe);
+        (ok,) = _tryGate(subject, safe, "BLSAggregator");
+        assertTrue(ok, "control: declared and landed passes");
+    }
+
 }

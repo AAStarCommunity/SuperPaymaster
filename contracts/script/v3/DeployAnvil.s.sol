@@ -279,10 +279,15 @@ contract DeployAnvil is V54Bootstrap {
 
         vm.stopBroadcast();
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
-        if (GovernanceOwnerGate.declaredGovernanceOwner() != address(0)) {
-            GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
-            GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
-        }
+        // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
+        // is not either. With the variable unset the gate REFUSES rather than passing,
+        // even when the owner is already a Safe -- it proves "this is the Safe the
+        // operator declared", not "this is a Safe" (pinned by
+        // test_SafeOwnedSubjectIsStillRefusedWhenNothingWasDeclared). So a guard here
+        // was redundant, and leaving it in meant the three subjects were gated by two
+        // different rules for no reason. Raised by pr-daemon on #404.
+        GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
+        GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
         _generateConfig();
     }
 
