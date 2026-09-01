@@ -295,7 +295,7 @@ contract CC48PragueStateMachine is Test {
         address[] memory accused = new address[](1);
         accused[0] = validators[4];
         agg.queueGuardianSlash(7301, accused, hex"73");
-        (,,,,,, address pinned) = agg.guardianSlashCases(7301);
+        (,,,,,,, address pinned) = agg.guardianSlashCases(7301);
         assertEq(pinned, address(verifier));
 
         // Fire the pre-armed rotation, then execute.
@@ -304,7 +304,7 @@ contract CC48PragueStateMachine is Test {
 
         agg.executeGuardianSlash(7301, accused, hex"73");
         assertEq(staking.getLockedStake(validators[4], ROLE_DVT), 0, "collusion stake taken in full");
-        (,,, uint8 status,,,) = agg.guardianSlashCases(7301);
+        (,,, uint8 status,,,,) = agg.guardianSlashCases(7301);
         assertEq(status, 2);
     }
 
@@ -360,7 +360,7 @@ contract CC48PragueStateMachine is Test {
         address[] memory accused = new address[](1);
         accused[0] = validators[2];
         agg.queueGuardianSlash(7331, accused, hex"76");
-        (, bytes32 frozenProof,,,,, address recorded) = agg.guardianSlashCases(7331);
+        (, bytes32 frozenProof,,,,,, address recorded) = agg.guardianSlashCases(7331);
         assertEq(frozenProof, keccak256(hex"76"), "verdict frozen at queue time");
         assertEq(recorded, address(proxy), "verifier recorded for audit only");
 
@@ -383,7 +383,7 @@ contract CC48PragueStateMachine is Test {
         // ...and the real proof still executes despite the flipped implementation.
         agg.executeGuardianSlash(7331, accused, hex"76");
         assertEq(staking.getLockedStake(validators[2], ROLE_DVT), 0, "collusion stake taken in full");
-        (,,, uint8 status,,,) = agg.guardianSlashCases(7331);
+        (,,, uint8 status,,,,) = agg.guardianSlashCases(7331);
         assertEq(status, 2);
 
         // And the ejection is real: slot 3's lock is now below minStake, so the next

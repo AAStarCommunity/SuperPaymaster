@@ -617,7 +617,7 @@ contract CC48ExitNoticeTest is Test {
         vm.prank(owner);
         bls.proposeFraudProofVerifier(address(evil));
 
-        (,, uint64 caseDeadline,,,,) = bls.guardianSlashCases(7);
+        (,, uint64 caseDeadline,,,,,) = bls.guardianSlashCases(7);
         assertEq(uint256(caseDeadline), queuedAt + bls.GUARDIAN_SLASH_CASE_WINDOW());
         assertGe(
             uint256(bls.pendingFraudProofVerifierReadyAt()),
@@ -732,7 +732,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertTrue(bls.guardianSlashed(1, g1));
         assertFalse(bls.guardianSlashed(1, g2));
 
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(1);
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(1);
         assertEq(status, 1, "case stays pending, not silently executed");
         assertEq(resolved, 1);
 
@@ -747,7 +747,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.executeGuardianSlash(1, accused, hex"01");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
         assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether));
-        (,,, status,, resolved,) = bls.guardianSlashCases(1);
+        (,,, status,, resolved,,) = bls.guardianSlashCases(1);
         assertEq(status, 2, "case resolved once every guardian settled");
         assertEq(resolved, 2);
     }
@@ -794,7 +794,7 @@ contract CC48GuardianSlashRetryTest is Test {
         bls.requestGuardianExit();
         bls.queueGuardianSlash(3, accused, hex"03");
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(3);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(3);
         (, uint64 expiresAt) = bls.guardianExitRequests(g1);
         // NOTE: read these into memory BEFORE any vm.warp — via-IR happily CSEs
         // block.timestamp across a cheatcode it cannot see.
@@ -834,7 +834,7 @@ contract CC48GuardianSlashRetryTest is Test {
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
         assertFalse(bls.guardianSlashed(4, g1), "nothing was taken from g1");
         assertTrue(bls.guardianSlashed(4, g2), "g2 was still slashed under the same proof");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(4);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(4);
         assertEq(status, 2);
     }
 
@@ -884,7 +884,7 @@ contract CC48GuardianSlashRetryTest is Test {
         address[] memory accused = new address[](1);
         accused[0] = g1;
         bls.queueGuardianSlash(10, accused, hex"10");
-        (,,,,,, address pinned) = bls.guardianSlashCases(10);
+        (,,,,,,, address pinned) = bls.guardianSlashCases(10);
         assertEq(pinned, address(verifier), "case pinned the verifier that authorized it");
 
         // One block later: fire the pre-armed rotation. Permissionless, and legitimate
@@ -899,7 +899,7 @@ contract CC48GuardianSlashRetryTest is Test {
             _afterOneGuardianSlash(30 ether),
             "the colluder was slashed under the pinned verifier"
         );
-        (,,, uint8 status,,,) = bls.guardianSlashCases(10);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(10);
         assertEq(status, 2, "case resolved");
     }
 
@@ -931,12 +931,12 @@ contract CC48GuardianSlashRetryTest is Test {
         // The case deadline has NOT passed (window > rotation delay is not assumed;
         // assert it, because the retry has to be reachable for this test to mean
         // anything).
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(11);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(11);
         assertLe(block.timestamp, uint256(deadline), "retry window still open");
 
         bls.executeGuardianSlash(11, accused, hex"11");
         assertEq(bls.pendingGuardianSlashCount(g2), 0, "retry settled g2 under the pinned verifier");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(11);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(11);
         assertEq(status, 2);
     }
 
@@ -953,7 +953,7 @@ contract CC48GuardianSlashRetryTest is Test {
         vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
         bls.applyFraudProofVerifier();
 
-        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(12);
+        (,, uint64 rawDeadline,,,,,) = bls.guardianSlashCases(12);
         uint256 caseDeadline = uint256(rawDeadline);
         vm.warp(caseDeadline + 1);
         vm.expectRevert(
@@ -963,7 +963,7 @@ contract CC48GuardianSlashRetryTest is Test {
 
         bls.expireGuardianSlashCase(12, accused);
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry releases the freeze");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(12);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(12);
         assertEq(status, 3);
     }
 
@@ -987,7 +987,7 @@ contract CC48GuardianSlashRetryTest is Test {
 
         next.setValid(true);
         bls.queueGuardianSlash(13, accused, hex"13");
-        (,,,,,, address recorded) = bls.guardianSlashCases(13);
+        (,,,,,,, address recorded) = bls.guardianSlashCases(13);
         assertEq(recorded, address(next), "the case records the verifier that approved it");
 
         // ...and now that the verdict is frozen, the same verifier flipping to reject is
@@ -1018,7 +1018,7 @@ contract CC48GuardianSlashRetryTest is Test {
             staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "slash lands without the verifier"
         );
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "freeze released by execution, not by expiry");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(14);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(14);
         assertEq(status, 2, "case resolved");
     }
 
@@ -1221,7 +1221,7 @@ contract CC48MutableProxyVerifierTest is Test {
     function test_QueuedCaseSurvivesAnImplementationSwapAtTheSameAddress() public {
         address[] memory accused = _one(g1);
         bls.queueGuardianSlash(20, accused, PROOF);
-        (, bytes32 frozenProofHash,,,,, address recorded) = bls.guardianSlashCases(20);
+        (, bytes32 frozenProofHash,,,,,, address recorded) = bls.guardianSlashCases(20);
         assertEq(frozenProofHash, keccak256(PROOF), "verdict frozen as the proof hash");
         assertEq(recorded, address(proxy), "verifier recorded for audit");
 
@@ -1237,7 +1237,7 @@ contract CC48MutableProxyVerifierTest is Test {
             staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "the colluder was slashed anyway"
         );
         assertEq(bls.pendingGuardianSlashCount(g1), 0);
-        (,,, uint8 status,,,) = bls.guardianSlashCases(20);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(20);
         assertEq(status, 2, "case resolved");
     }
 
@@ -1307,13 +1307,13 @@ contract CC48MutableProxyVerifierTest is Test {
         // Swap the implementation mid-case, then retry.
         proxy.upgradeTo(alwaysFalse);
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(23);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(23);
         assertLe(block.timestamp, uint256(deadline), "retry window still open");
 
         bls.executeGuardianSlash(23, accused, PROOF);
         assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether), "g2 settled after the upgrade");
         assertEq(bls.pendingGuardianSlashCount(g2), 0);
-        (,,, uint8 status,,,) = bls.guardianSlashCases(23);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(23);
         assertEq(status, 2);
 
         // ...and the retry path is equally strict about the proof. (Opening a fresh case
@@ -1359,7 +1359,7 @@ contract CC48MutableProxyVerifierTest is Test {
         bls.queueGuardianSlash(26, accused, PROOF);
         proxy.upgradeTo(alwaysFalse);
 
-        (,, uint64 rawDeadline,,,,) = bls.guardianSlashCases(26);
+        (,, uint64 rawDeadline,,,,,) = bls.guardianSlashCases(26);
         uint256 caseDeadline = uint256(rawDeadline);
         vm.warp(caseDeadline + 1);
 
@@ -1371,7 +1371,7 @@ contract CC48MutableProxyVerifierTest is Test {
         bls.expireGuardianSlashCase(26, accused);
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "expiry still releases the freeze");
         assertEq(staking.getLockedStake(g1, ROLE_DVT), 30 ether, "and nothing was slashed");
-        (,,, uint8 status,,,) = bls.guardianSlashCases(26);
+        (,,, uint8 status,,,,) = bls.guardianSlashCases(26);
         assertEq(status, 3);
     }
 
@@ -1387,7 +1387,7 @@ contract CC48MutableProxyVerifierTest is Test {
         bls.applyFraudProofVerifier();
         assertEq(bls.fraudProofVerifier(), address(evil));
 
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(27);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(27);
         assertLe(block.timestamp, uint256(deadline), "case still open");
 
         bls.executeGuardianSlash(27, accused, PROOF);
@@ -1418,7 +1418,7 @@ contract CC48MutableProxyVerifierTest is Test {
 
         proxy.upgradeTo(alwaysTrue);
         bls.queueGuardianSlash(29, _one(g1), PROOF);
-        (, bytes32 frozen,,,,,) = bls.guardianSlashCases(29);
+        (, bytes32 frozen,,,,,,) = bls.guardianSlashCases(29);
         assertEq(frozen, keccak256(PROOF));
     }
 }
@@ -1579,7 +1579,7 @@ contract CC48VerifierDisarmTest is Test {
             staking.getLockedStake(g1, ROLE_DVT), _afterOneGuardianSlash(30 ether), "frozen verdict still executed"
         );
         assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether));
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(9);
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(9);
         assertEq(status, 2, "case resolved");
         assertEq(resolved, 2);
     }
@@ -1604,7 +1604,7 @@ contract CC48VerifierDisarmTest is Test {
         bls.executeGuardianSlash(11, accused, hex"11");
         assertEq(bls.pendingGuardianSlashCount(g1), 0, "g1 settled");
         assertEq(bls.pendingGuardianSlashCount(g2), 1, "g2 still frozen mid-case");
-        (,,, uint8 status,, uint16 resolved,) = bls.guardianSlashCases(11);
+        (,,, uint8 status,, uint16 resolved,,) = bls.guardianSlashCases(11);
         assertEq(status, 1, "case still pending");
         assertEq(resolved, 1);
 
@@ -1622,7 +1622,7 @@ contract CC48VerifierDisarmTest is Test {
         assertEq(staking.getLockedStake(g2, ROLE_DVT), _afterOneGuardianSlash(30 ether), "g2 actually slashed");
         assertTrue(bls.guardianSlashed(11, g1));
         assertTrue(bls.guardianSlashed(11, g2));
-        (,,, status,, resolved,) = bls.guardianSlashCases(11);
+        (,,, status,, resolved,,) = bls.guardianSlashCases(11);
         assertEq(status, 2, "case resolved after the disarm");
         assertEq(resolved, 2, "g1 not double-counted on the retry");
 
@@ -1636,11 +1636,11 @@ contract CC48VerifierDisarmTest is Test {
     function test_DisarmDoesNotChangeAQueuedCaseDeadline() public {
         address[] memory accused = _both();
         bls.queueGuardianSlash(10, accused, hex"10");
-        (,, uint64 deadline,,,,) = bls.guardianSlashCases(10);
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(10);
         uint256 caseDeadline = uint256(deadline);
 
         bls.emergencyDisarmFraudProofVerifier();
-        (,, uint64 after_,,,,) = bls.guardianSlashCases(10);
+        (,, uint64 after_,,,,,) = bls.guardianSlashCases(10);
         assertEq(uint256(after_), caseDeadline, "deadline untouched");
 
         vm.warp(caseDeadline + 1);

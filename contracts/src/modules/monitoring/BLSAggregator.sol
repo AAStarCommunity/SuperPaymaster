@@ -165,6 +165,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // case stays retryable instead of collapsing into an all-or-nothing batch.
         uint16 guardianCount;
         uint16 resolvedCount;
+        /// @dev The slash fraction FROZEN AT QUEUE TIME, in basis points.
+        ///      The verdict was already frozen here (guardiansHash, fraudProofHash,
+        ///      deadline, verifier) and the price was not: `executeGuardianSlash` is
+        ///      permissionless and `setGuardianSlashBps` is immediate, so the caller's
+        ///      choice of moment picked which policy applied. Setting 10000 between
+        ///      queue and execute reinstated exactly the take-everything behaviour this
+        ///      cap exists to remove, on a case adjudicated under a 30% policy; setting
+        ///      100 softened a queued verdict 30x. A verdict's price is part of the
+        ///      verdict. Packs into the slot with deadline/status/counts at no cost.
+        ///      Found by pr-daemon and Codex.
+        uint16 slashBps;
         // AUDIT ONLY as of round-4: the verifier that authorized this case, recorded so
         // an observer can attribute the verdict. Execution no longer calls it, and no
         // code path reads it for a decision — a rotation, upgrade, or selfdestruct after
@@ -1907,6 +1918,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         slashCase.fraudProofHash = proofHash;
         slashCase.deadline = deadline;
         slashCase.status = 1;
+        slashCase.slashBps = guardianSlashBps;
         slashCase.guardianCount = uint16(guiltyGuardians.length);
         slashCase.verifier = verifier;
         for (uint256 i = 0; i < guiltyGuardians.length;) {
@@ -2075,7 +2087,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             // dust-sized lock; taking the dust in full is the conservative branch, because
             // a zero penalty would still mark the case resolved and let a colluder settle
             // for nothing.
-            uint256 penalty = (uint256(amount) * guardianSlashBps) / _BPS_DENOMINATOR;
+            // The queue-time snapshot, never the live value: see GuardianSlashCase.slashBps.
+            uint16 bps = slashCase.slashBps;
+            // Only reachable for a case queued before this field existed, impossible on
+            // a fresh deployment. Fail loudly rather than fall back to the live value,
+            // which restores the hole this snapshot closes, or to a zero penalty, which
+            // the line below would then widen to the whole lock.
+            if (bps == 0) revert InvalidParameter("guardian slash case has no bps snapshot");
+            uint256 penalty = (uint256(amount) * bps) / _BPS_DENOMINATOR;
             if (penalty == 0) penalty = uint256(amount);
 
             try IGTokenStakingSlash(address(staking)).slashByDVT(guardian, roleDvt, penalty, "DVT collusion") {

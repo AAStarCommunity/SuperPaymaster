@@ -446,4 +446,60 @@ contract GuardianSlashE2ETest is Test {
         vm.expectRevert(BLSAggregator.FraudProofVerifierNotSet.selector);
         bls.queueGuardianSlash(1, guilty, hex"");
     }
+
+    /// @notice The verdict's PRICE is part of the verdict. `queueGuardianSlash` froze
+    ///         guardiansHash, fraudProofHash, deadline and the verifier's ruling, and
+    ///         left the fraction live — while `executeGuardianSlash` is permissionless
+    ///         and `setGuardianSlashBps` takes effect immediately. So the caller's
+    ///         choice of moment, not the adjudication, picked the policy.
+    ///
+    ///         This direction is the one that blocks: 10000 between queue and execute
+    ///         reinstates exactly the take-everything behaviour this cap exists to
+    ///         remove, on a case ruled under a 30% policy. Found by pr-daemon and Codex.
+    function test_Cap_BpsIsFrozenAtQueue_RaisingItCannotRepriceAQueuedCase() public {
+        _armVerifier();
+        uint128 overStake = 50 ether;
+        staking.setLock(signers[0], overStake);
+        address[] memory guilty = new address[](1);
+        guilty[0] = signers[0];
+        bytes memory proof = abi.encode(uint256(42));
+
+        bls.queueGuardianSlash(1, guilty, proof); // ruled at the default 3000
+
+        vm.prank(owner);
+        bls.setGuardianSlashBps(10_000); // the whole lock, if the live value were used
+
+        bls.executeGuardianSlash(1, guilty, proof);
+        assertEq(staking.lockAmt(signers[0]), 35 ether, "priced at the queued 3000, not the live 10000");
+        assertGt(staking.lockAmt(signers[0]), 0, "the take-everything behaviour must not come back");
+    }
+
+    /// @notice The same hole in the softening direction: 100 bps between queue and
+    ///         execute would take 0.5e18 instead of 15e18, a 30x discount applied
+    ///         retroactively to an already-adjudicated case.
+    function test_Cap_BpsIsFrozenAtQueue_LoweringItCannotDiscountAQueuedCase() public {
+        _armVerifier();
+        uint128 overStake = 50 ether;
+        staking.setLock(signers[0], overStake);
+        address[] memory guilty = new address[](1);
+        guilty[0] = signers[0];
+        bytes memory proof = abi.encode(uint256(42));
+
+        bls.queueGuardianSlash(1, guilty, proof);
+
+        vm.prank(owner);
+        bls.setGuardianSlashBps(100);
+
+        bls.executeGuardianSlash(1, guilty, proof);
+        assertEq(staking.lockAmt(signers[0]), 35 ether, "priced at the queued 3000, not the live 100");
+    }
+
+    /// @dev Shared arming for the two tests above.
+    function _armVerifier() internal {
+        test_E2E_A_CommitmentStoredAndReproducible();
+        vm.prank(owner);
+        bls.proposeFraudProofVerifier(address(verifier));
+        vm.warp(block.timestamp + bls.VERIFIER_ROTATION_DELAY());
+        bls.applyFraudProofVerifier();
+    }
 }
