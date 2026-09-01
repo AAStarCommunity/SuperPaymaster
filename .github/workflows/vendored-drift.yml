@@ -37,7 +37,7 @@ jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # No DVT_REPO_PATH here on purpose: the API path asks GitHub directly for every value
       # (default branch, its tip, file contents at a given ref) instead of reading anything
