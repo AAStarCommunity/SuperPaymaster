@@ -35,7 +35,12 @@ set -uo pipefail
 # cb0af21d, `preflight` was the ONLY failure among eleven runs.
 CI_MODE=0
 if [ "${1:-}" = "--ci" ]; then CI_MODE=1; shift; fi
-SELF_NAME="${SELF_NAME:-preflight}"
+# Defaults to the job id GitHub exports, so the common case needs no hand-kept
+# string at all. Whatever it ends up as, --ci ASSERTS it below against the real
+# check-run names: "configured correctly" and "impossible to misconfigure" are
+# different properties, and this gate exists to insist on the second. Raised by
+# pr-daemon on #412.
+SELF_NAME="${SELF_NAME:-${GITHUB_JOB:-preflight}}"
 PR="${1:?usage: merge-preflight.sh [--ci] <pr-number>}"
 REPO="${REPO:-AAStarCommunity/SuperPaymaster}"
 fail=0
@@ -114,6 +119,27 @@ else
   api pend '[.check_runs[]|select(.status!="completed")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  # In CI, this run MUST be among the check-run names, because it IS one. If it
+  # is not, SELF_NAME does not match the check-run GitHub created — someone added
+  # a `name:` to the job, or renamed it — and every exclusion below silently
+  # stops excluding anything. That is the self-reference coming back looking
+  # configured. Fail loudly instead.
+  if [ "$CI_MODE" -eq 1 ]; then
+    api names '[.check_runs[].name]|join("\n")' \
+        "repos/$REPO/commits/$head/check-runs" --paginate \
+        || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+    if ! printf '%s\n' "$names" | grep -qxF "$SELF_NAME"; then
+      echo "FAIL  SELF_NAME='$SELF_NAME' is not among this commit's check runs."
+      echo "      It must equal the check-run name GitHub gives this job (the job"
+      echo "      id, unless the job sets \`name:\`). A mismatch silently restores"
+      echo "      the self-reference this flag exists to prevent."
+      echo "      check runs here: $(printf '%s' "$names" | paste -sd, -)"
+      fail=1
+    else
+      echo "OK    SELF_NAME='$SELF_NAME' matches a real check run"
+    fi
+  fi
+
   # Drop our own run from both lists before judging them.
   bad=$(printf '%s\n' "$bad" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
   pend=$(printf '%s\n' "$pend" | grep -vxF "$SELF_NAME" | grep -v '^$' | paste -sd, -)
