@@ -72,3 +72,31 @@ figure is not the input they need. Nothing should be baked until that lands.
 Not deployed. Same scripts, `EXPECT_CHAIN_ID` defaults to 10 and `REGISTRY` to the
 OP-mainnet Registry-3.0.2. Blocked on the `optimism-deployer` keystore password.
 Dry-run against real OP-mainnet state is green; the addresses will differ.
+
+## Event-log audit: the token was not touched in the ownership gap
+
+State reads cannot prove this. Between tx2 and tx3 the deployer EOA held
+`communityOwner` and could have granted `autoApprovedSpenders`,
+`approvedFacilitators` or `spenderDailyCapOverride` to an **arbitrary** address —
+mappings a view call can probe but never enumerate. `communityOwner == SAFE` is
+true whether or not that happened. So the complete check is the log, not the state.
+
+Every event the new token emitted, deploy window (blocks 11611106–11611115):
+
+| topic0 | event | from tx |
+|---|---|---|
+| `0xc7f505b2f371ae21` | `Initialized(uint64)`, data `1` | `0x6cab21ac…` deployxPNTsToken |
+| `0x1191f7dd7e510e69` | `CommunityOwnerUpdated(0xb5600060…deployer → 0x51eDf11f…Safe)` | `0x4febb3d0…` |
+
+**Two events, both expected.** No `Transfer` (nothing minted), no
+`FacilitatorApproved`, no `SpenderDailyCapForUpdated`, no `ExchangeRateUpdated`,
+no `AutoApprovedSpenderAdded` beyond what `initialize` sets in storage without
+emitting.
+
+**The instrument was verified before the result was believed.** The first run of
+this audit reported zero events for every query INCLUDING a control that could not
+be zero — the cause was an HTTP 400: the RPC free tier caps `eth_getLogs` at a
+10-block range, and `cast` reports that as no output rather than as an error, so a
+broken query and a clean token produce the identical reading. Re-run inside a
+10-block window it returns 2 events on the token and 3 on the factory. The zeros
+above are from the working instrument.

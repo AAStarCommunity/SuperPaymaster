@@ -122,6 +122,19 @@ contract VerifyAPNTs is Script {
                 xPNTsToken(token).spenderDailyCapOverride(deployer) == 0,
                 "a spender cap override was set for the deployer"
             );
+            // updateExchangeRate is onlyFactoryOrOwner too, and it is the divisor in
+            // issuedValueUSD: a tainted rate survives a zero supply and silently
+            // rescales every later over-issue verdict.
+            require(xPNTsToken(token).exchangeRate() == 1 ether, "exchangeRate was moved off the deployed value");
+            // The mappings cannot be enumerated from a view call, so this is a targeted
+            // probe of one address the caller names, not a sweep. See the scope note
+            // printed with the verdict.
+            address probe = vm.envOr("PROBE_ADDRESS", address(0));
+            if (probe != address(0)) {
+                require(!xPNTsToken(token).autoApprovedSpenders(probe), "PROBE_ADDRESS is auto-approved");
+                require(!xPNTsToken(token).approvedFacilitators(probe), "PROBE_ADDRESS is an approved facilitator");
+                require(xPNTsToken(token).spenderDailyCapOverride(probe) == 0, "PROBE_ADDRESS has a cap override");
+            }
         }
 
         console.log("");
@@ -153,7 +166,22 @@ contract VerifyAPNTs is Script {
             console.log("  APNTS_PRICE_MAX: (not exposed by this factory version)");
         }
         console.log("");
-        console.log("RESULT: OK - both owners are the Safe, and the token is untouched");
+        console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
+        console.log("        its post-deploy default");
+        console.log("");
+        console.log("  WHAT THIS DOES NOT PROVE. autoApprovedSpenders, approvedFacilitators");
+        console.log("  and spenderDailyCapOverride are mappings: a view call can ask about an");
+        console.log("  address, it cannot enumerate them. While the deployer EOA held");
+        console.log("  communityOwner between tx2 and tx3 it could have granted any of those");
+        console.log("  to an ARBITRARY third address, and no later reading of this contract");
+        console.log("  will show it. This probes the factory, the deployer, and PROBE_ADDRESS");
+        console.log("  if given - so it can refute a grant it was told to look for, and");
+        console.log("  cannot certify that none exists. An earlier version of this line said");
+        console.log("  the token was untouched, which was a claim this script cannot make.");
+        console.log("");
+        console.log("  The complete check is the event log. A fresh deployment must show no");
+        console.log("  AutoApprovedSpenderAdded beyond the factory, and no FacilitatorApproved,");
+        console.log("  SpenderDailyCapForUpdated, ExchangeRateUpdated or Transfer at all.");
         console.log("  Re-run this after ANY later ownership or upgrade action.");
         console.log("  Once the Safe legitimately mints or configures the token, the");
         console.log("  fresh-clone checks stop applying: set ALLOW_POST_DEPLOY_ACTIVITY=true");
