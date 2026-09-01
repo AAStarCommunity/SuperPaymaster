@@ -77,8 +77,26 @@ AUDIT_FAILED=false
 stamp_key() { echo "deployments/.audit.${ENV}.${1}.stamp"; }
 
 # should_skip <label>  →  0 (skip) or 1 (run)
+# Checks that must NEVER be stamp-skipped, however recently they passed.
+#
+# The stamp is `registryImpl|spImpl|updateTime` — a fingerprint of the DEPLOYMENT.
+# That is the right key for checks that ask "is what we deployed still what we think
+# we deployed": those answers cannot change while the fingerprint holds.
+#
+# It is the WRONG key for a check that asserts an invariant over MUTABLE LIVE STATE,
+# because that state moves without the fingerprint moving. Concretely, and this is
+# not hypothetical: `Registry.setBLSAggregator` is a single owner transaction that
+# changes none of registryImpl, spImpl or updateTime. On 2026-08-30 exactly that call
+# split the three aggregator pointers apart, and a stamped Check11 would have answered
+# "already passed" every run afterwards while the split sat there. A cached invariant
+# is not an invariant.
+NEVER_SKIP="Check11_AggregatorPointers"
+
 should_skip() {
     local key="$1"
+    for never in $NEVER_SKIP; do
+        [ "$key" = "$never" ] && return 1
+    done
     local sf
     sf=$(stamp_key "$key")
     if [ "$FORCE" = false ] && [ -f "$sf" ] && [ "$(cat "$sf")" = "$CURRENT_STAMP" ]; then
@@ -116,7 +134,7 @@ rpc_retry() {
 # ---------------------------------------------------------------------------
 
 echo "━━━ A) Forge Script Checks ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring Check10_V54 VerifyV3_1_1"
+CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring Check10_V54 Check11_AggregatorPointers VerifyV3_1_1"
 
 run_forge_check() {
     local SCRIPT="$1"
