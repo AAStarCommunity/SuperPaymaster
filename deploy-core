@@ -195,7 +195,17 @@ fi
 
 # --- PHASE 2: Core Logic Audit (Self-Verification) ---
 # Delegate to audit-core (per-check idempotency + retry + ABI/interface checks).
-# --force because we just deployed: stamps from a previous run are now stale.
+#
+# Deliberately WITHOUT --force. This line used to claim "--force because we just
+# deployed: stamps from a previous run are now stale", which described a flag the call
+# below never passed and does not need: the stamp is `registryImpl|spImpl|updateTime`,
+# so a real deployment invalidates every stamp by itself. On the skip-if-unchanged path
+# nothing was redeployed, and re-running the deployment checks would tell us only what
+# the unchanged stamp already says.
+#
+# What that idempotency must NOT be allowed to hide is a check over LIVE state, which
+# moves without the stamp moving. Those are listed in audit-core's NEVER_SKIP and run
+# every time regardless.
 echo ""
 if [ -x "./audit-core" ]; then
     ./audit-core "$ENV"

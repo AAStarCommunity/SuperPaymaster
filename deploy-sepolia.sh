@@ -48,6 +48,33 @@ export SRC_HASH=$(find contracts/src -name "*.sol" -not -path "*/mocks/*" -type 
 export DEPLOY_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 export ENV="$ENV"
 
+# Live-state invariant, checked BEFORE the skip-if-unchanged exit below.
+#
+# Whether the three aggregator pointers agree is a fact about the CHAIN, not about
+# whether we are deploying today. The early `exit 0` on an unchanged srcHash is the
+# common path once a config exists — i.e. almost every run — so a check placed only
+# in the post-deploy block would, in practice, never execute. That is the same shape
+# as the audit-core stamp: an idempotency shortcut quietly short-circuiting a check
+# over mutable state.
+check11_aggregator_pointers() {
+    [ -f "deployments/$CONFIG_FILE" ] || return 0   # nothing deployed yet, nothing to compare
+    echo ""
+    echo "🛡️ Check11_AggregatorPointers (blocking, live state)"
+    if ! CONFIG_FILE="$CONFIG_FILE" forge script \
+        "contracts/script/checks/Check11_AggregatorPointers.s.sol:Check11_AggregatorPointers" \
+        --rpc-url "$RPC_URL" --timeout 300 -vv 2>&1; then
+        echo ""
+        echo "❌ Check11 failed — see output above."
+        echo "   Rotating the aggregator requires ALL THREE:"
+        echo "     Registry.setBLSAggregator(new)"
+        echo "     DVTValidator.setBLSAggregator(new)"
+        echo "     SuperPaymaster.queueBLSAggregator(new) -> 24h -> applyBLSAggregator()"
+        exit 1
+    fi
+}
+
+check11_aggregator_pointers
+
 if [ "$FORCE" = false ] && [ -f "deployments/$CONFIG_FILE" ]; then
     STORED_HASH=$(jq -r '.srcHash // ""' "deployments/$CONFIG_FILE")
     if [ "$SRC_HASH" == "$STORED_HASH" ] && [ -n "$STORED_HASH" ]; then
@@ -82,6 +109,10 @@ if [ "$DRY_RUN" = false ]; then
         echo "  Audit: $SCRIPT"
         forge script "contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT" --rpc-url "$RPC_URL" --timeout 300 -vv 2>&1 || echo "  ⚠️  $SCRIPT skipped"
     done
+
+    # Re-run the same blocking invariant AFTER deploying: a deployment can move these
+    # pointers, so passing before it says nothing about after it.
+    check11_aggregator_pointers
 
     # Etherscan source verification — submit every freshly-deployed contract
     # so the ABI / Read & Write tabs work for SDK / audit / explorer users.
