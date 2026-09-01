@@ -238,6 +238,17 @@ contract CC48GovernanceOwnerGate is Test {
         assertFalse(ok);
         assertTrue(_contains(reason, "GOVERNANCE_OWNER is NOT SET"), "an undeclared owner says so");
 
+        // Same missing declaration, but the owner is ALREADY a Safe. Reviewing #404,
+        // pr-daemon read this state as one where the gate PASSES -- which would make a
+        // `declaredGovernanceOwner() != 0` guard around a second gate a real hole. It
+        // does not pass: the gate proves "this is the Safe the operator declared", not
+        // "this is a Safe", so an undeclared owner is refused whatever shape it has.
+        // The existing coverage above only had the EOA case, which is why neither of us
+        // could point at this one.
+        (ok, reason) = _tryGate(subject, safe, "BLSAggregator");
+        assertFalse(ok, "a Safe owner does not excuse a missing declaration");
+        assertTrue(_contains(reason, "is NOT SET"), "and the reason names the variable");
+
         // Declared-and-not-landed reads differently from never-declared. On a PRODUCTION
         // chain an EOA owner is refused for being an EOA first, so this is the hint text,
         // not the round-8 binding check -- the binding check is asserted below, on the one
@@ -751,32 +762,6 @@ contract CC48GovernanceOwnerGate is Test {
             if (hit) return true;
         }
         return false;
-    }
-    /// @notice The state pr-daemon named while reviewing #404: a real chain, a Safe-owned
-    ///         subject, and GOVERNANCE_OWNER never set. The review assumed that gate
-    ///         PASSES, which would make a `declaredGovernanceOwner() != 0` guard around a
-    ///         second gate a real hole. It does not pass — an undeclared owner is refused
-    ///         even when the owner is already a Safe, because the gate proves "this is the
-    ///         Safe the operator declared", not "this is a Safe".
-    ///
-    ///         Pinned because the #404 fix (removing that guard) is correct for a
-    ///         different reason than the one given, and the next reader deserves the real
-    ///         one: with the env unset every gate refuses, so the guard was redundant
-    ///         rather than load-bearing, and removing it costs nothing while removing the
-    ///         need to reason about ordering at all.
-    function test_SafeOwnedSubjectIsStillRefusedWhenNothingWasDeclared() public {
-        _ack(true);
-        _declared(address(0));
-        vm.chainId(ETH_MAINNET);
-        (bool ok, string memory reason) = _tryGate(subject, safe, "BLSAggregator");
-        assertFalse(ok, "a Safe owner does not excuse a missing declaration");
-        assertTrue(_contains(reason, "is NOT SET"), "and the reason says which variable");
-
-        // Control: the identical call with the declaration present must pass, so the
-        // refusal above is attributable to the missing env var and nothing else.
-        _declared(safe);
-        (ok,) = _tryGate(subject, safe, "BLSAggregator");
-        assertTrue(ok, "control: declared and landed passes");
     }
 
 }
