@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import "./xPNTsToken.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
-import { IVersioned } from "src/interfaces/IVersioned.sol";
+import {IVersioned} from "src/interfaces/IVersioned.sol";
 import "src/interfaces/v3/IRegistry.sol";
 
 /**
@@ -30,17 +30,16 @@ import "src/interfaces/v3/IRegistry.sol";
 contract xPNTsFactory is Ownable, IVersioned {
     using Clones for address;
 
-
     // ====================================
     // Structs
     // ====================================
 
     /// @notice AI prediction parameters
     struct PredictionParams {
-        uint256 avgDailyTx;         // Average daily transactions
-        uint256 avgGasCost;         // Average gas cost in wei
+        uint256 avgDailyTx; // Average daily transactions
+        uint256 avgGasCost; // Average gas cost in wei
         uint256 industryMultiplier; // Industry coefficient (scaled by 1e18)
-        uint256 safetyFactor;       // Safety factor (scaled by 1e18)
+        uint256 safetyFactor; // Safety factor (scaled by 1e18)
     }
 
     // ====================================
@@ -121,8 +120,6 @@ contract xPNTsFactory is Ownable, IVersioned {
     uint256 public constant APNTS_PRICE_MAX = 100 ether;
     uint256 public constant APNTS_PRICE_DELTA_BPS = 3000; // ±30% per update
 
-
-
     function version() external pure override returns (string memory) {
         return "xPNTsFactory-2.3.0-clone-optimized";
     }
@@ -131,27 +128,13 @@ contract xPNTsFactory is Ownable, IVersioned {
     // Events
     // ====================================
 
-    event xPNTsTokenDeployed(
-        address indexed community,
-        address indexed tokenAddress,
-        string name,
-        string symbol
-    );
+    event xPNTsTokenDeployed(address indexed community, address indexed tokenAddress, string name, string symbol);
 
-    event PredictionUpdated(
-        address indexed community,
-        uint256 suggestedAmount
-    );
+    event PredictionUpdated(address indexed community, uint256 suggestedAmount);
 
-    event IndustryMultiplierSet(
-        string indexed industry,
-        uint256 multiplier
-    );
+    event IndustryMultiplierSet(string indexed industry, uint256 multiplier);
 
-    event APNTsPriceUpdated(
-        uint256 oldPrice,
-        uint256 newPrice
-    );
+    event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
 
     /// @notice CC-28: emitted when a category's baseline issuance ceiling is set.
     event IndustryScaleSet(string indexed category, uint256 scaleUSD);
@@ -205,11 +188,11 @@ contract xPNTsFactory is Ownable, IVersioned {
         aPNTsPriceUSD = 0.02 ether; // 0.02 * 1e18
 
         // Initialize default industry multipliers (scaled by 1e18)
-        industryMultipliers["DeFi"] = 2.0 ether;      // 2.0x
-        industryMultipliers["Gaming"] = 1.5 ether;    // 1.5x
-        industryMultipliers["Social"] = 1.0 ether;    // 1.0x
-        industryMultipliers["DAO"] = 1.2 ether;       // 1.2x
-        industryMultipliers["NFT"] = 1.3 ether;       // 1.3x
+        industryMultipliers["DeFi"] = 2.0 ether; // 2.0x
+        industryMultipliers["Gaming"] = 1.5 ether; // 1.5x
+        industryMultipliers["Social"] = 1.0 ether; // 1.0x
+        industryMultipliers["DAO"] = 1.2 ether; // 1.2x
+        industryMultipliers["NFT"] = 1.3 ether; // 1.3x
 
         // CC-28: over-issue baseline model. capRatioBps=10000 => baseline cap == full scale.
         // The baseline is the non-staked credit floor; staked aPNTs amplify it additively.
@@ -262,14 +245,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         address newTokenAddress = implementation.clone();
         xPNTsToken newToken = xPNTsToken(newTokenAddress);
 
-        newToken.initialize(
-            name,
-            symbol,
-            msg.sender,
-            communityName,
-            communityENS,
-            exchangeRate
-        );
+        newToken.initialize(name, symbol, msg.sender, communityName, communityENS, exchangeRate);
 
         token = newTokenAddress;
 
@@ -303,11 +279,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param community Community address
      * @return suggestedAmount Suggested deposit amount in aPNTs
      */
-    function predictDepositAmount(address community)
-        public
-        view
-        returns (uint256 suggestedAmount)
-    {
+    function predictDepositAmount(address community) public view returns (uint256 suggestedAmount) {
         PredictionParams memory params = predictions[community];
 
         // New community: return default
@@ -334,12 +306,9 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param industry Industry type (e.g., "DeFi", "Gaming")
      * @param safetyFactor Safety factor (scaled by 1e18, default 1.5e18)
      */
-    function updatePrediction(
-        uint256 avgDailyTx,
-        uint256 avgGasCost,
-        string memory industry,
-        uint256 safetyFactor
-    ) external {
+    function updatePrediction(uint256 avgDailyTx, uint256 avgGasCost, string memory industry, uint256 safetyFactor)
+        external
+    {
         if (avgDailyTx > 1_000_000) revert InvalidParameters();
         address community = msg.sender;
 
@@ -353,10 +322,7 @@ contract xPNTsFactory is Ownable, IVersioned {
         }
 
         predictions[community] = PredictionParams({
-            avgDailyTx: avgDailyTx,
-            avgGasCost: avgGasCost,
-            industryMultiplier: multiplier,
-            safetyFactor: safetyFactor
+            avgDailyTx: avgDailyTx, avgGasCost: avgGasCost, industryMultiplier: multiplier, safetyFactor: safetyFactor
         });
 
         emit PredictionUpdated(community, predictDepositAmount(community));
@@ -399,7 +365,7 @@ contract xPNTsFactory is Ownable, IVersioned {
     // ====================================
     // Admin Functions
     // ====================================
-    
+
     /**
      * @notice Sets the SuperPaymaster address after deployment
      * @dev Breaks the circular dependency between Factory and SuperPaymaster. Only owner.
@@ -429,23 +395,41 @@ contract xPNTsFactory is Ownable, IVersioned {
         uint256 count = limit < remaining ? limit : remaining;
         uint256 end = start + count;
         address sp = SUPERPAYMASTER;
-        for (uint256 i = start; i < end; ) {
+        for (uint256 i = start; i < end;) {
             address token = deployedTokens[i];
             try xPNTsToken(token).setSuperPaymasterAddress(sp) {
                 emit SuperPaymasterPropagated(token, sp);
             } catch {
                 emit SuperPaymasterPropagationFailed(token, sp);
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    /**
-     * @notice Update aPNTs USD price (only owner)
-     * @dev Price is updated off-chain periodically for dynamic pricing
-     * @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
-     */
-    /// @dev P0-12: absolute bounds + ±30% per-tx delta to prevent price manipulation.
+    /// @notice Update aPNTs USD price (only owner)
+    /// @param newPrice New price in USD (18 decimals, e.g., 0.02e18 = $0.02)
+    /// @dev Price is updated off-chain periodically for dynamic pricing.
+    /// @dev P0-12: absolute bounds + 30% per-tx delta to prevent price manipulation.
+    ///
+    /// @dev EXECUTION CHECKLIST — this number leaves the repo. `aPNTsPriceUSD` is the
+    ///      denominator for anything that prices aPNTs in dollars, and at least one such
+    ///      consumer bakes the result into storage it can never loosen again:
+    ///      repo:airaccount's account guard fixes per-tier transfer limits in absolute
+    ///      aPNTs at `initialize`, and `tier1Limit`/`tier2Limit` are then permanently
+    ///      unchangeable (`addTokenConfig` reverts on an already-configured token);
+    ///      `dailyLimit` can only be lowered. Raising the price therefore RELAXES a guard
+    ///      that cannot be tightened back, on accounts that already exist.
+    ///
+    ///      The bounds here do not protect that: `APNTS_PRICE_MAX` is 100 ether, five
+    ///      thousand times the $0.02 the token launches at, and the ±30% delta only makes
+    ///      the walk take steps rather than preventing it.
+    ///
+    ///      So before calling this, check the new price against the limits already baked
+    ///      by every downstream consumer, and tell them before it lands. Neither side's
+    ///      tests can see this: the change happens here and the consequence lands in
+    ///      their immutable storage, and nothing on either side reads the other.
     function updateAPNTsPrice(uint256 newPrice) external onlyOwner {
         if (newPrice < APNTS_PRICE_MIN || newPrice > APNTS_PRICE_MAX) revert InvalidPrice();
         uint256 oldPrice = aPNTsPriceUSD;
@@ -463,10 +447,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param industry Industry name
      * @param multiplier Multiplier value (scaled by 1e18)
      */
-    function setIndustryMultiplier(string memory industry, uint256 multiplier)
-        external
-        onlyOwner
-    {
+    function setIndustryMultiplier(string memory industry, uint256 multiplier) external onlyOwner {
         if (multiplier == 0 || multiplier > 10 ether) revert InvalidMultiplier();
 
         industryMultipliers[industry] = multiplier;
@@ -532,11 +513,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param community Community address
      * @return token Token address (address(0) if not deployed)
      */
-    function getTokenAddress(address community)
-        external
-        view
-        returns (address token)
-    {
+    function getTokenAddress(address community) external view returns (address token) {
         return communityToToken[community];
     }
 
@@ -570,11 +547,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param community Community address
      * @return params Prediction parameters
      */
-    function getPredictionParams(address community)
-        external
-        view
-        returns (PredictionParams memory params)
-    {
+    function getPredictionParams(address community) external view returns (PredictionParams memory params) {
         return predictions[community];
     }
 
@@ -583,11 +556,7 @@ contract xPNTsFactory is Ownable, IVersioned {
      * @param industry Industry name
      * @return multiplier Multiplier value (scaled by 1e18)
      */
-    function getIndustryMultiplier(string memory industry)
-        external
-        view
-        returns (uint256 multiplier)
-    {
+    function getIndustryMultiplier(string memory industry) external view returns (uint256 multiplier) {
         return industryMultipliers[industry];
     }
 
