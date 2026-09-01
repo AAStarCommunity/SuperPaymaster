@@ -201,6 +201,11 @@ api total '.total_count' "repos/$REPO/commits/$head/check-runs" \
 if [ "${total:-0}" -eq 0 ]; then
   echo "FAIL  no check runs for $head — 'all green' and 'never ran' are not the same reading"; fail=1
 else
+  api allcheck '[.check_runs[].name]|join("\n")' \
+      "repos/$REPO/commits/$head/check-runs" --paginate \
+      || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  base_for_req=$(gh pr view "$PR" --repo "$REPO" --json baseRefName -q '.baseRefName' 2>/dev/null | tr -d ' \n')
+
   api bad '[.check_runs[]|select(.conclusion=="failure" or .conclusion=="timed_out" or .conclusion=="cancelled" or .conclusion=="action_required")|.name]|join("\n")' \
       "repos/$REPO/commits/$head/check-runs" --paginate \
       || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
@@ -309,6 +314,79 @@ else
     fi
   fi
   [ -z "$bad" ] && [ -z "$pend" ] && echo "OK    $total check runs, none failing or pending (excluding $SELF_NAME)"
+
+  # "Nothing failed" is not "everything required reported". A required context
+  # that never RAN is absent, not green — and absence read as consent is the
+  # defect this whole script argues against, sitting in the script. #413 had every
+  # run green with abi-docs never triggered; this said "safe to merge" and GitHub
+  # said BLOCKED, and GitHub was right.
+  #
+  # STRICT ONLY. Reading required_status_checks needs branch-protection access,
+  # which a GITHUB_TOKEN does not have — the same limit already documented for
+  # two other legs in this file. Without this gate the lookup fails in Actions and
+  # takes the whole job red, which is how it shipped and how pr-daemon caught it.
+  # In --ci, GitHub enforces required contexts itself; there is nothing to add.
+  if [ "$CI_MODE" -ne 1 ]; then
+    # Deliberately NOT api(): that helper sets fail=1 as a side effect, which is
+    # right when a lookup is mandatory and wrong here — `|| reqctx=""` catches the
+    # return value and not the side effect, so an unreadable base still failed the
+    # run while printing "not claiming". Same shape as every other mismatch today:
+    # the verdict arriving by a path other than the one being read.
+    if [ -z "$base_for_req" ]; then
+      # No `:-main` fallback. That silent substitution was removed three commits
+      # ago and the reasoning is still on line ~143 of this file; reinstating it
+      # here would report a different branch's configuration as this PR's.
+      # Strict mode is the designated gate, so an unread value is a refusal, not
+      # a note. Printing INFO and continuing was the fail-open this script removes
+      # everywhere else, reintroduced on the one path that is supposed to be
+      # strictest. Found by Codex.
+      echo "FAIL  base branch unreadable; cannot check required contexts"
+      fail=1
+    elif prot=$(gh api "repos/$REPO/branches/$base_for_req/protection" 2>/dev/null) \
+         && [ "$(printf '%s' "$prot" | jq -r 'has("enforce_admins")' 2>/dev/null)" = "true" ]; then
+      # TWO steps, because `// []` alone cannot tell "this branch requires
+      # nothing" from "I could not see what it requires". A partial response, a
+      # permission problem, or an error object all leave the field absent, and
+      # `// []` turned every one of them into "requires nothing" — which PASSES.
+      # That silently converted a fail-closed path into a fail-open one, in the
+      # commit that was fixing a misdiagnosis. Found by Codex.
+      #
+      # So: first prove a real protection object was read (`enforce_admins` is present on every
+      # protection object and on nothing else; `.url` was the first choice and did
+      # NOT work — the required_signatures sub-endpoint returns {url, enabled} and
+      # sailed straight through the guard), and only
+      # then treat a missing required_status_checks as a genuine zero.
+      reqctx=$(printf '%s' "$prot" | jq -r '(.required_status_checks.contexts // [])|join("\n")' 2>/dev/null)
+      # `// []` above matters. Without it, a branch WITH protection but NO required
+      # status checks makes jq error on null ("Cannot iterate over null", rc 5), gh
+      # returns 1, and this lands in the unreadable branch — reporting "could not
+      # read" for a branch that simply requires nothing, so strict could never pass
+      # there. Verified with jq directly, both ways. Raised by pr-daemon.
+      if [ -z "$reqctx" ]; then
+        echo "INFO  $base_for_req requires no status checks; nothing to verify reported"
+      else
+      missing=""
+      while IFS= read -r c; do
+        [ -z "$c" ] && continue
+        printf '%s\n' "$allcheck" | grep -qxF "$c" || missing="${missing:+$missing, }$c"
+      done <<< "$reqctx"
+      if [ -n "$missing" ]; then
+        echo "FAIL  required context(s) never reported on this head: $missing"
+        echo "      A required check that did not run is ABSENT, not passing."
+        echo "      Usually a paths filter: the workflow was not triggered by these"
+        echo "      files. GitHub blocks on it; re-push or widen the filter."
+        fail=1
+      else
+        echo "OK    all $(printf '%s\n' "$reqctx" | grep -c .) required contexts reported"
+      fi
+      fi
+    else
+      echo "FAIL  could not read $base_for_req's required contexts."
+      echo "      Not proceeding on an unread value: whether every required check"
+      echo "      reported is exactly what this leg exists to establish."
+      fail=1
+    fi
+  fi
 fi
 
 api st '.state' "repos/$REPO/commits/$head/status" \
