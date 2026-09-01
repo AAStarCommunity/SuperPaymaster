@@ -116,3 +116,29 @@ with the one-hour cooldown now armed against the Safe's first legitimate change.
 only write, inside `updateExchangeRate`, so zero means that function was never
 called. On the deployed token it reads **0**, alongside `exchangeRate` = 1e18 from
 the same contract — which is what makes the zero a reading rather than a silence.
+
+## The rehearsal exposed a mainnet fact: it needs a different key
+
+The Sepolia run was broadcast by `0xb5600060e6de5E11D3636731964218E53caadf0E`
+(visible as the `from` in the `CommunityOwnerUpdated` event above). On OP mainnet
+that address is not a community. Checked against the OP-mainnet Registry-3.0.2,
+`COMMUNITY` = `0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074`:
+
+| address | `hasRole(COMMUNITY, …)` on OP mainnet |
+|---|---|
+| `0xb5600060…` Sepolia deployer | **false** |
+| `0x51Ac6949…` OP deployer (keystore `optimism-deployer`) | **true** |
+| `0x51eDf11f…` governance Safe | false — the control, and see below |
+
+**The mainnet broadcast must be signed by `0x51Ac6949…`, not the key that ran the
+rehearsal.** Not dangerous: `forge script --broadcast` simulates the whole script
+first, so a wrong signer aborts with `CallerNotCommunity` before anything is sent.
+But it would fail confusingly at the worst moment, which is exactly the class of
+fact a rehearsal exists to surface. Raised by pr-daemon.
+
+The third row is worth more than its control duty. **The Safe does not hold
+COMMUNITY on OP mainnet either**, so once the factory is handed over the Safe can
+configure and price the token but cannot call `deployxPNTsToken` on it. Deploying
+another community token from that factory would need a `registerRole` for the Safe
+first. Not a blocker for this deployment; a surprise waiting for whoever tries the
+second one.
