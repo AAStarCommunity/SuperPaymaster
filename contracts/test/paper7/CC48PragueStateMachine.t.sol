@@ -305,7 +305,7 @@ contract CC48PragueStateMachine is Test {
         agg.executeGuardianSlash(7301, accused, hex"73");
         assertEq(
             staking.getLockedStake(validators[4], ROLE_DVT),
-            _afterOneGuardianSlash(DVT_STAKE),
+            _afterOneGuardianSlash(7301, DVT_STAKE),
             "collusion stake taken in full"
         );
         (,,, uint8 status,,,,) = agg.guardianSlashCases(7301);
@@ -322,7 +322,7 @@ contract CC48PragueStateMachine is Test {
         accused[0] = validators[2];
         agg.queueGuardianSlash(7311, accused, hex"74");
         agg.executeGuardianSlash(7311, accused, hex"74");
-        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), _afterOneGuardianSlash(DVT_STAKE));
+        assertEq(staking.getLockedStake(validators[2], ROLE_DVT), _afterOneGuardianSlash(7311, DVT_STAKE));
 
         (address[] memory users, uint256[] memory scores) = _batch(address(0xC0F3), 20);
         bytes32 h = _reputationHash(7312, users, scores, 1);
@@ -337,7 +337,7 @@ contract CC48PragueStateMachine is Test {
                 // lock, so the ejected validator still holds a remainder and the revert
                 // payload reports it. The rejection is unchanged -- the remainder is
                 // still below DVT_STAKE -- only the number it names moved.
-                _afterOneGuardianSlash(DVT_STAKE),
+                _afterOneGuardianSlash(7311, DVT_STAKE),
                 DVT_STAKE
             )
         );
@@ -392,7 +392,7 @@ contract CC48PragueStateMachine is Test {
         agg.executeGuardianSlash(7331, accused, hex"76");
         assertEq(
             staking.getLockedStake(validators[2], ROLE_DVT),
-            _afterOneGuardianSlash(DVT_STAKE),
+            _afterOneGuardianSlash(7331, DVT_STAKE),
             "collusion stake taken in full"
         );
         (,,, uint8 status,,,,) = agg.guardianSlashCases(7331);
@@ -412,7 +412,7 @@ contract CC48PragueStateMachine is Test {
                 // lock, so the ejected validator still holds a remainder and the revert
                 // payload reports it. The rejection is unchanged -- the remainder is
                 // still below DVT_STAKE -- only the number it names moved.
-                _afterOneGuardianSlash(DVT_STAKE),
+                _afterOneGuardianSlash(7331, DVT_STAKE),
                 DVT_STAKE
             )
         );
@@ -528,17 +528,23 @@ contract CC48PragueStateMachine is Test {
         if (!pragueAvailable) vm.skip(true);
     }
 
-    /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
-    ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
-    ///      guardian below minStake and out of the very quorum the slash path protects.
-    ///      It now takes the fraction FROZEN INTO THE CASE AT QUEUE TIME. Read through
-    ///      the getter so these assertions track the configured value rather than
-    ///      pinning today's default.
+    /// @dev What a guardian's DVT lock reads after ONE guardian slash of the case
+    ///      `fraudProofId`. It used to be zero: executeGuardianSlash took the whole
+    ///      lock, so a single finding put the guardian below minStake and out of the
+    ///      very quorum the slash path protects.
     ///
-    ///      These three assertions live only in the Prague tree, so a `forge test` run
-    ///      on the default EVM never executes them — which is how they survived the
-    ///      Cancun-side fix.
-    function _afterOneGuardianSlash(uint256 lock) internal view returns (uint256) {
-        return lock - (lock * uint256(agg.guardianSlashBps())) / 10000;
+    ///      The fraction is read from the CASE, not from `agg.guardianSlashBps()`.
+    ///      Those are different sources: the live value can be moved by
+    ///      setGuardianSlashBps at any moment, while execute prices the case from the
+    ///      snapshot taken at queue. An expectation computed from the live value would
+    ///      silently follow the admin and could not detect the very defect the snapshot
+    ///      was added to close (#400 B3). Found by Codex.
+    ///
+    ///      These assertions live only in the Prague tree, so a `forge test` run on the
+    ///      default EVM never executes them — which is how they survived the Cancun-side
+    ///      fix in the first place.
+    function _afterOneGuardianSlash(uint256 fraudProofId, uint256 lock) internal view returns (uint256) {
+        (,,,,,, uint16 bps,) = agg.guardianSlashCases(fraudProofId);
+        return lock - (lock * uint256(bps)) / 10000;
     }
 }
