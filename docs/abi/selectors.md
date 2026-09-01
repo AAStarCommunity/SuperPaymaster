@@ -16,6 +16,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x007648de` | `getActivePaymasters()` | ISuperPaymasterRegistry |
 | `0x00ef5f4f` | `EXCHANGE_RATE_DELTA_BPS()` | xPNTsToken |
 | `0x013cf08b` | `proposals(uint256)` | DVTValidator |
+| `0x019969d7` | `GUARDIAN_SLASH_BPS_MIN()` | BLSAggregator |
 | `0x01ffc9a7` | `supportsInterface(bytes4)` | MyNFT |
 | `0x01ffc9a7` | `supportsInterface(bytes4)` | TestSBT |
 | `0x01ffc9a7` | `supportsInterface(bytes4)` | MySBT |
@@ -536,6 +537,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x89ff9d78` | `requestCloseChannel(bytes32)` | MicroPaymentChannel |
 | `0x8a0dac4a` | `setGuardian(address)` | PolicyRegistry |
 | `0x8a0dac4a` | `setGuardian(address)` | IPolicyRegistry |
+| `0x8c64a809` | `guardianSlashBps()` | BLSAggregator |
 | `0x8ceebd8f` | `getActiveMemberships(uint256)` | MySBT |
 | `0x8d074547` | `needsApproval(address,address,uint256)` | xPNTsToken |
 | `0x8da5cb5b` | `owner()` | GTokenStaking |
@@ -568,6 +570,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x8ef66e27` | `openChannel(address,address,uint128,bytes32,address)` | MicroPaymentChannel |
 | `0x8f764848` | `slashByDVT(address,bytes32,uint256,string)` | GTokenStaking |
 | `0x8f764848` | `slashByDVT(address,bytes32,uint256,string)` | IGTokenStakingSlash |
+| `0x8f857b3e` | `setGuardianSlashBps(uint16)` | BLSAggregator |
 | `0x8ff39099` | `setStaking(address)` | Registry |
 | `0x908c1018` | `lastActivityTime(uint256,address)` | MySBT |
 | `0x913e6779` | `getEffectiveStake(address,bytes32)` | Registry |
@@ -585,6 +588,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x94739e87` | `VOUCHER_TYPEHASH()` | MicroPaymentChannel |
 | `0x94e2b21e` | `roleExitConfigs(bytes32)` | GTokenStaking |
 | `0x954ebd3b` | `deployxPNTsToken(string,string,string,string,uint256,address)` | xPNTsFactory |
+| `0x95702d76` | `GUARDIAN_SLASH_BPS_MAX()` | BLSAggregator |
 | `0x95d89b41` | `symbol()` | MockUSDT |
 | `0x95d89b41` | `symbol()` | MyNFT |
 | `0x95d89b41` | `symbol()` | TestSBT |
@@ -1240,6 +1244,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x0fa6b73052e306e24d4e65db9a430e3890436d6a8d6f7647898646aa7bbaa28d` | `IndustryScaleSet(string,uint256)` | xPNTsFactory |
 | `0x107553d8191d85b405879cf752997865edd48d94e20bda4dd27223c94b31a7cc` | `ContractUnpaused(address,uint256)` | MySBT |
 | `0x108d98610c6944880c68d31a01ab6252b635e7c7a9728687f31e68a76538c865` | `SBTBurned(address,uint256,uint256,uint256,uint256)` | MySBT |
+| `0x10be15444b2515234dc073527729dabfb26fe9a153d99ac8e90aa0d1f6bf9108` | `GuardianSlashBpsUpdated(uint16,uint16)` | BLSAggregator |
 | `0x1191f7dd7e510e69e54c21c704f6f3c1179351c8a1a8d6a2a66d1e20aed6fd0f` | `CommunityOwnerUpdated(address,address)` | xPNTsToken |
 | `0x14b842314c1bed1881a6aaf3371cb59429fa3f849dbd8ad0698501dc4aa0574c` | `FacilitatorApproved(address)` | xPNTsToken |
 | `0x171f7dbde35aed7cddf3ece2dad8f4eb62443a3d6bf8616586da6fd03c6b4ed9` | `MySBTContractUpdated(address,address)` | Registry |

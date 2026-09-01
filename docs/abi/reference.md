@@ -5158,7 +5158,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 72 · **Events:** 31 · **Errors:** 56
+- **Functions:** 76 · **Events:** 32 · **Errors:** 56
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -5187,10 +5187,13 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa69dfb5e` | `GUARDIAN_EXIT_COOLDOWN()` | view | — | Quiet period imposed after cancelling an exit notice (BLOCKER-1). |
 | `0xb89c7362` | `GUARDIAN_EXIT_DELAY()` | view | — |  |
 | `0x12e360b4` | `GUARDIAN_EXIT_WINDOW()` | view | — |  |
+| `0x95702d76` | `GUARDIAN_SLASH_BPS_MAX()` | view | — |  |
+| `0x019969d7` | `GUARDIAN_SLASH_BPS_MIN()` | view | — |  |
 | `0x570e530f` | `GUARDIAN_SLASH_CASE_WINDOW()` | view | — |  |
 | `0x497fae81` | `guardianCaseResolved(uint256,address)` | view | — | CC-48 HIGH-2: per-(case, guardian) release marker. Set exactly once,         when that guardian's `pendingGuardianSlashCount` contribution for the         case is given back — either because the slash succeeded, because the         guardian had nothing left to slash, or because the case expired. A         guardian whose `slashByDVT` reverted stays UNresolved and frozen, so a         single staking-side failure can no longer release the whole set. |
 | `0x6bdb96f6` | `guardianExitCooldownUntil(address)` | view | — | CC-48 BLOCKER-1: earliest timestamp at which a guardian may open a new         exit notice after cancelling one. Kills request/cancel flip-flopping as         a cheap, repeatable lever on the signer set. |
 | `0x7d43f48e` | `guardianExitRequests(address)` | view | — |  |
+| `0x8c64a809` | `guardianSlashBps()` | view | — | Fraction of a colluding guardian's remaining ROLE_DVT lock burned per         `executeGuardianSlash`, in basis points. |
 | `0xee02231c` | `guardianSlashCases(uint256)` | view | — | Two-step guardian-slash lifecycle. Queueing a verifier-approved         case freezes every accused guardian's ROLE_DVT exit in Registry;         execution or permissionless expiry releases exactly one count. |
 | `0x5478442e` | `guardianSlashed(uint256,address)` | view | — | Per-(fraudProofId, guardian) slash record for executeGuardianSlash.         Consumption is tracked PER GUARDIAN — and only for guardians actually         slashed — so submitting an already-exited co-signer can never burn the         proof for the still-staked colluders (the global-id-consumption flaw this         replaces). Own id-space; never collides with slash/reputation proposalIds. |
 | `0x714897df` | `MAX_VALIDATORS()` | view | — |  |
@@ -5215,6 +5218,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | onlyOwner | Revoke a previously registered BLS validator key. |
 | `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
+| `0x8f857b3e` | `setGuardianSlashBps(uint16)` | nonpayable | — | Set the fraction of a colluding guardian's lock burned per slash. |
 | `0x7f39a939` | `setMinThreshold(uint256)` | nonpayable | onlyOwner | Set minimum consensus threshold (global floor) |
 | `0xa9ea1992` | `setPermissionlessBLSRegistration(bool)` | nonpayable | onlyOwner | H-02: toggle permissionless (stake + proof-of-possession) self-registration         of BLS validator keys. Default off — flip on once governance is ready to let         staked ROLE_DVT validators onboard their own keys without an owner call. |
 | `0x28e4e0a3` | `setSlashPolicyAdmin(address)` | nonpayable | onlyOwner | Rotate the slash-policy admin (owner only). |
@@ -5470,6 +5474,22 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `GUARDIAN_SLASH_BPS_MAX()`
+
+`0x95702d76` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `GUARDIAN_SLASH_BPS_MIN()`
+
+`0x019969d7` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
 #### `GUARDIAN_SLASH_CASE_WINDOW()`
 
 `0x570e530f` · view · access: —
@@ -5520,6 +5540,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | `readyAt` | `uint64` |  |
 | `expiresAt` | `uint64` |  |
 
+#### `guardianSlashBps()`
+
+`0x8c64a809` · view · access: —
+
+> Fraction of a colluding guardian's remaining ROLE_DVT lock burned per         `executeGuardianSlash`, in basis points.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
 #### `guardianSlashCases(uint256 arg0)`
 
 `0xee02231c` · view · access: —
@@ -5538,6 +5568,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `status` | `uint8` |  |
 | `guardianCount` | `uint16` |  |
 | `resolvedCount` | `uint16` |  |
+| `slashBps` | `uint16` |  |
 | `verifier` | `address` |  |
 
 #### `guardianSlashed(uint256 arg0, address arg1)`
@@ -5801,6 +5832,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_dv` | `address` |  |
 
+#### `setGuardianSlashBps(uint16 newBps)`
+
+`0x8f857b3e` · nonpayable · access: —
+
+> Set the fraction of a colluding guardian's lock burned per slash.
+
+*@dev* Gated to `slashPolicyAdmin` exactly like `setSlashThreshold`: both decide how         hard an automated path can hit someone's stake, so they share one admin.
+
+| param | type | description |
+|---|---|---|
+| `newBps` | `uint16` |  |
+
 #### `setMinThreshold(uint256 _newThreshold)`
 
 `0x7f39a939` · nonpayable · access: onlyOwner
@@ -6060,6 +6103,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xff796b1598f410f38e156abe765be770a128bb0f2d61345b7e487d67b698f1f1` | `GuardianExitCancelled(address,uint256)` |
 | `0x5e767addaf0688fadc4c3c7cfdbbef3f4e2d54783f402f6eecfffc4a410bed68` | `GuardianExitConsumed(address)` |
 | `0xd3c05d0989dfa1d19e9342e249270f563f0f87b7ba8c0165ef1a12d4dd5ddf56` | `GuardianExitRequested(address,uint256,uint256)` |
+| `0x10be15444b2515234dc073527729dabfb26fe9a153d99ac8e90aa0d1f6bf9108` | `GuardianSlashBpsUpdated(uint16,uint16)` |
 | `0xd2794706d75255bb986a6d764ce1c40b8ada9dd8ca3e12a3194fed9448085638` | `GuardianSlashCaseExpired(uint256)` |
 | `0xad57201344d82e44c23bb551694c67531406ce0c3f7c2978e760803ff7ea85d6` | `GuardianSlashCaseResolved(uint256)` |
 | `0xfb0ded6c5884b8003728a994ad07cde0f4fb2e33757a0a67ec1af863368dfbd2` | `GuardianSlashed(uint256,address,uint256)` |
@@ -11856,7 +11900,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — | SuperPaymaster contract address |
 | `0x0ad026dd` | `tokenCategory(address)` | view | — | CC-28: governance-assigned industry category per xPNTs token. |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
-| `0x2598c32a` | `updateAPNTsPrice(uint256)` | nonpayable | onlyOwner |  |
+| `0x2598c32a` | `updateAPNTsPrice(uint256)` | nonpayable | onlyOwner | Update aPNTs USD price (only owner) |
 | `0x358064a8` | `updatePrediction(uint256,uint256,string,uint256)` | nonpayable | — | Update prediction parameters |
 | `0x382c8036` | `updatePredictionCustom(uint256,uint256,uint256,uint256)` | nonpayable | — | Update prediction with custom multiplier |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
@@ -12321,11 +12365,13 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x2598c32a` · nonpayable · access: onlyOwner
 
-*@dev* P0-12: absolute bounds + ±30% per-tx delta to prevent price manipulation.
+> Update aPNTs USD price (only owner)
+
+*@dev* Price is updated off-chain periodically for dynamic pricing.P0-12: absolute bounds + 30% per-tx delta to prevent price manipulation.EXECUTION CHECKLIST — this number leaves the repo. `aPNTsPriceUSD` is the      denominator for anything that prices aPNTs in dollars, and at least one such      consumer bakes the result into storage it can never loosen again:      repo:airaccount's account guard fixes per-tier transfer limits in absolute      aPNTs at `initialize`, and `tier1Limit`/`tier2Limit` are then permanently      unchangeable (`addTokenConfig` reverts on an already-configured token);      `dailyLimit` can only be lowered. Raising the price therefore RELAXES a guard      that cannot be tightened back, on accounts that already exist.      The bounds here do not protect that: `APNTS_PRICE_MAX` is 100 ether, five      thousand times the $0.02 the token launches at, and the ±30% delta only makes      the walk take steps rather than preventing it.      So before calling this, check the new price against the limits already baked      by every downstream consumer, and tell them before it lands. Neither side's      tests can see this: the change happens here and the consequence lands in      their immutable storage, and nothing on either side reads the other.
 
 | param | type | description |
 |---|---|---|
-| `newPrice` | `uint256` |  |
+| `newPrice` | `uint256` | New price in USD (18 decimals, e.g., 0.02e18 = $0.02) |
 
 #### `updatePrediction(uint256 avgDailyTx, uint256 avgGasCost, string industry, uint256 safetyFactor)`
 
