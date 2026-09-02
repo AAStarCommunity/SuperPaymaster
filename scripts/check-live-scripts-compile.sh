@@ -48,24 +48,47 @@ LIVE_DIRS=( contracts/script/checks )
 # a claimed scope one notch wider than the implemented one, which is the defect
 # this repo keeps finding. deploy-sepolia.sh and audit-core use literal paths and
 # a checks/ loop, so both forms are parsed. Raised by pr-daemon.
-routed=$( { grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' deploy-core 2>/dev/null | sed 's/.*"\(.*\)"/\1/'
-            grep -ohE 'contracts/script/v3/[A-Za-z0-9_]+\.s\.sol' deploy-core deploy-sepolia.sh audit-core 2>/dev/null \
-              | sed 's|.*/||; s|\.s\.sol$||'
-          } | sort -u)
-# An empty parse is not "every route is covered". If deploy-core is renamed, or
-# stops assigning SCRIPT_NAME, the loop below simply does not run and the
-# completeness guarantee evaporates while this stays green — the same
-# absence-read-as-consent the gate exists to prevent, one level up in the gate's
-# own bookkeeping. Found by Codex.
-if [ -z "$routed" ]; then
-  echo "FAIL  parsed no SCRIPT_NAME routes out of deploy-core."
-  echo "      Either the file moved or its routing changed shape. Cannot confirm"
-  echo "      LIVE[] covers what the tooling runs, so not claiming that it does."
-  missing=1
-fi
+routed=""
+# PER ENTRY POINT, not pooled. Pooling them meant deploy-core alone kept the
+# combined list non-empty, so deploy-sepolia.sh or audit-core could stop
+# contributing entirely — renamed, restructured, pattern gone stale — and the
+# emptiness check would still pass while that entry point silently lost coverage.
+# The previous commit fixed exactly this failure globally and left it per-file.
+# Found by Codex.
+for ep in deploy-core deploy-sepolia.sh audit-core; do
+  if [ ! -f "$ep" ]; then
+    echo "FAIL  entry point '$ep' not found; LIVE[] cannot be checked against it"
+    missing=1
+    continue
+  fi
+  # audit-core invokes only contracts/script/checks/Check*.s.sol, by NAME, in a
+  # loop — it names no v3 script at all. Applying the v3 pattern to it read
+  # "this entry point runs no v3 scripts" as "parsing failed", which is the same
+  # confusion in the other direction: a legitimately empty result treated as a
+  # broken instrument. Each entry point gets the pattern that matches how it
+  # actually invokes scripts.
+  ep_routes=$( { grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' "$ep" 2>/dev/null | sed 's/.*"\(.*\)"/\1/'
+                 grep -ohE 'contracts/script/v3/[A-Za-z0-9_]+\.s\.sol' "$ep" 2>/dev/null \
+                   | sed 's|.*/||; s|\.s\.sol$||'
+                 # checks/ is covered wholesale by LIVE_DIRS, so these names are
+                 # proof the entry point still invokes scripts, not entries to match.
+                 grep -oE 'Check[0-9]+_[A-Za-z0-9_]+|VerifyV3_[0-9_]+' "$ep" 2>/dev/null \
+                   | sed 's/^/__checksdir__/'
+               } | sort -u )
+  if [ -z "$ep_routes" ]; then
+    echo "FAIL  parsed no scripts out of '$ep'."
+    echo "      It either stopped invoking forge scripts or changed shape. Cannot"
+    echo "      confirm LIVE[] still covers it, so not claiming that it does."
+    missing=1
+  else
+    routed=$(printf '%s\n%s' "$routed" "$ep_routes")
+  fi
+done
+routed=$(printf '%s\n' "$routed" | grep -v '^$' | sort -u)
 for n in $routed; do
+  case "$n" in __checksdir__*) continue ;; esac   # covered by LIVE_DIRS
   printf '%s\n' "${LIVE[@]}" | grep -q "/${n}\.s\.sol$" \
-    || { echo "FAIL  deploy-core routes to '$n' but it is not in LIVE[]"; missing=1; }
+    || { echo "FAIL  an entry point routes to '$n' but it is not in LIVE[]"; missing=1; }
 done
 
 missing=${missing:-0}
