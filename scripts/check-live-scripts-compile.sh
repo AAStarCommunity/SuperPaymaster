@@ -73,11 +73,38 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
   # could stop invoking anything and keep its header comment, and this would call
   # that proof of life. Found by Codex.
   ep_code=$(grep -vE '^[[:space:]]*#' "$ep" 2>/dev/null)
-  # And a name in code is still not an invocation: require the entry point to
-  # actually run forge script somewhere outside its comments.
-  if ! printf '%s\n' "$ep_code" | grep -q 'forge script'; then
-    echo "FAIL  '$ep' contains no 'forge script' invocation outside comments."
-    echo "      Cannot treat it as an entry point that runs scripts."
+  # And a name in code is still not an invocation. Grepping non-comment lines for
+  # the string was still the wrong question: deploy-core:174-175 are
+  #   echo -e "...   Run: forge script contracts/script/v3/InitializeAAStar..."
+  # — printed help text. Delete deploy-core's one real invocation at :133 and those
+  # two echoes keep this green. Third time the same shape: the check examined
+  # something adjacent to what the green tick claimed. Found by Codex at stop-time.
+  #
+  # So each occurrence is attributed to the command that GOVERNS it: take the text
+  # before it, cut to the last command separator, drop leading env assignments, and
+  # look at the first word. echo/printf/cat mean the line prints the string; anything
+  # else runs it. A blacklist, not "must be at command position" — audit-core's real
+  # invocation is `bash -c "CONFIG_FILE='...' forge script ...`, inside a string yet
+  # genuinely executed, and a command-position rule would reject it.
+  if ! printf '%s\n' "$ep_code" | awk '
+      /forge script/ {
+        # Attribute the occurrence: if echo/printf appears BEFORE it on the line,
+        # the line prints the string rather than running it. Anything after it
+        # (deploy-sepolia.sh:85 is `forge script ... || echo "skipped"`) is a real
+        # invocation with a fallback message, so only the text before counts.
+        #
+        # Deliberately NOT "split on the last command separator and read the first
+        # word": that was the first attempt and it FAILED THIS PROBE — the separator
+        # scan hit the `;` inside "\033[0;33m", so the echo line`s governing word
+        # came out as "33m" and counted as an invocation. Looking for separators
+        # inside quoted strings is not something a regex can do.
+        pre = substr($0, 1, index($0, "forge script") - 1)
+        if (pre !~ /echo|printf/) { found = 1 }
+      }
+      END { exit found ? 0 : 1 }'; then
+    echo "FAIL  '$ep' contains no 'forge script' INVOCATION outside comments."
+    echo "      (occurrences preceded by echo/printf on the line are printed text,"
+    echo "       not runs: deploy-core:174-175 print a Run: hint and must not count)"
     missing=1
     continue
   fi
