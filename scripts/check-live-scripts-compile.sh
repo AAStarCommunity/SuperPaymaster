@@ -67,12 +67,26 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
   # confusion in the other direction: a legitimately empty result treated as a
   # broken instrument. Each entry point gets the pattern that matches how it
   # actually invokes scripts.
-  ep_routes=$( { grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' "$ep" 2>/dev/null | sed 's/.*"\(.*\)"/\1/'
-                 grep -ohE 'contracts/script/v3/[A-Za-z0-9_]+\.s\.sol' "$ep" 2>/dev/null \
+  # Parse CODE, not prose. A comment mentioning a script name satisfied the
+  # previous version — audit-core line 6 literally reads
+  # "#   A) forge script checks (Check01-Check08, VerifyV3_1_1)". An entry point
+  # could stop invoking anything and keep its header comment, and this would call
+  # that proof of life. Found by Codex.
+  ep_code=$(grep -vE '^[[:space:]]*#' "$ep" 2>/dev/null)
+  # And a name in code is still not an invocation: require the entry point to
+  # actually run forge script somewhere outside its comments.
+  if ! printf '%s\n' "$ep_code" | grep -q 'forge script'; then
+    echo "FAIL  '$ep' contains no 'forge script' invocation outside comments."
+    echo "      Cannot treat it as an entry point that runs scripts."
+    missing=1
+    continue
+  fi
+  ep_routes=$( { printf '%s\n' "$ep_code" | grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' | sed 's/.*"\(.*\)"/\1/'
+                 printf '%s\n' "$ep_code" | grep -ohE 'contracts/script/v3/[A-Za-z0-9_]+\.s\.sol' \
                    | sed 's|.*/||; s|\.s\.sol$||'
                  # checks/ is covered wholesale by LIVE_DIRS, so these names are
                  # proof the entry point still invokes scripts, not entries to match.
-                 grep -oE 'Check[0-9]+_[A-Za-z0-9_]+|VerifyV3_[0-9_]+' "$ep" 2>/dev/null \
+                 printf '%s\n' "$ep_code" | grep -oE 'Check[0-9]+_[A-Za-z0-9_]+|VerifyV3_[0-9_]+' \
                    | sed 's/^/__checksdir__/'
                } | sort -u )
   if [ -z "$ep_routes" ]; then
