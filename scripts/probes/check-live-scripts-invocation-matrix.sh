@@ -25,7 +25,10 @@
 # by pr-daemon; the seventh instance today of a check examining something adjacent
 # to what its green tick claimed, this time inside the probe built to end that.
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
-ORIG=$(mktemp -t dc.orig.XXXXXX)   # not a fixed /tmp path: two runs would collide
+# Both of these are checked: an unchecked mktemp leaves ORIG empty and the run then
+# rewrites deploy-core with no backup in existence at all.
+ORIG=$(mktemp -t dc.orig.XXXXXX) || { echo "cannot create a backup; refusing to run"; exit 1; }
+trap 'rm -f "$ORIG"' EXIT
 # RESTORE, then delete. `trap rm EXIT` deleted the only copy of the original while
 # leaving deploy-core rewritten: measured, TERM at t=5s left 7/32 rows done, the file
 # mutated and zero backups on disk. The old hardcoded /tmp/dc.orig at least survived
@@ -37,15 +40,31 @@ ORIG=$(mktemp -t dc.orig.XXXXXX)   # not a fixed /tmp path: two runs would colli
 # file dirty. So the handler exits explicitly, and cleanup is idempotent because the
 # EXIT trap fires again on the way out.
 cleanup() {
+  # A second signal must not interrupt the restore: that is how a half-copied
+  # deploy-core and a deleted backup happen at the same time.
+  trap '' INT TERM
   [ -n "${CLEANED:-}" ] && return
   CLEANED=1
-  cp "$ORIG" deploy-core 2>/dev/null
-  rm -f "$ORIG"
+  # DELETE ONLY AFTER A VERIFIED RESTORE. The previous version ran `rm -f` whether
+  # or not the cp succeeded, so a failing restore destroyed the one good copy while
+  # deploy-core was left rewritten. Found by Codex at stop-time.
+  if cp "$ORIG" deploy-core && cmp -s "$ORIG" deploy-core; then
+    rm -f "$ORIG"
+  else
+    echo "RESTORE FAILED: deploy-core is modified. The original is kept at $ORIG" >&2
+    echo "  cp \"$ORIG\" deploy-core   # to finish by hand" >&2
+    return 1
+  fi
 }
+# ORDER MATTERS. The backup is filled BEFORE the restoring traps are armed. The
+# other way round leaves a window where a signal makes cleanup copy the still-EMPTY
+# backup over deploy-core - destroying the file it exists to protect. Until this
+# line the only trap is the plain rm above, which is correct there: nothing has
+# touched deploy-core yet, so there is nothing to restore.
+cp deploy-core "$ORIG" || { echo "cannot write the backup; refusing to run"; rm -f "$ORIG"; exit 1; }
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM
-cp deploy-core "$ORIG"
 kill_real(){ cp "$ORIG" deploy-core; python3 -c "
 p='deploy-core';L=open(p).read().split('\n')
 for i,l in enumerate(L):
