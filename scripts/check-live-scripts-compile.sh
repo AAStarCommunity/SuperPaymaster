@@ -164,30 +164,42 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
         if (sk ~ /(^|[^A-Za-z0-9_])(bash|sh)[[:space:]]+-c([^A-Za-z0-9_]|$)/ ||
             sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) { found = 1; next }
         if (QUOTED) next
+        # Is the occurrence at a COMMAND POSITION? The previous rule whitelisted
+        # everything that could precede it, so every extra piece of bash syntax
+        # needed another clause — and pr-daemon`s probe table found NINE real
+        # invocation forms it rejected, not the one it reported:
+        #   [ -n "$x" ] && forge script      [[ ... ]] && ...      test ... && ...
+        #   OUT=$(forge script ...)          time / sudo forge script ...
+        #   case a) forge script ;;          for ...; do forge script; done
+        #   false || forge script ...
+        # All fail LOUDLY, so none was a hole — but a gate that rejects the most
+        # common way to write a conditional invocation is a gate someone will rip
+        # out. Asking the opposite question needs no per-syntax clause: strip
+        # trailing transparent prefixes and env assignments, then the skeleton must
+        # be empty or END with something that opens a command position.
         p = sk
         gsub(/[[:space:]]+/, " ", p); sub(/^ /, "", p); sub(/ $/, "", p)
         changed = 1
         while (changed) {
           changed = 0
-          if (p ~ /^(if|then|else|elif|do|done|while|until|!|&&|\|\||;) /) { sub(/^[^ ]+ /, "", p); changed = 1 }
-          else if (p ~ /^(if|then|else|elif|do|done|while|until|!)$/)        { p = ""; changed = 1 }
-          # a function definition or a grouping brace/paren opens a command
-          # position too: `go(){ forge script ...; }` is a real invocation, and the
-          # first version of this rule rejected it. A false NEGATIVE is loud rather
-          # than silent, but it would still block a legitimate entry point, so the
-          # positive controls in the probe matrix are what caught it.
-          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*\(\)/)                       { sub(/^[A-Za-z_][A-Za-z0-9_]*\(\)/, "", p); changed = 1 }
-          else if (p ~ /^[({]/)                                             { sub(/^[({]/, "", p); changed = 1 }
-          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ ]* /)                    { sub(/^[^ ]+ /, "", p); changed = 1 }
-          if (changed) { sub(/^ /, "", p) }
+          # words that precede a command without changing that it is one
+          if (p ~ /(^| )(time|command|sudo|nohup|env|exec|builtin|then|else|do|elif|if|while|until|!)$/) {
+            sub(/(^| )[^ ]+$/, "", p); changed = 1
+          }
+          # NAME=value immediately before the command
+          else if (p ~ /(^| )[A-Za-z_][A-Za-z0-9_]*=[^ ]*$/) { sub(/(^| )[^ ]+$/, "", p); changed = 1 }
         }
-        if (p == "") found = 1
+        if (p == "") { found = 1; next }
+        # ; & | && || ( ) { } and $( ` all open a command position
+        if (p ~ /[;&|(){}`]$/) found = 1
       }
       END { exit found ? 0 : 1 }'; then
     echo "FAIL  '$ep' contains no 'forge script' INVOCATION outside comments."
-    echo "      (printed text does not count, however it is spelled: echo/printf,"
-    echo "       heredoc bodies and string assignments are excluded, including ones"
-    echo "       that print the words bash -c)"
+    echo "      Either it invokes nothing, or it invokes it in a form this check"
+    echo "      does not recognise - both are reported the same way, so check that"
+    echo "      second possibility before assuming the entry point is broken."
+    echo "      Not counted: echo/printf, heredoc bodies, string assignments -"
+    echo "      including ones that print the words bash -c."
     missing=1
     continue
   fi
