@@ -26,7 +26,25 @@
 # to what its green tick claimed, this time inside the probe built to end that.
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
 ORIG=$(mktemp -t dc.orig.XXXXXX)   # not a fixed /tmp path: two runs would collide
-trap 'rm -f "$ORIG"' EXIT
+# RESTORE, then delete. `trap rm EXIT` deleted the only copy of the original while
+# leaving deploy-core rewritten: measured, TERM at t=5s left 7/32 rows done, the file
+# mutated and zero backups on disk. The old hardcoded /tmp/dc.orig at least survived
+# to be copied back by hand. Found by Codex at stop-time.
+# A trapped INT/TERM does NOT terminate the script - the handler runs and execution
+# continues. The first cut of this fix therefore restored deploy-core mid-run, deleted
+# the backup, then carried on rewriting the file with no copy left to restore from:
+# measured, TERM at t=5s produced a run that completed all 32 rows and STILL left the
+# file dirty. So the handler exits explicitly, and cleanup is idempotent because the
+# EXIT trap fires again on the way out.
+cleanup() {
+  [ -n "${CLEANED:-}" ] && return
+  CLEANED=1
+  cp "$ORIG" deploy-core 2>/dev/null
+  rm -f "$ORIG"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 cp deploy-core "$ORIG"
 kill_real(){ cp "$ORIG" deploy-core; python3 -c "
 p='deploy-core';L=open(p).read().split('\n')
