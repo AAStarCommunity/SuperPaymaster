@@ -44,6 +44,17 @@ LIVE_DIRS=( contracts/script/checks )
 # the first version of this gate: the live UPGRADE path, absent from a gate whose
 # whole purpose is the live paths. Found by Codex.
 routed=$(grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' deploy-core 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | sort -u)
+# An empty parse is not "every route is covered". If deploy-core is renamed, or
+# stops assigning SCRIPT_NAME, the loop below simply does not run and the
+# completeness guarantee evaporates while this stays green — the same
+# absence-read-as-consent the gate exists to prevent, one level up in the gate's
+# own bookkeeping. Found by Codex.
+if [ -z "$routed" ]; then
+  echo "FAIL  parsed no SCRIPT_NAME routes out of deploy-core."
+  echo "      Either the file moved or its routing changed shape. Cannot confirm"
+  echo "      LIVE[] covers what the tooling runs, so not claiming that it does."
+  missing=1
+fi
 for n in $routed; do
   printf '%s\n' "${LIVE[@]}" | grep -q "/${n}\.s\.sol$" \
     || { echo "FAIL  deploy-core routes to '$n' but it is not in LIVE[]"; missing=1; }
