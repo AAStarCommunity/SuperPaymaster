@@ -144,6 +144,25 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
         QUOTED = (dq || sq)
         return out
       }
+      function prints(t) {
+        return (t ~ /(^|[^A-Za-z0-9_])(echo|printf|cat|logger)([^A-Za-z0-9_]|$)/)
+      }
+      function cmdpos(p,   changed) {
+        gsub(/[[:space:]]+/, " ", p); sub(/^ /, "", p); sub(/ $/, "", p)
+        changed = 1
+        while (changed) {
+          changed = 0
+          # words that precede a command without changing that it is one
+          if (p ~ /(^| )(time|command|sudo|nohup|env|exec|builtin|then|else|do|elif|if|while|until|!)$/) {
+            sub(/(^| )[^ ]+$/, "", p); changed = 1
+          }
+          # NAME=value immediately before the command
+          else if (p ~ /(^| )[A-Za-z_][A-Za-z0-9_]*=[^ ]*$/) { sub(/(^| )[^ ]+$/, "", p); changed = 1 }
+        }
+        if (p == "") return 1
+        # ; & | && || ( ) { } and $( ` all open a command position
+        return (p ~ /[;&|(){}`]$/)
+      }
       # --- heredoc bodies are data, not code ---
       heredoc != "" {
         line = $0; sub(/^[[:space:]]+/, "", line)
@@ -159,39 +178,29 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
         heredoc = tag
       }
       /forge script/ {
-        sk = skeleton(substr($0, 1, index($0, "forge script") - 1))
-        if (sk ~ /(^|[^A-Za-z0-9_])(echo|printf|cat|logger)([^A-Za-z0-9_]|$)/) next
+        pre = substr($0, 1, index($0, "forge script") - 1)
+        sk = skeleton(pre)
+        if (prints(sk)) next
         if (sk ~ /(^|[^A-Za-z0-9_])(bash|sh)[[:space:]]+-c([^A-Za-z0-9_]|$)/ ||
-            sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) { found = 1; next }
-        if (QUOTED) next
-        # Is the occurrence at a COMMAND POSITION? The previous rule whitelisted
-        # everything that could precede it, so every extra piece of bash syntax
-        # needed another clause — and pr-daemon`s probe table found NINE real
-        # invocation forms it rejected, not the one it reported:
-        #   [ -n "$x" ] && forge script      [[ ... ]] && ...      test ... && ...
-        #   OUT=$(forge script ...)          time / sudo forge script ...
-        #   case a) forge script ;;          for ...; do forge script; done
-        #   false || forge script ...
-        # All fail LOUDLY, so none was a hole — but a gate that rejects the most
-        # common way to write a conditional invocation is a gate someone will rip
-        # out. Asking the opposite question needs no per-syntax clause: strip
-        # trailing transparent prefixes and env assignments, then the skeleton must
-        # be empty or END with something that opens a command position.
-        p = sk
-        gsub(/[[:space:]]+/, " ", p); sub(/^ /, "", p); sub(/ $/, "", p)
-        changed = 1
-        while (changed) {
-          changed = 0
-          # words that precede a command without changing that it is one
-          if (p ~ /(^| )(time|command|sudo|nohup|env|exec|builtin|then|else|do|elif|if|while|until|!)$/) {
-            sub(/(^| )[^ ]+$/, "", p); changed = 1
-          }
-          # NAME=value immediately before the command
-          else if (p ~ /(^| )[A-Za-z_][A-Za-z0-9_]*=[^ ]*$/) { sub(/(^| )[^ ]+$/, "", p); changed = 1 }
+            sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) {
+          # bash -c / eval EXECUTE their argument, but they do not execute
+          # `forge` just because the string contains those words:
+          #     bash -c "echo forge script ..."     invokes nothing
+          # The whitelist branch never looked inside the string it was accepting,
+          # so this was a real ACCEPT, not a loud rejection. Found by Codex at
+          # stop-time, sixth shape. The same two questions are therefore asked
+          # again about the executed string itself.
+          tail = pre
+          if (sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) sub(/^.*eval[[:space:]]+/, "", tail)
+          else sub(/^.*-c[[:space:]]+/, "", tail)
+          c = substr(tail, 1, 1)
+          if (c == DQ || c == SQ) tail = substr(tail, 2)
+          if (prints(tail)) next
+          if (cmdpos(tail)) found = 1
+          next
         }
-        if (p == "") { found = 1; next }
-        # ; & | && || ( ) { } and $( ` all open a command position
-        if (p ~ /[;&|(){}`]$/) found = 1
+        if (QUOTED) next
+        if (cmdpos(sk)) found = 1
       }
       END { exit found ? 0 : 1 }'; then
     echo "FAIL  '$ep' contains no 'forge script' INVOCATION outside comments."

@@ -51,6 +51,8 @@ esac"
 probe "for/do body"               0 "for i in 1; do forge script \"$S\"; done"
 probe "subshell"                  0 "( forge script \"$S\" )"
 probe "|| fallback"               0 "false || forge script \"$S\""
+probe "sh -c with cd &&"          0 "go(){ sh -c \"cd . && forge script $S\"; }"
+probe "bash -c with env assign"   0 "go(){ bash -c \"CONFIG_FILE=x forge script $S\"; }"
 echo "--- NEGATIVE controls (printed text, want 2) ---"
 probe "echo hint"                 2 "hint(){ echo \"  Run: forge script $S\"; }"
 probe "heredoc body"              2 "u(){ cat <<EOF
@@ -63,6 +65,9 @@ probe "assignment storing bash-c" 2 "CMD=\"bash -c 'forge script $S'\""
 probe "printf printing eval"      2 "hint(){ printf '%s\n' \"  eval forge script $S\"; }"
 probe "inline : # comment"        2 "    : # forge script \"$S\""
 probe "echo printing [ ] && cmd"  2 "hint(){ echo \"  [ -n \\\$X ] && forge script $S\"; }"
+probe "bash -c that only echoes"  2 "go(){ bash -c \"echo forge script $S\"; }"
+probe "eval that only echoes"     2 "go(){ eval \"echo forge script $S\"; }"
+probe "bash -c printf"            2 "go(){ bash -c \"printf '%s' 'forge script $S'\"; }"
 cp /tmp/dc.orig deploy-core
 echo "--- restored ---"; ./scripts/check-live-scripts-compile.sh >/dev/null 2>&1; echo "  intact exit=$?"
 git diff --stat -- deploy-core|tail -1
