@@ -43,18 +43,31 @@ cleanup() {
   # A second signal must not interrupt the restore: that is how a half-copied
   # deploy-core and a deleted backup happen at the same time.
   trap '' INT TERM
-  [ -n "${CLEANED:-}" ] && return
+  # Remember the VERDICT, not just that cleanup ran. The EXIT trap fires again
+  # after the INT/TERM handler, and an idempotent `return 0` there would report
+  # success for a run that had already failed to restore.
+  [ -n "${CLEANED:-}" ] && return "${CLEAN_RC:-0}"
   CLEANED=1
   # DELETE ONLY AFTER A VERIFIED RESTORE. The previous version ran `rm -f` whether
   # or not the cp succeeded, so a failing restore destroyed the one good copy while
   # deploy-core was left rewritten. Found by Codex at stop-time.
   if cp "$ORIG" deploy-core && cmp -s "$ORIG" deploy-core; then
     rm -f "$ORIG"
+    CLEAN_RC=0
   else
     echo "RESTORE FAILED: deploy-core is modified. The original is kept at $ORIG" >&2
     echo "  cp \"$ORIG\" deploy-core   # to finish by hand" >&2
-    return 1
+    CLEAN_RC=3
   fi
+  return "$CLEAN_RC"
+}
+# A failed restore must not exit 0. Every row can pass while the tree is left
+# rewritten, and the caller - CI, or whoever runs this before editing the
+# detector - would read that as success. Found by Codex at stop-time.
+on_exit() {
+  rc=$?
+  cleanup || rc=3
+  exit "$rc"
 }
 # ORDER MATTERS. The backup is filled BEFORE the restoring traps are armed. The
 # other way round leaves a window where a signal makes cleanup copy the still-EMPTY
@@ -62,9 +75,9 @@ cleanup() {
 # line the only trap is the plain rm above, which is correct there: nothing has
 # touched deploy-core yet, so there is nothing to restore.
 cp deploy-core "$ORIG" || { echo "cannot write the backup; refusing to run"; rm -f "$ORIG"; exit 1; }
-trap cleanup EXIT
-trap 'cleanup; exit 130' INT
-trap 'cleanup; exit 143' TERM
+trap on_exit EXIT
+trap 'if cleanup; then exit 130; else exit 3; fi' INT
+trap 'if cleanup; then exit 143; else exit 3; fi' TERM
 kill_real(){ cp "$ORIG" deploy-core; python3 -c "
 p='deploy-core';L=open(p).read().split('\n')
 for i,l in enumerate(L):
