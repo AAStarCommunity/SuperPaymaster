@@ -99,16 +99,38 @@ contract VerifyAPNTs is Script {
         // just against its owner. Every value below is what `initialize` leaves, or
         // what our factory arguments (superPaymaster = 0, paymasterAOA = 0) imply.
         // Found by Codex at stop-time review.
-        if (!vm.envOr("ALLOW_POST_DEPLOY_ACTIVITY", false)) {
-            // The deploy mints a starting float while the EOA still owns the token, so
-            // "supply is zero" is no longer the fresh-clone invariant. What still holds
-            // is that supply equals EXACTLY what the deploy was told to mint: anything
-            // else means a second mint happened in the ownership gap. Pass the same
-            // MINT_AMOUNT the deploy used; the default of 0 keeps the old meaning.
+        bool checkedDefaults = !vm.envOr("ALLOW_POST_DEPLOY_ACTIVITY", false);
+        if (checkedDefaults) {
+            // The expectation comes from the DEPLOY RECORD, not from whoever runs
+            // this. It used to read MINT_AMOUNT from the environment, and the
+            // natural way to answer "what should it be?" is to read the chain —
+            // at which point the assertion compares the chain to itself. Same
+            // family as three other defects fixed this week: an expected value
+            // taken from a source that cannot disagree with the thing under test.
+            // Issue #407.
+            //
+            // A missing record FAILS. "No record" and "record says zero" are not
+            // the same reading, and treating them alike is the absence-as-consent
+            // this repo has now been bitten by four times.
+            string memory recPath =
+                string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
+            // vm.exists is non-view, and run() is deliberately `view` — that is what
+            // makes this script unable to deploy, broadcast or repair anything.
+            // Keeping the guarantee is worth more than the convenience, so a missing
+            // record is caught by vm.readFile itself: measured, it REVERTS on absence
+            // ("failed to open file ... No such file or directory") rather than
+            // returning empty. So the require below covers only the present-but-empty
+            // case; both are fail-closed, which is what matters. The earlier comment
+            // here described a mechanism that does not exist. pr-daemon, #417.
+            string memory rec = vm.readFile(recPath);
+            require(bytes(rec).length > 0, "deploy record is empty: cannot verify supply against a declared amount");
             require(
-                supply == vm.envOr("MINT_AMOUNT", uint256(0)),
-                "supply does not equal the declared mint: something else minted"
+                stdJson.readAddress(rec, ".aPNTs") == token,
+                "the deploy record is for a different token than the one being verified"
             );
+            require(stdJson.readUint(rec, ".chainId") == block.chainid, "the deploy record is from a different chain");
+            uint256 declared = stdJson.readUint(rec, ".mintAmount");
+            require(supply == declared, "supply does not equal the DECLARED mint: something else minted");
             require(xPNTsToken(token).SUPERPAYMASTER_ADDRESS() == address(0), "a SuperPaymaster was set");
             require(xPNTsToken(token).issuanceCap() == 0, "an issuance cap was set");
             require(!xPNTsToken(token).emergencyDisabled(), "the token is in emergency state");
@@ -187,8 +209,18 @@ contract VerifyAPNTs is Script {
             console.log("  APNTS_PRICE_MAX: (not exposed by this factory version)");
         }
         console.log("");
-        console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
-        console.log("        its post-deploy default");
+        // The claim has to shrink when the checks do. ALLOW_POST_DEPLOY_ACTIVITY
+        // skips the whole fresh-clone block above — including the deploy-record
+        // supply comparison — and this line went on asserting the defaults anyway.
+        // A green line that outlived its checks. pr-daemon/Codex, #417.
+        if (checkedDefaults) {
+            console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
+            console.log("        its post-deploy default");
+        } else {
+            console.log("RESULT: OK (REDUCED) - both owners are the Safe. ALLOW_POST_DEPLOY_ACTIVITY");
+            console.log("        was set: the fresh-clone defaults and the supply-vs-deploy-record");
+            console.log("        comparison were NOT checked.");
+        }
         console.log("");
         console.log("  WHAT THIS DOES NOT PROVE. autoApprovedSpenders, approvedFacilitators");
         console.log("  and spenderDailyCapOverride are mappings: a view call can ask about an");

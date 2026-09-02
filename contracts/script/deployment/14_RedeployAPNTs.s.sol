@@ -126,6 +126,35 @@ contract RedeployAPNTs is Script {
         console.log("factory      :", address(factory), factory.version());
         console.log("factory owner:", factory.owner());
         console.log("implementation:", factory.implementation());
+        // Record what was DECLARED, so verification has a source that is not the
+        // chain. 15_VerifyAPNTs previously took the expected supply from whoever
+        // ran it, and the natural way to answer "what should it be?" is to read
+        // the chain — making the assertion an identity. An artifact written here,
+        // before the chain is consulted, is the only reading that can disagree
+        // with it. Issue #407; repo:dvt landed rotation-readback.json for the
+        // same reason.
+        string memory rec = "apnts";
+        vm.serializeAddress(rec, "aPNTs", token);
+        vm.serializeAddress(rec, "factory", address(factory));
+        vm.serializeAddress(rec, "mintTo", mintTo);
+        vm.serializeUint(rec, "chainId", block.chainid);
+        string memory recJson = vm.serializeUint(rec, "mintAmount", mintAmount);
+        // The path carries the chain id. One record per chain: deploying a second
+        // chain must not overwrite the first chain's declaration and leave
+        // 15_VerifyAPNTs checking a supply against the wrong number.
+        string memory recPath =
+            string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
+        // And only a real broadcast may write it. A dry run deploys to SIMULATED
+        // addresses; writing those over a committed record would replace a true
+        // declaration with a fictional one — and the declaration is the entire
+        // point of the artifact. Both raised by pr-daemon on #417.
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
+            vm.writeJson(recJson, recPath);
+            console.log("declared mint recorded to", recPath);
+        } else {
+            console.log("DRY RUN: deploy record NOT written; a broadcast would write", recPath);
+        }
+
         console.log("aPNTs (new)  :", token, xPNTsToken(token).version());
         console.log("  minted       :", mintAmount, "to", mintTo);
         console.log("communityOwner:", xPNTsToken(token).communityOwner());

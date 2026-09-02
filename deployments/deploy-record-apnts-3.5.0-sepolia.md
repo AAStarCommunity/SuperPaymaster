@@ -45,15 +45,21 @@ RESULT: OK   exit 0
 Reproduce:
 
 ```
-EXPECT_CHAIN_ID=11155111 MINT_AMOUNT=2000000000000000000000000 \
+EXPECT_CHAIN_ID=11155111 \
 APNTS=0x948C9d1Bd99B39DEE482C23d6A3BD26210B56040 \
 FACTORY=0xc83EDcb81964a259Eb9392BC8b4B5B2929a89774 \
 forge script contracts/script/deployment/15_VerifyAPNTs.s.sol:VerifyAPNTs \
   --rpc-url "$SEPOLIA_RPC_URL"
 ```
 
-`MINT_AMOUNT` must match what the deploy minted: the check is that supply equals
-**exactly** the declared amount, so a second mint in the ownership gap fails it.
+The expected supply is no longer passed in. It is read from
+`deployments/apnts-deploy-record.<chainId>.json`, which `14_RedeployAPNTs` writes at
+deploy time from the amount it was told to mint — a declaration made before the chain
+is consulted, and the only source that can disagree with the chain. A missing record
+fails the run; it is not treated as "nothing to check". The check is still that supply
+equals **exactly** the declared amount, so a second mint in the ownership gap fails it.
+(`EXPECT_CHAIN_ID` is still read, at `15_VerifyAPNTs.s.sol:47`; it defaults to OP
+mainnet.)
 
 ## What this fixes, and what it does not
 
@@ -101,7 +107,12 @@ stop-time review.
 1. **Safe** (it owns the token now): `setSuperPaymasterAddress(0x09DF0d2e…)` and
    `addAutoApprovedSpender(0x09DF0d2e…)` on `0x948C9d1B…`.
 2. **SP owner**: `setAPNTsToken(0x948C9d1B…)`, wait 7 days, then apply.
-3. Only then flip `config.sepolia.json`, and re-run `15_VerifyAPNTs`.
+3. Only then flip `config.sepolia.json`, and re-run `15_VerifyAPNTs` — with
+   `ALLOW_POST_DEPLOY_ACTIVITY=true`, because steps 1 and 2 deliberately leave the
+   fresh-clone state the default run asserts (a SuperPaymaster is now set, and a
+   spender is auto-approved). That run prints `RESULT: OK (REDUCED)` and names what
+   it did not check: the defaults and the supply-vs-record comparison. It is an
+   owner check at that point, not a deploy check.
 
 Steps 1 and 2 can run in parallel; step 3 must be last. Both halves of step 1 are
 Safe transactions, which is the intended steady state — but it is why the wiring
