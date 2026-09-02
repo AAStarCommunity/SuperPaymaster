@@ -43,6 +43,20 @@ on:
 # regressions, is pinned by the ungated `gate-self-test` job at the bottom of this file.
 
 jobs:
+  live-scripts:
+    name: Stage 1b — live deploy scripts compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: foundry-rs/foundry-toolchain@v1
+      # Nothing else in CI compiles contracts/script. `forge build`,
+      # `forge build --skip test` and `forge test` all return 0 with a syntax
+      # error in there — measured, not assumed — so a PR touching only deploy
+      # scripts can merge unparseable and fail at deploy time. Issue #406.
+      - name: Live deployment scripts parse
+        run: ./scripts/check-live-scripts-compile.sh
+
   lint-build:
     name: Stage 1 — solhint + build (EIP-170)
     runs-on: ubuntu-latest
