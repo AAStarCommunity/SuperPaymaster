@@ -99,7 +99,8 @@ contract VerifyAPNTs is Script {
         // just against its owner. Every value below is what `initialize` leaves, or
         // what our factory arguments (superPaymaster = 0, paymasterAOA = 0) imply.
         // Found by Codex at stop-time review.
-        if (!vm.envOr("ALLOW_POST_DEPLOY_ACTIVITY", false)) {
+        bool checkedDefaults = !vm.envOr("ALLOW_POST_DEPLOY_ACTIVITY", false);
+        if (checkedDefaults) {
             // The expectation comes from the DEPLOY RECORD, not from whoever runs
             // this. It used to read MINT_AMOUNT from the environment, and the
             // natural way to answer "what should it be?" is to read the chain —
@@ -111,13 +112,18 @@ contract VerifyAPNTs is Script {
             // A missing record FAILS. "No record" and "record says zero" are not
             // the same reading, and treating them alike is the absence-as-consent
             // this repo has now been bitten by four times.
-            string memory recPath = string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.json");
+            string memory recPath =
+                string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
             // vm.exists is non-view, and run() is deliberately `view` — that is what
             // makes this script unable to deploy, broadcast or repair anything.
-            // Keeping the guarantee is worth more than the convenience, so absence
-            // is detected by reading and checking for content instead.
+            // Keeping the guarantee is worth more than the convenience, so a missing
+            // record is caught by vm.readFile itself: measured, it REVERTS on absence
+            // ("failed to open file ... No such file or directory") rather than
+            // returning empty. So the require below covers only the present-but-empty
+            // case; both are fail-closed, which is what matters. The earlier comment
+            // here described a mechanism that does not exist. pr-daemon, #417.
             string memory rec = vm.readFile(recPath);
-            require(bytes(rec).length > 0, "no deploy record: cannot verify supply against a declared amount");
+            require(bytes(rec).length > 0, "deploy record is empty: cannot verify supply against a declared amount");
             require(
                 stdJson.readAddress(rec, ".aPNTs") == token,
                 "the deploy record is for a different token than the one being verified"
@@ -203,8 +209,18 @@ contract VerifyAPNTs is Script {
             console.log("  APNTS_PRICE_MAX: (not exposed by this factory version)");
         }
         console.log("");
-        console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
-        console.log("        its post-deploy default");
+        // The claim has to shrink when the checks do. ALLOW_POST_DEPLOY_ACTIVITY
+        // skips the whole fresh-clone block above — including the deploy-record
+        // supply comparison — and this line went on asserting the defaults anyway.
+        // A green line that outlived its checks. pr-daemon/Codex, #417.
+        if (checkedDefaults) {
+            console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
+            console.log("        its post-deploy default");
+        } else {
+            console.log("RESULT: OK (REDUCED) - both owners are the Safe. ALLOW_POST_DEPLOY_ACTIVITY");
+            console.log("        was set: the fresh-clone defaults and the supply-vs-deploy-record");
+            console.log("        comparison were NOT checked.");
+        }
         console.log("");
         console.log("  WHAT THIS DOES NOT PROVE. autoApprovedSpenders, approvedFacilitators");
         console.log("  and spenderDailyCapOverride are mappings: a view call can ask about an");

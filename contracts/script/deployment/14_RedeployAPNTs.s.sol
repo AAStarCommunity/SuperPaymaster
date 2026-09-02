@@ -139,8 +139,21 @@ contract RedeployAPNTs is Script {
         vm.serializeAddress(rec, "mintTo", mintTo);
         vm.serializeUint(rec, "chainId", block.chainid);
         string memory recJson = vm.serializeUint(rec, "mintAmount", mintAmount);
-        vm.writeJson(recJson, string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.json"));
-        console.log("declared mint recorded to deployments/apnts-deploy-record.json");
+        // The path carries the chain id. One record per chain: deploying a second
+        // chain must not overwrite the first chain's declaration and leave
+        // 15_VerifyAPNTs checking a supply against the wrong number.
+        string memory recPath =
+            string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
+        // And only a real broadcast may write it. A dry run deploys to SIMULATED
+        // addresses; writing those over a committed record would replace a true
+        // declaration with a fictional one — and the declaration is the entire
+        // point of the artifact. Both raised by pr-daemon on #417.
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
+            vm.writeJson(recJson, recPath);
+            console.log("declared mint recorded to", recPath);
+        } else {
+            console.log("DRY RUN: deploy record NOT written; a broadcast would write", recPath);
+        }
 
         console.log("aPNTs (new)  :", token, xPNTsToken(token).version());
         console.log("  minted       :", mintAmount, "to", mintTo);
