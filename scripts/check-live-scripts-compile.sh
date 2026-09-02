@@ -27,6 +27,7 @@ cd "$(dirname "$0")/.."
 LIVE=(
   contracts/script/v3/DeployLive.s.sol
   contracts/script/v3/DeployAnvil.s.sol
+  contracts/script/v3/UpgradeLive.s.sol
   contracts/script/v3/InitializeAAStar.s.sol
   contracts/script/v3/InitializeMycelium.s.sol
   contracts/script/deployment/14_RedeployAPNTs.s.sol
@@ -36,7 +37,19 @@ LIVE=(
 # every Check*.s.sol in there by name, and listing them individually would rot.
 LIVE_DIRS=( contracts/script/checks )
 
-missing=0
+# The list above is hand-kept, so it is CHECKED against the router rather than
+# trusted. deploy-core builds its path from a variable
+# (forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol"), so a grep for literal
+# paths cannot see what it runs — which is exactly how UpgradeLive was missed in
+# the first version of this gate: the live UPGRADE path, absent from a gate whose
+# whole purpose is the live paths. Found by Codex.
+routed=$(grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' deploy-core 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | sort -u)
+for n in $routed; do
+  printf '%s\n' "${LIVE[@]}" | grep -q "/${n}\.s\.sol$" \
+    || { echo "FAIL  deploy-core routes to '$n' but it is not in LIVE[]"; missing=1; }
+done
+
+missing=${missing:-0}
 for f in "${LIVE[@]}"; do
   [ -f "$f" ] || { echo "FAIL  listed but missing: $f"; missing=1; }
 done
