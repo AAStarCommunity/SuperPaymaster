@@ -126,6 +126,22 @@ contract RedeployAPNTs is Script {
         console.log("factory      :", address(factory), factory.version());
         console.log("factory owner:", factory.owner());
         console.log("implementation:", factory.implementation());
+        // Record what was DECLARED, so verification has a source that is not the
+        // chain. 15_VerifyAPNTs previously took the expected supply from whoever
+        // ran it, and the natural way to answer "what should it be?" is to read
+        // the chain — making the assertion an identity. An artifact written here,
+        // before the chain is consulted, is the only reading that can disagree
+        // with it. Issue #407; repo:dvt landed rotation-readback.json for the
+        // same reason.
+        string memory rec = "apnts";
+        vm.serializeAddress(rec, "aPNTs", token);
+        vm.serializeAddress(rec, "factory", address(factory));
+        vm.serializeAddress(rec, "mintTo", mintTo);
+        vm.serializeUint(rec, "chainId", block.chainid);
+        string memory recJson = vm.serializeUint(rec, "mintAmount", mintAmount);
+        vm.writeJson(recJson, string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.json"));
+        console.log("declared mint recorded to deployments/apnts-deploy-record.json");
+
         console.log("aPNTs (new)  :", token, xPNTsToken(token).version());
         console.log("  minted       :", mintAmount, "to", mintTo);
         console.log("communityOwner:", xPNTsToken(token).communityOwner());
