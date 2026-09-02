@@ -43,7 +43,15 @@ LIVE_DIRS=( contracts/script/checks )
 # paths cannot see what it runs — which is exactly how UpgradeLive was missed in
 # the first version of this gate: the live UPGRADE path, absent from a gate whose
 # whole purpose is the live paths. Found by Codex.
-routed=$(grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' deploy-core 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | sort -u)
+# All three entry points, not just deploy-core: the header claims LIVE[] covers
+# deploy-core, deploy-sepolia.sh and audit-core, and only the first was checked —
+# a claimed scope one notch wider than the implemented one, which is the defect
+# this repo keeps finding. deploy-sepolia.sh and audit-core use literal paths and
+# a checks/ loop, so both forms are parsed. Raised by pr-daemon.
+routed=$( { grep -oE 'SCRIPT_NAME="[A-Za-z0-9_]+"' deploy-core 2>/dev/null | sed 's/.*"\(.*\)"/\1/'
+            grep -ohE 'contracts/script/v3/[A-Za-z0-9_]+\.s\.sol' deploy-core deploy-sepolia.sh audit-core 2>/dev/null \
+              | sed 's|.*/||; s|\.s\.sol$||'
+          } | sort -u)
 # An empty parse is not "every route is covered". If deploy-core is renamed, or
 # stops assigning SCRIPT_NAME, the loop below simply does not run and the
 # completeness guarantee evaporates while this stays green — the same
@@ -67,7 +75,17 @@ done
 [ "$missing" -eq 0 ] || { echo "SCRIPT COMPILE GATE: FAIL (see above)"; exit 2; }
 
 echo "compiling $((${#LIVE[@]})) live scripts + ${#LIVE_DIRS[@]} dir(s)…"
-out=$(forge build --contracts "${LIVE[@]}" "${LIVE_DIRS[@]}" 2>&1); rc=$?
+# NOT `--contracts`. It is a SINGLE-VALUE option, so bash expansion feeds it the
+# array's FIRST element and the rest become positional arguments — silently
+# excluding contracts/script/v3/DeployLive.s.sol, the script that deploys to a
+# real chain and the entire reason this gate exists. The gate still printed
+# "every script the tooling invokes compiles". Found by pr-daemon.
+#
+# My own four-way verification could not have caught it: I mutated DeployAnvil,
+# the SECOND element, so a passing run was consistent with both "the gate works"
+# and "the gate drops element one". The per-file matrix below exists because of
+# that.
+out=$(forge build "${LIVE[@]}" "${LIVE_DIRS[@]}" 2>&1); rc=$?
 if [ $rc -ne 0 ]; then
   echo "$out" | grep -E "^Error|error\[|-->" | head -20
   echo "SCRIPT COMPILE GATE: FAIL — a live deployment script does not parse."
