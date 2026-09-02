@@ -17,9 +17,18 @@
 # Every row must print "ok". The script restores deploy-core and asserts it is
 # byte-identical afterwards.
 # =============================================================================
-cd /Users/jason/Dev/aastar/SuperPaymaster
-cp deploy-core /tmp/dc.orig
-kill_real(){ cp /tmp/dc.orig deploy-core; python3 -c "
+# Test the tree this script lives in, not one particular checkout. The path was
+# hardcoded, so the probe measured the main checkout no matter where it ran: in a
+# worktree holding a gate with twelve holes it still reported every row ok. Its own
+# header says "run this BEFORE changing the detector" and "watch it go red" — and
+# that use happens in the tree being edited, the one place it could not see. Found
+# by pr-daemon; the seventh instance today of a check examining something adjacent
+# to what its green tick claimed, this time inside the probe built to end that.
+cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 1
+ORIG=$(mktemp -t dc.orig.XXXXXX)   # not a fixed /tmp path: two runs would collide
+trap 'rm -f "$ORIG"' EXIT
+cp deploy-core "$ORIG"
+kill_real(){ cp "$ORIG" deploy-core; python3 -c "
 p='deploy-core';L=open(p).read().split('\n')
 for i,l in enumerate(L):
     if 'forge script' in l and not l.lstrip().startswith('#') and 'echo' not in l: L[i]='#'+l
@@ -53,6 +62,8 @@ probe "subshell"                  0 "( forge script \"$S\" )"
 probe "|| fallback"               0 "false || forge script \"$S\""
 probe "sh -c with cd &&"          0 "go(){ sh -c \"cd . && forge script $S\"; }"
 probe "bash -c with env assign"   0 "go(){ bash -c \"CONFIG_FILE=x forge script $S\"; }"
+probe "genuinely nested sh -c"    0 "go(){ bash -c \"sh -c 'forge script $S'\"; }"
+probe "eval wrapping bash -c"     0 "go(){ eval \"bash -c 'forge script $S'\"; }"
 echo "--- NEGATIVE controls (printed text, want 2) ---"
 probe "echo hint"                 2 "hint(){ echo \"  Run: forge script $S\"; }"
 probe "heredoc body"              2 "u(){ cat <<EOF
@@ -68,6 +79,8 @@ probe "echo printing [ ] && cmd"  2 "hint(){ echo \"  [ -n \\\$X ] && forge scri
 probe "bash -c that only echoes"  2 "go(){ bash -c \"echo forge script $S\"; }"
 probe "eval that only echoes"     2 "go(){ eval \"echo forge script $S\"; }"
 probe "bash -c printf"            2 "go(){ bash -c \"printf '%s' 'forge script $S'\"; }"
-cp /tmp/dc.orig deploy-core
+probe "echo naming a nested -c"   2 "go(){ bash -c \"echo bash -c forge script $S\"; }"
+probe "echo naming nested sh -c"  2 "go(){ bash -c \"echo sh -c 'forge script $S'\"; }"
+cp "$ORIG" deploy-core
 echo "--- restored ---"; ./scripts/check-live-scripts-compile.sh >/dev/null 2>&1; echo "  intact exit=$?"
 git diff --stat -- deploy-core|tail -1

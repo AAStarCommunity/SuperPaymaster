@@ -190,11 +190,32 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
           # so this was a real ACCEPT, not a loud rejection. Found by Codex at
           # stop-time, sixth shape. The same two questions are therefore asked
           # again about the executed string itself.
+          # Take the FIRST exec consumer, not the last. `sub(/^.*-c[[:space:]]+/)`
+          # is greedy, so `bash -c "echo bash -c forge script ..."` cut at the
+          # INNER -c and threw the echo away — accepting a line that runs nothing.
+          # Seventh shape, found by Codex at stop-time.
           tail = pre
-          if (sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) sub(/^.*eval[[:space:]]+/, "", tail)
-          else sub(/^.*-c[[:space:]]+/, "", tail)
-          c = substr(tail, 1, 1)
-          if (c == DQ || c == SQ) tail = substr(tail, 2)
+          if (match(tail, /(^|[^A-Za-z0-9_])(bash|sh)[[:space:]]+-c([[:space:]]|$)/)) e1 = RSTART + RLENGTH; else e1 = 0
+          if (match(tail, /(^|[^A-Za-z0-9_])eval([[:space:]]|$)/)) e2 = RSTART + RLENGTH; else e2 = 0
+          if (e1 && e2) cut = (e1 < e2 ? e1 : e2); else cut = (e1 ? e1 : e2)
+          tail = substr(tail, cut)
+          # and follow nesting: a bash -c wrapping an sh -c that really does run
+          # forge counts, while one wrapping an echo does not. Bounded, since each
+          # pass consumes at least one token.
+          #
+          # NO LITERAL QUOTE CHARACTER MAY APPEAR ANYWHERE IN THIS AWK PROGRAM,
+          # COMMENTS INCLUDED - it is embedded in a single-quoted shell string, and
+          # one in a comment above ended the program mid-expression. It failed
+          # loudly (awk syntax error, every entry point FAILs) rather than passing.
+          for (k = 0; k < 4; k++) {
+            sub(/^[[:space:]]+/, "", tail)
+            c = substr(tail, 1, 1)
+            if (c == DQ || c == SQ) { tail = substr(tail, 2); sub(/^[[:space:]]+/, "", tail) }
+            if (prints(tail)) break
+            if (match(tail, /^(bash|sh)[[:space:]]+-c([[:space:]]|$)/) ||
+                match(tail, /^eval([[:space:]]|$)/)) { tail = substr(tail, RSTART + RLENGTH); continue }
+            break
+          }
           if (prints(tail)) next
           if (cmdpos(tail)) found = 1
           next
