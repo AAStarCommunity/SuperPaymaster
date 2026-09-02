@@ -106,8 +106,44 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
   #
   # The whitelist errs toward FAIL: an invocation form not listed here is reported
   # loudly rather than waved through, which is the direction this gate exists for.
+  # Every previous version of this test did SUBSTRING matching on the text before
+  # the occurrence, and substring matching cannot see quoting. So each fix was
+  # defeated by moving the same words inside a string:
+  #
+  #   echo -e "... Run: forge script ..."          (v2: no echo-awareness)
+  #   cat <<EOF ... forge script ... EOF           (v3: no echo ON THE LINE)
+  #   USAGE="  forge script ..."                   (v3: same)
+  #   echo "  bash -c \x27forge script ...\x27"    (v4: pre CONTAINS bash -c)
+  #
+  # The last one is the current defect: the execute-the-string whitelist was
+  # consulted before anything else, so printing the words "bash -c" was enough.
+  # Found by Codex at stop-time; fifth shape.
+  #
+  # Quoting is therefore parsed, not pattern-matched. The text before the
+  # occurrence is scanned character by character and reduced to its UNQUOTED
+  # SKELETON — everything inside quotes removed — and the decision is made on
+  # that, plus whether the occurrence itself ended up inside quotes:
+  #
+  #   skeleton names echo/printf/cat  -> printed, whatever is in the string
+  #   skeleton names bash -c/sh -c/eval -> executed (audit-core, genuinely quoted)
+  #   occurrence is quoted, no executing consumer -> a string body
+  #   skeleton is only control words and env assignments -> a direct command
+  #
+  # Unrecognised forms FAIL loudly. Heredoc bodies are skipped before any of this.
   if ! printf '%s\n' "$ep_code" | awk '
-      BEGIN { SQ = sprintf("%c", 39) }
+      BEGIN { SQ = sprintf("%c", 39); DQ = sprintf("%c", 34) }
+      function skeleton(s,   i, c, dq, sq, out) {
+        dq = 0; sq = 0; out = ""
+        for (i = 1; i <= length(s); i++) {
+          c = substr(s, i, 1)
+          if (c == "\\" && !sq) { i++; continue }
+          if (c == DQ && !sq) { dq = !dq; continue }
+          if (c == SQ && !dq) { sq = !sq; continue }
+          if (!dq && !sq) out = out c
+        }
+        QUOTED = (dq || sq)
+        return out
+      }
       # --- heredoc bodies are data, not code ---
       heredoc != "" {
         line = $0; sub(/^[[:space:]]+/, "", line)
@@ -115,40 +151,43 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
         next
       }
       # No literal quote character appears in this program: it is embedded in a
-      # single-quoted shell string, and macOS ships BWK awk, which does not do \x
-      # escapes. The tag is taken by stripping every leading non-identifier char.
+      # single-quoted shell string, and macOS ships BWK awk, which has no \x
+      # escapes. The heredoc tag is taken by stripping leading non-identifier chars.
       match($0, /<<-?[[:space:]]*[^[:space:]]*[A-Za-z_][A-Za-z0-9_]*/) {
         tag = substr($0, RSTART, RLENGTH)
         sub(/^[^A-Za-z_]*/, "", tag)
         heredoc = tag
-        # the same line may still hold a real command before the <<; fall through
       }
       /forge script/ {
-        pre = substr($0, 1, index($0, "forge script") - 1)
-        # 1. consumers that EXECUTE the string they are given
-        if (pre ~ /(^|[[:space:];&|(])(bash|sh)[[:space:]]+-c([[:space:]]|$)/ ||
-            pre ~ /(^|[[:space:];&|(])eval([[:space:]]|$)/) { found = 1; next }
-        # 2. or a direct command: only whitespace, shell control words and
-        #    balanced env assignments may precede it
-        p = pre
-        gsub(/[[:space:]]+/, " ", p)
-        sub(/^ /, "", p); sub(/ $/, "", p)
+        sk = skeleton(substr($0, 1, index($0, "forge script") - 1))
+        if (sk ~ /(^|[^A-Za-z0-9_])(echo|printf|cat|logger)([^A-Za-z0-9_]|$)/) next
+        if (sk ~ /(^|[^A-Za-z0-9_])(bash|sh)[[:space:]]+-c([^A-Za-z0-9_]|$)/ ||
+            sk ~ /(^|[^A-Za-z0-9_])eval([^A-Za-z0-9_]|$)/) { found = 1; next }
+        if (QUOTED) next
+        p = sk
+        gsub(/[[:space:]]+/, " ", p); sub(/^ /, "", p); sub(/ $/, "", p)
         changed = 1
         while (changed) {
           changed = 0
-          if (p ~ /^(if|then|else|elif|do|done|!|&&|\|\||;|\{) /) { sub(/^[^ ]+ /, "", p); changed = 1 }
-          else if (p ~ /^(if|then|else|elif|do|done|!|\{)$/)      { p = ""; changed = 1 }
-          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ ]* /)          { sub(/^[^ ]+ /, "", p); changed = 1 }
+          if (p ~ /^(if|then|else|elif|do|done|while|until|!|&&|\|\||;) /) { sub(/^[^ ]+ /, "", p); changed = 1 }
+          else if (p ~ /^(if|then|else|elif|do|done|while|until|!)$/)        { p = ""; changed = 1 }
+          # a function definition or a grouping brace/paren opens a command
+          # position too: `go(){ forge script ...; }` is a real invocation, and the
+          # first version of this rule rejected it. A false NEGATIVE is loud rather
+          # than silent, but it would still block a legitimate entry point, so the
+          # positive controls in the probe matrix are what caught it.
+          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*\(\)/)                       { sub(/^[A-Za-z_][A-Za-z0-9_]*\(\)/, "", p); changed = 1 }
+          else if (p ~ /^[({]/)                                             { sub(/^[({]/, "", p); changed = 1 }
+          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ ]* /)                    { sub(/^[^ ]+ /, "", p); changed = 1 }
+          if (changed) { sub(/^ /, "", p) }
         }
-        if (p != "") next
-        dq = gsub(/"/, "&", pre); sq = gsub(SQ, "&", pre)
-        if (dq % 2 != 0 || sq % 2 != 0) next   # an unclosed quote: this is a string body
-        found = 1
+        if (p == "") found = 1
       }
       END { exit found ? 0 : 1 }'; then
     echo "FAIL  '$ep' contains no 'forge script' INVOCATION outside comments."
-    echo "      (printed text does not count: echo/printf, heredoc bodies and"
-    echo "       string assignments are excluded; bash -c / eval are not)"
+    echo "      (printed text does not count, however it is spelled: echo/printf,"
+    echo "       heredoc bodies and string assignments are excluded, including ones"
+    echo "       that print the words bash -c)"
     missing=1
     continue
   fi
