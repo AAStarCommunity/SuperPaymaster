@@ -86,25 +86,69 @@ for ep in deploy-core deploy-sepolia.sh audit-core; do
   # else runs it. A blacklist, not "must be at command position" — audit-core's real
   # invocation is `bash -c "CONFIG_FILE='...' forge script ...`, inside a string yet
   # genuinely executed, and a command-position rule would reject it.
+  # Whether an occurrence is an invocation is decided by WHO CONSUMES IT, not by
+  # whether it sits inside a string. audit-core's real invocation is
+  #   bash -c "CONFIG_FILE='...' forge script ..."
+  # — inside a string and genuinely executed. deploy-core:174 is
+  #   echo -e "...   Run: forge script contracts/script/v3/InitializeAAStar..."
+  # — inside a string and merely printed. "In a string" cannot separate them.
+  # bash -c / sh -c / eval execute their argument; echo / printf / cat / a heredoc
+  # body / a variable assignment print or store it.
+  #
+  # Two shapes defeated the previous "is there an echo earlier on the line" rule,
+  # and neither has an echo on the line at all:
+  #   cat <<EOF ... forge script ... EOF     (heredoc body: leading whitespace only)
+  #   USAGE="  forge script ..."  ; echo "$USAGE"
+  # So heredoc bodies are skipped outright, and a direct invocation must have
+  # BALANCED quotes before it — `USAGE="` opens one and never closes it, while
+  # `CONFIG_FILE="$CONFIG_FILE" ` closes its own. Found by Codex at stop-time,
+  # third and fourth shapes of the same defect.
+  #
+  # The whitelist errs toward FAIL: an invocation form not listed here is reported
+  # loudly rather than waved through, which is the direction this gate exists for.
   if ! printf '%s\n' "$ep_code" | awk '
+      BEGIN { SQ = sprintf("%c", 39) }
+      # --- heredoc bodies are data, not code ---
+      heredoc != "" {
+        line = $0; sub(/^[[:space:]]+/, "", line)
+        if (line == heredoc) heredoc = ""
+        next
+      }
+      # No literal quote character appears in this program: it is embedded in a
+      # single-quoted shell string, and macOS ships BWK awk, which does not do \x
+      # escapes. The tag is taken by stripping every leading non-identifier char.
+      match($0, /<<-?[[:space:]]*[^[:space:]]*[A-Za-z_][A-Za-z0-9_]*/) {
+        tag = substr($0, RSTART, RLENGTH)
+        sub(/^[^A-Za-z_]*/, "", tag)
+        heredoc = tag
+        # the same line may still hold a real command before the <<; fall through
+      }
       /forge script/ {
-        # Attribute the occurrence: if echo/printf appears BEFORE it on the line,
-        # the line prints the string rather than running it. Anything after it
-        # (deploy-sepolia.sh:85 is `forge script ... || echo "skipped"`) is a real
-        # invocation with a fallback message, so only the text before counts.
-        #
-        # Deliberately NOT "split on the last command separator and read the first
-        # word": that was the first attempt and it FAILED THIS PROBE — the separator
-        # scan hit the `;` inside "\033[0;33m", so the echo line`s governing word
-        # came out as "33m" and counted as an invocation. Looking for separators
-        # inside quoted strings is not something a regex can do.
         pre = substr($0, 1, index($0, "forge script") - 1)
-        if (pre !~ /echo|printf/) { found = 1 }
+        # 1. consumers that EXECUTE the string they are given
+        if (pre ~ /(^|[[:space:];&|(])(bash|sh)[[:space:]]+-c([[:space:]]|$)/ ||
+            pre ~ /(^|[[:space:];&|(])eval([[:space:]]|$)/) { found = 1; next }
+        # 2. or a direct command: only whitespace, shell control words and
+        #    balanced env assignments may precede it
+        p = pre
+        gsub(/[[:space:]]+/, " ", p)
+        sub(/^ /, "", p); sub(/ $/, "", p)
+        changed = 1
+        while (changed) {
+          changed = 0
+          if (p ~ /^(if|then|else|elif|do|done|!|&&|\|\||;|\{) /) { sub(/^[^ ]+ /, "", p); changed = 1 }
+          else if (p ~ /^(if|then|else|elif|do|done|!|\{)$/)      { p = ""; changed = 1 }
+          else if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ ]* /)          { sub(/^[^ ]+ /, "", p); changed = 1 }
+        }
+        if (p != "") next
+        dq = gsub(/"/, "&", pre); sq = gsub(SQ, "&", pre)
+        if (dq % 2 != 0 || sq % 2 != 0) next   # an unclosed quote: this is a string body
+        found = 1
       }
       END { exit found ? 0 : 1 }'; then
     echo "FAIL  '$ep' contains no 'forge script' INVOCATION outside comments."
-    echo "      (occurrences preceded by echo/printf on the line are printed text,"
-    echo "       not runs: deploy-core:174-175 print a Run: hint and must not count)"
+    echo "      (printed text does not count: echo/printf, heredoc bodies and"
+    echo "       string assignments are excluded; bash -c / eval are not)"
     missing=1
     continue
   fi
