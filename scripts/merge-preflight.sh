@@ -85,20 +85,154 @@ head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/n
 echo "head at this moment : $head"
 
 # --- 1. the approval must name THIS commit, and nothing may have superseded it -
-api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at}]|tostring' \
+api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at,b:.body}]|tostring' \
     "repos/$REPO/pulls/$PR/reviews" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-appr=$(printf '%s' "$revs" | python3 -c '
+# ONE parse, and it must survive pagination. `gh --paginate` with a `|tostring`
+# jq filter emits one array PER PAGE separated by `]\n[`; json.loads with
+# replace("][", ",") does not match across that newline. That was fixed for the
+# timeline below and left here — and the consequence is worse here:
+#
+#   appr    empty -> "no APPROVED review found"       loud, fails closed
+#   appr_at empty -> `if [ -n "$appr_at" ]` is false  the force-push leg is SKIPPED
+#
+# So a PR with enough reviews to paginate would silently lose the one check
+# standing between a post-approval force-push and a merge, while the leg that
+# reports the approval SHA still looked like it was working. Found by Codex at
+# stop-time, second occurrence of the same shape.
+rev_parsed=$(printf '%s' "$revs" | python3 -c '
 import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
-a=[x for x in r if x["s"]=="APPROVED"]
-print(a[-1]["c"] if a else "")')
-last_cr=$(printf '%s' "$revs" | python3 -c '
-import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
+d=json.JSONDecoder(); raw=sys.stdin.read().strip(); i=0; r=[]
+while i < len(raw):
+    while i < len(raw) and raw[i].isspace(): i += 1
+    if i >= len(raw): break
+    v,i = d.raw_decode(raw, i)
+    r.extend(v)
 a=[x for x in r if x["s"]=="APPROVED"]
 c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
 # A change request submitted AFTER the newest approval still stands.
-print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")')
+print(a[-1]["c"] if a else "")
+print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")
+print(a[-1]["t"] if a else "")
+import re
+print(" ".join(re.findall(r"\b[0-9a-f]{40}\b", (a[-1]["b"] or ""))) if a else "")') || {
+  echo "FAIL  could not parse the PR reviews; refusing on an unread value"
+  echo "      (an empty parse here reads exactly like no approval, and would skip"
+  echo "       the force-push leg entirely)"
+  echo "PREFLIGHT FAIL — do not merge $PR"; exit 4
+}
+appr=$(printf '%s\n' "$rev_parsed" | sed -n 1p)
+last_cr=$(printf '%s\n' "$rev_parsed" | sed -n 2p)
+appr_at=$(printf '%s\n' "$rev_parsed" | sed -n 3p)
+body_shas=$(printf '%s\n' "$rev_parsed" | sed -n 4p)
+
+# A FORCE-PUSH AFTER THE APPROVAL, even when the SHAs then match.
+#
+# repo:dvt measured a review whose body named 8998068 while its API commit_id read
+# f7430422 -- a commit created 34 seconds AFTER that review was submitted. If GitHub
+# moves an approval`s commit_id onto a force-pushed head, then "approved SHA == head"
+# is TRUE exactly when it should be false, and this leg reads green on the one case
+# it exists to catch.
+#
+# Measured here, on this repo: that does NOT happen for ordinary pushes. Across
+# PR #416`s seven reviews every superseded approval is DISMISSED and its commit_id
+# stayed pinned to the SHA its body names. But this repo has NO post-approval
+# force-push in its history (18 PRs scanned, the single hit was CHANGES_REQUESTED),
+# so dvt`s scenario is untested here, not refuted. Force-pushing to find out is a
+# thing this repo forbids.
+#
+# So the dimension is added rather than the mechanism resolved: whatever GitHub does
+# to commit_id, a force-push after the approval means the approver did not see what
+# is about to be merged.
+if [ -n "$appr_at" ]; then
+  api tl '[.[]|select(.event=="head_ref_force_pushed")|.created_at]|tostring' \
+      "repos/$REPO/issues/$PR/timeline" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  # `gh --paginate` with a jq filter emits ONE ARRAY PER PAGE, separated by a
+  # newline: `]\n[`. The first version of this collapsed pages with
+  # replace("][", ","), which does not match across that newline -- the parse threw,
+  # latefp came back empty, and an empty latefp reads exactly like "no force-push".
+  # Measured on a two-page fixture holding two force-pushes after the approval: the
+  # check passed. A gate that fails open on a long timeline is worse than no gate,
+  # because a PR with enough history to paginate is exactly the busy one. Found by
+  # Codex at stop-time.
+  #
+  # Pages are now decoded one value at a time, and a parse failure REFUSES rather
+  # than returning nothing.
+  latefp=$(printf '%s' "$tl" | python3 -c '
+import json,sys
+d=json.JSONDecoder(); raw=sys.stdin.read().strip(); i=0; out=[]
+while i < len(raw):
+    while i < len(raw) and raw[i].isspace(): i += 1
+    if i >= len(raw): break
+    v,i = d.raw_decode(raw, i)
+    out.extend(v)
+print("\n".join(out))' 2>/dev/null) || latefp="__PARSE_FAILED__"
+  if [ "$latefp" = "__PARSE_FAILED__" ]; then
+    echo "FAIL  could not parse the PR timeline; refusing on an unread value"
+    echo "      (this leg is the only thing standing between a post-approval"
+    echo "       force-push and a merge, so it does not get to be silent)"
+    fail=1
+    latefp=""
+  else
+    latefp=$(printf '%s\n' "$latefp" | awk -v t="$appr_at" 'NF && $0 > t' | head -1)
+  fi
+  # NECESSARY BUT NOT SUFFICIENT, and pr-daemon measured why: `gh pr update-branch`
+  # (merging base into the branch) also carries the approval onto a new head and
+  # moves its commit_id, while producing NO head_ref_force_pushed event at all --
+  # five dependabot PRs on repo:dvt, approvals all drifted, force-push count zero.
+  # A leg watching only for force-push is silent on that whole path.
+  #
+  # So the real question is asked directly: is there a commit in this head that did
+  # not exist when the approval was given? That compares the approval against the
+  # REVIEWER`S OWN TIMESTAMP, not against a commit_id GitHub may have moved
+  # afterwards -- a quantity that follows the thing under test is not a measurement
+  # of it.
+  # A COMMITTER DATE CAN BE BACKDATED, so the date leg below is defeated in the
+  # quiet direction: a commit pushed after the approval, stamped with an old date,
+  # passes it. Measured, not assumed: GIT_COMMITTER_DATE=2001-01-01 git commit
+  # produces exactly that on a scratch repo. The comment previously noted only the
+  # loud direction (a bogus FUTURE date fails), which is the half that does not
+  # matter. Found by Codex at stop-time.
+  #
+  # What can be neither backdated nor drifted is WHAT THE REVIEWER WROTE DOWN. The
+  # reviewers here put the reviewed SHA in the review body ("APPROVE - <sha>"), a
+  # string authored by the approver rather than derived from the branch. When it is
+  # present it is the authority and the timestamps are only a fallback; when it is
+  # absent this leg says so instead of implying freshness it did not establish.
+  if [ -n "$body_shas" ]; then
+    if printf '%s' "$body_shas" | tr ' ' '\n' | grep -qxF "$head"; then
+      echo "OK    the approval body names this exact head"
+    else
+      echo "FAIL  the approval body names $(printf '%s' "$body_shas" | cut -c1-12)..., not $head"
+      echo "      That string is what the approver wrote down: it does not move when"
+      echo "      GitHub re-points commit_id, and it cannot be backdated."
+      fail=1
+    fi
+  else
+    echo "WARN  the approval body names no SHA - falling back to timestamps, which a"
+    echo "      backdated committer date defeats silently. This leg does not"
+    echo "      establish that the approval covers this head."
+  fi
+  api cdates '[.[].commit.committer.date]|join("\n")' \
+      "repos/$REPO/pulls/$PR/commits" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  newest=$(printf '%s\n' "$cdates" | awk 'NF' | sort | tail -1)
+  if [ -z "$newest" ]; then
+    echo "FAIL  could not read any commit date for this PR; refusing on an unread value"
+    fail=1
+  elif [ "$newest" \> "$appr_at" ]; then
+    echo "FAIL  the head contains a commit dated $newest, after the approval at $appr_at"
+    echo "      Whatever the approval now reports as its commit_id, the approver"
+    echo "      could not have seen that commit. (A committer date can be set by"
+    echo "      the committer, so a bogus future date fails loudly here rather"
+    echo "      than passing quietly — that is the intended direction.)"
+    fail=1
+  fi
+  if [ -n "$latefp" ]; then
+    echo "FAIL  the branch was force-pushed at $latefp, after the approval at $appr_at"
+    echo "      The approver did not see the commits being merged, whatever SHA the"
+    echo "      approval now reports."
+    fail=1
+  fi
+fi
 
 if [ -z "$appr" ]; then
   if [ "$CI_MODE" -eq 1 ]; then

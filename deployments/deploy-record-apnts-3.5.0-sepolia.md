@@ -1,4 +1,34 @@
-# aPNTs 3.5.0 — Sepolia, current
+# aPNTs 3.5.0 — Sepolia, SUPERSEDED 2026-09-04
+
+> **This deployment is abandoned. Do not act on anything below it.**
+>
+> The token it describes, `0x948C9d1Bd99B39DEE482C23d6A3BD26210B56040`, was handed
+> to the Mycelium governance Safe. That was correct for OP mainnet, where an EOA
+> must not be able to mint (CC-46), and wrong here: the script hardcoded the Safe
+> as a `constant`, so a TEST token ended up behind a 2-of-3 whose owners
+> (`0x871608cB` / `0xBB05d2E9` / `0x8c349925`, measured on chain) are not ours.
+> Every routine test action needed two signatures nobody here has. The repo's own
+> convention is the opposite: testnets may use a test EOA, production converges
+> on the Safe.
+>
+> **The live Sepolia aPNTs is now `0xBb46321545a91DB2F3B5c3e694F2f23aBe259883`**
+> (factory `0x0E54b9e2c2032dCe6Ce14E12EA70b4e6eff2A244`), both owned by
+> `0xb5600060e6de5E11D3636731964218E53caadf0E`, 2,000,000 minted, and already
+> wired: `SUPERPAYMASTER_ADDRESS` is set and the paymaster is an auto-approved
+> spender — the two steps this document asks a Safe to perform were done directly,
+> because the owner is now a key we hold.
+>
+> SuperPaymaster's pending aPNTs swap points at the new token, ETA
+> **2026-09-11 11:11**. What remains on that day: drain the two operator balances
+> and the protocol revenue to the 0.1 buffer, `executeAPNTsTokenChange()`, deposit
+> the new token, flip `config.sepolia.json`, then re-run `15_VerifyAPNTs` with
+> `ALLOW_POST_DEPLOY_ACTIVITY=true`.
+>
+> Kept unedited below as the record of what was deployed and why, including the
+> reasoning that still applies to OP mainnet. The cutover sequence in it names the
+> Safe and the old addresses; both are obsolete.
+
+## Original record, as written on 2026-09-02 (obsolete — see the banner above)
 
 **Deployed 2026-09-01, chain 11155111. NOT yet the configured aPNTs.** The token
 exists, is Safe-owned and funded; `config.sepolia.json` still points at the old
