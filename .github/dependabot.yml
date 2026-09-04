@@ -1,3 +1,22 @@
+# ⚠️ READ THIS BEFORE ACTING ON A DEPENDABOT PR UNDER A VENDORED PATH
+#
+#   Approving one of those PRs MERGES it, roughly ten seconds later. The
+#   auto-merge workflow in this repo is queued and waiting on an approval, so the
+#   review is the trigger, not a look before deciding. Measured on #418: review
+#   06:17:43Z, merge 06:17:55Z.
+#
+#   The instruction further down this file says to CLOSE them. That instruction is
+#   both wrong and dangerous: closing does not resolve the alert, so the PR returns
+#   (#360 closed 08-29, back as #418 on 09-04, byte-identical) -- and someone who
+#   intends to close it will have merged it by clicking approve to read it properly.
+#
+#   The full measurement, and the unresolved policy choice, are ~60 lines below.
+#   This banner exists because that is too far down: a record nobody reads to the
+#   end is not a record. The exclusion someone will reach for first
+#   (`!/singleton-paymaster/**`) has been in this file since 2026-04-26 and does not
+#   work, for reasons also explained below -- which is exactly how this note came to
+#   be needed twice.
+#
 # Dependabot configuration for SuperPaymaster
 # This file configures GitHub Dependabot to manage dependency updates
 # and security alerts for the project
