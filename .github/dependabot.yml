@@ -1,9 +1,18 @@
 # ⚠️ READ THIS BEFORE ACTING ON A DEPENDABOT PR UNDER A VENDORED PATH
 #
-#   Approving one of those PRs MERGES it, roughly ten seconds later. The
-#   auto-merge workflow in this repo is queued and waiting on an approval, so the
-#   review is the trigger, not a look before deciding. Measured on #418: review
-#   06:17:43Z, merge 06:17:55Z.
+#   For a PATCH or MINOR bump, approving it MERGES it, roughly ten seconds later.
+#   dependabot-auto-merge.yml calls `gh pr merge --auto` when the PR opens, so
+#   auto-merge is already armed and waiting on the approval branch protection
+#   demands: the review is the trigger, not a look before deciding. Measured on
+#   #418 (immutable 4.1.0 -> 4.3.9, a MINOR bump): review 06:17:43Z, merge
+#   06:17:55Z.
+#
+#   A MAJOR bump does NOT auto-merge. The `label-major` job only adds
+#   `dependencies,major-update` and never calls merge, so approving one of those
+#   leaves it for a human to merge. Major bumps do occur on these paths -- #367
+#   was crypto-js 3.3.0 -> 4.2.0 -- so this distinction is not academic. An
+#   earlier draft of this banner claimed the merge happens for any such PR;
+#   that was broader than the workflow it described. Found by Codex.
 #
 #   The instruction further down this file says to CLOSE them. That instruction is
 #   both wrong and dangerous: closing does not resolve the alert, so the PR returns
