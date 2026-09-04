@@ -76,8 +76,33 @@
 # version updates. For brace-expansion, whose entry is unscoped, it is not
 # explained. Not investigated; recorded so it is not mistaken for evidence.
 #
-# So the exclusions govern version updates only, and closing remains the standing
-# action for security updates under vendored paths.
+# So the exclusions govern version updates only.
+#
+# BUT "close them" IS NOT WHAT HAPPENS, AND IT DOES NOT STICK. Measured 2026-09-04:
+#
+#   - #360 (immutable 4.1.0 -> 4.3.9, singleton-paymaster/lib/account-abstraction-v6,
+#     alert #1144) was closed on 2026-08-29 per the instruction above. It came back
+#     five weeks later, byte-identical, as #418 -- same title, same single file.
+#     Closing a security-alert PR does not resolve the alert, so Dependabot reopens
+#     the work. The standing action documented here is a loop.
+#
+#   - #418 was then MERGED, at 2026-09-04T06:17:55Z, by app/github-actions -- the
+#     auto-merge workflow in this repo, which queues patch/minor Dependabot PRs.
+#     So this file tells the next person to close these while the automation merges
+#     them. The written instruction and the mechanism disagree, and the mechanism
+#     wins silently.
+#
+#   - The scale is not two PRs: `repos/:o/:r/dependabot/alerts?state=open` returns
+#     299 open alerts, 10 of them immutable alone, spread across aa-v7, aa-v8,
+#     oz-v4.8.3 and oz-v5.0.2 lockfiles. Every one is a future PR.
+#
+# NOT RESOLVED HERE, because it is a policy call and not a measurement: whether the
+# standing action should become "let auto-merge take them" (which resolves the alert
+# and stops the recurrence, at the cost of a vendored tree that no longer matches
+# upstream byte-for-byte -- see the vendored-provenance test) or whether auto-merge
+# should be scoped to exclude vendored paths (which restores "close them" as the
+# real behaviour, and with it the loop). What must not stay is the current state,
+# where the document says one thing and the automation does the other.
 #
 # WHY DEPENDABOT CAN SEE INSIDE singleton-paymaster AT ALL, and what remediation
 # therefore looks like. .gitmodules DECLARES singleton-paymaster as a submodule,
