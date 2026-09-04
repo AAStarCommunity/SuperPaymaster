@@ -1,3 +1,42 @@
+# ⚠️ READ THIS BEFORE ACTING ON A DEPENDABOT PR UNDER A VENDORED PATH
+#
+#   For a PATCH or MINOR bump, approving it RELEASES A QUEUED AUTO-MERGE. The
+#   merge is not the approval's doing alone: dependabot-auto-merge.yml calls
+#   `gh pr merge --auto` when the PR opens, and GitHub then merges once EVERY
+#   branch-protection condition is met -- all required checks green, plus the
+#   approval. So:
+#
+#     checks already green  -> approving merges it within seconds. Measured on
+#                              #418 (immutable 4.1.0 -> 4.3.9, MINOR): review
+#                              06:17:43Z, merge 06:17:55Z, and 11 of its 12 check
+#                              runs had already completed before the review.
+#     checks still running  -> it merges LATER, unattended, whenever the last one
+#                              turns green. Nobody is watching at that moment.
+#     a check stays red     -> it never merges.
+#
+#   The point is not the ten seconds; it is that approving is a merge decision
+#   rather than a look before deciding. An earlier draft of this banner promised
+#   the ten seconds unconditionally, which is only #418's case. Found by Codex.
+#
+#   A MAJOR bump does NOT auto-merge. The `label-major` job only adds
+#   `dependencies,major-update` and never calls merge, so approving one of those
+#   leaves it for a human to merge. Major bumps do occur on these paths -- #367
+#   was crypto-js 3.3.0 -> 4.2.0 -- so this distinction is not academic. An
+#   earlier draft of this banner claimed the merge happens for any such PR;
+#   that was broader than the workflow it described. Found by Codex.
+#
+#   The instruction further down this file says to CLOSE them. That instruction is
+#   both wrong and dangerous: closing does not resolve the alert, so the PR returns
+#   (#360 closed 08-29, back as #418 on 09-04, byte-identical) -- and someone who
+#   intends to close it will have merged it by clicking approve to read it properly.
+#
+#   The full measurement, and the unresolved policy choice, are ~60 lines below.
+#   This banner exists because that is too far down: a record nobody reads to the
+#   end is not a record. The exclusion someone will reach for first
+#   (`!/singleton-paymaster/**`) has been in this file since 2026-04-26 and does not
+#   work, for reasons also explained below -- which is exactly how this note came to
+#   be needed twice.
+#
 # Dependabot configuration for SuperPaymaster
 # This file configures GitHub Dependabot to manage dependency updates
 # and security alerts for the project
@@ -76,8 +115,40 @@
 # version updates. For brace-expansion, whose entry is unscoped, it is not
 # explained. Not investigated; recorded so it is not mistaken for evidence.
 #
-# So the exclusions govern version updates only, and closing remains the standing
-# action for security updates under vendored paths.
+# So the exclusions govern version updates only.
+#
+# BUT "close them" IS NOT WHAT HAPPENS, AND IT DOES NOT STICK. Measured 2026-09-04:
+#
+#   - #360 (immutable 4.1.0 -> 4.3.9, singleton-paymaster/lib/account-abstraction-v6,
+#     alert #1144) was closed on 2026-08-29 per the instruction above. It came back
+#     five weeks later, byte-identical, as #418 -- same title, same single file.
+#     Closing a security-alert PR does not resolve the alert, so Dependabot reopens
+#     the work. The standing action documented here is a loop.
+#
+#   - #418 was then MERGED, at 2026-09-04T06:17:55Z, by app/github-actions -- the
+#     auto-merge workflow in this repo, which queues patch/minor Dependabot PRs.
+#     So this file tells the next person to close these while the automation merges
+#     them. The written instruction and the mechanism disagree, and the mechanism
+#     wins silently.
+#
+#     Stronger than coexistence, measured by pr-daemon: its review of #418 was
+#     submitted at 06:17:43Z and the merge landed at 06:17:55Z -- TWELVE SECONDS
+#     later. Auto-merge was queued and waiting on an approval, so the review was
+#     the trigger. Anyone reviewing one of these PRs is not "taking a look at it
+#     before deciding": approving IS the decision to merge, and the file tells them
+#     the decision is to close.
+#
+#   - The scale is not two PRs: `repos/:o/:r/dependabot/alerts?state=open` returns
+#     299 open alerts, 10 of them immutable alone, spread across aa-v7, aa-v8,
+#     oz-v4.8.3 and oz-v5.0.2 lockfiles. Every one is a future PR.
+#
+# NOT RESOLVED HERE, because it is a policy call and not a measurement: whether the
+# standing action should become "let auto-merge take them" (which resolves the alert
+# and stops the recurrence, at the cost of a vendored tree that no longer matches
+# upstream byte-for-byte -- see the vendored-provenance test) or whether auto-merge
+# should be scoped to exclude vendored paths (which restores "close them" as the
+# real behaviour, and with it the loop). What must not stay is the current state,
+# where the document says one thing and the automation does the other.
 #
 # WHY DEPENDABOT CAN SEE INSIDE singleton-paymaster AT ALL, and what remediation
 # therefore looks like. .gitmodules DECLARES singleton-paymaster as a submodule,
