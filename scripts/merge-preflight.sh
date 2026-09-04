@@ -126,10 +126,35 @@ print(a[-1]["t"] if a else "")')
 if [ -n "$appr_at" ]; then
   api tl '[.[]|select(.event=="head_ref_force_pushed")|.created_at]|tostring' \
       "repos/$REPO/issues/$PR/timeline" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  # `gh --paginate` with a jq filter emits ONE ARRAY PER PAGE, separated by a
+  # newline: `]\n[`. The first version of this collapsed pages with
+  # replace("][", ","), which does not match across that newline -- the parse threw,
+  # latefp came back empty, and an empty latefp reads exactly like "no force-push".
+  # Measured on a two-page fixture holding two force-pushes after the approval: the
+  # check passed. A gate that fails open on a long timeline is worse than no gate,
+  # because a PR with enough history to paginate is exactly the busy one. Found by
+  # Codex at stop-time.
+  #
+  # Pages are now decoded one value at a time, and a parse failure REFUSES rather
+  # than returning nothing.
   latefp=$(printf '%s' "$tl" | python3 -c '
 import json,sys
-raw=sys.stdin.read().replace("][",",")
-print("\n".join(json.loads(raw)))' | awk -v t="$appr_at" '$0 > t' | head -1)
+d=json.JSONDecoder(); raw=sys.stdin.read().strip(); i=0; out=[]
+while i < len(raw):
+    while i < len(raw) and raw[i].isspace(): i += 1
+    if i >= len(raw): break
+    v,i = d.raw_decode(raw, i)
+    out.extend(v)
+print("\n".join(out))' 2>/dev/null) || latefp="__PARSE_FAILED__"
+  if [ "$latefp" = "__PARSE_FAILED__" ]; then
+    echo "FAIL  could not parse the PR timeline; refusing on an unread value"
+    echo "      (this leg is the only thing standing between a post-approval"
+    echo "       force-push and a merge, so it does not get to be silent)"
+    fail=1
+    latefp=""
+  else
+    latefp=$(printf '%s\n' "$latefp" | awk -v t="$appr_at" 'NF && $0 > t' | head -1)
+  fi
   if [ -n "$latefp" ]; then
     echo "FAIL  the branch was force-pushed at $latefp, after the approval at $appr_at"
     echo "      The approver did not see the commits being merged, whatever SHA the"
