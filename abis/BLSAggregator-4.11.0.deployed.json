@@ -1,5 +1,5 @@
 {
-  "_comment": "ABI of BLSAggregator-4.11.0 AS DEPLOYED on Sepolia at 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D. abis/BLSAggregator.json tracks contracts/src, which is 4.12.0 (#400) and NOT on any chain: BLSAggregator is not upgradeable, so 4.12.0 would need a fresh deploy plus another three-leg rotation. Pin THIS file for anything that talks to the deployed contract. Measured 2026-09-04: guardianSlashBps() reverts on chain while GUARDIAN_SLASH_CASE_WINDOW() and version() answer, so the difference is real and not an RPC artifact.",
+  "_comment": "ABI of BLSAggregator-4.11.0 AS DEPLOYED on Sepolia at 0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D. abis/BLSAggregator.json tracks contracts/src, which is 4.12.0 (#400) and NOT on any chain: BLSAggregator is not upgradeable, so 4.12.0 would need a fresh deploy plus another three-leg rotation. Pin THIS file for anything that talks to the deployed contract. Measured 2026-09-04: guardianSlashBps() reverts on chain while GUARDIAN_SLASH_CASE_WINDOW() and version() answer, so the difference is real and not an RPC artifact. Two kinds of drift are recorded below: notInDeployed_presentIn_4_12_0 (calls that revert) and changedShape_sameSelector (calls that decode wrongly).",
   "version": "BLSAggregator-4.11.0",
   "address": {
     "sepolia": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
@@ -2633,5 +2633,32 @@
         }
       ]
     }
+  ],
+  "changedShape_sameSelector": {
+    "guardianSlashCases(uint256)": {
+      "deployed_4_11_0_returns": [
+        "bytes32",
+        "bytes32",
+        "uint64",
+        "uint8",
+        "uint16",
+        "uint16",
+        "address"
+      ],
+      "source_4_12_0_returns": [
+        "bytes32",
+        "bytes32",
+        "uint64",
+        "uint8",
+        "uint16",
+        "uint16",
+        "uint16",
+        "address"
+      ],
+      "note": "#400 inserted uint16 slashBps into GuardianSlashCase, so the public getter gained a return value. The SELECTOR IS UNCHANGED. Measured on chain 2026-09-04: the call returns 224 bytes = 7 words; decoding it with the 4.11.0 shape succeeds, decoding the SAME bytes with the 4.12.0 shape fails with 'buffer overrun while deserializing'. This is the more dangerous half of the drift -- an absent function reverts loudly, a changed return shape misdecodes. The first version of this file listed only the four added functions and would have let a consumer believe the rest was compatible. Found by Codex."
+    }
+  },
+  "eventsOnlyIn_4_12_0": [
+    "GuardianSlashBpsUpdated"
   ]
 }
