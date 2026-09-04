@@ -172,6 +172,31 @@ print("\n".join(out))' 2>/dev/null) || latefp="__PARSE_FAILED__"
   else
     latefp=$(printf '%s\n' "$latefp" | awk -v t="$appr_at" 'NF && $0 > t' | head -1)
   fi
+  # NECESSARY BUT NOT SUFFICIENT, and pr-daemon measured why: `gh pr update-branch`
+  # (merging base into the branch) also carries the approval onto a new head and
+  # moves its commit_id, while producing NO head_ref_force_pushed event at all --
+  # five dependabot PRs on repo:dvt, approvals all drifted, force-push count zero.
+  # A leg watching only for force-push is silent on that whole path.
+  #
+  # So the real question is asked directly: is there a commit in this head that did
+  # not exist when the approval was given? That compares the approval against the
+  # REVIEWER`S OWN TIMESTAMP, not against a commit_id GitHub may have moved
+  # afterwards -- a quantity that follows the thing under test is not a measurement
+  # of it.
+  api cdates '[.[].commit.committer.date]|join("\n")' \
+      "repos/$REPO/pulls/$PR/commits" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  newest=$(printf '%s\n' "$cdates" | awk 'NF' | sort | tail -1)
+  if [ -z "$newest" ]; then
+    echo "FAIL  could not read any commit date for this PR; refusing on an unread value"
+    fail=1
+  elif [ "$newest" \> "$appr_at" ]; then
+    echo "FAIL  the head contains a commit dated $newest, after the approval at $appr_at"
+    echo "      Whatever the approval now reports as its commit_id, the approver"
+    echo "      could not have seen that commit. (A committer date can be set by"
+    echo "      the committer, so a bogus future date fails loudly here rather"
+    echo "      than passing quietly — that is the intended direction.)"
+    fail=1
+  fi
   if [ -n "$latefp" ]; then
     echo "FAIL  the branch was force-pushed at $latefp, after the approval at $appr_at"
     echo "      The approver did not see the commits being merged, whatever SHA the"
