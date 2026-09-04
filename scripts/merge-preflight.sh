@@ -85,7 +85,7 @@ head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/n
 echo "head at this moment : $head"
 
 # --- 1. the approval must name THIS commit, and nothing may have superseded it -
-api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at}]|tostring' \
+api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at,b:.body}]|tostring' \
     "repos/$REPO/pulls/$PR/reviews" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
 # ONE parse, and it must survive pagination. `gh --paginate` with a `|tostring`
 # jq filter emits one array PER PAGE separated by `]\n[`; json.loads with
@@ -112,7 +112,9 @@ c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
 # A change request submitted AFTER the newest approval still stands.
 print(a[-1]["c"] if a else "")
 print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")
-print(a[-1]["t"] if a else "")') || {
+print(a[-1]["t"] if a else "")
+import re
+print(" ".join(re.findall(r"\b[0-9a-f]{40}\b", (a[-1]["b"] or ""))) if a else "")') || {
   echo "FAIL  could not parse the PR reviews; refusing on an unread value"
   echo "      (an empty parse here reads exactly like no approval, and would skip"
   echo "       the force-push leg entirely)"
@@ -121,6 +123,7 @@ print(a[-1]["t"] if a else "")') || {
 appr=$(printf '%s\n' "$rev_parsed" | sed -n 1p)
 last_cr=$(printf '%s\n' "$rev_parsed" | sed -n 2p)
 appr_at=$(printf '%s\n' "$rev_parsed" | sed -n 3p)
+body_shas=$(printf '%s\n' "$rev_parsed" | sed -n 4p)
 
 # A FORCE-PUSH AFTER THE APPROVAL, even when the SHAs then match.
 #
@@ -183,6 +186,32 @@ print("\n".join(out))' 2>/dev/null) || latefp="__PARSE_FAILED__"
   # REVIEWER`S OWN TIMESTAMP, not against a commit_id GitHub may have moved
   # afterwards -- a quantity that follows the thing under test is not a measurement
   # of it.
+  # A COMMITTER DATE CAN BE BACKDATED, so the date leg below is defeated in the
+  # quiet direction: a commit pushed after the approval, stamped with an old date,
+  # passes it. Measured, not assumed: GIT_COMMITTER_DATE=2001-01-01 git commit
+  # produces exactly that on a scratch repo. The comment previously noted only the
+  # loud direction (a bogus FUTURE date fails), which is the half that does not
+  # matter. Found by Codex at stop-time.
+  #
+  # What can be neither backdated nor drifted is WHAT THE REVIEWER WROTE DOWN. The
+  # reviewers here put the reviewed SHA in the review body ("APPROVE - <sha>"), a
+  # string authored by the approver rather than derived from the branch. When it is
+  # present it is the authority and the timestamps are only a fallback; when it is
+  # absent this leg says so instead of implying freshness it did not establish.
+  if [ -n "$body_shas" ]; then
+    if printf '%s' "$body_shas" | tr ' ' '\n' | grep -qxF "$head"; then
+      echo "OK    the approval body names this exact head"
+    else
+      echo "FAIL  the approval body names $(printf '%s' "$body_shas" | cut -c1-12)..., not $head"
+      echo "      That string is what the approver wrote down: it does not move when"
+      echo "      GitHub re-points commit_id, and it cannot be backdated."
+      fail=1
+    fi
+  else
+    echo "WARN  the approval body names no SHA - falling back to timestamps, which a"
+    echo "      backdated committer date defeats silently. This leg does not"
+    echo "      establish that the approval covers this head."
+  fi
   api cdates '[.[].commit.committer.date]|join("\n")' \
       "repos/$REPO/pulls/$PR/commits" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
   newest=$(printf '%s\n' "$cdates" | awk 'NF' | sort | tail -1)
