@@ -94,7 +94,20 @@ contract VerifyAPNTs is Script {
         // record fails rather than falling back to a constant.
         string memory recPathOwner =
             string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
-        address expectedOwner = stdJson.readAddress(vm.readFile(recPathOwner), ".owner");
+        string memory recOwner = vm.readFile(recPathOwner);
+        // BIND THE RECORD TO THE THING UNDER TEST, before reading any expectation
+        // out of it. These two checks used to live inside the fresh-clone block,
+        // which ALLOW_POST_DEPLOY_ACTIVITY skips -- and that flag is exactly what
+        // the runbook tells an operator to use after wiring. Measured: point APNTS
+        // at token B while the record describes token A, set the flag, and it
+        // printed RESULT: OK. An expectation from a record that was never shown to
+        // describe this token is not an expectation about this token.
+        require(
+            stdJson.readAddress(recOwner, ".aPNTs") == token,
+            "the deploy record is for a different token than the one being verified"
+        );
+        require(stdJson.readUint(recOwner, ".chainId") == block.chainid, "the deploy record is from a different chain");
+        address expectedOwner = stdJson.readAddress(recOwner, ".owner");
         // The mainnet rule survives as an ASSERTION, not as a default: no record can
         // talk this into accepting an EOA on OP mainnet.
         if (block.chainid == 10) {
@@ -145,11 +158,7 @@ contract VerifyAPNTs is Script {
             // here described a mechanism that does not exist. pr-daemon, #417.
             string memory rec = vm.readFile(recPath);
             require(bytes(rec).length > 0, "deploy record is empty: cannot verify supply against a declared amount");
-            require(
-                stdJson.readAddress(rec, ".aPNTs") == token,
-                "the deploy record is for a different token than the one being verified"
-            );
-            require(stdJson.readUint(rec, ".chainId") == block.chainid, "the deploy record is from a different chain");
+            // The token/chain binding is asserted above, on every path, not only here.
             uint256 declared = stdJson.readUint(rec, ".mintAmount");
             require(supply == declared, "supply does not equal the DECLARED mint: something else minted");
             require(xPNTsToken(token).SUPERPAYMASTER_ADDRESS() == address(0), "a SuperPaymaster was set");
