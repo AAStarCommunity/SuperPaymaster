@@ -87,23 +87,40 @@ echo "head at this moment : $head"
 # --- 1. the approval must name THIS commit, and nothing may have superseded it -
 api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at}]|tostring' \
     "repos/$REPO/pulls/$PR/reviews" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
-appr=$(printf '%s' "$revs" | python3 -c '
+# ONE parse, and it must survive pagination. `gh --paginate` with a `|tostring`
+# jq filter emits one array PER PAGE separated by `]\n[`; json.loads with
+# replace("][", ",") does not match across that newline. That was fixed for the
+# timeline below and left here — and the consequence is worse here:
+#
+#   appr    empty -> "no APPROVED review found"       loud, fails closed
+#   appr_at empty -> `if [ -n "$appr_at" ]` is false  the force-push leg is SKIPPED
+#
+# So a PR with enough reviews to paginate would silently lose the one check
+# standing between a post-approval force-push and a merge, while the leg that
+# reports the approval SHA still looked like it was working. Found by Codex at
+# stop-time, second occurrence of the same shape.
+rev_parsed=$(printf '%s' "$revs" | python3 -c '
 import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
-a=[x for x in r if x["s"]=="APPROVED"]
-print(a[-1]["c"] if a else "")')
-last_cr=$(printf '%s' "$revs" | python3 -c '
-import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
+d=json.JSONDecoder(); raw=sys.stdin.read().strip(); i=0; r=[]
+while i < len(raw):
+    while i < len(raw) and raw[i].isspace(): i += 1
+    if i >= len(raw): break
+    v,i = d.raw_decode(raw, i)
+    r.extend(v)
 a=[x for x in r if x["s"]=="APPROVED"]
 c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
 # A change request submitted AFTER the newest approval still stands.
-print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")')
-appr_at=$(printf '%s' "$revs" | python3 -c '
-import json,sys
-r=json.loads(sys.stdin.read().replace("][",","))
-a=[x for x in r if x["s"]=="APPROVED"]
-print(a[-1]["t"] if a else "")')
+print(a[-1]["c"] if a else "")
+print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")
+print(a[-1]["t"] if a else "")') || {
+  echo "FAIL  could not parse the PR reviews; refusing on an unread value"
+  echo "      (an empty parse here reads exactly like no approval, and would skip"
+  echo "       the force-push leg entirely)"
+  echo "PREFLIGHT FAIL — do not merge $PR"; exit 4
+}
+appr=$(printf '%s\n' "$rev_parsed" | sed -n 1p)
+last_cr=$(printf '%s\n' "$rev_parsed" | sed -n 2p)
+appr_at=$(printf '%s\n' "$rev_parsed" | sed -n 3p)
 
 # A FORCE-PUSH AFTER THE APPROVAL, even when the SHAs then match.
 #
