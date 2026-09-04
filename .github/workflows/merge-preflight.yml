@@ -40,7 +40,7 @@ jobs:
     name: preflight-report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # --ci, because a required check has to be able to go green. Without it
       # this job can NEVER pass: a fresh PR has no approval yet, its sibling
       # checks are still running while it runs, and it counted ITSELF — first as
