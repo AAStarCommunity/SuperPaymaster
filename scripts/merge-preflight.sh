@@ -99,6 +99,44 @@ a=[x for x in r if x["s"]=="APPROVED"]
 c=[x for x in r if x["s"]=="CHANGES_REQUESTED"]
 # A change request submitted AFTER the newest approval still stands.
 print(c[-1]["t"] if c and (not a or c[-1]["t"] > a[-1]["t"]) else "")')
+appr_at=$(printf '%s' "$revs" | python3 -c '
+import json,sys
+r=json.loads(sys.stdin.read().replace("][",","))
+a=[x for x in r if x["s"]=="APPROVED"]
+print(a[-1]["t"] if a else "")')
+
+# A FORCE-PUSH AFTER THE APPROVAL, even when the SHAs then match.
+#
+# repo:dvt measured a review whose body named 8998068 while its API commit_id read
+# f7430422 -- a commit created 34 seconds AFTER that review was submitted. If GitHub
+# moves an approval`s commit_id onto a force-pushed head, then "approved SHA == head"
+# is TRUE exactly when it should be false, and this leg reads green on the one case
+# it exists to catch.
+#
+# Measured here, on this repo: that does NOT happen for ordinary pushes. Across
+# PR #416`s seven reviews every superseded approval is DISMISSED and its commit_id
+# stayed pinned to the SHA its body names. But this repo has NO post-approval
+# force-push in its history (18 PRs scanned, the single hit was CHANGES_REQUESTED),
+# so dvt`s scenario is untested here, not refuted. Force-pushing to find out is a
+# thing this repo forbids.
+#
+# So the dimension is added rather than the mechanism resolved: whatever GitHub does
+# to commit_id, a force-push after the approval means the approver did not see what
+# is about to be merged.
+if [ -n "$appr_at" ]; then
+  api tl '[.[]|select(.event=="head_ref_force_pushed")|.created_at]|tostring' \
+      "repos/$REPO/issues/$PR/timeline" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }
+  latefp=$(printf '%s' "$tl" | python3 -c '
+import json,sys
+raw=sys.stdin.read().replace("][",",")
+print("\n".join(json.loads(raw)))' | awk -v t="$appr_at" '$0 > t' | head -1)
+  if [ -n "$latefp" ]; then
+    echo "FAIL  the branch was force-pushed at $latefp, after the approval at $appr_at"
+    echo "      The approver did not see the commits being merged, whatever SHA the"
+    echo "      approval now reports."
+    fail=1
+  fi
+fi
 
 if [ -z "$appr" ]; then
   if [ "$CI_MODE" -eq 1 ]; then
