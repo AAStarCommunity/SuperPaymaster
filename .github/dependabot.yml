@@ -1,11 +1,22 @@
 # ⚠️ READ THIS BEFORE ACTING ON A DEPENDABOT PR UNDER A VENDORED PATH
 #
-#   For a PATCH or MINOR bump, approving it MERGES it, roughly ten seconds later.
-#   dependabot-auto-merge.yml calls `gh pr merge --auto` when the PR opens, so
-#   auto-merge is already armed and waiting on the approval branch protection
-#   demands: the review is the trigger, not a look before deciding. Measured on
-#   #418 (immutable 4.1.0 -> 4.3.9, a MINOR bump): review 06:17:43Z, merge
-#   06:17:55Z.
+#   For a PATCH or MINOR bump, approving it RELEASES A QUEUED AUTO-MERGE. The
+#   merge is not the approval's doing alone: dependabot-auto-merge.yml calls
+#   `gh pr merge --auto` when the PR opens, and GitHub then merges once EVERY
+#   branch-protection condition is met -- all required checks green, plus the
+#   approval. So:
+#
+#     checks already green  -> approving merges it within seconds. Measured on
+#                              #418 (immutable 4.1.0 -> 4.3.9, MINOR): review
+#                              06:17:43Z, merge 06:17:55Z, and 11 of its 12 check
+#                              runs had already completed before the review.
+#     checks still running  -> it merges LATER, unattended, whenever the last one
+#                              turns green. Nobody is watching at that moment.
+#     a check stays red     -> it never merges.
+#
+#   The point is not the ten seconds; it is that approving is a merge decision
+#   rather than a look before deciding. An earlier draft of this banner promised
+#   the ten seconds unconditionally, which is only #418's case. Found by Codex.
 #
 #   A MAJOR bump does NOT auto-merge. The `label-major` job only adds
 #   `dependencies,major-update` and never calls merge, so approving one of those
