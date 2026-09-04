@@ -80,10 +80,31 @@ contract VerifyAPNTs is Script {
         console.log("  decimals      :", xPNTsToken(token).decimals());
 
         require(keccak256(bytes(tokenVersion)) == keccak256(bytes("XPNTs-3.5.0")), "token is not 3.5.0");
+
+        // WHOSE OWNERSHIP IS BEING ASSERTED. This used to be the governance Safe,
+        // hardcoded. 14_RedeployAPNTs now takes the owner explicitly -- testnets use
+        // an EOA so routine test actions do not need two signatures from a Safe whose
+        // owners are not us -- and this file was left asserting the old constant, so
+        // it rejected the very deployment it is meant to verify. Measured:
+        // "token communityOwner is NOT the Safe" on a correct Sepolia deploy.
+        //
+        // The expectation comes from the DEPLOY RECORD, for the same reason the mint
+        // amount does (#407): a value the deployer wrote down before the chain was
+        // consulted is the only source that can disagree with the chain. A missing
+        // record fails rather than falling back to a constant.
+        string memory recPathOwner =
+            string.concat(vm.projectRoot(), "/deployments/apnts-deploy-record.", vm.toString(block.chainid), ".json");
+        address expectedOwner = stdJson.readAddress(vm.readFile(recPathOwner), ".owner");
+        // The mainnet rule survives as an ASSERTION, not as a default: no record can
+        // talk this into accepting an EOA on OP mainnet.
+        if (block.chainid == 10) {
+            require(expectedOwner == GOVERNANCE_SAFE, "OP mainnet: recorded owner is not the governance Safe");
+        }
+        console.log("  expected owner:", expectedOwner, "(from the deploy record)");
         // The two that a dropped tx3/tx4 would leave wrong, and that the deploy
         // script's own requires cannot catch once it has exited.
-        require(tokenOwner == GOVERNANCE_SAFE, "token communityOwner is NOT the Safe");
-        require(factoryOwner == GOVERNANCE_SAFE, "factory owner is NOT the Safe");
+        require(tokenOwner == expectedOwner, "token communityOwner is not the recorded owner");
+        require(factoryOwner == expectedOwner, "factory owner is not the recorded owner");
         // Ties the two addresses together: a token from some other factory would
         // otherwise pass every check above.
         require(tokenFactory == factory, "token was not minted by this factory");
@@ -214,10 +235,12 @@ contract VerifyAPNTs is Script {
         // supply comparison — and this line went on asserting the defaults anyway.
         // A green line that outlived its checks. pr-daemon/Codex, #417.
         if (checkedDefaults) {
-            console.log("RESULT: OK - both owners are the Safe; every enumerable value is at");
+            console.log("RESULT: OK - both owners are the recorded owner; every enumerable value");
+            console.log("        is at");
             console.log("        its post-deploy default");
         } else {
-            console.log("RESULT: OK (REDUCED) - both owners are the Safe. ALLOW_POST_DEPLOY_ACTIVITY");
+            console.log("RESULT: OK (REDUCED) - both owners are the recorded owner.");
+            console.log("        ALLOW_POST_DEPLOY_ACTIVITY");
             console.log("        was set: the fresh-clone defaults and the supply-vs-deploy-record");
             console.log("        comparison were NOT checked.");
         }

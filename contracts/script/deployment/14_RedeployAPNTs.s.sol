@@ -76,7 +76,33 @@ contract RedeployAPNTs is Script {
         uint256 expectedChain = vm.envOr("EXPECT_CHAIN_ID", uint256(10));
         address registry = vm.envOr("REGISTRY", OP_REGISTRY);
         require(block.chainid == expectedChain, "14_RedeployAPNTs: wrong chain");
-        require(GOVERNANCE_SAFE.code.length > 0, "governance Safe has no code on this chain");
+
+        // WHO ENDS UP OWNING THIS TOKEN, and why it is not one hardcoded answer.
+        //
+        // This script was written for OP mainnet, where the whole point is that an
+        // EOA must NOT be able to mint (CC-46). GOVERNANCE_SAFE was a constant, so
+        // running the same script on Sepolia handed the TEST token to the same
+        // 2-of-3 Safe -- whose three owners are not us. Every routine test action
+        // (wire the paymaster, add a spender, mint, set a cap, hand it back) then
+        // needs two signatures we do not have. That is the opposite of what the
+        // convention says: testnets may use a test EOA, production converges on the
+        // Safe. Measured on Sepolia: threshold 2, owners 0x871608cB / 0xBB05d2E9 /
+        // 0x8c349925, none of them ours.
+        //
+        // So the owner is now explicit. The mainnet guarantee is kept as an
+        // ASSERTION rather than a default: on OP mainnet it must be the Safe, and no
+        // environment variable can talk the script out of it.
+        address owner = vm.envOr("APNTS_OWNER", GOVERNANCE_SAFE);
+        require(owner != address(0), "APNTS_OWNER is the zero address");
+        if (block.chainid == 10) {
+            require(owner == GOVERNANCE_SAFE, "OP mainnet: aPNTs owner must be the governance Safe");
+        }
+        // A contract owner must actually exist on this chain; an EOA owner must not
+        // be a typo'd address with no key behind it, which nothing on-chain can check
+        // -- so it is echoed loudly below instead.
+        if (owner == GOVERNANCE_SAFE) {
+            require(GOVERNANCE_SAFE.code.length > 0, "governance Safe has no code on this chain");
+        }
 
         vm.startBroadcast();
 
@@ -95,7 +121,7 @@ contract RedeployAPNTs is Script {
             xPNTsToken(token).mint(mintTo, mintAmount);
         }
 
-        xPNTsToken(token).transferCommunityOwnership(GOVERNANCE_SAFE);
+        xPNTsToken(token).transferCommunityOwnership(owner);
         // The factory owner is not a bystander: it sets `aPNTsPriceUSD`,
         // `industryScaleUSD`, `capRatioBps` and `setTokenCategory` — every input
         // `isOverIssued()` reads. Leaving it on the deployer EOA would move the
@@ -105,7 +131,7 @@ contract RedeployAPNTs is Script {
         // are sized against. Ownable here is OZ v5 single-step, and the Safe has code
         // on this chain (asserted above), so the handover completes in this call.
         // Found by Codex at stop-time review.
-        xPNTsFactory(address(factory)).transferOwnership(GOVERNANCE_SAFE);
+        xPNTsFactory(address(factory)).transferOwnership(owner);
 
         vm.stopBroadcast();
 
@@ -114,8 +140,8 @@ contract RedeployAPNTs is Script {
         require(
             keccak256(bytes(xPNTsToken(token).version())) == keccak256(bytes("XPNTs-3.5.0")), "new token is not 3.5.0"
         );
-        require(xPNTsToken(token).communityOwner() == GOVERNANCE_SAFE, "owner did not land on the Safe");
-        require(factory.owner() == GOVERNANCE_SAFE, "factory owner did not land on the Safe");
+        require(xPNTsToken(token).communityOwner() == owner, "token owner did not land on the intended owner");
+        require(factory.owner() == owner, "factory owner did not land on the intended owner");
         require(token != OLD_APNTS, "sanity: address collision with the old token");
         require(xPNTsToken(token).totalSupply() == mintAmount, "minted amount did not land");
         if (mintAmount > 0) {
@@ -137,6 +163,7 @@ contract RedeployAPNTs is Script {
         vm.serializeAddress(rec, "aPNTs", token);
         vm.serializeAddress(rec, "factory", address(factory));
         vm.serializeAddress(rec, "mintTo", mintTo);
+        vm.serializeAddress(rec, "owner", owner);
         vm.serializeUint(rec, "chainId", block.chainid);
         string memory recJson = vm.serializeUint(rec, "mintAmount", mintAmount);
         // The path carries the chain id. One record per chain: deploying a second
