@@ -43,20 +43,61 @@ level 4 = 600，level 5 = 1000。也就是每个人自动带 300 的信用，**�
 这条注释正好在描述本提案想要的模式，**任何来评估这个问题的人都会先被它误导**。
 它是独立的、零风险的文档修正，可以先于本提案单独修掉。
 
-## 2. 关键发现：else 分支已经把「纯余额模式」写好了
+## 2. 一条被推翻的「关键发现」——else 分支**不是**纯余额模式
 
-`_recordDebt:1459` 的超上限分支**已经**实现了「不记可回收欠账」：
+初稿在这里写了：「`_recordDebt` 的超上限分支已经实现了不记可回收欠账，所以关闭信用
+≈ 永远走 else 分支」。**这条是错的，两半都错**，而且它正好是最容易被直接照着实现的
+那一条。留在这里当反例。
+
+看清缩进（`:1444`–`:1474`）：
 
 ```solidity
-} else {
-    userOpState[operator][user].isBlocked = true;
+try burnFromWithOpHash(...) {} catch {
+    if (getDebt + pendingDebts + amount <= getCreditLimit(user)) {
+        try recordDebtWithOpHash(...) { return; } catch {}   // 只有【成功】才 return
+    } else {
+        userOpState[operator][user].isBlocked = true;
+    }
+    pendingDebts[token][user] += amount;    // ← 在 if/else 【外面】,两条分支都会走到
+    emit DebtRecordFailed(token, user, amount);
 }
-pendingDebts[token][user] += amount;
-emit DebtRecordFailed(token, user, amount);
 ```
 
-所以**「关闭信用」≈「永远走 else 分支」**。这不是要新造一套机制，是把一条已存在
-的路径变成可选择的。
+**错误一：else 分支照样累积欠账。** `pendingDebts += amount` 不在 else 里，它在
+if/else 之外。四条出口只有两条不写 `pendingDebts`（burn 成功、`recordDebtWithOpHash`
+成功后 `return`），而这两条恰恰都是 else 分支到不了的。
+
+**错误二：`pendingDebts` 本身就是可回收的。** `retryPendingDebt`（`:1493`）：
+
+```solidity
+function retryPendingDebt(address token, address user, uint256 amount) external onlyOwner {
+    pendingDebts[token][user] = pending - amount;
+    IxPNTsToken(token).recordDebt(user, amount);   // 转成真正的 token 欠账
+}
+```
+
+它把 `pendingDebts` 转成**真正的 token 债务**，随时可调。所以初稿那句「不记可回收
+欠账」在字面上就不成立——它记的正是可回收欠账，只是晚一步兑现。
+
+还有一层语义问题：`retryPendingDebt` 与 `clearPendingDebt`（`:1506`）都是
+**`onlyOwner`（协议方），不是社区**。也就是说即使社区宣称「我们不做信用支付」，
+协议方仍然握着把这些金额变成用户债务的按钮。一个宣称零债务的社区，其用户的债务
+开关握在第三方手里,这不是实现细节,是承诺本身站不住。
+
+### 2.1 因此：关闭信用需要**第三条路径**，不是复用 else
+
+```solidity
+// 信用关闭时,burn 失败的正确处理:
+// - 不写 pendingDebts        (否则 owner 可事后 retryPendingDebt 转成真债务)
+// - 不调 recordDebtWithOpHash (显然)
+// - 置 isBlocked             (这一笔追不回,只能防止同一手法被重复利用)
+// - 发一个【区别于 DebtRecordFailed】的事件,例如 SponsorshipUnbacked(operator, user, amount),
+//   因为它的语义是「社区自愿吃下这笔损失」,而不是「有一笔待追偿的欠款」
+```
+
+代价是**这笔金额链上不再留有可追偿记录**——这正是「纯余额模式」的定义，
+也是社区打开这个开关时真正在选择的东西。必须让社区在文档里看见这一句，
+而不是只看见「关掉信用更安全」。
 
 ## 3. 提案
 
@@ -182,11 +223,21 @@ ERC-7562 合规性：`balanceOf(sender)` 属 sender-associated storage，与现�
 用户可以**在自己的 UserOp 内部**把 xPNTs 转走：验证时余额够，postOp 时烧不动。
 这一笔的 gas 已经花出去了，链上追不回。
 
-**纯余额模式下这笔损失仍然由社区承担**，只能靠 `isBlocked` 防止同一手法被重复
-利用。这正是 audit H-1（`:1446` 注释）当年记录的那个攻击面。
+**纯余额模式下这笔损失由社区承担，而且（按 §2.1）链上不再留下可追偿记录。**
+只能靠 `isBlocked` 防止同一手法被重复利用。这正是 audit H-1（`:1446` 注释）当年
+记录的那个攻击面。
 
-所以开关能保证的是「**不会累积可回收欠账**」，**不是**「**永不亏一笔**」。
-这个区别必须写进社区文档，否则社区会以为关掉信用等于零风险。
+所以社区打开这个开关时，实际在做的选择是：
+
+| | 信用开（现状） | 信用关（本提案） |
+|---|---|---|
+| 用户余额不足时 | 记欠账，日后可追偿 | **拒绝**这笔 UserOp |
+| 用户中途抽干 | 记 `pendingDebts`，owner 可 `retryPendingDebt` 转成真债务 | **社区吃下损失，无追偿记录** |
+| 谁控制追偿 | **协议 owner**（`onlyOwner`），不是社区 | 无人（不存在追偿对象） |
+
+第二行和第三行是这份提案里最容易被误读的地方。「关掉信用」**不是**「更安全」，
+是**用可追偿性换取确定性**：不会再有用户欠着社区的钱，代价是被抽干的那一笔彻底
+认赔。
 
 ## 5. 可行性
 
