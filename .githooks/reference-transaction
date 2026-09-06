@@ -81,11 +81,25 @@ set -uo pipefail
 # Newline-delimited, and iterated with `read` rather than word-splitting: an entry such
 # as `- my team` is ONE pattern. `for p in $patterns` split it into two, each of which
 # then matched nothing -- silently dropping the protection the operator asked for.
-# ONE definition. It was written out at three separate places; editing one of them left
-# the neighbouring lines contradicting it, which is a slower version of the same defect
-# this file keeps hitting -- a sentence that no longer matches what the code does.
+# ONE definition of what the floor MATCHES. The previous comment here claimed one
+# definition full stop, and was false the day it landed: the rationale `case` further
+# down still spells out `deploy)` and `release|hotfix)` by name. That is tolerable only
+# because its `*)` branch prints a correct-if-generic reason, so a floor entry added here
+# and nowhere else is still enforced and still explained -- just not specifically. Adding
+# a name here and wanting bespoke prose means touching that case too.
+#
+# Whitespace-separated, so a floor entry CANNOT contain a space: `FLOOR="... deploy on
+# call"` silently becomes the two patterns `on` and `call`, and `on/x` is then blocked
+# (measured). And every expansion of it is guarded with `set -f`, because unquoted it
+# also globs against the working tree: `FLOOR="release hotfix dep*"` blocked `deploy/q`
+# when a `deploy/` DIRECTORY existed in cwd and let it through when the directory did
+# not (measured, both directions). Provably safe for today's literal value -- which is
+# exactly why it would be a surprise on the first edit, and why it is guarded now rather
+# than when someone hits it.
 FLOOR="release hotfix deploy"
+set -f
 patterns=$(printf '%s\n' $FLOOR)
+set +f
 
 # Cleared BEFORE the parse, and unconditionally -- not with `${cfgpat:-}` AFTER it.
 # `:-` would adopt an exported variable of the same name from the caller's environment
@@ -217,7 +231,9 @@ while read -r old new ref; do
       # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
       # in a deployment-scripts repo is not exotic.
       infloor=0
+      set -f
       for f in $FLOOR; do [ "$f" = "$p" ] && infloor=1; done
+      set +f
       incfg=0
       set -f
       for c in $cfgpat; do [ "$c" = "$p" ] && incfg=1; done

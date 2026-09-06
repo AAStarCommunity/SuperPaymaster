@@ -134,7 +134,8 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   if ncommits=$(git rev-list --all --count 2>/dev/null); then havecount=1; else havecount=0; ncommits=""; fi
   if [ "$havecount" = "0" ]; then
     echo "  Could not count commits (git rev-list failed), so the causes below cannot be" >&2
-    echo "  told apart here. Inspect .git/HEAD and refs by hand." >&2
+    echo "  told apart here. Inspect .git/HEAD and refs by hand, then re-run:" >&2
+    echo "    bash scripts/install-git-hooks.sh" >&2
   elif [ -n "$headref" ] && [ "$ncommits" != "0" ]; then
     echo "  Checked: $ncommits commit(s) are reachable from a ref, and HEAD points at" >&2
     echo "  '$headref', which does not resolve. Repoint HEAD at an existing branch," >&2
