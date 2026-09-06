@@ -189,7 +189,11 @@ superPaymaster.configureOperator(token, treasury, creditEnabled);
 | `ISuperPaymaster.sol:13` | slot 0 加 `bool creditDisabled` |
 | `SuperPaymaster.sol:832` `_creditExceeded` | 关闭信用时改判余额 |
 | `:1217`（validate）**和 `:1331`（dryRun）** | 两个调用点都要跟随 |
-| `:1445` `_recordDebt` | 关闭信用时跳过 `recordDebtWithOpHash`，直接走已有 else 分支 |
+| `:1444` `_recordDebt` | 关闭信用时走**新的第三条路径**（见 §2.1）：不 `recordDebtWithOpHash`，**且不写 `pendingDebts`**，发独立事件 |
+
+> ⚠️ 这一行曾经写的是「直接走已有 else 分支」。**那是错的**（§2 已推翻：`pendingDebts +=`
+> 在 if/else 之外，且 `retryPendingDebt` 可把它转成真债务）。留这条警告是因为叙述改了、
+> 而这张**可照抄的表**当时没跟着改——照表实现的人不会读到 §2。
 
 `:1331` 是 dryRun 路径。**漏掉它会让 gas 估算与真实执行给出不同答案**，
 而这种不一致在测试里通常不会红。
@@ -248,8 +252,23 @@ ERC-7562 合规性：`balanceOf(sender)` 属 sender-associated storage，与现�
 - **升级方式**：UUPS，`upgradeToAndCall`，不必重新部署。
 - **对下游的影响**：新增 2 个外部函数 → 公开 ABI 变更 → 按 `CLAUDE.md` 需
   bump `version()`、重生成 `abis/*.json`、通知 `repo:sdk` 与 `repo:dvt`。
-- **测试**：至少要覆盖「信用开/关 × 余额足/不足 × 中途抽干」六格，且
-  **dryRun 与 validate 必须给出相同答案**（见 3.5）。
+- **新增事件**：`SponsorshipUnbacked(operator, user, amount)`（见 §2.1），
+  与 `DebtRecordFailed` 语义不同，不可复用。
+- **测试**：至少「信用开/关 × 余额足/不足 × 中途抽干」六格，且
+  **dryRun 与 validate 必须给出相同答案**（见 §3.5）。
+  其中**信用关 + 中途抽干**那一格是本提案的核心断言，它的判据不是
+  「交易失败了」，而是三条同时成立：
+
+  ```
+  pendingDebts[token][user]      保持不变      ← 最容易被漏掉的一条
+  xPNTsToken.getDebt(user)       保持不变
+  emit SponsorshipUnbacked(...)  且 NOT DebtRecordFailed
+  ```
+
+  只断言前两条中的任意一条都不够：初稿正是因为只看「没调 recordDebtWithOpHash」
+  就下了结论，而 `pendingDebts` 在 if/else 之外照写不误。**并且必须有一格
+  「信用开 + 中途抽干」作正对照**，在那一格 `pendingDebts` 必须**增加**——
+  否则「保持不变」既可能是开关生效，也可能是这套测试根本没走到那条路径。
 
 ## 6. 未决问题
 
