@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# PILOT_REF_GUARD_V1 — do not remove this marker; the installer uses it to tell this
+# hook apart from a foreign reference-transaction hook it must not silently replace.
 # reference-transaction — refuse to DELETE a protected branch.
 #
 # WHY THIS EXISTS, AND WHY IT IS NOT safe-cleanup.sh's --protect
@@ -22,9 +24,13 @@
 #     `deploy` and `deploy/anything`, and does NOT guard `probe/deploy-canary`
 # A fetch, a clone, a rebase, a merge, a gc: none of them reach the reject path.
 #
-# FAIL-CLOSED. If .pilot.yml is missing or unreadable, this falls back to a hardcoded
-# pattern list rather than allowing the delete. A protection that evaporates when its
-# config goes missing is the failure mode this hook was written to remove.
+# FAIL-CLOSED, and specifically: the baseline is a FLOOR, not a default.
+# .pilot.yml can only ADD patterns; it can never remove one. An earlier version treated a
+# parseable config as authoritative, which meant a truncated or half-edited file --
+# present, parseable, just missing a line -- silently yielded FEWER protections than
+# having no config at all, with no signal. Measured: a config listing only
+# release+hotfix let `git branch -D deploy/x` through. Union removes the entire class:
+# no config state, malformed or not, can lower the floor.
 #
 # Deliberate escape hatch, for the day a deploy/* branch really must go:
 #   PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D deploy/whatever
@@ -42,7 +48,8 @@ set -uo pipefail
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cfg="$repo_root/.pilot.yml"
 
-# Fallback is NOT a convenience: it is what keeps a missing config from disarming the hook.
+# BASELINE IS A FLOOR. Always enforced, whatever the config says or fails to say.
+# Config patterns are UNIONED onto it, never substituted for it.
 patterns="release hotfix deploy"
 if [ -r "$cfg" ]; then
   from_cfg=$(awk '
@@ -58,8 +65,13 @@ if [ -r "$cfg" ]; then
     }
     inlist && /^[^[:space:]#]/ { inlist=0 }       # a new top-level key ends the list
   ' "$cfg" 2>/dev/null)
-  # An empty parse means the shape changed, not that nothing is protected. Keep the fallback.
-  [ -n "$from_cfg" ] && patterns=$from_cfg
+  # Union, not replace. An empty parse (renamed key, flow-style list, corrupt file) simply
+  # adds nothing; a partial parse can only add. Neither can take `deploy` away.
+  for extra in $from_cfg; do
+    already=0
+    for p in $patterns; do [ "$p" = "$extra" ] && already=1; done
+    [ "$already" = "0" ] && patterns="$patterns $extra"
+  done
 fi
 
 rc=0
