@@ -81,7 +81,21 @@ set -uo pipefail
 # Newline-delimited, and iterated with `read` rather than word-splitting: an entry such
 # as `- my team` is ONE pattern. `for p in $patterns` split it into two, each of which
 # then matched nothing -- silently dropping the protection the operator asked for.
-patterns=$(printf '%s\n%s\n%s' release hotfix deploy)
+# ONE definition. It was written out at three separate places; editing one of them left
+# the neighbouring lines contradicting it, which is a slower version of the same defect
+# this file keeps hitting -- a sentence that no longer matches what the code does.
+FLOOR="release hotfix deploy"
+patterns=$(printf '%s\n' $FLOOR)
+
+# Cleared BEFORE the parse, and unconditionally -- not with `${cfgpat:-}` AFTER it.
+# `:-` would adopt an exported variable of the same name from the caller's environment
+# and then name it as the source of a protection. Clearing after the parse instead is
+# worse than either: it wipes what was just parsed, so every configured pattern silently
+# stops being enforced. That is what happened on the first attempt at this fix, and only
+# the control matrix caught it -- the hook still blocked everything in the floor, which
+# is most of what one would spot-check.
+globpat=""
+cfgpat=""
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 cfg="${repo_root:+$repo_root/.pilot.yml}"
@@ -119,8 +133,6 @@ $from_cfg
 EOC
 fi
 
-globpat="${globpat:-}"
-cfgpat="${cfgpat:-}"
 globwarned=0
 rc=0
 while read -r old new ref; do
@@ -191,10 +203,58 @@ while read -r old new ref; do
       # unconditionally was a claim, not a fact: with no .pilot.yml at all the pattern
       # comes from the hardcoded floor, and the old text sent the reader to edit a file
       # that does not exist. Measured.
-      src="the hardcoded floor in this hook"
-      for c in $cfgpat; do [ "$c" = "$p" ] && src="protect_patterns in .pilot.yml"; done
-      echo "  Pattern source: $src. Enforced here at the ref layer so that it cannot be" >&2
-      echo "  lost by forgetting safe-cleanup.sh's --protect flag." >&2
+      # The predicate this sentence asserts is "editing THIS source changes whether the
+      # branch is protected". `cfgpat` cannot evaluate that: it proves the pattern is ALSO
+      # in the config, not that the config is what supplies it. All three baseline
+      # patterns are in both, so the previous version told the reader to edit .pilot.yml
+      # for a change that would have no effect -- the floor keeps enforcing. Measured:
+      # remove `- deploy` from .pilot.yml and deploy/q is still BLOCKED, by the floor.
+      #
+      # `set -f` for the same reason as the escape-hatch matcher 25 lines up, and this
+      # loop not having it while that one carried a "load-bearing, not tidiness" comment
+      # was the asymmetry that hid it: unquoted, `$cfgpat` also globs against the working
+      # tree, so a config entry of `- dep*` plus a `deploy/` DIRECTORY in cwd made this
+      # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
+      # in a deployment-scripts repo is not exotic.
+      infloor=0
+      for f in $FLOOR; do [ "$f" = "$p" ] && infloor=1; done
+      incfg=0
+      set -f
+      for c in $cfgpat; do [ "$c" = "$p" ] && incfg=1; done
+      set +f
+      # Does any OTHER pattern also match this branch? The match loop `break`s on the
+      # first hit, so a narrower second entry keeps enforcing after the named one is
+      # removed. Without this, "removing it there removes this protection" is false for
+      # an ordinary config -- measured with `- foo` and `- foo/bar`: the sentence pointed
+      # at `- foo`, deleting it left `foo/bar/x` BLOCKED by `foo/bar`, and the same
+      # sentence printed again. A separate loop variable, so `$p` is not clobbered.
+      othermatch=0
+      while IFS= read -r q; do
+        [ -n "$q" ] || continue
+        [ "$q" = "$p" ] && continue
+        if [ "$branch" = "$q" ] || case "$branch" in "$q"/*) true ;; *) false ;; esac; then othermatch=1; fi
+      done <<EOQ
+$patterns
+EOQ
+
+      if [ "$infloor" = "1" ]; then
+        if [ "$incfg" = "1" ]; then
+          src="both the hardcoded floor and .pilot.yml; the FLOOR is what enforces it, so removing it from .pilot.yml changes nothing"
+        else
+          src="the hardcoded floor in this hook (not .pilot.yml)"
+        fi
+      elif [ "$incfg" = "1" ]; then
+        if [ "$othermatch" = "1" ]; then
+          src="protect_patterns in .pilot.yml, but other patterns also match this branch; removing this entry alone will not unblock it"
+        else
+          src="protect_patterns in .pilot.yml; removing it there removes this protection"
+        fi
+      else
+        src="unknown -- this pattern is in neither the floor nor the parsed config, which should be impossible; please report it"
+      fi
+      echo "  Pattern source: $src." >&2
+      echo "  Enforced at the ref layer so it cannot be lost by forgetting" >&2
+      echo "  safe-cleanup.sh's --protect flag." >&2
       # Give the reason for the pattern that ACTUALLY matched. This used to print the
       # deploy/* rationale for every protected branch, so deleting release/x was refused
       # with an explanation about on-chain deployments. Same defect as the hardcoded

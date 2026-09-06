@@ -95,10 +95,73 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   # not to assert an untested cause and the other half did not.
   echo "FAIL: HEAD does not resolve, so no canary branch can be created and the" >&2
   echo "  install cannot be verified. The hook file itself IS in place." >&2
-  echo "    HEAD -> $(git symbolic-ref -q HEAD || echo '(detached)')" >&2
+  # `symbolic-ref` is already being run, so the two causes can be told apart instead of
+  # offered as a closed either/or with neither checked. The predicate "which of these two
+  # is it" is evaluable here for the price of one variable.
+  headref=$(git symbolic-ref -q HEAD || true)
+  echo "    HEAD -> ${headref:-(detached)}" >&2
   echo "    git:  ${headerr:-(git printed nothing)}" >&2
-  echo "  Either this repo has no commits yet, or HEAD points at a ref that does not" >&2
-  echo "  exist. Make a commit, or repoint HEAD, then re-run:" >&2
+  # `|| echo 0` would report "no commits" when the QUERY failed, which is a different
+  # thing -- the same conflation this whole file has been unpicking. Capture success
+  # separately from the count.
+  # The two recovery commands are COMPLEMENTARY, not alternatives, which is why both are
+  # printed. Measured on git 2.50.1:
+  #   normal repo, branch deleted -> reflog --all names it (2 hits); --lost-found also
+  #                                  finds it
+  #   BARE repo, branch deleted   -> reflog --all finds NOTHING (bare keeps no reflogs by
+  #                                  default); --lost-found finds it
+  # The bare-repo row is what makes printing both load-bearing.
+  #
+  # A reviewer raised that fsck can miss commits held by a reflog. An earlier version of
+  # this comment said I could not reproduce that and generalised it to "fsck reports the
+  # commit whether or not a reflog names it". THAT GENERALISATION WAS WRONG, and it
+  # contradicted git's own documentation, which says reflogs are used as heads unless
+  # --no-reflogs. Measuring the reports separately shows both are true of different
+  # flags -- with a reflog holding the commit:
+  #   git fsck                     -> 0   (reflogs are heads, so not dangling)
+  #   git fsck --dangling          -> 0
+  #   git fsck --lost-found        -> 1   <- the flag actually printed above
+  #   git fsck --lost-found --no-reflogs -> 1
+  # So the reviewer is right about `fsck` and the recipe is right about `--lost-found`:
+  # --lost-found does not treat reflogs as heads. The earlier reading came from testing
+  # only --lost-found and then stating a conclusion about fsck.
+  # `rev-list --all --count` counts commits REACHABLE FROM A REF. Zero does not mean the
+  # repo has none: delete the only branch and the commit object is still there, just
+  # unreferenced (measured -- `git cat-file -t <sha>` still says commit while the count
+  # is 0). Saying "no commits at all" there is false AND sends the operator to the wrong
+  # fix: the answer is to restore the ref, not to make a commit. So the wording says
+  # reachable, which is what was measured, and the zero case offers both readings.
+  if ncommits=$(git rev-list --all --count 2>/dev/null); then havecount=1; else havecount=0; ncommits=""; fi
+  if [ "$havecount" = "0" ]; then
+    echo "  Could not count commits (git rev-list failed), so the causes below cannot be" >&2
+    echo "  told apart here. Inspect .git/HEAD and refs by hand." >&2
+  elif [ -n "$headref" ] && [ "$ncommits" != "0" ]; then
+    echo "  Checked: $ncommits commit(s) are reachable from a ref, and HEAD points at" >&2
+    echo "  '$headref', which does not resolve. Repoint HEAD at an existing branch," >&2
+    echo "  then re-run:" >&2
+  elif [ -n "$headref" ]; then
+    echo "  Checked: NO commits are reachable from any ref, and HEAD points at '$headref'." >&2
+    echo "  Either nothing has been committed yet -- make a commit -- or commits exist but" >&2
+    echo "  their refs were deleted, which this cannot distinguish. To check for the" >&2
+    echo "  second, and recover a ref if so -- the two look in DIFFERENT places, so try" >&2
+    echo "  both rather than concluding from one:" >&2
+    echo "    git reflog --all              # where a deleted branch usually still shows," >&2
+    echo "                                  #   with when and what; EMPTY in a bare repo," >&2
+    echo "                                  #   which keeps no reflogs by default" >&2
+    echo "    git fsck --lost-found         # objects no ref names; the only option once" >&2
+    echo "                                  #   reflogs are absent or expired" >&2
+    echo "  then: git branch <name> <sha>" >&2
+    echo "  Afterwards re-run:" >&2
+  else
+    # Defensive, and NOT reachable in any state I could construct: a detached HEAD holding
+    # a bogus object makes `rev-parse --verify HEAD` succeed here and fails later in the
+    # canary loop instead, which catches it with its own hedged wording
+    # (`fatal: not a valid branch point: 'HEAD'`). Kept rather than deleted because
+    # "I could not construct it" is not "it cannot happen" -- but labelled, so nobody
+    # reads its presence as evidence that the case was tested.
+    echo "  HEAD is detached and does not resolve. Check it out at a real commit, then" >&2
+    echo "  re-run:" >&2
+  fi
   echo "    bash scripts/install-git-hooks.sh" >&2
   exit 1
 fi
