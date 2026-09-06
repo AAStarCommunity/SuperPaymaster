@@ -136,18 +136,38 @@ if ! plainerr=$(git branch -f "$plain" HEAD 2>&1); then
   echo "FAIL: could not create the unprotected canary '$plain'." >&2
   echo "  git's own explanation:" >&2
   echo "    ${plainerr:-(git printed nothing)}" >&2
-  echo "  A branch named '$plain/...' blocks this name (D/F conflict); rename it." >&2
-  echo "  Left behind by this run, and NOT removable with a plain delete because this" >&2
-  echo "  repo's own hook protects it:" >&2
+  # Do NOT assert the cause. The commonest one is a branch named "$plain/..." making
+  # this a D/F conflict, but it is not the only one -- measured: with ZERO such branches,
+  # a stale .git/refs/heads/$plain.lock produces this same failure, and the earlier text
+  # here flatly blamed a D/F conflict and told the operator to "rename it" when there was
+  # nothing to rename. That is the defect this script fixes twice elsewhere, committed a
+  # third time in the patch that fixed the second one. The line above carries git's own
+  # words; that is the part that is actually known.
+  echo "  A common cause is a branch named '$plain/...' (D/F conflict), in which case" >&2
+  echo "  rename it -- but the line above is what actually applies." >&2
+  echo "  This run also leaves '$canary' behind. A plain 'git branch -D $canary' will be" >&2
+  echo "  refused IF the hook is working -- which this run exited before verifying, so it" >&2
+  echo "  is not known here. If a plain delete is refused, use:" >&2
   echo "    PILOT_ALLOW_PROTECTED_DELETE=$canary git branch -D $canary" >&2
   exit 1
 fi
 
-if git branch -D "$canary" >/dev/null 2>&1; then
-  echo "FAIL: protected canary was deleted -- the hook is NOT firing" >&2
-  # Say WHY, or the operator is left re-running a script that reports the same failure
-  # forever. These are the two states git fails on silently.
-  [ -x "$dir/reference-transaction" ] || echo "  cause: $dir/reference-transaction is not executable" >&2
+# `env -u` so an operator who happens to have the escape hatch exported for this exact
+# canary does not make the check vacuous. Without it the delete is ALLOWED by a hook that
+# is working perfectly, and the script then reports "the hook is NOT firing" -- sending
+# them to debug something that is not broken. Measured.
+if env -u PILOT_ALLOW_PROTECTED_DELETE git branch -D "$canary" >/dev/null 2>&1; then
+  echo "FAIL: the protected canary '$canary' was deleted when it should have been refused." >&2
+  # Report what was CHECKED, then what is merely likely. The old text said "the hook is
+  # NOT firing" as a conclusion; that is one explanation among several, and this script
+  # tests exactly one of them.
+  if [ ! -x "$dir/reference-transaction" ]; then
+    echo "  Checked: $dir/reference-transaction is NOT executable -- git ignores it." >&2
+  else
+    echo "  Checked: $dir/reference-transaction exists and is executable, so the cause is" >&2
+    echo "  not that. It may be exiting 0 for this ref, or git may be reading hooks from" >&2
+    echo "  somewhere else. Run the delete by hand to see what the hook prints." >&2
+  fi
   echo "  hooks dir git is using: $dir  (core.hooksPath=$(git config --get core.hooksPath || echo unset))" >&2
   git branch -D "$plain" >/dev/null 2>&1 || true
   exit 1

@@ -113,12 +113,14 @@ if [ -n "$cfg" ] && [ -r "$cfg" ]; then
 $patterns
 EOP
     [ "$already" = "0" ] && patterns=$(printf '%s\n%s' "$patterns" "$extra")
+    cfgpat="${cfgpat:+$cfgpat }$extra"
   done <<EOC
 $from_cfg
 EOC
 fi
 
 globpat="${globpat:-}"
+cfgpat="${cfgpat:-}"
 globwarned=0
 rc=0
 while read -r old new ref; do
@@ -185,8 +187,14 @@ while read -r old new ref; do
 
       echo "" >&2
       echo "BLOCKED: refusing to delete protected branch '$branch' (pattern '$p')" >&2
-      echo "  Protected by protect_patterns in .pilot.yml, enforced here at the ref layer" >&2
-      echo "  so that it cannot be lost by forgetting safe-cleanup.sh's --protect flag." >&2
+      # Name the SOURCE that actually supplied this pattern. Saying ".pilot.yml"
+      # unconditionally was a claim, not a fact: with no .pilot.yml at all the pattern
+      # comes from the hardcoded floor, and the old text sent the reader to edit a file
+      # that does not exist. Measured.
+      src="the hardcoded floor in this hook"
+      for c in $cfgpat; do [ "$c" = "$p" ] && src="protect_patterns in .pilot.yml"; done
+      echo "  Pattern source: $src. Enforced here at the ref layer so that it cannot be" >&2
+      echo "  lost by forgetting safe-cleanup.sh's --protect flag." >&2
       echo "  deploy/* branches pin the tree as it stood at an on-chain deployment;" >&2
       echo "  they are not reconstructible from main." >&2
       # `$tip` is resolved above with rev-parse, NOT taken from "$old": for a
