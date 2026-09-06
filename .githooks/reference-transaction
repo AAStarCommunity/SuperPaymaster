@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# reference-transaction — refuse to DELETE a protected branch.
+#
+# WHY THIS EXISTS, AND WHY IT IS NOT safe-cleanup.sh's --protect
+#
+# `.pilot.yml`'s protect_patterns is inert data: safe-cleanup.sh honours it only when an
+# operator types `--protect "..."` on the command line. That protects "the operator
+# remembered", not the branch -- and it fails OPEN, silently, in exactly the case that
+# matters. On 2026-09-06 fifty-one branches were removed here by a bare `git branch -D`
+# loop that never consulted is_protected at all. No deploy/* branch happened to be in
+# range. That was luck.
+#
+# This hook sits at the ref layer, where EVERY deletion path converges: `git branch -d`
+# and `-D`, `git update-ref -d`, a script, an IDE, a tool nobody has written yet. There
+# is no flag to forget, because there is no flag.
+#
+# Scope, deliberately narrow -- a hook that fires on ref updates can wedge a repo, so
+# this one refuses exactly one thing:
+#   * only DELETIONS (new value is all-zeros); creations and fast-forwards are untouched
+#   * only refs/heads/ (never refs/remotes/, refs/tags/, refs/stash, FETCH_HEAD, notes)
+#   * only names matching protect_patterns, as a path-segment prefix: `deploy` guards
+#     `deploy` and `deploy/anything`, and does NOT guard `probe/deploy-canary`
+# A fetch, a clone, a rebase, a merge, a gc: none of them reach the reject path.
+#
+# FAIL-CLOSED. If .pilot.yml is missing or unreadable, this falls back to a hardcoded
+# pattern list rather than allowing the delete. A protection that evaporates when its
+# config goes missing is the failure mode this hook was written to remove.
+#
+# Deliberate escape hatch, for the day a deploy/* branch really must go:
+#   PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D deploy/whatever
+# It is loud, per-command, and cannot be set by forgetting something.
+#
+# Install:  bash scripts/install-git-hooks.sh   (honours core.hooksPath; does not rewire it)
+set -uo pipefail
+
+# git calls this hook three times per transaction: prepared, committed, aborted.
+# Rejecting is only meaningful at "prepared" -- by "committed" the refs are already gone.
+[ "${1:-}" = "prepared" ] || exit 0
+
+[ "${PILOT_ALLOW_PROTECTED_DELETE:-}" = "1" ] && exit 0
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cfg="$repo_root/.pilot.yml"
+
+# Fallback is NOT a convenience: it is what keeps a missing config from disarming the hook.
+patterns="release hotfix deploy"
+if [ -r "$cfg" ]; then
+  from_cfg=$(awk '
+    /^protect_patterns:[[:space:]]*$/ { inlist=1; next }
+    inlist && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub(/[[:space:]]*#.*$/, "", line)          # strip trailing comment
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      gsub(/^["'"'"']|["'"'"']$/, "", line)      # strip quotes
+      if (line != "") print line
+      next
+    }
+    inlist && /^[^[:space:]#]/ { inlist=0 }       # a new top-level key ends the list
+  ' "$cfg" 2>/dev/null)
+  # An empty parse means the shape changed, not that nothing is protected. Keep the fallback.
+  [ -n "$from_cfg" ] && patterns=$from_cfg
+fi
+
+rc=0
+while read -r old new ref; do
+  # Detect on `new`, never on `old`: a creation is old=zeros/new=<sha>, so keying off
+  # `old` would reject every branch creation. For a deletion git reports BOTH as zeros.
+  case "$new" in
+    *[!0]*) continue ;;   # not all-zeros -> not a deletion
+    "") continue ;;
+  esac
+  case "$ref" in refs/heads/*) ;; *) continue ;; esac
+  branch=${ref#refs/heads/}
+
+  for p in $patterns; do
+    if [ "$branch" = "$p" ] || case "$branch" in "$p"/*) true ;; *) false ;; esac; then
+      echo "" >&2
+      echo "BLOCKED: refusing to delete protected branch '$branch' (pattern '$p')" >&2
+      echo "  Protected by protect_patterns in .pilot.yml, enforced here at the ref layer" >&2
+      echo "  so that it cannot be lost by forgetting safe-cleanup.sh's --protect flag." >&2
+      echo "  deploy/* branches pin the tree as it stood at an on-chain deployment;" >&2
+      echo "  they are not reconstructible from main." >&2
+      # NOT "$old": for a `git branch -D` git reports old AND new as all-zeros at the
+      # prepared stage (measured 2026-09-06), so printing $old would print zeros and
+      # quietly deprive you of the one value you need to restore the branch.
+      tip=$(git rev-parse --verify -q "$ref" 2>/dev/null || echo "unresolved")
+      echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
+      echo "" >&2
+      echo "  If you truly mean it:  PILOT_ALLOW_PROTECTED_DELETE=1 <your command>" >&2
+      echo "" >&2
+      rc=1
+      break
+    fi
+  done
+done
+
+exit $rc
