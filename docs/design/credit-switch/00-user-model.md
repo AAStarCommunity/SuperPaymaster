@@ -20,17 +20,22 @@ xPNTs**；社区（operator）预存 **aPNTs** 作为垫付额度，协议按 bp
 
 逐条门禁，按代码顺序：
 
+**所有**失败行为都是同一件事——返回 `("", _packValidationData(true, 0, 0))`，即
+ERC-4337 的 sigFailure，**不 revert**（`:1151`/`:1161`/`:1166`/`:1175`/`:1184`/`:1206`/
+`:1218`/`:1224` 逐行核过，是同一个表达式）。初稿在后三行改用了「拒绝」，紧跟在
+revert/sigFailure 的对比之后，会被读成换了机制。
+
 | 检查 | 位置 | 失败行为 |
 |---|---|---|
-| operator 已配置 | `:1150` | 返回 sigFailure，不 revert |
+| operator 已配置 | `:1150` | sigFailure（不 revert） |
 | 未暂停 | `:1160` | 同上 |
 | **身份**：`isEligibleForSponsorship(sender)` | `:1165` | 同上 |
 | `paymasterPostOpGasLimit >= MIN_POST_OP_GAS` | `:1174` | 同上 |
 | 未被该 operator 拉黑 | `:1183` | 同上 |
 | 限频（`minTxInterval`） | `:1193` | 不拒绝，改用 `validAfter` 表达 |
-| **汇率承诺**：`exchangeRate() > maxRate` | `:1205` | 拒绝 |
-| **信用上限**：`_creditExceeded(...)` | `:1217` | 拒绝 |
-| operator 余额足够 | `:1223` | 拒绝 |
+| **汇率承诺**：`exchangeRate() > maxRate` | `:1205` | 同上 |
+| **信用上限**：`_creditExceeded(...)` | `:1217` | 同上 |
+| operator 余额足够 | `:1223` | 同上 |
 
 通过后**乐观扣款**（`:1228`）：
 
@@ -89,8 +94,14 @@ try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
 
 - **首选**：从用户 xPNTs 余额烧掉（带 opHash 重放保护）
 - **烧不动**（新用户没余额）：退到记欠账，但**必须在信用上限内**
-- **超上限**：这一笔 gas 已经花了、追不回，只能把用户对该 operator 置
-  `isBlocked`，避免同一手法被重复利用
+- **超上限**：这一笔 gas 已经花了、追不回，于是把用户对该 operator 置 `isBlocked`，
+  避免同一手法被重复利用。
+
+> ⚠️ 初稿这里写的是「**只能**把用户置 `isBlocked`」，读起来像「超上限就不再记账了」。
+> **不对**，而且上面八行的代码块自己就写着：`pendingDebts[token][user] += amount` 在
+> `if/else` **之外**，两条分支都会走到；`retryPendingDebt`（`:1493`，`onlyOwner`）还能
+> 把它转成真正的 token 债务。这是 README 阅读顺序里的**第一份**文档，所以这句话是最先
+> 被读到的一句——它曾经和 [02 §2](02-credit-switch-design.md) 推翻的结论是同一个形状。
 
 aPNTs → xPNTs 的换算在 `xPNTsToken.burnFromWithOpHash:512`：
 `xPNTs = ceil(amountAPNTs × exchangeRate / 1e18)`。**charge 是 aPNTs 计价，余额是

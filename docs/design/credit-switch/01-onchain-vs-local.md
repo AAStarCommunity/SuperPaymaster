@@ -23,13 +23,13 @@
 `deployedBytecode.immutableReferences` 声明的区间里**——即差异只可能来自构造期
 注入的地址，源码本身完全相同。
 
-| 合约 | 链上地址 | 链上 `version()` | 差异 / 落在 immutable 外 |
-|---|---|---|---|
-| Registry (impl) | `0x9beD0F58…` | Registry-5.8.0 | 36 / **0** |
-| SuperPaymaster (impl) | `0xe25f88db…` | SuperPaymaster-5.4.2 | 444 / **0** |
-| MySBT | `0x4867B430…` | MySBT-3.2.0 | 200 / **0** |
-| GTokenStaking | `0x472297B5…` | Staking-4.2.0 | 320 / **0** |
-| LivenessRegistry | `0x02d841F7…` | LivenessRegistry-1.0.0 | 0（逐字节相同） |
+| 合约 | 链上地址（可直接 `cast code`） | 本地 artifact | 链上 `version()` | 差异 / 落在 immutable 外 |
+|---|---|---|---|---|
+| Registry (impl) | `0x9beD0F58d6001B0006923eb8c4b1Cc548D42ccEe` | `out/Registry.sol/Registry.json` | Registry-5.8.0 | 36 / **0** |
+| SuperPaymaster (impl) | `0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27` | `out/SuperPaymaster.sol/SuperPaymaster.default.json` | SuperPaymaster-5.4.2 | 444 / **0** |
+| MySBT | `0x4867B4302bf4C7818b71F55E53A3520Ee1855Aa7` | `out/MySBT.sol/MySBT.default.json` | MySBT-3.2.0 | 200 / **0** |
+| GTokenStaking | `0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e` | `out/GTokenStaking.sol/GTokenStaking.default.json` | Staking-4.2.0 | 320 / **0** |
+| LivenessRegistry | `0x02d841F7905aFb4424DBA71680D27C0F75d36BE7` | `out/LivenessRegistry.sol/LivenessRegistry.json` | LivenessRegistry-1.0.0 | 0（逐字节相同） |
 
 两个代理的 EIP-1967 impl 槽与 `deployments/config.sepolia.json` **完全吻合**。
 
@@ -42,15 +42,30 @@
 
 ## 2. 链上落后于本地：3 个「同版本号、代码不同」
 
-| 合约 | 链上 / 本地（去 metadata） | selector 集合 | `version()` |
-|---|---|---|---|
-| DVTValidator | 6314 / 6158 B（−156） | **完全相同** | 两边 0.6.0 |
-| PaymasterV4 impl | 10480 / 10429 B（−51） | **完全相同** | 两边 4.5.1 |
-| ReputationSystem | 7032 / 6981 B（−51） | **完全相同** | 两边 0.3.2 |
+| 合约 | 链上地址 | 本地 artifact | 链上 / 本地（去 metadata） | selector 集合 | `version()` |
+|---|---|---|---|---|---|
+| DVTValidator | `0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e` | `out/DVTValidator.sol/DVTValidator.json` | 6314 / 6158 B（−156） | **完全相同** | 两边 0.6.0 |
+| PaymasterV4 impl | `0xa4683e383af87069a2782A72031C329807F2E5A9` | `out/Paymaster.sol/Paymaster.json` | 10480 / 10429 B（−51） | **完全相同** | 两边 `PMV4-Deposit-4.5.1` |
+| ReputationSystem | `0x4Ec2D49D75D5D4206B64387A7d6a6C3c5c90fB5A` | `out/ReputationSystem.sol/ReputationSystem.json` | 7032 / 6981 B（−51） | **完全相同** | 两边 0.3.2 |
+
+> **PaymasterV4 这一行的名字会误导，所以把身份钉死**：链上叫 PaymasterV4，本地源码文件
+> 叫 `contracts/src/paymasters/v4/Paymaster.sol`（合约名 `Paymaster`），产物是
+> `out/Paymaster.sol/Paymaster.json`。判据不是「看 import 猜」，而是 artifact 自己的
+> `metadata.settings.compilationTarget` = `contracts/src/paymasters/v4/Paymaster.sol`。
+> 它的 `version()` 源码字面量（`Paymaster.sol:101`）就是链上读到的 `PMV4-Deposit-4.5.1`。
+>
+> 仓库里另有一个 `deprecated/deprecated/PaymasterV4.sol`——**它不参与编译**
+> （`foundry.toml:2` `src = "contracts/src"`，该文件在 src 之外），也不是这一行的来源。
+> 初稿只写「PaymasterV4 impl」而没写产物路径，会把按 §0 复现的人送到那个废弃文件上。
 
 ABI 没变（selector 集合一致），所以 SDK 不会炸。但**版本号说它们一样，字节码说不
-一样**——`version()` 在这三个合约上不能用来判断链上跑的是哪一版。源码最后改动分别
-在 2026-07-05 / 07-08 / 05-10。
+一样**——`version()` 在这三个合约上不能用来判断链上跑的是哪一版。源码最后改动（对上表**本地 artifact 那一列**指向的文件跑 `git log -1`，不是对同名的废弃副本）：
+
+```
+contracts/src/modules/monitoring/DVTValidator.sol       2026-07-05  41784173
+contracts/src/paymasters/v4/Paymaster.sol               2026-07-08  d04b83cf
+contracts/src/modules/reputation/ReputationSystem.sol   2026-05-10  678eebda
+```
 
 ## 3. 最需要处理的一条：`xPNTsFactory` 有两个部署，SP 指向旧的
 

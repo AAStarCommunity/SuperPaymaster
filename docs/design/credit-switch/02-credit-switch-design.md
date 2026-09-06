@@ -31,8 +31,13 @@ function _creditExceeded(address token, address user, uint256 charge) internal v
 return creditTierConfig[_levelForReputation(globalReputation[user])];
 ```
 
-**按用户全局声誉分档，不分社区。** 链上实测：level 1–3 = 300 xPNTs，
-level 4 = 600，level 5 = 1000。也就是每个人自动带 300 的信用，**社区无权拒绝**。
+**按用户全局声誉分档，不分社区。** 链上实测（Sepolia chainId 11155111 @ 区块 11,646,729，Registry 代理
+`0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71`，`creditTierConfig(uint256)`）：
+level 1–3 = 300 xPNTs，level 4 = 600，level 5 = 1000。
+
+> 这是**一个时刻的读数，不是一条性质**：`creditTierConfig` 是 owner 可改的。
+> 「每个人自动带 300 的信用」这句话压在这个读数上，重读会变。不变的是结构——
+> 额度按**全局声誉分档**、社区无从参与。
 
 ### 1.1 一个必须先修的假注释
 
@@ -140,7 +145,9 @@ function configureOperator(address xPNTsToken, address _opTreasury, bool creditE
 function setCreditEnabled(bool enabled) external;
 ```
 
-selector 实测无碰撞：
+selector 实测无碰撞（三参 `uint256` 形式**已从合约和接口中移除**——
+`SuperPaymaster.sol:277` 与 `ISuperPaymaster.sol:67` 都只声明两参；它在 4 个脚本里还有
+残留调用，那些脚本因此编不过，见 §3.4）：
 
 ```
 configureOperator(address,address)        0x5c7c4b5f   (现有)
@@ -154,14 +161,36 @@ configureOperator(address,address,uint256)0x847807f2   (历史上的旧三参形
 
 ### 3.4 部署时覆盖默认值
 
-`configureOperator` 在 6 个现役部署脚本里被调用：
+`configureOperator` 在 `contracts/script/` 下（排除 `archive/`）共有 **7 处调用，分布在
+5 个文件**——注意是「7 处调用 / 5 个文件」，不是「6 个脚本」，两者不是一回事：
 
 ```
+contracts/script/v3/DeployAnvil.s.sol:183
+contracts/script/v3/DeployAnvil.s.sol:217          ← 同一文件两处
+contracts/script/v3/DeployLive.s.sol:484
 contracts/script/v3/DeployRepCreditSepolia.s.sol:130
 contracts/script/v3/InitializeAAStar.s.sol:95
-contracts/script/v3/DeployLive.s.sol:484
-contracts/script/v3/DeployAnvil.s.sol:183, :217
 contracts/script/v3/TestAccountPrepare.s.sol:116
+contracts/script/v3/TestAccountPrepare.s.sol:246   ← 同一文件两处
+```
+
+> ⚠️ 初稿这张清单**漏了 `TestAccountPrepare.s.sol:246`**，而它和已列的 `:116` 在同一个
+> 文件里。§3.4 正是告诉实施者「覆盖加在哪」的清单，改了 `:116` 就停手的人会把 `:246`
+> 那个 operator 留在合约默认（信用**开**）。这与 §3.5 那条警告是同一个失效模式，只是
+> 低一层：**可照抄的清单不完整，比叙述写错更难被发现。**
+>
+> 漏的原因值得记：按行 grep 的判据**遇到跨行签名会少数**。重做时用的是跨行匹配，
+> 顺带把两处只出现在**注释**里的 `configureOperator()`（`TestAccountPrepare.s.sol:82`
+> 与 `:96`）正确排除，并把 4 处仍在用旧三参形式的分出来（见下）。
+
+**另有 4 处仍在调用已废弃的三参形式**，它们对当前 ABI **编不过**，所以不在上面的清单里，
+也不需要加覆盖参数——但如果哪天要修复它们，覆盖参数要一并加上：
+
+```
+contracts/script/deployment/11_ConfigureOperator.s.sol:23
+contracts/script/deployment/11_1_ConfigureBreadOperator.s.sol:29
+contracts/script/v3/InitializeTestCommunities.s.sol:61
+contracts/script/v3/InitializeTestCommunities.s.sol:86
 ```
 
 改成读一个环境变量，**合约默认与部署默认可以不同**——这正是需求里
