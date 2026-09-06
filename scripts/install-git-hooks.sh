@@ -166,21 +166,34 @@ if env -u PILOT_ALLOW_PROTECTED_DELETE git branch -D "$canary" >/dev/null 2>&1; 
   else
     echo "  Checked: $dir/reference-transaction exists and is executable, so the cause is" >&2
     echo "  not that. It may be exiting 0 for this ref, or git may be reading hooks from" >&2
-    echo "  somewhere else. Run the delete by hand to see what the hook prints." >&2
+    echo "  somewhere else. To watch it by hand -- note this RE-CREATES the branch first," >&2
+    echo "  because the delete above already removed it:" >&2
+    echo "    git branch $canary HEAD && git branch -D $canary" >&2
   fi
   echo "  hooks dir git is using: $dir  (core.hooksPath=$(git config --get core.hooksPath || echo unset))" >&2
   git branch -D "$plain" >/dev/null 2>&1 || true
   exit 1
 fi
 if ! git branch -D "$plain" >/dev/null 2>&1; then
-  echo "FAIL: an UNPROTECTED branch was also blocked -- the hook is too broad" >&2
+  echo "FAIL: deleting '$plain' was refused, but nothing should protect that name." >&2
+  echo "  Checked: the delete was rejected. NOT checked, and both are possible:" >&2
+  echo "    - the hook matches more than it should, or" >&2
+  echo "    - protect_patterns contains an entry that happens to match this internal" >&2
+  echo "      name. That is directly checkable:" >&2
+  echo "        grep -n -A20 '^protect_patterns:' .pilot.yml" >&2
   echo "  Left behind deliberately, for you to inspect then remove: $plain and $canary" >&2
-  echo "  They are NOT torn down here. Reaching this line means the hook is currently" >&2
-  echo "  misbehaving, and the teardown would have to run through the escape hatch --" >&2
-  echo "  i.e. through the very mechanism whose behaviour is in question." >&2
+  echo "  They are NOT torn down here: the teardown would run through the escape hatch," >&2
+  echo "  i.e. through part of the very mechanism whose behaviour is in question." >&2
   exit 1
 fi
 PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || {
-  echo "FAIL: the escape hatch did not work; '$canary' is left behind" >&2; exit 1; }
+  echo "FAIL: the escape hatch did not delete '$canary'." >&2
+  if git rev-parse --verify -q "$canary" >/dev/null; then
+    echo "  It is still present; remove it by hand once the hatch is fixed." >&2
+  else
+    echo "  It is NOT present, so the delete partly succeeded and reported failure --" >&2
+    echo "  nothing to clean up, but the hatch's exit status is wrong." >&2
+  fi
+  exit 1; }
 
 echo "OK: protected delete rejected, unprotected delete allowed, escape hatch works."

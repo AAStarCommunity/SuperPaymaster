@@ -195,13 +195,28 @@ while read -r old new ref; do
       for c in $cfgpat; do [ "$c" = "$p" ] && src="protect_patterns in .pilot.yml"; done
       echo "  Pattern source: $src. Enforced here at the ref layer so that it cannot be" >&2
       echo "  lost by forgetting safe-cleanup.sh's --protect flag." >&2
-      echo "  deploy/* branches pin the tree as it stood at an on-chain deployment;" >&2
-      echo "  they are not reconstructible from main." >&2
+      # Give the reason for the pattern that ACTUALLY matched. This used to print the
+      # deploy/* rationale for every protected branch, so deleting release/x was refused
+      # with an explanation about on-chain deployments. Same defect as the hardcoded
+      # ".pilot.yml" source line fixed just above -- the two halves of one sentence.
+      case "$p" in
+        deploy) echo "  deploy/* pins the tree as it stood at an on-chain deployment;" >&2
+                echo "  it is not reconstructible from main." >&2 ;;
+        release|hotfix)
+                echo "  $p/* marks a shipped or in-flight line; deleting it loses the only" >&2
+                echo "  ref to what was released." >&2 ;;
+        *)      echo "  This prefix was added to protect_patterns deliberately; check with" >&2
+                echo "  whoever added it before removing the branch." >&2 ;;
+      esac
       # `$tip` is resolved above with rev-parse, NOT taken from "$old": for a
       # `git branch -D` git reports old AND new as all-zeros at the prepared stage
       # (measured 2026-09-06), so printing $old would print zeros and quietly deprive
       # you of the one value you need to restore the branch.
-      echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
+      if [ "$tip" = "unresolved" ]; then
+        echo "  Tip being deleted: could not be resolved, so no restore command is offered." >&2
+      else
+        echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
+      fi
       echo "" >&2
       # Name THIS branch. The old text here said `=1`, which this hook now rejects --
       # a blocking message that instructs you to run something that also fails.
