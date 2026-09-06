@@ -27,10 +27,10 @@ install_one() {
   # A hook that is present and byte-correct still does nothing if git will not run it:
   # git ignores a hook without the executable bit. It is not silent about it -- it prints
   # `hint: The '...' hook was ignored because it's not set as executable` (measured). What
-  # WAS silent is this installer: it reported "already current" and returned. Content identity is not the property that matters here --
-  # executability is. Comparing only content made this state UNREPAIRABLE: the installer
-  # reported "already current" and returned before any chmod, so re-running it could never
-  # fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool
+  # WAS silent is this installer. Content identity is not the property that matters here
+  # -- executability is. Comparing only content made this state UNREPAIRABLE: the
+  # installer reported "already current" and returned before any chmod, so re-running it
+  # could never fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool
   # that drops modes, a restore from an archive, a checkout on a filesystem without them).
   if [ -e "$dst" ] && [ ! -f "$dst" ]; then
     echo "REFUSING: $dst exists but is not a regular file" >&2; return 2
@@ -134,7 +134,11 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   if ncommits=$(git rev-list --all --count 2>/dev/null); then havecount=1; else havecount=0; ncommits=""; fi
   if [ "$havecount" = "0" ]; then
     echo "  Could not count commits (git rev-list failed), so the causes below cannot be" >&2
-    echo "  told apart here. Inspect .git/HEAD and refs by hand." >&2
+    # Lead-in only. The command itself is printed once, by the shared line after this
+    # if/elif chain, which is what the other three branches rely on too. An earlier
+    # version of this fix printed it here as well, twice in this branch: the note being
+    # answered said this branch had no LEAD-IN, and I read it as having no command.
+    echo "  told apart here. Inspect .git/HEAD and refs by hand, then re-run:" >&2
   elif [ -n "$headref" ] && [ "$ncommits" != "0" ]; then
     echo "  Checked: $ncommits commit(s) are reachable from a ref, and HEAD points at" >&2
     echo "  '$headref', which does not resolve. Repoint HEAD at an existing branch," >&2

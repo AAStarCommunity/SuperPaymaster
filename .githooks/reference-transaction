@@ -81,11 +81,34 @@ set -uo pipefail
 # Newline-delimited, and iterated with `read` rather than word-splitting: an entry such
 # as `- my team` is ONE pattern. `for p in $patterns` split it into two, each of which
 # then matched nothing -- silently dropping the protection the operator asked for.
-# ONE definition. It was written out at three separate places; editing one of them left
-# the neighbouring lines contradicting it, which is a slower version of the same defect
-# this file keeps hitting -- a sentence that no longer matches what the code does.
+# ONE definition of what the floor MATCHES. The rationale `case` further down still
+# spells out `deploy)` and `release|hotfix)` by name, so this is not the only place a
+# floor name appears -- an earlier comment here claimed it was, and was false the day it
+# landed.
+#
+# Adding a name to FLOOR alone leaves it ENFORCED but explained by that case's `*)`
+# branch. A previous version of this comment called that "correct-if-generic" and
+# tolerable. It was not correct: `*)` said "added to protect_patterns", which WOULD
+# contradict the source line printed three lines above it in the OUTPUT (not in this
+# file) for a floor-only name. "Would", because every current FLOOR name has its own arm,
+# so reaching `*)` with infloor=1 takes a FLOOR edit first -- which is exactly the future
+# the paragraph above is about, and how the contradiction was measured. `*)` now branches
+# on the same $infloor/$incfg the source line uses, so the two agree -- but the prose in
+# `deploy)` and `release|hotfix)` is still per-name, so a new floor entry that deserves
+# its own reason needs an arm there.
+#
+# Whitespace-separated, so a floor entry CANNOT contain a space: `FLOOR="... deploy on
+# call"` silently becomes the two patterns `on` and `call`, and `on/x` is then blocked
+# (measured). And every expansion of it is guarded with `set -f`, because unquoted it
+# also globs against the working tree: `FLOOR="release hotfix dep*"` blocked `deploy/q`
+# when a `deploy/` DIRECTORY existed in cwd and let it through when the directory did
+# not (measured, both directions). Provably safe for today's literal value -- which is
+# exactly why it would be a surprise on the first edit, and why it is guarded now rather
+# than when someone hits it.
 FLOOR="release hotfix deploy"
+set -f
 patterns=$(printf '%s\n' $FLOOR)
+set +f
 
 # Cleared BEFORE the parse, and unconditionally -- not with `${cfgpat:-}` AFTER it.
 # `:-` would adopt an exported variable of the same name from the caller's environment
@@ -210,14 +233,19 @@ while read -r old new ref; do
       # for a change that would have no effect -- the floor keeps enforcing. Measured:
       # remove `- deploy` from .pilot.yml and deploy/q is still BLOCKED, by the floor.
       #
-      # `set -f` for the same reason as the escape-hatch matcher 25 lines up, and this
-      # loop not having it while that one carried a "load-bearing, not tidiness" comment
-      # was the asymmetry that hid it: unquoted, `$cfgpat` also globs against the working
+      # `set -f` for the same reason as the escape-hatch matcher earlier in this block
+      # (the `for a in $allow` loop), and this loop not having it while that one carried
+      # a "load-bearing, not tidiness" comment was the asymmetry that hid it. That
+      # reference used to read "25 lines up" and was wrong by five, the same class as the
+      # count corrected in the `*)` arm below -- so it names the loop instead of counting.
+      # Unquoted, `$cfgpat` also globs against the working
       # tree, so a config entry of `- dep*` plus a `deploy/` DIRECTORY in cwd made this
       # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
       # in a deployment-scripts repo is not exotic.
       infloor=0
+      set -f
       for f in $FLOOR; do [ "$f" = "$p" ] && infloor=1; done
+      set +f
       incfg=0
       set -f
       for c in $cfgpat; do [ "$c" = "$p" ] && incfg=1; done
@@ -265,8 +293,28 @@ EOQ
         release|hotfix)
                 echo "  $p/* marks a shipped or in-flight line; deleting it loses the only" >&2
                 echo "  ref to what was released." >&2 ;;
-        *)      echo "  This prefix was added to protect_patterns deliberately; check with" >&2
-                echo "  whoever added it before removing the branch." >&2 ;;
+        *)      # The attribution has to follow $infloor/$incfg, computed at the top of
+                # this iteration. (An earlier version said "three lines above". They are
+                # far above that; three lines above this point is the release|hotfix arm.
+                # A line count in a comment is a coordinate that goes stale on the next
+                # edit and says nothing the variable names do not already say -- so this
+                # correction deliberately gives no replacement number.)
+                # Printing "added to protect_patterns" unconditionally
+                # contradicted the source line in the SAME block: a name added to FLOOR
+                # only got "the hardcoded floor in this hook (not .pilot.yml)" and then
+                # "was added to protect_patterns" (measured). Worse in the 0/0 branch,
+                # whose source line says "in neither ... please report it" -- the one
+                # path whose text asks the operator to act, so a false attribution there
+                # gets acted on.
+                if [ "$infloor" = "1" ]; then
+                  echo "  This prefix is part of the hardcoded floor in this hook; check with" >&2
+                  echo "  whoever added it before removing the branch." >&2
+                elif [ "$incfg" = "1" ]; then
+                  echo "  This prefix was added to protect_patterns deliberately; check with" >&2
+                  echo "  whoever added it before removing the branch." >&2
+                else
+                  echo "  Check with whoever added this prefix before removing the branch." >&2
+                fi ;;
       esac
       # `$tip` is resolved above with rev-parse, NOT taken from "$old": for a
       # `git branch -D` git reports old AND new as all-zeros at the prepared stage
