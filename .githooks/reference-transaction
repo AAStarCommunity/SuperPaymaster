@@ -34,7 +34,10 @@
 #
 # Deliberate escape hatch. It NAMES THE BRANCH, and authorises only that branch:
 #   PILOT_ALLOW_PROTECTED_DELETE=deploy/whatever git branch -D deploy/whatever
-# Several: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b" (space or comma separated).
+# Several: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"  (space separated; NOT
+# comma -- git allows a comma in a ref name but never whitespace, so only whitespace
+# can be used as a separator without making some branch names unauthorisable).
+# Globs are not accepted: the value is matched exactly, with pathname expansion off.
 #
 # The bare `=1` form is REJECTED. Two earlier versions were wrong in the same direction
 # and are worth recording, because the second one looked like a fix:
@@ -132,10 +135,30 @@ while read -r old new ref; do
             echo "" >&2
             ;;
           *)
+            # `set -f` is load-bearing, not tidiness. Splitting `$allow` unquoted also
+            # performs PATHNAME EXPANSION, so `PILOT_ALLOW_PROTECTED_DELETE='deploy/*'`
+            # was expanded against the working tree: in a repo that has a `deploy/`
+            # directory (hardly exotic) the glob became the real filenames under it and
+            # authorised deleting branches with those names. Measured: with `deploy/x`
+            # on disk, `deploy/*` deleted the protected branch `deploy/x`. Exact match
+            # is the entire point of naming the branch, so globbing has to be off.
+            #
+            # Separator is WHITESPACE ONLY. git-check-ref-format forbids space and all
+            # ASCII control characters in a ref name, so whitespace splits losslessly
+            # and unambiguously. A comma is NOT forbidden in a ref name, so accepting it
+            # as a separator would make any branch containing one unauthorisable while
+            # buying nothing -- it is deliberately not a separator.
             matched=0
-            oldifs=$IFS; IFS=', '
+            set -f
             for a in $allow; do [ "$a" = "$branch" ] && matched=1; done
-            IFS=$oldifs
+            set +f
+            case "$allow" in
+              *[*?[]*)
+                [ "$matched" = "1" ] || {
+                  echo "  (note: PILOT_ALLOW_PROTECTED_DELETE looks like a glob; patterns are" >&2
+                  echo "   not supported -- name each branch in full, separated by spaces.)" >&2
+                } ;;
+            esac
             if [ "$matched" = "1" ]; then
               echo "ALLOWED BY PILOT_ALLOW_PROTECTED_DELETE: deleting protected branch '$branch' (tip $tip)" >&2
               break

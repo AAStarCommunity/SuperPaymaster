@@ -39,7 +39,10 @@ integration_branch: main
 #   改成并集后整类问题消失——任何配置状态都压不低这条下限。
 # 逃生舱【必须点名分支】,且只授权它点到的那几个(精确匹配,不是前缀、不通配):
 #   PILOT_ALLOW_PROTECTED_DELETE=deploy/x git branch -D deploy/x
-#   多个: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"   (空格或逗号分隔)
+#   多个: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"   (【只能空格分隔】)
+#   逗号不是分隔符:git 的 ref 名允许逗号、但绝不允许空白,所以只有空白才是无损分隔符。
+#   通配符也不接受:实测 `deploy/*` 曾被 shell 按【工作区里的文件】展开——仓库里有个
+#   deploy/ 目录时,它会变成那些真实文件名并授权删除同名分支。现在该处关掉了路径名展开。
 # 裸 `=1` 会被【拒绝】。前两版都错在同一个方向,第二版还看起来像修好了:
 #   v1: `=1` 在循环外判断 → export 之后整个 shell 的守卫都关了,且【完全没有输出】
 #   v2: `=1` 挪进循环、每次放行都打印 → 可见了,但【仍然是 session-wide】:实测 export
