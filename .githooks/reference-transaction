@@ -88,8 +88,11 @@ set -uo pipefail
 #
 # Adding a name to FLOOR alone leaves it ENFORCED but explained by that case's `*)`
 # branch. A previous version of this comment called that "correct-if-generic" and
-# tolerable. It was not correct: `*)` said "added to protect_patterns", which contradicts
-# the source line printed three lines above it for a floor-only name. `*)` now branches
+# tolerable. It was not correct: `*)` said "added to protect_patterns", which WOULD
+# contradict the source line printed three lines above it in the OUTPUT (not in this
+# file) for a floor-only name. "Would", because every current FLOOR name has its own arm,
+# so reaching `*)` with infloor=1 takes a FLOOR edit first -- which is exactly the future
+# the paragraph above is about, and how the contradiction was measured. `*)` now branches
 # on the same $infloor/$incfg the source line uses, so the two agree -- but the prose in
 # `deploy)` and `release|hotfix)` is still per-name, so a new floor entry that deserves
 # its own reason needs an arm there.
@@ -230,9 +233,11 @@ while read -r old new ref; do
       # for a change that would have no effect -- the floor keeps enforcing. Measured:
       # remove `- deploy` from .pilot.yml and deploy/q is still BLOCKED, by the floor.
       #
-      # `set -f` for the same reason as the escape-hatch matcher 25 lines up, and this
-      # loop not having it while that one carried a "load-bearing, not tidiness" comment
-      # was the asymmetry that hid it: unquoted, `$cfgpat` also globs against the working
+      # `set -f` for the same reason as the escape-hatch matcher earlier in this block
+      # (the `for a in $allow` loop), and this loop not having it while that one carried
+      # a "load-bearing, not tidiness" comment was the asymmetry that hid it. That
+      # reference used to read "25 lines up" and was wrong by five, the same class as the
+      # count corrected in the `*)` arm below -- so it names the loop instead of counting. unquoted, `$cfgpat` also globs against the working
       # tree, so a config entry of `- dep*` plus a `deploy/` DIRECTORY in cwd made this
       # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
       # in a deployment-scripts repo is not exotic.
@@ -287,8 +292,13 @@ EOQ
         release|hotfix)
                 echo "  $p/* marks a shipped or in-flight line; deleting it loses the only" >&2
                 echo "  ref to what was released." >&2 ;;
-        *)      # The attribution has to follow $infloor/$incfg, which were computed three
-                # lines above. Printing "added to protect_patterns" unconditionally
+        *)      # The attribution has to follow $infloor/$incfg, computed at the top of
+                # this iteration. (An earlier version said "three lines above". They are
+                # far above that; three lines above this point is the release|hotfix arm.
+                # A line count in a comment is a coordinate that goes stale on the next
+                # edit and says nothing the variable names do not already say -- so this
+                # correction deliberately gives no replacement number.)
+                # Printing "added to protect_patterns" unconditionally
                 # contradicted the source line in the SAME block: a name added to FLOOR
                 # only got "the hardcoded floor in this hook (not .pilot.yml)" and then
                 # "was added to protect_patterns" (measured). Worse in the 0/0 branch,
