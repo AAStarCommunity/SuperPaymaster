@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# PILOT_REF_GUARD_V1 — do not remove this marker; the installer uses it to tell this
+# hook apart from a foreign reference-transaction hook it must not silently replace.
+# reference-transaction — refuse to DELETE a protected branch.
+#
+# WHY THIS EXISTS, AND WHY IT IS NOT safe-cleanup.sh's --protect
+#
+# `.pilot.yml`'s protect_patterns is inert data: safe-cleanup.sh honours it only when an
+# operator types `--protect "..."` on the command line. That protects "the operator
+# remembered", not the branch -- and it fails OPEN, silently, in exactly the case that
+# matters. On 2026-09-06 fifty-one branches were removed here by a bare `git branch -D`
+# loop that never consulted is_protected at all. No deploy/* branch happened to be in
+# range. That was luck.
+#
+# This hook sits at the ref layer, where EVERY deletion path converges: `git branch -d`
+# and `-D`, `git update-ref -d`, a script, an IDE, a tool nobody has written yet. There
+# is no flag to forget, because there is no flag.
+#
+# Scope, deliberately narrow -- a hook that fires on ref updates can wedge a repo, so
+# this one refuses exactly one thing:
+#   * only DELETIONS (new value is all-zeros). Every other ref update is untouched:
+#     creations, fast-forwards, AND NON-FAST-FORWARD updates -- `git branch -f`,
+#     `git reset --hard`, `git update-ref <ref> <sha>` can still rewrite a protected
+#     tip, and the reason these branches are worth keeping applies to a rewritten tip
+#     just as much. Widening to ref UPDATES would reach fetch/rebase/merge, so this
+#     gap is documented rather than closed (also stated in .pilot.yml and the PR).
+#   * only refs/heads/ (never refs/remotes/, refs/tags/, refs/stash, FETCH_HEAD, notes)
+#   * only names matching protect_patterns, as a path-segment prefix: `deploy` guards
+#     `deploy` and `deploy/anything`, and does NOT guard `probe/deploy-canary`
+# A fetch, a clone, a rebase, a merge, a gc: none of them reach the reject path.
+#
+# FAIL-CLOSED, and specifically: the baseline is a FLOOR, not a default.
+# .pilot.yml can only ADD patterns; it can never remove one. An earlier version treated a
+# parseable config as authoritative, which meant a truncated or half-edited file --
+# present, parseable, just missing a line -- silently yielded FEWER protections than
+# having no config at all, with no signal. Measured: a config listing only
+# release+hotfix let `git branch -D deploy/x` through. Union removes the entire class:
+# no config state, malformed or not, can lower the floor.
+#
+# Deliberate escape hatch. It NAMES THE BRANCH, and authorises only that branch:
+#   PILOT_ALLOW_PROTECTED_DELETE=deploy/whatever git branch -D deploy/whatever
+# Several: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"  (space separated; NOT
+# comma -- git allows a comma in a ref name but never whitespace, so only whitespace
+# can be used as a separator without making some branch names unauthorisable).
+# Globs are not accepted: the value is matched exactly, with pathname expansion off.
+#
+# The bare `=1` form is REJECTED. Two earlier versions were wrong in the same direction
+# and are worth recording, because the second one looked like a fix:
+#   v1: `=1` checked BEFORE the loop -> an `export` disarmed the guard for the whole
+#       shell, silently. An unrelated `git branch -D deploy/x` an hour later printed
+#       nothing at all.
+#   v2: `=1` checked inside the loop, printing a notice per allowed deletion. Visible,
+#       but STILL session-wide: measured, `export PILOT_ALLOW_PROTECTED_DELETE=1` then
+#       deleting a completely different protected branch later in the same shell still
+#       succeeded. Making a hole legible is not the same as closing it.
+# Naming the branch is what actually closes it: an exported value authorises exactly the
+# refs it names, so a LATER delete of a DIFFERENT protected branch is still blocked, no
+# matter how the variable got into the environment.
+#
+# This is the whole PR's thesis applied to itself. `--protect` fails because protection
+# depends on remembering to ADD it; a blanket hatch fails because protection depends on
+# remembering to UNSET it. Neither is a protection.
+#
+# Install:  bash scripts/install-git-hooks.sh   (honours core.hooksPath; does not rewire it)
+set -uo pipefail
+
+# Measured (2026-09-06), not assumed: a transaction invokes this hook at "prepared" and
+# then at "committed" -- TWO calls, not three. A `git branch -D` additionally shows an
+# "aborted" call, but it arrives BEFORE the "prepared" one, i.e. it belongs to a separate,
+# earlier transaction git ran and rolled back, not to a third phase of this one. A plain
+# branch creation shows only prepared+committed.
+# Rejecting is only meaningful at "prepared" -- by "committed" the refs are already gone.
+[ "${1:-}" = "prepared" ] || exit 0
+
+
+# BASELINE IS A FLOOR. Always enforced, whatever the config says or fails to say.
+# Config patterns are UNIONED onto it, never substituted for it.
+# Established BEFORE any early return: an earlier version resolved the repo root first
+# and `|| exit 0`-ed out of the hook, so a bare repo (no worktree, so no toplevel) lost
+# even the hardcoded floor. The floor has to exist before anything can return.
+# Newline-delimited, and iterated with `read` rather than word-splitting: an entry such
+# as `- my team` is ONE pattern. `for p in $patterns` split it into two, each of which
+# then matched nothing -- silently dropping the protection the operator asked for.
+patterns=$(printf '%s\n%s\n%s' release hotfix deploy)
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+cfg="${repo_root:+$repo_root/.pilot.yml}"
+if [ -n "$cfg" ] && [ -r "$cfg" ]; then
+  from_cfg=$(awk '
+    /^protect_patterns:[[:space:]]*$/ { inlist=1; next }
+    inlist && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub(/[[:space:]]*#.*$/, "", line)          # strip trailing comment
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      gsub(/^["'"'"']|["'"'"']$/, "", line)      # strip quotes
+      if (line != "") print line
+      next
+    }
+    inlist && /^[^[:space:]#]/ { inlist=0 }       # a new top-level key ends the list
+  ' "$cfg" 2>/dev/null)
+  # Union, not replace. An empty parse (renamed key, flow-style list, corrupt file) simply
+  # adds nothing; a partial parse can only add. Neither can take `deploy` away.
+  while IFS= read -r extra; do
+    [ -n "$extra" ] || continue
+    # A glob in protect_patterns protects NOTHING: matching below is literal, so
+    # `- feature/*` silently fails to guard `feature/x` while looking like it does.
+    # Measured. Same class as the `- my team` splitting bug, and the escape hatch's
+    # glob notice does not cover this side -- it only inspects the env var.
+    case "$extra" in *[*?[]*) globpat="${globpat:+$globpat }$extra" ;; esac
+    already=0
+    while IFS= read -r p; do [ "$p" = "$extra" ] && already=1; done <<EOP
+$patterns
+EOP
+    [ "$already" = "0" ] && patterns=$(printf '%s\n%s' "$patterns" "$extra")
+    cfgpat="${cfgpat:+$cfgpat }$extra"
+  done <<EOC
+$from_cfg
+EOC
+fi
+
+globpat="${globpat:-}"
+cfgpat="${cfgpat:-}"
+globwarned=0
+rc=0
+while read -r old new ref; do
+  # Detect on `new`, never on `old`: a creation is old=zeros/new=<sha>, so keying off
+  # `old` would reject every branch creation. For a deletion git reports BOTH as zeros.
+  case "$new" in
+    *[!0]*) continue ;;   # not all-zeros -> not a deletion
+    "") continue ;;
+  esac
+  case "$ref" in refs/heads/*) ;; *) continue ;; esac
+  branch=${ref#refs/heads/}
+
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    if [ "$branch" = "$p" ] || case "$branch" in "$p"/*) true ;; *) false ;; esac; then
+      tip=$(git rev-parse --verify -q "$ref" 2>/dev/null || echo "unresolved")
+
+      # Escape hatch: authorises only the refs it names, matched EXACTLY (no globbing,
+      # no prefixes -- `deploy` in the variable does not authorise `deploy/x`). rc stays
+      # 0 when it matches: allowing is the point. stderr, not stdout, so callers that
+      # capture output are unaffected -- install-git-hooks.sh relies on exactly this.
+      allow="${PILOT_ALLOW_PROTECTED_DELETE:-}"
+      if [ -n "$allow" ]; then
+        case "$allow" in
+          1|true|TRUE|yes|YES|all|ALL|"*")
+            echo "" >&2
+            echo "PILOT_ALLOW_PROTECTED_DELETE=$allow is not accepted (it would authorise" >&2
+            echo "  every protected branch for as long as it stays in the environment)." >&2
+            echo "  Name the branch instead:  PILOT_ALLOW_PROTECTED_DELETE=$branch <command>" >&2
+            echo "" >&2
+            ;;
+          *)
+            # `set -f` is load-bearing, not tidiness. Splitting `$allow` unquoted also
+            # performs PATHNAME EXPANSION, so `PILOT_ALLOW_PROTECTED_DELETE='deploy/*'`
+            # was expanded against the working tree: in a repo that has a `deploy/`
+            # directory (hardly exotic) the glob became the real filenames under it and
+            # authorised deleting branches with those names. Measured: with `deploy/x`
+            # on disk, `deploy/*` deleted the protected branch `deploy/x`. Exact match
+            # is the entire point of naming the branch, so globbing has to be off.
+            #
+            # Separator is WHITESPACE ONLY. git-check-ref-format forbids space and all
+            # ASCII control characters in a ref name, so whitespace splits losslessly
+            # and unambiguously. A comma is NOT forbidden in a ref name, so accepting it
+            # as a separator would make any branch containing one unauthorisable while
+            # buying nothing -- it is deliberately not a separator.
+            matched=0
+            set -f
+            for a in $allow; do [ "$a" = "$branch" ] && matched=1; done
+            set +f
+            case "$allow" in
+              *[*?[]*)
+                [ "$matched" = "1" ] || {
+                  echo "  (note: PILOT_ALLOW_PROTECTED_DELETE looks like a glob; patterns are" >&2
+                  echo "   not supported -- name each branch in full, separated by spaces.)" >&2
+                } ;;
+            esac
+            if [ "$matched" = "1" ]; then
+              echo "ALLOWED BY PILOT_ALLOW_PROTECTED_DELETE: deleting protected branch '$branch' (tip $tip)" >&2
+              break
+            fi
+            ;;
+        esac
+      fi
+
+      echo "" >&2
+      echo "BLOCKED: refusing to delete protected branch '$branch' (pattern '$p')" >&2
+      # Name the SOURCE that actually supplied this pattern. Saying ".pilot.yml"
+      # unconditionally was a claim, not a fact: with no .pilot.yml at all the pattern
+      # comes from the hardcoded floor, and the old text sent the reader to edit a file
+      # that does not exist. Measured.
+      src="the hardcoded floor in this hook"
+      for c in $cfgpat; do [ "$c" = "$p" ] && src="protect_patterns in .pilot.yml"; done
+      echo "  Pattern source: $src. Enforced here at the ref layer so that it cannot be" >&2
+      echo "  lost by forgetting safe-cleanup.sh's --protect flag." >&2
+      # Give the reason for the pattern that ACTUALLY matched. This used to print the
+      # deploy/* rationale for every protected branch, so deleting release/x was refused
+      # with an explanation about on-chain deployments. Same defect as the hardcoded
+      # ".pilot.yml" source line fixed just above -- the two halves of one sentence.
+      case "$p" in
+        deploy) echo "  deploy/* pins the tree as it stood at an on-chain deployment;" >&2
+                echo "  it is not reconstructible from main." >&2 ;;
+        release|hotfix)
+                echo "  $p/* marks a shipped or in-flight line; deleting it loses the only" >&2
+                echo "  ref to what was released." >&2 ;;
+        *)      echo "  This prefix was added to protect_patterns deliberately; check with" >&2
+                echo "  whoever added it before removing the branch." >&2 ;;
+      esac
+      # `$tip` is resolved above with rev-parse, NOT taken from "$old": for a
+      # `git branch -D` git reports old AND new as all-zeros at the prepared stage
+      # (measured 2026-09-06), so printing $old would print zeros and quietly deprive
+      # you of the one value you need to restore the branch.
+      if [ "$tip" = "unresolved" ]; then
+        echo "  Tip being deleted: could not be resolved, so no restore command is offered." >&2
+      else
+        echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
+      fi
+      echo "" >&2
+      # Name THIS branch. The old text here said `=1`, which this hook now rejects --
+      # a blocking message that instructs you to run something that also fails.
+      echo "  If you truly mean it:  PILOT_ALLOW_PROTECTED_DELETE=$branch <your command>" >&2
+      echo "" >&2
+      rc=1
+      break
+    fi
+  done <<EOP
+$patterns
+EOP
+
+  # Measured trigger condition, stated exactly because the first version of this comment
+  # was narrower than the behaviour twice over: it said "only on a deletion that was
+  # allowed through" (it also prints on a BLOCKED one) and "precisely when a mis-typed
+  # pattern would have mattered" (it also prints when deleting a branch no pattern was
+  # ever going to guard). What it actually does: prints ONCE per hook process, on the
+  # first deletion of any refs/heads ref, blocked or not. Creations and non-deletion ref
+  # updates never reach here, so fetch/rebase/merge stay silent -- which is the property
+  # that keeps it cheap; the narrower claims were not load-bearing, just wrong.
+  if [ -n "$globpat" ] && [ "$globwarned" = "0" ]; then
+    globwarned=1
+    echo "NOTE: protect_patterns contains glob-looking entries that protect nothing:" >&2
+    echo "  $globpat" >&2
+    echo "  Patterns are matched literally (exact name, or that name plus '/...')." >&2
+    echo "  Write the prefix without wildcards, e.g. 'feature' guards feature and feature/*." >&2
+  fi
+done
+
+exit $rc

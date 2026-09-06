@@ -1,0 +1,105 @@
+# .pilot.yml — pilot skill 的仓库级配置。
+# pilot 自己的【脚本】(safe-cleanup.sh 等)不解析 YAML,由 skill 读取后作为 flag 传进去;
+# 但 .githooks/reference-transaction 【会】用 awk 直接解析本文件的 protect_patterns,
+# 因为它必须在没有 skill 参与的情况下(裸 git 命令)也能拿到该保护什么。
+
+# ── 单主干仓库 ──────────────────────────────────────────────────────────────
+# SuperPaymaster 没有集成分支：所有 PR 直接开向 main，合并后 main 即发布基线。
+# 因此 integration_branch == base_branch 是【刻意配置，不是缺失】——
+# 不要为了迎合 pilot 的默认值去建一个 preview 分支。
+# 合并时用: git-guard.sh merge-pr <n> --integration main --allow-trunk
+# --allow-trunk 不是绕过:它仍要求 main 的 GitHub 分支保护要求审批、且该 PR 已 APPROVED,
+# 读不到保护规则就 fail-closed 拒绝。
+base_branch: main
+integration_branch: main
+
+# ── protect_patterns：由 git hook 在 ref 层强制(【前提是装了】) ─────────────
+# 这些前缀由 .githooks/reference-transaction 强制,不是靠注释、也不是靠记得加 flag。
+# 但强制的【射程有边界,别当成全局保证】:
+#   * git hook 不随 clone 分发。新克隆的仓库【没有任何保护】,直到有人手动跑一次
+#     bash scripts/install-git-hooks.sh —— 每个 clone 各跑一次。
+#   * 只拦【删除】(refs/heads/ 下的)。改写 tip 的路径【不拦】:git branch -f、
+#     git reset --hard、git update-ref <ref> <new-sha> 照样能让 deploy/* 丢掉历史,
+#     而「部署当时的树重建不出来」这个理由对被改写的 tip 一字不差地成立。
+#     这里刻意不扩大射程(拦 ref 更新会波及 fetch/rebase/merge),而是把缺口写明。
+#   * 不拦 refs/remotes、不拦 tag。
+#
+# 为什么必须放在 ref 层,而不是靠 safe-cleanup.sh 的 --protect:
+#   --protect 只在操作者【手敲了那个 flag】时才生效,它保护的是「记得」,不是分支;
+#   而且脚本内置默认已含 release/hotfix,唯独不含 deploy —— 所以三条里只有 deploy
+#   真正改变行为,也就只有它会在忘记 flag 时静默失去保护,读起来还像「已保护」。
+#   2026-09-06 清理 51 个分支时用的是裸 `git branch -D` 循环,它根本不经过 --protect
+#   那条路径。ref 层是所有删除路径的汇合处:branch -d/-D、update-ref -d、脚本、IDE、
+#   还没写出来的工具,全都要过。那里【没有 flag 可忘,因为没有 flag】。
+#
+# fail-closed 的确切含义:硬编码的 release,hotfix,deploy 是【下限,不是默认值】。
+#   本文件只能【加】前缀,永远减不掉。上一版把「能解析的配置」当权威,于是一个被截断
+#   或改了一半的文件(存在、能解析、只是少了一行)会给出比【完全没有配置】更少的保护,
+#   而且没有任何信号。实测过:只列 release+hotfix 的配置放行了 deploy/* 的删除。
+#   改成并集后整类问题消失——任何配置状态都压不低这条下限。
+# 逃生舱【必须点名分支】,且只授权它点到的那几个(精确匹配,不是前缀、不通配):
+#   PILOT_ALLOW_PROTECTED_DELETE=deploy/x git branch -D deploy/x
+#   多个: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"   (【只能空格分隔】)
+#   逗号不是分隔符:git 的 ref 名允许逗号、但绝不允许空白,所以只有空白才是无损分隔符。
+#   通配符也不接受:实测 `deploy/*` 曾被 shell 按【工作区里的文件】展开——仓库里有个
+#   deploy/ 目录时,它会变成那些真实文件名并授权删除同名分支。现在该处关掉了路径名展开。
+# 裸 `=1` 会被【拒绝】。前两版都错在同一个方向,第二版还看起来像修好了:
+#   v1: `=1` 在循环外判断 → export 之后整个 shell 的守卫都关了,且【完全没有输出】
+#   v2: `=1` 挪进循环、每次放行都打印 → 可见了,但【仍然是 session-wide】:实测 export
+#       之后在同一 shell 里删一个【完全不相干】的受保护分支照样成功
+# 「把洞照亮」不等于「把洞堵上」。点名分支才真的堵上:export 出去的值只授权它点到的
+# ref,之后删【另一个】受保护分支仍然被拦——不管这个变量是怎么进到环境里的。
+#
+# 安装器不会悄悄顶掉别人的 reference-transaction hook:装 hook 本身就是一种【删除保护】
+# 的方式(那里可能正跑着组织策略或 force-push 门禁),所以没有 PILOT_REF_GUARD_V1 标记
+# 的既有 hook 一律拒装并退出 2,要覆盖得显式 --replace-foreign-hook。
+# 安装器判断就绪时【内容与可执行位两者都要】:cmp -s 是第一道闸(内容不同就走升级/拒装),
+# 内容相同时再看 x 位。之前的缺陷是内容相同就直接返回、够不到 chmod:git 会忽略没有 x 位的 hook
+# (它其实会打印 hint,不是静默;【静默的是安装器】——它报 already current 就返回了),而一份
+# 「内容正确但丢了 x 位」的 hook 曾经是【修不好】的——安装器打印 already current 就返回,
+# 重跑多少次都碰不到 chmod。现在这种状态会被识别并修好(x 位易丢:过一次不保留 mode 的
+# 拷贝、从归档恢复、在没有 mode 的文件系统上 checkout)。
+#
+# 2026-09-06 实测(每条都要两栏,单栏分不开「生效」和「量具死了」):
+#   deploy/probe-a 删除        → BLOCKED,分支仍在      | probe/deploy-lookalike → 正常删除
+#     (前缀按路径段匹配,deploy 不保护 probe/deploy-canary 这种子串命中)
+#   配置里加 zzadds            → BLOCKED               | 藏掉配置后同一条 → 正常删除
+#     (判别值只存在于配置、不在 fallback 里,才能证明是【解析】在工作而不是 fallback 顶包)
+#   配置删掉 deploy 那一行     → 仍 BLOCKED  | 配置整个删除 → 仍 BLOCKED | 配置塞随机
+#     二进制 → 仍 BLOCKED       (三种坏配置都压不低下限;probe/plain 仍能正常删除,
+#                                这一格证明量具不是在对所有东西说 no)
+#   外来 hook 在位时安装        → 拒装 exit=2,外来 hook 逐字节不变【且安装后仍在触发】
+#                                (「安装前它真的在拦」这一格先单独证过,否则「它还在」什么都不证明)
+#   chmod -x 后                 → git 忽略 hook、deploy/* 真的被删掉(先证保护确实没了),
+#                                安装器识别并修回 x 位,之后同一条 → 重新 BLOCKED
+#   非可执行的【外来】hook      → 仍拒装 exit=2(不会顺手 chmod 再覆盖)
+#   hook 路径是个目录           → 拒装并说明,不炸
+#   fetch --prune / refs/remotes 删除 / tag 删除 / 分支创建 / switch → 全部不受影响
+#     (只拦 refs/heads 的删除:创建是 old=zeros&new=sha,所以判据只看 new,绝不能看 old)
+#
+# deploy/* 钉住的是链上部署当时的树,main 里重建不出来。
+# (2026-09-06 现状:本仓库 local/remote 都已无 deploy/* 分支;这条规则是留给下一个的。)
+protect_patterns:
+  - release
+  - hotfix
+  - deploy
+
+remote: origin
+
+# ── 远程分支清理 ────────────────────────────────────────────────────────────
+# 仓库已开启 GitHub auto-delete-on-merge(2026-09-06 核实: delete_branch_on_merge=true),
+# 合并即由服务端删除远程 head 分支。pilot 的脚本【完全不碰远程分支】,这是刻意的:
+# 从 clone 判断远程分支是否已合并要靠可能过期的 remote-tracking ref。
+# 已知两类残留【不是设置失效】:
+#   1) 合并后又往同名分支 push 了新 commit → 分支被重新创建(如 #379 的 head)
+#   2) PR 是 closed 而非 merged → auto-delete 不触发(如 #409 的 head)
+# 这两类都要人工判断,因为它们含未进 main 的 commit。
+
+docs_dir: docs/agent
+
+# ── 规划在哪里 ──────────────────────────────────────────────────────────────
+# external = 规划不在 docs_dir 的七件套里,而在 GitHub issues + Seeder 协同中枢(狗头/DSR 流程)。
+# 起跑门禁会打印「source=external — NOTHING WAS CHECKED」并放行:
+# 【它没有检查任何东西】。这是一句人做的担保,不是脚本核实的结论——
+# 汇报时必须照实说「本仓库声明规划在别处、门禁未核实」,不能说成「规划已验证」。
+planning_source: external
