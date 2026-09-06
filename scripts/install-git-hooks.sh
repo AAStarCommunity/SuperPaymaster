@@ -95,10 +95,28 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   # not to assert an untested cause and the other half did not.
   echo "FAIL: HEAD does not resolve, so no canary branch can be created and the" >&2
   echo "  install cannot be verified. The hook file itself IS in place." >&2
-  echo "    HEAD -> $(git symbolic-ref -q HEAD || echo '(detached)')" >&2
+  # `symbolic-ref` is already being run, so the two causes can be told apart instead of
+  # offered as a closed either/or with neither checked. The predicate "which of these two
+  # is it" is evaluable here for the price of one variable.
+  headref=$(git symbolic-ref -q HEAD || true)
+  echo "    HEAD -> ${headref:-(detached)}" >&2
   echo "    git:  ${headerr:-(git printed nothing)}" >&2
-  echo "  Either this repo has no commits yet, or HEAD points at a ref that does not" >&2
-  echo "  exist. Make a commit, or repoint HEAD, then re-run:" >&2
+  if [ -n "$headref" ] && [ "$(git rev-list --all --count 2>/dev/null || echo 0)" != "0" ]; then
+    echo "  Checked: this repo HAS commits, and HEAD points at '$headref', which does not" >&2
+    echo "  resolve. Repoint HEAD at an existing branch, then re-run:" >&2
+  elif [ -n "$headref" ]; then
+    echo "  Checked: this repo has no commits at all, and HEAD points at the not-yet-born" >&2
+    echo "  branch '$headref'. Make a commit, then re-run:" >&2
+  else
+    # Defensive, and NOT reachable in any state I could construct: a detached HEAD holding
+    # a bogus object makes `rev-parse --verify HEAD` succeed here and fails later in the
+    # canary loop instead, which catches it with its own hedged wording
+    # (`fatal: not a valid branch point: 'HEAD'`). Kept rather than deleted because
+    # "I could not construct it" is not "it cannot happen" -- but labelled, so nobody
+    # reads its presence as evidence that the case was tested.
+    echo "  HEAD is detached and does not resolve. Check it out at a real commit, then" >&2
+    echo "  re-run:" >&2
+  fi
   echo "    bash scripts/install-git-hooks.sh" >&2
   exit 1
 fi

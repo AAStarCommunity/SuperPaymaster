@@ -191,10 +191,39 @@ while read -r old new ref; do
       # unconditionally was a claim, not a fact: with no .pilot.yml at all the pattern
       # comes from the hardcoded floor, and the old text sent the reader to edit a file
       # that does not exist. Measured.
-      src="the hardcoded floor in this hook"
-      for c in $cfgpat; do [ "$c" = "$p" ] && src="protect_patterns in .pilot.yml"; done
-      echo "  Pattern source: $src. Enforced here at the ref layer so that it cannot be" >&2
-      echo "  lost by forgetting safe-cleanup.sh's --protect flag." >&2
+      # The predicate this sentence asserts is "editing THIS source changes whether the
+      # branch is protected". `cfgpat` cannot evaluate that: it proves the pattern is ALSO
+      # in the config, not that the config is what supplies it. All three baseline
+      # patterns are in both, so the previous version told the reader to edit .pilot.yml
+      # for a change that would have no effect -- the floor keeps enforcing. Measured:
+      # remove `- deploy` from .pilot.yml and deploy/q is still BLOCKED, by the floor.
+      #
+      # `set -f` for the same reason as the escape-hatch matcher 25 lines up, and this
+      # loop not having it while that one carried a "load-bearing, not tidiness" comment
+      # was the asymmetry that hid it: unquoted, `$cfgpat` also globs against the working
+      # tree, so a config entry of `- dep*` plus a `deploy/` DIRECTORY in cwd made this
+      # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
+      # in a deployment-scripts repo is not exotic.
+      infloor=0
+      for f in release hotfix deploy; do [ "$f" = "$p" ] && infloor=1; done
+      incfg=0
+      set -f
+      for c in $cfgpat; do [ "$c" = "$p" ] && incfg=1; done
+      set +f
+      if [ "$infloor" = "1" ]; then
+        if [ "$incfg" = "1" ]; then
+          src="both the hardcoded floor and .pilot.yml; the FLOOR is what enforces it, so removing it from .pilot.yml changes nothing"
+        else
+          src="the hardcoded floor in this hook (not .pilot.yml)"
+        fi
+      elif [ "$incfg" = "1" ]; then
+        src="protect_patterns in .pilot.yml; removing it there removes this protection"
+      else
+        src="unknown -- this pattern is in neither the floor nor the parsed config, which should be impossible; please report it"
+      fi
+      echo "  Pattern source: $src." >&2
+      echo "  Enforced at the ref layer so it cannot be lost by forgetting" >&2
+      echo "  safe-cleanup.sh's --protect flag." >&2
       # Give the reason for the pattern that ACTUALLY matched. This used to print the
       # deploy/* rationale for every protected branch, so deleting release/x was refused
       # with an explanation about on-chain deployments. Same defect as the hardcoded
