@@ -27,10 +27,10 @@ install_one() {
   # A hook that is present and byte-correct still does nothing if git will not run it:
   # git ignores a hook without the executable bit. It is not silent about it -- it prints
   # `hint: The '...' hook was ignored because it's not set as executable` (measured). What
-  # WAS silent is this installer: it reported "already current" and returned. Content identity is not the property that matters here --
-  # executability is. Comparing only content made this state UNREPAIRABLE: the installer
-  # reported "already current" and returned before any chmod, so re-running it could never
-  # fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool
+  # WAS silent is this installer. Content identity is not the property that matters here
+  # -- executability is. Comparing only content made this state UNREPAIRABLE: the
+  # installer reported "already current" and returned before any chmod, so re-running it
+  # could never fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool
   # that drops modes, a restore from an archive, a checkout on a filesystem without them).
   if [ -e "$dst" ] && [ ! -f "$dst" ]; then
     echo "REFUSING: $dst exists but is not a regular file" >&2; return 2

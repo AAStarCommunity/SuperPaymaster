@@ -237,7 +237,8 @@ while read -r old new ref; do
       # (the `for a in $allow` loop), and this loop not having it while that one carried
       # a "load-bearing, not tidiness" comment was the asymmetry that hid it. That
       # reference used to read "25 lines up" and was wrong by five, the same class as the
-      # count corrected in the `*)` arm below -- so it names the loop instead of counting. unquoted, `$cfgpat` also globs against the working
+      # count corrected in the `*)` arm below -- so it names the loop instead of counting.
+      # Unquoted, `$cfgpat` also globs against the working
       # tree, so a config entry of `- dep*` plus a `deploy/` DIRECTORY in cwd made this
       # print ".pilot.yml" for a pattern the config never contained. A deploy/ directory
       # in a deployment-scripts repo is not exotic.
