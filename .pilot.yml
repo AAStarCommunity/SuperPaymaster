@@ -32,6 +32,10 @@ integration_branch: main
 # 安装器不会悄悄顶掉别人的 reference-transaction hook:装 hook 本身就是一种【删除保护】
 # 的方式(那里可能正跑着组织策略或 force-push 门禁),所以没有 PILOT_REF_GUARD_V1 标记
 # 的既有 hook 一律拒装并退出 2,要覆盖得显式 --replace-foreign-hook。
+# 安装器也【只按可执行位判断就绪】,不按内容:git 会静默忽略没有 x 位的 hook,而一份
+# 「内容正确但丢了 x 位」的 hook 曾经是【修不好】的——安装器打印 already current 就返回,
+# 重跑多少次都碰不到 chmod。现在这种状态会被识别并修好(x 位易丢:过一次不保留 mode 的
+# 拷贝、从归档恢复、在没有 mode 的文件系统上 checkout)。
 #
 # 2026-09-06 实测(每条都要两栏,单栏分不开「生效」和「量具死了」):
 #   deploy/probe-a 删除        → BLOCKED,分支仍在      | probe/deploy-lookalike → 正常删除
@@ -43,6 +47,10 @@ integration_branch: main
 #                                这一格证明量具不是在对所有东西说 no)
 #   外来 hook 在位时安装        → 拒装 exit=2,外来 hook 逐字节不变【且安装后仍在触发】
 #                                (「安装前它真的在拦」这一格先单独证过,否则「它还在」什么都不证明)
+#   chmod -x 后                 → git 忽略 hook、deploy/* 真的被删掉(先证保护确实没了),
+#                                安装器识别并修回 x 位,之后同一条 → 重新 BLOCKED
+#   非可执行的【外来】hook      → 仍拒装 exit=2(不会顺手 chmod 再覆盖)
+#   hook 路径是个目录           → 拒装并说明,不炸
 #   fetch --prune / refs/remotes 删除 / tag 删除 / 分支创建 / switch → 全部不受影响
 #     (只拦 refs/heads 的删除:创建是 old=zeros&new=sha,所以判据只看 new,绝不能看 old)
 #

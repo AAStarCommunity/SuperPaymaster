@@ -24,8 +24,23 @@ install_one() {
   src="$root/.githooks/$1"; dst="$dir/$1"
   [ -f "$src" ] || { echo "missing $src" >&2; return 1; }
 
-  if [ -e "$dst" ]; then
-    if cmp -s "$src" "$dst"; then echo "  $1 already current"; return 0; fi
+  # A hook that is present and byte-correct still does nothing if git will not run it:
+  # git silently ignores a hook without the executable bit ("hook was ignored because it's
+  # not set as executable"). Content identity is not the property that matters here --
+  # executability is. Comparing only content made this state UNREPAIRABLE: the installer
+  # reported "already current" and returned before any chmod, so re-running it could never
+  # fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool
+  # that drops modes, a restore from an archive, a checkout on a filesystem without them).
+  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
+    echo "REFUSING: $dst exists but is not a regular file" >&2; return 2
+  fi
+  if [ -f "$dst" ]; then
+    if cmp -s "$src" "$dst"; then
+      if [ -x "$dst" ]; then echo "  $1 already current"; return 0; fi
+      chmod +x "$dst"
+      echo "  $1 content was current but NOT EXECUTABLE (git was ignoring it) - exec bit restored"
+      return 0
+    fi
     if grep -q "$MARKER" "$dst" 2>/dev/null; then
       cp "$dst" "$dst.backup.$(date +%Y%m%d_%H%M%S)"
       echo "  upgrading our own $1 (previous version backed up)"
@@ -64,6 +79,10 @@ git branch -f "$plain"  HEAD >/dev/null 2>&1
 
 if git branch -D "$canary" >/dev/null 2>&1; then
   echo "FAIL: protected canary was deleted -- the hook is NOT firing" >&2
+  # Say WHY, or the operator is left re-running a script that reports the same failure
+  # forever. These are the two states git fails on silently.
+  [ -x "$dir/reference-transaction" ] || echo "  cause: $dir/reference-transaction is not executable" >&2
+  echo "  hooks dir git is using: $dir  (core.hooksPath=$(git config --get core.hooksPath || echo unset))" >&2
   git branch -D "$plain" >/dev/null 2>&1 || true
   exit 1
 fi
