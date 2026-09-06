@@ -104,16 +104,27 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   # `|| echo 0` would report "no commits" when the QUERY failed, which is a different
   # thing -- the same conflation this whole file has been unpicking. Capture success
   # separately from the count.
+  # `rev-list --all --count` counts commits REACHABLE FROM A REF. Zero does not mean the
+  # repo has none: delete the only branch and the commit object is still there, just
+  # unreferenced (measured -- `git cat-file -t <sha>` still says commit while the count
+  # is 0). Saying "no commits at all" there is false AND sends the operator to the wrong
+  # fix: the answer is to restore the ref, not to make a commit. So the wording says
+  # reachable, which is what was measured, and the zero case offers both readings.
   if ncommits=$(git rev-list --all --count 2>/dev/null); then havecount=1; else havecount=0; ncommits=""; fi
   if [ "$havecount" = "0" ]; then
-    echo "  Could not count commits (git rev-list failed), so the two causes below cannot" >&2
-    echo "  be told apart here. Inspect .git/HEAD and refs by hand." >&2
+    echo "  Could not count commits (git rev-list failed), so the causes below cannot be" >&2
+    echo "  told apart here. Inspect .git/HEAD and refs by hand." >&2
   elif [ -n "$headref" ] && [ "$ncommits" != "0" ]; then
-    echo "  Checked: this repo HAS commits, and HEAD points at '$headref', which does not" >&2
-    echo "  resolve. Repoint HEAD at an existing branch, then re-run:" >&2
+    echo "  Checked: $ncommits commit(s) are reachable from a ref, and HEAD points at" >&2
+    echo "  '$headref', which does not resolve. Repoint HEAD at an existing branch," >&2
+    echo "  then re-run:" >&2
   elif [ -n "$headref" ]; then
-    echo "  Checked: this repo has no commits at all, and HEAD points at the not-yet-born" >&2
-    echo "  branch '$headref'. Make a commit, then re-run:" >&2
+    echo "  Checked: NO commits are reachable from any ref, and HEAD points at '$headref'." >&2
+    echo "  Either nothing has been committed yet -- make a commit -- or commits exist but" >&2
+    echo "  their refs were deleted, which this cannot distinguish. To check for the" >&2
+    echo "  second, and recover a ref if so:" >&2
+    echo "    git fsck --lost-found          # then: git branch <name> <sha>" >&2
+    echo "  Afterwards re-run:" >&2
   else
     # Defensive, and NOT reachable in any state I could construct: a detached HEAD holding
     # a bogus object makes `rev-parse --verify HEAD` succeed here and fails later in the
