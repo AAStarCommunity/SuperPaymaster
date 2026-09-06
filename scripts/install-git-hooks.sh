@@ -104,6 +104,17 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   # `|| echo 0` would report "no commits" when the QUERY failed, which is a different
   # thing -- the same conflation this whole file has been unpicking. Capture success
   # separately from the count.
+  # The two recovery commands are COMPLEMENTARY, not alternatives, which is why both are
+  # printed. Measured on git 2.50.1:
+  #   normal repo, branch deleted -> reflog --all names it (2 hits); fsck also finds it
+  #   BARE repo, branch deleted   -> reflog --all finds NOTHING (bare keeps no reflogs by
+  #                                  default); fsck --lost-found finds it
+  # A reviewer raised that fsck can miss commits held by a reflog. I could not reproduce
+  # that on this version -- across three constructions (branch -D of a divergent branch,
+  # update-ref -d, and reset --hard) fsck --lost-found reported the commit whether or not
+  # a reflog named it, with and without --no-reflogs. Printing both is right regardless:
+  # the bare-repo row above is a measured case where one of them finds nothing.
+  #
   # `rev-list --all --count` counts commits REACHABLE FROM A REF. Zero does not mean the
   # repo has none: delete the only branch and the commit object is still there, just
   # unreferenced (measured -- `git cat-file -t <sha>` still says commit while the count
@@ -122,8 +133,14 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
     echo "  Checked: NO commits are reachable from any ref, and HEAD points at '$headref'." >&2
     echo "  Either nothing has been committed yet -- make a commit -- or commits exist but" >&2
     echo "  their refs were deleted, which this cannot distinguish. To check for the" >&2
-    echo "  second, and recover a ref if so:" >&2
-    echo "    git fsck --lost-found          # then: git branch <name> <sha>" >&2
+    echo "  second, and recover a ref if so -- the two look in DIFFERENT places, so try" >&2
+    echo "  both rather than concluding from one:" >&2
+    echo "    git reflog --all              # where a deleted branch usually still shows," >&2
+    echo "                                  #   with when and what; EMPTY in a bare repo," >&2
+    echo "                                  #   which keeps no reflogs by default" >&2
+    echo "    git fsck --lost-found         # objects no ref names; the only option once" >&2
+    echo "                                  #   reflogs are absent or expired" >&2
+    echo "  then: git branch <name> <sha>" >&2
     echo "  Afterwards re-run:" >&2
   else
     # Defensive, and NOT reachable in any state I could construct: a detached HEAD holding
