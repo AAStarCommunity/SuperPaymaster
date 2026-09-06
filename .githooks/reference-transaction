@@ -34,7 +34,15 @@
 #
 # Deliberate escape hatch, for the day a deploy/* branch really must go:
 #   PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D deploy/whatever
-# It is loud, per-command, and cannot be set by forgetting something.
+# It takes effect PER DELETION and announces every one it allows, by name, on stderr.
+# It is an environment variable, so `export`ing it keeps the guard open for the rest of
+# that shell -- the notice is what makes that visible rather than silent. An earlier
+# version returned before the loop, which made an exported hatch both session-wide AND
+# silent: the second, unintended `git branch -D deploy/x` an hour later printed nothing.
+# That is this PR's own defect running backwards -- `--protect` fails by "protection
+# depends on remembering to add it", an exported hatch fails by "protection depends on
+# remembering to unset it". Prefer the one-shot form; if you do export it, every allowed
+# deletion is still named.
 #
 # Install:  bash scripts/install-git-hooks.sh   (honours core.hooksPath; does not rewire it)
 set -uo pipefail
@@ -43,15 +51,20 @@ set -uo pipefail
 # Rejecting is only meaningful at "prepared" -- by "committed" the refs are already gone.
 [ "${1:-}" = "prepared" ] || exit 0
 
-[ "${PILOT_ALLOW_PROTECTED_DELETE:-}" = "1" ] && exit 0
-
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-cfg="$repo_root/.pilot.yml"
 
 # BASELINE IS A FLOOR. Always enforced, whatever the config says or fails to say.
 # Config patterns are UNIONED onto it, never substituted for it.
-patterns="release hotfix deploy"
-if [ -r "$cfg" ]; then
+# Established BEFORE any early return: an earlier version resolved the repo root first
+# and `|| exit 0`-ed out of the hook, so a bare repo (no worktree, so no toplevel) lost
+# even the hardcoded floor. The floor has to exist before anything can return.
+# Newline-delimited, and iterated with `read` rather than word-splitting: an entry such
+# as `- my team` is ONE pattern. `for p in $patterns` split it into two, each of which
+# then matched nothing -- silently dropping the protection the operator asked for.
+patterns=$(printf '%s\n%s\n%s' release hotfix deploy)
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+cfg="${repo_root:+$repo_root/.pilot.yml}"
+if [ -n "$cfg" ] && [ -r "$cfg" ]; then
   from_cfg=$(awk '
     /^protect_patterns:[[:space:]]*$/ { inlist=1; next }
     inlist && /^[[:space:]]*-[[:space:]]*/ {
@@ -67,11 +80,16 @@ if [ -r "$cfg" ]; then
   ' "$cfg" 2>/dev/null)
   # Union, not replace. An empty parse (renamed key, flow-style list, corrupt file) simply
   # adds nothing; a partial parse can only add. Neither can take `deploy` away.
-  for extra in $from_cfg; do
+  while IFS= read -r extra; do
+    [ -n "$extra" ] || continue
     already=0
-    for p in $patterns; do [ "$p" = "$extra" ] && already=1; done
-    [ "$already" = "0" ] && patterns="$patterns $extra"
-  done
+    while IFS= read -r p; do [ "$p" = "$extra" ] && already=1; done <<EOP
+$patterns
+EOP
+    [ "$already" = "0" ] && patterns=$(printf '%s\n%s' "$patterns" "$extra")
+  done <<EOC
+$from_cfg
+EOC
 fi
 
 rc=0
@@ -85,18 +103,30 @@ while read -r old new ref; do
   case "$ref" in refs/heads/*) ;; *) continue ;; esac
   branch=${ref#refs/heads/}
 
-  for p in $patterns; do
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
     if [ "$branch" = "$p" ] || case "$branch" in "$p"/*) true ;; *) false ;; esac; then
+      tip=$(git rev-parse --verify -q "$ref" 2>/dev/null || echo "unresolved")
+
+      # Escape hatch, evaluated HERE rather than before the loop so that it applies to
+      # one deletion at a time and names each branch it lets through. rc is deliberately
+      # left at 0: allowing is the whole point. stderr, not stdout, so callers that
+      # capture output are unaffected -- install-git-hooks.sh relies on exactly this.
+      if [ "${PILOT_ALLOW_PROTECTED_DELETE:-}" = "1" ]; then
+        echo "ALLOWED BY PILOT_ALLOW_PROTECTED_DELETE: deleting protected branch '$branch' (tip $tip)" >&2
+        break
+      fi
+
       echo "" >&2
       echo "BLOCKED: refusing to delete protected branch '$branch' (pattern '$p')" >&2
       echo "  Protected by protect_patterns in .pilot.yml, enforced here at the ref layer" >&2
       echo "  so that it cannot be lost by forgetting safe-cleanup.sh's --protect flag." >&2
       echo "  deploy/* branches pin the tree as it stood at an on-chain deployment;" >&2
       echo "  they are not reconstructible from main." >&2
-      # NOT "$old": for a `git branch -D` git reports old AND new as all-zeros at the
-      # prepared stage (measured 2026-09-06), so printing $old would print zeros and
-      # quietly deprive you of the one value you need to restore the branch.
-      tip=$(git rev-parse --verify -q "$ref" 2>/dev/null || echo "unresolved")
+      # `$tip` is resolved above with rev-parse, NOT taken from "$old": for a
+      # `git branch -D` git reports old AND new as all-zeros at the prepared stage
+      # (measured 2026-09-06), so printing $old would print zeros and quietly deprive
+      # you of the one value you need to restore the branch.
       echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
       echo "" >&2
       echo "  If you truly mean it:  PILOT_ALLOW_PROTECTED_DELETE=1 <your command>" >&2
@@ -104,7 +134,9 @@ while read -r old new ref; do
       rc=1
       break
     fi
-  done
+  done <<EOP
+$patterns
+EOP
 done
 
 exit $rc

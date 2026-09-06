@@ -1,4 +1,7 @@
-# .pilot.yml — pilot skill 的仓库级配置。脚本不解析 YAML；skill 读取后作为 flag 传给脚本。
+# .pilot.yml — pilot skill 的仓库级配置。
+# pilot 自己的【脚本】(safe-cleanup.sh 等)不解析 YAML,由 skill 读取后作为 flag 传进去;
+# 但 .githooks/reference-transaction 【会】用 awk 直接解析本文件的 protect_patterns,
+# 因为它必须在没有 skill 参与的情况下(裸 git 命令)也能拿到该保护什么。
 
 # ── 单主干仓库 ──────────────────────────────────────────────────────────────
 # SuperPaymaster 没有集成分支：所有 PR 直接开向 main，合并后 main 即发布基线。
@@ -10,9 +13,16 @@
 base_branch: main
 integration_branch: main
 
-# ── protect_patterns：由 git hook 在 ref 层机械强制 ─────────────────────────
+# ── protect_patterns：由 git hook 在 ref 层强制(【前提是装了】) ─────────────
 # 这些前缀由 .githooks/reference-transaction 强制,不是靠注释、也不是靠记得加 flag。
-# 安装:  bash scripts/install-git-hooks.sh   (装进 core.hooksPath 指向的目录,不改指针)
+# 但强制的【射程有边界,别当成全局保证】:
+#   * git hook 不随 clone 分发。新克隆的仓库【没有任何保护】,直到有人手动跑一次
+#     bash scripts/install-git-hooks.sh —— 每个 clone 各跑一次。
+#   * 只拦【删除】(refs/heads/ 下的)。改写 tip 的路径【不拦】:git branch -f、
+#     git reset --hard、git update-ref <ref> <new-sha> 照样能让 deploy/* 丢掉历史,
+#     而「部署当时的树重建不出来」这个理由对被改写的 tip 一字不差地成立。
+#     这里刻意不扩大射程(拦 ref 更新会波及 fetch/rebase/merge),而是把缺口写明。
+#   * 不拦 refs/remotes、不拦 tag。
 #
 # 为什么必须放在 ref 层,而不是靠 safe-cleanup.sh 的 --protect:
 #   --protect 只在操作者【手敲了那个 flag】时才生效,它保护的是「记得」,不是分支;
@@ -32,7 +42,8 @@ integration_branch: main
 # 安装器不会悄悄顶掉别人的 reference-transaction hook:装 hook 本身就是一种【删除保护】
 # 的方式(那里可能正跑着组织策略或 force-push 门禁),所以没有 PILOT_REF_GUARD_V1 标记
 # 的既有 hook 一律拒装并退出 2,要覆盖得显式 --replace-foreign-hook。
-# 安装器也【只按可执行位判断就绪】,不按内容:git 会静默忽略没有 x 位的 hook,而一份
+# 安装器判断就绪时【内容与可执行位两者都要】:cmp -s 是第一道闸(内容不同就走升级/拒装),
+# 内容相同时再看 x 位。之前的缺陷是内容相同就直接返回、够不到 chmod:git 会静默忽略没有 x 位的 hook,而一份
 # 「内容正确但丢了 x 位」的 hook 曾经是【修不好】的——安装器打印 already current 就返回,
 # 重跑多少次都碰不到 chmod。现在这种状态会被识别并修好(x 位易丢:过一次不保留 mode 的
 # 拷贝、从归档恢复、在没有 mode 的文件系统上 checkout)。

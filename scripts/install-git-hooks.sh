@@ -72,9 +72,26 @@ install_one reference-transaction
 # failure this was written to remove, so the installer refuses to report success on a
 # claim it has not tested. The canary is created and deleted inside this check.
 echo "verifying (canary delete must be REJECTED, unprotected delete must SUCCEED)..."
-canary="deploy/__install_check__"
+# The canary needs a protected name, but `deploy/__install_check__` cannot be created
+# when a branch named exactly `deploy` exists -- git refuses the directory/file conflict.
+# Under `set -e` that surfaced as a bare `exit 128` with no message, and it was
+# SELF-LOCKING: every subsequent run failed the same way, so a repo with a `deploy`
+# branch (precisely the repo this hook is for) could never verify its own install.
+# Try each baseline pattern and use the first name git will actually create.
+canary=""
+for pref in deploy release hotfix; do
+  if git branch -f "$pref/__install_check__" HEAD >/dev/null 2>&1; then
+    canary="$pref/__install_check__"; break
+  fi
+done
+if [ -z "$canary" ]; then
+  echo "FAIL: could not create a protected canary under any of deploy/ release/ hotfix/." >&2
+  echo "  Branches named exactly 'deploy', 'release' AND 'hotfix' all block the nested" >&2
+  echo "  name git needs. Rename one, or verify by hand:" >&2
+  echo "    git branch deploy/x HEAD && git branch -D deploy/x   # must print BLOCKED" >&2
+  exit 1
+fi
 plain="__install_check_unprotected__"
-git branch -f "$canary" HEAD >/dev/null 2>&1
 git branch -f "$plain"  HEAD >/dev/null 2>&1
 
 if git branch -D "$canary" >/dev/null 2>&1; then
