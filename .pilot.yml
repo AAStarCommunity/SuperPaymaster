@@ -54,7 +54,8 @@ integration_branch: main
 # 的方式(那里可能正跑着组织策略或 force-push 门禁),所以没有 PILOT_REF_GUARD_V1 标记
 # 的既有 hook 一律拒装并退出 2,要覆盖得显式 --replace-foreign-hook。
 # 安装器判断就绪时【内容与可执行位两者都要】:cmp -s 是第一道闸(内容不同就走升级/拒装),
-# 内容相同时再看 x 位。之前的缺陷是内容相同就直接返回、够不到 chmod:git 会静默忽略没有 x 位的 hook,而一份
+# 内容相同时再看 x 位。之前的缺陷是内容相同就直接返回、够不到 chmod:git 会忽略没有 x 位的 hook
+# (它其实会打印 hint,不是静默;【静默的是安装器】——它报 already current 就返回了),而一份
 # 「内容正确但丢了 x 位」的 hook 曾经是【修不好】的——安装器打印 already current 就返回,
 # 重跑多少次都碰不到 chmod。现在这种状态会被识别并修好(x 位易丢:过一次不保留 mode 的
 # 拷贝、从归档恢复、在没有 mode 的文件系统上 checkout)。

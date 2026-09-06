@@ -25,8 +25,9 @@ install_one() {
   [ -f "$src" ] || { echo "missing $src" >&2; return 1; }
 
   # A hook that is present and byte-correct still does nothing if git will not run it:
-  # git silently ignores a hook without the executable bit ("hook was ignored because it's
-  # not set as executable"). Content identity is not the property that matters here --
+  # git ignores a hook without the executable bit. It is not silent about it -- it prints
+  # `hint: The '...' hook was ignored because it's not set as executable` (measured). What
+  # WAS silent is this installer: it reported "already current" and returned. Content identity is not the property that matters here --
   # executability is. Comparing only content made this state UNREPAIRABLE: the installer
   # reported "already current" and returned before any chmod, so re-running it could never
   # fix the one thing that was wrong. An exec bit is easy to lose (a copy through a tool

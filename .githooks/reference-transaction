@@ -59,7 +59,11 @@
 # Install:  bash scripts/install-git-hooks.sh   (honours core.hooksPath; does not rewire it)
 set -uo pipefail
 
-# git calls this hook three times per transaction: prepared, committed, aborted.
+# Measured (2026-09-06), not assumed: a transaction invokes this hook at "prepared" and
+# then at "committed" -- TWO calls, not three. A `git branch -D` additionally shows an
+# "aborted" call, but it arrives BEFORE the "prepared" one, i.e. it belongs to a separate,
+# earlier transaction git ran and rolled back, not to a third phase of this one. A plain
+# branch creation shows only prepared+committed.
 # Rejecting is only meaningful at "prepared" -- by "committed" the refs are already gone.
 [ "${1:-}" = "prepared" ] || exit 0
 
