@@ -106,15 +106,25 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   # separately from the count.
   # The two recovery commands are COMPLEMENTARY, not alternatives, which is why both are
   # printed. Measured on git 2.50.1:
-  #   normal repo, branch deleted -> reflog --all names it (2 hits); fsck also finds it
+  #   normal repo, branch deleted -> reflog --all names it (2 hits); --lost-found also
+  #                                  finds it
   #   BARE repo, branch deleted   -> reflog --all finds NOTHING (bare keeps no reflogs by
-  #                                  default); fsck --lost-found finds it
-  # A reviewer raised that fsck can miss commits held by a reflog. I could not reproduce
-  # that on this version -- across three constructions (branch -D of a divergent branch,
-  # update-ref -d, and reset --hard) fsck --lost-found reported the commit whether or not
-  # a reflog named it, with and without --no-reflogs. Printing both is right regardless:
-  # the bare-repo row above is a measured case where one of them finds nothing.
+  #                                  default); --lost-found finds it
+  # The bare-repo row is what makes printing both load-bearing.
   #
+  # A reviewer raised that fsck can miss commits held by a reflog. An earlier version of
+  # this comment said I could not reproduce that and generalised it to "fsck reports the
+  # commit whether or not a reflog names it". THAT GENERALISATION WAS WRONG, and it
+  # contradicted git's own documentation, which says reflogs are used as heads unless
+  # --no-reflogs. Measuring the reports separately shows both are true of different
+  # flags -- with a reflog holding the commit:
+  #   git fsck                     -> 0   (reflogs are heads, so not dangling)
+  #   git fsck --dangling          -> 0
+  #   git fsck --lost-found        -> 1   <- the flag actually printed above
+  #   git fsck --lost-found --no-reflogs -> 1
+  # So the reviewer is right about `fsck` and the recipe is right about `--lost-found`:
+  # --lost-found does not treat reflogs as heads. The earlier reading came from testing
+  # only --lost-found and then stating a conclusion about fsck.
   # `rev-list --all --count` counts commits REACHABLE FROM A REF. Zero does not mean the
   # repo has none: delete the only branch and the commit object is still there, just
   # unreferenced (measured -- `git cat-file -t <sha>` still says commit while the count
