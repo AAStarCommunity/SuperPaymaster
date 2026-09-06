@@ -32,17 +32,26 @@
 # release+hotfix let `git branch -D deploy/x` through. Union removes the entire class:
 # no config state, malformed or not, can lower the floor.
 #
-# Deliberate escape hatch, for the day a deploy/* branch really must go:
-#   PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D deploy/whatever
-# It takes effect PER DELETION and announces every one it allows, by name, on stderr.
-# It is an environment variable, so `export`ing it keeps the guard open for the rest of
-# that shell -- the notice is what makes that visible rather than silent. An earlier
-# version returned before the loop, which made an exported hatch both session-wide AND
-# silent: the second, unintended `git branch -D deploy/x` an hour later printed nothing.
-# That is this PR's own defect running backwards -- `--protect` fails by "protection
-# depends on remembering to add it", an exported hatch fails by "protection depends on
-# remembering to unset it". Prefer the one-shot form; if you do export it, every allowed
-# deletion is still named.
+# Deliberate escape hatch. It NAMES THE BRANCH, and authorises only that branch:
+#   PILOT_ALLOW_PROTECTED_DELETE=deploy/whatever git branch -D deploy/whatever
+# Several: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b" (space or comma separated).
+#
+# The bare `=1` form is REJECTED. Two earlier versions were wrong in the same direction
+# and are worth recording, because the second one looked like a fix:
+#   v1: `=1` checked BEFORE the loop -> an `export` disarmed the guard for the whole
+#       shell, silently. An unrelated `git branch -D deploy/x` an hour later printed
+#       nothing at all.
+#   v2: `=1` checked inside the loop, printing a notice per allowed deletion. Visible,
+#       but STILL session-wide: measured, `export PILOT_ALLOW_PROTECTED_DELETE=1` then
+#       deleting a completely different protected branch later in the same shell still
+#       succeeded. Making a hole legible is not the same as closing it.
+# Naming the branch is what actually closes it: an exported value authorises exactly the
+# refs it names, so a LATER delete of a DIFFERENT protected branch is still blocked, no
+# matter how the variable got into the environment.
+#
+# This is the whole PR's thesis applied to itself. `--protect` fails because protection
+# depends on remembering to ADD it; a blanket hatch fails because protection depends on
+# remembering to UNSET it. Neither is a protection.
 #
 # Install:  bash scripts/install-git-hooks.sh   (honours core.hooksPath; does not rewire it)
 set -uo pipefail
@@ -108,13 +117,31 @@ while read -r old new ref; do
     if [ "$branch" = "$p" ] || case "$branch" in "$p"/*) true ;; *) false ;; esac; then
       tip=$(git rev-parse --verify -q "$ref" 2>/dev/null || echo "unresolved")
 
-      # Escape hatch, evaluated HERE rather than before the loop so that it applies to
-      # one deletion at a time and names each branch it lets through. rc is deliberately
-      # left at 0: allowing is the whole point. stderr, not stdout, so callers that
+      # Escape hatch: authorises only the refs it names, matched EXACTLY (no globbing,
+      # no prefixes -- `deploy` in the variable does not authorise `deploy/x`). rc stays
+      # 0 when it matches: allowing is the point. stderr, not stdout, so callers that
       # capture output are unaffected -- install-git-hooks.sh relies on exactly this.
-      if [ "${PILOT_ALLOW_PROTECTED_DELETE:-}" = "1" ]; then
-        echo "ALLOWED BY PILOT_ALLOW_PROTECTED_DELETE: deleting protected branch '$branch' (tip $tip)" >&2
-        break
+      allow="${PILOT_ALLOW_PROTECTED_DELETE:-}"
+      if [ -n "$allow" ]; then
+        case "$allow" in
+          1|true|TRUE|yes|YES|all|ALL|"*")
+            echo "" >&2
+            echo "PILOT_ALLOW_PROTECTED_DELETE=$allow is not accepted (it would authorise" >&2
+            echo "  every protected branch for as long as it stays in the environment)." >&2
+            echo "  Name the branch instead:  PILOT_ALLOW_PROTECTED_DELETE=$branch <command>" >&2
+            echo "" >&2
+            ;;
+          *)
+            matched=0
+            oldifs=$IFS; IFS=', '
+            for a in $allow; do [ "$a" = "$branch" ] && matched=1; done
+            IFS=$oldifs
+            if [ "$matched" = "1" ]; then
+              echo "ALLOWED BY PILOT_ALLOW_PROTECTED_DELETE: deleting protected branch '$branch' (tip $tip)" >&2
+              break
+            fi
+            ;;
+        esac
       fi
 
       echo "" >&2
@@ -129,7 +156,9 @@ while read -r old new ref; do
       # you of the one value you need to restore the branch.
       echo "  Tip being deleted: $tip   (restore with: git branch $branch $tip)" >&2
       echo "" >&2
-      echo "  If you truly mean it:  PILOT_ALLOW_PROTECTED_DELETE=1 <your command>" >&2
+      # Name THIS branch. The old text here said `=1`, which this hook now rejects --
+      # a blocking message that instructs you to run something that also fails.
+      echo "  If you truly mean it:  PILOT_ALLOW_PROTECTED_DELETE=$branch <your command>" >&2
       echo "" >&2
       rc=1
       break

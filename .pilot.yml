@@ -37,7 +37,15 @@ integration_branch: main
 #   或改了一半的文件(存在、能解析、只是少了一行)会给出比【完全没有配置】更少的保护,
 #   而且没有任何信号。实测过:只列 release+hotfix 的配置放行了 deploy/* 的删除。
 #   改成并集后整类问题消失——任何配置状态都压不低这条下限。
-# 逃生舱(每次显式、无法靠遗忘触发): PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D <b>
+# 逃生舱【必须点名分支】,且只授权它点到的那几个(精确匹配,不是前缀、不通配):
+#   PILOT_ALLOW_PROTECTED_DELETE=deploy/x git branch -D deploy/x
+#   多个: PILOT_ALLOW_PROTECTED_DELETE="deploy/a deploy/b"   (空格或逗号分隔)
+# 裸 `=1` 会被【拒绝】。前两版都错在同一个方向,第二版还看起来像修好了:
+#   v1: `=1` 在循环外判断 → export 之后整个 shell 的守卫都关了,且【完全没有输出】
+#   v2: `=1` 挪进循环、每次放行都打印 → 可见了,但【仍然是 session-wide】:实测 export
+#       之后在同一 shell 里删一个【完全不相干】的受保护分支照样成功
+# 「把洞照亮」不等于「把洞堵上」。点名分支才真的堵上:export 出去的值只授权它点到的
+# ref,之后删【另一个】受保护分支仍然被拦——不管这个变量是怎么进到环境里的。
 #
 # 安装器不会悄悄顶掉别人的 reference-transaction hook:装 hook 本身就是一种【删除保护】
 # 的方式(那里可能正跑着组织策略或 force-push 门禁),所以没有 PILOT_REF_GUARD_V1 标记

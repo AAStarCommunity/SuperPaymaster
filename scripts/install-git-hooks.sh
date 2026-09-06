@@ -105,10 +105,10 @@ if git branch -D "$canary" >/dev/null 2>&1; then
 fi
 if ! git branch -D "$plain" >/dev/null 2>&1; then
   echo "FAIL: an UNPROTECTED branch was also blocked -- the hook is too broad" >&2
-  PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D "$canary" >/dev/null 2>&1 || true
+  PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || true
   exit 1
 fi
-PILOT_ALLOW_PROTECTED_DELETE=1 git branch -D "$canary" >/dev/null 2>&1 || {
+PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || {
   echo "FAIL: the escape hatch did not work; '$canary' is left behind" >&2; exit 1; }
 
 echo "OK: protected delete rejected, unprotected delete allowed, escape hatch works."
