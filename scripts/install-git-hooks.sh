@@ -101,7 +101,14 @@ if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
   headref=$(git symbolic-ref -q HEAD || true)
   echo "    HEAD -> ${headref:-(detached)}" >&2
   echo "    git:  ${headerr:-(git printed nothing)}" >&2
-  if [ -n "$headref" ] && [ "$(git rev-list --all --count 2>/dev/null || echo 0)" != "0" ]; then
+  # `|| echo 0` would report "no commits" when the QUERY failed, which is a different
+  # thing -- the same conflation this whole file has been unpicking. Capture success
+  # separately from the count.
+  if ncommits=$(git rev-list --all --count 2>/dev/null); then havecount=1; else havecount=0; ncommits=""; fi
+  if [ "$havecount" = "0" ]; then
+    echo "  Could not count commits (git rev-list failed), so the two causes below cannot" >&2
+    echo "  be told apart here. Inspect .git/HEAD and refs by hand." >&2
+  elif [ -n "$headref" ] && [ "$ncommits" != "0" ]; then
     echo "  Checked: this repo HAS commits, and HEAD points at '$headref', which does not" >&2
     echo "  resolve. Repoint HEAD at an existing branch, then re-run:" >&2
   elif [ -n "$headref" ]; then
