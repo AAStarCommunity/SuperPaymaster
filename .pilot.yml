@@ -10,7 +10,33 @@
 base_branch: main
 integration_branch: main
 
-# 额外保护的分支前缀。deploy/* 是链上部署演习分支,误删会丢掉部署当时的树。
+# ── protect_patterns 是【惰性数据,不是生效的保护】 ────────────────────────────
+# 没有任何东西会自动读这个键。safe-cleanup.sh 不解析 YAML,它只认命令行上的
+#   --protect "release,hotfix,deploy"
+# 也就是说:这几行保护的是「操作者记得把它翻译成 flag」这件事,不是分支本身。
+#
+# 更要命的是它失败的方向。脚本【内置】的默认保护列表是(safe-cleanup.sh:69):
+#   main,master,develop,preview,integration,release,hotfix
+# release 和 hotfix 已经在里面了 —— 所以这三行里【只有 deploy 真正改变行为】,
+# 而它恰好也是忘记加 flag 时唯一会静默失去保护的那个。写了 deploy 却不传 flag,
+# 读起来像「已保护」,实际等于没写。
+#
+# 因此清理【一律】用这一整行,不要省掉 --protect:
+#   bash ~/.claude/skills/pilot/scripts/safe-cleanup.sh \
+#     --integration main --protect "release,hotfix,deploy" [--squash-merged] [--apply]
+#
+# 2026-09-06 用配对对照实测过 --protect 这条路径确实通(两栏都要看,只看一栏区分不了
+# 「保护生效」和「量具死了」):
+#   不传 --protect → `would delete deploy/canary-probe`   (阴性对照:量具活着)
+#   传  --protect → deploy/canary-probe 从清单里消失,     (阳性对照:保护真的生效)
+#                   而 probe/deploy-canary 仍被列出        (边界正确:deploy 是前缀不是子串)
+#
+# 还有一个绕过口子,记在这里因为它咬过一次:直接敲 `git branch -D` 完全不经过
+# is_protected。2026-09-06 清理 51 个 squash-merged 分支时我就是这么删的 —— 那次没
+# 碰到 deploy/*,但那是运气,不是保证。批量删走脚本,别自己写循环。
+#
+# deploy/* 是链上部署演习分支:它们钉住的是部署当时的树,main 里重建不出来。
+# (2026-09-06 现状:本仓库 local 和 remote 都已没有 deploy/* 分支。)
 protect_patterns:
   - release
   - hotfix
