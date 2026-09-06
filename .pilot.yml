@@ -1,0 +1,37 @@
+# .pilot.yml — pilot skill 的仓库级配置。脚本不解析 YAML；skill 读取后作为 flag 传给脚本。
+
+# ── 单主干仓库 ──────────────────────────────────────────────────────────────
+# SuperPaymaster 没有集成分支：所有 PR 直接开向 main，合并后 main 即发布基线。
+# 因此 integration_branch == base_branch 是【刻意配置，不是缺失】——
+# 不要为了迎合 pilot 的默认值去建一个 preview 分支。
+# 合并时用: git-guard.sh merge-pr <n> --integration main --allow-trunk
+# --allow-trunk 不是绕过:它仍要求 main 的 GitHub 分支保护要求审批、且该 PR 已 APPROVED,
+# 读不到保护规则就 fail-closed 拒绝。
+base_branch: main
+integration_branch: main
+
+# 额外保护的分支前缀。deploy/* 是链上部署演习分支,误删会丢掉部署当时的树。
+protect_patterns:
+  - release
+  - hotfix
+  - deploy
+
+remote: origin
+
+# ── 远程分支清理 ────────────────────────────────────────────────────────────
+# 仓库已开启 GitHub auto-delete-on-merge(2026-09-06 核实: delete_branch_on_merge=true),
+# 合并即由服务端删除远程 head 分支。pilot 的脚本【完全不碰远程分支】,这是刻意的:
+# 从 clone 判断远程分支是否已合并要靠可能过期的 remote-tracking ref。
+# 已知两类残留【不是设置失效】:
+#   1) 合并后又往同名分支 push 了新 commit → 分支被重新创建(如 #379 的 head)
+#   2) PR 是 closed 而非 merged → auto-delete 不触发(如 #409 的 head)
+# 这两类都要人工判断,因为它们含未进 main 的 commit。
+
+docs_dir: docs/agent
+
+# ── 规划在哪里 ──────────────────────────────────────────────────────────────
+# external = 规划不在 docs_dir 的七件套里,而在 GitHub issues + Seeder 协同中枢(狗头/DSR 流程)。
+# 起跑门禁会打印「source=external — NOTHING WAS CHECKED」并放行:
+# 【它没有检查任何东西】。这是一句人做的担保,不是脚本核实的结论——
+# 汇报时必须照实说「本仓库声明规划在别处、门禁未核实」,不能说成「规划已验证」。
+planning_source: external
