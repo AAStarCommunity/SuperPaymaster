@@ -79,16 +79,34 @@ echo "verifying (canary delete must be REJECTED, unprotected delete must SUCCEED
 # SELF-LOCKING: every subsequent run failed the same way, so a repo with a `deploy`
 # branch (precisely the repo this hook is for) could never verify its own install.
 # Try each baseline pattern and use the first name git will actually create.
-canary=""
+# A repo with no commits has an unborn HEAD, so `git branch <name> HEAD` fails for a
+# reason unrelated to the D/F conflict this loop works around. Checking it FIRST matters:
+# the earlier version reported "deploy, release AND hotfix are all taken" in a repo with
+# ZERO branches, and the manual recipe it offered failed the same way. A diagnostic that
+# names a cause it never tested is worse than none -- and since this protection is
+# installed by hand, once per clone, diagnosing this script IS part of what it is worth.
+if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  echo "FAIL: this repo has no commits yet (unborn HEAD), so no canary branch can be" >&2
+  echo "  created and the install cannot be verified. The hook file itself IS in place." >&2
+  echo "  Make a commit, then re-run: bash scripts/install-git-hooks.sh" >&2
+  exit 1
+fi
+
+canary=""; lasterr=""
 for pref in deploy release hotfix; do
-  if git branch -f "$pref/__install_check__" HEAD >/dev/null 2>&1; then
+  # Keep stderr rather than discarding it: it is the only thing that can explain a
+  # failure this script did not anticipate.
+  if lasterr=$(git branch -f "$pref/__install_check__" HEAD 2>&1); then
     canary="$pref/__install_check__"; break
   fi
 done
 if [ -z "$canary" ]; then
-  echo "FAIL: could not create a protected canary under any of deploy/ release/ hotfix/." >&2
-  echo "  Branches named exactly 'deploy', 'release' AND 'hotfix' all block the nested" >&2
-  echo "  name git needs. Rename one, or verify by hand:" >&2
+  echo "FAIL: could not create a protected canary under deploy/, release/ or hotfix/." >&2
+  echo "  git's own explanation for the last attempt:" >&2
+  echo "    ${lasterr:-(git printed nothing)}" >&2
+  echo "  A branch named exactly 'deploy', 'release' or 'hotfix' blocks the nested name" >&2
+  echo "  git needs (D/F conflict). Other causes are possible; the line above says which" >&2
+  echo "  one applies. Once resolved, verify by hand:" >&2
   echo "    git branch deploy/x HEAD && git branch -D deploy/x   # must print BLOCKED" >&2
   exit 1
 fi
@@ -106,7 +124,10 @@ if git branch -D "$canary" >/dev/null 2>&1; then
 fi
 if ! git branch -D "$plain" >/dev/null 2>&1; then
   echo "FAIL: an UNPROTECTED branch was also blocked -- the hook is too broad" >&2
-  PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || true
+  echo "  Left behind deliberately, for you to inspect then remove: $plain and $canary" >&2
+  echo "  They are NOT torn down here. Reaching this line means the hook is currently" >&2
+  echo "  misbehaving, and the teardown would have to run through the escape hatch --" >&2
+  echo "  i.e. through the very mechanism whose behaviour is in question." >&2
   exit 1
 fi
 PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || {

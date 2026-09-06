@@ -18,7 +18,12 @@
 #
 # Scope, deliberately narrow -- a hook that fires on ref updates can wedge a repo, so
 # this one refuses exactly one thing:
-#   * only DELETIONS (new value is all-zeros); creations and fast-forwards are untouched
+#   * only DELETIONS (new value is all-zeros). Every other ref update is untouched:
+#     creations, fast-forwards, AND NON-FAST-FORWARD updates -- `git branch -f`,
+#     `git reset --hard`, `git update-ref <ref> <sha>` can still rewrite a protected
+#     tip, and the reason these branches are worth keeping applies to a rewritten tip
+#     just as much. Widening to ref UPDATES would reach fetch/rebase/merge, so this
+#     gap is documented rather than closed (also stated in .pilot.yml and the PR).
 #   * only refs/heads/ (never refs/remotes/, refs/tags/, refs/stash, FETCH_HEAD, notes)
 #   * only names matching protect_patterns, as a path-segment prefix: `deploy` guards
 #     `deploy` and `deploy/anything`, and does NOT guard `probe/deploy-canary`
@@ -98,6 +103,11 @@ if [ -n "$cfg" ] && [ -r "$cfg" ]; then
   # adds nothing; a partial parse can only add. Neither can take `deploy` away.
   while IFS= read -r extra; do
     [ -n "$extra" ] || continue
+    # A glob in protect_patterns protects NOTHING: matching below is literal, so
+    # `- feature/*` silently fails to guard `feature/x` while looking like it does.
+    # Measured. Same class as the `- my team` splitting bug, and the escape hatch's
+    # glob notice does not cover this side -- it only inspects the env var.
+    case "$extra" in *[*?[]*) globpat="${globpat:+$globpat }$extra" ;; esac
     already=0
     while IFS= read -r p; do [ "$p" = "$extra" ] && already=1; done <<EOP
 $patterns
@@ -108,6 +118,8 @@ $from_cfg
 EOC
 fi
 
+globpat="${globpat:-}"
+globwarned=0
 rc=0
 while read -r old new ref; do
   # Detect on `new`, never on `old`: a creation is old=zeros/new=<sha>, so keying off
@@ -193,6 +205,16 @@ while read -r old new ref; do
   done <<EOP
 $patterns
 EOP
+
+  # Fires only on a branch deletion that was allowed through, so it costs nothing on
+  # fetch/rebase/merge, and appears precisely when a mis-typed pattern would have mattered.
+  if [ -n "$globpat" ] && [ "$globwarned" = "0" ]; then
+    globwarned=1
+    echo "NOTE: protect_patterns contains glob-looking entries that protect nothing:" >&2
+    echo "  $globpat" >&2
+    echo "  Patterns are matched literally (exact name, or that name plus '/...')." >&2
+    echo "  Write the prefix without wildcards, e.g. 'feature' guards feature and feature/*." >&2
+  fi
 done
 
 exit $rc
