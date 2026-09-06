@@ -85,10 +85,21 @@ echo "verifying (canary delete must be REJECTED, unprotected delete must SUCCEED
 # ZERO branches, and the manual recipe it offered failed the same way. A diagnostic that
 # names a cause it never tested is worse than none -- and since this protection is
 # installed by hand, once per clone, diagnosing this script IS part of what it is worth.
-if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  echo "FAIL: this repo has no commits yet (unborn HEAD), so no canary branch can be" >&2
-  echo "  created and the install cannot be verified. The hook file itself IS in place." >&2
-  echo "  Make a commit, then re-run: bash scripts/install-git-hooks.sh" >&2
+if ! headerr=$(git rev-parse --verify HEAD 2>&1); then
+  # Report the OBSERVED state, not a guessed cause. `rev-parse --verify HEAD` failing
+  # does not mean "no commits" -- it means HEAD does not resolve, and a repo WITH
+  # commits whose HEAD points at a missing ref fails identically (measured: one commit,
+  # .git/HEAD = `ref: refs/heads/does-not-exist`, git says `Needed a single revision`).
+  # The previous version asserted "no commits yet" for both. That is the same defect
+  # this script fixes ten lines below for the canary loop -- half of that patch learned
+  # not to assert an untested cause and the other half did not.
+  echo "FAIL: HEAD does not resolve, so no canary branch can be created and the" >&2
+  echo "  install cannot be verified. The hook file itself IS in place." >&2
+  echo "    HEAD -> $(git symbolic-ref -q HEAD || echo '(detached)')" >&2
+  echo "    git:  ${headerr:-(git printed nothing)}" >&2
+  echo "  Either this repo has no commits yet, or HEAD points at a ref that does not" >&2
+  echo "  exist. Make a commit, or repoint HEAD, then re-run:" >&2
+  echo "    bash scripts/install-git-hooks.sh" >&2
   exit 1
 fi
 
@@ -110,8 +121,27 @@ if [ -z "$canary" ]; then
   echo "    git branch deploy/x HEAD && git branch -D deploy/x   # must print BLOCKED" >&2
   exit 1
 fi
+# The UNPROTECTED canary needs the same treatment the protected one just got. It did
+# not have it: a branch named `__install_check_unprotected__/x` makes this a D/F
+# conflict, `set -e` turned that into a bare `exit 128` with no output after
+# "verifying...", identical on every re-run. The comment above claimed that failure mode
+# had been designed out; it had been designed out for the canary twelve lines up only.
+#
+# Worse, it exits holding state that needs the mechanism under test to clear: the
+# protected canary is still there, and the operator's first instinct
+# (`git branch -D deploy/__install_check__`) is refused by this repo's own hook. So the
+# message has to name the leftover AND how to remove it.
 plain="__install_check_unprotected__"
-git branch -f "$plain"  HEAD >/dev/null 2>&1
+if ! plainerr=$(git branch -f "$plain" HEAD 2>&1); then
+  echo "FAIL: could not create the unprotected canary '$plain'." >&2
+  echo "  git's own explanation:" >&2
+  echo "    ${plainerr:-(git printed nothing)}" >&2
+  echo "  A branch named '$plain/...' blocks this name (D/F conflict); rename it." >&2
+  echo "  Left behind by this run, and NOT removable with a plain delete because this" >&2
+  echo "  repo's own hook protects it:" >&2
+  echo "    PILOT_ALLOW_PROTECTED_DELETE=$canary git branch -D $canary" >&2
+  exit 1
+fi
 
 if git branch -D "$canary" >/dev/null 2>&1; then
   echo "FAIL: protected canary was deleted -- the hook is NOT firing" >&2

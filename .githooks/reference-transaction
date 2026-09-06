@@ -206,8 +206,14 @@ while read -r old new ref; do
 $patterns
 EOP
 
-  # Fires only on a branch deletion that was allowed through, so it costs nothing on
-  # fetch/rebase/merge, and appears precisely when a mis-typed pattern would have mattered.
+  # Measured trigger condition, stated exactly because the first version of this comment
+  # was narrower than the behaviour twice over: it said "only on a deletion that was
+  # allowed through" (it also prints on a BLOCKED one) and "precisely when a mis-typed
+  # pattern would have mattered" (it also prints when deleting a branch no pattern was
+  # ever going to guard). What it actually does: prints ONCE per hook process, on the
+  # first deletion of any refs/heads ref, blocked or not. Creations and non-deletion ref
+  # updates never reach here, so fetch/rebase/merge stay silent -- which is the property
+  # that keeps it cheap; the narrower claims were not load-bearing, just wrong.
   if [ -n "$globpat" ] && [ "$globwarned" = "0" ]; then
     globwarned=1
     echo "NOTE: protect_patterns contains glob-looking entries that protect nothing:" >&2
