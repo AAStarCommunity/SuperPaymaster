@@ -188,7 +188,12 @@ if ! git branch -D "$plain" >/dev/null 2>&1; then
 fi
 PILOT_ALLOW_PROTECTED_DELETE="$canary" git branch -D "$canary" >/dev/null 2>&1 || {
   echo "FAIL: the escape hatch did not delete '$canary'." >&2
-  if git rev-parse --verify -q "$canary" >/dev/null; then
+  # refs/heads/ prefix, not the bare name: `git rev-parse --verify <name>` searches the
+  # whole ref namespace, so a TAG called deploy/__install_check__ (or a remote-tracking
+  # ref) satisfies it and this reports the branch as still present when it is gone.
+  # Measured: with only the tag, the bare check says yes and the qualified one says no.
+  # The delete above operates on refs/heads, so the check has to as well.
+  if git rev-parse --verify -q "refs/heads/$canary" >/dev/null; then
     echo "  It is still present; remove it by hand once the hatch is fixed." >&2
   else
     echo "  It is NOT present, so the delete partly succeeded and reported failure --" >&2
