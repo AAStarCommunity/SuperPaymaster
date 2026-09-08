@@ -175,6 +175,39 @@ HEAD_WF="$(git rev-parse HEAD)"
 GATE_REGEX="$X402_REGEX" \
   expect_gate "workflow change → apply for x402"  true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_WF"
 
+# A gate must not name a file class it did not look at. Every decision message already
+# interpolates ${GATE_LABEL}, so "does it mention the label" would NOT have caught the
+# defect this pins: the old lines said "Contract-path changes detected — running the full
+# ${GATE_LABEL} gate", label and all, while the gate had looked at packages/. What was
+# wrong was the hardcoded noun, so that is what is asserted.
+#
+# Without this the wording had no gate at all: replacing an entire decision message left
+# the suite at 19/19, because it asserts the ANSWER and not the prose -- correct by design,
+# and the reason a false sentence could ride in behind a green run.
+#
+# The script's own filename contains "contract" and appears in usage errors, so it is
+# removed before looking.
+expect_no_foreign_noun() {
+  local desc="$1"; shift
+  local out log
+  out="$WORK/gh_output"; : > "$out"
+  log="$(env "$@" GITHUB_OUTPUT="$out" bash "$UNDER_TEST" "x402-node" '^packages/x402-facilitator-node/' 2>&1 || true)"
+  local stripped; stripped="$(printf '%s' "$log" | sed 's/detect-contract-changes\.sh//g')"
+  if printf '%s' "$stripped" | grep -qi contract; then
+    echo "  FAIL  $desc — a gate labelled x402-node named 'contract' in its own decision:"
+    printf '%s\n' "$log" | sed 's/^/        /'
+    fail=$((fail + 1)); return
+  fi
+  echo "  ok    $desc → names the gate, not a file class"
+  pass=$((pass + 1))
+}
+
+echo "— a gate never names a file class it did not look at"
+expect_no_foreign_noun "apply (paths matched)"   EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_X402"
+expect_no_foreign_noun "skip (nothing matched)"  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_DOCS"
+expect_no_foreign_noun "apply (non-PR event)"    EVENT=push
+expect_no_foreign_noun "apply (undecidable)"     EVENT=pull_request BASE_SHA="$GONE" HEAD_SHA="$HEAD_DOCS"
+
 echo "— defect 1: the diff cannot be computed (round-10 answered 'skip' here)"
 expect_gate "base unreachable → apply"       true  EVENT=pull_request BASE_SHA="$GONE" HEAD_SHA="$HEAD_DOCS"
 expect_gate "head unreachable → apply"       true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$GONE"
