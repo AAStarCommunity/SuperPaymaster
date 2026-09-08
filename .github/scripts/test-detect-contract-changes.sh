@@ -192,6 +192,19 @@ expect_no_foreign_noun() {
   local out log
   out="$WORK/gh_output"; : > "$out"
   log="$(env "$@" GITHUB_OUTPUT="$out" bash "$UNDER_TEST" "x402-node" '^packages/x402-facilitator-node/' 2>&1 || true)"
+  # A live-instrument check BEFORE the absence check. `grep -q` on an empty string finds
+  # nothing, so "the message does not say contract" and "there is no message" are the same
+  # reading -- and the second one passes. Verified: emptying every decision message left
+  # all four rows green and the suite at 23/23, i.e. a script that said nothing scored
+  # perfectly on a guard about what it says.
+  #
+  # The label is what makes the instrument live: it must appear, which cannot be satisfied
+  # by silence, and cannot be satisfied by a message about some other gate either.
+  if ! printf '%s' "$log" | grep -q 'x402-node'; then
+    echo "  FAIL  $desc — no decision message naming the gate; nothing to check."
+    echo "        stdout+stderr was: [$log]"
+    fail=$((fail + 1)); return
+  fi
   local stripped; stripped="$(printf '%s' "$log" | sed 's/detect-contract-changes\.sh//g')"
   if printf '%s' "$stripped" | grep -qi contract; then
     echo "  FAIL  $desc — a gate labelled x402-node named 'contract' in its own decision:"
