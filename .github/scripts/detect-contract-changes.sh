@@ -44,6 +44,11 @@
 # Exercised by test-detect-contract-changes.sh, which runs on every PR (gate-self-test).
 set -euo pipefail
 
+# The two decision messages below say "paths matching the <label> gate", not
+# "contract-path". They said contract-path until the x402-node gate became the first
+# non-contract caller of this script, at which point the log of a gate whose only job is
+# to report whether it applies started naming a file class that had not changed. Every
+# other message here already used ${GATE_LABEL}; these two were the exception.
 GATE_LABEL="${1:?usage: detect-contract-changes.sh <gate-label> <extended-regex>}"
 PATH_REGEX="${2:?usage: detect-contract-changes.sh <gate-label> <extended-regex>}"
 
@@ -82,7 +87,7 @@ fi
 # pipeline's status under `pipefail`, which silently inverts the answer on a large diff
 # (defect 2). A herestring is not a pipeline, so there is nothing for pipefail to promote.
 if grep -qE "$PATH_REGEX" <<< "$CHANGED"; then
-  apply "Contract-path changes detected — running the full ${GATE_LABEL} gate."
+  apply "Paths matching the ${GATE_LABEL} gate changed — running it in full."
 fi
 
-skip "No contract-path changes — ${GATE_LABEL} cannot be affected by this PR."
+skip "No paths matching the ${GATE_LABEL} gate changed — it cannot be affected by this PR."
