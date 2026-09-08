@@ -25,7 +25,20 @@ REGEX='^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.githu
 # an earlier version kept a copy here and a one-letter mutation changed the copy and the
 # fixture path together, so the suite stayed green and the coverage was worth nothing.
 X402_WF="$HERE/../workflows/x402-facilitator-node.yml"
-X402_REGEX="$(sed -n "s/^ *'\(\^(packages\/x402-facilitator-node\/.*\)'$/\1/p" "$X402_WF" | head -1)"
+X402_MATCHES="$(sed -n "s/^ *'\(\^(packages\/x402-facilitator-node\/.*\)'$/\1/p" "$X402_WF")"
+X402_HITS="$(printf '%s\n' "$X402_MATCHES" | grep -c . || true)"
+# Exactly one, not `head -1`. With head -1 a SECOND matching line -- a stale or wrong
+# pattern left in the workflow -- would sit there unread while this suite reported all
+# green off the first one. That is the same second-source-of-truth defect the extraction
+# was written to remove, moved rather than removed. Verified with a probe: adding a
+# `.../ZZZWRONG)` line after the real one takes hits to 2, and this now aborts.
+if [ "$X402_HITS" != "1" ]; then
+  echo "  FAIL  expected exactly ONE x402 gate regex in $X402_WF, found $X402_HITS:" >&2
+  printf '%s\n' "$X402_MATCHES" | sed 's/^/        /' >&2
+  echo "        Refusing to guess which one the gate uses." >&2
+  exit 1
+fi
+X402_REGEX="$X402_MATCHES"
 if [ -z "$X402_REGEX" ]; then
   echo "  FAIL  could not read the x402 gate regex out of $X402_WF —" >&2
   echo "        the extraction, not the gate, is broken. Refusing to test a pattern" >&2
