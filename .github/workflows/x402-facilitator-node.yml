@@ -1,0 +1,80 @@
+name: x402 Facilitator Node
+
+# TRIGGERS ON EVERY PR, like test.yml and for the same reason: `paths:` and `paths-ignore:`
+# are both "does ANY changed file match?" predicates, so they are not complements, and
+# GitHub only inspects the first 300 changed files. The decision about whether this gate
+# applies is made BELOW, inside the job, from the complete `git diff`.
+#
+# WHY THIS EXISTS
+# ---------------
+# Until now no workflow installed or ran anything in packages/x402-facilitator-node. A
+# dependency PR touching only that package (#428) collected eleven green checks having run
+# zero of its tests -- `test` took its "Gate not applicable" branch, correctly, because the
+# change was not contract code, and nothing else looked at it either. That PR bumped
+# vitest 4 -> 5, a MAJOR version of the test runner itself, so the only thing between a
+# broken runner and main was somebody choosing to run it by hand.
+#
+# Verified before writing this: `grep -rl 'x402-facilitator-node\|vitest\|pnpm test'` over
+# .github/workflows returned nothing, while the same grep for `forge` returned four files
+# -- a positive control, so the empty result is "nothing runs it" rather than "the grep is
+# wrong".
+on:
+  push:
+    branches: [main, feature/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  x402-node:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/x402-facilitator-node
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history so the base...head diff below is complete
+
+      - name: Detect changes under the package (full diff — no 300-file limit)
+        id: changes
+        working-directory: ${{ github.workspace }}
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Same detector as the contract gate: it fails CLOSED, applying the gate when it
+        # cannot compute or fully scan the diff. The output key is named `contract` by the
+        # script; the pattern at this call site is what makes it mean "this package".
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "x402-node" \
+            '^(packages/x402-facilitator-node/|\.github/workflows/x402-facilitator-node\.yml$|\.github/scripts/)'
+
+      - uses: pnpm/action-setup@v6
+        if: steps.changes.outputs.contract == 'true'
+        with:
+          version: 10.15.1        # pinned: `pnpm@latest` would make the resolver a moving part
+
+      - uses: actions/setup-node@v7
+        if: steps.changes.outputs.contract == 'true'
+        with:
+          node-version: 22
+
+      - name: Install (frozen — a lockfile that cannot be honoured is a failure, not a fallback)
+        if: steps.changes.outputs.contract == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        if: steps.changes.outputs.contract == 'true'
+        run: pnpm typecheck
+
+      - name: Test
+        if: steps.changes.outputs.contract == 'true'
+        run: pnpm test
+
+      - name: Build
+        if: steps.changes.outputs.contract == 'true'
+        run: pnpm build
+
+      - name: Gate not applicable
+        if: steps.changes.outputs.contract != 'true'
+        run: echo "No changes under packages/x402-facilitator-node — nothing to run."
