@@ -1443,23 +1443,40 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
     function _recordDebt(address token, address user, uint256 amount, bytes32 opHash, address operator) internal {
         try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
-            // AUDIT H-1 (2026-06-11): _creditExceeded's validation-time balance
-            // short-circuit (intentional — lets zero-credit level-1 users pay
-            // from balance) is defeatable: a user can drain its xPNTs inside its
-            // own UserOp between validate and postOp, so a charge that passed on
-            // "balance is enough" lands here with zero balance. recordDebtWithOpHash
-            // only checks maxSingleTxLimit, NOT getCreditLimit, which let debt
-            // accumulate past the ceiling and drain the operator (the exact
-            // scenario C-01 set out to prevent).
+            // Why this re-checks the ceiling instead of just recording the debt:
+            // recordDebtWithOpHash checks only maxSingleTxLimit, NOT getCreditLimit,
+            // so calling it unconditionally would let debt accumulate past the
+            // ceiling and drain the operator — the exact scenario C-01 set out to
+            // prevent.
+            //
+            // HISTORY, because the previous version of this comment described code
+            // that no longer exists. It said _creditExceeded has a validation-time
+            // balance short-circuit that a mid-UserOp drain can defeat. That
+            // short-circuit was `if (IERC20(token).balanceOf(user) >= xPNTsCharge)
+            // return false;` and c6493ade (audit H-1, Plan A) DELETED it; the comment
+            // was not updated. _creditExceeded is now three lines and never reads a
+            // balance, so a zero-credit user is refused at validation rather than
+            // paying from balance.
+            //
+            // What can still reach the `else` below, then: validation asserted
+            // getDebt + pendingDebts + charge <= getCreditLimit, and this re-evaluates
+            // the same inequality later. All three inputs can move in between —
+            // getDebt and pendingDebts can grow if another op for this user settles
+            // first, and getCreditLimit can FALL, since it is
+            // creditTierConfig[_levelForReputation(globalReputation[user])] and both
+            // of those are writable (Registry: reputation proposals, and governance).
+            // Stated as reachability, not as a diagnosis: no live instance of any of
+            // the three has been constructed here.
             if (IxPNTsToken(token).getDebt(user) + pendingDebts[token][user] + amount
                 <= REGISTRY.getCreditLimit(user)) {
                 // Within ceiling: normal debt fallback (honest user, e.g. new
                 // user with no balance but within credit).
                 try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) { return; } catch {}
             } else {
-                // Over ceiling: the balance short-circuit was defeated by a
-                // mid-UserOp drain — this op was effectively an unbacked
-                // sponsorship. The gas for THIS op is already spent (cannot be
+                // Over ceiling: whatever moved (see above), this op was
+                // effectively an unbacked sponsorship — the reason is not knowable
+                // from here, and the old text named one that can no longer happen.
+                // The gas for THIS op is already spent (cannot be
                 // clawed back), so cap the loss by blocking the user for this
                 // operator: isBlocked is checked in validate and is channel-
                 // agnostic (gates BOTH the SBT and the agent path), so the
