@@ -38,13 +38,11 @@ if [ "$X402_HITS" != "1" ]; then
   echo "        Refusing to guess which one the gate uses." >&2
   exit 1
 fi
+# No separate empty check: hits==1 already implies a non-empty capture (the pattern the
+# sed matches cannot produce one), so an `if [ -z ... ]` here would be unreachable. The
+# count check above carries both cases, and prints which one applied -- "found 0" is the
+# extraction being broken, "found 2" is the workflow having two.
 X402_REGEX="$X402_MATCHES"
-if [ -z "$X402_REGEX" ]; then
-  echo "  FAIL  could not read the x402 gate regex out of $X402_WF —" >&2
-  echo "        the extraction, not the gate, is broken. Refusing to test a pattern" >&2
-  echo "        this suite made up itself." >&2
-  exit 1
-fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
