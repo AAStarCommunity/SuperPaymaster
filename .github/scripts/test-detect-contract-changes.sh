@@ -15,6 +15,35 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UNDER_TEST="$HERE/detect-contract-changes.sh"
 REGEX='^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$)'
 
+# The x402 gate's regex is READ OUT OF THE WORKFLOW, not copied here. A copy is a second
+# source of truth that drifts: a typo in the workflow would leave this file still holding
+# the correct pattern, and every row below would pass while the real gate answered
+# contract=false -- a green check that ran nothing, which is the exact failure this suite
+# exists to make impossible.
+#
+# Proven by mutation: changing the pattern in the WORKFLOW turns the rows below red;
+# an earlier version kept a copy here and a one-letter mutation changed the copy and the
+# fixture path together, so the suite stayed green and the coverage was worth nothing.
+X402_WF="$HERE/../workflows/x402-facilitator-node.yml"
+X402_MATCHES="$(sed -n "s/^ *'\(\^(packages\/x402-facilitator-node\/.*\)'$/\1/p" "$X402_WF")"
+X402_HITS="$(printf '%s\n' "$X402_MATCHES" | grep -c . || true)"
+# Exactly one, not `head -1`. With head -1 a SECOND matching line -- a stale or wrong
+# pattern left in the workflow -- would sit there unread while this suite reported all
+# green off the first one. That is the same second-source-of-truth defect the extraction
+# was written to remove, moved rather than removed. Verified with a probe: adding a
+# `.../ZZZWRONG)` line after the real one takes hits to 2, and this now aborts.
+if [ "$X402_HITS" != "1" ]; then
+  echo "  FAIL  expected exactly ONE x402 gate regex in $X402_WF, found $X402_HITS:" >&2
+  printf '%s\n' "$X402_MATCHES" | sed 's/^/        /' >&2
+  echo "        Refusing to guess which one the gate uses." >&2
+  exit 1
+fi
+# No separate empty check: hits==1 already implies a non-empty capture (the pattern the
+# sed matches cannot produce one), so an `if [ -z ... ]` here would be unreachable. The
+# count check above carries both cases, and prints which one applied -- "found 0" is the
+# extraction being broken, "found 2" is the workflow having two.
+X402_REGEX="$X402_MATCHES"
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -28,7 +57,7 @@ expect_gate() {
   local out="$WORK/gh_output"
   : > "$out"
   local log rc=0
-  log="$(env "$@" GITHUB_OUTPUT="$out" bash "$UNDER_TEST" "self-test" "$REGEX" 2>&1)" || rc=$?
+  log="$(env "$@" GITHUB_OUTPUT="$out" bash "$UNDER_TEST" "self-test" "${GATE_REGEX:-$REGEX}" 2>&1)" || rc=$?
   local got
   got="$(sed -n 's/^contract=//p' "$out")"
   if [ "$rc" -ne 0 ]; then
@@ -111,6 +140,40 @@ expect_gate "3000 docs paths → skip"         false EVENT=pull_request BASE_SHA
 
 echo "— defect 3: a non-ASCII contract path (git C-quotes it, breaking the anchor)"
 expect_gate "unicode contract path → apply"  true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_UNICODE"
+
+echo "— caller patterns: x402-facilitator-node (its own regex, not just the control flow)"
+git checkout -q -B x402branch "$BASE"
+mkdir -p packages/x402-facilitator-node/src
+echo "x" > packages/x402-facilitator-node/src/index.ts
+git add -A >/dev/null; git commit -qm "x402 change"
+HEAD_X402="$(git rev-parse HEAD)"
+GATE_REGEX="$X402_REGEX" \
+  expect_gate "x402 src change → apply"        true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_X402"
+# The paired control: without it, a pattern that matched EVERYTHING would pass the row above.
+GATE_REGEX="$X402_REGEX" \
+  expect_gate "contract change → skip for x402" false EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_CONTRACT"
+GATE_REGEX="$X402_REGEX" \
+  expect_gate "docs-only change → skip for x402" false EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_DOCS"
+# And the reverse pairing: the contract pattern must NOT fire on an x402-only change.
+expect_gate "x402 change → skip for contracts"  false EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_X402"
+# The pattern's OTHER alternatives need rows too, or a typo in them is invisible: the
+# extraction below anchors on the package name, so a mistyped package name breaks
+# extraction loudly, while a mistyped `.github/scripts/` would extract fine and silently
+# stop the gate firing when the detector itself changes.
+git checkout -q -B x402scripts "$BASE"
+mkdir -p .github/scripts
+echo "x" > .github/scripts/detect-contract-changes.sh
+git add -A >/dev/null; git commit -qm "detector change"
+HEAD_DETECTOR="$(git rev-parse HEAD)"
+GATE_REGEX="$X402_REGEX" \
+  expect_gate "detector change → apply for x402"  true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_DETECTOR"
+git checkout -q -B x402wf "$BASE"
+mkdir -p .github/workflows
+echo "x" > .github/workflows/x402-facilitator-node.yml
+git add -A >/dev/null; git commit -qm "workflow change"
+HEAD_WF="$(git rev-parse HEAD)"
+GATE_REGEX="$X402_REGEX" \
+  expect_gate "workflow change → apply for x402"  true  EVENT=pull_request BASE_SHA="$BASE" HEAD_SHA="$HEAD_WF"
 
 echo "— defect 1: the diff cannot be computed (round-10 answered 'skip' here)"
 expect_gate "base unreachable → apply"       true  EVENT=pull_request BASE_SHA="$GONE" HEAD_SHA="$HEAD_DOCS"
