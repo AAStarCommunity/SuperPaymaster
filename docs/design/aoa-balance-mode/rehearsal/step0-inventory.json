@@ -1,0 +1,115 @@
+{
+  "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "at": "2026-09-12T23:50:11.891Z",
+  "endpoints": [
+    {
+      "label": "archive(env RPC_URL)",
+      "ok": true
+    },
+    {
+      "label": "second(ethereum-sepolia-rpc.publicnode.com)",
+      "ok": true
+    }
+  ],
+  "crossCheck": {
+    "OperatorConfigured": {
+      "archive": 4,
+      "second": 4,
+      "identical": true
+    },
+    "OperatorDeposited": {
+      "archive": 5,
+      "second": 5,
+      "identical": true
+    },
+    "DebtRecordFailed": {
+      "archive": 0,
+      "second": 0,
+      "identical": true
+    },
+    "PendingDebtRetried": {
+      "archive": 0,
+      "second": 0,
+      "identical": true
+    },
+    "PendingDebtCleared": {
+      "archive": 0,
+      "second": 0,
+      "identical": true
+    },
+    "APNTsTokenChangeQueued": {
+      "archive": 2,
+      "second": 2,
+      "identical": true
+    },
+    "APNTsTokenChangeCancelled": {
+      "archive": 0,
+      "second": 0,
+      "identical": true
+    },
+    "APNTsTokenChangeExecuted": {
+      "archive": 0,
+      "second": 0,
+      "identical": true
+    },
+    "OperatorPaused": {
+      "archive": 2,
+      "second": 2,
+      "identical": true
+    },
+    "OperatorUnpaused": {
+      "archive": 2,
+      "second": 2,
+      "identical": true
+    }
+  },
+  "state": {
+    "version": "SuperPaymaster-5.4.2",
+    "APNTS_TOKEN": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+    "pendingAPNTsToken": "0xBb46321545a91DB2F3B5c3e694F2f23aBe259883",
+    "pendingAPNTsEta": null,
+    "operators": [
+      {
+        "operator": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+        "aPNTsBalance": "844540702843415794600",
+        "isConfigured": true,
+        "isPaused": false,
+        "xPNTsToken": "0xE6579A90dc498a710008de12119812D0FB7aA224",
+        "treasury": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
+      },
+      {
+        "operator": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+        "aPNTsBalance": "1690008712737068326800",
+        "isConfigured": true,
+        "isPaused": false,
+        "xPNTsToken": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+        "treasury": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    ],
+    "pendingDebts": []
+  },
+  "deployBlock": {
+    "archive": 11151016,
+    "second": "unavailable: state read failed at 5846114 (endpoint not archive?)"
+  },
+  "range": {
+    "from": 11151016,
+    "to": 11692228
+  },
+  "events": {
+    "OperatorConfigured": 4,
+    "OperatorDeposited": 5,
+    "DebtRecordFailed": 0,
+    "PendingDebtRetried": 0,
+    "PendingDebtCleared": 0,
+    "APNTsTokenChangeQueued": 2,
+    "APNTsTokenChangeCancelled": 0,
+    "APNTsTokenChangeExecuted": 0,
+    "OperatorPaused": 2,
+    "OperatorUnpaused": 2
+  },
+  "positiveControl": {
+    "operatorConfiguredEventsFound": true,
+    "everyEventOperatorReadsConfigured": true
+  }
+}
