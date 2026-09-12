@@ -322,6 +322,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 3 | 用 `setOperatorPaused`（SP `:589`）暂停所有旧代币的 operator；等 mempool 里的旧 op 清空 | 各 operator `isPaused == true` |
 | 4 | 按顺序部署：`GlobalTierSource` → codehash 白名单登记 → AOA 工厂（构造时生成 v2 模板，把默认分档源传给 token 的 initialize，**立即** `setSuperPaymasterAddress(SP)`）；如果需要 F1，再部署 lens | 模板 codehash 与 artifact 一致；工厂的 SUPERPAYMASTER 等于 SP |
 | 5 | 升级之前核对 5.5.0 impl 的构造参数（`REGISTRY`、`ETH_USD_PRICE_FEED`、`entryPoint`）；SP `upgradeToAndCall` → 5.5.0 | `version()`；三个 immutable 读回，并与 5.4.2 一致；BLS 三腿不变；`sbtHolders` 抽样；`userOpState` 抽样 |
+| 5b | **SP 在 EntryPoint 的质押补足到 ≥ 1 ETH，`unstakeDelaySec` ≥ 86400**（v3.9，D-9 调整：主用 bundler Rundler v0.11.0 的默认门槛是 1 ETH / 86400 s，与 ERC-7562 的 MIN_UNSTAKE_DELAY 一致；SP 在验证期读全局槽，依赖 STO-033，不质押就会被 bundler 拒绝）。owner 调用 `SP.addStake{value: 差额}(max(86400, 当前 delay))`。2026-09-13 的实测：Sepolia 的 SP `0x09DF…` 和 OP 主网的 SP `0xA2c9…` 质押都只有 **0.1 ETH**（delay 86400） | `EntryPoint.getDepositInfo(SP)`：`staked == true`、`stake ≥ 1e18`、`unstakeDelaySec ≥ 86400`、`withdrawTime == 0` |
 | 6 | `SP.setXPNTsFactory(AOA 工厂)`（CC-119 T5） | 读回 |
 | 7a | 各社区在 AOA 工厂发 v2 代币（community 固定；`creditPolicy` 初始为 OFF），operator **仍处于暂停状态** | 代币 codehash 与模板一致；默认分档源读回正确 |
 | 7b | **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。下面保留原来的三个选项，仅作记录：(a) 把核对过的旧债导入 v2 代币；(b) 在 v2 代币上把欠债用户标记为不可开通信用；(c) 核销并在迁移记录里披露总额。**(a) 或 (b) 需要 v2 模板多一个一次性函数**（`importLegacyDebt(users, amounts)` 或 `setCreditIneligible(users)`，只有 communityOwner 能调，只能在 `creditPolicy` 首次离开 OFF 之前调用，而且之后永久关闭）；(c) 不需要改接口 | 对账记录入库；**这是 7c 的前置验收条件** |

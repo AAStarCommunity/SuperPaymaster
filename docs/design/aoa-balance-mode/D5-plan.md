@@ -12,6 +12,7 @@
 | `pendingAPNTsToken` | `0xBb46…9883`（**非零**） | runbook 第 1 步要求"执行或取消，二选一"。这就是作者此前推迟的 aPNTs 切换。**演练两条分支都走；实际选哪一条由作者决定** |
 | `cachedPrice.updatedAt` | 1788255708（已过期） | 7c 取消暂停之前必须 `updatePrice` 并读回（DSR D3 §8(a) 的条件） |
 | 本机工具 | anvil 1.7.1、cargo、node；Docker 已安装但 daemon 未运行；没有 bun，pnpm 不在 PATH；`../super-relay` 是 Rundler 0.9.0 的 fork（已有 release 构建），`../UltraRelay-AAStar` 是 Alto 的 fork | 见 §3.1 的工具方案 |
+| 目标链硬分叉层级 | Sepolia、OP 主网、OP Sepolia 都已是 **Osaka**（实测，见 b-layer/README §0） | B 层统一对齐 Osaka（`anvil --hardfork osaka`） |
 | Anvil 对 JS tracer 的支持 | 已探测：`debug_traceCall` 接受自定义 JS tracer，`step` 回调逐条 opcode 执行（PUSH1…RETURN 全部记录到） | 这只是必要条件，**是否足以支撑 bundler 的完整 tracer 由门槛 B0 判定**（§3.2） |
 
 ## 1. 顺序
@@ -118,3 +119,9 @@ Anvil 能执行 JS tracer，但 bundler 的 tracer 还会用到 `db.getState`、
 3. **G1 新增 B10**：用新的 paymasterAndData 格式，分别调用 Alto 和 Rundler 的 `eth_estimateUserOperationGas`，确认估算能跑通，并且估出的 `paymasterPostOpGasLimit ≥ MIN_POST_OP_GAS`。SDK 和 D7 依赖这条路径。
 4. **pendingAPNTsToken（`0xBb46…`）**：两条分支都演练，结果并列。每条分支都写明对 RepCredit 冻结证据的影响，以及 operator 余额迁移的读回。**作者决定之前，runbook 第 1 步保持"阻塞"。**
 5. G2 做完先单独交 DSR 验收，不等 D5 全部完成。
+
+## 7. B0 之后的调整（2026-09-13）
+
+- B0 通过（`60130aa8`，结果见 b-layer/README）。**D-9 调整**：主用 bundler 改为 Rundler v0.11.0（`2a3db237`），Alto v1.2.5（`45bbf341`）作为交叉验证；G1 以 Rundler 的结果为准。
+- 链统一为 **Osaka** 级别。原计划写的"Prague"已更正，依据是 `eth_config` 和 CLZ 探针（带负对照）。
+- runbook 新增 **5b**：SP 质押补足到 ≥ 1 ETH，delay ≥ 86400，并读回（03 §6）。
