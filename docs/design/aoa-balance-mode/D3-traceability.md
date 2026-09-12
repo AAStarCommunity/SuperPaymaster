@@ -53,6 +53,6 @@
 - `bufWei = 0` → Part 2 的三个测试全部在 "user charge covers …" 这条断言上变红。
 - buffer 去掉 postOpGasLimit 这一项 → 同样三红。
 
-**需要作者或 DSR 知悉的结论**：
-1. `C_WRAP` 在当前参数下**不承重**。把它改成 1k，Part 2 依然通过，因为 buffer 里的 `postOpGasLimit` 项（至少 200k，而 postOp 实际只用约 80k）已经远大于 wrap。C_WRAP 是第二重保险，30k 相对实测值很保守。要不要收紧（比如改成 5k，仍有 3 倍余量），是参数取舍，会改动合约常量，本次不改。
-2. OP 主网的 L1 数据费不经过 EntryPoint 的记账，由 bundler 通过 preVerificationGas 回收。PVG 包含在 P 里，所以不属于 C_WRAP 需要覆盖的范围。
+**结论（DSR 已确认：C_WRAP 保持 30k）**：
+1. **在当前参数下，buffer 主要由 postOpGasLimit 项决定，C_WRAP 不起决定作用。** 把 C_WRAP 改成 1k，Part 2 依然通过，因为 `postOpGasLimit` 项（至少 200k，而 postOp 实际只用约 80k）已经远大于 wrap（约 1.7k）。C_WRAP 是第二重保险，30k 相对实测值有约 17 倍余量。改它要同时动合约常量和规范，不值得，所以不改。用户多付的主要来源是 postOpGasLimit 项；论文据此解释多付的来源（B-9 / R1-8），多付量的实测分布（均值、P95、最大值）放到 P2、P4 采集。
+2. OP 主网的 L1 数据费不经过 EntryPoint 的记账，由 bundler 通过 preVerificationGas 回收。PVG 已经计入 P，所以不在 C_WRAP 需要覆盖的范围内。

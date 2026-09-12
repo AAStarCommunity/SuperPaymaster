@@ -15,7 +15,8 @@
 >
 > 每一轮的发现都由 SP 对照源码复核后才并入。**作者已定（2026-09-12）**：D-21 不处理（测试数据）；主网 = OP 主网；D-9 = 自托管 Alto 主用、Rundler 交叉验证（DSR 经作者授权确定）；DVT 询问走 Seeder（CC-121）。
 >
-> **状态：v3.8-rc（2026-09-12）：并入 Codex 第 10 轮（1 High + 5 Medium）和 D1 的实现期发现（token 拆成核心和扩展、工厂接收预先部署的模板），见 §11。**
+> **状态：v3.9-rc（2026-09-13）：D6——按 R10-M1b / R10-M2 重写 §10.2 状态转移表，按模式拆开 opReverted 行，每一格补上 file:line；I10 的措辞同步到在途预留（operator 在 release 后净额为 0，G 由 SP 的 ETH 押金承担）。**
+> v3.8-rc（2026-09-12）：并入 Codex 第 10 轮（1 High + 5 Medium）和 D1 的实现期发现（token 拆成核心和扩展、工厂接收预先部署的模板），见 §11。**
 > v3.7-rc（2026-09-12）：并入 DSR 以 Reviewer 1 视角做的验收复核（B-1…B-7 High、独立审计闸门、Medium B-9/B-11/B-12），规范性内容在 §10，它优先于前文。**
 > v3.6-rc（2026-09-12）：并入 Codex 第 8 轮（EIP-1167 最小代理的白名单规则；急停期间 SP 更换的规则）和 DSR 补充的 V4 产品影响。**
 > v3.5-rc（2026-09-12）：新增 §2.5 SP 地址状态机的完整定义（S-0…S-7），起因是 stop-time Codex 审查指出 A-10 的更换流程不完整、没法实现。**
@@ -241,6 +242,9 @@ L-4 规定释放时全额退回。`MIN_POST_OP_GAS` 必须 ≥ v2 postOp 最坏�
 | S-6 | `emergencySwitchToStandby()` | communityOwner | 处于急停状态；`standbySP != 0` 且不等于 `emergencyRevokedAddress`；重新检查 codehash | `current = standbySP`；`historicalSP` 置位；`standbySP = 0`；清空 pending |
 | S-7 | `unsetEmergencyDisabled()` | communityOwner | `current != emergencyRevokedAddress`（沿用现有规则） | `emergencyDisabled = false` |
 
+**实现位置（D6）**：S-0 在 `xPNTsTokenV2.sol:85–91`（`initialize`）。以下各转移都在 `xPNTsTokenV2Ext.sol` 中：S-1 `:223`、S-2 `:245`、S-3 `:257`、S-4 `:268`、S-5 `:280`（propose）和 `:289`（designate）、S-6 `:301`、S-7 `:311`；`_setCurrentSP` 在 `:318`，负责 `historicalSP` 写入和清空 pending。
+覆盖测试：`xPNTsTokenV2Test.test_S1_S3_rotation_after_timelock`、`test_factory_proposal_cannot_override_community_and_is_cancelled_by_emergency`、`test_S6_S7_standby_recovery`，以及 `xPNTsTokenV2D3Test` 的 `test_S2_*`、`test_S3_*`、`test_A10_*`。
+
 **为什么急停期间还允许 S-3**（与 Codex 第 8 轮的建议不同）：如果急停期间只能走备用 SP，那么没有预设备用 SP 的社区会永久卡在急停状态（S-7 要求 current 不等于被撤销的地址）。只允许 communityOwner 发起、已公示满 48 h 的提议，它的安全性和备用 SP 相同（都是 48 h 前就公开的地址），而且不会卡死。
 
 **由此得到的性质**：急停之后，恢复只有两条路：S-6 立即切到 48 h 前就公开的备用 SP，或者 S-3 等一个 48 h 的提议到期；然后才能 S-7 解除急停。
@@ -432,33 +436,40 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 |---|---|
 | I8 | 对每一笔 BALANCE 或 CREDIT op：用户执行结果被保留 ⇒ 这一笔已经结算（烧币或记债） |
 | I9 | **没有后盾的赞助**（执行结果被保留、用户却没付钱）：**每笔 = 0，每 bundle = 0，每 operator = 0** |
-| I10 | postOp 回滚（只可能是实现缺陷或 gas 上界测错）时：用户净额 = 0（执行被撤销，锁全额退回）；operator 损失这一笔的预扣额 `a0`，`protocolRevenue` 虚增 `a0`（沿用现有的"验证期乐观预扣"行为，`SuperPaymaster.sol:1228`）；**每笔上界 = a0**，攻击者没有收益 |
+| I10 | postOp 回滚（只可能是实现缺陷或 gas 上界测错）时：用户净额 = 0（执行被撤销，锁全额退回）；**v3.9 起以 R10-M1b 为准**：operator 的 `a0` 在交易之后经 `releaseStaleSponsorship` 全额退回，净额 = 0，`protocolRevenue` 不变；这一笔的 EntryPoint 费用 `G` 由 SP 的 ETH 押金承担（每笔上界 = 这一笔的 prefund），攻击者没有收益。（原文"operator 损失 a0、protocolRevenue 虚增 a0"描述的是 R10-M1b 之前的行为，已作废） |
 
-### 10.2 B-2：状态转移表（m6）
+### 10.2 B-2：状态转移表（m6；v3.9 按 R10-M1b / R10-M2 重写，D6）
 
 记号：`a0` = 验证期预留的 aPNTs（§10.3），`x0 = ceil(a0 · rate_v / 1e18)`（`rate_v` 是验证时的汇率），`c` = 结算额（aPNTs，`c ≤ a0`），
-`xc = min(x0, ceil(c · x0 / a0))`，`G` = EntryPoint 向 SP 收取的 ETH。空格表示不变。实现之后，每一格补上 `file:line`。
+`xc = min(x0, ceil(c · x0 / a0))`，`G` = EntryPoint 从 SP 的 ETH 押金里扣的最终费用。空格表示不变。
+行号对应 D3 头部 `1f8769c7`；`SP` = `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`，`T` = `contracts/src/tokens/v2/xPNTsTokenV2.sol`，`B` = `…/v2/xPNTsV2Base.sol`，`X` = `…/v2/xPNTsTokenV2Ext.sol`，`EP` = 规范 EntryPoint v0.7（codehash `0x8db5ff69…`）。
 
-| 事件 \ 状态 | 用户 xPNTs 余额 | lockedOf | creditReservedOf | debts | operator aPNTsBalance | SP 持有的 aPNTs | protocolRevenue | EP ETH 押金 | xPNTs totalSupply |
-|---|---|---|---|---|---|---|---|---|---|
-| operator deposit(amt) | | | | | +amt | +amt | | | |
-| validate 失败（sigFail） | | | | | | | | | |
-| BALANCE 锁定 | | +x0 | | | −a0 | | +a0 | | |
-| CREDIT 预留 | | | +a0 | | −a0 | | +a0 | | |
-| postOp 成功（BALANCE） | −xc | −x0 | | | +(a0−c) | | −(a0−c) | −G | −xc |
-| postOp 成功（CREDIT） | | | −a0 | +c | +(a0−c) | | −(a0−c) | −G | |
-| opReverted（用户执行 revert） | 同"postOp 成功"对应模式那一行（用户照样为 gas 付费） | | | | | | | −G | |
-| postOp 回滚（I10） | | 锁留下，等 stale release | 预留留下 | | 不退（−a0 已在验证期发生） | | 不扣回（+a0 保留） | −G | |
-| stale release（锁） | | −x0 | | | | | | | |
-| stale release（预留） | | | −a0 | | | | | | |
-| withdrawProtocolRevenue(amt) | | | | | | −amt | −amt | | |
-| mint(m) 且有债（自动抵债） | +m − rx | | | −ra | | | | | +m − rx |
-| 用户停用 / 恢复 | | | | | | | | | |
-| 急停 / 更换 SP | 已有的锁、预留照常结算或释放 | | | | | | | | |
-| 迁移（§6） | 旧代币不动；v2 从 0 开始 | 0 | 0 | 0 | 原 operator 的余额保留 | | | | |
+| 事件 \ 状态 | 用户 xPNTs 余额 | lockedOf | creditReservedOf | debts | operator aPNTsBalance | SP 持有的 aPNTs | protocolRevenue | in-flight `_inflight[h]` | EP ETH 押金（SP） | xPNTs totalSupply |
+|---|---|---|---|---|---|---|---|---|---|---|
+| operator `deposit(amt)` | | | | | +amt（SP:775） | +amt（SP:764） | | | | |
+| operator `withdraw(amt)` | | | | | −amt（SP:829） | −amt（SP:833） | | | | |
+| validate 失败（sigFail，SP:1183–1255 各 return） | | | | | | | | | | |
+| BALANCE 锁定（validate） | | +x0（T:237） | | | −a0（SP:1258） | | **不变** | 写入 (op, a0)（SP:1260–1261） | −prefund（EP `_validatePaymasterPrepayment`） | |
+| CREDIT 预留（validate） | | | +a0（T:302） | | −a0（SP:1258） | | **不变** | 写入 (op, a0)（SP:1260–1261） | −prefund（同上） | |
+| postOp 成功（BALANCE） | −xc（T:264） | −x0（T:260） | | | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G)（EP `_postExecution`） | −xc（T:264） |
+| postOp 成功（CREDIT） | | | −a0（T:319） | +c（T:322） | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | |
+| opReverted（BALANCE，用户执行 revert） | −xc（T:264） | −x0（T:260） | | | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | −xc |
+| opReverted（CREDIT，用户执行 revert） | | | −a0（T:319） | +c（T:322） | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | |
+| postOp 回滚（I10；用户执行一并撤销） | | 锁留下（活标记随交易结束清零） | 预留留下 | | 暂不退（仍是 −a0） | | **不变** | 保留，活标记清零 | +(prefund−G)（EP 以 postOpReverted 模式二次 `_postExecution`） | |
+| stale release（锁，交易之后，任何人） | | −x0（B:313；T:270 入口） | | | | | | | | |
+| stale release（预留，交易之后） | | | −a0（B:323；T:326 入口） | | | | | | | |
+| `releaseStaleSponsorship(h)`（交易之后，任何人） | | | | | +a0（SP:1356） | | | 删除（SP:1355） | | |
+| `withdrawProtocolRevenue(amt)` | | | | | | −amt（SP:855） | −amt（SP:853） | | | |
+| `mint(m)` 且有债（自动抵债） | +m − rx（B:246–247） | | | −ra（B:245） | | | | | | +m − rx |
+| 用户停用 / 恢复（X:66–67） | | | | | | | | | | |
+| 急停 / 更换 SP | 已有的锁、预留照常由原 locker 结算（T:252）或交易后释放 | | | | | | | 原 SP 的 in-flight 照常结算或释放 | | |
+| 迁移（§6） | 旧代币不动；v2 从 0 开始 | 0 | 0 | 0 | 原 operator 的余额保留 | | | 空 | | |
 
-前置条件：BALANCE 锁定要求 `balance − lockedOf ≥ x0`，且额度、总额、单笔上限、停用标志都满足；CREDIT 预留要求 C-1；postOp 结算要求 L-3。
-`ra`、`rx` 是自动抵债的 aPNTs 额和 xPNTs 额（`xPNTsToken.sol:612` 起的现有逻辑）。
+前置条件：BALANCE 锁定要求 `balance − lockedOf ≥ x0`，且额度、总额、单笔上限、停用标志都满足（T:187–211）；CREDIT 预留要求 C-1（T:275–286）；postOp 结算要求 L-3（T:250–253，T:313–316）；postOp 入口要求 `gasleft() ≥ SETTLE_GAS_BOUND`（SP:1308）；同一 opHash 的 postOp 只记账一次（SP:1318–1319，P1-17）。
+opReverted 与 postOp 成功走同一段代码：SP 的 postOp 不区分 `PostOpMode`（SP:1300）。在两种模式下，速率限制时间戳都会写入（SP:1313–1314）。
+`ra`、`rx` 是自动抵债的 aPNTs 额和 xPNTs 额（B:238–249）。
+**守恒**：对每一笔 op，operator 净变化 = −c（结算）或 0（回滚后 release）；protocolRevenue 只在 postOp 结算时增加 c。验证期不再预记收入，因此不存在"退款被 protocolRevenue 截断"的问题（R10-M1b）。
+**测试**：`SuperPaymasterV55Test.test_balance_mode_end_to_end`（operator 净减 == 收入增 == 烧币量）、`test_I10_stale_sponsorship_restores_operator`、`test_I10_release_refused_while_in_flight`、`test_I8_settle_failure_rolls_back_user_execution_e2e`、`xPNTsTokenV2Test.test_L3_…`/`test_L4_…`，以及 D3 的 A 层和 I 层。
 
 ### 10.3 B-6：预留额（规范）
 
