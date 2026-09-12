@@ -433,7 +433,12 @@ contract CoverageSupplementTest is Test {
         //    mock gToken from initialize, so no setAPNTsToken (now a 7-day queue, P0-9) is needed.
         assertEq(paymaster.APNTS_TOKEN(), address(gtoken));
         vm.prank(address(entryPoint));
-        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v3"), 1000);
+        // D3-M: low-level call so an insolvent operator that makes validation REVERT (e.g. an
+        // unchecked debit underflow) is a named failure, not an anonymous panic.
+        (bool vOk, bytes memory vRet) =
+            address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, keccak256("v3"), 1000)));
+        assertTrue(vOk, "insolvent operator must fail closed (sigFail), not revert");
+        (ctx, valData) = abi.decode(vRet, (bytes, uint256));
         assertEq(valData & 1, 1, "Should fail sig (operator has no aPNTs deposit)");
         assertEq(xpnts.lockedOf(user), 0, "solvency is checked BEFORE touching the token");
 

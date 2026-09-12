@@ -177,9 +177,15 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         assertEq(uint160(vd), 0, "setup: op must be admitted");
     }
 
+    /// @dev D3-M: low-level call so a postOp that reverts where it must settle (or, on a replay,
+    ///      must be a silent no-op — P1-17) is reported by a named assertion.
     function _postOp(bytes memory ctx, uint256 actualGasCost) internal {
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, 0);
+        (bool ok, bytes memory ret) = address(paymaster).call(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, 0))
+        );
+        if (!ok) emit log_named_bytes("postOp revert data", ret);
+        assertTrue(ok, "postOp must not revert here (settle, or no-op on replay)");
     }
 
     function _enableAutoCredit(uint256 tier) internal {
@@ -197,6 +203,56 @@ contract SuperPaymaster_BurnRestore_Test is Test {
 
     function _mode(bytes memory ctx) internal pure returns (uint8) {
         return abi.decode(ctx, (SuperPaymaster.OpCtx)).mode;
+    }
+
+    // ── D3-M additions (make R-2 and the same-tx release guard decisive) ───────
+
+    /// @notice R-2: credit is tried ONLY when the escrow lock answers INSUFFICIENT. An SP-renew
+    ///         flag for a user who chose account-only renewal (MODE_ACCOUNT_ONLY) makes the lock
+    ///         answer INVALID_RENEWAL; even with AUTO credit on file the op must NOT fall back to
+    ///         credit. Positive control: same user, same credit, flags = 0 -> admitted on credit.
+    function test_R2_NonInsufficientLockFailure_NeverFallsBackToCredit() public {
+        _enableAutoCredit(1000 ether);
+        vm.prank(user1);
+        (bool setOk,) = address(xpnts).call(abi.encodeWithSignature("setRenewalMode(uint8)", uint8(1)));
+        assertTrue(setOk, "setup: account-only renewal mode");
+        PackedUserOperation memory op;
+        op.sender = user1;
+        op.paymasterAndData = V2TokenDeployer.pmd(
+            address(paymaster), uint128(100000), uint128(200000), operator1, type(uint256).max, address(xpnts), 1
+        );
+        uint128 opBefore = _opBalance();
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(op, bytes32(uint256(0xA2)), MAX_COST);
+        assertEq(uint160(vd), 1, "INVALID_RENEWAL lock result must not fall back to credit (R-2)");
+        assertEq(ctx.length, 0, "no context");
+        assertEq(xpnts.creditReservedOf(user1), 0, "no credit reservation");
+        assertEq(_opBalance(), opBefore, "operator not debited");
+
+        (bytes memory ctx2, uint256 vd2) = _validate(bytes32(uint256(0xA3)), MAX_COST);
+        assertEq(uint160(vd2), 0, "control: flags = 0 -> INSUFFICIENT -> admitted on credit");
+        assertEq(_mode(ctx2), MODE_CREDIT, "control: CREDIT mode");
+    }
+
+    /// @notice R10-M1b: inside the original transaction the in-flight a0 cannot be released
+    ///         (postOp may still settle it). One test = one transaction here (not isolated).
+    function test_ReleaseStaleSponsorship_SameTx_RevertsInFlight() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        bytes memory ctx = _runValidate();
+        uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
+        uint128 opMid = _opBalance();
+
+        vm.expectRevert(SuperPaymaster.SponsorshipInFlight.selector);
+        paymaster.releaseStaleSponsorship(bytes32(uint256(1)));
+
+        (address f, uint256 inflA0) = paymaster.inflightOf(bytes32(uint256(1)));
+        assertEq(f, operator1, "still in flight");
+        assertEq(inflA0, a0);
+        assertEq(_opBalance(), opMid, "nothing restored while live");
+        // and the live op still settles normally
+        _postOp(ctx, MAX_COST);
+        (f,) = paymaster.inflightOf(bytes32(uint256(1)));
+        assertEq(f, address(0), "settled");
     }
 
     // ── Test 1: User has xPNTs → escrow at validation, burn at postOp, no debt ─

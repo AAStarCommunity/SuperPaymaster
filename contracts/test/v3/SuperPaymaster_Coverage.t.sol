@@ -334,7 +334,11 @@ contract SuperPaymaster_Coverage_Test is Test {
         op.sender = user;
         op.paymasterAndData = pmd;
         vm.prank(address(entryPoint));
-        (, validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        // D3-M: low-level call so "reverts instead of failing closed" is a named failure.
+        (bool ok, bytes memory ret) =
+            address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, bytes32(0), 1000)));
+        assertTrue(ok, "validatePaymasterUserOp must fail closed (sigFail), never revert");
+        (, validationData) = abi.decode(ret, (bytes, uint256));
     }
 
     // ─── D1: executeAPNTsTokenChange ───────────────────────────────────────────
@@ -647,6 +651,20 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Sig failure is encoded as address(1) in lower 160 bits
         address authorizer = address(uint160(validationData));
         assertEq(authorizer, address(1), "Should return SIG_FAILURE for unconfigured operator");
+
+        // D3-M: with the token field = xpnts, the 5.5.0 token binding (config.xPNTsToken == 0 for
+        // an unconfigured operator) ALSO rejects, masking the isConfigured gate. With a zero token
+        // field the binding passes, so isConfigured is the only gate left: without it validation
+        // would call exchangeRate() on address(0) and revert instead of failing closed.
+        PackedUserOperation memory op;
+        op.sender = user1;
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200000, op9, type(uint256).max, address(0), 0);
+        vm.prank(address(entryPoint));
+        (bool ok, bytes memory ret) =
+            address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, bytes32(0), 1000)));
+        assertTrue(ok, "unconfigured operator + zero token field must fail closed, not revert");
+        (, uint256 vd0) = abi.decode(ret, (bytes, uint256));
+        assertEq(address(uint160(vd0)), address(1), "SIG_FAILURE from the isConfigured gate alone");
     }
 
     /**

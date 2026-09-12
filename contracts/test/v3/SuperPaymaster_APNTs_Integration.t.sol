@@ -176,8 +176,12 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
 
     /// @notice C-0: credit defaults OFF in v2 -> effectiveCreditCap == 0 -> no available credit,
     ///         even though the Registry tier (10_000 aPNTs) is non-zero.
-    function test_GetAvailableCredit_PolicyOff_IsZero() public view {
+    function test_GetAvailableCredit_PolicyOff_IsZero() public {
         assertGt(registry.getCreditLimit(user), 0, "tier is non-zero (control)");
+        // D3-M: a current-epoch request is on file as well, so the OFF policy is the ONLY reason
+        // the cap is 0 (without the OFF gate it would be min(request, CEILING, tier) > 0).
+        vm.prank(user);
+        IxPNTsV2Admin(address(xpnts)).requestCredit(20_000 ether);
         assertEq(xpnts.effectiveCreditCap(user), 0, "OFF -> cap 0");
         assertEq(sp.getAvailableCredit(user, address(xpnts)), 0, "OFF -> no available credit");
     }
@@ -231,6 +235,10 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     ///         sponsored and no debt can arise. Replaces the removed 5.4 unconditional
     ///         debt fallback (_recordDebt).
     function test_PostOp_NoCreditPolicy_EmptyUser_NotSponsored() public {
+        // D3-M: request on file + non-zero tier, so the OFF policy is the only thing that can
+        // refuse the credit fallback (otherwise a missing request would mask it).
+        vm.prank(user);
+        IxPNTsV2Admin(address(xpnts)).requestCredit(20_000 ether);
         uint128 opBefore = _getAPNTsBalance(operator);
         vm.prank(address(ep));
         (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(_op(user, type(uint256).max), bytes32(uint256(1)), MAX_COST);

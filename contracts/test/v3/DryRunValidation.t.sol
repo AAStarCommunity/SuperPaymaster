@@ -177,16 +177,26 @@ contract DryRunValidationTest is Test {
         );
     }
 
+    /// @dev D3-M: staticcall so a lens that REVERTS (instead of returning a reason) is a named failure.
     function _dry(PackedUserOperation memory op, uint256 maxCost) internal view returns (bool, bytes32) {
-        return lens.dryRunValidation(address(paymaster), op, maxCost);
+        (bool ok, bytes memory ret) =
+            address(lens).staticcall(abi.encodeCall(lens.dryRunValidation, (address(paymaster), op, maxCost)));
+        require(ok, "lens must return a reason code, never revert");
+        return abi.decode(ret, (bool, bytes32));
     }
 
     /// @dev Real validation on a throw-away state fork; returns true iff it did NOT sigFail.
     function _validates(PackedUserOperation memory op, uint256 maxCost) internal returns (bool) {
         uint256 snap = vm.snapshot();
         vm.prank(address(entryPoint));
-        (, uint256 vd) = paymaster.validatePaymasterUserOp(op, keccak256(abi.encode("probe", op.sender, maxCost)), maxCost);
+        // D3-M: low-level call so a validation that REVERTS (instead of failing closed with
+        // sigFail) is reported by a named assertion rather than an anonymous EvmError.
+        (bool ok, bytes memory ret) = address(paymaster).call(abi.encodeCall(
+            paymaster.validatePaymasterUserOp, (op, keccak256(abi.encode("probe", op.sender, maxCost)), maxCost)
+        ));
         vm.revertTo(snap);
+        assertTrue(ok, "validatePaymasterUserOp must not revert (fail closed with sigFail)");
+        (, uint256 vd) = abi.decode(ret, (bytes, uint256));
         return uint160(vd) == 0;
     }
 
@@ -254,8 +264,8 @@ contract DryRunValidationTest is Test {
 
         // Now lastTimestamp is set to block.timestamp; second dry-run should be rate limited
         (bool ok, bytes32 reason) = _dry(firstOp, 1000);
-        assertFalse(ok);
-        assertEq(reason, bytes32("RATE_LIMITED"));
+        assertFalse(ok, "rate-limited op must not dry-run OK");
+        assertEq(reason, bytes32("RATE_LIMITED"), "reason: RATE_LIMITED");
 
         // Warp past the interval and it should pass again
         vm.warp(block.timestamp + 3601);
@@ -263,7 +273,7 @@ contract DryRunValidationTest is Test {
         paymaster.updatePrice();
         (ok, reason) = _dry(firstOp, 1000);
         assertTrue(ok, "after interval should pass");
-        assertEq(reason, bytes32(0));
+        assertEq(reason, bytes32(0), "after the interval: reason OK");
     }
 
     function test_DryRun_RateCommitmentViolated() public {
@@ -281,14 +291,25 @@ contract DryRunValidationTest is Test {
         _assertRejectAgrees(_buildUserOp(user, operator, type(uint256).max), huge, bytes32("INSUFFICIENT_BALANCE"));
     }
 
+    /// @notice D3-M: `huge` above is 2.4x over the deposit, so it cannot tell whether the lens
+    ///         mirrors the full a0 (fee + 10% validation buffer). Near the boundary it can:
+    ///         maxCost 4.3e16 -> a0 = 5.16e21 > 5e21 deposit (1.1x would be 4.73e21 <= 5e21);
+    ///         maxCost 4.1e16 -> a0 = 4.92e21 <= 5e21, so the balance gate must NOT be the reason.
+    function test_DryRun_InsufficientBalance_BufferBoundary() public {
+        PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
+        _assertRejectAgrees(op, 4.3e16, bytes32("INSUFFICIENT_BALANCE"));
+        (, bytes32 reason) = _dry(op, 4.1e16);
+        assertTrue(reason != bytes32("INSUFFICIENT_BALANCE"), "control: a0 = 4.92e21 fits the 5e21 deposit");
+    }
+
     function test_DryRun_StalePrice() public {
         // Warp past staleness threshold (1 hour) — price cache becomes stale.
         vm.warp(block.timestamp + 2 hours);
 
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
         (bool ok, bytes32 reason) = _dry(op, 1000);
-        assertFalse(ok);
-        assertEq(reason, bytes32("STALE_PRICE"));
+        assertFalse(ok, "stale cache must not dry-run OK");
+        assertEq(reason, bytes32("STALE_PRICE"), "reason: STALE_PRICE");
     }
 
     /// @notice Sanity check: the lens does not mutate operator or token state
@@ -326,7 +347,7 @@ contract DryRunValidationTest is Test {
         // Also use a huge maxCost that will fail INSUFFICIENT_BALANCE
         uint256 huge = 1e17; // same as test_DryRun_InsufficientBalance
         (bool ok, bytes32 reason) = _dry(firstOp, huge);
-        assertFalse(ok);
+        assertFalse(ok, "hard failure: not OK");
         // Hard failure (INSUFFICIENT_BALANCE) must win over the soft RATE_LIMITED
         assertEq(reason, bytes32("INSUFFICIENT_BALANCE"),
             "hard failure must take precedence over RATE_LIMITED");
@@ -341,7 +362,7 @@ contract DryRunValidationTest is Test {
         // Do NOT call updatePrice() — cache is now stale.
 
         (bool ok, bytes32 reason) = _dry(firstOp, 1000);
-        assertFalse(ok);
+        assertFalse(ok, "hard failure: not OK");
         // Hard failure (STALE_PRICE) must win over the soft RATE_LIMITED
         assertEq(reason, bytes32("STALE_PRICE"),
             "STALE_PRICE must take precedence over RATE_LIMITED");
@@ -389,6 +410,11 @@ contract DryRunValidationTest is Test {
             .sig("cachedPrice()")
             .depth(1)           // PriceCache { price, updatedAt } — depth 1 = updatedAt
             .checked_write(uint256(0));
+        // D3-M: at the setUp timestamp, `block.timestamp > 0 + threshold` is ALSO true, which would
+        // mask the explicit updatedAt == 0 clause. Rewind to t = 100 (< threshold) so only that
+        // clause can report STALE_PRICE.
+        vm.warp(100);
+        assertLt(block.timestamp, paymaster.priceStalenessThreshold(), "time clause alone would not fire");
 
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
         (bool ok, bytes32 reason) = _dry(op, 1000);
@@ -404,7 +430,7 @@ contract DryRunValidationTest is Test {
         // User is now rate-limited. Build op with maxRate=1 to trigger commitment violation.
         PackedUserOperation memory badOp = _buildUserOp(user, operator, 1);
         (bool ok, bytes32 reason) = _dry(badOp, 1000);
-        assertFalse(ok);
+        assertFalse(ok, "hard failure: not OK");
         assertEq(reason, bytes32("RATE_COMMITMENT_VIOLATED"),
             "RATE_COMMITMENT_VIOLATED must take precedence over RATE_LIMITED");
     }
@@ -416,7 +442,7 @@ contract DryRunValidationTest is Test {
     function test_DryRun_VersionMismatch() public {
         vm.mockCall(address(paymaster), abi.encodeWithSignature("version()"), abi.encode("SuperPaymaster-5.4.2"));
         (bool ok, bytes32 reason) = _dry(_buildUserOp(user, operator, type(uint256).max), 1000);
-        assertFalse(ok);
+        assertFalse(ok, "other SP version: not OK");
         assertEq(reason, lens.DRYRUN_VERSION_MISMATCH(), "lens refuses to guess for another SP version");
     }
 
@@ -428,6 +454,17 @@ contract DryRunValidationTest is Test {
 
     function test_DryRun_TokenMismatch_WrongToken() public {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
+
+        // D3-M: first a REAL v2 token of another community, bound to this SP and funded for the
+        // user, so the binding check is the only thing that can reject it — without the check
+        // validation would ADMIT it (0xBAD below has no code, so an unbound validation would only
+        // revert, which is weaker evidence).
+        V2TokenDeployer.Stack memory st2 = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xPNTsTokenV2 foreign = V2TokenDeployer.newToken(st2, address(0xF0F0), address(0xF0F0), address(paymaster), 1e18);
+        IxPNTsV2Admin(address(foreign)).mint(user, 1_000 ether);
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(foreign), 0);
+        _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
+
         op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(0xBAD), 0);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
@@ -480,7 +517,7 @@ contract DryRunValidationTest is Test {
         PackedUserOperation memory op = _buildUserOp(poor, operator, type(uint256).max);
         (bool ok, bytes32 reason) = _dry(op, 1000);
         assertTrue(ok, "credit path sponsorable");
-        assertEq(reason, bytes32(0));
+        assertEq(reason, bytes32(0), "credit path: reason OK");
         assertTrue(_validates(op, 1000), "validation agrees (CREDIT)");
     }
 }

@@ -368,12 +368,39 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         uint256 userBal0 = xpntsToken.balanceOf(user1);
 
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 10_000, 0); // uncapped: 1.1e9
+        // D3-M: low-level call — without the cap the refund (a0 - charge) underflows and postOp
+        // reverts; report that through a named assertion.
+        (bool ok,) = address(paymaster).call(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 10_000, 0)) // uncapped: 1.1e9
+        );
+        assertTrue(ok, "actual >> maxCost must still settle (charge capped at a0), not revert");
 
         (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
         assertEq(balFinal, balAfterVal, "no refund when charge == a0");
         assertEq(paymaster.protocolRevenue(), 120000000, "charge capped at a0");
         assertEq(userBal0 - xpntsToken.balanceOf(user1), 120000000, "user burns at most x0");
+    }
+
+    /// @notice D3-M: every other test in this file uses round numbers, so the Ceil rounding
+    ///         directions of spec §10.3 were never observable. aPNTs at $0.021 makes both the
+    ///         conversion and the markups inexact:
+    ///           aGas = ceil(1001 * 2000e8 * 1e18 / (1e8 * 0.021e18)) = ceil(95,333,333.3) = 95,333,334
+    ///           a0   = ceil(aGas * 1.2)  = ceil(114,400,000.8) = 114,400,001
+    ///           c    = ceil(aGas * 1.1)  = ceil(104,866,667.4) = 104,866,668   (feePerGas = 0)
+    function test_A0_And_Charge_RoundUp() public {
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(0.021 ether);
+        PackedUserOperation memory op = _opWithCallGas(0);
+
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(op, keccak256("round"), 1001);
+        assertEq(uint160(vd), 0);
+        (uint128 b0,,,,,,,,) = paymaster.operators(operator1);
+        assertEq(5000 ether - uint256(b0), 114400001, "a0 rounds up at both steps");
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1001, 0);
+        assertEq(paymaster.protocolRevenue(), 104866668, "charge rounds up at both steps");
     }
 
     /// @notice R10-M3: postOp prices with the VALIDATION-time snapshot carried in context, not
@@ -396,6 +423,12 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         paymaster.validatePaymasterUserOp(op, keccak256("snap2"), maxCost);
         (uint128 b1,,,,,,,,) = paymaster.operators(operator1);
         assertEq(uint256(b0) - b1, 1.8e20, "control: a0 at $3000");
+
+        // D3-M: the aPNTs USD price is part of the snapshot too (OpCtx.aPriceUSD). Move it (+5%,
+        // inside the ±10% setter band) so a postOp that read the live aPNTsPriceUSD would differ.
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(0.021 ether);
+        assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether, "control: aPNTs price really moved");
 
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 0);
