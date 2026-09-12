@@ -90,3 +90,26 @@ python3 scripts/check-xpnts-v2-selectors.py --self-test
 
 对比迁移之前的基线（加入 v2 测试之前，Cancun 为 1421 / 0 / 49）：通过数 +56，跳过数不变。Prague 的总数比 Cancun 少，是因为需要注入预编译的测试套件在 Prague 下会自行跳过（`contracts/test/helpers/MockedPrecompiles.sol`）。
 三个检查脚本：`check_storage_layout.py`（SuperPaymaster 38 项、Registry 32 项，均无漂移）、`check-xpnts-v2-layout.py --self-test`、`check-xpnts-v2-selectors.py --self-test` 全部通过。
+
+## 8. 仓库内调用方与 ABI（Codex 收尾审查指出的缺口）
+
+**结论：D2 交付的是合约 + Foundry 测试。仓库内还有链下调用方和部署脚本仍然面向 5.4.x，所以在它们迁移完成之前，这个分支不能交付、不能部署，也不能 push 给下游使用。**
+
+### 8.1 已完成（本次）
+
+| 项 | 内容 |
+|---|---|
+| `abis/` | 重新生成 `SuperPaymaster.json`（已去掉 dryRunValidation / retryPendingDebt / clearPendingDebt / pendingDebts，新增 releaseStaleSponsorship / inflightOf）；新增 `SuperPaymasterLens.json`、`xPNTsTokenV2.json`、`xPNTsTokenV2Ext.json`、**`xPNTsTokenV2.full.json`**（核心 + 只属于扩展的 59 个条目，共 241 个；两者部署在同一个地址）、`xPNTsFactoryV2.json`、`AOAProtocolRegistry.json`、`GlobalTierSource.json`；manifest 已更新。只提取了这次改动涉及的合约，没有顺带重新生成其他合约（按脚本注释的要求，那会给 SDK 带来一次不相关的破坏性变更）。`node scripts/check-abi-bundle.mjs`：23 个 bundle 与编译产物的完整形状一致 |
+| 生成器修正 | `scripts/extract_v3_abis.sh` 原本用 `find \| head -1` 选 artifact，会选到 `out/v2/<C>.sol/<C>.json`（optimizer runs=200），而不是 deploy-core 实际部署的 default profile（runs=500）。现在优先取确切的 `out/<C>.sol/<C>.json`。本次 7 个 ABI 文件里的 bytecode 都已与 default 产物逐字节比对，一致 |
+| README | 新增"5.5.0 破坏性接口变更"一节：删除了什么、用什么替代、paymasterAndData 的新格式，并写明哪些调用方尚未迁移 |
+
+### 8.2 尚未迁移（逐个列出，并指定归属的交付物）
+
+| 调用方 | 受影响的原因 | 归属 |
+|---|---|---|
+| `contracts/script/v3/DeployAnvil.s.sol`、`DeployLive.s.sol`、`TestAccountPrepare.s.sol`、`InitializeAAStar.s.sol`、`InitializeTestCommunities.s.sol`、`DeployRepCreditSepolia.s.sol` | 部署 3.x 工厂和 3.x 代币，并用 3.x 代币调用 `configureOperator`（在 5.5.0 上会以 InvalidXPNTsToken revert） | **D5**：按 runbook 部署 v2 栈（registry → bootstrap → seal → ext → impl → 分档源 → factoryV2），再在 fork 上演练 |
+| `contracts/script/deployment/08b_WireUpToken.s.sol`、`11_ConfigureOperator.s.sol`、`11_1_ConfigureBreadOperator.s.sol` | 同上（08b 接的是 3.x 代币；11 / 11_1 用的是已经废弃的三参数签名，本来就编不过） | D5 |
+| `contracts/script/v3/L4GaslessTest.s.sol` | 用旧格式拼 paymasterAndData（没有 token 字段） | D5 |
+| `script/gasless-tests/test-helpers.js` 以及 `test-case-2/3/4`、`test-group-B1/B3/B4/B5/C1/E3/E4/I1`、`run-all-e2e-tests.sh`、`README.md`；`script/v3/test-e2e.js` | 旧格式的 paymasterAndData；调用 SP 的 `dryRunValidation`；断言 `pendingDebts` / `burnFromWithOpHash` 这条回退路径 | **新交付物 D7：链下 E2E 迁移**（依赖 D5 的部署）。旧回退路径相关的用例改为 5.5.0 的对应语义，dryRun 改调 lens |
+| `scripts/gasless-test/*.js`（6 个旧版本的 viem 脚本） | 旧格式的 paymasterAndData | D7。先判断它们是否还在用，不再用的就归档，不改 |
+| 下游：aastar-sdk、DVT、YAAA | ABI、paymasterAndData、合并后的 token ABI、lens | 按 CLAUDE.md 约定，在对应仓库**开 issue**（不向别人的仓库提 PR）；在 D5 / D7 完成、SP 这边分支可以部署之后再开 |

@@ -39,6 +39,13 @@ CONTRACTS=(
     # entry survived every ABI sync. Making a missing artifact fail-closed is what surfaced
     # it -- which is the argument for the change, not a side effect of it.
     "MicroPaymentChannel"
+    # 5.5.0 AOA balance mode (docs/design/aoa-balance-mode/03-final-spec.md)
+    "SuperPaymasterLens"
+    "xPNTsTokenV2"
+    "xPNTsTokenV2Ext"
+    "xPNTsFactoryV2"
+    "AOAProtocolRegistry"
+    "GlobalTierSource"
 )
 
 # Optional positional args select a SUBSET of the list above, e.g.
@@ -94,9 +101,19 @@ echo "🔍 Starting ABI extraction for V3/V4..."
 MISSING_ARTIFACTS=()
 
 for CONTRACT in "${CONTRACTS[@]}"; do
+    # 5.5.0: prefer the CANONICAL default-profile artifact path first. `find ... | head -1`
+    # returned out/v2/<C>.sol/<C>.json for the v2 contracts -- an artifact compiled with
+    # optimizer runs=200, not the default profile's 500 that deploy-core ships -- so the
+    # bytecode written to abis/ would not have matched the deployed code. Named, not guessed.
+    FILE=""
+    if [ -f "out/${CONTRACT}.sol/${CONTRACT}.json" ]; then
+        FILE="out/${CONTRACT}.sol/${CONTRACT}.json"
+    fi
     # Foundry 的路径通常是 out/ContractName.sol/ContractName.json
     # 如果存在多个匹配（例如 wrapper），优先选择非 core 目录下的，或者更完整的
-    FILE=$(find out -name "${CONTRACT}.json" -not -path "*/core/*" | head -n 1)
+    if [ -z "$FILE" ]; then
+        FILE=$(find out -name "${CONTRACT}.json" -not -path "*/core/*" | head -n 1)
+    fi
     if [ -z "$FILE" ]; then
         FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
     fi
