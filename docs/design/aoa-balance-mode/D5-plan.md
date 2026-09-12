@@ -110,3 +110,11 @@ Anvil 能执行 JS tracer，但 bundler 的 tracer 还会用到 `db.getState`、
 | 上游 bundler 对 EntryPoint v0.7 与 Anvil 的组合要求 EntryPointSimulations 或特定的 RPC | 按各自文档部署或配置；遇到的问题写进报告 |
 | fork 演练依赖归档 RPC；Alchemy 的 key 此前失效过 | 已换成 `~/Dev/.env` 里的有效 key；再用 publicnode 交叉验证 |
 | `pendingAPNTsToken` 的去留是作者的决定 | 两条分支都演练，报告里并列写出结果，请作者选择 |
+
+## 6. DSR 批准时的补充（2026-09-13，已并入）
+
+1. **G2 守恒项**：对每个 bundle，比较 EntryPoint 里 SP 押金的实际 ETH 变化与该 bundle 各笔 charge 按验证期快照折算的 ETH 等值，断言 **Σ charge_eth ≥ ΔEP 押金**，即"不补贴"。统计超额比例 `(charge_eth − actualGasCost) / actualGasCost` 的均值、P95、最大值，作为论文 R1-8"保守报价多付"的第一版数据。被注入结算失败的那几笔属于 I10 情形（G 由 SP 押金承担），单独断言，不计入不等式的 charge 一侧。
+2. **G1 质押门槛**：读出所用 Alto、Rundler tag 的默认 `minStake` 和 `minUnstakeDelay`，写进 D5-traceability。B9 和 B4 的"门槛以下"那一格，要断言**被拒的具体原因码**，不能只断言失败。
+3. **G1 新增 B10**：用新的 paymasterAndData 格式，分别调用 Alto 和 Rundler 的 `eth_estimateUserOperationGas`，确认估算能跑通，并且估出的 `paymasterPostOpGasLimit ≥ MIN_POST_OP_GAS`。SDK 和 D7 依赖这条路径。
+4. **pendingAPNTsToken（`0xBb46…`）**：两条分支都演练，结果并列。每条分支都写明对 RepCredit 冻结证据的影响，以及 operator 余额迁移的读回。**作者决定之前，runbook 第 1 步保持"阻塞"。**
+5. G2 做完先单独交 DSR 验收，不等 D5 全部完成。
