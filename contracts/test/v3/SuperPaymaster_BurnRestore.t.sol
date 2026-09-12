@@ -3,13 +3,14 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import "src/core/Registry.sol";
-import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsV2Base} from "src/tokens/v2/xPNTsV2Base.sol";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -43,55 +44,13 @@ contract BurnMockAPNTs is ERC20 {
     function mint(address to, uint256 amount) external { _mint(to, amount); }
 }
 
-// Tracking mock: records burn vs recordDebt calls to verify fallback logic.
-contract TrackingXPNTs is ERC20 {
-    address public FACTORY;
-    uint256 public exchangeRateVal = 1e18;
-    bool public shouldRecordDebtFail;
-
-    uint256 public burnSuccesses;
-    uint256 public recordDebtCalls;
-    mapping(bytes32 => bool) public usedOpHashes;
-
-    constructor() ERC20("xPNTs", "xPNT") { FACTORY = address(this); }
-
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
-    function setRecordDebtFail(bool v) external { shouldRecordDebtFail = v; }
-
-    // ── IxPNTsToken ──
-    function exchangeRate() external view returns (uint256) { return exchangeRateVal; }
-    function getDebt(address) external pure returns (uint256) { return 0; }
-
-    function burnFromWithOpHash(address from, uint256 amount, bytes32 opHash) external {
-        require(!usedOpHashes[opHash], "AlreadyProcessed");
-        usedOpHashes[opHash] = true;
-        _burn(from, amount); // reverts naturally on insufficient balance
-        burnSuccesses++;
-    }
-
-    function recordDebt(address, uint256) external {
-        if (shouldRecordDebtFail) revert("RecordDebtFailed");
-        recordDebtCalls++;
-    }
-
-    // P1-17: SuperPaymaster now calls recordDebtWithOpHash (opHash-protected) instead
-    // of recordDebt. The mock increments the same counter so existing test assertions
-    // ("recordDebt must be called as fallback") continue to verify fallback behavior.
-    mapping(bytes32 => bool) public usedDebtHashes;
-    function recordDebtWithOpHash(address, uint256, bytes32 opHash) external {
-        if (shouldRecordDebtFail) revert("RecordDebtFailed");
-        require(!usedDebtHashes[opHash], "DebtAlreadyRecorded");
-        usedDebtHashes[opHash] = true;
-        recordDebtCalls++;
-    }
-}
-
 contract BurnMockRegistry is IRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
 
     function hasRole(bytes32 role, address account) external view returns (bool) { return roles[role][account]; }
     function setRole(bytes32 role, address account, bool val) external { roles[role][account] = val; }
     uint256 public creditLimitOverride = 1000 ether;
+    /// @dev GLOBAL credit tier (GlobalTierSource.tierOf) for the v2 token.
     function getCreditLimit(address) external view returns (uint256) { return creditLimitOverride; }
     function setCreditLimitOverride(uint256 v) external { creditLimitOverride = v; }
 
@@ -121,13 +80,22 @@ contract BurnMockRegistry is IRegistry {
 
 // ─── Test Contract ─────────────────────────────────────────────────────────────
 
+/// @notice Legacy "burn, else recordDebt, else pendingDebts" postOp fallback, migrated to
+///         SuperPaymaster 5.5.0 + xPNTs v2. The fallback chain no longer exists:
+///           - validation escrows the user's xPNTs (BALANCE) or, only on INSUFFICIENT, reserves
+///             credit (CREDIT, C-1); otherwise the op is not sponsored (R-2);
+///           - postOp settles the admitted escrow/reservation WITHOUT try/catch (B-1): a failed
+///             settlement reverts postOp (EntryPoint undoes the user's execution) — there is no
+///             pendingDebts bucket and no retryPendingDebt/clearPendingDebt;
+///           - the operator's a0 is in flight until postOp and restored by releaseStaleSponsorship
+///             if postOp never completed (R10-M1b / I10).
 contract SuperPaymaster_BurnRestore_Test is Test {
     SuperPaymaster public paymaster;
     BurnMockRegistry public registry;
     BurnMockEntryPoint public entryPoint;
     BurnMockPriceFeed public priceFeed;
     BurnMockAPNTs public apnts;
-    TrackingXPNTs public xpnts;
+    xPNTsTokenV2 public xpnts;
     MockXPNTsFactory public mockFactory;
 
     address public owner     = address(0x1);
@@ -139,6 +107,8 @@ contract SuperPaymaster_BurnRestore_Test is Test {
     bytes32 constant ROLE_COMMUNITY       = keccak256("COMMUNITY");
 
     uint256 constant MAX_COST = 1000; // wei — gives small but non-zero aPNTs charge
+    uint8 constant MODE_BALANCE = 1;
+    uint8 constant MODE_CREDIT = 2;
 
     function setUp() public {
         vm.startPrank(owner);
@@ -146,7 +116,6 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         entryPoint = new BurnMockEntryPoint();
         priceFeed  = new BurnMockPriceFeed();
         apnts      = new BurnMockAPNTs();
-        xpnts      = new TrackingXPNTs();
         registry   = new BurnMockRegistry();
 
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
@@ -164,7 +133,12 @@ contract SuperPaymaster_BurnRestore_Test is Test {
 
         registry.setRole(ROLE_PAYMASTER_SUPER, operator1, true);
         registry.setRole(ROLE_COMMUNITY, operator1, true);
+        vm.stopPrank();
 
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, owner, operator1, address(paymaster), 1e18);
+
+        vm.startPrank(owner);
         // Deploy mock factory and register operator token (P1-4 fix)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
@@ -183,326 +157,354 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         vm.stopPrank();
     }
 
-    // Build a minimal paymasterAndData for operator1.
+    // Build a 5.5.0 paymasterAndData for operator1 (token field required, R4-H1).
     function _buildPaymasterData() internal view returns (bytes memory) {
-        return abi.encodePacked(
-            address(paymaster),
-            uint128(100000),
-            uint128(200000),
-            operator1,
-            type(uint256).max  // maxRate
-        );
+        return V2TokenDeployer.pmd(address(paymaster), uint128(100000), uint128(200000), operator1, type(uint256).max, address(xpnts), 0);
     }
 
-    // Run validate → postOp and return context.
-    function _runValidate() internal returns (bytes memory ctx) {
+    function _validate(bytes32 opHash, uint256 maxCost) internal returns (bytes memory ctx, uint256 vd) {
         PackedUserOperation memory op;
         op.sender = user1;
         op.paymasterAndData = _buildPaymasterData();
-
         vm.prank(address(entryPoint));
-        (ctx,) = paymaster.validatePaymasterUserOp(op, bytes32(uint256(1)), MAX_COST);
+        (ctx, vd) = paymaster.validatePaymasterUserOp(op, opHash, maxCost);
     }
 
-    // ── Test 1: User has xPNTs → burn succeeds, no debt ──────────────────────
+    // Run validate and return context (asserts the op was admitted).
+    function _runValidate() internal returns (bytes memory ctx) {
+        uint256 vd;
+        (ctx, vd) = _validate(bytes32(uint256(1)), MAX_COST);
+        assertEq(uint160(vd), 0, "setup: op must be admitted");
+    }
+
+    function _postOp(bytes memory ctx, uint256 actualGasCost) internal {
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, 0);
+    }
+
+    function _enableAutoCredit(uint256 tier) internal {
+        registry.setCreditLimitOverride(tier);
+        vm.prank(owner); // communityOwner
+        IxPNTsV2Admin(address(xpnts)).queueCreditPolicy(2);
+        vm.warp(block.timestamp + 48 hours);
+        IxPNTsV2Admin(address(xpnts)).executeCreditPolicy();
+        paymaster.updatePrice();
+        vm.prank(user1);
+        IxPNTsV2Admin(address(xpnts)).requestCredit(1_000 ether);
+    }
+
+    function _opBalance() internal view returns (uint128 b) { (b,,,,,,,,) = paymaster.operators(operator1); }
+
+    function _mode(bytes memory ctx) internal pure returns (uint8) {
+        return abi.decode(ctx, (SuperPaymaster.OpCtx)).mode;
+    }
+
+    // ── Test 1: User has xPNTs → escrow at validation, burn at postOp, no debt ─
 
     function test_PostOp_Burns_WhenUserHasBalance() public {
         // Pre-fund user with enough xPNTs to cover the gas charge
-        xpnts.mint(user1, 1_000 ether);
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
         uint256 balBefore = xpnts.balanceOf(user1);
 
         bytes memory ctx = _runValidate();
+        assertEq(_mode(ctx), MODE_BALANCE, "balance-funded user -> BALANCE mode");
+        assertGt(xpnts.lockedOf(user1), 0, "xPNTs escrowed at validation");
 
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        _postOp(ctx, MAX_COST);
 
-        assertEq(xpnts.burnSuccesses(), 1, "burnFromWithOpHash must be called exactly once");
-        assertEq(xpnts.recordDebtCalls(), 0, "recordDebt must NOT be called when burn succeeds");
         assertLt(xpnts.balanceOf(user1), balBefore, "User xPNTs balance must decrease after burn");
-        assertEq(paymaster.pendingDebts(address(xpnts), user1), 0, "No pending debts expected");
+        assertEq(xpnts.lockedOf(user1), 0, "escrow cleared by settleLocked");
+        assertEq(xpnts.debts(user1), 0, "no debt when the escrow pays (I3)");
+        (address f,) = paymaster.inflightOf(bytes32(uint256(1)));
+        assertEq(f, address(0), "in-flight sponsorship cleared");
     }
 
-    // ── Test 2: User has no xPNTs → falls back to recordDebt ──────────────────
+    // ── REMOVED legacy: test_PostOp_FallsBack_ToRecordDebt_WhenNoBalance ─────
+    // 5.5.0 has no postOp burn->recordDebt fallback. An empty-balance user is either rejected at
+    // validation (credit OFF, the v2 default) or admitted on a validation-time CREDIT reservation
+    // that postOp turns into debt. Covered by the two tests below.
 
-    function test_PostOp_FallsBack_ToRecordDebt_WhenNoBalance() public {
-        // user1 has 0 xPNTs; burnFromWithOpHash will revert inside _burn
+    function test_NoBalance_CreditOff_RejectedAtValidation() public {
         assertEq(xpnts.balanceOf(user1), 0);
-
-        bytes memory ctx = _runValidate();
-
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-
-        assertEq(xpnts.burnSuccesses(), 0, "burnFromWithOpHash must NOT succeed (no balance)");
-        assertEq(xpnts.recordDebtCalls(), 1, "recordDebt must be called as fallback");
-        assertEq(paymaster.pendingDebts(address(xpnts), user1), 0, "No pending debts (recordDebt succeeded)");
+        uint128 opBefore = _opBalance();
+        (bytes memory ctx, uint256 vd) = _validate(bytes32(uint256(1)), MAX_COST);
+        assertEq(uint160(vd), 1, "empty balance + credit OFF -> sigFail (R-2)");
+        assertEq(ctx.length, 0, "no context");
+        assertEq(_opBalance(), opBefore, "operator not debited");
+        assertEq(xpnts.creditReservedOf(user1), 0, "no reservation (L-1)");
+        assertEq(xpnts.debts(user1), 0, "no debt (T-R14-06)");
     }
 
-    // ── AUDIT H-1: over-ceiling debt on the fallback path is isolated ──────────
-    // Models the H-1 attack tail: a user passed validation on balance (the
-    // _creditExceeded balance short-circuit), then drained its xPNTs inside its
-    // own UserOp. In postOp it now has 0 balance AND 0 credit. The fix must NOT
-    // book this charge as collectible token debt (which had no credit check) —
-    // it must isolate it in pendingDebts so it cannot bypass the credit ceiling.
-    // ── AUDIT H-1 (Plan A): over-ceiling op rejected in validation ────────────
-    // The credit ceiling is enforced in validation REGARDLESS of balance. A
-    // zero-credit user is rejected up front even with ample xPNTs, so the op never
-    // reaches execution/postOp — the drain-between-validate-and-postOp window that
-    // H-1 exploited is closed at the source (covers SBT and agent paths alike).
+    function test_NoBalance_AutoCredit_SettlesAsDebt() public {
+        _enableAutoCredit(1000 ether);
+        bytes memory ctx = _runValidate();
+        assertEq(_mode(ctx), MODE_CREDIT, "empty balance + AUTO credit -> CREDIT mode");
+        uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
+        assertEq(xpnts.creditReservedOf(user1), a0, "reserved at validation (C-1)");
+
+        _postOp(ctx, MAX_COST);
+
+        assertGt(xpnts.debts(user1), 0, "settleCredit recorded the debt");
+        assertLe(xpnts.debts(user1), a0, "debt <= admitted reservation (C-2)");
+        assertEq(xpnts.creditReservedOf(user1), 0, "reservation consumed");
+    }
+
+    // ── AUDIT H-1 — 5.5.0 BEHAVIOUR CHANGE ───────────────────────────────────
+    // Legacy (Plan A): a zero-credit user was rejected in validation EVEN WITH ample xPNTs, because
+    // the user could drain its balance inside its own UserOp before the postOp burn. In 5.5.0 the
+    // validation ESCROWS x0 of the user's xPNTs (A-1: balance - value >= lockedOf on every
+    // transfer/burn), so the drain is impossible and a balance-funded op no longer needs credit.
+    // New correct behaviour: admitted in BALANCE mode, the drain reverts, postOp is paid in full.
     function test_AuditH1_OverCeilingOp_RejectedInValidation() public {
         registry.setCreditLimitOverride(0); // zero-credit user
-        xpnts.mint(user1, 1_000 ether);     // user HAS balance (pre-H-1 this short-circuited the gate)
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether); // user HAS balance
 
-        PackedUserOperation memory op;
-        op.sender = user1;
-        op.paymasterAndData = _buildPaymasterData();
-        vm.prank(address(entryPoint));
-        (bytes memory ctx, uint256 validationData) =
-            paymaster.validatePaymasterUserOp(op, bytes32(uint256(1)), MAX_COST);
+        (bytes memory ctx, uint256 validationData) = _validate(bytes32(uint256(1)), MAX_COST);
+        assertEq(uint160(validationData), 0, "5.5.0: balance-funded op admitted on escrow, credit irrelevant");
+        assertEq(_mode(ctx), MODE_BALANCE, "BALANCE mode, not credit");
+        uint256 locked = xpnts.lockedOf(user1);
+        assertGt(locked, 0, "x0 escrowed");
 
-        assertEq(uint160(validationData), 1, "H-1: over-ceiling op rejected in validation even with balance");
-        assertEq(ctx.length, 0, "no context returned for a rejected op");
+        // H-1 drain attempt inside the user's own execution: move the whole balance away.
+        uint256 bal = xpnts.balanceOf(user1);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.BalanceLocked.selector, user1, locked));
+        xpnts.transfer(address(0xD7A1), bal);
+        // Everything above the escrow stays freely transferable (the lock is exactly x0).
+        vm.prank(user1);
+        xpnts.transfer(address(0xD7A1), bal - locked);
+        assertEq(xpnts.balanceOf(user1), locked, "only the escrow is left");
+
+        _postOp(ctx, MAX_COST);
+        assertEq(xpnts.debts(user1), 0, "H-1 tail closed: no over-ceiling debt ever booked");
+        assertEq(xpnts.lockedOf(user1), 0, "escrow settled");
+        assertLt(xpnts.balanceOf(user1), locked, "user paid from the escrow");
     }
 
-    // ── AUDIT H-1 (Plan A): zero-credit user rejected on EVERY attempt ────────
-    // No postOp drain-then-block dance is needed — because the op never passes
-    // validation, a re-funded zero-credit user is rejected again and again, so the
-    // "re-fund and re-drain one sponsored op per round" white-mail is impossible.
+    // ── AUDIT H-1: zero-credit user rejected on EVERY attempt when it cannot escrow ──
+    // Legacy: rejected every attempt regardless of balance. 5.5.0: a funded user is escrowed (see
+    // above); an UNFUNDED zero-credit user — even with credit switched ON and a request on file —
+    // is rejected every attempt, never reserves, never debits the operator.
     function test_AuditH1_ZeroCredit_RejectedEveryAttempt() public {
-        registry.setCreditLimitOverride(0);
+        _enableAutoCredit(0); // AUTO + request, but GLOBAL tier 0 -> effectiveCreditCap 0
+        assertEq(xpnts.effectiveCreditCap(user1), 0);
+        uint128 opBefore = _opBalance();
 
         for (uint256 i = 1; i <= 2; i++) {
-            xpnts.mint(user1, 1_000 ether); // always funded
-            PackedUserOperation memory op;
-            op.sender = user1;
-            op.paymasterAndData = _buildPaymasterData();
-            vm.prank(address(entryPoint));
-            (, uint256 validationData) =
-                paymaster.validatePaymasterUserOp(op, bytes32(i), MAX_COST);
-            assertEq(uint160(validationData), 1, "zero-credit op rejected every attempt regardless of balance");
+            (, uint256 validationData) = _validate(bytes32(i), MAX_COST);
+            assertEq(uint160(validationData), 1, "zero-credit unfunded op rejected every attempt");
         }
+        assertEq(xpnts.creditReservedOf(user1), 0, "never reserved");
+        assertEq(_opBalance(), opBefore, "operator never debited");
     }
 
     // ── AUDIT H-1: no regression — within-ceiling debt is still recorded ───────
-    // An honest user WITH credit who legitimately falls to debt (burn fails on a
-    // genuinely empty balance) must still get normal token-level debt recorded.
+    // An honest user WITH credit and an empty balance gets normal token-level debt.
     function test_AuditH1_WithinCeilingDebt_RecordedNormally() public {
-        registry.setCreditLimitOverride(1000 ether); // ample credit
+        _enableAutoCredit(1000 ether); // ample credit
 
         bytes memory ctx = _runValidate();
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        _postOp(ctx, MAX_COST);
 
-        assertEq(xpnts.recordDebtCalls(), 1, "within-ceiling debt still recorded normally");
-        assertEq(paymaster.pendingDebts(address(xpnts), user1), 0, "no pending debt when within ceiling");
+        assertGt(xpnts.debts(user1), 0, "within-ceiling debt still recorded normally");
+        assertLe(xpnts.debts(user1), xpnts.effectiveCreditCap(user1), "debt within the ceiling");
     }
 
-    // ── Test 3: Both burn and recordDebt fail → pendingDebts ──────────────────
+    // ── REMOVED legacy: test_PostOp_PendingDebts_WhenBothFail ────────────────
+    // ── REMOVED legacy: test_RetryPendingDebt_Chunked ─────────────────────────
+    // pendingDebts / retryPendingDebt / clearPendingDebt are gone (spec §3.3). B-1: a settlement
+    // that fails reverts postOp — no silent bucket. Replacements:
 
-    function test_PostOp_PendingDebts_WhenBothFail() public {
-        // No xPNTs balance + recordDebt will fail
-        xpnts.setRecordDebtFail(true);
-
+    /// @notice B-1: settlement is not wrapped in try/catch. A context whose escrow does not exist
+    ///         makes settleLocked revert and postOp bubbles it (no pendingDebts fallback).
+    function test_B1_SettleFailure_RevertsPostOp_NoFallback() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
         bytes memory ctx = _runValidate();
+        SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+        c.opHash = bytes32(uint256(0xDEAD)); // no lock recorded under this hash
+        uint256 revBefore = paymaster.protocolRevenue();
 
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        vm.expectRevert(xPNTsV2Base.NoLock.selector);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, abi.encode(c), MAX_COST, 0);
 
-        assertEq(xpnts.burnSuccesses(), 0, "Burn should not succeed");
-        assertEq(xpnts.recordDebtCalls(), 0, "recordDebt should revert");
-        assertGt(paymaster.pendingDebts(address(xpnts), user1), 0, "pendingDebts must be non-zero");
+        assertEq(paymaster.protocolRevenue(), revBefore, "no revenue booked for a failed settlement");
     }
 
-    // ── H-01: chunked retryPendingDebt drains a balance over multiple calls ──────
-    function test_RetryPendingDebt_Chunked() public {
-        // 1. Accumulate a pending debt (both burn + recordDebt fail in postOp).
-        xpnts.setRecordDebtFail(true);
-        bytes memory ctx = _runValidate();
+    /// @notice I10 / R10-M1b: postOp that never completes in the original transaction (here: the
+    ///         next transaction, live markers gone) cannot settle; after the tx the operator's a0
+    ///         and the user's escrow are both restored in full. No pendingDebts is ever written.
+    /// forge-config: default.isolate = true
+    function test_I10_PostOpOutsideOriginalTx_Reverts_ThenStaleReleaseRestores() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 balBefore = xpnts.balanceOf(user1);
+        uint128 opBefore = _opBalance();
+        uint256 revBefore = paymaster.protocolRevenue();
+        bytes32 h = bytes32(uint256(1));
+
+        (bytes memory ctx, uint256 vd) = _validate(h, MAX_COST); // tx 1: validation only
+        assertEq(uint160(vd), 0);
+        assertLt(_opBalance(), opBefore, "a0 in flight");
+
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        uint256 pending = paymaster.pendingDebts(address(xpnts), user1);
-        assertGt(pending, 1, "setup: pending must be > 1");
+        (bool ok, bytes memory ret) = address(paymaster).call(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0))
+        );
+        assertFalse(ok, "settlement outside the original transaction must revert");
+        assertEq(bytes4(ret), xPNTsV2Base.NotLive.selector, "reverted for L-3 NotLive (not auth/other)");
 
-        // 2. recordDebt works again; drain in a chunk smaller than the balance.
-        xpnts.setRecordDebtFail(false);
-        address owner = paymaster.owner();
-        uint256 chunk = pending / 2;
-        vm.prank(owner);
-        paymaster.retryPendingDebt(address(xpnts), user1, chunk);
-        assertEq(paymaster.pendingDebts(address(xpnts), user1), pending - chunk, "chunk 1 leaves remainder");
-
-        // 3. amount == 0 drains the full remainder.
-        vm.prank(owner);
-        paymaster.retryPendingDebt(address(xpnts), user1, 0);
-        assertEq(paymaster.pendingDebts(address(xpnts), user1), 0, "fully drained");
-
-        // 4. retrying an empty balance reverts.
-        vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.NoPendingDebt.selector);
-        paymaster.retryPendingDebt(address(xpnts), user1, 0);
+        paymaster.releaseStaleSponsorship(h);
+        xpnts.releaseStaleLock(user1, h);
+        assertEq(_opBalance(), opBefore, "operator a0 fully restored");
+        assertEq(xpnts.lockedOf(user1), 0, "user escrow fully released");
+        assertEq(xpnts.balanceOf(user1), balBefore, "user charged nothing");
+        assertEq(paymaster.protocolRevenue(), revBefore, "no revenue for an unsettled op");
+        (address f,) = paymaster.inflightOf(h);
+        assertEq(f, address(0), "in-flight record cleared");
     }
 
-    // ── Test 4: Two consecutive ops → different burns (not replay) ────────────
+    /// @notice The removed legacy debt-management selectors are gone from the SP surface.
+    function test_LegacyPendingDebtSelectorsRemoved() public {
+        bytes[3] memory calls = [
+            abi.encodeWithSignature("retryPendingDebt(address,address,uint256)", address(xpnts), user1, uint256(0)),
+            abi.encodeWithSignature("clearPendingDebt(address,address)", address(xpnts), user1),
+            abi.encodeWithSignature("pendingDebts(address,address)", address(xpnts), user1)
+        ];
+        for (uint256 i; i < calls.length; i++) {
+            vm.prank(owner);
+            (bool ok, ) = address(paymaster).call(calls[i]);
+            assertFalse(ok, "legacy pendingDebts surface must not exist in 5.5.0");
+        }
+    }
+
+    // ── Test 4: Two consecutive ops → two independent settlements (not replay) ─
 
     function test_PostOp_TwoOps_NoDuplicateReplay() public {
-        xpnts.mint(user1, 1_000 ether);
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 bal0 = xpnts.balanceOf(user1);
 
-        // Op 1
-        PackedUserOperation memory op1;
-        op1.sender = user1;
-        op1.nonce  = 0;
-        op1.paymasterAndData = _buildPaymasterData();
+        (bytes memory ctx1, uint256 vd1) = _validate(bytes32(uint256(1)), MAX_COST);
+        assertEq(uint160(vd1), 0);
+        _postOp(ctx1, MAX_COST);
+        uint256 bal1 = xpnts.balanceOf(user1);
+        assertLt(bal1, bal0, "First op must burn");
 
-        vm.prank(address(entryPoint));
-        (bytes memory ctx1,) = paymaster.validatePaymasterUserOp(op1, bytes32(uint256(1)), MAX_COST);
+        // Op 2 — different userOpHash
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 bal1b = xpnts.balanceOf(user1);
+        (bytes memory ctx2, uint256 vd2) = _validate(bytes32(uint256(2)), MAX_COST);
+        assertEq(uint160(vd2), 0);
+        _postOp(ctx2, MAX_COST);
 
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx1, MAX_COST, 0);
-
-        assertEq(xpnts.burnSuccesses(), 1, "First op must burn");
-
-        // Op 2 — different nonce → different userOpHash
-        xpnts.mint(user1, 1_000 ether);
-
-        PackedUserOperation memory op2;
-        op2.sender = user1;
-        op2.nonce  = 1;
-        op2.paymasterAndData = _buildPaymasterData();
-
-        vm.prank(address(entryPoint));
-        (bytes memory ctx2,) = paymaster.validatePaymasterUserOp(op2, bytes32(uint256(2)), MAX_COST);
-
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx2, MAX_COST, 0);
-
-        assertEq(xpnts.burnSuccesses(), 2, "Second op must also burn (no replay collision)");
-        assertEq(xpnts.recordDebtCalls(), 0, "No debt when balance sufficient");
+        assertLt(xpnts.balanceOf(user1), bal1b, "Second op must also burn (no replay collision)");
+        assertEq(xpnts.debts(user1), 0, "No debt when balance sufficient");
+        assertEq(xpnts.lockedOf(user1), 0, "both escrows cleared");
     }
 
-    // ── Test 5: Overflow path (actual > initialAPNTs) also uses burn ──────────
+    // ── Test 5 (was "overflow path burns"): actual > reservation → charge capped at a0 ──
+    // Legacy crafted a context with a tiny initialAPNTs to force finalCharge > initialAPNTs. In
+    // 5.5.0 postOp only settles a real escrow and charge = min(calc, a0) (§10.3): the user never
+    // pays beyond what it committed at validation, and the operator refund is exactly zero.
 
     function test_PostOp_OverflowPath_BurnsXPNTs() public {
-        xpnts.mint(user1, 1_000 ether);
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 balBefore = xpnts.balanceOf(user1);
+        uint128 opBefore = _opBalance();
+        uint256 revBefore = paymaster.protocolRevenue();
 
-        // Craft context with tiny initialAPNTs so finalCharge > initialAPNTs (overflow path)
-        bytes memory ctx = abi.encode(
-            address(xpnts),  // token
-            user1,           // user
-            uint256(1),      // initialAPNTs (tiny)
-            bytes32(uint256(9999)), // userOpHash (unique)
-            operator1        // operator
-        );
+        bytes memory ctx = _runValidate();
+        uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
+        uint256 x0 = xpnts.lockedOf(user1);
 
-        // actualGasCost drives finalCharge > 1 → overflow branch
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        _postOp(ctx, MAX_COST * 1000); // actual cost far above the validated maxCost
 
-        assertEq(xpnts.burnSuccesses(), 1, "Overflow path must also call burnFromWithOpHash");
-        assertEq(xpnts.recordDebtCalls(), 0, "No debt when burn succeeds");
+        assertEq(balBefore - xpnts.balanceOf(user1), x0, "burn capped at the escrowed x0");
+        assertEq(paymaster.protocolRevenue() - revBefore, a0, "revenue capped at a0");
+        assertEq(uint256(opBefore) - _opBalance(), a0, "operator refund is zero at the cap");
+        assertEq(xpnts.debts(user1), 0, "No debt when the escrow pays");
     }
 
-    // ── Test 6: Overflow path + no balance → recordDebt ──────────────────────
+    // ── Test 6 (was "overflow path falls back to recordDebt") — REMOVED legacy fallback.
+    // Credit-mode equivalent: the debt booked is capped at the admitted reservation (C-2).
 
-    function test_PostOp_OverflowPath_FallsBackToRecordDebt() public {
-        // No xPNTs → burn fails → recordDebt
-        bytes memory ctx = abi.encode(
-            address(xpnts),
-            user1,
-            uint256(1),
-            bytes32(uint256(8888)),
-            operator1
-        );
+    function test_CreditPath_ChargeCappedAtReservation() public {
+        _enableAutoCredit(1000 ether);
+        bytes memory ctx = _runValidate();
+        uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
 
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
+        _postOp(ctx, MAX_COST * 1000);
 
-        assertEq(xpnts.burnSuccesses(), 0, "Burn must fail when no balance");
-        assertEq(xpnts.recordDebtCalls(), 1, "recordDebt must be called as fallback");
+        assertEq(xpnts.debts(user1), a0, "debt == min(charge, reservation) == a0");
+        assertEq(xpnts.creditReservedOf(user1), 0);
     }
 
-    // ── Test 7: Cross-path — burn succeeds, same opHash postOp called again ──
-    // P1-17: _settledDebtOps SP-level guard must prevent the second postOp from
-    // falling through to recordDebtWithOpHash after burnFromWithOpHash rejects.
+    // ── Test 7: Cross-path — escrow settled, same opHash postOp called again ──
+    // P1-17: the SP-level _settledDebtOps guard makes a replayed postOp a no-op.
 
     function test_CrossPath_BurnSucceeds_SecondPostOpIdempotent() public {
-        xpnts.mint(user1, 1_000 ether);
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        bytes memory ctx = _runValidate();
 
-        bytes32 opHash = bytes32(uint256(9999));
-        bytes memory ctx = abi.encode(address(xpnts), user1, MAX_COST, opHash, operator1);
-
-        // First postOp: burn succeeds
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        assertEq(xpnts.burnSuccesses(), 1, "First call must burn");
-        assertEq(xpnts.recordDebtCalls(), 0, "No debt on first call");
+        // First postOp: settlement burns
+        _postOp(ctx, MAX_COST);
+        uint256 balAfterFirst = xpnts.balanceOf(user1);
+        uint256 revAfterFirst = paymaster.protocolRevenue();
+        assertEq(xpnts.debts(user1), 0, "No debt on first call");
 
         // Second postOp (same ctx/opHash): SP-level _settledDebtOps returns early
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        // Counts must not increase — idempotent
-        assertEq(xpnts.burnSuccesses(), 1, "Burn count must not increase on replay");
-        assertEq(xpnts.recordDebtCalls(), 0, "Debt count must stay 0 on replay");
+        _postOp(ctx, MAX_COST);
+        assertEq(xpnts.balanceOf(user1), balAfterFirst, "Burn must not repeat on replay");
+        assertEq(xpnts.debts(user1), 0, "Debt must stay 0 on replay");
+        assertEq(paymaster.protocolRevenue(), revAfterFirst, "revenue must not repeat on replay");
     }
 
     // ── Test 8: Cross-path — debt recorded, same opHash would double-charge ──
-    // P1-17: after recordDebtWithOpHash succeeds (no balance), a second postOp
-    // must not record debt or burn again.
+    // P1-17: after a CREDIT settlement, a second postOp must not record debt or burn again.
 
     function test_CrossPath_DebtRecorded_SecondPostOpIdempotent() public {
-        // No xPNTs: burn fails → recordDebtWithOpHash records debt
-        bytes32 opHash = bytes32(uint256(7777));
-        bytes memory ctx = abi.encode(address(xpnts), user1, MAX_COST, opHash, operator1);
+        _enableAutoCredit(1000 ether);
+        bytes memory ctx = _runValidate();
+        assertEq(_mode(ctx), MODE_CREDIT);
 
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        assertEq(xpnts.recordDebtCalls(), 1, "First call must record debt");
+        _postOp(ctx, MAX_COST);
+        uint256 debt1 = xpnts.debts(user1);
+        assertGt(debt1, 0, "First call must record debt");
 
-        // Now give user balance — second postOp must still be a no-op
-        xpnts.mint(user1, 1_000 ether);
+        // Now give user balance — second postOp must still be a no-op.
+        // (v2 mint auto-repays outstanding debt first, so snapshot AFTER the mint.)
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
+        uint256 bal = xpnts.balanceOf(user1);
+        uint256 debtAfterMint = xpnts.debts(user1);
+        assertEq(debtAfterMint, 0, "mint auto-repaid the credit debt");
+        uint256 revAfterFirst = paymaster.protocolRevenue();
 
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        // SP-level guard fires — no burn, no additional debt
-        assertEq(xpnts.burnSuccesses(), 0, "Must not burn on replay");
-        assertEq(xpnts.recordDebtCalls(), 1, "Debt count must stay 1 on replay");
+        _postOp(ctx, MAX_COST);
+        // SP-level guard fires — no burn, no additional debt, no extra revenue
+        assertEq(xpnts.balanceOf(user1), bal, "Must not burn on replay");
+        assertEq(xpnts.debts(user1), debtAfterMint, "Debt must not grow on replay");
+        assertEq(paymaster.protocolRevenue(), revAfterFirst, "revenue must not repeat on replay");
     }
 
     // ── Test 9: Operator accounting is idempotent across postOp replays ─────────
-    // Codex review: _settledDebtOps must guard ALL accounting (operator.aPNTsBalance,
-    // protocolRevenue) not just xPNTs debt recording.  A replay must not double-refund
-    // the operator or double-deduct protocolRevenue.
+    // _settledDebtOps must guard ALL accounting (operator.aPNTsBalance, protocolRevenue), not
+    // just the token settlement: a replay must not double-refund the operator.
 
     function test_OperatorAccounting_Idempotent_OnReplay() public {
-        xpnts.mint(user1, 1_000 ether);
+        IxPNTsV2Admin(address(xpnts)).mint(user1, 1_000 ether);
 
-        // Use a distinct opHash so this test is isolated from others
-        bytes32 opHash = bytes32(uint256(5555));
-        // Encode context manually with a smaller initialAPNTs so there is a refund
-        // (finalCharge = aPNTs(actualGas) * fee < initialAPNTs)
-        uint256 largeInitial = 500 ether; // over-estimated validate charge
-        bytes memory ctx = abi.encode(address(xpnts), user1, largeInitial, opHash, operator1);
+        // Over-estimated validation (large maxCost) so the settlement refunds the operator.
+        (bytes memory ctx, uint256 vd) = _validate(bytes32(uint256(5555)), 1e12);
+        assertEq(uint160(vd), 0);
+        uint128 balBefore = _opBalance(); // after the a0 in-flight debit
 
-        (uint128 balBefore,,,,,,,,) = paymaster.operators(operator1);
-
-        // First postOp — actualGasCost much smaller → refund flows to operator
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-
-        (uint128 balAfterFirst,,,,,,,,) = paymaster.operators(operator1);
-        // Balance increases (refund) or stays same; either way we record it
-        uint128 refund = balAfterFirst > balBefore ? balAfterFirst - balBefore : 0;
+        // First postOp — actualGasCost much smaller → refund (a0 - c) flows to operator
+        _postOp(ctx, MAX_COST);
+        uint128 balAfterFirst = _opBalance();
+        assertGt(balAfterFirst, balBefore, "first settlement must refund the operator");
 
         // Second postOp with identical ctx — must be a complete no-op
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-
-        (uint128 balAfterSecond,,,,,,,,) = paymaster.operators(operator1);
-        assertEq(balAfterSecond, balAfterFirst,
+        _postOp(ctx, MAX_COST);
+        assertEq(_opBalance(), balAfterFirst,
             "Operator aPNTsBalance must not change on postOp replay: no double refund");
-        // If first call had a refund, second must not have added another
-        if (refund > 0) {
-            assertTrue(balAfterSecond < balBefore + 2 * uint128(refund),
-                "Refund must not be applied twice");
-        }
     }
 }

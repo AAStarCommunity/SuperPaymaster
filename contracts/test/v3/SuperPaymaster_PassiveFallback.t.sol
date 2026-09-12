@@ -3,12 +3,13 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import "src/core/Registry.sol";
-import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 // --- Minimal Mocks ---
 
@@ -25,7 +26,7 @@ contract MockEntryPointV3 is IEntryPoint {
     function balanceOf(address) external view returns (uint256) { return 0; }
     function getDepositInfo(address) external view returns (DepositInfo memory) {}
     function incrementNonce(uint192) external {}
-    function fail(bytes memory, uint256, uint256) external {} 
+    function fail(bytes memory, uint256, uint256) external {}
     function delegateAndRevert(address, bytes calldata) external {}
     function withdrawTo(address payable, uint256) external {}
 }
@@ -40,7 +41,7 @@ contract MockFailingPriceFeed {
         }
         return (1, price, 0, block.timestamp, 1);
     }
-    
+
     function decimals() external pure returns (uint8) { return 8; }
     function setFail(bool _fail) external { shouldFail = _fail; }
     function setPrice(int256 _price) external { price = _price; }
@@ -50,7 +51,7 @@ contract MockFailingPriceFeed {
 contract MockRegistryStub is IRegistry {
     function hasRole(bytes32, address) external pure returns (bool) { return true; } // Always pass auth
     function getCreditLimit(address) external pure returns (uint256) { return 0; }
-    
+
     // Ignore others
     function setRole(bytes32, address, bool) external {}
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
@@ -78,34 +79,35 @@ contract MockRegistryStub is IRegistry {
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("A", "A") {}
+    function mint(address to, uint256 amount) external { _mint(to, amount); }
 }
 
-contract MockXPNTsToken is ERC20 {
-    constructor() ERC20("M", "M") {}
-    function exchangeRate() external pure returns (uint256) { return 1e18; }
-    function getDebt(address) external pure returns (uint256) { return 0; }
-    function recordDebt(address, uint256) external {}
-}
-
+/// @notice Oracle passive fallback in postOp, migrated to SuperPaymaster 5.5.0.
+/// @dev    5.5.0 postOp never touches the oracle NOR the price cache: it prices the charge with
+///         the validation-time snapshot carried in the context (spec R10-M3). The legacy tests fed
+///         postOp a hand-made 6-field context for a non-existent escrow; 5.5.0 settles only a real
+///         validation-time escrow (L-3), so each test now runs validate -> (oracle fails) -> postOp.
 contract SuperPaymaster_PassiveFallback_Test is Test {
     SuperPaymaster paymaster;
     MockRegistryStub registry;
     MockFailingPriceFeed priceFeed;
     MockEntryPointV3 entryPoint;
-    MockXPNTsToken xpnts;
+    xPNTsTokenV2 xpnts;
     MockXPNTsFactory mockFactory;
-    
+    MockERC20 apnts;
+
+    address user = address(0xA11CE);
+
     event OracleFallbackTriggered(uint256 timestamp);
-    
+
     function setUp() public {
         vm.warp(2 hours);
         registry = new MockRegistryStub();
         priceFeed = new MockFailingPriceFeed();
         entryPoint = new MockEntryPointV3();
-        
-        MockERC20 apnts = new MockERC20();
-        xpnts = new MockXPNTsToken(); // Valid token for postOp interactions
-        
+
+        apnts = new MockERC20();
+
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             entryPoint,
             IRegistry(address(registry)),
@@ -115,59 +117,107 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
             address(this),
             1 hours // Staleness Threshold
         );
-        
+
         // Setup initial cache
         paymaster.updatePrice();
+
+        // Valid v2 token for postOp settlement (test contract = operator, community owner, FACTORY)
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, address(this), address(this), address(paymaster), 1e18);
+        IxPNTsV2Admin(address(xpnts)).mint(user, 1_000 ether);
 
         // Deploy mock factory and register operator token (owner = address(this))
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
         mockFactory.setToken(address(this), address(xpnts));
 
-        // Setup Operator Config (Required for refund/debt logic)
-        // Must be PAYMASTER_SUPER role. RegistryStub always returns true.
-        // We need to configure operator to set exchangeRate etc.
-        // Test contract is the operator.
-        // Grant COMMUNITY role (Registry Stub allows).
+        // Test contract is the operator (RegistryStub grants every role).
         paymaster.configureOperator(address(xpnts), address(this));
-        
+
         // Fund operator (Deposit)
+        apnts.mint(address(this), 1000e18);
         apnts.approve(address(paymaster), 1000e18);
-        try paymaster.deposit(100e18) {} catch { 
-             // Deposit might fail if token transfer fails? MockERC20 is basic.
-             // We need to mint tokens to this contract first.
-        }
+        paymaster.deposit(100e18);
+
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
     }
-    
+
+    function _validate(bytes32 opHash) internal returns (bytes memory ctx) {
+        PackedUserOperation memory op;
+        op.sender = user;
+        op.paymasterAndData = V2TokenDeployer.pmd(
+            address(paymaster), uint128(100000), uint128(200000), address(this), type(uint256).max, address(xpnts), 0
+        );
+        vm.prank(address(entryPoint));
+        uint256 vd;
+        (ctx, vd) = paymaster.validatePaymasterUserOp(op, opHash, 100000);
+        assertEq(uint160(vd), 0, "setup: op admitted");
+    }
+
     function test_FreshCache_DoesNotCallOracle() public {
-        // 1. Initial State: Cache Fresh (Updated in setUp)
-        // 2. Mock Context data with Valid Token/Operator
-        bytes memory context = abi.encode(address(xpnts), uint256(100000), address(0), uint256(100000), bytes32(0), address(this));
-        
-        // 3. Make Oracle "Fail" if Called (to prove it wasn't called)
-        priceFeed.setFail(true); 
-        
-        // 4. Call PostOp (Should succeed using Cache)
+        // 1. Initial State: Cache Fresh (Updated in setUp); escrow created at validation
+        bytes memory context = _validate(bytes32(uint256(1)));
+        uint256 balBefore = xpnts.balanceOf(user);
+        uint256 revBefore = paymaster.protocolRevenue();
+
+        // 2. Make Oracle "Fail" if Called, and assert it is never called
+        priceFeed.setFail(true);
+        vm.expectCall(address(priceFeed), abi.encodeWithSelector(MockFailingPriceFeed.latestRoundData.selector), 0);
+
+        // 3. Call PostOp (Should succeed using the validation-time snapshot)
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 1000, 1000);
+
+        assertLt(xpnts.balanceOf(user), balBefore, "settlement actually happened");
+        assertGt(paymaster.protocolRevenue(), revBefore, "revenue booked");
+        assertEq(xpnts.lockedOf(user), 0, "escrow cleared");
     }
-    
+
     function test_StaleCache_SucceedsInPostOp() public {
+        bytes memory context = _validate(bytes32(uint256(2)));
+        uint256 balBefore = xpnts.balanceOf(user);
+
         // 1. Warp to make Cache Stale (1 hour + 1 sec)
         vm.warp(block.timestamp + 3601);
-        
+
         // 2. Make Oracle Fail (Simulate Denial of Service)
         priceFeed.setFail(true);
-        
-        // 3. Expect Success (PostOp uses stale cache if implicit validation allowed it)
+
+        // 3. Expect Success: postOp prices with the context snapshot (R10-M3), not the cache.
         // In reality, this tx would fail validation at EntryPoint due to validUntil.
         // But if it reaches postOp (e.g. miner bypass or time edge case), it should process.
-        
-        bytes memory context = abi.encode(address(xpnts), uint256(100000), address(0), uint256(100000), bytes32(0), address(this));
-        
+        vm.expectCall(address(priceFeed), abi.encodeWithSelector(MockFailingPriceFeed.latestRoundData.selector), 0);
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 1000, 1000);
-        
-        // Assert no revert (Success)
+
+        assertLt(xpnts.balanceOf(user), balBefore, "settled despite stale cache + dead oracle");
+        assertEq(xpnts.lockedOf(user), 0, "escrow cleared");
+    }
+
+    /// @notice R10-M3: the charge is computed from the VALIDATION-time price snapshot. Moving the
+    ///         cached price between validation and postOp must not change what the user pays.
+    function test_PostOp_UsesValidationSnapshot_NotCurrentCache() public {
+        bytes memory ctxA = _validate(bytes32(uint256(3)));
+        bytes memory ctxB = _validate(bytes32(uint256(4)));
+
+        uint256 b0 = xpnts.balanceOf(user);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctxA, 1000, 1000);
+        uint256 paidA = b0 - xpnts.balanceOf(user);
+
+        // Double the ETH price in the cache (Chainlink moved) before the second postOp.
+        priceFeed.setPrice(4000 * 1e8);
+        paymaster.updatePrice();
+        (int256 p,,,) = paymaster.cachedPrice();
+        assertEq(p, 4000 * 1e8, "cache really moved");
+
+        uint256 b1 = xpnts.balanceOf(user);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctxB, 1000, 1000);
+        uint256 paidB = b1 - xpnts.balanceOf(user);
+
+        assertGt(paidA, 0);
+        assertEq(paidB, paidA, "same actual cost, same snapshot -> same charge despite the cache move");
     }
 }
