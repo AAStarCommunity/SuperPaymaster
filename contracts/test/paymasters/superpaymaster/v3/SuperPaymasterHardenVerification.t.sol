@@ -10,6 +10,9 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
+import {V2TokenDeployer} from "../../../helpers/V2TokenDeployer.sol";
+import {xPNTsFactoryV2} from "../../../../src/tokens/v2/xPNTsFactoryV2.sol";
+import {IxPNTsTokenV2} from "../../../../src/tokens/v2/IxPNTsTokenV2.sol";
 
 contract MockRegistry is IRegistry {
     using Clones for address;
@@ -62,28 +65,55 @@ contract MockAggregatorV3 is AggregatorV3Interface {
     }
 }
 
+/// @dev 3.x-shaped malicious token (legacy `recordDebt` re-entry hook, no BALANCE_MODE_VERSION).
+///      SP 5.5.0 must refuse to configure it at all.
 contract MaliciousToken is ERC20 {
     SuperPaymaster public paymaster;
     constructor(SuperPaymaster _pm) ERC20("Malicious", "MAL") {
         paymaster = _pm;
     }
-    
+
     function recordDebt(address, uint256) external {
-        // Attack: Try to withdraw funds during postOp callback
         paymaster.withdraw(1 ether);
     }
-    
+
     function exchangeRate() external pure returns (uint256) { return 1e18; }
     function getDebt(address) external pure returns (uint256) { return 0; }
+}
+
+/// @dev v2-shaped malicious token: passes the BALANCE_MODE_VERSION probe and the validation-time
+///      lock, then tries to re-enter SuperPaymaster from `settleLocked` during postOp.
+contract MaliciousV2Token is ERC20 {
+    SuperPaymaster public paymaster;
+    constructor(SuperPaymaster _pm) ERC20("MaliciousV2", "MAL2") {
+        paymaster = _pm;
+    }
+
+    function BALANCE_MODE_VERSION() external pure returns (uint16) { return 1; }
+    function exchangeRate() external pure returns (uint256) { return 1e18; }
+
+    function tryLockForGas(address, bytes32, uint256 reserveAPNTs, bool)
+        external pure returns (IxPNTsTokenV2.LockResult, uint256)
+    {
+        return (IxPNTsTokenV2.LockResult.OK, reserveAPNTs);
+    }
+
+    function settleLocked(address, bytes32, uint256) external returns (uint256) {
+        // Attack: try to withdraw operator funds from inside postOp
+        paymaster.withdraw(1 ether);
+        return 0;
+    }
 }
 
 contract SuperPaymasterHardenVerification is Test {
     using Clones for address;
     SuperPaymaster paymaster;
-    xPNTsToken apnts;
-    xPNTsFactory factory;
+    xPNTsToken apnts;          // aPNTs deposit token (3.x; SP only uses it through IERC20)
+    xPNTsFactory factory;      // legacy 3.x factory (used to prove 3.x tokens are rejected)
+    xPNTsFactoryV2 factoryV2;  // 5.5.0 community-token factory
+    V2TokenDeployer.Stack stack;
     MockRegistry registry;
-    
+
     address owner = address(0x1);
     address community = address(0x2);
     address ep = address(0x3);
@@ -97,14 +127,14 @@ contract SuperPaymasterHardenVerification is Test {
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
         apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
-        
+
         // Correctly initialize Mock Price Feed
         MockAggregatorV3 realPriceFeed = new MockAggregatorV3(2000 * 1e8, 8);
         priceFeedAddr = address(realPriceFeed);
 
-        // Since we are testing SuperPaymaster initialization, we deploy a minimal factory
+        // Legacy 3.x factory (only for the rejection test)
         factory = new xPNTsFactory(address(0), address(registry));
-        
+
         paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
             IEntryPoint(ep),
             IRegistry(address(registry)),
@@ -114,9 +144,15 @@ contract SuperPaymasterHardenVerification is Test {
             treasury,
             3600
         );
-        
-        paymaster.setXPNTsFactory(address(factory));
-        
+        vm.stopPrank();
+
+        // xPNTs v2 stack + v2 factory bound to this SP (spec §6 step 4)
+        stack = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        factoryV2 = new xPNTsFactoryV2(address(paymaster), address(registry), address(stack.impl), address(stack.tier));
+
+        vm.startPrank(owner);
+        paymaster.setXPNTsFactory(address(factoryV2));
+
         // Initialize Price Cache
         paymaster.queueBLSAggregator(owner);
         vm.warp(block.timestamp + 24 hours + 1);
@@ -125,19 +161,19 @@ contract SuperPaymasterHardenVerification is Test {
 
         registry.grantRole(keccak256("COMMUNITY"), community);
         registry.grantRole(keccak256("PAYMASTER_SUPER"), community);
-        
+
         vm.stopPrank();
     }
 
     function testRoundingCeil() public {
         // _calculateAPNTsAmount logic:
         // (ethAmount * price * 1e18) / (10^decimals * aPNTsPriceUSD)
-        
+
         // Mock a situation where division has a remainder
         // Let ethAmount = 1 (1 wei)
         // Let price = 2000 * 1e8 (8 decimals)
         // Let aPNTsPriceUSD = 0.02 * 1e18 (18 decimals)
-        
+
         // P0-11: setAPNTSPrice is now bounded to ±10% of current price (init 0.02 ether).
         // Use 0.021 ether (5% above) which is within the window.
         vm.prank(owner);
@@ -171,59 +207,102 @@ contract SuperPaymasterHardenVerification is Test {
 
     function testBondingEnforcement() public {
         address fakeToken = address(0xdead);
-        
+
         vm.prank(community);
         vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
         paymaster.configureOperator(fakeToken, community);
-        
-        // Now deploy a real one through factory
+
+        // Now deploy a real one through the (v2) factory
         vm.startPrank(community);
-        address realToken = factory.deployxPNTsToken("Real", "RL", "Real", "real.eth", 1e18, address(0));
-        
+        address realToken = factoryV2.deployxPNTsToken("Real", "RL", "Real", "real.eth", 1e18, address(0));
+
         // Should succeed
         paymaster.configureOperator(realToken, community);
         vm.stopPrank();
+        (, bool configured,, address tok,,,,,) = paymaster.operators(community);
+        assertTrue(configured);
+        assertEq(tok, realToken);
     }
 
-    function testReentrancyProtectionPostOp() public {
+    /// @notice 5.5.0 (§3.3, §8 migration): a token that IS bound to the operator by the wired
+    ///         factory but is a 3.x token (no BALANCE_MODE_VERSION) is rejected.
+    function testBondingEnforcement_Legacy3xFactoryTokenRejected() public {
+        vm.prank(owner);
+        paymaster.setXPNTsFactory(address(factory)); // legacy 3.x factory
+        vm.startPrank(community);
+        address legacyToken = factory.deployxPNTsToken("Old", "OLD", "Old", "old.eth", 1e18, address(0));
+        assertEq(factory.getTokenAddress(community), legacyToken, "factory binding holds");
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
+        paymaster.configureOperator(legacyToken, community);
+        vm.stopPrank();
+    }
+
+    /// @notice Replaces the 3.x version of this test (malicious `recordDebt` re-entry, swallowed
+    ///         by try/catch into `pendingDebts` — both removed in 5.5.0). Part 1: a legacy-shaped
+    ///         malicious token cannot even be configured.
+    function testReentrancyProtection_LegacyShapedTokenRejected() public {
         MaliciousToken mal = new MaliciousToken(paymaster);
-        
+        vm.mockCall(
+            address(factoryV2),
+            abi.encodeWithSelector(IxPNTsFactory.getTokenAddress.selector, community),
+            abi.encode(address(mal))
+        );
+        vm.prank(community);
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        paymaster.configureOperator(address(mal), community);
+    }
+
+    /// @notice Part 2: a v2-shaped malicious token that re-enters SP from `settleLocked` is
+    ///         blocked by the reentrancy guard, and because settlement is NOT wrapped in
+    ///         try/catch (B-1) the whole postOp reverts — nothing is silently recorded, the
+    ///         operator's a0 stays in flight for `releaseStaleSponsorship` (I10).
+    function testReentrancyProtectionPostOp() public {
+        MaliciousV2Token mal = new MaliciousV2Token(paymaster);
+
         // Mock factory to accept this malicious token
         vm.mockCall(
-            address(factory),
+            address(factoryV2),
             abi.encodeWithSelector(IxPNTsFactory.getTokenAddress.selector, community),
             abi.encode(address(mal))
         );
 
         vm.prank(community);
         paymaster.configureOperator(address(mal), community);
-        
+
         // Fund paymaster for operator
         vm.startPrank(owner);
         apnts.mint(community, 10 ether);
         vm.stopPrank();
-        
+
         vm.startPrank(community);
         apnts.approve(address(paymaster), 10 ether);
         paymaster.deposit(10 ether);
         vm.stopPrank();
-        
-        // Simulate EntryPoint calling postOp
-        bytes memory context = abi.encode(
-            address(mal),
-            address(0xabc),
-            1 ether,
-            bytes32(0),
-            community
-        );
 
-        // With try/catch, postOp no longer reverts on malicious recordDebt.
-        // Reentrancy is still blocked (withdraw fails), debt goes to pendingDebts.
+        address victimUser = address(0xabc);
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(victimUser, true);
+
+        PackedUserOperation memory op;
+        op.sender = victimUser;
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, community, type(uint256).max, address(mal), 0);
+        bytes32 h = keccak256("reentrancy");
+
         vm.prank(ep);
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.01 ether, 0);
+        (bytes memory context, uint256 vd) = paymaster.validatePaymasterUserOp(op, h, 0.00001 ether);
+        assertEq(uint160(vd), 0, "precondition: validation passes");
+        (uint128 balAfterValidate,,,,,,,,) = paymaster.operators(community);
 
-        // Verify: reentrancy was blocked, debt stored in pendingDebts instead
-        uint256 pending = paymaster.pendingDebts(address(mal), address(0xabc));
-        assertGt(pending, 0, "Pending debt should be recorded");
+        // Re-entry from settleLocked -> SP.withdraw hits nonReentrant; postOp does not swallow it.
+        vm.prank(ep);
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.00001 ether, 0);
+
+        (uint128 balAfter,,,,,,,,) = paymaster.operators(community);
+        assertEq(balAfter, balAfterValidate, "no funds moved by the re-entrant call");
+        (address f, uint256 a0) = paymaster.inflightOf(h);
+        assertEq(f, community, "a0 still in flight (postOp rolled back)");
+        assertEq(a0, abi.decode(context, (SuperPaymaster.OpCtx)).a0);
+        assertEq(paymaster.protocolRevenue(), 0, "no revenue booked for an unsettled op");
     }
 }

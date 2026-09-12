@@ -10,6 +10,8 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../../../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "../../../../src/tokens/v2/xPNTsTokenV2.sol";
 
 
 // --- Mocks ---
@@ -42,17 +44,8 @@ contract MockERC20Sec is ERC20 {
         _mint(msg.sender, 10000 ether);
     }
 
-    mapping(address => uint256) public debts;
-    function setDebt(address u, uint256 d) external { debts[u] = d; }
-    function recordDebt(address u, uint256 d) external { debts[u] = d; }
-    function recordDebtWithOpHash(address u, uint256 d, bytes32) external { debts[u] += d; }
-    function burnFromWithOpHash(address, uint256, bytes32) external {}
-    function approvedFacilitators(address) external pure returns (bool) { return false; }
-    function FACTORY() external view returns (address) { return address(0); }
-
-    function getDebt(address u) external view returns (uint256) { return debts[u]; }
-    // Rate commitment check requires exchangeRate() — return 1:1 (1e18)
-    function exchangeRate() external pure returns (uint256) { return 1e18; }
+    // 5.5.0: used only as the aPNTs deposit token; the 3.x debt hooks (recordDebt*,
+    // burnFromWithOpHash, getDebt) no longer exist on the SP <-> token surface.
 }
 
 contract MockAggregatorV3Sec {
@@ -70,7 +63,9 @@ contract SuperPaymaster_SecurityTest is Test {
     SuperPaymaster paymaster;
     MockRegistrySec registry;
     MockEntryPointSec entryPoint;
-    MockERC20Sec token;
+    MockERC20Sec token;          // aPNTs deposit token
+    xPNTsTokenV2 xtok;           // operator's community gas token (xPNTs v2)
+    V2TokenDeployer.Stack stack;
     MockAggregatorV3Sec oracle;
     MockXPNTsFactory mockFactory;
 
@@ -80,10 +75,10 @@ contract SuperPaymaster_SecurityTest is Test {
     address treasury = address(4);
 
     uint256 operatorKey = 0x12345;
-    
+
     function setUp() public {
         vm.warp(1700000000); // 2023ish, avoids underflow
-        
+
         registry = new MockRegistrySec();
         entryPoint = new MockEntryPointSec();
 
@@ -98,11 +93,11 @@ contract SuperPaymaster_SecurityTest is Test {
             IRegistry(address(registry)),
             address(oracle),
             owner,
-            address(token), // Use token as aPNTs for simplicity
+            address(token), // aPNTs
             treasury,
             3600
         );
-        
+
         // Update Price Cache
         paymaster.updatePrice();
 
@@ -116,78 +111,79 @@ contract SuperPaymaster_SecurityTest is Test {
         vm.prank(owner);
         paymaster.setAPNTsToken(address(token));
 
-        // Deploy mock factory and register operator token (P1-4 fix, must be owner)
+        // Deploy mock factory (P1-4 factory binding, must be owner)
         vm.startPrank(owner);
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
         vm.stopPrank();
-        mockFactory.setToken(operator, address(token));
+
+        // 5.5.0: the operator's community token must be xPNTs v2.
+        stack = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xtok = V2TokenDeployer.newToken(stack, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xtok));
+        IxPNTsV2Admin(address(xtok)).mint(user, 1000 ether);
 
         vm.startPrank(operator);
         token.approve(address(paymaster), 100 ether);
         paymaster.deposit(100 ether);
-        paymaster.configureOperator(address(token), treasury); // 1.0 margin
+        paymaster.configureOperator(address(xtok), treasury);
         vm.stopPrank();
-        
+
         // Sync SBT Status for user (Must be called by Registry)
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user, true);
 
-        // 5. Setup User Credit (Decentralized Mode)
+        // 5. User credit tier (unused by balance-mode ops; credit policy defaults OFF)
         registry.setCreditLimit(user, 1000 ether);
     }
 
     function testSetOperatorLimits() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60); // 1 minute interval
-        
+
         // Verify storage (Tuple unpacking based on latest V3 structure)
-        // (,,,, address token, uint32 rep, uint48 minTx,...)
         (,,,,, uint48 minTx,,,) = paymaster.operators(operator);
         assertEq(minTx, 60);
     }
 
     function testRateLimiting_DenySameBlock() public {
         vm.prank(operator);
-        paymaster.setOperatorLimits(60); 
+        paymaster.setOperatorLimits(60);
 
-        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
-        
+        PackedUserOperation memory userOp = _createSafeUserOp(user, operatorKey);
+
         // Tx 1: Time T
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
         assertEq(uint160(valData), 0, "First tx valid");
-        
+
         // Simulate PostOp to update state
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
         // Tx 2: Time T (Same Block) - Should Fail (validAfter > timestamp)
         vm.prank(address(entryPoint));
-        (ctx, valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        
-        uint48 validAfter = uint48(valData >> 216); // Standard packing: Authorizer(20)+Until(6)+After(6). 
-        // Wait, standard packing is:
-        // authorizer: 160 bits (0..159)
-        // validUntil: 48 bits (160..207)
-        // validAfter: 48 bits (208..255)
-        validAfter = uint48(valData >> 208);
-        
+        (ctx, valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
+
+        // validationData: authorizer [0..159] | validUntil [160..207] | validAfter [208..255]
+        uint48 validAfter = uint48(valData >> 208);
+
         assertGt(validAfter, block.timestamp, "Second tx in same block should be deferred");
     }
 
     function testRateLimiting_RevertTooSoon() public {
         vm.prank(operator);
-        paymaster.setOperatorLimits(60); 
+        paymaster.setOperatorLimits(60);
 
-        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
-        
+        PackedUserOperation memory userOp = _createSafeUserOp(user, operatorKey);
+
         // Tx 1: Time 1000
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
+        assertEq(uint160(vd1), 0, "First tx valid");
+
         // Simulate PostOp
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
@@ -195,22 +191,23 @@ contract SuperPaymaster_SecurityTest is Test {
         // Tx 2: Time 1030 (Delta 30 < 60) - Should return validAfter
         vm.warp(1700001030);
         vm.prank(address(entryPoint));
-        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        
+        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
+
         uint48 validAfter = uint48(valData >> 208);
         assertGt(validAfter, block.timestamp, "Tx too soon should have future validAfter");
     }
-    
+
     function testRateLimiting_AllowAfterInterval() public {
         vm.prank(operator);
-        paymaster.setOperatorLimits(60); 
+        paymaster.setOperatorLimits(60);
 
-        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
-        
+        PackedUserOperation memory userOp = _createSafeUserOp(user, operatorKey);
+
         // Tx 1: Time 1000
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
+        assertEq(uint160(vd1), 0, "First tx valid");
 
         // Simulate PostOp
         vm.prank(address(entryPoint));
@@ -219,37 +216,43 @@ contract SuperPaymaster_SecurityTest is Test {
         // Tx 2: Time 1061 (Delta 61 > 60) - Pass
         vm.warp(1700001061);
         vm.prank(address(entryPoint));
-        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        
+        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
+
         uint48 validAfter = uint48(valData >> 208);
         assertLe(validAfter, block.timestamp, "Tx after interval should be valid immediately");
         assertEq(uint160(valData), 0, "Tx after interval should have valid sig");
     }
 
-
-    
+    /// @notice A user whose EXECUTION reverted still consumes the rate limit and still pays for
+    ///         gas (T-R14-04). Pre-5.5.0 this used PostOpMode.postOpReverted, which EntryPoint
+    ///         v0.7 never passes to postOp; opReverted is the mode for a reverted user execution.
+    ///         SP 5.5.0 settles identically in both modes.
     function testRateLimiting_UpdatesOnRevert() public {
         vm.prank(operator);
-        paymaster.setOperatorLimits(60); 
+        paymaster.setOperatorLimits(60);
 
-        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
-        
+        PackedUserOperation memory userOp = _createSafeUserOp(user, operatorKey);
+
         // Tx 1: Time 1000
         vm.warp(1700001000);
         vm.prank(address(entryPoint));
-        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
+        assertEq(uint160(vd1), 0, "First tx valid");
+        uint256 balBefore = xtok.balanceOf(user);
 
-        // Simulate Reverted PostOp
+        // Simulate postOp for a reverted user execution
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.postOpReverted, ctx, 100000, 100000);
+        paymaster.postOp(IPaymaster.PostOpMode.opReverted, ctx, 100000, 100000);
+        assertLt(xtok.balanceOf(user), balBefore, "T-R14-04: reverted execution still pays (xc burned)");
+        assertEq(xtok.lockedOf(user), 0, "T-R14-04: escrow cleared");
 
         // Tx 2: Time 1030 (Delta 30 < 60) - Should return validAfter
         // If timestamp was NOT updated, this would PASS (validAfter=0).
         // Since it IS updated, it should FAIL (validAfter > timestamp).
         vm.warp(1700001030);
         vm.prank(address(entryPoint));
-        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
-        
+        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
+
         uint48 validAfter = uint48(valData >> 208);
         assertGt(validAfter, block.timestamp, "Reverted tx should still consume rate limit");
     }
@@ -269,6 +272,14 @@ contract SuperPaymaster_SecurityTest is Test {
     }
 
     function testBlocklist_DenyUser() public {
+        PackedUserOperation memory userOp = _createSafeUserOp(user, operatorKey);
+
+        // Positive control: the same op validates while the user is NOT blocked, so the
+        // rejection below is attributable to the blocklist (not to a malformed op).
+        vm.prank(address(entryPoint));
+        (, uint256 okData) = paymaster.validatePaymasterUserOp(userOp, keccak256("pre-block"), 100000);
+        assertEq(uint160(okData), 0, "control: unblocked user validates");
+
         // Block user
         vm.prank(address(registry));
         address[] memory users = new address[](1);
@@ -277,17 +288,17 @@ contract SuperPaymaster_SecurityTest is Test {
         statuses[0] = true;
         paymaster.updateBlockedStatus(operator, users, statuses);
 
-        (PackedUserOperation memory userOp, bytes32 opHash) = _createSafeUserOp(user, operatorKey);
-        
+        uint256 lockedBefore = xtok.lockedOf(user);
         vm.prank(address(entryPoint));
-        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, opHash, 100000);
+        (, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("post-block"), 100000);
         assertTrue(uint160(valData) != 0, "Blocked user should be rejected");
+        assertEq(xtok.lockedOf(user), lockedBefore, "rejected op locks nothing");
     }
 
 
 
     // --- Helper ---
-    function _createSafeUserOp(address sender, uint256 signerKey) internal view returns (PackedUserOperation memory op, bytes32 hash) {
+    function _createSafeUserOp(address sender, uint256 signerKey) internal view returns (PackedUserOperation memory op) {
         op.sender = sender;
         op.nonce = 0;
         op.initCode = "";
@@ -295,31 +306,14 @@ contract SuperPaymaster_SecurityTest is Test {
         op.accountGasLimits = bytes32(abi.encodePacked(uint128(100000), uint128(100000)));
         op.preVerificationGas = 50000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
-        
+
         address opAddr = vm.addr(signerKey);
 
-        // V3.2.1 Layout (No Sig): [PM(20)][Gas(32)][Op(20)][Rate(32)]
-        bytes memory pmData = abi.encodePacked(
-            address(paymaster),
-            uint128(0),
-            uint128(200000),
-            opAddr,     // operator
-            type(uint256).max // maxRate
+        // 5.5.0 layout: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+        op.paymasterAndData = V2TokenDeployer.pmd(
+            address(paymaster), uint128(0), uint128(200000), opAddr, type(uint256).max, address(xtok), 0
         );
-        
-        op.paymasterAndData = pmData;
-        
-        hash = keccak256(abi.encode(
-            op.sender, 
-            op.nonce, 
-            keccak256(op.initCode), 
-            keccak256(op.callData), 
-            op.accountGasLimits, 
-            op.preVerificationGas, 
-            op.gasFees, 
-            keccak256(pmData)
-        ));
-        
+
         // No Signature
         op.signature = "0x";
     }

@@ -13,6 +13,17 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../../../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "../../../../src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsV2Base} from "../../../../src/tokens/v2/xPNTsV2Base.sol";
+import {IxPNTsTokenV2} from "../../../../src/tokens/v2/IxPNTsTokenV2.sol";
+import {SuperPaymasterLens} from "../../../../src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
+
+// 5.5.0 migration notes (spec docs/design/aoa-balance-mode/03-final-spec.md):
+// - `apnts` (3.x xPNTsToken) is kept ONLY as the operator-deposit aPNTs token: SP 5.5.0 still
+//   talks to APNTS_TOKEN through IERC20 and the upgrade does not touch it (§6 step 1).
+// - The operator's COMMUNITY gas token is now an xPNTs v2 token (`xtok`); SP 5.5.0 rejects 3.x
+//   community tokens in configureOperator (§3.3).
 
 // Mock Contracts
 // Mock Contracts
@@ -103,6 +114,9 @@ contract SuperPaymasterTest is Test {
     MockAggregatorV3 priceFeed;
     MockEntryPoint entryPoint;
     MockXPNTsFactory mockFactory;
+    V2TokenDeployer.Stack stack;
+    xPNTsTokenV2 xtok; // operator's community gas token (xPNTs v2)
+    SuperPaymasterLens lens; // 5.5.0 home of dryRunValidation (used to attribute sigFails)
 
     address owner = address(1);
     uint256 operatorPk = 0xA11CE;
@@ -146,7 +160,6 @@ contract SuperPaymasterTest is Test {
         // Deploy mock factory and register operator token (P1-4 fix)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator, address(apnts));
 
 
         // Fix: Update Price Cache (Warp to prevent underflow allowed check)
@@ -158,11 +171,18 @@ contract SuperPaymasterTest is Test {
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
 
-        // Fund Operator
+        // Fund Operator (aPNTs deposit token)
         apnts.mint(operator, 1000 ether);
-        apnts.mint(user, 1000 ether); // User holds xPNTs (technically same logic for aPNTs here)
+        apnts.mint(user, 1000 ether);
         vm.stopPrank();
-        
+
+        // Operator's community gas token: xPNTs v2 (this test contract is its FACTORY, so it mints).
+        stack = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xtok = V2TokenDeployer.newToken(stack, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xtok));
+        IxPNTsV2Admin(address(xtok)).mint(user, 1000 ether);
+        lens = new SuperPaymasterLens();
+
         // Sync SBT Status (Required for V3.3)
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user, true);
@@ -254,10 +274,24 @@ contract SuperPaymasterTest is Test {
     
     function testConfigureOperator() public {
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury);
-        (,,, address token,,,,,) = paymaster.operators(operator); 
-        assertEq(token, address(apnts));
+        paymaster.configureOperator(address(xtok), treasury);
+        (, bool configured,, address token,,, address treas,,) = paymaster.operators(operator);
+        assertEq(token, address(xtok));
+        assertTrue(configured);
+        assertEq(treas, treasury);
         vm.stopPrank();
+    }
+
+    /// @notice 5.5.0 §3.3 / §8 migration: a 3.x community token is rejected even when the factory
+    ///         binding matches (the BALANCE_MODE_VERSION probe fails), so a legacy operator can
+    ///         never be (re)configured onto SP 5.5.0.
+    function testConfigureOperator_RejectsLegacy3xToken() public {
+        mockFactory.setToken(operator, address(apnts)); // factory binding satisfied
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        paymaster.configureOperator(address(apnts), treasury);
+        (, bool configured,,,,,,,) = paymaster.operators(operator);
+        assertFalse(configured, "legacy token must not configure the operator");
     }
     
     function testSlashAndPause() public {
@@ -363,108 +397,142 @@ contract SuperPaymasterTest is Test {
         assertEq(bal, 50 ether);
     }
     
+
+    /// @notice 5.5.0 (R10-M1b): validation moves a0 IN FLIGHT (not revenue); postOp turns the
+    ///         charge into revenue and refunds (a0 - charge) to the operator. The pre-5.5.0
+    ///         assertion `totalSpent == protocolRevenue` right after validation encoded the old
+    ///         optimistic "a0 is revenue at validation" accounting and is replaced by the
+    ///         in-flight / settle / withdraw-buffer flow below.
     function testProtocolRevenueFlow() public {
-        // 1. Setup Operator (Need significant balance for 1 ETH gas * 2000 price)
+        // 1. Setup Operator
         vm.startPrank(owner);
         apnts.mint(operator, 200000 ether);
-        apnts.mint(user, 200000 ether); // FIX: Mint user enough tokens to pay for the op
         vm.stopPrank();
-        // AUDIT H-1: credit is now enforced in validation regardless of balance, so a
-        // sponsored user needs a non-zero credit ceiling (this test exercises revenue
-        // flow, not the credit gate). Give ample credit so the op passes validation.
-        registry.setCreditForUser(user, 200000 ether);
+        IxPNTsV2Admin(address(xtok)).mint(user, 200000 ether); // user pays gas in xPNTs v2
 
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury);
-        
+        paymaster.configureOperator(address(xtok), treasury);
+
         apnts.approve(address(paymaster), 200000 ether);
-        // Split deposit to respect 5000 ether limit (40 * 5000 = 200,000)
+        // Split deposit to respect the 3.x aPNTs 5000 ether single-tx limit (40 * 5000 = 200,000)
         for(uint i=0; i<40; i++) {
             paymaster.depositFor(operator, 5000 ether);
         }
         vm.stopPrank();
 
-        // 2. Mock Validation Call
-        vm.startPrank(address(entryPoint));
-        
+        // 2. Validation. maxCost 0.03 ETH -> a0 = 3000 aPNTs * 1.2 = 3600 aPNTs (full maxCost,
+        //    + fee + validation buffer; spec §10.3), which fits the v2 single-tx/allowance caps.
         PackedUserOperation memory op = _createOp(user);
-        
-        // Use 1 ether prefund to guarantee > 0 revenue
-        try paymaster.validatePaymasterUserOp(op, bytes32(0), 1 ether) {
-             // Success
-        } catch Error(string memory reason) {
-             console.log("Val Failed:", reason);
-             fail(); 
-        } catch (bytes memory) {
-             console.log("Val Failed (Bytes)");
-             fail();
-        }
-        
-        // 3. Verify Revenue
-        // Spent is v7 (index 7, item 8?) 
-        // Struct: 6=Balance, 7=TotalSpent. 
-        // Tuple: (v1..v9).
-        // If v6 is Balance, then v7 is TotalSpent.
-        (,,,,,,, uint256 spent,) = paymaster.operators(operator); 
-        
+        bytes32 h = keccak256("revenue_flow");
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(op, h, 0.03 ether);
+        assertEq(uint160(vd), 0, "validation must pass");
+        uint256 a0 = abi.decode(ctx, (SuperPaymaster.OpCtx)).a0;
+        assertEq(a0, 3600 ether, "a0 = full maxCost at cached price + fee + buffer");
+
+        (uint128 balMid,,,,,,, uint256 spent,) = paymaster.operators(operator);
+        assertEq(spent, a0, "totalSpent records a0");
+        assertEq(uint256(balMid), 200000 ether - a0, "a0 debited from operator at validation");
+        assertEq(paymaster.protocolRevenue(), 0, "R10-M1b: a0 is in flight, NOT revenue, before postOp");
+        (address inflOp, uint256 inflA0) = paymaster.inflightOf(h);
+        assertEq(inflOp, operator, "in-flight operator");
+        assertEq(inflA0, a0, "in-flight a0");
+
+        // 3. Settlement
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 0.02 ether, 1 gwei);
+
         uint256 revenue = paymaster.protocolRevenue();
-        console.log("Revenue detected:", revenue);
-        
-        assertEq(spent, revenue);
-        assertTrue(revenue > 0);
-        
-        vm.stopPrank();
-        
+        (uint128 balFinal,,,,,,,,) = paymaster.operators(operator);
+        assertGt(revenue, 0, "revenue after settlement");
+        assertLt(revenue, a0, "charge < reservation (refund happened)");
+        assertEq(uint256(balFinal), 200000 ether - revenue, "operator refunded exactly a0 - charge (no clamp)");
+        (inflOp, inflA0) = paymaster.inflightOf(h);
+        assertEq(inflOp, address(0), "in-flight cleared");
+        assertEq(inflA0, 0, "in-flight cleared");
+
         // 4. Withdraw Revenue — must leave PROTOCOL_REVENUE_BUFFER (0.1 ether) in place
         vm.startPrank(owner);
         uint256 buffer = 0.1 ether;
         uint256 withdrawable = revenue > buffer ? revenue - buffer : 0;
         uint256 treasuryBalBefore = apnts.balanceOf(treasury);
-        if (withdrawable > 0) {
-            paymaster.withdrawProtocolRevenue(treasury, withdrawable);
-            assertEq(apnts.balanceOf(treasury), treasuryBalBefore + withdrawable);
-        }
+        assertGt(withdrawable, 0, "revenue must exceed the buffer in this scenario");
+        paymaster.withdrawProtocolRevenue(treasury, withdrawable);
+        assertEq(apnts.balanceOf(treasury), treasuryBalBefore + withdrawable);
         // Verify buffer prevents full drain
-        if (revenue > buffer) {
-            vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientRevenue.selector));
-            paymaster.withdrawProtocolRevenue(treasury, revenue);
-        }
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientRevenue.selector));
+        paymaster.withdrawProtocolRevenue(treasury, revenue);
         vm.stopPrank();
     }
 
 
     // ====================================
-    // V3.1 Refactor Tests
+    // V3.1 Refactor Tests (migrated to 5.5.0 balance mode + reservation credit)
     // ====================================
 
     function _setupV3Env() internal {
-        vm.startPrank(user);
-        vm.stopPrank();
-
         vm.startPrank(operator);
-        paymaster.configureOperator(address(apnts), treasury);
+        paymaster.configureOperator(address(xtok), treasury);
         apnts.approve(address(paymaster), 200 ether);
         paymaster.depositFor(operator, 200 ether);
         vm.stopPrank();
     }
 
+    /// @dev Move the user's whole xPNTs balance away (the v2 token has lockedOf-aware storage,
+    ///      so a real transfer is used instead of `deal`).
+    function _drain(address who) internal {
+        uint256 bal = xtok.balanceOf(who);
+        if (bal > 0) {
+            vm.prank(who);
+            xtok.transfer(address(0xdead), bal);
+        }
+        assertEq(xtok.balanceOf(who), 0);
+    }
+
+    /// @dev Spec C-3: queue AUTO -> 48 h -> execute (anyone); then the user signs requestCredit.
+    ///      The SP price cache is refreshed after the warp so validUntil stays in the future.
+    function _enableAutoCredit(address who, uint256 requestedCap) internal {
+        vm.prank(operator); // communityOwner of xtok
+        IxPNTsV2Admin(address(xtok)).queueCreditPolicy(2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        IxPNTsV2Admin(address(xtok)).executeCreditPolicy();
+        paymaster.updatePrice();
+        vm.prank(who);
+        IxPNTsV2Admin(address(xtok)).requestCredit(requestedCap);
+    }
+
+    function _validate(bytes32 h, uint256 maxCost) internal returns (bytes memory ctx, uint256 vd) {
+        PackedUserOperation memory op = _createOp(user);
+        vm.prank(address(entryPoint));
+        (ctx, vd) = paymaster.validatePaymasterUserOp(op, h, maxCost);
+    }
+
+    function _opBalance() internal view returns (uint128 b) {
+        (b,,,,,,,,) = paymaster.operators(operator);
+    }
+
+    /// @notice Credit payment (5.5.0): a user with NO xPNTs balance, AUTO policy, a current-epoch
+    ///         request and a non-zero tier is sponsored in CREDIT mode with a validation-time
+    ///         reservation (spec §1, C-1).
     function test_V31_CreditPayment_Success() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
-        
-        PackedUserOperation memory op = _createOp(user);
-        bytes32 opHash = keccak256("test_hash");
+        _drain(user);
+        _enableAutoCredit(user, 1000 ether);
 
-        vm.startPrank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
-        vm.stopPrank();
+        bytes32 opHash = keccak256("test_hash");
+        (bytes memory context, uint256 validationData) = _validate(opHash, 0.001 ether);
 
         assertEq(uint160(validationData), 0, "Validation should pass via Credit");
-        (address token, address u, uint256 aAmount, bytes32 h, address opAddr) = abi.decode(context, (address, address, uint256, bytes32, address));
-        assertEq(token, address(apnts));
-        assertEq(opAddr, operator);
-        assertEq(u, user);
-        assertGt(aAmount, 0);
+        SuperPaymaster.OpCtx memory c = abi.decode(context, (SuperPaymaster.OpCtx));
+        assertEq(c.token, address(xtok));
+        assertEq(c.operator, operator);
+        assertEq(c.user, user);
+        assertEq(c.opHash, opHash);
+        assertEq(c.mode, 2, "CREDIT mode");
+        assertGt(c.a0, 0);
+        assertEq(xtok.creditReservedOf(user), c.a0, "validation-time reservation == a0");
+        assertEq(xtok.lockedOf(user), 0, "no escrow in credit mode");
     }
 
     function _createOp(address sender) internal view returns (PackedUserOperation memory) {
@@ -476,184 +544,222 @@ contract SuperPaymasterTest is Test {
         op.accountGasLimits = bytes32(abi.encodePacked(uint128(100000), uint128(100000)));
         op.preVerificationGas = 21000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
-        
-        // paymasterAndData: [PM][Limit][Post][Op][Rate] (104 bytes)
-        bytes memory pmData = abi.encodePacked(
-            address(paymaster),
-            uint128(100000), 
-            uint128(200000),      
-            operator,
-            type(uint256).max // MaxRate
+
+        // 5.5.0 paymasterAndData: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+        op.paymasterAndData = V2TokenDeployer.pmd(
+            address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xtok), 0
         );
-        
-        bytes32 hash = keccak256(abi.encode(
-            op.sender,
-            op.nonce,
-            keccak256(op.initCode),
-            keccak256(op.callData),
-            op.accountGasLimits,
-            op.preVerificationGas,
-            op.gasFees,
-            keccak256(pmData)
-        ));
-        
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorPk, MessageHashUtils.toEthSignedMessageHash(hash));
-        op.paymasterAndData = abi.encodePacked(pmData, r, s, v);
-        
         return op;
     }
 
-    function test_V31_DebtRecording_OnBurnFail() public {
+    /// @notice Replaces `test_V31_DebtRecording_OnBurnFail`. The 3.x "burn failed -> recordDebt
+    ///         fallback in postOp" path no longer exists (spec §1: debt only via reservation ->
+    ///         settleCredit, I3). The same risk — a user who cannot pay from balance — now becomes
+    ///         debt only through an admitted credit reservation, and the debt equals the charge.
+    function test_V31_DebtRecording_ViaCreditSettlement() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
+        _drain(user);
+        _enableAutoCredit(user, 1000 ether);
 
-        // Zero out user's xPNTs so burnFromWithOpHash fails and falls back to recordDebt.
-        deal(address(apnts), user, 0);
-
-        PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_hash");
+        (bytes memory context, uint256 vd) = _validate(opHash, 0.001 ether);
+        assertEq(uint160(vd), 0);
+        uint256 a0 = abi.decode(context, (SuperPaymaster.OpCtx)).a0;
+        uint256 revBefore = paymaster.protocolRevenue();
 
-        vm.startPrank(address(entryPoint));
-        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
-        vm.stopPrank();
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.0005 ether, 1 gwei);
 
-        uint256 debt = apnts.getDebt(user);
-        assertGt(debt, 0, "Debt should be recorded when burn fails due to zero balance");
+        uint256 debt = xtok.debts(user);
+        uint256 charge = paymaster.protocolRevenue() - revBefore;
+        assertGt(debt, 0, "Debt recorded for a user who cannot pay from balance");
+        assertEq(debt, charge, "debt == charge (settleCredit, C-2)");
+        assertLe(debt, a0, "debt <= admitted reservation");
+        assertEq(xtok.creditReservedOf(user), 0, "reservation consumed");
+        assertEq(xtok.balanceOf(user), 0, "no balance touched");
     }
 
     function test_V31_BurnSuccess_WhenUserHasBalance() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
 
-        uint256 balBefore = apnts.balanceOf(user); // 1000 ether from setUp
+        uint256 balBefore = xtok.balanceOf(user); // 1000 ether from setUp
         require(balBefore > 0, "Precondition: user needs xPNTs");
 
-        PackedUserOperation memory op = _createOp(user);
         bytes32 opHash = keccak256("test_burn_hash");
+        (bytes memory context, uint256 vd) = _validate(opHash, 0.001 ether);
+        assertEq(uint160(vd), 0);
+        assertEq(abi.decode(context, (SuperPaymaster.OpCtx)).mode, 1, "BALANCE mode");
+        assertGt(xtok.lockedOf(user), 0, "escrow taken at validation");
+        uint256 revBefore = paymaster.protocolRevenue();
 
-        vm.startPrank(address(entryPoint));
-        (bytes memory context, ) = paymaster.validatePaymasterUserOp(op, opHash, 0.001 ether);
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
-        vm.stopPrank();
-
-        assertLt(apnts.balanceOf(user), balBefore, "User xPNTs must decrease after burn");
-        assertEq(apnts.getDebt(user), 0, "No debt should be recorded when burn succeeds");
-    }
-
-    /*
-    function test_V31_InsufficientCredit_Revert() public {
-        _setupV3Env();
-        registry.setCreditForUser(user, 0);
-        
-        deal(address(apnts), user, 0);
-
-        PackedUserOperation memory op = _createOp(user);
-        
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
-        
-        // Assert: Returns SIG_VALIDATION_FAILED (1) instead of reverting
-        assertEq(validationData, 1, "Should return SIG_VALIDATION_FAILED");
-    }
-    */
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 0.001 ether, 1 gwei);
 
-    function test_V31_ReputationEvent() public {
+        uint256 burned = balBefore - xtok.balanceOf(user);
+        assertGt(burned, 0, "User xPNTs must decrease after burn");
+        assertEq(burned, paymaster.protocolRevenue() - revBefore, "rate 1:1: burned xPNTs == aPNTs charge");
+        assertEq(xtok.lockedOf(user), 0, "escrow cleared");
+        assertEq(xtok.debts(user), 0, "No debt should be recorded when burn succeeds");
+    }
+
+    /// @notice Migrated `test_V31_ReputationEvent` (it asserted nothing; `UserReputationAccrued`
+    ///         is never emitted by SP). Asserts what the SP NatSpec actually promises for the
+    ///         validation frame: it passes, and SuperPaymaster itself emits no event there.
+    function test_V31_ValidationPasses_NoSPEventInValidation() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
         PackedUserOperation memory op = _createOp(user);
 
+        vm.recordLogs();
         vm.prank(address(entryPoint));
-        paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
+        (, uint256 vd) = paymaster.validatePaymasterUserOp(op, keccak256("h"), 0.001 ether);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(uint160(vd), 0, "validation passes");
+        // Positive control for the recorder: the token's LockCreated IS captured.
+        bool sawTokenLog;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(xtok)) sawTokenLog = true;
+        }
+        assertTrue(sawTokenLog, "recorder live: token escrow event captured");
+        for (uint256 i; i < logs.length; i++) {
+            assertTrue(logs[i].emitter != address(paymaster), "SP must not emit during validation");
+        }
     }
 
-    // ─── C-01 Negative Tests (audit §6 T-H) ──────────────────────────────────────
-    // The credit gate (`_creditExceeded`) is a soft validation failure: it does
-    // NOT revert, it returns SIG_VALIDATION_FAILED so the EntryPoint drops the op.
-    // Per ERC-4337 v0.7 the failure is encoded in the low 160 bits (authorizer ==
-    // address(1)), with validUntil/validAfter in the upper bits — so the correct
-    // assertion is `uint160(validationData) == 1`, NOT `validationData == 1`
-    // (the latter only holds when validUntil/validAfter are both zero, which is
-    // why the historical inline test was commented out).
+    // ─── C-01 Negative Tests (audit §6 T-H), migrated to the token's canonical ceiling ────────
+    // 5.5.0: the credit gate is the token's `effectiveCreditCap` (C-0) checked by
+    // `tryReserveCredit` (C-1), and it is reached ONLY when the escrow lock is INSUFFICIENT
+    // (R-2). A failure is still a soft SIG_VALIDATION_FAILED: `uint160(validationData) == 1`.
 
-    /// @notice C-01a: a user with ZERO credit AND zero xPNTs balance (so the
-    ///         charge must fall to debt) is rejected at validation.
+    /// @notice C-01a: a user with ZERO credit AND zero xPNTs balance is rejected at validation —
+    ///         both under the default OFF policy and under AUTO with a request but a zero tier.
+    ///         L-1: a failed validation writes nothing (no escrow, no reservation, no in-flight).
     function test_C01_ZeroCredit_NoBalance_Rejected() public {
         _setupV3Env();
         registry.setCreditForUser(user, 0);
-        deal(address(apnts), user, 0); // cannot settle from balance → debt path
+        _drain(user);
+        uint128 opBefore = _opBalance();
 
-        PackedUserOperation memory op = _createOp(user);
-
-        vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) =
-            paymaster.validatePaymasterUserOp(op, keccak256("c01a"), 0.001 ether);
-
-        assertEq(uint160(validationData), 1, "C-01a: zero-credit user must fail validation");
+        (bytes memory context, uint256 validationData) = _validate(keccak256("c01a"), 0.001 ether);
+        assertEq(uint160(validationData), 1, "C-01a: zero-credit user must fail validation (policy OFF)");
         assertEq(context.length, 0, "C-01a: no context emitted on credit failure");
+        _assertRejectedBy(_creditRejected(IxPNTsTokenV2.CreditResult.NO_CREDIT));
+
+        _enableAutoCredit(user, 1000 ether); // request exists, but the tier is 0 -> cap 0
+        assertEq(xtok.effectiveCreditCap(user), 0, "tier 0 -> effective cap 0");
+        (context, validationData) = _validate(keccak256("c01a-auto"), 0.001 ether);
+        assertEq(uint160(validationData), 1, "C-01a: zero-tier user must fail validation (policy AUTO)");
+        assertEq(context.length, 0);
+        _assertRejectedBy(_creditRejected(IxPNTsTokenV2.CreditResult.NO_CREDIT));
+
+        assertEq(xtok.lockedOf(user), 0, "L-1: no escrow written");
+        assertEq(xtok.creditReservedOf(user), 0, "L-1: no reservation written");
+        assertEq(_opBalance(), opBefore, "operator not debited");
+        (address f,) = paymaster.inflightOf(keccak256("c01a-auto"));
+        assertEq(f, address(0), "nothing in flight");
     }
 
-    /// @notice C-01b: a user whose existing debt already sits at their credit
-    ///         ceiling (and who has no xPNTs to pay) is rejected — the new charge
-    ///         would push debt PAST the ceiling.
+    /// @notice C-01b: once `debts + reserved + a0` would exceed the ceiling, validation fails.
+    ///         Covers both the same-bundle case (an admitted reservation not yet settled, T-R14-08)
+    ///         and debt that already sits at the ceiling. Replaces the 3.x `recordDebt` pre-load
+    ///         (removed from v2): the debt is produced by a real reserve -> settle round.
     function test_C01_DebtAtCeiling_Rejected() public {
         _setupV3Env();
-        uint256 creditLimit = 1 ether; // tiny ceiling
-        registry.setCreditForUser(user, creditLimit);
-        deal(address(apnts), user, 0);
+        // Keep the OPERATOR solvent for several ops so every rejection below is attributable to
+        // the user's credit ceiling, not to the operator-balance check that runs first.
+        vm.startPrank(operator);
+        apnts.approve(address(paymaster), 600 ether);
+        paymaster.depositFor(operator, 600 ether);
+        vm.stopPrank();
+        registry.setCreditForUser(user, 1000 ether); // tier well above the request
+        _drain(user);
+        uint256 a0 = 120 ether; // maxCost 0.001 ETH -> 100 aPNTs * 1.2
+        _enableAutoCredit(user, a0); // tiny ceiling: exactly one reservation fits
 
-        // Pre-load debt right up to the ceiling via the SuperPaymaster path.
-        vm.prank(address(paymaster));
-        apnts.recordDebt(user, creditLimit);
-        assertEq(apnts.getDebt(user), creditLimit);
+        (bytes memory ctx1, uint256 vd1) = _validate(keccak256("c01b-1"), 0.001 ether);
+        assertEq(uint160(vd1), 0, "positive control: first op fits the ceiling exactly");
+        assertEq(abi.decode(ctx1, (SuperPaymaster.OpCtx)).a0, a0);
+        assertEq(paymaster.getAvailableCredit(user, address(xtok)), 0, "reservation consumes headroom");
 
-        PackedUserOperation memory op = _createOp(user);
+        (, uint256 vd2) = _validate(keccak256("c01b-2"), 0.001 ether);
+        assertEq(uint160(vd2), 1, "C-01b: same-bundle second reservation exceeds the ceiling");
+        _assertRejectedBy(_creditRejected(IxPNTsTokenV2.CreditResult.EXCEEDS_CAP));
 
         vm.prank(address(entryPoint));
-        (, uint256 validationData) =
-            paymaster.validatePaymasterUserOp(op, keccak256("c01b"), 0.001 ether);
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx1, 0.0005 ether, 1 gwei);
+        uint256 debt = xtok.debts(user);
+        assertGt(debt, 0);
+        assertEq(paymaster.getAvailableCredit(user, address(xtok)), a0 - debt, "headroom = cap - debt");
 
-        assertEq(uint160(validationData), 1, "C-01b: over-ceiling charge must fail validation");
+        (, uint256 vd3) = _validate(keccak256("c01b-3"), 0.001 ether);
+        assertEq(uint160(vd3), 1, "C-01b: over-ceiling charge must fail validation");
+        _assertRejectedBy(_creditRejected(IxPNTsTokenV2.CreditResult.EXCEEDS_CAP));
+        assertEq(xtok.creditReservedOf(user), 0, "rejected reservation writes nothing");
     }
 
-    /// @notice C-01c (positive control): a user WITH ample credit but zero balance
-    ///         is allowed — the charge falls to debt but stays within the ceiling.
-    ///         Guards against the gate being so strict it rejects legitimate ops.
+    function _creditRejected(IxPNTsTokenV2.CreditResult r) internal view returns (bytes32) {
+        return lens.DRYRUN_CREDIT_REJECTED() | bytes32(uint256(uint8(r)));
+    }
+
+    /// @dev Attribute a sigFail to its cause: the lens mirrors validation branch by branch.
+    function _assertRejectedBy(bytes32 expected) internal view {
+        (bool ok, bytes32 reason) = lens.dryRunValidation(address(paymaster), _createOp(user), 0.001 ether);
+        assertFalse(ok, "lens agrees: rejected");
+        assertEq(reason, expected, "rejection reason");
+    }
+
+    /// @notice C-01c (positive control): a user WITH ample credit but zero balance is allowed —
+    ///         the op is reserved against credit and stays within the ceiling.
     function test_C01_AmpleCredit_NoBalance_Allowed() public {
         _setupV3Env();
         registry.setCreditForUser(user, 1000 ether);
-        deal(address(apnts), user, 0);
+        _drain(user);
+        _enableAutoCredit(user, 1000 ether);
+        uint256 availBefore = paymaster.getAvailableCredit(user, address(xtok));
+        assertEq(availBefore, 1000 ether, "cap = min(request, ceiling, tier)");
 
-        PackedUserOperation memory op = _createOp(user);
-
-        vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) =
-            paymaster.validatePaymasterUserOp(op, keccak256("c01c"), 0.001 ether);
+        (bytes memory context, uint256 validationData) = _validate(keccak256("c01c"), 0.001 ether);
 
         assertEq(uint160(validationData), 0, "C-01c: in-credit user must pass validation");
         assertGt(context.length, 0, "C-01c: context must be emitted on success");
+        uint256 a0 = abi.decode(context, (SuperPaymaster.OpCtx)).a0;
+        assertEq(paymaster.getAvailableCredit(user, address(xtok)), availBefore - a0, "headroom drops by a0");
     }
 
-    /// @notice C-01d (positive control): a user with NO credit but enough xPNTs
-    ///         to settle the charge from balance is allowed — credit only governs
-    ///         the overdraft/debt path, never balance-backed payment.
-    function test_C01_NoCredit_WithBalance_Rejected() public {
-        // AUDIT H-1: the credit ceiling is now enforced in validation regardless of
-        // xPNTs balance. A zero-credit user is rejected even with sufficient balance,
-        // because a balance-backed op could empty its balance between validate and
-        // postOp (plain transfer bypasses the autoApprovedSpenders firewall) and
-        // force the debt path with unbounded recorded debt.
+    /// @notice C-01d — was `test_C01_NoCredit_WithBalance_Rejected` (AUDIT H-1). 5.5.0 behaviour
+    ///         differs ON PURPOSE: a zero-credit user WITH balance is sponsored in BALANCE mode,
+    ///         because the H-1 risk (emptying the balance between validation and postOp to force an
+    ///         unbounded debt) is now structurally closed by the escrow: the locked xPNTs cannot be
+    ///         moved (A-1), postOp burns from the escrow, and no debt can ever arise (I3).
+    function test_C01_NoCredit_WithBalance_EscrowedNotDebt() public {
         _setupV3Env();
         registry.setCreditForUser(user, 0);
-        // setUp already minted the user 1000 ether xPNTs; ensure it's intact.
-        require(apnts.balanceOf(user) > 0, "precondition: user holds xPNTs");
+        require(xtok.balanceOf(user) > 0, "precondition: user holds xPNTs");
+        uint256 balBefore = xtok.balanceOf(user);
 
-        PackedUserOperation memory op = _createOp(user);
+        (bytes memory ctx, uint256 validationData) = _validate(keccak256("c01d"), 0.001 ether);
+        assertEq(uint160(validationData), 0, "C-01d: balance-backed op is sponsored");
+        SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+        assertEq(c.mode, 1, "BALANCE mode, never credit");
+        uint256 locked = xtok.lockedOf(user);
+        assertEq(locked, c.a0, "rate 1:1: escrow == a0");
 
+        // H-1 attack: empty the balance between validation and postOp -> blocked by the escrow.
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.BalanceLocked.selector, user, locked));
+        xtok.transfer(address(0xdead), balBefore);
+        // Only the unlocked part can move.
+        vm.prank(user);
+        xtok.transfer(address(0xdead), balBefore - locked);
+
+        uint256 revBefore = paymaster.protocolRevenue();
         vm.prank(address(entryPoint));
-        (, uint256 validationData) =
-            paymaster.validatePaymasterUserOp(op, keccak256("c01d"), 0.001 ether);
-
-        assertEq(uint160(validationData), 1, "C-01d (H-1): zero-credit op rejected even with balance");
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 0.0005 ether, 1 gwei);
+        uint256 charge = paymaster.protocolRevenue() - revBefore;
+        assertEq(xtok.balanceOf(user), locked - charge, "settled from the escrow");
+        assertEq(xtok.lockedOf(user), 0);
+        assertEq(xtok.debts(user), 0, "no debt in balance mode (I3)");
     }
 }

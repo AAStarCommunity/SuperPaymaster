@@ -13,6 +13,9 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../../../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "../../../../src/tokens/v2/xPNTsTokenV2.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
 // Reusing Mocks from SuperPaymasterV3.t.sol logic but localized for clarity
 contract MockRegistryV2 is IRegistry {
@@ -95,7 +98,9 @@ contract MockEntryPointV2 is IEntryPoint {
 contract SuperPaymasterPricingV2Test is Test {
     using Clones for address;
     SuperPaymaster paymaster;
-    xPNTsToken apnts;
+    xPNTsToken apnts;           // aPNTs deposit token (3.x; SP only uses it through IERC20)
+    xPNTsTokenV2 xtok;          // operator's community gas token (xPNTs v2, SP 5.5.0)
+    V2TokenDeployer.Stack stack;
     MockRegistryV2 registry;
     MockAggregatorV3Spy priceFeed;
     MockEntryPointV2 entryPoint;
@@ -107,15 +112,16 @@ contract SuperPaymasterPricingV2Test is Test {
     address treasury = address(4);
 
     uint256 constant INITIAL_PRICE = 2000 * 1e8; // $2000
+    uint256 constant MAX_COST = 0.01 ether;      // a0 = 1000 aPNTs * 1.2 (fits v2 caps)
 
     function setUp() public {
         vm.warp(10 hours); // Start at a safe timestamp to avoid underflow
         vm.startPrank(owner);
-        
+
         entryPoint = new MockEntryPointV2();
         registry = new MockRegistryV2();
         priceFeed = new MockAggregatorV3Spy(int256(INITIAL_PRICE), 8);
-        
+
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
         apnts.initialize("AAStar PNTs", "aPNTs", owner, "AAStar", "aastar.eth", 1e18);
@@ -135,16 +141,20 @@ contract SuperPaymasterPricingV2Test is Test {
         registry.grantRole(keccak256("COMMUNITY"), operator);
         registry.grantRole(keccak256("ENDUSER"), user);
 
-        // Deploy mock factory and register operator token (P1-4 fix)
+        // Deploy mock factory (P1-4 factory binding)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator, address(apnts));
 
-        // Fund Operator & Config
+        // Fund Operator (aPNTs)
         apnts.mint(operator, 100000 ether);
-        apnts.mint(user, 100000 ether);
         vm.stopPrank();
-        
+
+        // Operator's xPNTs v2 community token; the user holds it to pay for gas.
+        stack = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xtok = V2TokenDeployer.newToken(stack, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xtok));
+        IxPNTsV2Admin(address(xtok)).mint(user, 100000 ether);
+
         // Sync SBT Status
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user, true);
@@ -154,7 +164,7 @@ contract SuperPaymasterPricingV2Test is Test {
         // Setup Operator
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 10000 ether);
-        paymaster.configureOperator(address(apnts), treasury);
+        paymaster.configureOperator(address(xtok), treasury);
         paymaster.depositFor(operator, 5000 ether);
         paymaster.depositFor(operator, 5000 ether);
         vm.stopPrank();
@@ -169,14 +179,30 @@ contract SuperPaymasterPricingV2Test is Test {
             accountGasLimits: bytes32(0),
             preVerificationGas: 0,
             gasFees: bytes32(0),
-            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100000), uint128(200000), operator),
+            // 5.5.0: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+            paymasterAndData: V2TokenDeployer.pmd(
+                address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xtok), 0
+            ),
             signature: bytes("")
         });
     }
 
-    function _getContext() internal view returns (bytes memory) {
-        // Mock context returned by validation
-        return abi.encode(address(apnts), uint256(0), user, uint256(1 ether), bytes32(0), operator);
+    /// @dev 5.5.0: postOp only accepts a context produced by a real validation (the token's
+    ///      escrow record + transient live marker must exist), so every postOp scenario below
+    ///      validates first, in the same transaction, instead of fabricating a context.
+    function _validate(bytes32 h) internal returns (bytes memory ctx, uint256 vd) {
+        PackedUserOperation memory op = _createOp();
+        vm.prank(address(entryPoint));
+        (ctx, vd) = paymaster.validatePaymasterUserOp(op, h, MAX_COST);
+    }
+
+    function _validateAndPostOp(bytes32 h) internal {
+        (bytes memory ctx, uint256 vd) = _validate(h);
+        assertEq(uint160(vd), 0, "precondition: validation passes");
+        uint256 balBefore = xtok.balanceOf(user);
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 0.001 ether, 1 gwei);
+        assertLt(xtok.balanceOf(user), balBefore, "precondition: postOp actually settled");
     }
 
     // 1. Fresh Cache Scenario
@@ -184,46 +210,43 @@ contract SuperPaymasterPricingV2Test is Test {
         // Initialize cache
         paymaster.updatePrice();
         (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
-        
+
         // Advance time by 30 mins (Fresh)
         vm.warp(block.timestamp + 30 minutes);
-        
+
         // Change Oracle Price to verify it's NOT picked up
         priceFeed.setPrice(9999 * 1e8);
-        
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, _getContext(), 0.01 ether, 1 gwei);
-        
-        // Assert: 
-        // 1. Cache timestamp should NOT change (no update triggered)
+
+        _validateAndPostOp(keccak256("fresh"));
+
+        // Assert:
+        // 1. Cache timestamp should NOT change (no update triggered by validate or postOp)
         (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
         assertEq(newUpdatedAt, initialUpdatedAt, "Cache should not update when fresh");
-        
+
         // 2. Cache price should remain OLD value
         (int256 p, , , ) = paymaster.cachedPrice();
         assertEq(p, int256(INITIAL_PRICE), "Should use cached price");
     }
 
-    // 2. Stale Cache + Successful Update Scenario
     // 2. Stale Cache Scenario (Passive Update Removed)
     function test_StaleCache_DoesNotUpdatePrice() public {
         paymaster.updatePrice();
         (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
-        
+
         // Advance time by 2 hours (Stale)
         vm.warp(block.timestamp + 2 hours);
-        
+
         // Oracle returns new price
         int256 NEW_PRICE = 3000 * 1e8;
-        priceFeed.setPrice(NEW_PRICE); 
-        
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, _getContext(), 0.01 ether, 1 gwei);
-        
+        priceFeed.setPrice(NEW_PRICE);
+
+        _validateAndPostOp(keccak256("stale"));
+
         // Assert: Cache timestamp SHOULD NOT Update (Passive update removed)
         (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
-        assertEq(newUpdatedAt, initialUpdatedAt, "Cache should NOT update in postOp");
-        
+        assertEq(newUpdatedAt, initialUpdatedAt, "Cache should NOT update in validate/postOp");
+
         // Verify Cache is still old price
         (int256 p, , , ) = paymaster.cachedPrice();
         assertEq(p, int256(INITIAL_PRICE));
@@ -233,68 +256,20 @@ contract SuperPaymasterPricingV2Test is Test {
     function test_StaleCache_ReturnsExpiredValidUntil() public {
         paymaster.updatePrice();
         (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
-        
+
         // Advance time by 2 hours (7200s). Threshold is 1 hour (3600s).
         vm.warp(block.timestamp + 2 hours);
-        
+
         priceFeed.setRevert(true);
-        
-        vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(_createOp(), bytes32(0), 0);
-        
-        // Validation Data format: [aggregator(20 logic/0 main)][validAfter(6)][validUntil(6)] (packed uint256)
-        // Wait, Paymaster returns _packValidationData(sigFail, validUntil, validAfter)
-        // Format: (sigFailed ? 1 : 0) << 160 | (validUntil << 112) | (validAfter << 64) ??
-        // Standard ERC-4337: validationData is uint256.
-        // If sigFailed is boolean (1 bit), then 6-byte validUntil, 6-byte validAfter.
-        // Actually BasePaymaster uses: (authorizer 0..159), (validUntil 160..207), (validAfter 208..255).
-        // Let's check BasePaymaster or helpers. 
-        // _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter)
-        // returns: (uint256(sigFailed ? 1 : 0) * 0 + validAfter) << ...?
-        // No, standard is:
-        // [authorizer(160 bits)] [validUntil(48 bits)] [validAfter(48 bits)]
-        // NOTE: validUntil=0 means "forever".
-        
-        uint48 validUntil = uint48(validationData >> 48); // Wait, standard order?
-        // Let's look at BasePaymaster or just infer from standard.
-        // ERC-4337 v0.7: validationData: authorizer(20 bytes) + validUntil(6 bytes) + validAfter(6 bytes)
-        // No, standard is: params are packed.
-        // But the return value for Paymaster is `context` and `validationData`.
-        // `validationData` bit layout:
-        // bits 0-159: aggregator/sig (0 = success)
-        // bits 160-207: validAfter (48 bits) -- WAIT
-        // bits 208-255: validUntil (48 bits) -- WAIT
-        
-        // Actually, check _packValidationData in BasePaymaster usually follows:
-        // (sigFailed, validUntil, validAfter)
-        // Usually returns: (uint256(validAfter) << 160) | (uint256(validUntil) << 160 + 48)? No.
-        
-        // Let's decode assuming `_packValidationData(false, validUntil, validAfter)`:
-        // Usually: validAfter is HIGH ORDER? validUntil is MIDDLE?
-        // Let's assume standard logic:
-        // validUntil is bytes 20..26?
-        
-        // Simplest Verification:
-        // Just assert validationData != 0.
-        // And check behavior.
-        
-        // But better constraint:
-        // validUntil should be roughly initialUpdatedAt + 3600.
-        // block.timestamp is initialUpdatedAt + 7200.
-        // So validUntil < block.timestamp.
-        
-        // If I can't easily decode, I'll rely on the property that it's NOT 0 (forever) and represents a past time.
-        
-        // ValidationData decoding from BasePaymaster:
-        // return (uint256(validAfter) << 208) | (uint256(validUntil) << 160) | (sigFail);
-        // Correct? Let's assume standard from standard repo.
-        // 0-159: 0 (success)
-        // 160-207: validUntil
-        // 208-255: validAfter
-        
-        // So validUntil = uint48(validationData >> 160);
+
+        (, uint256 validationData) = _validate(keccak256("expired"));
+
+        // ERC-4337 v0.7 validationData: [0..159] authorizer / sigFail, [160..207] validUntil,
+        // [208..255] validAfter. Staleness is enforced through validUntil (EntryPoint rejects),
+        // not by a sigFail, so the authorizer part must be 0 here (i.e. not an early rejection).
+        assertEq(uint160(validationData), 0, "not a sigFail: staleness is expressed via validUntil");
         uint48 extractedValidUntil = uint48(validationData >> 160);
-        
+
         assertEq(extractedValidUntil, initialUpdatedAt + 3600, "ValidUntil should be updatedAt + threshold");
         assertTrue(extractedValidUntil < block.timestamp, "ValidUntil should be in the past (expired)");
     }
@@ -303,29 +278,63 @@ contract SuperPaymasterPricingV2Test is Test {
     function test_DVT_Update_RespectsCache() public {
         // 1. Initial State
         paymaster.updatePrice(); // $2000
-        
+
         // 2. DVT Updates Price to $4000 (with fresh timestamp)
         vm.warp(block.timestamp + 10 minutes); // Some time passed
-        
+
         // Simulate Chainlink DOWN so DVT can bypass deviation check
         priceFeed.setRevert(true);
-        
+
         vm.prank(owner);
         paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "", 0);
-        
+
         // Restore Chainlink
         priceFeed.setRevert(false);
-        
+
         // 3. User op happens immediately
         // Change Oracle to something else to prove we ignored it
         priceFeed.setPrice(5000 * 1e8);
-        
-        vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, _getContext(), 0.01 ether, 1 gwei);
-        
-        // Assert: 
+
+        _validateAndPostOp(keccak256("dvt"));
+
+        // Assert:
         // 1. Cache should still be DVT price ($4000), not Oracle ($5000)
         (int256 p, , , ) = paymaster.cachedPrice();
         assertEq(p, 4000 * 1e8);
+    }
+
+    // 5. R10-M3 (new in 5.5.0): postOp prices the charge at the VALIDATION-time snapshot carried
+    //    in the context, not at the cache value current at postOp time.
+    function test_PostOp_ChargesAtValidationSnapshot() public {
+        paymaster.updatePrice(); // $2000
+        (bytes memory ctx, uint256 vd) = _validate(keccak256("snapshot"));
+        assertEq(uint160(vd), 0);
+
+        // Price moves between validation and postOp (DVT path; Chainlink down).
+        vm.warp(block.timestamp + 1 minutes);
+        priceFeed.setRevert(true);
+        vm.prank(owner);
+        paymaster.updatePriceDVT(2200 * 1e8, block.timestamp, "", 0);
+        (int256 p, , , ) = paymaster.cachedPrice();
+        assertEq(p, 2200 * 1e8, "cache moved");
+
+        uint256 actualGasCost = 0.001 ether;
+        uint256 feePerGas = 1 gwei;
+        uint256 revBefore = paymaster.protocolRevenue();
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, feePerGas);
+        uint256 charge = paymaster.protocolRevenue() - revBefore;
+
+        assertEq(charge, _expectedCharge(INITIAL_PRICE, actualGasCost, feePerGas), "charge at the $2000 snapshot");
+        assertTrue(charge != _expectedCharge(2200 * 1e8, actualGasCost, feePerGas), "control: current cache would differ");
+    }
+
+    /// @dev Mirrors SP 5.5.0 postOp (R10-M3): bufWei = (postOpGas + ceil((callGas+postOpGas)*10%)
+    ///      + C_WRAP 30k) * feePerGas; charge = ceil(ceil(aGas) * (1 + 10% fee)). callGas = 0 here.
+    function _expectedCharge(uint256 price, uint256 actualGasCost, uint256 feePerGas) internal pure returns (uint256) {
+        uint256 postOpGas = 200000;
+        uint256 bufWei = (postOpGas + Math.ceilDiv(postOpGas * 10, 100) + 30_000) * feePerGas;
+        uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * price, 1e18, 1e8 * 0.02 ether, Math.Rounding.Ceil);
+        return Math.mulDiv(aGas, 11000, 10000, Math.Rounding.Ceil);
     }
 }

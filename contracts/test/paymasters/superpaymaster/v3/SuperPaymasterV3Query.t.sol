@@ -10,6 +10,8 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import {UUPSDeployHelper} from "../../../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../../../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer} from "../../../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 contract MockGToken is ERC20 {
     constructor() ERC20("GToken", "GT") {
@@ -38,6 +40,8 @@ contract MockAggregator is AggregatorV3Interface {
 
 contract MockRegistry {
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
+    // GlobalTierSource (xPNTs v2 credit tier) reads this; no credit in these tests.
+    function getCreditLimit(address) external pure returns (uint256) { return 0; }
     function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory) {
         return IRegistry.RoleConfig({
             minStake: 0,
@@ -67,6 +71,8 @@ contract SuperPaymasterQueryTest is Test {
     MockAggregator priceOracle;
     MockRegistry registry;
     MockXPNTsFactory mockFactory;
+    V2TokenDeployer.Stack stack;
+    xPNTsTokenV2 xtok;
 
     address owner = address(1);
     address treasury = address(2);
@@ -95,15 +101,27 @@ contract SuperPaymasterQueryTest is Test {
         vm.warp(block.timestamp + 24 hours + 1);
         paymaster.applyBLSAggregator();
 
-        // Deploy mock factory and register token for owner (P1-4 fix)
+        // Deploy mock factory (P1-4 factory binding)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(owner, address(gtoken));
+        vm.stopPrank();
+
+        // 5.5.0: configureOperator only accepts an xPNTs v2 (balance-mode) community token;
+        // the plain ERC20 used here pre-5.5.0 is now rejected with InvalidXPNTsToken.
+        stack = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xtok = V2TokenDeployer.newToken(stack, owner, owner, address(paymaster), 1e18);
+        mockFactory.setToken(owner, address(xtok));
 
         // Setup operator
-        paymaster.configureOperator(address(gtoken), treasury);
+        vm.prank(owner);
+        paymaster.configureOperator(address(xtok), treasury);
+    }
 
-        vm.stopPrank();
+    /// @notice Setup sanity (the slash-query tests below do not depend on it, but it must hold).
+    function test_Setup_OperatorConfiguredWithV2Token() public view {
+        (, bool configured,, address tok,,,,,) = paymaster.operators(owner);
+        assertTrue(configured);
+        assertEq(tok, address(xtok));
     }
 
     // ====================================
