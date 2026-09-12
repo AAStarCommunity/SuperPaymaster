@@ -99,6 +99,8 @@
 
 **stop-time Codex 审查（第 2 轮）**：Codex 指出 `tryLockForGas` 在返回被截断成一个字（首字为 OK）时仍会被接受，而它的完整返回是两个字 `(LockResult, uint256)`。修复：`_tokenWord` 增加 `minLen` 参数，tryLockForGas 取 64，其余取 32；返回长度不足时视为失败。守护：`test_token_malformed_success_returns_get_sigFail_not_revert` 新增 `TruncatedLockToken` 这一情况。变异：把 64 改回 32 → 在 "malformed token answer: SIG_FAILURE: 0 != 1" 上变红。
 
+**Codex 第 3 轮（对 `1cb21fe8`）**：实现部分没有发现问题。Codex 确认汇编是 memory-safe 的（只用 0..32 的 scratch 空间；调用失败或返回过短时 `ok` 为 false，调用方先检查 `ok`，所以残留内存不会被当成有效结果）；三处的 minLen 与 ABI 一致；合法的 v2 代币行为不变；CALL / STATICCALL 的用法和 `gas()` 转发符合 ERC-7562 OP-012。它提出 1 条 Low 测试缺口：信用分支的畸形返回从未被走到，因为三个 mock 都在更早的一步就失败了。已补 `test_token_malformed_credit_returns_get_sigFail_not_revert`（`8b98e727`）：锁调用返回 INSUFFICIENT，信用调用依次返回空、1 字节、越界值 99、正常 OK；OK 作为正对照，证明这条分支确实被走到，并且以 CREDIT 模式赞助；另外先断言 operator 确实绑定到了这个 mock，排除被 token 不匹配遮住的可能。变异：把信用调用改回 typed try → 在 "validation reverted (AA33 path)" 上变红。**结论：实现通过，测试缺口已补。**
+
 **体积（最终）**：SP runtime **22,915 B**，余量 1,661 B（≥ 1,024 的门槛）。产物的 source keccak 已核对与当前源码一致。via_ir 的内联决策在各版本之间变化较大（23,031 → 21,857 → 21,708 → 22,915），所以每次改动之后都重新实测，不沿用旧数字。
 
 **DSR D3 Low-2（套件计数在 123 和 124 之间跳动）**：原因不是有套件被漏收。`SuperPaymasterV55Adversarial.t.sol` import 了 `xPNTsTokenV2.t.sol`，把其中的 `xPNTsTokenV2Test` 带进了 `registry-size` 这个编译 profile，于是同一个 35 个测试的套件以两个产物名各跑一次；两者名字相同的那几次，计数被合并成 123。修复：把共用的 mock 移到 `contracts/test/helpers/V2TestFixtures.sol` 和 `V55TestFixtures.sol`，v2 目录下不再有测试文件 import 另一个测试文件。修复后连跑两次 Cancun，都是 123 个套件、1563 个测试（= 之前的 1598 减去重复的 35），套件集合与之前逐个相同；Prague 为 123 个套件、1472 个测试。
