@@ -415,11 +415,37 @@
     "type": "uint48"
   },
   {
-    "label": "__gap",
+    "label": "_inflight",
     "slot": "37",
     "offset": 0,
     "type": {
-      "array": "uint256[28]",
+      "mapping": "mapping(bytes32 => struct SuperPaymaster.Inflight)",
+      "key": "bytes32",
+      "value": {
+        "struct": "struct SuperPaymaster.Inflight",
+        "members": [
+          {
+            "label": "operator",
+            "slot": "0",
+            "offset": 0,
+            "type": "address"
+          },
+          {
+            "label": "a0",
+            "slot": "0",
+            "offset": 20,
+            "type": "uint96"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "label": "__gap",
+    "slot": "38",
+    "offset": 0,
+    "type": {
+      "array": "uint256[27]",
       "base": "uint256"
     }
   }

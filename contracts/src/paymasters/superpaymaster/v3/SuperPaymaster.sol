@@ -8,7 +8,7 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "src/interfaces/v3/IRegistry.sol";
-import "../../../interfaces/IxPNTsToken.sol";
+import "../../../tokens/v2/IxPNTsTokenV2.sol";
 import "../../../interfaces/IxPNTsFactory.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
 import "../../../interfaces/v3/IAgentIdentityRegistry.sol";
@@ -44,6 +44,27 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // --- Mappings ---
     mapping(address => ISuperPaymaster.OperatorConfig) public operators;
     // V3.5 Optimization: Packed User State (Slot Optimized)
+    /// @dev 5.5.0: operator reservation between validation and postOp (R10-M1b).
+    struct Inflight {
+        address operator;
+        uint96 a0;
+    }
+
+    /// @dev 5.5.0 postOp context (spec §3.2, R10-M3: price snapshot taken at validation).
+    struct OpCtx {
+        address token;
+        address user;
+        uint256 a0;
+        bytes32 opHash;
+        address operator;
+        uint8 mode;
+        uint128 callGas;
+        uint128 postOpGas;
+        int256 price;
+        uint8 decimals;
+        uint256 aPriceUSD;
+    }
+
     struct UserOperatorState {
         uint48 lastTimestamp; // 6 bytes
         bool isBlocked;       // 1 byte
@@ -59,7 +80,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.4.2"; // v5.4.2 CC-13: BLS-path slash cooldown (anti-double-slash) + isSlashPending getter
+        return "SuperPaymaster-5.5.0"; // v5.5.0: AOA balance mode (xPNTs v2 escrow + reservation credit), in-flight sponsorship accounting
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -85,6 +106,22 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // with headroom and matches the gas-limit builders already use.
     uint256 internal constant MIN_POST_OP_GAS = 200_000;
 
+    // ---- 5.5.0 balance mode (spec 03 §1, §3.2, §10.1, §11.1) ----
+    /// @dev paymasterAndData: [paymaster 20][verifGas 16][postOpGas 16][operator 20][maxRate 32][token 20][flags 1]
+    uint256 internal constant TOKEN_OFFSET = 104;
+    uint256 internal constant FLAGS_OFFSET = 124;
+    uint8 internal constant FLAG_SP_RENEW = 1;       // SP relays a K-bounded renewal (D-13)
+    uint8 internal constant FLAG_ACCOUNT_RENEW = 2;  // consumed by the account itself (option A); SP ignores it
+    uint8 internal constant MODE_NONE = 0;
+    uint8 internal constant MODE_BALANCE = 1;
+    uint8 internal constant MODE_CREDIT = 2;
+    /// @dev B-1 §10.1 ③ / R10-H1: postOp refuses to start settlement below this. Measured by
+    ///      T-R14-09 (through EntryPoint with paymasterPostOpGasLimit == MIN_POST_OP_GAS).
+    uint256 internal constant SETTLE_GAS_BOUND = 80_000;
+    /// @dev R10-M3: EntryPoint wrapper gas outside the postOp callback (auditable upper bound, G layer).
+    uint256 internal constant C_WRAP_GAS = 30_000;
+    bytes32 internal constant INFLIGHT_SEED = keccak256("SP.v5.5.inflight.live");
+
     // Protocol Fee (Basis Points)
     uint256 public protocolFeeBPS = 1000; // 10%
     uint256 internal constant BPS_DENOMINATOR = 10000;
@@ -101,9 +138,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint256 public totalTrackedBalance;
     uint256 public protocolRevenue;
 
-    // V4.1: Pending debt fallback for postOp resilience
-    // token => user => accumulated pending debt (xPNTs)
-    mapping(address => mapping(address => uint256)) public pendingDebts;
+    // RETIRED in 5.5.0 (was the V4.1 pending-debt fallback). The slot is kept so the UUPS
+    // layout stays byte-identical; nothing reads or writes it any more. Reconcile or write off
+    // any non-zero entries BEFORE upgrading (spec 03 §6 step 2).
+    mapping(address => mapping(address => uint256)) internal pendingDebts;
 
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
@@ -186,6 +224,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error Unauthorized();
     error InvalidAddress();
     error InvalidConfiguration();
+    error PostOpGasTooLow();
+    error SponsorshipInFlight();
+    event SponsorshipReleased(bytes32 indexed opHash, address indexed operator, uint256 aPNTs);
     error InsufficientBalance(uint256 available, uint256 required);
     error DepositNotVerified();
     error OracleError();
@@ -291,6 +332,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (factory == address(0)) revert InvalidConfiguration();
         address validToken = IxPNTsFactory(factory).getTokenAddress(msg.sender);
         if (validToken != xPNTsToken) revert InvalidXPNTsToken();
+        // 5.5.0: only balance-mode (xPNTs v2) tokens can back an operator.
+        try IxPNTsTokenV2(xPNTsToken).BALANCE_MODE_VERSION() returns (uint16 v) {
+            if (v != 1) revert InvalidXPNTsToken();
+        } catch {
+            revert InvalidXPNTsToken();
+        }
 
         OperatorConfig storage config = operators[msg.sender];
         config.xPNTsToken = xPNTsToken;
@@ -810,28 +857,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         emit ProtocolRevenueWithdrawn(to, amount);
     }
 
+    /// @notice Remaining credit headroom for `user` on `token` (saturating; spec §10.4 / R4-H4).
+    /// @dev    Delegates to the token's single canonical ceiling (C-0) and includes live reservations.
     function getAvailableCredit(address user, address token) external view returns (uint256) {
-        uint256 creditLimitAPNTs = REGISTRY.getCreditLimit(user);
-        // Debt is stored in aPNTs — no rate conversion needed
-        uint256 currentDebtAPNTs = IxPNTsToken(token).getDebt(user);
-        return creditLimitAPNTs > currentDebtAPNTs ? creditLimitAPNTs - currentDebtAPNTs : 0;
-    }
-
-    /// @dev C-01 / AUDIT H-1: single consolidated credit gate — validation and dryRun
-    ///      both call it. Returns true only when this op would push the user PAST their
-    ///      credit ceiling: (recorded debt + pending debt + this charge) must stay within
-    ///      getCreditLimit, so an operator is never drained by a user accumulating debt.
-    ///
-    ///      H-1 FIX: the gate must NOT short-circuit on "balance covers the charge". A
-    ///      balance-sufficient eligible user can empty their xPNTs between validate and
-    ///      postOp — ERC-4337 runs the account's own calldata in between, and a plain
-    ///      `transfer` bypasses the autoApprovedSpenders firewall (which only guards
-    ///      `transferFrom`). postOp then takes the debt path, and without this gate the
-    ///      recorded debt is unbounded → operator drain. Enforcing the ceiling in
-    ///      validation closes that window for BOTH the SBT and agent eligibility paths.
-    function _creditExceeded(address token, address user, uint256 charge) internal view returns (bool) {
-        uint256 used = IxPNTsToken(token).getDebt(user) + pendingDebts[token][user];
-        return used + charge > REGISTRY.getCreditLimit(user);
+        IxPNTsTokenV2 t = IxPNTsTokenV2(token);
+        uint256 cap = t.effectiveCreditCap(user);
+        uint256 used = t.debts(user) + t.creditReservedOf(user);
+        return cap > used ? cap - used : 0;
     }
 
     // ====================================
@@ -1194,234 +1226,156 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             }
         }
 
-        // 2.1 Validate Rate Commitment (Rug Pull Protection)
-        // paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
-        uint256 maxRate = type(uint256).max;
-        if (userOp.paymasterAndData.length >= 104) {
-             maxRate = abi.decode(userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32], (uint256));
+        // 2.1 Token binding + rate commitment (R4-H1; rug-pull protection)
+        bytes calldata pmd = userOp.paymasterAndData;
+        if (pmd.length < TOKEN_OFFSET + 20) return ("", _packValidationData(true, 0, 0));
+        address token = address(bytes20(pmd[TOKEN_OFFSET:TOKEN_OFFSET + 20]));
+        if (token != config.xPNTsToken) return ("", _packValidationData(true, 0, 0));
+        uint8 flags = pmd.length > FLAGS_OFFSET ? uint8(pmd[FLAGS_OFFSET]) : 0;
+        if (flags & (FLAG_SP_RENEW | FLAG_ACCOUNT_RENEW) == (FLAG_SP_RENEW | FLAG_ACCOUNT_RENEW)) {
+            return ("", _packValidationData(true, 0, 0));
         }
-
-        // Read live rate from xPNTs token (canonical source of truth)
-        if (IxPNTsToken(config.xPNTsToken).exchangeRate() > maxRate) {
+        uint256 maxRate = abi.decode(pmd[RATE_OFFSET:RATE_OFFSET + 32], (uint256));
+        if (IxPNTsTokenV2(token).exchangeRate() > maxRate) {
              return ("", _packValidationData(true, 0, 0));
         }
-        // Use CACHED price for validation (fast, compliant)
-        // V3.5 FIX: Add Protocol Fee + Safety Buffer (1.1x + Fee) to prevent PostOp insolvency
+
+        // 3. Reservation a0 (spec §10.3): full maxCost at the cached price, + fee + validation buffer
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
         uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
         aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
 
-        // C-01: enforce the user's credit ceiling (recorded debt + pending + this charge
-        // must stay within getCreditLimit). Without it a non-paying user accumulates
-        // unbounded debt in postOp and drains the operator.
-        if (_creditExceeded(config.xPNTsToken, userOp.sender, aPNTsAmount)) {
-             return ("", _packValidationData(true, 0, 0));
-        }
-
-        // 4. Solvency Check
-        // lastTimestamp intentionally NOT updated on sigFailure — rate-limit only counts successful validations.
+        // 4. Operator solvency — checked BEFORE touching the token
         if (uint256(config.aPNTsBalance) < aPNTsAmount) {
              return ("", _packValidationData(true, 0, 0));
         }
 
-        // 5. Accounting (Optimistic)
+        // 5. User side: escrow first, credit only on INSUFFICIENT (R-2)
+        uint8 mode = _reserveForOp(token, userOp.sender, userOpHash, aPNTsAmount, flags & FLAG_SP_RENEW != 0);
+        if (mode == MODE_NONE) return ("", _packValidationData(true, 0, 0));
+
+        // 6. Operator side: a0 is IN FLIGHT, not revenue, until postOp settles (R10-M1b)
         config.aPNTsBalance -= uint128(aPNTsAmount); // Safe cast due to check above
         config.totalSpent += aPNTsAmount;
-        protocolRevenue += aPNTsAmount;
-        // P1-6 / B2-N15: totalTxSponsored moved to postOp (see below) to prevent
-        // simulation inflation via simulateValidation.
+        _inflight[userOpHash] = Inflight(operator, uint96(aPNTsAmount));
+        _setInflightLive(userOpHash, true);
 
-        // 6. Return Context — xPNTsAmount excluded (postOp recomputes from exchangeRate)
-        return (abi.encode(config.xPNTsToken, userOp.sender, aPNTsAmount, userOpHash, operator), _packValidationData(false, validUntil, validAfter));
+        PriceCache memory pc = cachedPrice;
+        context = abi.encode(OpCtx({
+            token: token,
+            user: userOp.sender,
+            a0: aPNTsAmount,
+            opHash: userOpHash,
+            operator: operator,
+            mode: mode,
+            callGas: uint128(uint256(userOp.accountGasLimits)),
+            postOpGas: uint128(bytes16(pmd[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16])),
+            price: pc.price,
+            decimals: pc.decimals,
+            aPriceUSD: aPNTsPriceUSD
+        }));
+        return (context, _packValidationData(false, validUntil, validAfter));
     }
 
-    /// @notice P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of
-    ///         validatePaymasterUserOp. Bundlers / SDKs / dApps call this
-    ///         off-chain (eth_call) before submitting a UserOperation to
-    ///         distinguish the 8 distinct rejection paths that
-    ///         validatePaymasterUserOp returns as an opaque SIG_FAILURE.
-    /// @dev    Mirrors the main path order; intentionally does NOT mutate
-    ///         storage or emit events (would brick ERC-7562 compliance and
-    ///         is impossible from a `view` anyway). Mirrors STALE_PRICE
-    ///         using the same comparison the main path delegates to
-    ///         EntryPoint via `validUntil` — i.e., a price is stale when
-    ///         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.
-    /// @dev MERGE DEPENDENCY: This function must be deployed together with P0-16
-    ///      (future-timestamp guard on cache writes). Without P0-16, dryRunValidation
-    ///      may return ok=true for a future-timestamp cache, while the actual
-    ///      validatePaymasterUserOp would revert after P0-16 is deployed.
-    /// @param userOp  The UserOperation to dry-run.
-    /// @param maxCost Same maxCost EntryPoint will pass to validation.
-    /// @return ok          True if validation would pass.
-    /// @return reasonCode  Zero when ok==true, otherwise one of the
-    ///                     `DRYRUN_*` constants explaining why.
-    function dryRunValidation(PackedUserOperation calldata userOp, uint256 maxCost)
-        external
-        view
-        returns (bool ok, bytes32 reasonCode)
+    /// @dev Escrow-then-credit decision (spec §1). Any token revert → no sponsorship (H3-1).
+    function _reserveForOp(address token, address user, bytes32 opHash, uint256 a0, bool spRenew)
+        internal returns (uint8)
     {
-        // 1. Extract operator (mirror validatePaymasterUserOp step 1)
-        address operator = _extractOperator(userOp);
-        ISuperPaymaster.OperatorConfig storage config = operators[operator];
-
-        // 2. Operator config check
-        if (!config.isConfigured) return (false, DRYRUN_OPERATOR_NOT_CONFIGURED);
-        if (config.isPaused)      return (false, DRYRUN_OPERATOR_PAUSED);
-
-        // 3. Identity check (V5.3 dual-channel: SBT or registered agent)
-        if (!isEligibleForSponsorship(userOp.sender)) {
-            return (false, DRYRUN_USER_NOT_ELIGIBLE);
+        try IxPNTsTokenV2(token).tryLockForGas(user, opHash, a0, spRenew) returns (IxPNTsTokenV2.LockResult r, uint256) {
+            if (r == IxPNTsTokenV2.LockResult.OK) return MODE_BALANCE;
+            if (r != IxPNTsTokenV2.LockResult.INSUFFICIENT) return MODE_NONE;
+        } catch {
+            return MODE_NONE;
         }
-
-        // 3b. C-04 postOpGas floor — mirror validatePaymasterUserOp so dry-run and
-        // real validation agree (otherwise a low-postOpGas op shows OK here but reverts).
-        if (userOp.paymasterAndData.length >= POSTOP_GAS_OFFSET + 16) {
-            uint128 pmPostOpGas = uint128(bytes16(userOp.paymasterAndData[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16]));
-            if (pmPostOpGas < MIN_POST_OP_GAS) return (false, DRYRUN_POSTOP_GAS_TOO_LOW);
+        try IxPNTsTokenV2(token).tryReserveCredit(user, opHash, a0) returns (IxPNTsTokenV2.CreditResult c) {
+            return c == IxPNTsTokenV2.CreditResult.OK ? MODE_CREDIT : MODE_NONE;
+        } catch {
+            return MODE_NONE;
         }
-
-        // 4. Per-operator user state: blocklist check (hard failure).
-        //    Rate-limit is a soft/temporary failure; it is deferred until after
-        //    all hard checks so that a user who is rate-limited *and* also fails
-        //    a hard check receives the hard failure code rather than a misleading
-        //    "just wait" response.
-        UserOperatorState memory userState = userOpState[operator][userOp.sender];
-        if (userState.isBlocked) return (false, DRYRUN_USER_BLOCKED);
-
-        // Capture rate-limit state now; we will return it only if every hard
-        // check below passes (mirroring the "mirror" contract behaviour).
-        bool rateLimited = config.minTxInterval > 0
-            && userState.lastTimestamp != 0
-            && block.timestamp < uint256(userState.lastTimestamp) + uint256(config.minTxInterval);
-
-        // 5. Rate commitment (rug-pull protection — hard failure): paymasterAndData layout
-        //    [paymaster(20)] [gasLimits(32)] [operator(20)] [maxRate(32)]
-        uint256 maxRate = type(uint256).max;
-        if (userOp.paymasterAndData.length >= 104) {
-            maxRate = abi.decode(
-                userOp.paymasterAndData[RATE_OFFSET:RATE_OFFSET+32],
-                (uint256)
-            );
-        }
-        // Read live rate from xPNTs token (canonical source of truth)
-        if (IxPNTsToken(config.xPNTsToken).exchangeRate() > maxRate) {
-            return (false, DRYRUN_RATE_COMMITMENT_VIOLATED);
-        }
-
-        // 6. Staleness (hard failure) — main path delegates to EntryPoint via
-        //    validUntil, but for off-chain diagnostics we surface it explicitly.
-        //    Use the same predicate as updatePrice (block.timestamp - updatedAt > threshold).
-        //    NOTE: future timestamps (updatedAt > block.timestamp) are NOT flagged
-        //    here because P0-16 is the dedicated fix for that vector.
-        //    P1-3 resolved: explicit rejection codes exposed via dryRunValidation (P0-18, #102)
-        if (cachedPrice.updatedAt == 0 ||
-            block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold) {
-            return (false, DRYRUN_STALE_PRICE);
-        }
-
-        // 7. Solvency (hard failure): replicate Validation-phase aPNTs charge with buffer
-        uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
-        uint256 totalRate = BPS_DENOMINATOR + protocolFeeBPS + VALIDATION_BUFFER_BPS;
-        aPNTsAmount = Math.mulDiv(aPNTsAmount, totalRate, BPS_DENOMINATOR, Math.Rounding.Ceil);
-        if (uint256(config.aPNTsBalance) < aPNTsAmount) {
-            return (false, DRYRUN_INSUFFICIENT_BALANCE);
-        }
-
-        // 7b. C-01 credit ceiling — mirror validatePaymasterUserOp so dry-run agrees.
-        if (_creditExceeded(config.xPNTsToken, userOp.sender, aPNTsAmount)) {
-            return (false, DRYRUN_CREDIT_EXCEEDED);
-        }
-
-        // 8. Rate-limit (soft/temporary failure): checked last so that hard
-        //    failures take precedence. A user who is rate-limited *and* would
-        //    fail a hard check will get the hard-failure code, not RATE_LIMITED.
-        if (rateLimited) {
-            return (false, DRYRUN_RATE_LIMITED);
-        }
-
-        // All checks pass.
-        return (true, DRYRUN_OK);
     }
+
+    // dryRunValidation moved to SuperPaymasterLens in 5.5.0 (spec F1 / §5: EIP-170 headroom).
 
     function postOp(
-        PostOpMode mode,
+        PostOpMode,
         bytes calldata context,
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint nonReentrant {
         if (context.length == 0) return;
+        // B-1 §10.1 ③: never START a settlement that could run out of gas half-way. Reverting here
+        // rolls back the user's execution (EntryPoint v0.7 innerHandleOp), so nothing is kept unpaid.
+        if (gasleft() < SETTLE_GAS_BOUND) revert PostOpGasTooLow();
 
-        (
-            address token,
-            address user,
-            uint256 initialAPNTs,
-            bytes32 userOpHash,
-            address operator
-        ) = abi.decode(context, (address, address, uint256, bytes32, address));
+        OpCtx memory c = abi.decode(context, (OpCtx));
 
-        // V3.6 FIX: Update Rate Limit Timestamp ALWAYS (Defense against Griefing)
-        // Even if op reverted, usage counts towards limit to prevent spam.
-        if (operators[operator].minTxInterval > 0) {
-            userOpState[operator][user].lastTimestamp = uint48(block.timestamp);
+        // V3.6: rate-limit timestamp ALWAYS (griefing defence), even if the op reverted.
+        if (operators[c.operator].minTxInterval > 0) {
+            userOpState[c.operator][c.user].lastTimestamp = uint48(block.timestamp);
         }
 
-        // C-04 cleanup: the v0.6-era `if (mode == postOpReverted) return;` was removed —
-        // EntryPoint v0.7 never calls postOp with postOpReverted (see EntryPoint
-        // `_postExecution`: it only calls postOp when `mode != postOpReverted`), so it
-        // was dead code. OOG protection now lives in validate (MIN_POST_OP_GAS).
+        // P1-17 idempotency guard: set before all accounting.
+        if (_settledDebtOps[c.opHash]) return;
+        _settledDebtOps[c.opHash] = true;
+        operators[c.operator].totalTxSponsored++;
 
-        // P1-17 postOp-level idempotency guard: set BEFORE all accounting so that
-        // a replay (EntryPoint bug / malicious bundler) cannot double-refund the
-        // operator or double-deduct protocolRevenue.  Written here rather than
-        // inside _recordDebt so it covers the full accounting block
-        // (operator.aPNTsBalance += refund, protocolRevenue -= refund) not just
-        // the xPNTs debt recording.  Storage write survives if inner try/catch
-        // catches a revert; if postOp itself reverts the write is also reverted,
-        // so a legitimate retry is not blocked.
-        if (_settledDebtOps[userOpHash]) return;
-        _settledDebtOps[userOpHash] = true;
+        // R10-M3: conservative charge in wei, priced at the VALIDATION-time snapshot.
+        uint256 bufWei = (uint256(c.postOpGas) + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)
+            + C_WRAP_GAS) * actualUserOpFeePerGas;
+        uint256 aGas = Math.mulDiv(
+            (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil
+        );
+        uint256 charge = Math.mulDiv(aGas, BPS_DENOMINATOR + protocolFeeBPS, BPS_DENOMINATOR, Math.Rounding.Ceil);
+        if (charge > c.a0) charge = c.a0;
 
-        // P1-6 / B2-N15: Increment here (after idempotency guard) so both
-        // simulateValidation inflation AND postOp replay are prevented.
-        operators[operator].totalTxSponsored++;
-
-        // 1. Calculate Actual Cost in aPNTs (always uses cached price)
-        uint256 actualAPNTsCost = _calculateAPNTsAmount(actualGasCost);
-
-        // 2. Apply Protocol Fee Markup (e.g. 10%)
-        // We want the final deduction to be Actual + 10%.
-        uint256 finalCharge = (actualAPNTsCost * (BPS_DENOMINATOR + protocolFeeBPS)) / BPS_DENOMINATOR;
-
-        // 3. Process Refund & Record Debt (all in aPNTs; xPNTs conversion happens inside xPNTsToken)
-        if (finalCharge < initialAPNTs) {
-            uint256 refund = initialAPNTs - finalCharge;
-            if (refund > type(uint128).max) refund = type(uint128).max;
-            if (refund > protocolRevenue) {
-                emit ProtocolRevenueUnderflow(operator, refund, protocolRevenue);
-                refund = protocolRevenue;
-            }
-
-            // Preferred: burn from user's xPNTs balance with replay protection.
-            // Falls back to recordDebt when user has insufficient balance (e.g. new user).
-            // OperationAlreadyProcessed is impossible here: EntryPoint calls postOp once per op.
-            _recordDebt(token, user, finalCharge, userOpHash, operator);
-
-            operators[operator].aPNTsBalance += uint128(refund);
-            protocolRevenue -= refund;
-
-            emit TransactionSponsored(operator, user, actualAPNTsCost, finalCharge);
+        // B-1 §10.1 ①: NO try/catch. A failed settlement reverts postOp → EntryPoint rolls back
+        // the user's execution; the escrow/reservation is then released after the transaction.
+        if (c.mode == MODE_BALANCE) {
+            IxPNTsTokenV2(c.token).settleLocked(c.user, c.opHash, charge);
         } else {
-             // B2-N14: finalCharge > initialAPNTs should not occur under EntryPoint v0.7
-             // (which guarantees actualGasCost <= maxCost and validation adds a buffer).
-             // This branch is a defensive cap; if reached in production it indicates
-             // an EntryPoint invariant violation or an unexpected price swing between
-             // validation and postOp. Cap at initialAPNTs to protect operator solvency.
-             // Rare: actual > max, cap at max (no refund)
-             _recordDebt(token, user, initialAPNTs, userOpHash, operator);
+            IxPNTsTokenV2(c.token).settleCredit(c.user, c.opHash, charge);
         }
 
+        // R10-M1b: in-flight a0 → revenue c, refund (a0 − c) to the operator. No shared-pool clamp.
+        delete _inflight[c.opHash];
+        _setInflightLive(c.opHash, false);
+        operators[c.operator].aPNTsBalance += uint128(c.a0 - charge);
+        protocolRevenue += charge;
+
+        emit TransactionSponsored(c.operator, c.user, aGas, charge);
     }
-    
+
+    /// @notice R10-M1b: after the original transaction, restore an operator's in-flight a0 whose
+    ///         postOp never completed (a postOp revert also rolled back the user's execution).
+    ///         Permissionless and idempotent. The EntryPoint ETH for that op stays spent (I10).
+    function releaseStaleSponsorship(bytes32 opHash) external {
+        Inflight memory f = _inflight[opHash];
+        if (f.operator == address(0)) return;
+        if (_isInflightLive(opHash)) revert SponsorshipInFlight();
+        delete _inflight[opHash];
+        operators[f.operator].aPNTsBalance += uint128(f.a0);
+        emit SponsorshipReleased(opHash, f.operator, f.a0);
+    }
+
+    function inflightOf(bytes32 opHash) external view returns (address operator, uint256 a0) {
+        Inflight memory f = _inflight[opHash];
+        return (f.operator, f.a0);
+    }
+
+    function _inflightSlot(bytes32 opHash) private pure returns (bytes32) {
+        return keccak256(abi.encode(opHash, INFLIGHT_SEED));
+    }
+
+    function _setInflightLive(bytes32 opHash, bool on) private {
+        bytes32 slot = _inflightSlot(opHash);
+        uint256 v = on ? 1 : 0;
+        assembly { tstore(slot, v) }
+    }
+
+    function _isInflightLive(bytes32 opHash) private view returns (bool live) {
+        bytes32 slot = _inflightSlot(opHash);
+        assembly { live := tload(slot) }
+    }
 
     // ====================================
     // Internal & View
@@ -1434,98 +1388,6 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+20]));
     }
 
-    /// @dev Try to burn xPNTs (converted from aPNTs inside token) from user's balance;
-    ///      fall back to recordDebtWithOpHash (P1-17 idempotent) when balance insufficient;
-    ///      last resort: pendingDebts accumulator (owner retries via retryPendingDebt).
-    ///      amount is in aPNTs throughout — xPNTs conversion happens inside xPNTsToken.
-    ///      Idempotency is guaranteed by the postOp-level _settledDebtOps guard which
-    ///      runs before this function is called.  xPNTs cross-hash checks
-    ///      (usedOpHashes ↔ usedDebtHashes) provide token-level defence-in-depth.
-    function _recordDebt(address token, address user, uint256 amount, bytes32 opHash, address operator) internal {
-        try IxPNTsToken(token).burnFromWithOpHash(user, amount, opHash) {} catch {
-            // Why this re-checks the ceiling instead of just recording the debt:
-            // recordDebtWithOpHash checks only maxSingleTxLimit, NOT getCreditLimit,
-            // so calling it unconditionally would let debt accumulate past the
-            // ceiling and drain the operator — the exact scenario C-01 set out to
-            // prevent.
-            //
-            // HISTORY, because the previous version of this comment described code
-            // that no longer exists. It said _creditExceeded has a validation-time
-            // balance short-circuit that a mid-UserOp drain can defeat. That
-            // short-circuit was `if (IERC20(token).balanceOf(user) >= xPNTsCharge)
-            // return false;` and c6493ade (audit H-1, Plan A) DELETED it; the comment
-            // was not updated. _creditExceeded is now three lines and never reads a
-            // balance, so a zero-credit user is refused at validation rather than
-            // paying from balance.
-            //
-            // What can still reach the `else` below, then: validation asserted
-            // getDebt + pendingDebts + charge <= getCreditLimit, and this re-evaluates
-            // the same inequality later. All three inputs can move in between —
-            // getDebt and pendingDebts can grow if another op for this user settles
-            // first, and getCreditLimit can FALL, since it is
-            // creditTierConfig[_levelForReputation(globalReputation[user])] and both
-            // of those are writable (Registry: reputation proposals, and governance).
-            // Stated as reachability, not as a diagnosis: no live instance of any of
-            // the three has been constructed here.
-            if (IxPNTsToken(token).getDebt(user) + pendingDebts[token][user] + amount
-                <= REGISTRY.getCreditLimit(user)) {
-                // Within ceiling: normal debt fallback (honest user, e.g. new
-                // user with no balance but within credit).
-                try IxPNTsToken(token).recordDebtWithOpHash(user, amount, opHash) { return; } catch {}
-            } else {
-                // Over ceiling: whatever moved (see above), this op was
-                // effectively an unbacked sponsorship — the reason is not knowable
-                // from here, and the old text named one that can no longer happen.
-                // The gas for THIS op is already spent (cannot be
-                // clawed back), so cap the loss by blocking the user for this
-                // operator: isBlocked is checked in validate and is channel-
-                // agnostic (gates BOTH the SBT and the agent path), so the
-                // drain-then-bypass cannot be REPEATED. Owner can unblock via
-                // updateBlockedStatus after review. The DebtRecordFailed event
-                // below is the off-chain signal; isBlocked is queryable state.
-                userOpState[operator][user].isBlocked = true;
-            }
-            // Isolate the amount in pendingDebts (owner-visible, not auto-repaid
-            // on the user's next mint) rather than collectible token debt.
-            pendingDebts[token][user] += amount;
-            emit DebtRecordFailed(token, user, amount);
-        }
-    }
-
-    // ====================================
-    // Pending Debt Recovery
-    // ====================================
-
-    /// @notice Retry recording a pending debt that failed during postOp.
-    /// @dev    H-01: takes an explicit `amount` so a pending balance larger than the
-    ///         token's per-tx limit (`maxSingleTxLimit`) can be drained in chunks —
-    ///         call repeatedly with `amount <= maxSingleTxLimit` until empty. Previously
-    ///         it always retried the full balance, which reverted (and stayed stuck)
-    ///         whenever the accumulated debt exceeded that limit. The remainder stays in
-    ///         `pendingDebts` for the next call. Pass `amount == 0` to attempt the full
-    ///         balance in one shot (works when it is within the limit).
-    /// @param token  The xPNTs token address
-    /// @param user   The user address
-    /// @param amount aPNTs to record this call; clamped to the pending balance.
-    function retryPendingDebt(address token, address user, uint256 amount) external onlyOwner nonReentrant {
-        uint256 pending = pendingDebts[token][user];
-        if (pending == 0) revert NoPendingDebt();
-        if (amount == 0 || amount > pending) amount = pending;
-        pendingDebts[token][user] = pending - amount;
-        IxPNTsToken(token).recordDebt(user, amount);
-        emit PendingDebtRetried(token, user, amount);
-    }
-
-    /// @notice Admin function to clear stuck pending debt (escape hatch)
-    /// @dev Use when accumulated debt exceeds MAX_SINGLE_TX_LIMIT or token is unreachable
-    /// @param token The xPNTs token address
-    /// @param user The user address
-    function clearPendingDebt(address token, address user) external onlyOwner {
-        uint256 amount = pendingDebts[token][user];
-        if (amount == 0) revert NoPendingDebt();
-        delete pendingDebts[token][user];
-        emit PendingDebtCleared(token, user, amount);
-    }
 
     // ====================================
     // V5 Storage: Agent Sponsorship & x402
@@ -1572,17 +1434,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     event BLSAggregatorQueued(address indexed pending, uint48 eta);
 
     // P0-15: dryRunValidation reason codes (internal — SDKs should hardcode bytes32 values).
-    bytes32 internal constant DRYRUN_OK                      = bytes32(0);
-    bytes32 internal constant DRYRUN_OPERATOR_NOT_CONFIGURED = bytes32("OPERATOR_NOT_CONFIGURED");
-    bytes32 internal constant DRYRUN_OPERATOR_PAUSED         = bytes32("OPERATOR_PAUSED");
-    bytes32 internal constant DRYRUN_USER_NOT_ELIGIBLE       = bytes32("USER_NOT_ELIGIBLE");
-    bytes32 internal constant DRYRUN_USER_BLOCKED            = bytes32("USER_BLOCKED");
-    bytes32 internal constant DRYRUN_RATE_LIMITED            = bytes32("RATE_LIMITED");
-    bytes32 internal constant DRYRUN_POSTOP_GAS_TOO_LOW      = bytes32("POSTOP_GAS_TOO_LOW");
-    bytes32 internal constant DRYRUN_CREDIT_EXCEEDED         = bytes32("CREDIT_EXCEEDED");
-    bytes32 internal constant DRYRUN_RATE_COMMITMENT_VIOLATED = bytes32("RATE_COMMITMENT_VIOLATED");
-    bytes32 internal constant DRYRUN_INSUFFICIENT_BALANCE    = bytes32("INSUFFICIENT_BALANCE");
-    bytes32 internal constant DRYRUN_STALE_PRICE             = bytes32("STALE_PRICE");
+    // DRYRUN_* reason codes live in SuperPaymasterLens since 5.5.0.
 
     // ====================================
     // V5: Admin Setters
@@ -1674,5 +1526,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // storage-safe. 50 reserved; usage: 18 original + _slashCd + pendingBLSAgg/Eta +
     // _settledDebtOps + _pendingSlash + _blsSlashCd + _blsSlashCdFloor = 24. (The 4 deprecated
     // x402 slots are accounted in the "18 original"+V5 block, not here.)
-    uint256[28] private __gap;
+    // 5.5.0 (R10-M1b): operator reservations in flight between validation and postOp.
+    // Appended at the end of storage (UUPS-safe); consumes one __gap slot (28 → 27).
+    mapping(bytes32 => Inflight) internal _inflight;
+
+    uint256[27] private __gap;
 }

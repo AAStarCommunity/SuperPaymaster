@@ -182,31 +182,50 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     // Escrow — SuperPaymaster entry points (X3, L-*, A-5, E-*)
     // ---------------------------------------------------------------------
 
+    /// @dev Pure decision shared by `tryLockForGas` and `previewLock` (dryRun/lens consistency).
+    ///      Evaluates as if `spender` (the SP) were the caller. Reads only; never writes.
+    function _lockDecision(address spender, address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)
+        internal view
+        returns (IxPNTsTokenV2.LockResult r, uint256 x, uint256 usedA, uint256 usedB, uint256 locked)
+    {
+        if (emergencyDisabled) return (IxPNTsTokenV2.LockResult.EMERGENCY, 0, 0, 0, 0);
+        if (spenderDisabled[spender][user]) return (IxPNTsTokenV2.LockResult.DISABLED, 0, 0, 0, 0);
+        if (reserveAPNTs > maxSingleTxLimit) return (IxPNTsTokenV2.LockResult.SINGLE_TX_LIMIT, 0, 0, 0, 0);
+        if (_locks[opHash][user].locker != address(0)) return (IxPNTsTokenV2.LockResult.CONFLICTING_LOCK, 0, 0, 0, 0);
+        locked = lockedOf[user];
+        if (spRenew) {
+            if (renewalMode[user] != MODE_SP_K || autoRenewUsed[user] >= K
+                || locked != 0 || creditReservedOf[user] != 0) {
+                return (IxPNTsTokenV2.LockResult.INVALID_RENEWAL, 0, 0, 0, 0);
+            }
+        }
+        usedA = spRenew ? 0 : _auto[spender][user].used;
+        usedB = spRenew ? 0 : _budget[user].used;
+        if (_remainingWith(spender, user, usedA, usedB) < reserveAPNTs) {
+            return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0, 0, 0, 0);
+        }
+        x = Math.mulDiv(reserveAPNTs, exchangeRate, 1e18, Math.Rounding.Ceil);
+        uint256 bal = balanceOf(user);
+        if (bal < locked || bal - locked < x) return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0, 0, 0, 0);
+        r = IxPNTsTokenV2.LockResult.OK;
+    }
+
+    /// @notice Read-only mirror of `tryLockForGas` for dryRun/lens (same code path).
+    function previewLock(address spender, address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)
+        external view returns (IxPNTsTokenV2.LockResult r, uint256 x)
+    {
+        (r, x, , , ) = _lockDecision(spender, user, opHash, reserveAPNTs, spRenew);
+    }
+
     /// @dev Validation phase. Returns a typed result; writes NOTHING unless it succeeds (L-1).
     ///      An SP-relayed renewal is precomputed and committed only on success (§9 A-5/L-1).
     function tryLockForGas(address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)
         external returns (IxPNTsTokenV2.LockResult, uint256)
     {
         if (msg.sender != SUPERPAYMASTER_ADDRESS || msg.sender == address(0)) revert Unauthorized(msg.sender);
-        if (emergencyDisabled) return (IxPNTsTokenV2.LockResult.EMERGENCY, 0);
-        if (spenderDisabled[msg.sender][user]) return (IxPNTsTokenV2.LockResult.DISABLED, 0);
-        if (reserveAPNTs > maxSingleTxLimit) return (IxPNTsTokenV2.LockResult.SINGLE_TX_LIMIT, 0);
-        if (_locks[opHash][user].locker != address(0)) return (IxPNTsTokenV2.LockResult.CONFLICTING_LOCK, 0);
-
-        uint256 locked = lockedOf[user];
-        if (spRenew) {
-            if (renewalMode[user] != MODE_SP_K || autoRenewUsed[user] >= K
-                || locked != 0 || creditReservedOf[user] != 0) {
-                return (IxPNTsTokenV2.LockResult.INVALID_RENEWAL, 0);
-            }
-        }
-        uint256 usedA = spRenew ? 0 : _auto[msg.sender][user].used;
-        uint256 usedB = spRenew ? 0 : _budget[user].used;
-        if (_remainingWith(msg.sender, user, usedA, usedB) < reserveAPNTs) return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0);
-
-        uint256 x = Math.mulDiv(reserveAPNTs, exchangeRate, 1e18, Math.Rounding.Ceil);
-        uint256 bal = balanceOf(user);
-        if (bal < locked || bal - locked < x) return (IxPNTsTokenV2.LockResult.INSUFFICIENT, 0);
+        (IxPNTsTokenV2.LockResult r, uint256 x, uint256 usedA, uint256 usedB, uint256 locked) =
+            _lockDecision(msg.sender, user, opHash, reserveAPNTs, spRenew);
+        if (r != IxPNTsTokenV2.LockResult.OK) return (r, 0);
 
         // ---- commit ----
         if (spRenew) {
@@ -252,21 +271,35 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         _releaseLock(user, opHash);
     }
 
+    /// @dev Pure decision shared by `tryReserveCredit` and `previewCredit`.
+    function _creditDecision(address spender, address user, bytes32 opHash, uint256 aPNTs)
+        internal view returns (IxPNTsTokenV2.CreditResult)
+    {
+        if (emergencyDisabled) return IxPNTsTokenV2.CreditResult.EMERGENCY;
+        if (spenderDisabled[spender][user]) return IxPNTsTokenV2.CreditResult.DISABLED;
+        if (aPNTs > maxSingleTxLimit) return IxPNTsTokenV2.CreditResult.SINGLE_TX_LIMIT;
+        if (_creditRes[opHash][user].locker != address(0)) return IxPNTsTokenV2.CreditResult.CONFLICTING;
+        uint256 cap = effectiveCreditCap(user);
+        if (cap == 0) return IxPNTsTokenV2.CreditResult.NO_CREDIT;
+        if (debts[user] + creditReservedOf[user] + aPNTs > cap) return IxPNTsTokenV2.CreditResult.EXCEEDS_CAP;
+        return IxPNTsTokenV2.CreditResult.OK;
+    }
+
+    /// @notice Read-only mirror of `tryReserveCredit` for dryRun/lens (same code path).
+    function previewCredit(address spender, address user, bytes32 opHash, uint256 aPNTs)
+        external view returns (IxPNTsTokenV2.CreditResult)
+    {
+        return _creditDecision(spender, user, opHash, aPNTs);
+    }
+
     /// @dev Validation phase. C-1: `debts + reserved + amount ≤ effectiveCreditCap`.
     function tryReserveCredit(address user, bytes32 opHash, uint256 aPNTs)
         external returns (IxPNTsTokenV2.CreditResult)
     {
         if (msg.sender != SUPERPAYMASTER_ADDRESS || msg.sender == address(0)) revert Unauthorized(msg.sender);
-        if (emergencyDisabled) return IxPNTsTokenV2.CreditResult.EMERGENCY;
-        if (spenderDisabled[msg.sender][user]) return IxPNTsTokenV2.CreditResult.DISABLED;
-        if (aPNTs > maxSingleTxLimit) return IxPNTsTokenV2.CreditResult.SINGLE_TX_LIMIT;
-        if (_creditRes[opHash][user].locker != address(0)) return IxPNTsTokenV2.CreditResult.CONFLICTING;
-        uint256 cap = effectiveCreditCap(user);
-        if (cap == 0) return IxPNTsTokenV2.CreditResult.NO_CREDIT;
-        uint256 reserved = creditReservedOf[user];
-        if (debts[user] + reserved + aPNTs > cap) return IxPNTsTokenV2.CreditResult.EXCEEDS_CAP;
-
-        creditReservedOf[user] = reserved + aPNTs;
+        IxPNTsTokenV2.CreditResult r = _creditDecision(msg.sender, user, opHash, aPNTs);
+        if (r != IxPNTsTokenV2.CreditResult.OK) return r;
+        creditReservedOf[user] += aPNTs;
         _creditRes[opHash][user] = CreditRes(uint128(aPNTs), msg.sender);
         _setLive(user, opHash, CREDIT_SEED, true);
         emit CreditReserved(user, opHash, msg.sender, aPNTs);

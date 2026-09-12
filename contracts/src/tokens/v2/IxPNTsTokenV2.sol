@@ -20,4 +20,10 @@ interface IxPNTsTokenV2 {
     function settleLocked(address user, bytes32 opHash, uint256 chargeAPNTs) external returns (uint256 xBurned);
     function tryReserveCredit(address user, bytes32 opHash, uint256 aPNTs) external returns (CreditResult result);
     function settleCredit(address user, bytes32 opHash, uint256 chargeAPNTs) external returns (uint256 debtAdded);
+
+    // read-only mirrors used by SuperPaymaster.dryRunValidation (same code path as the writes)
+    function previewLock(address spender, address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)
+        external view returns (LockResult result, uint256 xLocked);
+    function previewCredit(address spender, address user, bytes32 opHash, uint256 aPNTs)
+        external view returns (CreditResult result);
 }
