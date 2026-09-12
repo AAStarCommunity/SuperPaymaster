@@ -42,6 +42,21 @@ contract TruncatedLockToken {
     function tryReserveCredit(address, bytes32, uint256) external pure returns (uint256) { return 1; }
 }
 
+/// @dev Sane exchangeRate(); tryLockForGas answers INSUFFICIENT (so SP goes on to credit);
+///      tryReserveCredit answers per `mode`: 0 empty, 1 one byte, 2 out-of-range 99, 3 OK.
+contract MalformedCreditToken {
+    uint256 public mode;
+    function setMode(uint256 m) external { mode = m; }
+    function exchangeRate() external pure returns (uint256) { return 1 ether; }
+    function tryLockForGas(address, bytes32, uint256, bool) external pure returns (uint256, uint256) { return (1, 0); }
+    function tryReserveCredit(address, bytes32, uint256) external view returns (uint256) {
+        uint256 m = mode;
+        if (m == 0) assembly { return(0, 0) }
+        if (m == 1) assembly { mstore(0, 0) return(0, 1) }
+        return m == 2 ? 99 : 0;
+    }
+}
+
 contract MalformedLockToken {
     function exchangeRate() external pure returns (uint256) { return 1 ether; }
     function tryLockForGas(address, bytes32, uint256, bool) external pure returns (uint256, uint256) { return (99, 0); }
@@ -928,6 +943,34 @@ contract SuperPaymasterV55AdversarialTest is Test {
             }
             (, bytes memory err, ) = _bundle1(op);
             assertEq(err, _aa34(0), "via EntryPoint: AA34, not AA33");
+        }
+    }
+
+    /// @notice Codex D3 round 3: the CREDIT branch's malformed answers (reached only after the
+    ///         lock call reports INSUFFICIENT) must fail closed too. Mode 3 (a well-formed OK) is
+    ///         the positive control proving the credit call is really reached and honoured.
+    function test_token_malformed_credit_returns_get_sigFail_not_revert() public {
+        address u = _mkUser(PK_U, 10_000 ether);
+        uint256 maxCost = _maxCost(POST, 1 gwei);
+        MalformedCreditToken bad = new MalformedCreditToken();
+        _setOperatorToken2(operator, address(token), address(bad));
+        (, , , address bound, , , , , ) = sp.operators(operator);
+        assertEq(bound, address(bad), "precondition: operator bound to the mock (no token-mismatch masking)");
+        PackedUserOperation memory op = _opFull(u, PK_U, 0, POST, 0, "", 1 gwei, type(uint256).max, address(bad));
+        for (uint256 m; m < 4; m++) {
+            bad.setMode(m);
+            vm.prank(address(entryPoint));
+            try sp.validatePaymasterUserOp(op, keccak256(abi.encode("credit-malformed", m)), maxCost) returns (bytes memory ctx, uint256 vd) {
+                if (m == 3) {
+                    assertEq(vd & 1, 0, "control: well-formed credit OK sponsors (branch reached)");
+                    assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, 2, "control: CREDIT mode");
+                } else {
+                    assertEq(vd & 1, 1, "malformed credit answer: SIG_FAILURE");
+                    assertEq(ctx.length, 0);
+                }
+            } catch {
+                assertTrue(false, "malformed credit answer: validation reverted (AA33 path)");
+            }
         }
     }
 
