@@ -15,7 +15,7 @@
 >
 > 每一轮的发现都由 SP 对照源码复核后才并入。**作者已定（2026-09-12）**：D-21 不处理（测试数据）；主网 = OP 主网；D-9 = 自托管 Alto 主用、Rundler 交叉验证（DSR 经作者授权确定）；DVT 询问走 Seeder（CC-121）。
 >
-> **状态：v3.9-rc（2026-09-13）：D6——按 R10-M1b / R10-M2 重写 §10.2 状态转移表，按模式拆开 opReverted 行，每一格补上 file:line；I10 的措辞同步到在途预留（operator 在 release 后净额为 0，G 由 SP 的 ETH 押金承担）。**
+> **状态：v3.9-rc（2026-09-13）：D6——按 R10-M1b / R10-M2 重写 §10.2 状态转移表，按模式拆开 opReverted 行，每一格补上 file:line；I10 的措辞同步到在途预留（operator 在 release 后净额为 0，G 由 SP 的 ETH 押金承担）；D3 发现：`SETTLE_GAS_BOUND` 从 80k 改为 160k（§10.1 ③）、验证期读 `exchangeRate()` 改为 try/catch（§3.3）、I2 的"用户亲自操作"加以澄清、I6 的烧毁上界改用 §10.2 的公式。**
 > v3.8-rc（2026-09-12）：并入 Codex 第 10 轮（1 High + 5 Medium）和 D1 的实现期发现（token 拆成核心和扩展、工厂接收预先部署的模板），见 §11。**
 > v3.7-rc（2026-09-12）：并入 DSR 以 Reviewer 1 视角做的验收复核（B-1…B-7 High、独立审计闸门、Medium B-9/B-11/B-12），规范性内容在 §10，它优先于前文。**
 > v3.6-rc（2026-09-12）：并入 Codex 第 8 轮（EIP-1167 最小代理的白名单规则；急停期间 SP 更换的规则）和 DSR 补充的 V4 产品影响。**
@@ -293,11 +293,11 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | # | 不变量 |
 |---|---|
 | I1 | 用户 xPNTs 余额的减少只可能来自：用户本人的交易；`settleLocked`；名单内 spender 在额度内经 `transferFrom` 或 `burn(from)`；mint 时的自动抵债 |
-| I2 | 对任意 (user, spender)：自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间，SP 转述的续期 ≤ K |
+| I2 | 对任意 (user, spender)：自上次合法重置以来经 `transferFrom`、`burn(from)`、`settleLocked` 的累计 ≤ cap；各 spender 的累计之和 ≤ 总额上限；两次用户亲自操作之间，SP 转述的续期 ≤ K。**v3.9 澄清**："用户亲自操作"指用户本人发起的任意一次续期（`renewForSelf` 或 R2 `ACT_RENEW`），**不论指定哪个 spender**；A-6 的 `_renew` 总会把 `autoRenewUsed` 清零，所以用户续期任何 spender 都会重新开放 SP 的 K 次续期。每次重新开放都来自用户的签名或调用，所以 SP 在一个窗口内最多获得 K 次续期 |
 | I3 | 新债务只能由 `settleCredit` 产生，而且只能消费一笔在准入时满足 C-1 的有效预留。`creditPolicy == OFF`、没有有效的当期申请、已撤回或已停用，这些状态**阻止新的预留**；债务在这些状态下仍可能增加，但**只能**来自消费此前已准入的预留（与 E-2、C-3、C-4 一致，§9 R4-H4） |
 | I4 | 每笔交易结束时：`lockedOf[u] == Σ _locks[·][u].xLocked`，`creditReservedOf[u] == Σ _creditRes[·][u].amount`，并且 `balanceOf(u) ≥ lockedOf[u]` |
 | I5 | 活标记为 0 之后，任何记录都只能被 stale release 处理，不能再被结算 |
-| I6 | **恶意 SP**（impl 被任意替换、不经过任何 UserOp），每个用户：按锁定路径结算的 aPNTs 等值 ≤ `min(剩余 SP 额度 + K·SP cap, 剩余总额 + K·总额上限)`；xPNTs 烧毁量 ≤ `min(余额, Σ ceil(aCharge_i · rate_i / 1e18))`；新债分两部分：(i) 新预留只能在当期 epoch 内准入，额度 ≤ `max(0, min(有效的当期 requestedCap, PROTOCOL_CREDIT_CEILING) − debts − reserved)`；(ii) epoch、策略或分档源变化之后，**不能再准入新预留**，但此前已准入的预留仍然可以结算，每笔只能把自己那笔 reservation 转成不超过其 amount 的债务，所以这一部分的新增债务 ≤ 失效那一刻的 `creditReservedOf`（与额度来源无关，与策略无关，见 02 §8.7 的四格表）；转走的量 = 0。**范围**：只是 token 侧的上界 |
+| I6 | **恶意 SP**（impl 被任意替换、不经过任何 UserOp），每个用户：按锁定路径结算的 aPNTs 等值 ≤ `min(剩余 SP 额度 + K·SP cap, 剩余总额 + K·总额上限)`；xPNTs 烧毁量 ≤ `min(余额, Σ xc_i)`，`xc_i = min(x0_i, ceil(c_i · x0_i / a0_i))`（§10.2 的公式；**v3.9 修正**：原来写的 `Σ ceil(aCharge_i · rate_i / 1e18)` 每笔会少算最多 1 wei，按 lock 时的比例结算时可能被合法地超出，I 层用 `test_I6_literalBurnBound_offByOneWei` 复现）；新债分两部分：(i) 新预留只能在当期 epoch 内准入，额度 ≤ `max(0, min(有效的当期 requestedCap, PROTOCOL_CREDIT_CEILING) − debts − reserved)`；(ii) epoch、策略或分档源变化之后，**不能再准入新预留**，但此前已准入的预留仍然可以结算，每笔只能把自己那笔 reservation 转成不超过其 amount 的债务，所以这一部分的新增债务 ≤ 失效那一刻的 `creditReservedOf`（与额度来源无关，与策略无关，见 02 §8.7 的四格表）；转走的量 = 0。**范围**：只是 token 侧的上界 |
 | I7 | `effectiveCreditCap` 是所有信用判断的唯一来源（结构性要求，由测试在每个信用入口上断言） |
 
 ## 5. 体积
@@ -427,7 +427,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 2. **结算在逻辑上不会失败**：先减 `lockedOf`，再 `_burn(xCharge)`；因为 `balanceOf ≥ lockedOf ≥ xLocked ≥ xCharge`，烧币不会失败。
    急停期间照常结算（E-2），SP 更换后原 locker 照常结算（L-3），`settleLocked` 内部**不做任何外部调用**，gas 有固定上界。
 3. **gas 只能不够、不能被利用**：postOp 入口检查 `gasleft() ≥ SETTLE_GAS_BOUND`（postOp 不受 ERC-7562 限制，可以读 GAS），不够就直接 revert；
-   `MIN_POST_OP_GAS ≥ SETTLE_GAS_BOUND + SP 自身开销的实测上界 + 余量`，由专门测试守住。在这个条件下，用户无法通过调低 gas 让 postOp 回滚；
+   `MIN_POST_OP_GAS ≥ SETTLE_GAS_BOUND + SP 自身开销的实测上界 + 余量`，由专门测试守住。**v3.9（D3 实测）**：`SETTLE_GAS_BOUND` 必须覆盖入口检查之后 postOp 的**全部**剩余工作（最坏路径：首次写 lastTimestamp、首次写幂等位和 usedOpHash、BALANCE 或 CREDIT 结算），实测约 137k；原先的 80k 低于这个值，存在"检查通过、随后 OOG"的区间（不构成漏洞，因为结算不包 try/catch，回滚会一并撤销用户执行，但与本条"不开始可能半途耗尽的结算"不符）。现取 **160k**，由 `test_B1_no_oog_band_above_entry_guard` 守住：两种模式下扫描 postOp 可用 gas，结果只能是 PostOpGasTooLow 或完整结算。在这个条件下，用户无法通过调低 gas 让 postOp 回滚；
    即使回滚了，用户的执行也被撤销，拿不到任何好处。
 
 **不变量**：

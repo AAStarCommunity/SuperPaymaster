@@ -433,6 +433,64 @@ contract SuperPaymasterV55Test is Test {
         assertEq(token.lockedOf(user), 0, "control settles");
     }
 
+    /// @notice B-1 §10.1 ③ (D3 finding): SETTLE_GAS_BOUND must cover everything postOp does after
+    ///         the entry check, on the worst path (fresh rate-limit timestamp, fresh idempotency /
+    ///         usedOpHash slots). Sweep the gas given to postOp: every call either fails the entry
+    ///         check with PostOpGasTooLow or settles completely — there is no band where the check
+    ///         passes and the settlement then runs out of gas. Both BALANCE and CREDIT modes.
+    function test_B1_no_oog_band_above_entry_guard() public {
+        vm.prank(operator);
+        sp.setOperatorLimits(60); // worst path: fresh lastTimestamp SSTORE in postOp
+        bytes memory ctxB = _validatedCtx(user, keccak256("band-b"));
+        address poor = _creditUser();
+        bytes memory ctxC = _validatedCtx(poor, keccak256("band-c"));
+        assertEq(abi.decode(ctxB, (SuperPaymaster.OpCtx)).mode, 1, "precondition: BALANCE");
+        assertEq(abi.decode(ctxC, (SuperPaymaster.OpCtx)).mode, 2, "precondition: CREDIT");
+        for (uint256 m; m < 2; m++) {
+            bytes memory ctx = m == 0 ? ctxB : ctxC;
+            (uint256 guard, uint256 ok) = (0, 0);
+            for (uint256 g = 60_000; g <= 260_000; g += 500) {
+                uint256 snap = vm.snapshot();
+                vm.prank(address(entryPoint));
+                (bool success, bytes memory ret) = address(sp).call{gas: g}(
+                    abi.encodeCall(sp.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
+                );
+                vm.revertTo(snap);
+                if (success) { ok++; continue; }
+                assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector),
+                    "no OOG band: a postOp that passed the entry check must complete");
+                assertEq(ok, 0, "no failure above a success (monotone)");
+                guard++;
+            }
+            assertGt(guard, 0, "entry guard exercised");
+            assertGt(ok, 0, "success region reached");
+        }
+    }
+
+    function _validatedCtx(address sender, bytes32 h) internal returns (bytes memory ctx) {
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        op.sender = sender;
+        vm.prank(address(entryPoint));
+        uint256 vd;
+        (ctx, vd) = sp.validatePaymasterUserOp(op, h, 1e15);
+        assertEq(vd & 1, 0, "validated");
+    }
+
+    function _creditUser() internal returns (address poor) {
+        poor = address(accountFactory.createAccount(vm.addr(0xB00B), 0));
+        vm.prank(address(registry));
+        sp.updateSBTStatus(poor, true);
+        registry.setCreditLimit(poor, 1_000 ether);
+        vm.prank(operator);
+        IV2Ext(address(token)).queueCreditPolicy(2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        IV2Ext(address(token)).executeCreditPolicy();
+        vm.prank(owner);
+        sp.updatePrice();
+        vm.prank(poor);
+        IV2Ext(address(token)).requestCredit(1_000 ether);
+    }
+
     /// @notice I8 end-to-end through a real EntryPoint: the op's execution increments a counter;
     ///         settlement is forced to fail; the whole postOp reverts, EntryPoint rolls back the
     ///         execution (counter unchanged), the escrow stays until the transaction ends, and

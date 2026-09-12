@@ -56,3 +56,51 @@
 **结论（DSR 已确认：C_WRAP 保持 30k）**：
 1. **在当前参数下，buffer 主要由 postOpGasLimit 项决定，C_WRAP 不起决定作用。** 把 C_WRAP 改成 1k，Part 2 依然通过，因为 `postOpGasLimit` 项（至少 200k，而 postOp 实际只用约 80k）已经远大于 wrap（约 1.7k）。C_WRAP 是第二重保险，30k 相对实测值有约 17 倍余量。改它要同时动合约常量和规范，不值得，所以不改。用户多付的主要来源是 postOpGasLimit 项；论文据此解释多付的来源（B-9 / R1-8），多付量的实测分布（均值、P95、最大值）放到 P2、P4 采集。
 2. OP 主网的 L1 数据费不经过 EntryPoint 的记账，由 bundler 通过 preVerificationGas 回收。PVG 已经计入 P，所以不在 C_WRAP 需要覆盖的范围内。
+
+## 4. A 层：SP 级对抗测试 — `74034e66`（及本节追加）
+
+文件：`contracts/test/v2/SuperPaymasterV55Adversarial.t.sol`。
+
+| 规范行 | 测试 |
+|---|---|
+| §8/§9 恶意 SP：当前 SP 调用全部 selector | `test_maliciousSP_current_calls_every_selector` |
+| 同上，SP 轮换后的历史 SP | `test_maliciousSP_historical_calls_every_selector` |
+| 预留 → 直接记债 → 结算（v2 里 3 个 3.x selector 必须不存在） | `test_maliciousSP_reserve_then_direct_debt_then_settle` |
+| 全量调用所用 ABI 与编译产物一致 | `test_abi_fixture_matches_compiled_token_and_has_no_3x_debt_selectors`、`test_sweep_encoder_matches_abi_encode` |
+| T-R14-01 Sybil | `test_TR1401_sybil_each_account_pays_own_lock_unbacked_zero_flat_in_N`（N=1/3/6） |
+| T-R14-02 同账户多个 nonce key | `test_TR1402_same_account_multi_nonce_keys_kth_rejected_when_free_balance_below_x0` |
+| T-R14-03 过期黑名单 | `test_TR1403_stale_blacklist_admitted_ops_settle_new_op_rejected` |
+| T-R14-04 用户执行 revert | `test_TR1404_user_execution_revert_still_pays_and_clears_lock` |
+| T-R14-05 postOp 回滚（含罚金） | `test_TR1405_postOp_revert_undoes_execution_operator_loss_le_a0_attacker_gain_zero` |
+| T-R14-06 信用策略 OFF | `test_TR1406_credit_off_debts_never_increase_on_any_path` |
+| T-R14-07 调 gas 攻击 | `test_TR1407_postOpGasLimit_sweep_via_entrypoint`、`test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution`、`test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled`（本节追加断言：检查通过之后不存在 OOG） |
+| T-R14-08 同 bundle 信用超额 | `test_TR1408_credit_bundle_over_cap_kth_rejected_at_validation` |
+| T-R14-09 | 已在 D2：`SuperPaymasterV55Test.test_TR1409_*` |
+| 路线 A：自抽干、maxCost 超上限 | `test_RouteA_self_drain_blocked_by_escrow_user_still_pays`、`test_RouteA_maxCost_above_single_tx_limit_rejected_not_truncated`、`test_RouteA_maxCost_above_auto_cap_rejected_not_truncated`；同 bundle 和多 nonce key 见 T-R14-01/02，postOp 回滚见 T-R14-05 |
+| 旧代币 operator 得到 AA34 而不是 AA33 | `test_migration_legacy3x_token_operator_gets_sigFail_AA34_not_AA33`；`configureOperator` 拒绝 3.x 代币已由 `SecurityFixes_M4_M5_M7.t.sol::test_M4_*` 覆盖 |
+| 验证期读汇率也要 try/catch（§3.3） | 本节追加 `test_token_without_exchangeRate_gets_sigFail_not_revert` |
+| 只有 INSUFFICIENT 才转去信用 | `test_routing_invalid_renewal_never_falls_back_to_credit` |
+| R1-3 六类 | 被盗 owner：`test_R13_stolen_owner_cannot_take_user_funds`；恶意工厂：`test_A9_*`、`test_A10_*`；重复转账：`test_R13_repeated_pulls_bounded_by_caps`；替换 SP：`test_R13_sp_replacement_pending_cannot_lock_old_sp_fails_closed`、`test_S*`；撤权：`test_R13_revocation_user_disable_and_emergency_reject_via_entrypoint`、`test_E*`、`test_C4_*`；批处理：`test_A7_*`、T-R14-01/02/08 |
+
+**恶意 SP 全量调用的做法**：运行时解析 `abis/xPNTsTokenV2.full.json` 里的 148 个函数；53 个非 view 函数有显式分类表，ABI 多出或少了函数都会让测试失败。每个场景 1,599 次调用，每次都在快照里执行。管理员、签名、拉取、view 类调用要求 token 的全部存储都不变；只作用于调用者自身的函数，比对受害者状态和社区配置的摘要；四个特权入口按 I6 上界检查，并确认至少成功调用过一次（排除空转）。
+
+**变异**（9 个，每个都在指名断言上变红）：a1 INSUFFICIENT 不再转去信用；a2 任何非 OK 都转去信用；b postOp 结算包 try/catch 吞掉失败（T-R14-05 变红）；c 去掉 `balance − locked < x` 检查；d 去掉 EXCEEDS_CAP；e 验证期不查 isBlocked；f SP 调 tryLockForGas 不包 try（→ AA33，变红）；g token 允许 SP 走 `_spendV2`；h 历史 SP 可以加锁。
+
+## 5. D3 发现并修复的两处源码偏差（`contracts/src` 在 D3 里唯一的改动）
+
+| 发现 | 修复 | 守护测试 | 变异 |
+|---|---|---|---|
+| `SETTLE_GAS_BOUND = 80k`，低于入口检查之后 postOp 剩余工作的实测值（约 137k；直接调用时最小成功 gas 约 144k，含入口前开销），中间存在"检查通过、随后 OOG"的区间。不构成漏洞：结算不包 try/catch，回滚会撤销用户执行；但注释说的"不开始可能半途耗尽的结算"是假的 | 改为 **160k**；注释写明覆盖范围和测量来源。`MIN_POST_OP_GAS = 200k` 在入口时仍剩约 193k，T-R14-09 经 EntryPoint 照常结算 | `SuperPaymasterV55Test.test_B1_no_oog_band_above_entry_guard`（BALANCE 和 CREDIT 两种模式，postOp gas 从 60k 扫到 260k，结果只能是 PostOpGasTooLow 或完整结算，且单调）；T-R14-07 直接扫描追加 `oog == 0` | 改回 80k → 在 "no OOG band: a postOp that passed the entry check must complete" 上变红 |
+| 验证期 `IxPNTsTokenV2(token).exchangeRate()` 没有包 try/catch，与 §3.3 不符（一个没有该函数的代币会导致验证 revert，即 AA33）。目前走不到：`configureOperator` 只接受 v2 代币 | 改为 try/catch，出错返回 sigFail | `test_token_without_exchangeRate_gets_sigFail_not_revert` | 去掉 try → 在 "validation reverted (AA33 path)" 上变红 |
+
+**体积**（按 CLAUDE.md 的纪律实测，`out/SuperPaymaster.sol/SuperPaymaster.json`，runs 500，source keccak 与当前源码一致；同目录的 `SuperPaymaster.default.json` 是 9 月 6 日的过期产物，已排除）：改动前 23,031 B，改动后 **21,857 B**（余量 2,719 B）。via_ir 的内联决策在这次改动后变了，所以体积反而变小。
+
+## 6. I 层：不变量 I1–I7 — `b9a9e511`
+
+文件：`contracts/test/v2/xPNTsTokenV2Invariant.t.sol`，共 8 个 `invariant_`。每个都内联配置 runs 64、depth 64、fail_on_revert；handler 往里注入过一个 revert，确认它确实会让测试失败。
+
+- **handler 覆盖**：mint（含自动抵债）、transfer、transferAndCall、burn、两个 spender 的 transferFrom 和 burn(from)（一个是创世克隆，一个走 propose → 48h → activate）、历史 SP 和工厂的拉取（必须失败）、bundle（1–3 笔加锁或预留，中间插入执行期事件，然后在同一交易内结算）、只加锁不结算、过期结算、过期释放、releaseAndDisable、方案 A 和方案 B 续期（R2 的 8 种动作全部覆盖，含伪造签名）、用户设置、approveCredit、策略切换、分档源切换、repayDebt、updateExchangeRate、急停、备用 SP、proposeSP 和 activateSP、warp。
+- **不变量**：I1 余额 = 影子；I2 各格子和总额的 used 与 cap 等于影子，窗口内的续期 ≤ K；I3 债务只来自消费已准入的预留；I4 lockedOf 和 creditReservedOf 等于记录之和，且 balance ≥ lockedOf；I5 过期结算必须 NotLive，交易内不能 release；I6 各项上界；I7 `effectiveCreditCap` 等于独立写的 C-0 计算；另有一条一致性检查（preview 与真实调用一致，状态机读回与影子一致）。
+- **transient storage 的实测结果**（forge 1.7.1）：不开 isolate 时，每次 handler 调用是一笔独立交易；调用内部 TSTORE 保持有效，下一次调用时已清零。所以"验证 → 执行 → postOp"放在一次 handler 调用里完成。开 isolate 会让交易内结算全部失败，因此这个套件**不开** isolate。
+- **变异**（13 个，均在指名断言上变红）：M1 去掉 `_update` 的锁检查；M2 settle 不减 lockedOf；M3a/b refund 退错格子或不退；M4 spRenew 忽略 K；M5 预留跳过 EXCEEDS_CAP；M6 记债超过预留额；M7 `_spendV2` 不记 used；M8/M9 忽略活标记（结算或释放）；M10 C-0 忽略 MANUAL；M11 有未结记录时仍能续期；M12 自动抵债多烧 1 wei；M13 settleCredit 不减 creditReservedOf。
+- **由此修订规范（v3.9）**：I6 的烧毁上界改用 §10.2 的 `xc` 公式（原公式每笔会少算最多 1 wei，由 `test_I6_literalBurnBound_offByOneWei` 复现）；I2 的"用户亲自操作"澄清为用户对任意 spender 的续期。

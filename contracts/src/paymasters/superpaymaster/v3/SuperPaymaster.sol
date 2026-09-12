@@ -115,9 +115,13 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     uint8 internal constant MODE_NONE = 0;
     uint8 internal constant MODE_BALANCE = 1;
     uint8 internal constant MODE_CREDIT = 2;
-    /// @dev B-1 §10.1 ③ / R10-H1: postOp refuses to start settlement below this. Measured by
-    ///      T-R14-09 (through EntryPoint with paymasterPostOpGasLimit == MIN_POST_OP_GAS).
-    uint256 internal constant SETTLE_GAS_BOUND = 80_000;
+    /// @dev B-1 §10.1 ③ / R10-H1: postOp refuses to start settlement below this. It must cover
+    ///      everything postOp does AFTER the entry check on its worst path (fresh rate-limit
+    ///      timestamp, fresh idempotency/usedOpHash slots, BALANCE or CREDIT settle): measured
+    ///      ~137k (D3), so every call that passes the check completes — no OOG band above it
+    ///      (test_B1_no_oog_band_above_entry_guard). MIN_POST_OP_GAS (200k) still clears it
+    ///      after the pre-check overhead (T-R14-09 through EntryPoint).
+    uint256 internal constant SETTLE_GAS_BOUND = 160_000;
     /// @dev R10-M3: EntryPoint wrapper gas outside the postOp callback (auditable upper bound, G layer).
     uint256 internal constant C_WRAP_GAS = 30_000;
     bytes32 internal constant INFLIGHT_SEED = keccak256("SP.v5.5.inflight.live");
@@ -1236,8 +1240,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return ("", _packValidationData(true, 0, 0));
         }
         uint256 maxRate = abi.decode(pmd[RATE_OFFSET:RATE_OFFSET + 32], (uint256));
-        if (IxPNTsTokenV2(token).exchangeRate() > maxRate) {
-             return ("", _packValidationData(true, 0, 0));
+        // §3.3: every call into the token is try/catch'd → sigFail (AA34), never a revert (AA33)
+        try IxPNTsTokenV2(token).exchangeRate() returns (uint256 rate) {
+            if (rate > maxRate) return ("", _packValidationData(true, 0, 0));
+        } catch {
+            return ("", _packValidationData(true, 0, 0));
         }
 
         // 3. Reservation a0 (spec §10.3): full maxCost at the cached price, + fee + validation buffer

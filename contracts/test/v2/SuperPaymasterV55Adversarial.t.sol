@@ -24,6 +24,9 @@ import { DummySpender } from "./xPNTsTokenV2.t.sol";
 
 /// @dev Registry stand-in. `setBlocked` plays the DVT/BLS blacklist sync (Registry → SP), so a
 ///      UserOp's execution can write the blacklist between validation and postOp (T-R14-03).
+/// @dev Bound-token stand-in with no exchangeRate() (and no fallback).
+contract NoExchangeRate {}
+
 contract AdvRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
@@ -110,7 +113,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
     uint256 constant PK_T = 0xE0E0;
 
     uint256 constant MIN_POST_OP_GAS = 200_000;  // SuperPaymaster.MIN_POST_OP_GAS
-    uint256 constant SETTLE_GAS_BOUND = 80_000;  // SuperPaymaster.SETTLE_GAS_BOUND
+    uint256 constant SETTLE_GAS_BOUND = 160_000; // SuperPaymaster.SETTLE_GAS_BOUND
     uint256 constant VERIF_GAS = 350_000;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant PM_VERIF_GAS = 700_000;
@@ -645,6 +648,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         console.log("min successful postOp gas", minOk);
         assertGt(guard, 0, "entry guard exercised");
         assertGt(okN, 0, "success region reached");
+        assertEq(oog, 0, "no OOG band: every call past the entry guard settles (SETTLE_GAS_BOUND covers the rest of postOp)");
         assertLe(minOk, MIN_POST_OP_GAS, "floor covers the whole settle path (no reachable OOG band)");
     }
 
@@ -859,6 +863,26 @@ contract SuperPaymasterV55AdversarialTest is Test {
         _setOperatorToken2(operator, address(legacy), address(token));
         (ok, , ) = _bundle1(_op(u, PK_U, 0, POST, 0, "", 1 gwei));
         assertTrue(ok, "control: v2 token path sponsors");
+    }
+
+    /// @notice §3.3 (D3 finding): the rate-commitment read is try/catch'd like every other token
+    ///         call — a bound token that cannot answer `exchangeRate()` yields SIG_FAILURE (AA34),
+    ///         never a validation revert (AA33).
+    function test_token_without_exchangeRate_gets_sigFail_not_revert() public {
+        address u = _mkUser(PK_U, 10_000 ether);
+        address bogus = address(new NoExchangeRate());
+        _setOperatorToken2(operator, address(token), bogus);
+        PackedUserOperation memory op = _opFull(u, PK_U, 0, POST, 0, "", 1 gwei, type(uint256).max, bogus);
+        uint256 maxCost = _maxCost(POST, 1 gwei);
+        vm.prank(address(entryPoint));
+        try sp.validatePaymasterUserOp(op, keccak256("norate"), maxCost) returns (bytes memory ctx, uint256 vd) {
+            assertEq(vd & 1, 1, "no exchangeRate(): SIG_FAILURE");
+            assertEq(ctx.length, 0);
+        } catch {
+            assertTrue(false, "no exchangeRate(): validation reverted (AA33 path)");
+        }
+        (, bytes memory err, ) = _bundle1(op);
+        assertEq(err, _aa34(0), "via EntryPoint: AA34, not AA33");
     }
 
     function _setOperatorToken2(address op, address from, address to) internal {

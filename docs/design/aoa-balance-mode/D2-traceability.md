@@ -9,7 +9,7 @@
 |---|---|---|
 | validate | paymasterAndData 带 token 字段，并校验它等于 operator 配置的代币（R4-H1）；两个续期位同时置 1 → sigFail；按完整 maxCost 计算 a0；**先查 operator 余额**，再调 `tryLockForGas`；只有返回 INSUFFICIENT 才尝试 `tryReserveCredit`（R-2）；所有 token 调用都包 try/catch，失败 → sigFail（H3-1） | `SuperPaymaster.sol` `validatePaymasterUserOp`、`_reserveForOp` |
 | 在途预留（R10-M1b） | a0 从 operator 扣除，写入 `_inflight[opHash]` 并打 transient 标记，**不计入 protocolRevenue**；postOp 时 revenue += charge、operator += a0 − charge，没有截断；`releaseStaleSponsorship(opHash)` 任何人都能调、幂等，同一交易内会被拒绝 | `postOp`、`releaseStaleSponsorship`、`inflightOf` |
-| postOp | 入口检查 `gasleft() ≥ SETTLE_GAS_BOUND`（80k）；按**验证时的价格快照**计费（R10-M3）；**结算不包 try/catch**（B-1） | `postOp` |
+| postOp | 入口检查 `gasleft() ≥ SETTLE_GAS_BOUND`（D2 时为 80k；D3 实测后改为 160k，见 D3-traceability §5）；按**验证时的价格快照**计费（R10-M3）；**结算不包 try/catch**（B-1） | `postOp` |
 | configureOperator | 探测 `BALANCE_MODE_VERSION() == 1`，旧代币被拒 | `configureOperator` |
 | 删除 | `_creditExceeded`、`_recordDebt`、`retryPendingDebt`、`clearPendingDebt`、`dryRunValidation`；`pendingDebts` 保留为 internal 占位槽 | — |
 | `getAvailableCredit` | `max(0, token.effectiveCreditCap − debts − reserved)` | — |
