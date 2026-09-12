@@ -337,13 +337,16 @@ contract SuperPaymasterV55Test is Test {
         assertEq(token.creditReservedOf(poor), c.a0, "validation-time reservation");
     }
 
-    function test_configureOperator_rejects_non_v2_token() public {
+    /// @notice Factory binding (P1-4): a token not issued by the wired factory is refused. The
+    ///         BALANCE_MODE_VERSION probe itself is covered by
+    ///         SecurityFixes_M4_M5_M7.t.sol::test_M4_ConfigureOperatorRejectsNonBalanceModeTokens.
+    function test_configureOperator_rejects_non_factory_token() public {
         address other = address(0x0F2);
         registry.setRole(keccak256("PAYMASTER_SUPER"), other, true);
         registry.setRole(keccak256("COMMUNITY"), other, true);
         V55APNTs plain = new V55APNTs();
         vm.prank(other);
-        vm.expectRevert(); // factory binding fails first (not a factory token) — and the probe would too
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector); // factory binding
         sp.configureOperator(address(plain), treasury);
     }
 
