@@ -388,9 +388,16 @@ contract SuperPaymasterV55Test is Test {
     function test_R10M3_charge_uses_validation_price_snapshot() public {
         PackedUserOperation memory op = _op(0, 300_000, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
+        (int256 pAtValidation, , , uint8 decAtValidation) = sp.cachedPrice();
+        uint256 aAtValidation = sp.aPNTsPriceUSD();
         vm.prank(address(entryPoint));
         (bytes memory ctx, ) = sp.validatePaymasterUserOp(op, h, 1e15);
         SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+        // DSR D2 Low-1: the snapshot must BE the validation-time state, not merely self-consistent
+        // (M7a — writing a wrong price into the snapshot — otherwise survives this suite alone)
+        assertEq(c.price, pAtValidation, "snapshot price == cachedPrice at validation");
+        assertEq(c.decimals, decAtValidation, "snapshot decimals == cachedPrice at validation");
+        assertEq(c.aPriceUSD, aAtValidation, "snapshot aPNTs price == aPNTsPriceUSD at validation");
 
         vm.prank(owner);
         sp.setAPNTSPrice(0.022 ether); // live price moves +10% after validation

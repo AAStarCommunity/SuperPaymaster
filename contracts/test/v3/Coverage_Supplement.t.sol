@@ -527,7 +527,7 @@ contract CoverageSupplementTest is Test {
         // (b) legacy V3.3 layout (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator)
         bytes memory legacy = abi.encode(address(xpnts), uint256(100), user, uint256(100), bytes32(0), operator);
         vm.prank(address(entryPoint));
-        vm.expectRevert();
+        vm.expectRevert(bytes("")); // abi.decode of a 6-word blob as the 11-word OpCtx: empty revert data
         paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), legacy, 1000, 1000);
 
         // (c) Call with empty context (should return)
