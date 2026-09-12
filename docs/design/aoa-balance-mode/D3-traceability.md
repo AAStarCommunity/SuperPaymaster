@@ -104,3 +104,40 @@
 - **transient storage 的实测结果**（forge 1.7.1）：不开 isolate 时，每次 handler 调用是一笔独立交易；调用内部 TSTORE 保持有效，下一次调用时已清零。所以"验证 → 执行 → postOp"放在一次 handler 调用里完成。开 isolate 会让交易内结算全部失败，因此这个套件**不开** isolate。
 - **变异**（13 个，均在指名断言上变红）：M1 去掉 `_update` 的锁检查；M2 settle 不减 lockedOf；M3a/b refund 退错格子或不退；M4 spRenew 忽略 K；M5 预留跳过 EXCEEDS_CAP；M6 记债超过预留额；M7 `_spendV2` 不记 used；M8/M9 忽略活标记（结算或释放）；M10 C-0 忽略 MANUAL；M11 有未结记录时仍能续期；M12 自动抵债多烧 1 wei；M13 settleCredit 不减 creditReservedOf。
 - **由此修订规范（v3.9）**：I6 的烧毁上界改用 §10.2 的 `xc` 公式（原公式每笔会少算最多 1 wei，由 `test_I6_literalBurnBound_offByOneWei` 复现）；I2 的"用户亲自操作"澄清为用户对任意 spender 的续期。
+
+## 7. M 层：迁移组断言的源码变异 — `0044bc95`
+
+详见 [D3-M-layer.md](D3-M-layer.md)（完整的 107 行变异表、加强前后对照、不可判定项）；复现脚本在 `d3m/`。
+
+- 范围：4 个迁移提交共新增或改动 360 行断言，涉及 119 个测试函数、22 个文件。
+- 第 1 轮（按迁移组原样的测试）：99 个变异里，82 个在指名断言上变红，6 个只是 revert 冒泡出来（没有落在断言上），11 个全绿。
+- 加强测试之后（改了 6 个测试文件，新增 4 个测试）：107 个变异里 **105 个在指名断言上变红**，剩下 2 个不可判定，原因如下。
+- 不可判定项：
+  - `P_live_off`：postOp 里 `_setInflightLive(false)` 这一行没有可观测效果，因为记录已经删除，`releaseStaleSponsorship` 看到空记录直接返回。保留无害。
+  - `P_gas_bound`：在迁移测试里走不到。它由 v2 套件守住：`test_B1_postOp_entry_gas_guard`，以及 D3 新增的 `test_B1_no_oog_band_above_entry_guard`（§5）。
+  - `test_DryRun_IsViewOnly_NoBalanceChange`：lens 和 token 的预览函数都是 view，写状态的变异编译不过，按构造无法判定。
+- 有两处"未配置 operator"的检查在迁移测试里被 5.5.0 的 token 绑定遮住，改由加强后的 `SuperPaymaster_Coverage` D8（token 字段填 0）判定。
+- M 层是在 §5 两处源码修复之前做的；合并之后以 `SETTLE_GAS_BOUND = 160k` 重跑了全量，结果为全绿。
+
+## 8. 需要作者或 DSR 知悉的观察（未改）
+
+1. **价格缓存未初始化**（`cachedPrice.price == 0`，也就是部署后第一次 `updatePrice` 之前）：validate 以 `OracleError` revert，而不是返回 sigFail（AA33 而不是 AA34）。5.4.x 也是这样，属于既有行为。runbook 第 5 步升级后先 `updatePrice` 即可规避；原地升级时缓存本来就有值。
+2. `tryLockForGas` 和 `tryReserveCredit` 接受金额为 0 或 user 为 `address(0)`，会写一条 0 额的记录。这在 I6 上界之内，SP 自己总是传 a0 > 0。
+3. 规范 v3.9 的澄清（I2 的"用户亲自操作"、I6 的烧毁上界）见 §6。
+
+## 9. D3 汇总
+
+| 层 | 交付 |
+|---|---|
+| O1 补测 | 41 个测试 + 20 个变异（§1） |
+| DSR 的两条 Low | §2 |
+| G | C_WRAP 在规范 EntryPoint 字节码上推导，约 1.7k，17 倍余量；SP 的 charge 覆盖最终成本（§3） |
+| A | 24 + 1 个 SP 级对抗测试，含恶意 SP 全量 selector、T-R14-01…08、路线 A、R1-3、旧代币 AA34；9 个变异（§4） |
+| 源码修复 | `SETTLE_GAS_BOUND` 从 80k 改为 160k；`exchangeRate` 改为 try/catch；各带守护测试和变异（§5） |
+| I | 8 个不变量 I1–I7 + 一致性检查；13 个变异（§6） |
+| M | 迁移组断言：107 个变异里 105 个指名变红，另 2 个不可判定（§7） |
+| D6 | §10.2 状态转移表按 R10-M1b 重写，每格补 file:line；§2.5 的实现位置（`7394faec`） |
+| D 一致性 | lens 与 validate：`test_lens_agrees_with_validation`（D2）；preview 与真实调用：I 层的一致性不变量 |
+| B | 按 DSR 的决定移到 D5，作为验收硬门槛 |
+
+**全量回归（D3 头部）**：Cancun 1597 通过 / 0 失败 / 49 跳过；Prague 1506 通过 / 0 失败 / 21 跳过。存储布局无漂移（SP 38 项、Registry 32 项），`abis/` 与编译产物一致。**D3 里的测试和变异检查全部由本地模型完成，还没有经过 Codex 对抗审查。**
