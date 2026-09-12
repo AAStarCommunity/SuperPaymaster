@@ -4,32 +4,37 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import "src/tokens/xPNTsToken.sol";
-import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 /**
  * @title SuperPaymaster_APNTs_Integration
- * @notice Integration tests for unified aPNTs accounting in SuperPaymaster v5.3.3.
+ * @notice Integration tests for unified aPNTs accounting, migrated to SuperPaymaster 5.5.0 +
+ *         xPNTs v2 (spec docs/design/aoa-balance-mode/03-final-spec.md).
  *
- *  Key changes tested:
- *  1. configureOperator(xPNTsToken, treasury) — 2-arg, no exchangeRate param
- *  2. postOp passes finalCharge (aPNTs) directly to _recordDebt
- *  3. Burn path at non-1:1 rate: xPNTsToken converts aPNTs->xPNTs internally
- *  4. getAvailableCredit returns aPNTs credit minus aPNTs debt
+ *  Key behaviour tested:
+ *  1. configureOperator(xPNTsToken, treasury) — 2-arg, no exchangeRate param; v2 token only
+ *  2. Credit path (AUTO policy + user request): postOp settles the aPNTs charge as debt
+ *     (settleCredit, C-2); with credit OFF an empty account is NOT sponsored (R-2 / I3)
+ *  3. Balance path at non-1:1 rate: the escrow burns xPNTs = ceil(charge * x0 / a0)
+ *  4. getAvailableCredit = max(0, effectiveCreditCap - debts - reserved) (R4-H4)
  *  5. Protocol fee adds markup in aPNTs; debtAPNTs > aPNTsCost
- *  6. validatePaymasterUserOp reads live exchangeRate() from xPNTsToken
+ *  6. validatePaymasterUserOp reads live exchangeRate() from the token against maxRate
+ *
+ *  Numbers (price $2000/ETH, aPNTs $0.02, MAX_COST = 1e6 wei, fee 10%, validation buffer 10%):
+ *    calc(MAX_COST) = 1e11 aPNTs;  a0 = ceil(1e11 * 1.2) = 1.2e11;
+ *    charge (actualUserOpFeePerGas = 0 -> bufWei = 0) = ceil(1e11 * 1.1) = 1.1e11.
  */
 contract SuperPaymaster_APNTs_Integration_Test is Test {
-    using Clones for address;
     using stdStorage for StdStorage;
 
     SuperPaymaster      public sp;
-    xPNTsToken          public xpnts;
+    xPNTsTokenV2        public xpnts;
     SPMockEntryPoint    public ep;
     SPMockPriceFeed     public priceFeed;
     SPMockAPNTs         public apnts;
@@ -41,8 +46,11 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     address operator = address(0xF3);
     address user     = address(0xF5);
 
-    // 1_000_000 wei gas cost -> ~100 aPNTs charge at $2000 ETH / $0.02 aPNTs
+    // 1_000_000 wei gas cost -> 1e11 aPNTs at $2000 ETH / $0.02 aPNTs
     uint256 constant MAX_COST = 1_000_000;
+    uint256 constant A_GAS    = 1e11;    // calc(MAX_COST)
+    uint256 constant A0       = 1.2e11;  // ceil(A_GAS * (BPS + fee + buffer) / BPS)
+    uint256 constant CHARGE   = 1.1e11;  // ceil(A_GAS * (BPS + fee) / BPS)
 
     // operators() field indices (9-tuple, exchangeRate removed in v5.3.3)
     // 0:aPNTsBalance 1:isConfigured 2:isPaused 3:xPNTsToken 4:reputation
@@ -68,21 +76,19 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
         vm.warp(block.timestamp + 2 hours);
         sp.updatePrice();
 
-        // Real xPNTsToken (clone), initialized with rate=1e18
-        address xImpl = address(new xPNTsToken());
-        xpnts = xPNTsToken(xImpl.clone());
-        xpnts.initialize("XPNTs", "XP", operator, "Comm", "comm.eth", 1e18);
-        xpnts.setSuperPaymasterAddress(address(sp));
-
         mockFactory = new MockXPNTsFactory();
         sp.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator, address(xpnts));
 
         registry.setRole(keccak256("PAYMASTER_SUPER"), operator, true);
         registry.setRole(keccak256("COMMUNITY"), operator, true);
 
         apnts.mint(operator, 100_000 ether);
         vm.stopPrank();
+
+        // Real xPNTs v2 token (clone), rate 1e18, genesis SP = sp, community owner = operator.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(sp), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, operator, operator, address(sp), 1e18);
+        mockFactory.setToken(operator, address(xpnts));
 
         vm.prank(address(registry));
         sp.updateSBTStatus(user, true);
@@ -101,15 +107,36 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     }
 
     function _buildPaymasterData(uint256 maxRate) internal view returns (bytes memory) {
-        return abi.encodePacked(address(sp), uint128(100000), uint128(200000), operator, maxRate);
+        return V2TokenDeployer.pmd(address(sp), 100000, 200000, operator, maxRate, address(xpnts), 0);
+    }
+
+    function _op(address sender, uint256 maxRate) internal view returns (PackedUserOperation memory op) {
+        op.sender = sender;
+        op.paymasterAndData = _buildPaymasterData(maxRate);
     }
 
     function _runValidate(uint256 maxRate) internal returns (bytes memory ctx) {
-        PackedUserOperation memory op;
-        op.sender = user;
-        op.paymasterAndData = _buildPaymasterData(maxRate);
         vm.prank(address(ep));
-        (ctx,) = sp.validatePaymasterUserOp(op, bytes32(uint256(1)), MAX_COST);
+        (ctx,) = sp.validatePaymasterUserOp(_op(user, maxRate), bytes32(uint256(1)), MAX_COST);
+    }
+
+    /// @dev AUTO credit policy (queue -> 48 h -> execute, C-3), then each user files a
+    ///      current-epoch request (spec §0 D-20: AUTO users sign requestCredit once).
+    function _enableAutoCredit(address[] memory users, uint256 requestCap) internal {
+        vm.prank(operator); // communityOwner
+        IxPNTsV2Admin(address(xpnts)).queueCreditPolicy(2);
+        vm.warp(block.timestamp + 48 hours);
+        IxPNTsV2Admin(address(xpnts)).executeCreditPolicy();
+        sp.updatePrice(); // keep the price cache fresh after the warp
+        for (uint256 i; i < users.length; i++) {
+            vm.prank(users[i]);
+            IxPNTsV2Admin(address(xpnts)).requestCredit(requestCap);
+        }
+    }
+
+    function _one(address a) internal pure returns (address[] memory u) {
+        u = new address[](1);
+        u[0] = a;
     }
 
     function _getAPNTsBalance(address who) internal view returns (uint128 bal) {
@@ -135,93 +162,137 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     }
 
     function test_ConfigureOperator_NoStoredExchangeRate_LiveRateUsed() public {
-        // In v5.3.3, no exchangeRate field in OperatorConfig.
+        // In v5.3.3+, no exchangeRate field in OperatorConfig.
         // Validate with a rate commitment and verify the live token rate is used.
+        IxPNTsV2Admin(address(xpnts)).mint(user, 5_000 ether); // only the rate can fail below
         _setXPNTsRate(2e18);
         // maxRate = 1e18 < live rate 2e18 → validation fails
-        PackedUserOperation memory op;
-        op.sender = user;
-        op.paymasterAndData = _buildPaymasterData(1e18);
         vm.prank(address(ep));
-        (, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(99)), MAX_COST);
+        (, uint256 vd) = sp.validatePaymasterUserOp(_op(user, 1e18), bytes32(uint256(99)), MAX_COST);
         assertEq(vd & 1, 1, "validate must fail: live rate 2e18 > maxRate 1e18");
     }
 
-    // ─── 2. getAvailableCredit returns aPNTs ──────────────────────────────────
+    // ─── 2. getAvailableCredit = max(0, effectiveCreditCap - debts - reserved) ─
 
-    function test_GetAvailableCredit_NoDebt_EqualsCreditLimit() public view {
+    /// @notice C-0: credit defaults OFF in v2 -> effectiveCreditCap == 0 -> no available credit,
+    ///         even though the Registry tier (10_000 aPNTs) is non-zero.
+    function test_GetAvailableCredit_PolicyOff_IsZero() public view {
+        assertGt(registry.getCreditLimit(user), 0, "tier is non-zero (control)");
+        assertEq(xpnts.effectiveCreditCap(user), 0, "OFF -> cap 0");
+        assertEq(sp.getAvailableCredit(user, address(xpnts)), 0, "OFF -> no available credit");
+    }
+
+    /// @notice AUTO + request above the tier: cap = min(requested, CEILING, tier) = tier.
+    function test_GetAvailableCredit_NoDebt_EqualsCreditLimit() public {
+        _enableAutoCredit(_one(user), 20_000 ether);
         uint256 credit = sp.getAvailableCredit(user, address(xpnts));
         uint256 limit  = registry.getCreditLimit(user);
+        assertEq(xpnts.effectiveCreditCap(user), limit, "tier binds the effective cap");
         assertEq(credit, limit, "no debt: available credit must equal limit");
     }
 
     function test_GetAvailableCredit_AfterDebt_DecreasedByDebt() public {
+        _enableAutoCredit(_one(user), 20_000 ether);
+        uint256 limit = registry.getCreditLimit(user);
+
         bytes memory ctx = _runValidate(type(uint256).max);
+        // in flight: the validation-time reservation already counts against the headroom
+        assertEq(xpnts.creditReservedOf(user), A0, "reservation = a0");
+        assertEq(sp.getAvailableCredit(user, address(xpnts)), limit - A0, "reserved counts (R4-H4)");
+
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
 
-        uint256 debt   = xpnts.getDebt(user);
+        uint256 debt   = xpnts.debts(user);
         uint256 credit = sp.getAvailableCredit(user, address(xpnts));
-        uint256 limit  = registry.getCreditLimit(user);
-
+        assertEq(debt, CHARGE, "debt == charge");
+        assertEq(xpnts.creditReservedOf(user), 0, "reservation consumed");
         assertEq(credit, limit - debt, "credit must equal limit minus aPNTs debt");
     }
 
-    // ─── 3. postOp: debt path records charge in aPNTs ────────────────────────
+    // ─── 3. postOp: credit path records charge in aPNTs ──────────────────────
 
+    /// @notice CREDIT mode (user has no xPNTs, AUTO + request): debt is recorded in aPNTs,
+    ///         independent of the xPNTs exchange rate (rate 2e18 here, debt still == CHARGE).
     function test_PostOp_DebtPath_RecordsAPNTs() public {
-        assertEq(xpnts.balanceOf(user), 0); // no xPNTs → debt fallback
+        assertEq(xpnts.balanceOf(user), 0); // no xPNTs → INSUFFICIENT → credit fallback
+        _enableAutoCredit(_one(user), 20_000 ether);
+        _setXPNTsRate(2e18);
         bytes memory ctx = _runValidate(type(uint256).max);
+
+        vm.expectEmit(true, true, false, true, address(sp));
+        emit ISuperPaymaster.TransactionSponsored(operator, user, A_GAS, CHARGE);
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
-        assertGt(xpnts.getDebt(user), 0, "debt must be recorded in aPNTs");
+        assertEq(xpnts.debts(user), CHARGE, "debt must be recorded in aPNTs (not xPNTs)");
+    }
+
+    /// @notice R-2 / I3 / T-R14-06: with credit OFF (v2 default) an empty account is NOT
+    ///         sponsored and no debt can arise. Replaces the removed 5.4 unconditional
+    ///         debt fallback (_recordDebt).
+    function test_PostOp_NoCreditPolicy_EmptyUser_NotSponsored() public {
+        uint128 opBefore = _getAPNTsBalance(operator);
+        vm.prank(address(ep));
+        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(_op(user, type(uint256).max), bytes32(uint256(1)), MAX_COST);
+        assertEq(vd & 1, 1, "credit OFF + no balance -> sigFail");
+        assertEq(ctx.length, 0, "no context -> no postOp settlement");
+        assertEq(xpnts.debts(user), 0, "no debt");
+        assertEq(xpnts.creditReservedOf(user), 0, "no reservation (L-1)");
+        assertEq(_getAPNTsBalance(operator), opBefore, "operator not debited");
     }
 
     // Debt is proportional to gas cost; doubling gas → doubles debt
-    // Uses two separate users to avoid needing to reset state.
+    // Uses two separate users to avoid needing to reset state. Both reserve against a maxCost
+    // large enough that neither charge hits the a0 cap, so the ratio is exact.
     function test_PostOp_DebtPath_ProportionalToGas() public {
         address user2 = address(0xF6);
         vm.prank(address(registry));
         sp.updateSBTStatus(user2, true);
+        address[] memory us = new address[](2);
+        us[0] = user; us[1] = user2;
+        _enableAutoCredit(us, 20_000 ether);
 
         // user — 1x gas cost
-        bytes memory ctx1 = _runValidate(type(uint256).max);
+        vm.prank(address(ep));
+        (bytes memory ctx1,) = sp.validatePaymasterUserOp(_op(user, type(uint256).max), bytes32(uint256(1)), MAX_COST * 4);
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx1, MAX_COST, 0);
-        uint256 debt1 = xpnts.getDebt(user);
+        uint256 debt1 = xpnts.debts(user);
 
         // user2 — 2x gas cost (different opHash via different sender)
-        PackedUserOperation memory op2;
-        op2.sender = user2;
-        op2.paymasterAndData = _buildPaymasterData(type(uint256).max);
         vm.prank(address(ep));
-        (bytes memory ctx2,) = sp.validatePaymasterUserOp(op2, bytes32(uint256(10)), MAX_COST);
+        (bytes memory ctx2,) = sp.validatePaymasterUserOp(_op(user2, type(uint256).max), bytes32(uint256(10)), MAX_COST * 4);
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx2, MAX_COST * 2, 0);
-        uint256 debt2 = xpnts.getDebt(user2);
+        uint256 debt2 = xpnts.debts(user2);
 
-        assertGt(debt2, debt1, "double gas cost must produce higher aPNTs debt");
+        assertEq(debt1, CHARGE, "1x gas -> 1.1e11");
+        assertEq(debt2, 2 * debt1, "double gas cost must produce double aPNTs debt");
     }
 
-    // ─── 4. postOp burn path at non-1:1 rate ────────────────────────────────
+    // ─── 4. postOp balance path at non-1:1 rate ─────────────────────────────
 
     function test_PostOp_BurnPath_HighRate_BurnsMoreXPNTs() public {
         _setXPNTsRate(2e18); // 1 aPNT = 2 xPNTs
 
-        vm.prank(operator);
-        xpnts.mint(user, 5_000 ether); // give user enough xPNTs
+        IxPNTsV2Admin(address(xpnts)).mint(user, 5_000 ether); // give user enough xPNTs (as FACTORY)
 
         uint256 balBefore = xpnts.balanceOf(user);
+        uint256 revBefore = sp.protocolRevenue();
         bytes memory ctx = _runValidate(type(uint256).max);
+        assertEq(xpnts.lockedOf(user), 2 * A0, "x0 = ceil(a0 * 2e18 / 1e18)");
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, MAX_COST, 0);
 
         uint256 burned = balBefore - xpnts.balanceOf(user);
-        uint256 debt   = xpnts.getDebt(user);
+        uint256 charge = sp.protocolRevenue() - revBefore;
+        uint256 debt   = xpnts.debts(user);
 
-        assertTrue(burned > 0, "xPNTs must be burned in burn path");
+        assertEq(charge, CHARGE, "aPNTs charge");
+        // xc = min(x0, ceil(c * x0 / a0)) = ceil(1.1e11 * 2.4e11 / 1.2e11) = 2.2e11
+        assertEq(burned, 2 * charge, "burned xPNTs == 2x the aPNTs charge at rate 2e18");
         assertEq(debt, 0, "no debt when burn path succeeds");
-        // burned xPNTs must be ~2x more than the aPNTs charge (ceil conversion at rate=2e18)
+        assertEq(xpnts.lockedOf(user), 0, "escrow cleared");
     }
 
     // ─── 5. Protocol fee: debtAPNTs increases with fee ────────────────────────
@@ -232,56 +303,53 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
         address userB = address(0xFB);
         vm.prank(address(registry)); sp.updateSBTStatus(userA, true);
         vm.prank(address(registry)); sp.updateSBTStatus(userB, true);
+        address[] memory us = new address[](2);
+        us[0] = userA; us[1] = userB;
+        _enableAutoCredit(us, 20_000 ether);
 
         // userA: 0% fee
         vm.prank(owner);
         sp.setProtocolFee(0);
 
-        PackedUserOperation memory opA;
-        opA.sender = userA;
-        opA.paymasterAndData = _buildPaymasterData(type(uint256).max);
         vm.prank(address(ep));
-        (bytes memory ctxA,) = sp.validatePaymasterUserOp(opA, bytes32(uint256(30)), MAX_COST);
+        (bytes memory ctxA,) = sp.validatePaymasterUserOp(_op(userA, type(uint256).max), bytes32(uint256(30)), MAX_COST);
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctxA, MAX_COST, 0);
-        uint256 debtZeroFee = xpnts.getDebt(userA);
+        uint256 debtZeroFee = xpnts.debts(userA);
 
         // userB: 10% fee
         vm.prank(owner);
         sp.setProtocolFee(1000);
 
-        PackedUserOperation memory opB;
-        opB.sender = userB;
-        opB.paymasterAndData = _buildPaymasterData(type(uint256).max);
         vm.prank(address(ep));
-        (bytes memory ctxB,) = sp.validatePaymasterUserOp(opB, bytes32(uint256(31)), MAX_COST);
+        (bytes memory ctxB,) = sp.validatePaymasterUserOp(_op(userB, type(uint256).max), bytes32(uint256(31)), MAX_COST);
         vm.prank(address(ep));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctxB, MAX_COST, 0);
-        uint256 debtTenPctFee = xpnts.getDebt(userB);
+        uint256 debtTenPctFee = xpnts.debts(userB);
 
+        assertEq(debtZeroFee, A_GAS, "0% fee: debt == aGas");
+        assertEq(debtTenPctFee, CHARGE, "10% fee: debt == ceil(aGas * 1.1)");
         assertGt(debtTenPctFee, debtZeroFee, "10% fee must produce higher aPNTs debt than 0% fee");
     }
 
     // ─── 6. validatePaymasterUserOp uses live rate ───────────────────────────
 
     function test_Validate_LiveRate_Exceeds_MaxRate_Fails() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user, 5_000 ether); // only the rate can fail below
         _setXPNTsRate(2e18);
-        PackedUserOperation memory op;
-        op.sender = user;
-        op.paymasterAndData = _buildPaymasterData(1e18); // maxRate too low
         vm.prank(address(ep));
-        (, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(2)), MAX_COST);
+        (, uint256 vd) = sp.validatePaymasterUserOp(_op(user, 1e18), bytes32(uint256(2)), MAX_COST); // maxRate too low
         assertEq(vd & 1, 1, "SIG_VALIDATION_FAILED when live rate > maxRate");
+        assertEq(xpnts.lockedOf(user), 0, "nothing escrowed on a rate rejection");
     }
 
     function test_Validate_LiveRate_Within_MaxRate_Succeeds() public {
+        IxPNTsV2Admin(address(xpnts)).mint(user, 5_000 ether);
         _setXPNTsRate(1e18);
-        PackedUserOperation memory op;
-        op.sender = user;
-        op.paymasterAndData = _buildPaymasterData(2e18); // maxRate >= live rate
         vm.prank(address(ep));
-        (, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(3)), MAX_COST);
+        (, uint256 vd) = sp.validatePaymasterUserOp(_op(user, 2e18), bytes32(uint256(3)), MAX_COST); // maxRate >= live rate
         assertEq(vd & 1, 0, "validation must succeed when live rate <= maxRate");
+        assertEq(xpnts.lockedOf(user), A0, "balance mode: x0 escrowed at 1:1");
     }
 
     // ─── 7. Deposit/withdraw accounting ─────────────────────────────────────

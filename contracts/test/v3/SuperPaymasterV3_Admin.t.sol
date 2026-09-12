@@ -9,6 +9,10 @@ import "src/tokens/GToken.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsToken} from "src/tokens/xPNTsToken.sol";
+import {Clones} from "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 
 /**
  * @title Mock EntryPoint
@@ -55,6 +59,7 @@ contract SuperPaymaster_Admin_Test is Test {
     MockPriceFeed public priceFeed;
     MockAPNTs public apnts;
     MockXPNTsFactory public mockFactory;
+    xPNTsTokenV2 public v2Token;
 
     address public owner = address(0x1);
     address public treasury = address(0x2);
@@ -100,13 +105,17 @@ contract SuperPaymaster_Admin_Test is Test {
         
         apnts.mint(operator1, 10000 ether);
 
-        // Deploy mock factory and register operator1's token (P1-4 fix)
-        // test_ConfigureOperator_Success uses address(0x555) as token
+        // Deploy mock factory (P1-4 fix); operator1's token is bound below.
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator1, address(0x555));
 
         vm.stopPrank();
+
+        // 5.5.0: configureOperator only accepts balance-mode (xPNTs v2) tokens, so operator1's
+        // factory-bound token is a real v2 clone whose genesis SP is this paymaster.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        v2Token = V2TokenDeployer.newToken(st, operator1, operator1, address(paymaster), 1e18);
+        mockFactory.setToken(operator1, address(v2Token));
 
         vm.prank(operator1);
         apnts.approve(address(paymaster), type(uint256).max);
@@ -224,16 +233,33 @@ contract SuperPaymaster_Admin_Test is Test {
     // ====================================
 
     function test_ConfigureOperator_Success() public {
-        address xPNTsToken = address(0x555);
         address opTreasury = address(0x444);
 
         vm.prank(operator1);
-        paymaster.configureOperator(xPNTsToken, opTreasury);
+        paymaster.configureOperator(address(v2Token), opTreasury);
 
         (, bool isConfigured, bool isPaused, address token,,, address treas, , ) = paymaster.operators(operator1);
         assertTrue(isConfigured);
-        assertEq(token, xPNTsToken);
+        assertEq(token, address(v2Token));
         assertEq(treas, opTreasury);
+    }
+
+    /// @notice 5.5.0 (spec 03 §3.3 configureOperator): a factory-bound 3.x xPNTsToken passes the
+    ///         factory check but has no BALANCE_MODE_VERSION() -> InvalidXPNTsToken, and the
+    ///         operator stays unconfigured. Positive control: the same operator configures
+    ///         successfully with the v2 token (test_ConfigureOperator_Success).
+    function test_ConfigureOperator_Rejects3xToken() public {
+        xPNTsToken legacy = xPNTsToken(Clones.clone(address(new xPNTsToken())));
+        legacy.initialize("Legacy", "LX", operator1, "Comm", "comm.eth", 1e18);
+        mockFactory.setToken(operator1, address(legacy)); // factory binding satisfied
+
+        vm.prank(operator1);
+        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        paymaster.configureOperator(address(legacy), address(0x444));
+
+        (, bool isConfigured,, address token,,,,,) = paymaster.operators(operator1);
+        assertFalse(isConfigured, "3.x token must not configure the operator");
+        assertEq(token, address(0));
     }
 
     function test_ConfigureOperator_NotRegistered() public {
