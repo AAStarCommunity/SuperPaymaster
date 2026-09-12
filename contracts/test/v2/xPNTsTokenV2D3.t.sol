@@ -12,7 +12,7 @@ import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import { xPNTsV2Base } from "src/tokens/v2/xPNTsV2Base.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
-import { MockRegistryV2, DummySpender, IExt } from "./xPNTsTokenV2.t.sol";
+import { MockRegistryV2, DummySpender, IExt } from "../helpers/V2TestFixtures.sol";
 
 // ---------------------------------------------------------------------------
 // Tier sources with deliberately broken behaviour (§9 / C-0: any failure → 0)

@@ -16,7 +16,7 @@ import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
 import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
 import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
-import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "./SuperPaymasterV55.t.sol";
+import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "../helpers/V55TestFixtures.sol";
 
 /// @dev Paymaster whose postOp records the actualGasCost EntryPoint passed it, then burns its
 ///      frame down to <= BURN_FLOOR gas. The frame therefore consumes (limit - returned) with

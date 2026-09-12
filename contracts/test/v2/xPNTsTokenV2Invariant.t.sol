@@ -11,7 +11,7 @@ import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import { xPNTsV2Base } from "src/tokens/v2/xPNTsV2Base.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
-import { MockRegistryV2 } from "./xPNTsTokenV2.t.sol";
+import { MockRegistryV2 } from "../helpers/V2TestFixtures.sol";
 
 /*
  * D3 "I layer" — stateful invariant suite for xPNTs v2 (spec 03 §4 I1–I7, §9 "I 不变量").

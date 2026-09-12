@@ -19,38 +19,7 @@ import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
 
-contract V55Registry {
-    mapping(bytes32 => mapping(address => bool)) public roles;
-    mapping(address => uint256) public creditLimit;
-    function setRole(bytes32 role, address a, bool v) external { roles[role][a] = v; }
-    function hasRole(bytes32 role, address a) external view returns (bool) { return roles[role][a]; }
-    function getCreditLimit(address u) external view returns (uint256) { return creditLimit[u]; }
-    function setCreditLimit(address u, uint256 v) external { creditLimit[u] = v; }
-}
-
-contract V55PriceFeed {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000 * 1e8, 0, block.timestamp, 1);
-    }
-    function decimals() external pure returns (uint8) { return 8; }
-}
-
-contract V55APNTs is ERC20 {
-    constructor() ERC20("aPNTs", "aPNT") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
-}
-
-contract V55Counter {
-    uint256 public n;
-    function inc() external { n += 1; }
-}
-
-interface IV2Ext {
-    function mint(address to, uint256 amount) external;
-    function queueCreditPolicy(uint8 p) external;
-    function executeCreditPolicy() external;
-    function requestCredit(uint256 maxCap) external;
-}
+import { V55Registry, V55PriceFeed, V55APNTs, V55Counter, IV2Ext } from "../helpers/V55TestFixtures.sol";
 
 /// @notice SP 5.5.0 end-to-end through a real EntryPoint v0.7 (spec 03 §1, §10, §11).
 contract SuperPaymasterV55Test is Test {
@@ -448,6 +417,7 @@ contract SuperPaymasterV55Test is Test {
         assertEq(abi.decode(ctxC, (SuperPaymaster.OpCtx)).mode, 2, "precondition: CREDIT");
         for (uint256 m; m < 2; m++) {
             bytes memory ctx = m == 0 ? ctxB : ctxC;
+            (address sender, bytes32 h) = m == 0 ? (user, keccak256("band-b")) : (poor, keccak256("band-c"));
             (uint256 guard, uint256 ok) = (0, 0);
             for (uint256 g = 60_000; g <= 260_000; g += 500) {
                 uint256 snap = vm.snapshot();
@@ -455,8 +425,18 @@ contract SuperPaymasterV55Test is Test {
                 (bool success, bytes memory ret) = address(sp).call{gas: g}(
                     abi.encodeCall(sp.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
                 );
+                if (success) {
+                    // a successful return must mean a COMPLETE settlement (not an early return)
+                    (address f, ) = sp.inflightOf(h);
+                    assertEq(f, address(0), "success -> in-flight cleared");
+                    assertEq(token.lockOf(h, sender).locker, address(0), "success -> lock settled");
+                    assertEq(token.creditReservationOf(h, sender).locker, address(0), "success -> reservation settled");
+                    assertTrue(token.usedOpHashes(h), "success -> token recorded the settlement");
+                    vm.revertTo(snap);
+                    ok++;
+                    continue;
+                }
                 vm.revertTo(snap);
-                if (success) { ok++; continue; }
                 assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector),
                     "no OOG band: a postOp that passed the entry check must complete");
                 assertEq(ok, 0, "no failure above a success (monotone)");

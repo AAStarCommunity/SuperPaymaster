@@ -1240,12 +1240,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             return ("", _packValidationData(true, 0, 0));
         }
         uint256 maxRate = abi.decode(pmd[RATE_OFFSET:RATE_OFFSET + 32], (uint256));
-        // §3.3: every call into the token is try/catch'd → sigFail (AA34), never a revert (AA33)
-        try IxPNTsTokenV2(token).exchangeRate() returns (uint256 rate) {
-            if (rate > maxRate) return ("", _packValidationData(true, 0, 0));
-        } catch {
-            return ("", _packValidationData(true, 0, 0));
-        }
+        // §3.3: every token call fails CLOSED → sigFail (AA34), never a validation revert (AA33)
+        (bool rateOk, uint256 rate) = _tokenWord(token, abi.encodeCall(IxPNTsTokenV2.exchangeRate, ()), true, 32);
+        if (!rateOk || rate > maxRate) return ("", _packValidationData(true, 0, 0));
 
         // 3. Reservation a0 (spec §10.3): full maxCost at the cached price, + fee + validation buffer
         uint256 aPNTsAmount = _calculateAPNTsAmount(maxCost);
@@ -1284,20 +1281,33 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         return (context, _packValidationData(false, validUntil, validAfter));
     }
 
-    /// @dev Escrow-then-credit decision (spec §1). Any token revert → no sponsorship (H3-1).
+    /// @dev Escrow-then-credit decision (spec §1). Any token failure → no sponsorship (H3-1).
     function _reserveForOp(address token, address user, bytes32 opHash, uint256 a0, bool spRenew)
         internal returns (uint8)
     {
-        try IxPNTsTokenV2(token).tryLockForGas(user, opHash, a0, spRenew) returns (IxPNTsTokenV2.LockResult r, uint256) {
-            if (r == IxPNTsTokenV2.LockResult.OK) return MODE_BALANCE;
-            if (r != IxPNTsTokenV2.LockResult.INSUFFICIENT) return MODE_NONE;
-        } catch {
-            return MODE_NONE;
-        }
-        try IxPNTsTokenV2(token).tryReserveCredit(user, opHash, a0) returns (IxPNTsTokenV2.CreditResult c) {
-            return c == IxPNTsTokenV2.CreditResult.OK ? MODE_CREDIT : MODE_NONE;
-        } catch {
-            return MODE_NONE;
+        (bool ok, uint256 r) = _tokenWord(token, abi.encodeCall(IxPNTsTokenV2.tryLockForGas, (user, opHash, a0, spRenew)), false, 64);
+        if (!ok) return MODE_NONE;
+        if (r == uint256(IxPNTsTokenV2.LockResult.OK)) return MODE_BALANCE;
+        if (r != uint256(IxPNTsTokenV2.LockResult.INSUFFICIENT)) return MODE_NONE;
+        (ok, r) = _tokenWord(token, abi.encodeCall(IxPNTsTokenV2.tryReserveCredit, (user, opHash, a0)), false, 32);
+        return ok && r == uint256(IxPNTsTokenV2.CreditResult.OK) ? MODE_CREDIT : MODE_NONE;
+    }
+
+    /// @dev Validation-time token call that can only fail CLOSED (§3.3, Codex D3): a revert, a
+    ///      return shorter than the function's full ABI return (`minLen`: 64 for tryLockForGas's
+    ///      two words, 32 otherwise), or any out-of-range first word is reported as `ok = false`
+    ///      or a value the caller rejects — never a revert in SP. Copies at most 32 bytes of
+    ///      return data (no return-bomb). A typed `try … returns (…)` would still revert on
+    ///      malformed success data, because its decoding happens in the caller outside the catch.
+    function _tokenWord(address token, bytes memory data, bool isStatic, uint256 minLen)
+        private returns (bool ok, uint256 w)
+    {
+        assembly ("memory-safe") {
+            switch isStatic
+            case 1 { ok := staticcall(gas(), token, add(data, 32), mload(data), 0, 32) }
+            default { ok := call(gas(), token, 0, add(data, 32), mload(data), 0, 32) }
+            if lt(returndatasize(), minLen) { ok := 0 }
+            w := mload(0)
         }
     }
 

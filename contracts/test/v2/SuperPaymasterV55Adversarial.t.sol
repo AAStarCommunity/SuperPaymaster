@@ -19,13 +19,36 @@ import { xPNTsV2Base } from "src/tokens/v2/xPNTsV2Base.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
 import { xPNTsToken } from "src/tokens/xPNTsToken.sol";
-import { V55PriceFeed, V55APNTs, V55Counter } from "./SuperPaymasterV55.t.sol";
-import { DummySpender } from "./xPNTsTokenV2.t.sol";
+import { V55PriceFeed, V55APNTs, V55Counter } from "../helpers/V55TestFixtures.sol";
+import { DummySpender } from "../helpers/V2TestFixtures.sol";
 
 /// @dev Registry stand-in. `setBlocked` plays the DVT/BLS blacklist sync (Registry → SP), so a
 ///      UserOp's execution can write the blacklist between validation and postOp (T-R14-03).
 /// @dev Bound-token stand-in with no exchangeRate() (and no fallback).
 contract NoExchangeRate {}
+
+/// @dev Answers every call with SUCCESS and empty return data (e.g. a permissive fallback).
+contract EmptySuccessToken {
+    fallback() external {}
+}
+
+/// @dev Sane exchangeRate(); tryLockForGas answers an out-of-range LockResult (99), and
+///      tryReserveCredit answers a 1-byte return. Neither may revert SP's validation.
+/// @dev tryLockForGas answers a TRUNCATED success: one word (LockResult.OK = 0) instead of the
+///      two-word (LockResult, uint256) return. Must not be read as OK.
+contract TruncatedLockToken {
+    function exchangeRate() external pure returns (uint256) { return 1 ether; }
+    function tryLockForGas(address, bytes32, uint256, bool) external pure returns (uint256) { return 0; }
+    function tryReserveCredit(address, bytes32, uint256) external pure returns (uint256) { return 1; }
+}
+
+contract MalformedLockToken {
+    function exchangeRate() external pure returns (uint256) { return 1 ether; }
+    function tryLockForGas(address, bytes32, uint256, bool) external pure returns (uint256, uint256) { return (99, 0); }
+    fallback() external {
+        assembly { mstore(0, 0) return(0, 1) }
+    }
+}
 
 contract AdvRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
@@ -622,7 +645,7 @@ contract SuperPaymasterV55AdversarialTest is Test {
         uint256 oog;
         uint256 okN;
         uint256 minOk;
-        for (uint256 g = SETTLE_GAS_BOUND - 10_000; g <= 240_000; g += 1_000) {
+        for (uint256 g = 60_000; g <= 240_000; g += 1_000) { // fixed start: independent of the bound under test
             uint256 sid = vmx.snapshotState();
             bytes32 h = keccak256(abi.encode("sweep", g));
             vm.prank(address(entryPoint));
@@ -883,6 +906,29 @@ contract SuperPaymasterV55AdversarialTest is Test {
         }
         (, bytes memory err, ) = _bundle1(op);
         assertEq(err, _aa34(0), "via EntryPoint: AA34, not AA33");
+    }
+
+    /// @notice Codex D3 review: malformed SUCCESS return data (which a typed `try … returns`
+    ///         would decode in the caller, outside its catch) must also fail closed.
+    function test_token_malformed_success_returns_get_sigFail_not_revert() public {
+        address u = _mkUser(PK_U, 10_000 ether);
+        uint256 maxCost = _maxCost(POST, 1 gwei);
+        address[3] memory bad = [address(new EmptySuccessToken()), address(new MalformedLockToken()), address(new TruncatedLockToken())];
+        address prev = address(token);
+        for (uint256 i; i < 3; i++) {
+            _setOperatorToken2(operator, prev, bad[i]);
+            prev = bad[i];
+            PackedUserOperation memory op = _opFull(u, PK_U, 0, POST, 0, "", 1 gwei, type(uint256).max, bad[i]);
+            vm.prank(address(entryPoint));
+            try sp.validatePaymasterUserOp(op, keccak256(abi.encode("malformed", i)), maxCost) returns (bytes memory ctx, uint256 vd) {
+                assertEq(vd & 1, 1, "malformed token answer: SIG_FAILURE");
+                assertEq(ctx.length, 0);
+            } catch {
+                assertTrue(false, "malformed token answer: validation reverted (AA33 path)");
+            }
+            (, bytes memory err, ) = _bundle1(op);
+            assertEq(err, _aa34(0), "via EntryPoint: AA34, not AA33");
+        }
     }
 
     function _setOperatorToken2(address op, address from, address to) internal {

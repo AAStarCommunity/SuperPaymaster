@@ -93,6 +93,16 @@
 | `SETTLE_GAS_BOUND = 80k`，低于入口检查之后 postOp 剩余工作的实测值（约 137k；直接调用时最小成功 gas 约 144k，含入口前开销），中间存在"检查通过、随后 OOG"的区间。不构成漏洞：结算不包 try/catch，回滚会撤销用户执行；但注释说的"不开始可能半途耗尽的结算"是假的 | 改为 **160k**；注释写明覆盖范围和测量来源。`MIN_POST_OP_GAS = 200k` 在入口时仍剩约 193k，T-R14-09 经 EntryPoint 照常结算 | `SuperPaymasterV55Test.test_B1_no_oog_band_above_entry_guard`（BALANCE 和 CREDIT 两种模式，postOp gas 从 60k 扫到 260k，结果只能是 PostOpGasTooLow 或完整结算，且单调）；T-R14-07 直接扫描追加 `oog == 0` | 改回 80k → 在 "no OOG band: a postOp that passed the entry check must complete" 上变红 |
 | 验证期 `IxPNTsTokenV2(token).exchangeRate()` 没有包 try/catch，与 §3.3 不符（一个没有该函数的代币会导致验证 revert，即 AA33）。目前走不到：`configureOperator` 只接受 v2 代币 | 改为 try/catch，出错返回 sigFail | `test_token_without_exchangeRate_gets_sigFail_not_revert` | 去掉 try → 在 "validation reverted (AA33 path)" 上变红 |
 
+**Codex 对抗审查（对 `6ef5f0e7`，第 1 轮）**：Codex 确认 160k 覆盖所有可达路径，`MIN_POST_OP_GAS = 200k` 在入口时仍够用，验证期不再有未包裹的外部调用。它提出两条 Low，均已修复：
+1. typed `try … returns (…)` 在调用方解码返回值，**解码失败不会被 catch 捕获**。因此一个"调用成功但返回数据畸形"的代币（空返回、短返回、越界的枚举值）仍会让验证 revert，得到 AA33。`exchangeRate`、`tryLockForGas`、`tryReserveCredit` 三处都受影响。修复：三处统一改用 `_tokenWord`（汇编调用，最多拷贝 32 字节，返回不足 32 字节视为失败，首个字只和 OK / INSUFFICIENT 比较），这样一律 fail closed，也防住了 return-bomb。守护测试：`test_token_malformed_success_returns_get_sigFail_not_revert`（空成功返回；返回越界枚举 99；返回 1 字节）。变异：换回 typed try → 在 "validation reverted (AA33 path)" 上变红。
+2. 两条 gas 扫描测试存在盲区：`test_B1_no_oog_band_above_entry_guard` 的成功分支没有断言确实完成了结算；T-R14-07 的直接扫描从 `bound − 10k` 开始，与被测常量绑定。修复：成功分支增加四条断言（in-flight 清空、锁已结算、预留已结算、`usedOpHashes` 已记录）；T-R14-07 改为固定从 60k 起扫。变异：在入口检查后插入"gas 不到 170k 就直接 return" → 两个测试分别在 "success -> in-flight cleared" 和 "postOp returned -> escrow settled" 上变红；把常量改回 80k → 两个测试都在 "no OOG band" 上变红。
+
+**stop-time Codex 审查（第 2 轮）**：Codex 指出 `tryLockForGas` 在返回被截断成一个字（首字为 OK）时仍会被接受，而它的完整返回是两个字 `(LockResult, uint256)`。修复：`_tokenWord` 增加 `minLen` 参数，tryLockForGas 取 64，其余取 32；返回长度不足时视为失败。守护：`test_token_malformed_success_returns_get_sigFail_not_revert` 新增 `TruncatedLockToken` 这一情况。变异：把 64 改回 32 → 在 "malformed token answer: SIG_FAILURE: 0 != 1" 上变红。
+
+**体积（最终）**：SP runtime **22,915 B**，余量 1,661 B（≥ 1,024 的门槛）。产物的 source keccak 已核对与当前源码一致。via_ir 的内联决策在各版本之间变化较大（23,031 → 21,857 → 21,708 → 22,915），所以每次改动之后都重新实测，不沿用旧数字。
+
+**DSR D3 Low-2（套件计数在 123 和 124 之间跳动）**：原因不是有套件被漏收。`SuperPaymasterV55Adversarial.t.sol` import 了 `xPNTsTokenV2.t.sol`，把其中的 `xPNTsTokenV2Test` 带进了 `registry-size` 这个编译 profile，于是同一个 35 个测试的套件以两个产物名各跑一次；两者名字相同的那几次，计数被合并成 123。修复：把共用的 mock 移到 `contracts/test/helpers/V2TestFixtures.sol` 和 `V55TestFixtures.sol`，v2 目录下不再有测试文件 import 另一个测试文件。修复后连跑两次 Cancun，都是 123 个套件、1563 个测试（= 之前的 1598 减去重复的 35），套件集合与之前逐个相同；Prague 为 123 个套件、1472 个测试。
+
 **体积**（按 CLAUDE.md 的纪律实测，`out/SuperPaymaster.sol/SuperPaymaster.json`，runs 500，source keccak 与当前源码一致；同目录的 `SuperPaymaster.default.json` 是 9 月 6 日的过期产物，已排除）：改动前 23,031 B，改动后 **21,857 B**（余量 2,719 B）。via_ir 的内联决策在这次改动后变了，所以体积反而变小。
 
 ## 6. I 层：不变量 I1–I7 — `b9a9e511`
@@ -140,4 +150,4 @@
 | D 一致性 | lens 与 validate：`test_lens_agrees_with_validation`（D2）；preview 与真实调用：I 层的一致性不变量 |
 | B | 按 DSR 的决定移到 D5，作为验收硬门槛 |
 
-**全量回归（D3 头部）**：Cancun 1597 通过 / 0 失败 / 49 跳过；Prague 1506 通过 / 0 失败 / 21 跳过。存储布局无漂移（SP 38 项、Registry 32 项），`abis/` 与编译产物一致。**D3 里的测试和变异检查全部由本地模型完成，还没有经过 Codex 对抗审查。**
+**全量回归（D3 头部，去掉重复套件之后）**：Cancun 1563 通过 / 0 失败 / 49 跳过（连跑两次，套件数都是 123）；Prague 1472 通过 / 0 失败 / 21 跳过。存储布局无漂移（SP 38 项、Registry 32 项），`abis/` 与编译产物一致。**D3 里的测试和变异检查全部由本地模型完成，还没有经过 Codex 对抗审查。**

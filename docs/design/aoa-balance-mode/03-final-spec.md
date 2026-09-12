@@ -15,7 +15,7 @@
 >
 > 每一轮的发现都由 SP 对照源码复核后才并入。**作者已定（2026-09-12）**：D-21 不处理（测试数据）；主网 = OP 主网；D-9 = 自托管 Alto 主用、Rundler 交叉验证（DSR 经作者授权确定）；DVT 询问走 Seeder（CC-121）。
 >
-> **状态：v3.9-rc（2026-09-13）：D6——按 R10-M1b / R10-M2 重写 §10.2 状态转移表，按模式拆开 opReverted 行，每一格补上 file:line；I10 的措辞同步到在途预留（operator 在 release 后净额为 0，G 由 SP 的 ETH 押金承担）；D3 发现：`SETTLE_GAS_BOUND` 从 80k 改为 160k（§10.1 ③）、验证期读 `exchangeRate()` 改为 try/catch（§3.3）、I2 的"用户亲自操作"加以澄清、I6 的烧毁上界改用 §10.2 的公式。**
+> **状态：v3.9-rc（2026-09-13）：D6——按 R10-M1b / R10-M2 重写 §10.2 状态转移表，按模式拆开 opReverted 行，每一格补上 file:line；I10 的措辞同步到在途预留（operator 在 release 后净额为 0，G 由 SP 的 ETH 押金承担）；D3 发现：`SETTLE_GAS_BOUND` 从 80k 改为 160k（§10.1 ③）；验证期对 token 的三处调用（`exchangeRate` / `tryLockForGas` / `tryReserveCredit`）改为只拷 32 字节的低层调用，revert、短返回、畸形返回一律 fail closed 为 sigFail（§3.3；Codex D3 指出 typed try 挡不住解码失败）、I2 的"用户亲自操作"加以澄清、I6 的烧毁上界改用 §10.2 的公式。**
 > v3.8-rc（2026-09-12）：并入 Codex 第 10 轮（1 High + 5 Medium）和 D1 的实现期发现（token 拆成核心和扩展、工厂接收预先部署的模板），见 §11。**
 > v3.7-rc（2026-09-12）：并入 DSR 以 Reviewer 1 视角做的验收复核（B-1…B-7 High、独立审计闸门、Medium B-9/B-11/B-12），规范性内容在 §10，它优先于前文。**
 > v3.6-rc（2026-09-12）：并入 Codex 第 8 轮（EIP-1167 最小代理的白名单规则；急停期间 SP 更换的规则）和 DSR 补充的 V4 产品影响。**
@@ -325,7 +325,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 6 | `SP.setXPNTsFactory(AOA 工厂)`（CC-119 T5） | 读回 |
 | 7a | 各社区在 AOA 工厂发 v2 代币（community 固定；`creditPolicy` 初始为 OFF），operator **仍处于暂停状态** | 代币 codehash 与模板一致；默认分档源读回正确 |
 | 7b | **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。下面保留原来的三个选项，仅作记录：(a) 把核对过的旧债导入 v2 代币；(b) 在 v2 代币上把欠债用户标记为不可开通信用；(c) 核销并在迁移记录里披露总额。**(a) 或 (b) 需要 v2 模板多一个一次性函数**（`importLegacyDebt(users, amounts)` 或 `setCreditIneligible(users)`，只有 communityOwner 能调，只能在 `creditPolicy` 首次离开 OFF 之前调用，而且之后永久关闭）；(c) 不需要改接口 | 对账记录入库；**这是 7c 的前置验收条件** |
-| 7c | `configureOperator` → 取消暂停（此时只有余额模式）；RepCredit 社区 `queueCreditPolicy(AUTO)`，48 h 后 execute，AUTO 才生效；AOA 社区保持 OFF | 探测通过；每个社区一笔余额模式 op 成功，AUTO 社区另加一笔信用 op 成功 |
+| 7c | **先 `SP.updatePrice()`，读回 `cachedPrice.updatedAt > 0` 且未过期**（D3 §8(a)：价格缓存为 0 时 validate 会 revert，得到 AA33 而不是 sigFail）→ `configureOperator` → 取消暂停（此时只有余额模式）；RepCredit 社区 `queueCreditPolicy(AUTO)`，48 h 后 execute，AUTO 才生效；AOA 社区保持 OFF | 探测通过；每个社区一笔余额模式 op 成功，AUTO 社区另加一笔信用 op 成功 |
 | 8 | 旧代币：不迁移余额（旧债已在 7b 处理）；如果需要，另外提供 1:1 兑换合约，由用户自愿兑换，欠债用户能否兑换按 D-21 的结论决定 | — |
 | 9 | 下游：SDK / DVT / YAAA 按 02 §8.4 执行；在 airaccount-contract 开 issue（方案 A） | — |
 | 10 | RepCredit 重新采集，范围按 02 §8.4；新增同一 bundle 多笔的 Measured 测试（修正后的 L249） | — |
