@@ -15,7 +15,8 @@
 >
 > 每一轮的发现都由 SP 对照源码复核后才并入。**作者已定（2026-09-12）**：D-21 不处理（测试数据）；主网 = OP 主网；D-9 = 自托管 Alto 主用、Rundler 交叉验证（DSR 经作者授权确定）；DVT 询问走 Seeder（CC-121）。
 >
-> **状态：v3.7-rc（2026-09-12）：并入 DSR 以 Reviewer 1 视角做的验收复核（B-1…B-7 High、独立审计闸门、Medium B-9/B-11/B-12），规范性内容在 §10，它优先于前文。**
+> **状态：v3.8-rc（2026-09-12）：并入 Codex 第 10 轮（1 High + 5 Medium）和 D1 的实现期发现（token 拆成核心和扩展、工厂接收预先部署的模板），见 §11。**
+> v3.7-rc（2026-09-12）：并入 DSR 以 Reviewer 1 视角做的验收复核（B-1…B-7 High、独立审计闸门、Medium B-9/B-11/B-12），规范性内容在 §10，它优先于前文。**
 > v3.6-rc（2026-09-12）：并入 Codex 第 8 轮（EIP-1167 最小代理的白名单规则；急停期间 SP 更换的规则）和 DSR 补充的 V4 产品影响。**
 > v3.5-rc（2026-09-12）：新增 §2.5 SP 地址状态机的完整定义（S-0…S-7），起因是 stop-time Codex 审查指出 A-10 的更换流程不完整、没法实现。**
 > v3.4-rc（2026-09-12）：补上 A-9（X6：工厂不再是 spender，DSR 核对时发现 03 漏了）和 A-10（v2 工厂的部署流程与 `propagateSuperPaymaster`，SP 在排查 A-9 时发现的同源遗漏）。**
@@ -534,3 +535,25 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 - **B-9**：buffer 带来的用户多付，要在 Sepolia 和 OP 主网上实测（最大值、典型值），写进论文的综合成本表。
 - **B-11**：论文里写"AOA 社区在测量区间内 `creditPolicy` 始终为 OFF"，并附测量起点和终点两次链上读回。
 - **B-12**：README 的状态文字已更新（见 README）。
+
+## 11. Codex 第 10 轮与实现期发现（v3.8，规范性）
+
+### 11.1 Codex 第 10 轮（结论：修改后通过，没有 Critical）
+
+| # | 发现 | 修订 |
+|---|---|---|
+| R10-H1 | SP 调 token 结算时还有第二道 EIP-150 的 63/64 转发，`MIN_POST_OP_GAS ≥ 上界 + 开销 + 余量` 在数学上不够严格 | `MIN_POST_OP_GAS ≥ G_pre + G_call + max(⌈64·G_settle/63⌉, G_settle + G_post) + margin`（`G_pre` 是 postOp 在结算调用之前的开销，`G_call` 是这次调用本身的开销，`G_post` 是结算之后的开销）。**T-R14-09 必须经过 EntryPoint，并设 `paymasterPostOpGasLimit == MIN_POST_OP_GAS`，结算要成功** |
+| R10-M1 | "执行结果被保留 ⇔ 结算成功"写过头了：`opReverted` 的 op 没有执行结果被保留，但照常结算；I10 的"用户净额 = 0"也写得太宽（nonce 递增、账户验证期写的状态会留下） | §10.1 的双向改为单向，即 **I8：执行结果被保留 ⇒ 已经结算**；I10 改为"stale release 之后，执行的副作用和 token 扣费都为 0"；另补上 `totalSpent += a0` 也会留下 |
+| R10-M1b | postOp 回滚时 operator 的 `a0` 被直接记成收入 | **D2 实现在途预留**：validate 时 `operator.aPNTsBalance −= a0`，`inflight[opHash] = (operator, a0)` 写在 SP 自己的存储里（SP 已质押，STO-031），并 TSTORE 一个活标记；postOp 时 `protocolRevenue += c`，`operator += a0 − c`，删掉 inflight；新增 `releaseStaleSponsorship(opHash)`（任何人都能调、幂等、要求活标记为 0），把 `a0` 全额退回 operator。这样也去掉了"退款被 protocolRevenue 截断"的问题（SP `:1397`）。体积按 D4 实测 |
+| R10-M2 | §10.2 的表和现有代码不一致（退款被截断；opReverted 行留了空格） | 以在途预留为准重写表格；opReverted 按 BALANCE 和 CREDIT 拆成两行，各自完整写出增减量（D6 补 file:line 时一并完成） |
+| R10-M3 | §10.3 buffer 的量纲没写清楚 | `bufWei = (postOpGasLimit + ⌈(callGasLimit + postOpGasLimit)·10/100⌉ + C_WRAP) × actualUserOpFeePerGas`；`c = min(a0, ⌈calc_snap(actualGasCost + bufWei) × (BPS + fee) / BPS⌉)`。**`calc_snap` 用验证时的价格快照**，通过 context 传给 postOp，不在 postOp 里重新读缓存价 |
+| R10-M4 | §10.5 的 `SP_REGISTRY` 没有同步到前文 | 实现中 SP 登记在 `AOAProtocolRegistry` 的 `KIND_SP` 下，按地址登记；§2.5 的 S-0 / S-1 / S-3 / S-5 / S-6 一律指这个地址白名单，不再说 codehash；§10.7 补上"S-0 创世不需要 48 h"这个例外 |
+| R10-M5 | §10.8 审计闸门没有证明"部署的字节码就是审计过的字节码" | AUD 追加两条：审计 commit 之后**任何**在范围内的代码改动都要审计方复审，未解决的 Medium 要逐条说明处理；部署后核对 SP 实现槽和 runtime codehash、token 模板与克隆的实现地址、两个白名单合约，以及 EntryPoint v0.7 的 runtime codehash，并锁定编译器和依赖版本 |
+
+### 11.2 实现期发现（D1）
+
+1. **单体 token 实测 30,388 B，超过 EIP-170。** 拆成核心（`xPNTsTokenV2`，19,509 B）和扩展（`xPNTsTokenV2Ext`，21,922 B），扩展经 fallback 以 DELEGATECALL 调用；
+   存储布局由同一条继承链保证一致，并由 `scripts/check-xpnts-v2-layout.py` 复核。**验证期入口全部在核心合约里。** 以此取代 §5 里 token 的体积估算。
+2. **工厂改为接收预先部署好的模板**（EIP-3860：核心和扩展的创建码加起来放不进工厂的构造函数）。部署顺序见 D1-traceability §1。
+3. **白名单合约有部署期 bootstrap**：`seal()` 之前 owner 可以即时批准，之后新增批准要走 48 h，撤销即时生效，`seal()` 不可逆。**runbook 第 4 步**改为"部署 → bootstrap → `seal()` → 读回 `sealed_() == true`"，这一步完成之前不得部署工厂，也不得有任何社区发币。**信任矩阵**：`seal()` 之前 owner 对三类白名单是完全信任，之后新增要经过 48 h 公示。
+4. **SDK 要合并核心和扩展的 ABI**，因为调用都发往同一个地址。
