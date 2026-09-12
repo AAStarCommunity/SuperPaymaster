@@ -10,6 +10,7 @@ import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import { UUPSDeployHelper } from "../helpers/UUPSDeployHelper.sol";
 import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
 import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
@@ -37,6 +38,11 @@ contract V55PriceFeed {
 contract V55APNTs is ERC20 {
     constructor() ERC20("aPNTs", "aPNT") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
+}
+
+contract V55Counter {
+    uint256 public n;
+    function inc() external { n += 1; }
 }
 
 interface IV2Ext {
@@ -225,7 +231,9 @@ contract SuperPaymasterV55Test is Test {
     /// @notice If settlement fails, postOp reverts -> EntryPoint rolls back the user's execution
     ///         and emits PostOpRevertReason; the user keeps their tokens (execution undone) and the
     ///         escrow is released after the transaction (I8/I10).
-    function test_B1_settle_failure_reverts_postOp_and_user_execution() public {
+    /// @notice Direct-call unit check (no EntryPoint): postOp does not swallow a settlement failure.
+    ///         The end-to-end I8 property is test_I8_settle_failure_rolls_back_user_execution_e2e.
+    function test_B1_postOp_bubbles_settlement_revert_direct_call() public {
         // make settlement impossible: drop the lock record by releasing it in a prior step is not
         // possible within one tx, so instead exercise the SP guard directly: postOp with a context
         // whose lock does not exist must revert (no silent catch).
@@ -266,12 +274,29 @@ contract SuperPaymasterV55Test is Test {
     // Validation routing (R-2, R4-H1, token binding, flags)
     // ------------------------------------------------------------------
 
+    /// @notice R4-H1. The mismatching token is a REAL, funded v2 token of another community, so
+    ///         without the binding check validation would lock it and SUCCEED — the sigFail bit is
+    ///         what fails (not an incidental revert). Positive control: same op with the right token.
     function test_token_mismatch_rejected() public {
+        address other = address(0x0C2);
+        registry.setRole(keccak256("COMMUNITY"), other, true);
+        vm.prank(other);
+        xPNTsTokenV2 otherToken = xPNTsTokenV2(factory.deployxPNTsToken("O", "xO", "O", "o.eth", 1 ether, address(0)));
+        vm.prank(other);
+        IV2Ext(address(otherToken)).mint(user, 10_000 ether);
+
         PackedUserOperation memory op = _op(0, 300_000, 0, "");
-        op.paymasterAndData = abi.encodePacked(address(sp), uint128(700_000), uint128(300_000), operator, type(uint256).max, address(0xBAD), uint8(0));
+        op.paymasterAndData = abi.encodePacked(address(sp), uint128(700_000), uint128(300_000), operator, type(uint256).max, address(otherToken), uint8(0));
         vm.prank(address(entryPoint));
-        (, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(1)), 1e15);
-        assertEq(vd & 1, 1, "sigFail on token mismatch");
+        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, bytes32(uint256(1)), 1e15);
+        assertEq(vd & 1, 1, "sigFail bit set on token mismatch");
+        assertEq(ctx.length, 0, "no context on sigFail");
+        assertEq(otherToken.lockedOf(user), 0, "the other community's token was not touched");
+
+        PackedUserOperation memory good = _op(0, 300_000, 0, "");
+        vm.prank(address(entryPoint));
+        (, uint256 vdGood) = sp.validatePaymasterUserOp(good, bytes32(uint256(2)), 1e15);
+        assertEq(vdGood & 1, 0, "control: the configured token validates");
     }
 
     function test_both_renew_flags_rejected() public {
@@ -348,5 +373,92 @@ contract SuperPaymasterV55Test is Test {
 
     function test_version() public view {
         assertEq(sp.version(), "SuperPaymaster-5.5.0");
+    }
+
+    // ------------------------------------------------------------------
+    // DSR D2 pre-review additions
+    // ------------------------------------------------------------------
+
+    /// @notice R10-M3: postOp charges at the VALIDATION-time price snapshot. The aPNTs USD price is
+    ///         moved +10% between validate and postOp; the charge must equal the formula evaluated
+    ///         with the snapshot. Mutation "postOp re-reads the live price" makes this red.
+    function test_R10M3_charge_uses_validation_price_snapshot() public {
+        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = sp.validatePaymasterUserOp(op, h, 1e15);
+        SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+
+        vm.prank(owner);
+        sp.setAPNTSPrice(0.022 ether); // live price moves +10% after validation
+        assertTrue(sp.aPNTsPriceUSD() != c.aPriceUSD, "precondition: live price differs from snapshot");
+
+        uint256 actualGasCost = 1e14;
+        uint256 feePerGas = 1 gwei;
+        uint256 bufWei = (uint256(c.postOpGas) + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 30_000) * feePerGas;
+        uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil);
+        uint256 expected = Math.mulDiv(aGas, 10_000 + sp.protocolFeeBPS(), 10_000, Math.Rounding.Ceil);
+        assertLt(expected, c.a0, "precondition: charge below the reservation cap (cap cannot mask a wrong price)");
+
+        uint256 revBefore = sp.protocolRevenue();
+        vm.prank(address(entryPoint));
+        sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, actualGasCost, feePerGas);
+        assertEq(sp.protocolRevenue() - revBefore, expected, "charge priced at the validation snapshot");
+    }
+
+    /// @notice B-1 §10.1 ③: postOp refuses to START a settlement below SETTLE_GAS_BOUND, with the
+    ///         dedicated error. Mutation "delete the entry check" makes this red (it would then fail,
+    ///         if at all, with an out-of-gas instead of PostOpGasTooLow).
+    function test_B1_postOp_entry_gas_guard() public {
+        PackedUserOperation memory op = _op(0, 300_000, 0, "");
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, ) = sp.validatePaymasterUserOp(op, h, 1e15);
+        vm.prank(address(entryPoint));
+        vm.expectRevert(SuperPaymaster.PostOpGasTooLow.selector);
+        sp.postOp{gas: 60_000}(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
+        // control: the same call with ample gas settles
+        vm.prank(address(entryPoint));
+        sp.postOp{gas: 1_000_000}(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
+        assertEq(token.lockedOf(user), 0, "control settles");
+    }
+
+    /// @notice I8 end-to-end through a real EntryPoint: the op's execution increments a counter;
+    ///         settlement is forced to fail; the whole postOp reverts, EntryPoint rolls back the
+    ///         execution (counter unchanged), the escrow stays until the transaction ends, and
+    ///         after it both stale releases restore user and operator in full.
+    /// forge-config: default.isolate = true
+    function test_I8_settle_failure_rolls_back_user_execution_e2e() public {
+        V55Counter counter = new V55Counter();
+        bytes memory exec = abi.encodeWithSignature("execute(address,uint256,bytes)", address(counter), 0, abi.encodeCall(V55Counter.inc, ()));
+
+        // control run: settlement works → execution kept, counter == 1
+        (bool r0, bool pf0) = _handle(_op(0, 300_000, 0, exec));
+        assertFalse(r0); assertFalse(pf0);
+        assertEq(counter.n(), 1, "control: execution kept when settlement succeeds");
+
+        // failing run
+        uint256 userBal = token.balanceOf(user);
+        uint128 opBefore = _opBalance();
+        PackedUserOperation memory op = _op(1, 300_000, 0, exec);
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.mockCallRevert(address(token), abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector), "settle boom");
+        (bool reverted, bool postOpFailed) = _handle(op);
+        vm.clearMockedCalls();
+
+        assertFalse(reverted, "bundle itself succeeds (postOpReverted path)");
+        assertTrue(postOpFailed, "PostOpRevertReason emitted");
+        assertEq(counter.n(), 1, "I8: user execution rolled back (counter NOT incremented)");
+        assertEq(token.balanceOf(user), userBal, "user not charged");
+        assertGt(token.lockedOf(user), 0, "escrow left behind until the transaction ends");
+        (address f, ) = sp.inflightOf(h);
+        assertEq(f, operator, "operator a0 still in flight");
+        assertLt(_opBalance(), opBefore, "a0 debited while in flight");
+
+        // next transactions: stale releases
+        token.releaseStaleLock(user, h);
+        assertEq(token.lockedOf(user), 0, "escrow fully released");
+        sp.releaseStaleSponsorship(h);
+        assertEq(_opBalance(), opBefore, "operator fully restored (I10)");
     }
 }
