@@ -14,6 +14,21 @@ import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import {V54Bootstrap} from "./V54Bootstrap.sol";
+import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
+
+/// @dev deployxPNTsToken / getTokenAddress have the same signature on the 3.x factory and on
+///      xPNTsFactoryV2, so the operator-token factory is addressed through this shape.
+interface IOperatorTokenFactory {
+    function getTokenAddress(address community) external view returns (address);
+    function deployxPNTsToken(
+        string memory name,
+        string memory symbol,
+        string memory communityName,
+        string memory communityENS,
+        uint256 exchangeRate,
+        address paymasterAOA
+    ) external returns (address);
+}
 
 /**
  * @title TestAccountPrepare
@@ -26,8 +41,16 @@ import {V54Bootstrap} from "./V54Bootstrap.sol";
  *        against freshly-prepared communities — addAutoApprovedSpender +
  *        setSpenderDailyCapFor + addApprovedFacilitator). Idempotent + staticcall-gated.
  *      Idempotent: each step is guarded by an existence/balance check.
+ *
+ *      SuperPaymaster 5.5.0 (D5.2): when SP reports "SuperPaymaster-5.5.0", SP operator tokens
+ *      MUST be xPNTs v2 tokens from `xPNTsFactoryV2` (config key) — `configureOperator` rejects
+ *      anything else. The deployer's operator token is then its v2 token ("aastarXPNTsV2"), not
+ *      the 3.x aPNTs (which stays the operator-DEPOSIT asset), and Anni's "pnts" is her v2 token.
+ *      X402Facilitator wiring is skipped for v2 tokens: a v2 spender needs the codehash
+ *      allowlist + 48 h proposeSpender/activateSpender path, not addAutoApprovedSpender.
+ *      Pre-5.5.0 SPs keep the 3.x path unchanged.
  */
-contract TestAccountPrepare is V54Bootstrap {
+contract TestAccountPrepare is V54Bootstrap, V55Bootstrap {
     // Anvil fallback keys (used when env vars are not set)
     uint256 constant ANVIL_ANNI_PK     = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
     uint256 constant ANVIL_DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
@@ -66,6 +89,15 @@ contract TestAccountPrepare is V54Bootstrap {
         xPNTsToken apnts             = xPNTsToken(stdJson.readAddress(json, ".aPNTs"));
         // v5.4: X402Facilitator (absent on pre-v5.4 configs → wiring is skipped).
         address facilitator          = _optAddr(json, ".x402Facilitator");
+        // v5.5.0: operator tokens come from xPNTsFactoryV2 (config key written by DeployAnvil /
+        // DeployLive / UpgradeToV5_5_0). Pre-5.5.0 SPs keep using the 3.x factory.
+        bool isV55 = _strEq(superPaymaster.version(), SP_V55_VERSION);
+        address opFactory = address(xpntsFactory);
+        if (isV55) {
+            opFactory = _optAddr(json, ".xPNTsFactoryV2");
+            require(opFactory != address(0), "TestAccountPrepare: SP is 5.5.0 but config has no xPNTsFactoryV2");
+            require(superPaymaster.xpntsFactory() == opFactory, "TestAccountPrepare: SP.xpntsFactory != config.xPNTsFactoryV2");
+        }
 
         // -----------------------------------------------------------------------
         // Phase 2.0: Deployer registers Anni as COMMUNITY + PAYMASTER_SUPER
@@ -109,12 +141,20 @@ contract TestAccountPrepare is V54Bootstrap {
 
             // Phase 2.0.2: Configure deployer as SP operator if unconfigured or
             // if the stored token no longer matches (e.g. after factory upgrade).
+            // 5.5.0: the operator token is the deployer's v2 token, not the 3.x aPNTs.
+            address deployerOpToken = address(apnts);
+            if (isV55) {
+                deployerOpToken = _issueV2Token(
+                    opFactory, deployerAddr, "AAStar xPNTs", "aXPNTs", "AAStar", "aastar.eth", 1e18
+                );
+                vm.writeJson(vm.toString(deployerOpToken), cfgPath, ".aastarXPNTsV2");
+            }
             (, bool deployerCfg,, address deployerXPNTs, , , , ,) = superPaymaster.operators(deployerAddr);
-            if (!deployerCfg || deployerXPNTs != address(apnts)) {
+            if (!deployerCfg || deployerXPNTs != deployerOpToken) {
                 console.log("[Phase 2.0.2] Configuring deployer as SuperPaymaster operator...");
                 apnts.approve(address(superPaymaster), 10_000 ether);
-                superPaymaster.configureOperator(address(apnts), deployerAddr);
-                console.log("  Deployer operator configured:", address(apnts));
+                superPaymaster.configureOperator(deployerOpToken, deployerAddr);
+                console.log("  Deployer operator configured:", deployerOpToken);
             }
 
             // Phase 2.0.3: Ensure deployer operator is not paused.
@@ -222,10 +262,11 @@ contract TestAccountPrepare is V54Bootstrap {
         }
 
         // Deploy Anni's PNTs xPNTs token + configure SP operator (mirrors DeployLive step 6d-6f)
-        address pntsAddr = xpntsFactory.getTokenAddress(anniAddr);
+        // 5.5.0: from xPNTsFactoryV2 (a v2 token); pre-5.5.0: from the 3.x factory.
+        address pntsAddr = IOperatorTokenFactory(opFactory).getTokenAddress(anniAddr);
         if (pntsAddr == address(0)) {
             console.log("[Phase 2.2] Deploying Anni's PNTs token...");
-            pntsAddr = xpntsFactory.deployxPNTsToken(
+            pntsAddr = IOperatorTokenFactory(opFactory).deployxPNTsToken(
                 "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
             );
             console.log("  PNTs deployed:", pntsAddr);
@@ -235,13 +276,16 @@ contract TestAccountPrepare is V54Bootstrap {
         console.log("[Phase 2.2] pNTs address written to config:", pntsAddr);
         // Wire X402Facilitator on Anni's PNTs (communityOwner = Anni; broadcast is anniPK).
         // Idempotent + staticcall-gated: enables x402 settlement tests against PNTs.
-        if (facilitator != address(0) && pntsAddr != address(0)) {
+        // v2 tokens: skipped (spender admission is codehash-allowlisted + 48 h, spec §2.2 X4).
+        if (facilitator != address(0) && pntsAddr != address(0) && !isV55) {
             bool okPnts = _wireFacilitatorForToken(pntsAddr, facilitator);
             console.log("[Phase 2.2] PNTs X402Facilitator wiring complete:", okPnts);
+        } else if (isV55) {
+            console.log("[Phase 2.2] PNTs is xPNTs v2: X402Facilitator wiring skipped (needs spender allowlist + 48h)");
         }
 
-        (uint128 anniBal, bool isCfgAnni,,,,,,,) = superPaymaster.operators(anniAddr);
-        if (!isCfgAnni) {
+        (uint128 anniBal, bool isCfgAnni,, address anniTok,,,,,) = superPaymaster.operators(anniAddr);
+        if (!isCfgAnni || anniTok != pntsAddr) {
             console.log("[Phase 2.2] Configuring Anni as SuperPaymaster operator...");
             superPaymaster.configureOperator(pntsAddr, anniAddr);
             console.log("  Operator configured");
@@ -256,7 +300,7 @@ contract TestAccountPrepare is V54Bootstrap {
 
         // Deploy Anni's V4 paymaster proxy if not yet deployed; always write to config
         address pmProxyAnni = pmFactory.getPaymasterByOperator(anniAddr);
-        address dPNTs = xpntsFactory.getTokenAddress(anniAddr);
+        address dPNTs = pntsAddr; // Anni's community token (v2 on 5.5.0) — PaymasterV4 is token-agnostic
         if (pmProxyAnni == address(0)) {
             console.log("[Phase 2.2] Deploying Anni's AOA Paymaster (V4)...");
             bytes memory initData = abi.encodeWithSignature(
@@ -349,6 +393,19 @@ contract TestAccountPrepare is V54Bootstrap {
             }
         }
         vm.stopBroadcast();
+
+        // Phase 2.4b (5.5.0): read back the operator bindings and the price cache. A stale or
+        // zero cache makes validate return an expired validUntil (AA32) / revert (AA33), so on
+        // 5.5.0 it is a hard failure here rather than the "skipped" log above.
+        if (isV55) {
+            _verifyV2Token(pntsAddr, opFactory, anniAddr, address(superPaymaster));
+            _verifyOperatorV2(address(superPaymaster), anniAddr, pntsAddr, anniAddr);
+            (, , , address depTok, , , , ,) = superPaymaster.operators(deployerAddr);
+            _verifyV2Token(depTok, opFactory, deployerAddr, address(superPaymaster));
+            _verifyOperatorV2(address(superPaymaster), deployerAddr, depTok, deployerAddr);
+            _verifyPriceFresh(address(superPaymaster));
+            console.log("[Phase 2.4b] 5.5.0 read-back OK: both operators on v2 tokens, price cache fresh");
+        }
 
         // -----------------------------------------------------------------------
         // Phase 2.5: Print Operator → xPNTsToken matrix (diagnostic, no writes)

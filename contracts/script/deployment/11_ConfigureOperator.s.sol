@@ -6,29 +6,40 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 
+/**
+ * @notice Configure the deployer (a registered COMMUNITY + PAYMASTER_SUPER) as an SP operator.
+ * @dev    D5.2 (SuperPaymaster 5.5.0). `configureOperator(token, treasury)` — the exchange rate is
+ *         read from the token at runtime (the old third argument no longer exists, so the previous
+ *         version did not compile). The token MUST be the caller's xPNTs v2 token issued by the
+ *         factory SP is wired to (`SP.xpntsFactory()` = xPNTsFactoryV2); SP probes
+ *         BALANCE_MODE_VERSION and reverts InvalidXPNTsToken otherwise. Pass that v2 token, NOT
+ *         the protocol aPNTs.
+ */
 contract Deploy11_ConfigureOperator is Script {
-    function run(address superPaymasterAddr, address apntsTokenAddr) external {
+    function run(address superPaymasterAddr, address xpntsV2TokenAddr) external {
         require(superPaymasterAddr != address(0), "SuperPaymaster address cannot be zero.");
-        require(apntsTokenAddr != address(0), "aPNTs token address cannot be zero.");
+        require(xpntsV2TokenAddr != address(0), "operator token address cannot be zero.");
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        SuperPaymaster sp = SuperPaymaster(payable(superPaymasterAddr));
+        _preflight(sp, xpntsV2TokenAddr, deployer);
         console.log("Configuring Operator in SuperPaymaster with account:", deployer);
 
         vm.startBroadcast(deployerPrivateKey);
-
-        // As the deployer (who is now a registered community),
-        // we configure our operator settings in the SuperPaymaster.
-        // This links our community identity to the token we will use for gas payments.
-        SuperPaymaster(superPaymasterAddr).configureOperator(
-            apntsTokenAddr, // The token users will be charged in
-            deployer,       // The treasury to receive fees (can be the deployer itself)
-            1e18            // The exchange rate (1:1)
-        );
-
+        sp.configureOperator(xpntsV2TokenAddr, deployer); // treasury = deployer
         vm.stopBroadcast();
 
+        (, bool cfg,, address tok,,, address treasury,,) = sp.operators(deployer);
+        require(cfg && tok == xpntsV2TokenAddr && treasury == deployer, "11 read-back: operator config");
         console.log("Successfully configured deployer as an operator in SuperPaymaster.");
-        console.log("System is now fully initialized and ready to use.");
+    }
+
+    function _preflight(SuperPaymaster sp, address token, address operator) internal view {
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("BALANCE_MODE_VERSION()"));
+        require(ok && ret.length == 32 && abi.decode(ret, (uint16)) == 1, "11: token is not an xPNTs v2 token");
+        (bool ok2, bytes memory ret2) =
+            sp.xpntsFactory().staticcall(abi.encodeWithSignature("getTokenAddress(address)", operator));
+        require(ok2 && abi.decode(ret2, (address)) == token, "11: token was not issued to this operator by SP's factory");
     }
 }

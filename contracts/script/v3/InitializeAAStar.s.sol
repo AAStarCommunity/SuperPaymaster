@@ -27,7 +27,8 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
  *   forge script contracts/script/v3/InitializeAAStar.s.sol:InitializeAAStar \
  *     --rpc-url $RPC_URL --account $DEPLOYER_ACCOUNT --broadcast --slow -vv
  *
- * Writes aPNTs and aPNTsPaymasterV4 to config.<ENV>.json.
+ * Writes aPNTs and aPNTsPaymasterV4 to config.<ENV>.json (and, on SuperPaymaster 5.5.0,
+ * aastarXPNTsV2 — the v2 operator token SP requires; the 3.x aPNTs stays the deposit asset).
  */
 contract InitializeAAStar is Script {
     function run() external {
@@ -88,12 +89,30 @@ contract InitializeAAStar is Script {
         }
         vm.writeJson(vm.toString(apntsAddr), cfgPath, ".aPNTs");
 
-        // Step 4: Configure deployer as SuperPaymaster operator if not done
-        (, bool isCfg,,,,,,,) = sp.operators(deployerAddr);
-        if (!isCfg) {
-            console.log("[InitializeAAStar] Configuring SuperPaymaster operator...");
-            sp.configureOperator(apntsAddr, deployerAddr);
+        // Step 4: Configure deployer as SuperPaymaster operator if not done.
+        // 5.5.0: SP only accepts an xPNTs v2 token from the factory it is wired to
+        // (xPNTsFactoryV2); the 3.x aPNTs above stays the operator DEPOSIT asset.
+        address opToken = apntsAddr;
+        if (keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0")) {
+            address factoryV2 = sp.xpntsFactory();
+            require(factoryV2 == vm.parseJsonAddress(json, ".xPNTsFactoryV2"), "InitializeAAStar: SP factory != config.xPNTsFactoryV2");
+            // xPNTsFactoryV2 keeps the 3.x getTokenAddress / deployxPNTsToken signatures.
+            opToken = xPNTsFactory(factoryV2).getTokenAddress(deployerAddr);
+            if (opToken == address(0)) {
+                console.log("[InitializeAAStar] Issuing AAStar xPNTs v2 operator token...");
+                opToken = xPNTsFactory(factoryV2).deployxPNTsToken(
+                    "AAStar xPNTs", "aXPNTs", "AAStar", "aastar.eth", 1e18, address(0)
+                );
+            }
+            vm.writeJson(vm.toString(opToken), cfgPath, ".aastarXPNTsV2");
         }
+        (, bool isCfg,, address curTok,,,,,) = sp.operators(deployerAddr);
+        if (!isCfg || curTok != opToken) {
+            console.log("[InitializeAAStar] Configuring SuperPaymaster operator...");
+            sp.configureOperator(opToken, deployerAddr);
+        }
+        (, bool cfgAfter,, address tokAfter,,,,,) = sp.operators(deployerAddr);
+        require(cfgAfter && tokAfter == opToken, "InitializeAAStar: operator read-back failed");
 
         // Step 5: Grant PAYMASTER_AOA for V4 deployment
         if (!registry.hasRole(ROLE_PAYMASTER_AOA, deployerAddr)) {

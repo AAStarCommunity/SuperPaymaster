@@ -105,6 +105,8 @@ python3 scripts/check-xpnts-v2-selectors.py --self-test
 
 ### 8.2 尚未迁移（逐个列出，并指定归属的交付物）
 
+> 更新（D5.2）：下表前三行（部署脚本、`deployment/08b|11|11_1`、`L4GaslessTest`）已迁移，见 [`D5-deploy-migration.md`](D5-deploy-migration.md)。JS E2E（D7）与下游 issue 仍未做。
+
 | 调用方 | 受影响的原因 | 归属 |
 |---|---|---|
 | `contracts/script/v3/DeployAnvil.s.sol`、`DeployLive.s.sol`、`TestAccountPrepare.s.sol`、`InitializeAAStar.s.sol`、`InitializeTestCommunities.s.sol`、`DeployRepCreditSepolia.s.sol` | 部署 3.x 工厂和 3.x 代币，并用 3.x 代币调用 `configureOperator`（在 5.5.0 上会以 InvalidXPNTsToken revert） | **D5**：按 runbook 部署 v2 栈（registry → bootstrap → seal → ext → impl → 分档源 → factoryV2），再在 fork 上演练 |

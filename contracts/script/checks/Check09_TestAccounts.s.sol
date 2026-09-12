@@ -66,6 +66,22 @@ contract Check09_TestAccounts is Script {
         require(xpntsToken != address(0), "Check09: Anni SP Token not configured");
         require(treasury == anni, "Check09: Anni SP Treasury mismatch");
 
+        // 2b. SuperPaymaster 5.5.0: the operator token must be an xPNTs v2 token issued to Anni by
+        //     the factory SP is wired to, and the price cache must be live (else AA32/AA33).
+        SuperPaymaster spc = SuperPaymaster(payable(superPaymaster));
+        if (keccak256(bytes(spc.version())) == keccak256("SuperPaymaster-5.5.0")) {
+            (bool ok, bytes memory ret) = xpntsToken.staticcall(abi.encodeWithSignature("BALANCE_MODE_VERSION()"));
+            require(ok && ret.length == 32 && abi.decode(ret, (uint16)) == 1, "Check09: Anni SP token is not xPNTs v2");
+            (bool ok2, bytes memory ret2) =
+                spc.xpntsFactory().staticcall(abi.encodeWithSignature("getTokenAddress(address)", anni));
+            require(ok2 && abi.decode(ret2, (address)) == xpntsToken, "Check09: Anni SP token not from SP's factory");
+            require(isConfigured && !isPaused, "Check09: Anni operator not live");
+            require(aPNTsBalance > 0, "Check09: Anni operator has no aPNTs deposit");
+            (int256 price, uint256 updatedAt,,) = spc.cachedPrice();
+            require(price > 0 && updatedAt + spc.priceStalenessThreshold() > block.timestamp, "Check09: SP price cache stale");
+            console.log("  Anni SP token is xPNTs v2 from SP factory; price cache fresh");
+        }
+
         // 3. V4 Paymaster Verification
         address anniPM = PaymasterFactory(pmFactory).getPaymasterByOperator(anni);
         console.log("  Anni V4 PM Proxy:    ", anniPM);

@@ -28,7 +28,7 @@ fi
 
 # Determine RPC_URL
 if [ "$ENV" == "anvil" ]; then
-    RPC_URL="http://127.0.0.1:8545"
+    RPC_URL="${ANVIL_RPC_URL:-http://127.0.0.1:8545}"
 else
     ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
     ENV_CLEAN=${ENV_UPPER//-/_}
@@ -147,7 +147,10 @@ run_forge_check() {
         bash -c "CONFIG_FILE='$CONFIG_FILENAME' forge script \
             'contracts/script/checks/${SCRIPT}.s.sol:$SCRIPT' \
             --rpc-url '$RPC_URL' --timeout 300 -vv"
-    [ "$ENV" != "anvil" ] && sleep 2
+    # `[ … ] && sleep 2` as the LAST command made this function return 1 on anvil, which
+    # `set -e` turned into an abort of the whole audit right after the first check.
+    if [ "$ENV" != "anvil" ]; then sleep 2; fi
+    return 0
 }
 
 for SCRIPT in $CHECK_SCRIPTS; do
@@ -230,6 +233,10 @@ abi_check() {
         sel=$(cast sig "$sig" 2>/dev/null) || continue
         # Strip 0x, lowercase
         sel="${sel#0x}"
+        # solc's dispatcher pushes a selector with the minimal PUSH width, so a selector with
+        # leading zero bytes (e.g. 0x00166507) appears in the bytecode as 166507. Strip whole
+        # zero bytes, otherwise such a selector is reported missing although it is present.
+        while [ "${sel:0:2}" = "00" ] && [ ${#sel} -gt 2 ]; do sel="${sel:2}"; done
         if ! echo "$ONCHAIN_CODE" | grep -qi "$sel"; then
             MISSING="$MISSING\n    missing: $sig ($sel)"
         fi
@@ -300,7 +307,11 @@ cast_check() {
 
 # SuperPaymaster proxy: version(), entryPoint(), paused()
 cast_check "SP.version"     "$SP_PROXY"       "version()(string)"           "SuperPaymaster"
-cast_check "SP.entryPoint"  "$SP_PROXY"       "entryPoint()(address)"       "0x00000000717"
+# Live networks use the canonical v0.7 EntryPoint; a fresh anvil (DeployAnvil) deploys its own
+# EntryPoint, so on anvil the expectation is the one recorded in the config.
+EXPECTED_EP="0x00000000717"
+if [ "$ENV" == "anvil" ]; then EXPECTED_EP=$(jq -r '.entryPoint // empty' "$CONFIG_JSON_PATH"); fi
+cast_check "SP.entryPoint"  "$SP_PROXY"       "entryPoint()(address)"       "$EXPECTED_EP"
 cast_check "SP.treasury"    "$SP_PROXY"       "treasury()(address)"         ""
 
 # Registry proxy: version(), owner()

@@ -43,6 +43,8 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 // v5.4 god-split + DVT policy (X402Facilitator + TimelockController + PolicyRegistry + wiring)
 import {V54Bootstrap} from "./V54Bootstrap.sol";
+// v5.5.0 balance mode: xPNTs v2 stack (AOA registry, tier source, template, factoryV2, lens)
+import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
 
 contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
@@ -57,8 +59,13 @@ contract MockPriceFeed {
 /**
  * @title DeployAnvil
  * @notice Standardized Local Deployment Script with Atomic Initialization
+ * @dev    SuperPaymaster 5.5.0 (D5.2): SP operators are backed ONLY by xPNTs v2 tokens issued by
+ *         xPNTsFactoryV2 (`configureOperator` probes BALANCE_MODE_VERSION and the wired factory).
+ *         The 3.x xPNTsFactory stays for what still needs it: the protocol aPNTs (APNTS_TOKEN,
+ *         the operator-deposit asset), GTokenAuthorization's immutable factory binding and the
+ *         X402Facilitator whitelist. SP.xpntsFactory points at factoryV2.
  */
-contract DeployAnvil is V54Bootstrap {
+contract DeployAnvil is V54Bootstrap, V55Bootstrap {
     using Clones for address;
     uint256 deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     address deployer;
@@ -69,6 +76,11 @@ contract DeployAnvil is V54Bootstrap {
     address x402FacilitatorAddr;
     address policyRegistryAddr;
     address timelockControllerAddr;
+
+    // UUPS implementations — written to config so audit-core's ERC-1967 proxy->impl check and
+    // ABI-selector check have something to compare against (they skipped/failed without them).
+    address spImplAddr;
+    address registryImplAddr;
 
     GTokenAuthorization gtoken;
     GTokenStaking staking;
@@ -87,6 +99,11 @@ contract DeployAnvil is V54Bootstrap {
     MockAgentReputationRegistry mockAgentReputation;
     MicroPaymentChannel microPaymentCh;
 
+    // v5.5.0 xPNTs v2 stack + operator tokens (written to config under NEW keys)
+    V55Stack v55;
+    address aastarXPNTsV2; // deployer (AAStar) operator token, v2
+    address demoXPNTsV2;   // Anni (DemoCommunity) operator token, v2 -> config "pnts"
+
     function setUp() public {
         deployer = vm.addr(deployerPK);
     }
@@ -102,6 +119,7 @@ contract DeployAnvil is V54Bootstrap {
 
         // Deploy Registry as UUPS proxy first (no deps)
         Registry regImpl = new Registry();
+        registryImplAddr = address(regImpl);
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
         ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
         registry = Registry(address(regProxy));
@@ -158,9 +176,13 @@ contract DeployAnvil is V54Bootstrap {
 
         console.log("=== Step 5: Deploy Core (UUPS Proxy) ===");
         SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        spImplAddr = address(spImpl);
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
         superPaymaster = SuperPaymaster(payable(address(spProxy)));
+
+        console.log("=== Step 5b: Deploy xPNTs v2 stack (runbook step 4) ===");
+        v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = new ReputationSystem(address(registry));
@@ -178,11 +200,15 @@ contract DeployAnvil is V54Bootstrap {
         console.log("=== Step 7: The Grand Wiring ===");
         _executeWiring();
 
-        console.log("=== Step 8: Register Deployer as SuperPaymaster ===");
+        console.log("=== Step 8: Register Deployer as SuperPaymaster (v2 operator token) ===");
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
-        superPaymaster.configureOperator(address(apnts), deployer);
+        // 5.5.0: the 3.x aPNTs can no longer back an operator (InvalidXPNTsToken). AAStar issues
+        // its own v2 community token from factoryV2 and configures THAT; aPNTs stays the
+        // protocol deposit asset (APNTS_TOKEN).
+        aastarXPNTsV2 = _issueV2Token(v55.factory, deployer, "AAStar xPNTs", "aXPNTs", "AAStar", "aastar.eth", 1e18);
+        _configureOperatorV2(address(superPaymaster), aastarXPNTsV2, deployer, deployer);
 
-        apnts.mint(deployer, 1000 ether); // Initial Refill (SuperPaymaster is already auto-approved in xPNTsToken via setSuperPaymasterAddress)
+        apnts.mint(deployer, 1000 ether); // Initial Refill (deposit asset)
         superPaymaster.depositFor(deployer, 1000 ether);
 
         // 2. 初始化 DemoCommunity (Anni)
@@ -212,16 +238,16 @@ contract DeployAnvil is V54Bootstrap {
         vm.stopBroadcast();
 
         vm.startBroadcast(anniPK);
-        address dPNTs =
-            xpntsFactory.deployxPNTsToken("DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18, address(0));
-        superPaymaster.configureOperator(dPNTs, anni);
+        // 5.5.0: DemoCommunity's operator token is an xPNTs v2 token from factoryV2.
+        demoXPNTsV2 = _issueV2Token(v55.factory, anni, "DemoPoints", "dPNTs", "DemoCommunity", "demo.eth", 1e18);
+        _configureOperatorV2(address(superPaymaster), demoXPNTsV2, anni, anni);
 
         // 2. Anni 存入 aPNTs -> SuperPaymaster
         apnts.approve(address(superPaymaster), 1000 ether);
         superPaymaster.deposit(1000 ether);
 
-        // 3. Anni 为她的用户准备 dPNTs (可选，如果她想给自己发一点)
-        xPNTsToken(dPNTs).mint(anni, 500 ether);
+        // 3. Anni 为她的用户准备 dPNTs (可选) — v2 mint lives in the extension (via fallback)
+        IxPNTsV2Script(demoXPNTsV2).mint(anni, 500 ether);
         vm.stopBroadcast();
 
         // 切换回 Deployer 继续后续操作
@@ -278,6 +304,25 @@ contract DeployAnvil is V54Bootstrap {
         }
 
         vm.stopBroadcast();
+
+        // v5.5.0 read-back (runbook steps 4 / 6 / 7a / 7c). View-only.
+        _verifyV55Stack(v55, address(superPaymaster), address(registry));
+        _verifySPFactory(address(superPaymaster), v55.factory);
+        _verifyV2Token(aastarXPNTsV2, v55.factory, deployer, address(superPaymaster));
+        _verifyV2Token(demoXPNTsV2, v55.factory, anni, address(superPaymaster));
+        _verifyOperatorV2(address(superPaymaster), deployer, aastarXPNTsV2, deployer);
+        _verifyOperatorV2(address(superPaymaster), anni, demoXPNTsV2, anni);
+        _verifyPriceFresh(address(superPaymaster));
+        require(_strEq(superPaymaster.version(), SP_V55_VERSION), "DeployAnvil: SP is not 5.5.0");
+        {
+            // Diagnostic: which compiler profile's bytes actually shipped. This script imports
+            // Registry.sol, so foundry.toml's Registry compilation_restriction compiles its whole
+            // closure (SP included) under the runs=200 "registry-size" profile.
+            uint8 spArt = _artifactMatch(_implOf(address(superPaymaster)), "SuperPaymaster");
+            require(spArt != 0, "DeployAnvil: SP impl code matches no compiled artifact");
+            console.log("  SP impl artifact:", spArt == 1 ? "default (runs=500)" : "registry-size (runs=200)");
+        }
+
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
         // is not either. With the variable unset the gate REFUSES rather than passing,
@@ -315,7 +360,8 @@ contract DeployAnvil is V54Bootstrap {
         apnts.setSuperPaymasterAddress(address(superPaymaster));
 
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
-        superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        // 5.5.0 (runbook step 6): SP binds operators to tokens issued by the v2 factory.
+        _wireSPFactory(address(superPaymaster), v55.factory);
         // initBLSAggregator above is the one-time fresh-deploy path. Do not
         // queue/apply the same address: the 24-hour path is only for later
         // replacements and vm.warp cannot advance timestamps between broadcast
@@ -377,6 +423,18 @@ contract DeployAnvil is V54Bootstrap {
         vm.serializeAddress(jsonObj, "x402Facilitator", x402FacilitatorAddr);
         vm.serializeAddress(jsonObj, "policyRegistry", policyRegistryAddr);
         vm.serializeAddress(jsonObj, "timelockController", timelockControllerAddr);
+        // v5.5.0 xPNTs v2 stack (NEW keys; "xPNTsFactory"/"aPNTs" keep their 3.x meaning)
+        vm.serializeAddress(jsonObj, "aoaProtocolRegistry", v55.aoaRegistry);
+        vm.serializeAddress(jsonObj, "globalTierSource", v55.tierSource);
+        vm.serializeAddress(jsonObj, "xPNTsTokenV2Ext", v55.ext);
+        vm.serializeAddress(jsonObj, "xPNTsTokenV2Impl", v55.impl);
+        vm.serializeAddress(jsonObj, "xPNTsFactoryV2", v55.factory);
+        vm.serializeAddress(jsonObj, "superPaymasterLens", v55.lens);
+        vm.serializeAddress(jsonObj, "aastarXPNTsV2", aastarXPNTsV2);
+        vm.serializeAddress(jsonObj, "spImpl", spImplAddr);
+        vm.serializeAddress(jsonObj, "registryImpl", registryImplAddr);
+        // Anni's SP operator token (v2). TestAccountPrepare re-writes "pnts" with the same value.
+        vm.serializeAddress(jsonObj, "pnts", demoXPNTsV2);
         // srcHash intentionally written as "" — deploy-core commits the real hash after audit-core passes.
         vm.serializeString(jsonObj, "srcHash", string(""));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));

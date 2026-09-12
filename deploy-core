@@ -14,7 +14,8 @@ fi
 
 # Determine RPC
 if [ "$ENV" == "anvil" ]; then
-    RPC_URL="http://127.0.0.1:8545"
+    # ANVIL_RPC_URL lets a second local node (another port) be targeted without editing this file.
+    RPC_URL="${ANVIL_RPC_URL:-http://127.0.0.1:8545}"
 else
     ENV_UPPER=$(echo $ENV | tr '[:lower:]' '[:upper:]')
     ENV_CLEAN=${ENV_UPPER//-/_}

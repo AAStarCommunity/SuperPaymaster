@@ -37,13 +37,19 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 
 // v5.4 god-split + DVT policy (X402Facilitator + TimelockController + PolicyRegistry + wiring)
 import {V54Bootstrap} from "./V54Bootstrap.sol";
+// v5.5.0 balance mode: xPNTs v2 stack (AOA registry, tier source, template, factoryV2, lens)
+import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
 
 /**
  * @title DeployLive
  * @notice Full Infrastructure Deployment (Steps 1-5 AAStar + Step 6 Mycelium Community).
  *         Step 8 deploys the v5.4 god-split contracts so a fresh GA deploy is v5.4-complete.
+ * @dev    SuperPaymaster 5.5.0 (D5.2): Step 3b deploys the xPNTs v2 stack (runbook step 4) and
+ *         SP.xpntsFactory points at xPNTsFactoryV2 (step 6); Mycelium's PNTs is a v2 token.
+ *         The 3.x xPNTsFactory still deploys the protocol aPNTs (APNTS_TOKEN, the operator
+ *         deposit asset) and stays bound into GTokenAuthorization and X402Facilitator.
  */
-contract DeployLive is V54Bootstrap {
+contract DeployLive is V54Bootstrap, V55Bootstrap {
     using Clones for address;
 
 
@@ -74,6 +80,9 @@ contract DeployLive is V54Bootstrap {
     address x402FacilitatorAddr;
     address policyRegistryAddr;
     address timelockControllerAddr;
+
+    // v5.5.0 xPNTs v2 stack (deployed in Step 3b, written to config under NEW keys)
+    V55Stack v55;
 
     function setUp() public {
         // System / External Infrastructure (Remains in ENV)
@@ -155,6 +164,9 @@ contract DeployLive is V54Bootstrap {
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
         superPaymaster = SuperPaymaster(payable(address(spProxy)));
 
+        console.log("=== Step 3b: Deploy xPNTs v2 stack (runbook step 4) ===");
+        v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
+
         console.log("=== Step 4: Deploy Modules ===");
         repSystem = new ReputationSystem(address(registry));
         dvt = new DVTValidator(address(registry));
@@ -206,7 +218,30 @@ contract DeployLive is V54Bootstrap {
         // different rules for no reason. Raised by pr-daemon on #404.
         GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
         GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
+        // The v2 factory and the AOA allowlist hold the same class of power (factory: SP pointer,
+        // tier source and CC-28 inputs for every v2 token; registry: which SP / spender / tier
+        // source a token may ever activate), so they are gated by the same rule.
+        GovernanceOwnerGate.requireGovernanceOwner(v55.factory, xPNTsFactoryV2Owner(), "xPNTsFactoryV2");
+        GovernanceOwnerGate.requireGovernanceOwner(v55.aoaRegistry, aoaRegistryOwner(), "AOAProtocolRegistry");
+
+        // v5.5.0 read-back (runbook steps 4 / 6 / 7a). View-only.
+        _verifyV55Stack(v55, address(superPaymaster), address(registry));
+        _verifySPFactory(address(superPaymaster), v55.factory);
+        require(_strEq(superPaymaster.version(), SP_V55_VERSION), "DeployLive: SP is not 5.5.0");
+        if (pntsAddr != address(0)) {
+            address anni = vm.addr(vm.envUint("PRIVATE_KEY_ANNI"));
+            _verifyV2Token(pntsAddr, v55.factory, anni, address(superPaymaster));
+            _verifyOperatorV2(address(superPaymaster), anni, pntsAddr, anni);
+        }
         _generateConfig();
+    }
+
+    function xPNTsFactoryV2Owner() internal view returns (address) {
+        return Ownable(v55.factory).owner();
+    }
+
+    function aoaRegistryOwner() internal view returns (address) {
+        return Ownable(v55.aoaRegistry).owner();
     }
 
     /// @dev Transfers BLSAggregator ownership to `GOVERNANCE_OWNER` when the operator names
@@ -248,6 +283,11 @@ contract DeployLive is V54Bootstrap {
         xpntsFactory.transferOwnership(gov);
         console.log("  aPNTs communityOwner transferred to governance:", gov);
         console.log("  xPNTsFactory ownership transferred to governance:", gov);
+        // v5.5.0: the AOA registry is already sealed (step 4), so governance inherits only the
+        // 48 h addition path and immediate revocation.
+        Ownable(v55.factory).transferOwnership(gov);
+        Ownable(v55.aoaRegistry).transferOwnership(gov);
+        console.log("  xPNTsFactoryV2 + AOAProtocolRegistry ownership transferred to governance:", gov);
     }
 
     /// @dev Deploy the three NEW v5.4 contracts and wire X402Facilitator on the
@@ -305,9 +345,9 @@ contract DeployLive is V54Bootstrap {
         require(pmFactory.implementations("v4.2")  == address(pmV4Impl),
             "wire: factory.addImplementation v4.2");
 
-        // ── Step 5: SuperPaymaster ↔ xPNTsFactory ──────────────────────────────
-        require(superPaymaster.xpntsFactory()      == address(xpntsFactory),
-            "wire: sp.setXPNTsFactory");
+        // ── Step 5: SuperPaymaster ↔ xPNTsFactoryV2 (5.5.0) / 3.x factory ──────
+        require(superPaymaster.xpntsFactory()      == v55.factory,
+            "wire: sp.setXPNTsFactory(factoryV2)");
         require(xpntsFactory.SUPERPAYMASTER()       == address(superPaymaster),
             "wire: factory.setSuperPaymaster");
 
@@ -335,7 +375,8 @@ contract DeployLive is V54Bootstrap {
         aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
-        superPaymaster.setXPNTsFactory(address(xpntsFactory));
+        // 5.5.0 (runbook step 6): SP binds operators to tokens issued by xPNTsFactoryV2.
+        _wireSPFactory(address(superPaymaster), v55.factory);
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
         // Wire aPNTs (deployed before SP in Step 2, so SP address must be set retroactively).
         // setSuperPaymasterAddress also sets autoApprovedSpenders[SP] = true.
@@ -467,25 +508,15 @@ contract DeployLive is V54Bootstrap {
         vm.stopBroadcast();
         vm.startBroadcast(anniPK);
 
-        // 6d. Deploy PNTs (Mycelium community token — special token name)
-        pntsAddr = xpntsFactory.getTokenAddress(anni);
-        if (pntsAddr == address(0)) {
-            pntsAddr = xpntsFactory.deployxPNTsToken(
-                "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18, address(0)
-            );
-            console.log("  PNTs Deployed at:", pntsAddr);
-        } else {
-            console.log("  PNTs (skip - already deployed):", pntsAddr);
-        }
+        // 6d. Deploy PNTs (Mycelium community token — special token name).
+        //     5.5.0: an xPNTs v2 token from xPNTsFactoryV2 (SP rejects 3.x tokens).
+        pntsAddr = _issueV2Token(
+            v55.factory, anni, "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18
+        );
 
-        // 6e. Configure Anni as SuperPaymaster operator
-        (, bool isCfg,,,,,,,) = superPaymaster.operators(anni);
-        if (!isCfg) {
-            superPaymaster.configureOperator(pntsAddr, anni);
-            console.log("  Operator Configured (PNTs -> SuperPaymaster)");
-        } else {
-            console.log("  Operator (skip - already configured)");
-        }
+        // 6e. Configure Anni as SuperPaymaster operator (idempotent; re-binds a stale token)
+        _configureOperatorV2(address(superPaymaster), pntsAddr, anni, anni);
+        console.log("  Operator Configured (PNTs v2 -> SuperPaymaster)");
 
         // 6f. Deposit aPNTs into SuperPaymaster (gasless sponsorship fund)
         (uint128 bal,,,,,,,,) = superPaymaster.operators(anni);
@@ -498,8 +529,8 @@ contract DeployLive is V54Bootstrap {
         }
 
         // 6g. Mint PNTs for test users
-        if (xPNTsToken(pntsAddr).balanceOf(anni) < 500 ether) {
-            xPNTsToken(pntsAddr).mint(anni, 500 ether);
+        if (IxPNTsV2Script(pntsAddr).balanceOf(anni) < 500 ether) {
+            IxPNTsV2Script(pntsAddr).mint(anni, 500 ether); // v2: mint is served by the extension
             console.log("  500 PNTs Minted to Anni");
         } else {
             console.log("  Anni PNTs (skip - sufficient balance)");
@@ -543,6 +574,13 @@ contract DeployLive is V54Bootstrap {
         vm.serializeAddress(jsonObj, "x402Facilitator", x402FacilitatorAddr);
         vm.serializeAddress(jsonObj, "policyRegistry", policyRegistryAddr);
         vm.serializeAddress(jsonObj, "timelockController", timelockControllerAddr);
+        // v5.5.0 xPNTs v2 stack (NEW keys; "xPNTsFactory"/"aPNTs" keep their 3.x meaning)
+        vm.serializeAddress(jsonObj, "aoaProtocolRegistry", v55.aoaRegistry);
+        vm.serializeAddress(jsonObj, "globalTierSource", v55.tierSource);
+        vm.serializeAddress(jsonObj, "xPNTsTokenV2Ext", v55.ext);
+        vm.serializeAddress(jsonObj, "xPNTsTokenV2Impl", v55.impl);
+        vm.serializeAddress(jsonObj, "xPNTsFactoryV2", v55.factory);
+        vm.serializeAddress(jsonObj, "superPaymasterLens", v55.lens);
         // srcHash intentionally written as "" — deploy-core commits the real hash after audit-core passes.
         vm.serializeString(jsonObj, "srcHash", string(""));
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
