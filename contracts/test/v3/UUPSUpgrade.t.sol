@@ -197,7 +197,10 @@ contract UUPSUpgradeTest is Test {
 
     function test_SuperPaymaster_InitialState() public view {
         assertEq(paymaster.owner(), owner);
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.4.2"));
+        // 5.5.0 (AOA balance mode, spec 03 §3.3): version bumped from 5.4.2 because the public
+        // ABI changed (retryPendingDebt/clearPendingDebt/pendingDebts/dryRunValidation removed,
+        // inflightOf/releaseStaleSponsorship added) and one storage slot (`_inflight`) was appended.
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.0"));
         assertEq(paymaster.APNTS_TOKEN(), mockAPNTs);
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.priceStalenessThreshold(), 3600);
@@ -235,6 +238,34 @@ contract UUPSUpgradeTest is Test {
         assertEq(address(paymaster.ETH_USD_PRICE_FEED()), address(priceFeed));
 
         vm.stopPrank();
+    }
+
+    /// @notice 5.5.0 storage pin: the only new SP slot, `_inflight` (R10-M1b), sits at slot 37
+    ///         (appended after the 5.4.2 layout; `__gap` shrank 28 -> 27 so the end slot is
+    ///         unchanged). Written raw at keccak(opHash, 37) and read back through `inflightOf`,
+    ///         before and after an implementation swap. A layout shift makes the getter read a
+    ///         different slot and this test fails.
+    function test_SuperPaymaster_InflightSlot37_SurvivesUpgrade() public {
+        bytes32 h = keccak256("inflight-slot");
+        address op = address(0xC0FFEE);
+        uint96 a0 = 123 ether;
+        bytes32 slot = keccak256(abi.encode(h, uint256(37)));
+        vm.store(address(paymaster), slot, bytes32((uint256(a0) << 160) | uint256(uint160(op))));
+
+        (address gotOp, uint256 gotA0) = paymaster.inflightOf(h);
+        assertEq(gotOp, op, "inflight.operator read from slot 37");
+        assertEq(gotA0, a0, "inflight.a0 read from slot 37");
+
+        vm.startPrank(owner);
+        SuperPaymasterV2 newImpl = new SuperPaymasterV2(
+            IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(priceFeed)
+        );
+        paymaster.upgradeToAndCall(address(newImpl), "");
+        vm.stopPrank();
+
+        (gotOp, gotA0) = paymaster.inflightOf(h);
+        assertEq(gotOp, op, "inflight.operator survives upgrade");
+        assertEq(gotA0, a0, "inflight.a0 survives upgrade");
     }
 
     function test_SuperPaymaster_UpgradeRejectedByNonOwner() public {
@@ -345,8 +376,8 @@ contract UUPSUpgradeTest is Test {
         vm.expectRevert();
         paymaster.upgradeToAndCall(address(notUUPS), "");
 
-        // Verify original still works
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.4.2"));
+        // Verify original still works (5.5.0: see test_SuperPaymaster_InitialState for the bump reason)
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.0"));
 
         vm.stopPrank();
     }

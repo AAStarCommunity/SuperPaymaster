@@ -15,6 +15,8 @@ import { PostOpMode } from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 import "src/mocks/MockBLSAggregator.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 
 // --- Mocks ---
 
@@ -70,14 +72,6 @@ contract MockOracle is AggregatorV3Interface {
     }
 }
 
-contract MockXPNTs {
-    function burnFromWithOpHash(address from, uint256 amount, bytes32 userOpHash) external {} 
-    function exchangeRate() external view returns (uint256) { return 1e18; }
-    function balanceOf(address) external view returns (uint256) { return 0; }
-    function getDebt(address user) external view returns (uint256) { return 0; }
-    function recordDebt(address user, uint256 amount) external {}
-}
-
 // --- Test Suite ---
 
 contract CoverageSupplementTest is Test {
@@ -89,7 +83,9 @@ contract CoverageSupplementTest is Test {
     MockSBT sbt;
     MockEntryPoint entryPoint;
     MockOracle oracle;
-    MockXPNTs xpnts;
+    /// @dev SP 5.5.0: operator community token = xPNTs v2 (balance mode). The legacy MockXPNTs
+    ///      (burnFromWithOpHash/recordDebt stubs) is gone: those selectors no longer exist in v2.
+    xPNTsTokenV2 xpnts;
     MockXPNTsFactory mockFactory;
 
     address owner = address(1);
@@ -108,8 +104,7 @@ contract CoverageSupplementTest is Test {
         sbt = new MockSBT();
         entryPoint = new MockEntryPoint();
         oracle = new MockOracle(2000e8); // $2000 ETH
-        xpnts = new MockXPNTs();
-        
+
         registry = UUPSDeployHelper.deployRegistryProxy(owner, address(0), address(sbt));
         staking = new GTokenStaking(address(gtoken), treasury, address(registry));
         registry.setStaking(address(staking));
@@ -146,9 +141,14 @@ contract CoverageSupplementTest is Test {
         // Deploy mock factory and register operator token (P1-4 fix)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-        mockFactory.setToken(operator, address(xpnts));
 
         vm.stopPrank();
+
+        // SP 5.5.0: v2 token for the operator (outside the prank: the test contract owns the
+        // protocol-registry bootstrap and becomes the token FACTORY, so it can mint).
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xpnts));
 
         // Fund users
         gtoken.mint(user, 1000 ether);
@@ -373,46 +373,45 @@ contract CoverageSupplementTest is Test {
     
     // --- SuperPaymaster Tests ---
     
+    function _pmd() internal view returns (bytes memory) {
+        // SP 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+        return V2TokenDeployer.pmd(address(paymaster), uint128(100), uint128(200000), operator, type(uint256).max, address(xpnts), 0);
+    }
+
+    function _registerAndConfigureOperator() internal {
+        vm.startPrank(operator);
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_COMMUNITY, operator, abi.encode(Registry.CommunityRoleData("Op", "", 10 ether)));
+        registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(50 ether)));
+        paymaster.configureOperator(address(xpnts), treasury);
+        vm.stopPrank();
+    }
+
     function test_Paymaster_Validation_Failures() public {
         // Setup userOp
         PackedUserOperation memory op;
         op.sender = user;
-        // Construct paymasterAndData: [paymaster(20)] [gasLimits(32)] [operator(20)]
-        bytes memory pmData = abi.encodePacked(address(paymaster), uint128(100), uint128(200000), address(operator));
-        op.paymasterAndData = pmData;
-        
+        op.paymasterAndData = _pmd();
+
         // 1. Operator Not Registered
         vm.prank(address(entryPoint));
-        (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(op, keccak256("v1"), 1000);
         // Validation data failure (sig fail = true)
-        // ValidationData: (sigFailed << 160)
         assertEq(valData & 1, 1, "Should fail sig");
-        
-        // Register Operator
-        vm.startPrank(operator);
-        gtoken.approve(address(staking), 100 ether);
-        bytes memory opData = abi.encode(Registry.CommunityRoleData("Op", "", 10 ether));
-        registry.registerRole(ROLE_COMMUNITY, operator, opData);
-        // Also register as SuperPaymaster
-        registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(50 ether)));
-        vm.stopPrank();
-        
+
+        // Register + configure operator (5.5.0: configureOperator requires an xPNTs v2 token)
+        _registerAndConfigureOperator();
+
         // Sync SBT Status for Operator
         vm.prank(address(registry));
         paymaster.updateSBTStatus(operator, true);
 
-        // Config Operator
-        vm.startPrank(operator);
-        paymaster.configureOperator(address(xpnts), treasury);
-        vm.stopPrank();
-        
         // 2. User Not Verified
         // User has no role
         vm.prank(address(entryPoint));
-        (ctx, valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v2"), 1000);
         assertEq(valData & 1, 1, "Should fail sig (user unverified)");
-        
-        vm.stopPrank();
+
         // Sync SBT status for User
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user, true);
@@ -424,56 +423,114 @@ contract CoverageSupplementTest is Test {
         registry.registerRole(ROLE_ENDUSER, user, uData);
         vm.stopPrank();
 
-        vm.prank(owner);
-        registry.setCreditTier(1, 1 ether);
-        
-        // 3. Operator Config: Low Balance
-        // Operator hasn't deposited aPNTs
-        // BasePaymaster checks deposit for Paymaster, checking operator balance within Paymaster
-        
-        // Deposit aPNTs for Operator
-        // Use notifyDeposit to simulate
-        // Need to change APNTS to MockToken first to use notifyDeposit easily or assume setup
-        vm.prank(owner);
-        paymaster.setAPNTsToken(address(gtoken)); // Reuse mockGToken as aPNTs
-        
+        // 5.5.0: the legacy `setCreditTier(1, ...)` precondition is gone -- the SP no longer
+        // consults the Registry credit tier in validation (`_creditExceeded` removed). The user
+        // pays from escrowed xPNTs v2 instead, so fund the user.
+        IxPNTsV2Admin(address(xpnts)).mint(user, 1000 ether);
+
+        // 3. Operator Config: Low Balance -- operator has not deposited aPNTs yet (asserted now;
+        //    the pre-5.5.0 version of this step had no assertion). APNTS_TOKEN is already the
+        //    mock gToken from initialize, so no setAPNTsToken (now a 7-day queue, P0-9) is needed.
+        assertEq(paymaster.APNTS_TOKEN(), address(gtoken));
+        vm.prank(address(entryPoint));
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v3"), 1000);
+        assertEq(valData & 1, 1, "Should fail sig (operator has no aPNTs deposit)");
+        assertEq(xpnts.lockedOf(user), 0, "solvency is checked BEFORE touching the token");
+
         vm.startPrank(operator);
         gtoken.mint(operator, 1000 ether);
         gtoken.approve(address(paymaster), 1000 ether);
         paymaster.depositFor(operator, 100 ether);
         vm.stopPrank();
-        
-        // Now success
+
+        // 3b. R-2: an unfunded user with credit OFF (the v2 default) is NOT sponsored.
+        uint256 snap = vm.snapshot();
+        vm.prank(user);
+        xpnts.transfer(address(0xdead), 1000 ether);
         vm.prank(address(entryPoint));
-        (ctx, valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v3b"), 1000);
+        assertEq(valData & 1, 1, "Should fail sig (no xPNTs, credit OFF)");
+        assertEq(xpnts.creditReservedOf(user), 0, "no credit fallback when policy is OFF");
+        assertTrue(vm.revertTo(snap), "snapshot restored");
+
+        // Now success (BALANCE mode: user xPNTs escrowed at validation)
+        vm.prank(address(entryPoint));
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v4"), 1000);
         assertEq(uint160(valData), 0, "Should succeed");
-        
+        SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+        assertEq(c.mode, 1, "BALANCE mode");
+        assertEq(xpnts.lockedOf(user), c.a0, "escrow == a0 at rate 1:1");
+
         // 4. Paused Operator
         vm.prank(owner);
         paymaster.setOperatorPaused(operator, true);
-        
+
         vm.prank(address(entryPoint));
-        (ctx, valData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 1000);
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v5"), 1000);
         assertEq(valData & 1, 1, "Should fail paused");
-        
+
         vm.prank(owner);
         paymaster.setOperatorPaused(operator, false);
-    }
-    
-    function test_Paymaster_PostOp_Revert() public {
-        // Setup a valid context
-        address token = address(xpnts);
-        uint256 xPNTsAmount = 100;
-        address u = user;
-        uint256 aPNTsAmount = 100;
-        
-        // V3.3 layout: (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator)
-        bytes memory context = abi.encode(token, xPNTsAmount, u, aPNTsAmount, bytes32(0), operator);
-        
+
+        // Control: the same op validates again once unpaused (the pause was the only cause).
         vm.prank(address(entryPoint));
-        paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), context, 1000, 1000);
-        
-        // Call with empty context (should return)
+        (ctx, valData) = paymaster.validatePaymasterUserOp(op, keccak256("v6"), 1000);
+        assertEq(uint160(valData), 0, "Should succeed after unpause");
+    }
+
+    /// @notice 5.5.0 postOp. The pre-5.5.0 test fed a V3.3 6-field context in opReverted mode to a
+    ///         mock token (burnFromWithOpHash stub) and only asserted "no revert". Migrated to:
+    ///         (a) T-R14-04 / I8 -- a real validation context settled in opReverted mode: the user
+    ///             still pays for gas (xPNTs burned), the escrow is cleared, the in-flight a0 is
+    ///             resolved and the operator is refunded exactly a0 - charge (R10-M1b);
+    ///         (b) a legacy V3.3 context is no longer silently accepted (OpCtx decode reverts);
+    ///         (c) an empty context still returns (unchanged).
+    function test_Paymaster_PostOp_Revert() public {
+        _registerAndConfigureOperator();
+        vm.prank(address(registry));
+        paymaster.updateSBTStatus(user, true);
+        IxPNTsV2Admin(address(xpnts)).mint(user, 1000 ether);
+        vm.startPrank(operator);
+        gtoken.mint(operator, 1000 ether);
+        gtoken.approve(address(paymaster), 1000 ether);
+        paymaster.depositFor(operator, 1000 ether);
+        vm.stopPrank();
+
+        PackedUserOperation memory op;
+        op.sender = user;
+        op.paymasterAndData = _pmd();
+        bytes32 h = keccak256("postop-reverted");
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 vd) = paymaster.validatePaymasterUserOp(op, h, 0.001 ether);
+        assertEq(uint160(vd), 0, "validation ok");
+        (uint128 opMid,,,,,,,,) = paymaster.operators(operator);
+        uint256 userBefore = xpnts.balanceOf(user);
+        uint256 revBefore = paymaster.protocolRevenue();
+
+        // (a) opReverted still settles.
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), context, 1e12, 1 gwei);
+        uint256 burned = userBefore - xpnts.balanceOf(user);
+        assertGt(burned, 0, "user pays for gas even when execution reverted (T-R14-04)");
+        assertEq(xpnts.lockedOf(user), 0, "escrow cleared");
+        assertEq(xpnts.debts(user), 0, "balance mode creates no debt");
+        (address f, uint256 a0) = paymaster.inflightOf(h);
+        assertEq(f, address(0), "in-flight cleared");
+        assertEq(a0, 0);
+        uint256 charge = paymaster.protocolRevenue() - revBefore;
+        assertEq(burned, charge, "rate 1:1: burned xPNTs == aPNTs charge");
+        SuperPaymaster.OpCtx memory c = abi.decode(context, (SuperPaymaster.OpCtx));
+        (uint128 opAfter,,,,,,,,) = paymaster.operators(operator);
+        assertEq(uint256(opAfter) - uint256(opMid), c.a0 - charge, "operator refunded a0 - charge");
+
+        // (b) legacy V3.3 layout (token, estimatedXPNTs, user, initialAPNTs, userOpHash, operator)
+        bytes memory legacy = abi.encode(address(xpnts), uint256(100), user, uint256(100), bytes32(0), operator);
+        vm.prank(address(entryPoint));
+        vm.expectRevert();
+        paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opReverted)), legacy, 1000, 1000);
+
+        // (c) Call with empty context (should return)
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opSucceeded)), "", 1000, 1000);
     }

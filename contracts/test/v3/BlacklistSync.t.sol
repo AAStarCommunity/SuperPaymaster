@@ -16,6 +16,9 @@ import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import "../../src/mocks/MockBLSAggregator.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer, IxPNTsV2Admin} from "../helpers/V2TokenDeployer.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {PostOpMode} from "singleton-paymaster/src/interfaces/PostOpMode.sol";
 
 contract MockAggregator is AggregatorV3Interface {
     function decimals() external pure returns (uint8) { return 8; }
@@ -56,6 +59,9 @@ contract BlacklistSyncTest is Test {
     MockAggregator priceFeed;
     MockBLSAggregator mockAggregator;
     MockXPNTsFactory mockFactory;
+    /// @dev SP 5.5.0: the operator's community token must be an xPNTs v2 (balance-mode) token;
+    ///      the 3.x `apnts` clone above only plays the aPNTs (operator deposit) role.
+    xPNTsTokenV2 xpnts;
 
     address owner = address(1);
     address dvtNode = address(2); // Legacy: kept for now, no longer privileged for blacklist
@@ -114,7 +120,11 @@ contract BlacklistSyncTest is Test {
         gtoken.mint(operator, 10000 ether);
         vm.stopPrank();
 
-        mockFactory.setToken(operator, address(apnts));
+        // SP 5.5.0: configureOperator only accepts BALANCE_MODE_VERSION()==1 tokens (xPNTs v2).
+        // The test contract becomes the token FACTORY (can mint) and owns the protocol registry.
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpnts = V2TokenDeployer.newToken(st, operator, operator, address(paymaster), 1e18);
+        mockFactory.setToken(operator, address(xpnts));
 
         vm.startPrank(operator);
         gtoken.approve(address(staking), 10000 ether);
@@ -123,15 +133,16 @@ contract BlacklistSyncTest is Test {
         registry.registerRole(keccak256("PAYMASTER_SUPER"), operator, abi.encode(uint256(100 ether)));
 
         // Configure Operator
-        paymaster.configureOperator(address(apnts), treasury);
+        paymaster.configureOperator(address(xpnts), treasury);
         paymaster.updatePrice();
         
         // Fund Operator
         vm.stopPrank();
         vm.prank(owner);
         apnts.mint(operator, 2000 ether);
-        vm.prank(owner);
-        apnts.mint(maliciousUser, 2000 ether);
+        // 5.5.0 balance mode: the user pays from escrowed xPNTs v2 (a0 ~= 1,200 aPNTs for the
+        // 0.01 ETH maxCost used below at rate 1:1), so the user needs an xPNTs balance.
+        IxPNTsV2Admin(address(xpnts)).mint(maliciousUser, 2000 ether);
         
         vm.prank(operator);
         apnts.approve(address(paymaster), 2000 ether);
@@ -147,6 +158,16 @@ contract BlacklistSyncTest is Test {
         // 1. Verify User NOT blocked initially
         (, bool blocked) = paymaster.userOpState(operator, maliciousUser);
         assertFalse(blocked, "Should not be blocked initially");
+
+        // 1b. Positive control: the very same op validates while the user is NOT blocked, so the
+        //     sigFail asserted in step 4 can only come from the blacklist (not from a malformed
+        //     5.5.0 paymasterAndData, a missing xPNTs balance, or operator solvency).
+        uint256 snap = vm.snapshot();
+        vm.prank(address(entryPoint));
+        (, uint256 vdOk) = paymaster.validatePaymasterUserOp(_createOp(maliciousUser), bytes32(0), 0.01 ether);
+        assertEq(vdOk & uint256(type(uint160).max), 0, "control: unblocked user validates");
+        assertTrue(vm.revertTo(snap), "snapshot restored");
+        assertEq(xpnts.lockedOf(maliciousUser), 0, "control left no escrow behind");
 
         // 2. DVT triggers blacklist via Registry
         address[] memory users = new address[](1);
@@ -182,19 +203,11 @@ contract BlacklistSyncTest is Test {
     }
 
     function test_UnblockFlow() public {
-        // AUDIT H-1: credit is now enforced in validation regardless of balance, so a
-        // level-1 user needs a credit ceiling above this op's charge to pass. The fresh
-        // test Registry bootstraps creditTierConfig[1] to 100 ether, which is below this
-        // op's high-gas charge; set it well above the charge.
-        // CC-48 round-9 LOW-B6: the tier table is now enforced monotonic, so raising the
-        // level-1 floor above the levels above it is refused. Raise the whole schedule
-        // top-down instead -- same effect on this level-1 user, and it keeps the invariant
-        // the `initialize` comment has always claimed.
-        vm.startPrank(owner);
-        for (uint256 level = 6; level >= 1; level--) {
-            registry.setCreditTier(level, 100000 ether);
-        }
-        vm.stopPrank();
+        // 5.5.0: the legacy H-1 validation-time credit ceiling (`_creditExceeded`) is removed.
+        // A user holding enough xPNTs is sponsored in BALANCE mode (escrow via tryLockForGas)
+        // and the Registry credit tier is never consulted, so the old `setCreditTier` top-up
+        // is no longer part of the precondition. The validation at the end is asserted to go
+        // through the escrow path explicitly.
 
         // Block first
         address[] memory users = new address[](1);
@@ -221,8 +234,48 @@ contract BlacklistSyncTest is Test {
         // Validation should pass now
         PackedUserOperation memory op = _createOp(maliciousUser);
         vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 0.01 ether);
+        (bytes memory ctx, uint256 validationData) = paymaster.validatePaymasterUserOp(op, bytes32(0), 0.01 ether);
         assertEq(uint160(validationData), 0, "Should pass validation");
+        SuperPaymaster.OpCtx memory c = abi.decode(ctx, (SuperPaymaster.OpCtx));
+        assertEq(c.mode, 1, "BALANCE mode (escrow), not credit");
+        assertEq(xpnts.lockedOf(maliciousUser), c.a0, "user xPNTs escrowed at validation (rate 1:1)");
+        assertEq(xpnts.creditReservedOf(maliciousUser), 0, "no credit reservation");
+    }
+
+    /// @notice T-R14-03 (spec 03 §10.6): a stale blacklist -- `isBlocked` written by the Registry
+    ///         AFTER validation and BEFORE postOp. The already-admitted op still settles (I8/I9:
+    ///         no unbacked sponsorship), while a new op from the now-blocked user is rejected.
+    function test_TR1403_StaleBlacklist_AdmittedOpStillSettles() public {
+        bytes32 h = keccak256("tr1403");
+        uint256 userBefore = xpnts.balanceOf(maliciousUser);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = paymaster.validatePaymasterUserOp(_createOp(maliciousUser), h, 0.01 ether);
+        assertEq(uint160(vd), 0, "admitted before the blacklist lands");
+        assertGt(xpnts.lockedOf(maliciousUser), 0);
+
+        // Blacklist lands between validation and postOp.
+        address[] memory users = new address[](1);
+        users[0] = maliciousUser;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+        vm.prank(_aggregator());
+        registry.updateOperatorBlacklist(operator, users, statuses, _proof());
+        (, bool blocked) = paymaster.userOpState(operator, maliciousUser);
+        assertTrue(blocked, "blacklist landed mid-flight");
+
+        // The admitted op settles normally (no try/catch around settlement, B-1).
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode(uint8(PostOpMode.opSucceeded)), ctx, 1e14, 1 gwei);
+        assertLt(xpnts.balanceOf(maliciousUser), userBefore, "admitted op was paid for");
+        assertEq(xpnts.lockedOf(maliciousUser), 0, "escrow consumed");
+        (address f, uint256 a0) = paymaster.inflightOf(h);
+        assertEq(f, address(0), "in-flight cleared");
+        assertEq(a0, 0);
+
+        // A new op from the blocked user is rejected.
+        vm.prank(address(entryPoint));
+        (, uint256 vd2) = paymaster.validatePaymasterUserOp(_createOp(maliciousUser), keccak256("tr1403-2"), 0.01 ether);
+        assertEq(vd2 & uint256(type(uint160).max), 1, "new op after blacklist rejected");
     }
 
     function test_Revert_UnauthorizedSource() public {
@@ -256,12 +309,9 @@ contract BlacklistSyncTest is Test {
             accountGasLimits: bytes32(abi.encodePacked(uint128(100000), uint128(100000))),
             preVerificationGas: 21000,
             gasFees: bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei))),
-            paymasterAndData: abi.encodePacked(
-                address(paymaster),
-                uint128(100000),
-                uint128(200000),
-                operator, // Paymaster Data: Operator
-                type(uint256).max // MaxRate (Fix for V3.2.1)
+            // SP 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
+            paymasterAndData: V2TokenDeployer.pmd(
+                address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xpnts), 0
             ),
             signature: ""
         });

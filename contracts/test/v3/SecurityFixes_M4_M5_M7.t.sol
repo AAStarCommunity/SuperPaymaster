@@ -12,6 +12,9 @@ import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 import {MockXPNTsFactory} from "../helpers/MockXPNTsFactory.sol";
+import {V2TokenDeployer} from "../helpers/V2TokenDeployer.sol";
+import "src/tokens/xPNTsToken.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 
 // -----------------------------------------------------------------------
 // Shared mocks
@@ -31,6 +34,12 @@ contract MockPriceFeedFix {
 contract MockAPNTsFix is ERC20 {
     constructor() ERC20("AAStar Points", "aPNTs") {}
     function mint(address to, uint256 amount) external { _mint(to, amount); }
+}
+
+/// @dev An ERC20 that answers the balance-mode probe with a version other than 1.
+contract MockWrongBalanceModeToken is ERC20 {
+    constructor() ERC20("Wrong", "WRG") {}
+    function BALANCE_MODE_VERSION() external pure returns (uint16) { return 2; }
 }
 
 contract MockOracleV4 {
@@ -83,9 +92,6 @@ contract M4_ExchangeRateOverflowTest is Test {
             3600
         );
 
-        // Deploy a dummy xPNTs token that the factory will recognise
-        xpntsToken = address(new MockAPNTsFix());
-        mockFactory.setToken(OPERATOR, xpntsToken);
         paymaster.setXPNTsFactory(address(mockFactory));
 
         vm.warp(block.timestamp + 2 hours);
@@ -98,6 +104,13 @@ contract M4_ExchangeRateOverflowTest is Test {
             .with_key(ROLE_COMMUNITY).with_key(OPERATOR).checked_write(true);
 
         vm.stopPrank();
+
+        // SP 5.5.0: the operator's token must be an xPNTs v2 (BALANCE_MODE_VERSION()==1) clone
+        // that the wired factory recognises. (Outside the prank: the test contract owns the
+        // protocol registry bootstrap and becomes the token FACTORY.)
+        V2TokenDeployer.Stack memory st = V2TokenDeployer.deployStack(address(paymaster), address(registry));
+        xpntsToken = address(V2TokenDeployer.newToken(st, OPERATOR, OPERATOR, address(paymaster), 1e18));
+        mockFactory.setToken(OPERATOR, xpntsToken);
     }
 
     /// @notice M-4 (historical): exchangeRate was removed from OperatorConfig and is now
@@ -107,8 +120,39 @@ contract M4_ExchangeRateOverflowTest is Test {
     function test_M4_ConfigureOperatorSucceeds() public {
         vm.prank(OPERATOR);
         paymaster.configureOperator(xpntsToken, TREASURY);
-        (, bool isConfigured,,,,,,, ) = paymaster.operators(OPERATOR);
+        (, bool isConfigured,, address tok,,,,, ) = paymaster.operators(OPERATOR);
         assertTrue(isConfigured, "operator should be configured");
+        assertEq(tok, xpntsToken, "operator bound to the v2 token");
+    }
+
+    /// @notice SP 5.5.0 (spec 03 §3.3 `configureOperator`): even when the factory binding
+    ///         matches, a token that does not answer BALANCE_MODE_VERSION()==1 is rejected by the
+    ///         probe. Three cases isolate the probe (the factory check passes in each):
+    ///         plain ERC20 (no selector), a 3.x xPNTsToken (legacy, no balance mode), and a token
+    ///         answering a different version.
+    function test_M4_ConfigureOperatorRejectsNonBalanceModeTokens() public {
+        address plain = address(new MockAPNTsFix());
+        address legacyImpl = address(new xPNTsToken());
+        xPNTsToken legacy = xPNTsToken(Clones.clone(legacyImpl));
+        legacy.initialize("Legacy", "LGC", OPERATOR, "C", "c.eth", 1e18);
+        address wrongVer = address(new MockWrongBalanceModeToken());
+
+        address[3] memory bad = [plain, address(legacy), wrongVer];
+        for (uint256 i; i < bad.length; i++) {
+            mockFactory.setToken(OPERATOR, bad[i]); // factory binding satisfied
+            vm.prank(OPERATOR);
+            vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+            paymaster.configureOperator(bad[i], TREASURY);
+            (, bool isConfigured,,,,,,, ) = paymaster.operators(OPERATOR);
+            assertFalse(isConfigured, "rejected token must not configure the operator");
+        }
+
+        // Positive control: the same path accepts the v2 token.
+        mockFactory.setToken(OPERATOR, xpntsToken);
+        vm.prank(OPERATOR);
+        paymaster.configureOperator(xpntsToken, TREASURY);
+        (, bool ok,,,,,,, ) = paymaster.operators(OPERATOR);
+        assertTrue(ok, "v2 token accepted");
     }
 }
 
