@@ -66,7 +66,31 @@ Cancun 和 Prague 都通过（本机合并后两边各复跑一次，结果一�
 变异 (2) 在经过 EntryPoint 的测试里到不了：验证期要求 postOpGasLimit ≥ 200k，EntryPoint 给 postOp 的 gas 就是这个 limit，入口处 gasleft 远高于 160k。所以另加了直接调用 postOp 的 fuzz 来覆盖。
 
 **全量**（合并 G2 与 D5.2 之后，Cancun）：124 个套件，1567 通过 / 0 失败 / 49 跳过。
-**审查（Codex 对抗审查，第 1 轮，对 `4fa67967`）：不通过**。2 条 High、2 条 Medium、1 条 Low，都是"测试可能放过真 bug"一类的问题：(H1) 没有精确验证 postOp 用的是验证期的价格快照，bundle 中途的价格变动只有 ±10%，被 ≥17.5% 的多付掩盖，"postOp 改用实时价格"这个变异能逃过；(H2) I10 只看最后的总量是否为 0，"release 直接把 lockedOf 置 0"能逃过；(M3) 没有检查额度计数 `used`，"stale release 不退额度"能逃过；(M4) 每笔是否有后盾是从事件推断的，真实状态只按汇总比较；(L5) operator 余额太大，偿付边界走不到。**已交回 fuzz 作者修复，G2 暂不提交验收**，修复结果补记在下一节。
+**审查（Codex 对抗审查，第 1 轮，对 `4fa67967`）：不通过**。2 条 High、2 条 Medium、1 条 Low，都属于"测试可能放过真 bug"。修复提交为 `7fa7b705`。
+
+### 1.1 修复后的 G2 — `7fa7b705`（**提交验收的版本**）
+
+**Codex 第 2 轮：APPROVE**。第 1 轮的五个场景都已关闭；也没有找到"某条性质被破坏、而所有相关断言仍然通过"的单点故障路径。修法：
+- **(H1) 精确的收费预言**：P 和 feePerGas 从规范 EntryPoint 发出的 postOp calldata 里取（handleOps 在 `startStateDiffRecording` 中执行），价格快照由测试在 bundle 前从 SP 的公开状态读取，并要求 context 里的字段与它相等（排除"自洽但错误的 context"）；再独立重算 aGas、charge、aCharged/debtAdded、xc，逐笔精确比对。另加一条不依赖 calldata 的界：把 aGas 按快照价折回 wei，必须落在 [G, G+bufWei] 之内。bundle 中途的价格变动放大为 ETH/USD ×0.4–×2.5（无许可的 updatePrice）、aPNTs/USD 1–5 次 ±10%（测试用的 owner 转发合约：它确实是 SP 的 owner，用户执行时正常调用它，没有 prank，也没有绕过权限）。
+- **(H2) I10 逐条检查**：失败 op 留下的锁和预留跨 bundle 保留，之后在随机时点逐条释放。每释放一条都断言：本用户在该代币上的 lockedOf 或 creditReservedOf 正好减少这一条的量；其他用户、其他代币和其他未释放记录都不变；operator 余额加回 a0；重复释放没有副作用。
+- **(M3)** `autoAllowance.used` 和 `userTotal.used` 逐条、逐 bundle 精确检查。
+- **(M4)** 所有结算事件的数值都必须等于独立算出的 charge；某个用户在某个代币上只有一笔 op 时，按真实状态逐笔比对余额和债务；某个代币只有一笔 op 时，还比对供应量。
+- **(L5)** 约 35% 的轮次里 operator 只有 0–3,000 aPNTs，偿付不足导致的拒绝逐笔断言为 AA34。
+
+**覆盖（1000 个固定种子，2530 个 bundle）**：已结算 BALANCE 3268、CREDIT 1121（各 ≥ 200）；精确 charge 比对 4389 笔；在 bundle 中途 ETH 或 aPNTs 变价之后才执行 postOp 的已结算 op 分别为 817 和 835（各 ≥ 100）；注入结算失败 787（BALANCE）+ 879（CREDIT）；逐条释放时同一用户同一代币上还有其他未释放记录的情况 55 / 68（各 ≥ 40）；偿付不足被拒 687（≥ 50）；该用户在该代币上只有一笔的已结算 op 2842（≥ 200）；同一 sender 多笔的 bundle 1202；postOpGasLimit == MIN 且已结算 1412；opReverted 1695（其中 OOG 806）；**I9 没有后盾的赞助：0 笔 / 0 金额**。
+
+**不补贴与多付率（更正：取代 §1 中修复前的 75.9% / 251% / 342% 与 36.6% / 58.6% / 76.6%；op 的构成变了——加入了中途变价的执行、提高了注入失败率、增加了轮次）**：每笔和每个 bundle 都满足"净收费（ETH）≥ actualGasCost"。全程 EP 押金减少 4.836 ETH，其中已结算 op 占 3.599 ETH，注入失败 op 占 1.238 ETH；已结算 op 的净收费合计 6.855 ETH。
+
+| R1-8 多付率 `(eth−G)/G` | 均值 | P95 | 最大值 |
+|---|---|---|---|
+| 全部已结算的 op（n = 4389） | **83.2%** | **269.6%** | **371.1%** |
+| postOpGasLimit ≤ MIN + 50k（n = 3489） | **41.8%** | **61.3%** | **81.5%** |
+
+最小值 21.8%。
+
+**变异（10 个，各自在指名断言上变红）**：M1–M5 同 §1；新增 M6（postOp 用实时的 cachedPrice.price）和 M7（用实时的 aPNTsPriceUSD）→ 在 `R10-M3: aGas == ceil((P + bufWei) x price_snap …) (exact)` 上变红（关掉这条精确断言之后，不依赖 calldata 的 [G, G+bufWei] 界也会变红）；M8 和 M9（release 把汇总值直接清零）→ 在 `I10: releaseStale{Lock,Credit} lowers … by exactly the record's …` 上变红；M10（释放过期锁时不退额度）→ 在 `I10/A-4: releaseStaleLock refunds a0 to the SP auto-allowance` 上变红。
+
+**运行**：inline fuzz 1000 runs（seed `0xd5c2`）、固定种子覆盖测试（`keccak256("G2-coverage", i)`，i = 0..999）、直接调用 postOp 的 fuzz 1000 runs（seed `0xd5c3`）。本机合并后在 Cancun 和 Prague 上各跑一遍，都通过（约 23 s）。**forge 1.7.1 的一个现象**：在"用户执行先 revert、postOp 随后成功"的 op 上，state diff 的 AccountAccess `reverted` 标记也会置位，所以测试不用这个标记判断 postOp 是否成功，而是看有没有 PostOpRevertReason，并要求每笔 op 恰好调用一次 postOp。
 
 ## 2. D5.3 fork 演练：第 0 步盘点 — 本节
 
