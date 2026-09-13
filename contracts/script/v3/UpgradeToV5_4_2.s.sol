@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -80,7 +82,7 @@ contract UpgradeToV5_4_2 is Script {
             // the owner performing the upgrade, so the onlyOwner guard passes.
             UUPSUpgradeable(spProxy).upgradeToAndCall(
                 newImpl,
-                abi.encodeCall(SuperPaymaster.primeBlsSlashCooldown, ())
+                abi.encodeCall(SuperPaymasterAdmin.primeBlsSlashCooldown, ())
             );
             console.log("  SP upgradeToAndCall + primeBlsSlashCooldown executed");
         } else {

@@ -43,7 +43,8 @@ import {SPReleaseVersion} from "./SPReleaseVersion.sol";
  *   3. SuperPaymaster 5.4.x -> 5.5.0 is REFUSED here: that upgrade needs runbook
  *      steps 4-7c (UpgradeToV5_5_0.s.sol), not a bare impl swap.
  *   4. GOV-1 (spec 03 §10.7b, GOV-2 v3 part C): once the owner is the timelock, this
- *      script must become deploy -> timelock schedule -> wait -> execute. Not yet.
+ *      script REFUSES (owner != broadcaster); use UpgradeViaTimelock.s.sol
+ *      (deploy -> timelock schedule -> wait -> execute, with read-backs).
  *
  * Cost model:
  *   - Nothing changed: 0 broadcast txns, ~0 gas
@@ -94,7 +95,19 @@ contract UpgradeLive is V54Bootstrap {
         bool needSP  = !_codeEqArtifact(curSPImpl, _defaultArtifact("SuperPaymaster"))
             || address(SuperPaymaster(payable(curSPImpl)).REGISTRY()) != registryProxy
             || address(SuperPaymaster(payable(curSPImpl)).entryPoint()) != entryPoint
-            || address(SuperPaymaster(payable(curSPImpl)).ETH_USD_PRICE_FEED()) != priceFeed;
+            || address(SuperPaymaster(payable(curSPImpl)).ETH_USD_PRICE_FEED()) != priceFeed
+            // D5b: the EXTENSION immutable is masked above; its code must be current too
+            || !_codeEqArtifact(_addrCall(curSPImpl, "EXTENSION()"), _defaultArtifact("SuperPaymasterAdmin"));
+        // GOV-1 (spec 03 §10.7b C): once a proxy's owner is the TimelockController this EOA path
+        // cannot upgrade it — refuse up front instead of failing on-chain mid-run.
+        if (needSP) {
+            require(SuperPaymaster(payable(spProxy)).owner() == deployer,
+                "UpgradeLive: SP owner is not the broadcaster (GOV-1 timelock?) - use UpgradeViaTimelock.s.sol");
+        }
+        if (needReg) {
+            require(Registry(registryProxy).owner() == deployer,
+                "UpgradeLive: Registry owner is not the broadcaster (GOV-1 timelock?) - use UpgradeViaTimelock.s.sol");
+        }
         if (needSP) {
             // Refuse the 5.4.x -> 5.5.0 jump: it is a migration (runbook 03 §6 steps 4-7c).
             string memory curV = SuperPaymaster(payable(spProxy)).version();

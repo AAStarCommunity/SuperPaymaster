@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -566,6 +568,11 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         require(address(sp.REGISTRY()) == pre.registryImm, "V55 step5 read-back: REGISTRY changed");
         require(address(sp.ETH_USD_PRICE_FEED()) == pre.feedImm, "V55 step5 read-back: ETH_USD_PRICE_FEED changed");
         require(address(sp.entryPoint()) == pre.entryPointImm, "V55 step5 read-back: entryPoint changed");
+        // D5b: the implementation's extension is the default SuperPaymasterAdmin build bound to the
+        // same immutables (the runtime comparison masks the EXTENSION immutable), and GOV-2 starts clean.
+        _requireSPExtensionBinding(newImpl);
+        require(sp.pendingOwner() == address(0), "V55 step5 read-back: pendingOwner != 0");
+        require(sp.guardian() == address(0) && !sp.paused(), "V55 step5 read-back: guardian/paused not zero");
         // BLS three legs unchanged
         require(sp.BLS_AGGREGATOR() == pre.blsSP, "V55 step5 read-back: SP.BLS_AGGREGATOR changed");
         require(IBLSPtr(a.registry).blsAggregator() == pre.blsRegistry, "V55 step5 read-back: Registry.blsAggregator changed");

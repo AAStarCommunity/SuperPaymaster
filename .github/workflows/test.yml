@@ -76,6 +76,21 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         run: python3 scripts/check_storage_layout.py
 
+      - name: D5b release gates (SP core headroom >= 1,024; core/extension layout + selector routing; GOV-2 placement)
+        # D5b-design §2 item 7 / §5: `forge build --sizes` only enforces EIP-170 itself, so "tests green but
+        # the next fix no longer fits" was invisible. check-sp-size.py fails below 1,024 B of SuperPaymaster
+        # core headroom (spec 03 §5 release gate) and on any listed deployable over 24,576 B, measuring only
+        # profile.default artifacts of the current sources. Every checker runs its --self-test (positive
+        # control) first, and the storage gate must reject an OZ Ownable2Step base (GOV-2 D negative control).
+        if: steps.changes.outputs.contract == 'true'
+        run: |
+          python3 -m pip install --quiet pycryptodome
+          python3 scripts/check-sp-size.py --self-test
+          python3 scripts/check-sp-layout.py --self-test
+          python3 scripts/check-sp-selectors.py --self-test
+          python3 scripts/check_storage_layout.py --self-test
+          python3 scripts/check_storage_layout.py --negative-control
+
       - name: Run Tests
         if: steps.changes.outputs.contract == 'true'
         run: forge test -v

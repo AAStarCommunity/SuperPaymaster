@@ -93,6 +93,7 @@ contract T4ArtifactReader is Script {
         if (h == keccak256("DVTValidator")) return "contracts/src/modules/monitoring/DVTValidator.sol";
         if (h == keccak256("BLSAggregator")) return "contracts/src/modules/monitoring/BLSAggregator.sol";
         if (h == keccak256("SuperPaymaster")) return "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+        if (h == keccak256("SuperPaymasterAdmin")) return "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol";
         if (h == keccak256("SuperPaymasterLens")) return "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
         if (h == keccak256("MicroPaymentChannel")) return "contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol";
         if (h == keccak256("X402Facilitator")) return "contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol";
@@ -281,6 +282,32 @@ abstract contract DefaultArtifacts is Script {
             string.concat("DefaultArtifacts: ", name, " runtime != profile.default artifact (T-4/AUD-4)")
         );
         console.log(string.concat("  [artifact] default artifact OK: ", name), a, a.code.length);
+        if (keccak256(bytes(name)) == keccak256("SuperPaymaster")) _requireSPExtensionBinding(a);
+    }
+
+    /// @notice D5b-design §2.2: the SuperPaymaster core's EXTENSION immutable is MASKED by the runtime
+    ///         comparison above, so a core bound to a foreign extension would pass it. Require the
+    ///         extension (created by the core's constructor) to be the profile.default
+    ///         SuperPaymasterAdmin build AND to carry the core's own immutables.
+    function _requireSPExtensionBinding(address core) internal view {
+        address ext = _addrCall(core, "EXTENSION()");
+        require(ext != address(0) && ext.code.length > 0, "DefaultArtifacts: SuperPaymaster.EXTENSION missing");
+        require(
+            _codeEqArtifact(ext, _defaultArtifact("SuperPaymasterAdmin")),
+            "DefaultArtifacts: SuperPaymaster.EXTENSION runtime != profile.default SuperPaymasterAdmin (T-4/AUD-4)"
+        );
+        string[3] memory imm = ["entryPoint()", "REGISTRY()", "ETH_USD_PRICE_FEED()"];
+        for (uint256 i; i < 3; ++i) {
+            address c = _addrCall(core, imm[i]);
+            require(c != address(0) && c == _addrCall(ext, imm[i]),
+                string.concat("DefaultArtifacts: extension/core immutable mismatch: ", imm[i]));
+        }
+        console.log("  [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core)", ext);
+    }
+
+    function _addrCall(address target, string memory sig) internal view returns (address r) {
+        (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature(sig));
+        if (ok && ret.length >= 32) r = abi.decode(ret, (address));
     }
 
     /// @notice ERC-1967 proxy: the proxy runtime against ERC1967Proxy's default artifact, the

@@ -41,6 +41,8 @@ CONTRACTS=(
     "MicroPaymentChannel"
     # 5.5.0 AOA balance mode (docs/design/aoa-balance-mode/03-final-spec.md)
     "SuperPaymasterLens"
+    # D5b: SuperPaymaster core + SuperPaymasterAdmin extension (merged: scripts/gen-sp-full-abi.py)
+    "SuperPaymasterAdmin"
     "xPNTsTokenV2"
     "xPNTsTokenV2Ext"
     "xPNTsFactoryV2"
