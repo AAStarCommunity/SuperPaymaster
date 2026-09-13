@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: transferCommunityOwnership-623330ae (D5C1_PART=1647521966)
+# command: D5C1_PART=1647521966 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
+setup: 0.08s (decode: 0.02s, run: 0.06s)
+[32m[PASS][0m check_I2_extAbi() (paths: 4, time: 1.42s (paths: 1.42s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.50s
+
+[time] total: 17.31s (build: 3.18s, load: 12.62s, tests: 1.50s)
+
+# exit_code: 0  wall_seconds: 38

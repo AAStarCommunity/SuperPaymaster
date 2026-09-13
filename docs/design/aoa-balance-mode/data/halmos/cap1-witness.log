@@ -1,0 +1,17 @@
+# D5c-1 halmos run
+# date_utc: 2026-09-13T09:25:22Z
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5  dirty_src: 0
+# halmos: halmos 0.3.3
+# forge: forge Version: 1.7.1
+# FOUNDRY_PROFILE: <unset> (= default)
+# command: halmos --contract APNTsCappedWitnessHalmosTest --panic-error-codes '*' 
+# (trimmed: 5519 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/APNTsCappedHalmos.t.sol:APNTsCappedWitnessHalmosTest
+[31mCounterexample: 
+    halmos_sender_address_0b023e6_01 = 0xb0b
+    p_amount_uint256_b9a466b_12 = 0x02
+    p_to_address_2484f49_11 = 0x8000000000000000000000000000000000000000[0m
+[31m[FAIL][0m check_witness_CAP1_supplyCanIncrease() (paths: 106, time: 1.78s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 1.81s
+
+# exit_code: 1  wall_seconds: 22

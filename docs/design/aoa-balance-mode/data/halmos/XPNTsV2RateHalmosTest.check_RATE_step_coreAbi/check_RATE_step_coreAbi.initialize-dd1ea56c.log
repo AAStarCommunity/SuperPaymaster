@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: initialize-dd1ea56c (D5C1_PART=3709773164)
+# command: D5C1_PART=3709773164 halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
+setup: 0.13s (decode: 0.01s, run: 0.12s)
+[32m[PASS][0m check_RATE_step_coreAbi() (paths: 2, time: 0.31s (paths: 0.31s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.44s
+
+[time] total: 15.58s (build: 2.87s, load: 12.27s, tests: 0.44s)
+
+# exit_code: 0  wall_seconds: 33

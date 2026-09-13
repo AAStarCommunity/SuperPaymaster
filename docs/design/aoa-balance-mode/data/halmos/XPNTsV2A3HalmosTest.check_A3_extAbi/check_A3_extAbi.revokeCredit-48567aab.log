@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: revokeCredit-48567aab (D5C1_PART=1213627051)
+# command: D5C1_PART=1213627051 halmos --contract XPNTsV2A3HalmosTest --function check_A3_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3HalmosTest
+setup: 0.08s (decode: 0.01s, run: 0.07s)
+[32m[PASS][0m check_A3_extAbi() (paths: 1, time: 0.75s (paths: 0.75s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.83s
+
+[time] total: 12.49s (build: 3.66s, load: 8.00s, tests: 0.84s)
+
+# exit_code: 0  wall_seconds: 24

@@ -1,0 +1,4 @@
+XPNTsV2I6HalmosTest.check_I6_coreAbi: NOT-ALL-PASS
+XPNTsV2I6HalmosTest.check_I6J_coreAbi: NOT-ALL-PASS
+scenario (I6_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.28ms (632.29µs CPU time)
+reverted M-I6: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

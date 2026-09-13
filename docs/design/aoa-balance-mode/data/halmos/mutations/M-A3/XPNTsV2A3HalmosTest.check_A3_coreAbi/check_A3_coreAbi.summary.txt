@@ -1,0 +1,2 @@
+XPNTsV2A3HalmosTest.check_A3_coreAbi over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 23 s)
+  OTHER                                    FAIL            paths=11 time=2.46s exit=1

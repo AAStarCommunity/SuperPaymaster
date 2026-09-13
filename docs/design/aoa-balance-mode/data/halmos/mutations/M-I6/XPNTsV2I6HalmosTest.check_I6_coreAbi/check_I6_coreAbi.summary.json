@@ -1,0 +1,26 @@
+{
+ "contract": "XPNTsV2I6HalmosTest",
+ "check": "check_I6_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS",
+ "wall_s": 54,
+ "extra_args": [
+  "--default-bytes-lengths",
+  "0,65",
+  "--early-exit"
+ ],
+ "results": [
+  {
+   "part": "tryReserveCredit-de9e4cae",
+   "D5C1_PART": 3734916270,
+   "exit": 1,
+   "wall_s": 54,
+   "log": "check_I6_coreAbi.tryReserveCredit-de9e4cae.log",
+   "result": "FAIL",
+   "paths": 18,
+   "time_s": 6.32,
+   "counterexample": true
+  }
+ ]
+}

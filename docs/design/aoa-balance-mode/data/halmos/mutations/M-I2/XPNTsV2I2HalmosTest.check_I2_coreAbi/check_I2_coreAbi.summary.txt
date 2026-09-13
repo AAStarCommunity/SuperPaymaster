@@ -1,0 +1,2 @@
+XPNTsV2I2HalmosTest.check_I2_coreAbi over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 73 s)
+  tryLockForGas-ec290731                   FAIL            paths=65 time=51.73s exit=1

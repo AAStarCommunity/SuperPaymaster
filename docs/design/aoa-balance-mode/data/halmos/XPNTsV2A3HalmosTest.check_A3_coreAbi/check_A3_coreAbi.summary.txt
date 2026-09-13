@@ -1,0 +1,16 @@
+XPNTsV2A3HalmosTest.check_A3_coreAbi over xPNTsTokenV2: PASS (15 parts, wall 332 s)
+  OTHER                                    PASS            paths=2 time=2.24s exit=0
+  approve-095ea7b3                         PASS            paths=4 time=1.07s exit=0
+  burn-9dc29fac                            PASS            paths=12 time=2.85s exit=0
+  burn-42966c68                            PASS            paths=9 time=2.06s exit=0
+  initialize-dd1ea56c                      PASS            paths=2 time=0.91s exit=0
+  permit-d505accf                          PASS            paths=9 time=1.94s exit=0
+  releaseStaleCredit-de4880ca              PASS            paths=4 time=0.81s exit=0
+  releaseStaleLock-f7b3d30d                PASS            paths=11 time=3.54s exit=0
+  renewForSelf-e8c122c7                    PASS            paths=5 time=1.23s exit=0
+  settleCredit-1baf4408                    PASS            paths=4 time=1.16s exit=0
+  settleLocked-7e48bbce                    PASS            paths=551 time=160.78s exit=0
+  transfer-a9059cbb                        PASS            paths=11 time=4.58s exit=0
+  transferFrom-23b872dd                    PASS            paths=4 time=0.74s exit=0
+  tryLockForGas-ec290731                   PASS            paths=796 time=180.59s exit=0
+  tryReserveCredit-de9e4cae                PASS            paths=102 time=12.32s exit=0

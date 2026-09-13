@@ -1,0 +1,2 @@
+XPNTsV2RateHalmosTest.check_RATE_base_realFactory over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 64 s)
+  OTHER                                    FAIL            paths=3 time=0.41s exit=1

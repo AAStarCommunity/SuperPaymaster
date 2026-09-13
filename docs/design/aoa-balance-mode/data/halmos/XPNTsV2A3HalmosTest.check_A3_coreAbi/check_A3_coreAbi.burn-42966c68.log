@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: burn-42966c68 (D5C1_PART=1117154408)
+# command: D5C1_PART=1117154408 halmos --contract XPNTsV2A3HalmosTest --function check_A3_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3HalmosTest
+setup: 0.12s (decode: 0.01s, run: 0.11s)
+[32m[PASS][0m check_A3_coreAbi() (paths: 9, time: 2.06s (paths: 1.95s, models: 0.11s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 2.19s
+
+[time] total: 19.28s (build: 3.21s, load: 13.89s, tests: 2.19s)
+
+# exit_code: 0  wall_seconds: 40

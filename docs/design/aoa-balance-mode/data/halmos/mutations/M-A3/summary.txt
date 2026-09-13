@@ -1,0 +1,4 @@
+XPNTsV2A3HalmosTest.check_A3_extAbi: NOT-ALL-PASS
+XPNTsV2A3HalmosTest.check_A3_coreAbi: NOT-ALL-PASS
+scenario (A3_scenario): exit 1 ; Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.04ms (554.08µs CPU time)
+reverted M-A3: contracts/src/tokens/v2/xPNTsTokenV2Ext.sol sha256 c536cd8f025e7181c7523e6c9ac3dfed8125177ef3195147664e1a845f190d20

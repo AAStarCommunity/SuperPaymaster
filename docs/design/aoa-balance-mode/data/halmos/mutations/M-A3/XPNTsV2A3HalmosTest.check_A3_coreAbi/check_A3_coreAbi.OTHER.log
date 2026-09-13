@@ -1,0 +1,18 @@
+# D5c1 partitioned run
+# part: OTHER (D5C1_PART=1)
+# command: D5C1_PART=1 halmos --contract XPNTsV2A3HalmosTest --function check_A3_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --early-exit
+# git_head: D5c-1 tree + mutation M-A3 (see M-A3.diff)
+# tree_note: D5c-1 tree + mutation M-A3 (see M-A3.diff)
+# (trimmed: 5514 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3HalmosTest
+[31mCounterexample: 
+    halmos_hFree_bytes32_aaff88d_55 = 0x00
+    halmos_sender_address_f217a58_03 = 0x2000000000000000000000000000000000000000
+    halmos_spenderCell_address_e80838b_02 = 0x00
+    halmos_victim_address_62ceda3_01 = 0xa000000000000000000000000000000000000000[0m
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
+[31m[FAIL][0m check_A3_coreAbi() (paths: 11, time: 2.46s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 2.54s
+
+# exit_code: 1  wall_seconds: 23

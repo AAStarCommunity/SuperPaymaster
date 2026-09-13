@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: removeAutoApprovedSpender-c504e209 (D5C1_PART=3305431561)
+# command: D5C1_PART=3305431561 halmos --contract XPNTsV2A3HalmosTest --function check_A3_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3HalmosTest
+setup: 0.10s (decode: 0.03s, run: 0.07s)
+[32m[PASS][0m check_A3_extAbi() (paths: 3, time: 1.34s (paths: 1.34s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.44s
+
+[time] total: 19.32s (build: 3.90s, load: 13.97s, tests: 1.44s)
+
+# exit_code: 0  wall_seconds: 40

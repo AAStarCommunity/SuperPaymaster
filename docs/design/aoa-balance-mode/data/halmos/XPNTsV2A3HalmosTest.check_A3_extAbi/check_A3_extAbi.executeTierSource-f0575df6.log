@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: executeTierSource-f0575df6 (D5C1_PART=4032257526)
+# command: D5C1_PART=4032257526 halmos --contract XPNTsV2A3HalmosTest --function check_A3_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3HalmosTest
+setup: 0.06s (decode: 0.01s, run: 0.05s)
+[32m[PASS][0m check_A3_extAbi() (paths: 20, time: 9.31s (paths: 9.31s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 9.39s
+
+[time] total: 26.66s (build: 4.28s, load: 13.00s, tests: 9.39s)
+
+# exit_code: 0  wall_seconds: 54

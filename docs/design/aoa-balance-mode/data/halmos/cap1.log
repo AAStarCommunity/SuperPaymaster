@@ -1,0 +1,15 @@
+# D5c-1 halmos run
+# date_utc: 2026-09-13T09:24:52Z
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5  dirty_src: 0
+# halmos: halmos 0.3.3
+# forge: forge Version: 1.7.1
+# FOUNDRY_PROFILE: <unset> (= default)
+# command: halmos --contract APNTsCappedHalmosTest --panic-error-codes '*' 
+# (trimmed: 5519 lines of compiler / Halmos parse warnings omitted)
+Running 3 tests for contracts/test/halmos/APNTsCappedHalmos.t.sol:APNTsCappedHalmosTest
+[32m[PASS][0m check_CAP1_a_supplyIncreaseStaysUnderCap() (paths: 108, time: 2.35s, bounds: [])
+[32m[PASS][0m check_CAP1_b_onlyMinterMintIncreasesSupply() (paths: 106, time: 3.71s, bounds: [])
+[32m[PASS][0m check_CAP1_c_mintDoesNotMoveCap() (paths: 107, time: 2.20s, bounds: [])
+Symbolic test result: 3 passed; 0 failed; time: 8.29s
+
+# exit_code: 0  wall_seconds: 30

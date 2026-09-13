@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: enableSpenderForSelf-e3fb7f2f (D5C1_PART=3824910127)
+# command: D5C1_PART=3824910127 halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
+setup: 0.10s (decode: 0.02s, run: 0.08s)
+[32m[PASS][0m check_RATE_step_extAbi() (paths: 4, time: 0.51s (paths: 0.51s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.62s
+
+[time] total: 16.51s (build: 3.45s, load: 12.44s, tests: 0.62s)
+
+# exit_code: 0  wall_seconds: 34

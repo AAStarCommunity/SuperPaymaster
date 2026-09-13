@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: renounceFactory-d49bdad0 (D5C1_PART=3566983888)
+# command: D5C1_PART=3566983888 halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
+setup: 0.08s (decode: 0.03s, run: 0.06s)
+[32m[PASS][0m check_RATE_step_extAbi() (paths: 2, time: 0.63s (paths: 0.63s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.73s
+
+[time] total: 17.00s (build: 3.47s, load: 12.80s, tests: 0.73s)
+
+# exit_code: 0  wall_seconds: 36

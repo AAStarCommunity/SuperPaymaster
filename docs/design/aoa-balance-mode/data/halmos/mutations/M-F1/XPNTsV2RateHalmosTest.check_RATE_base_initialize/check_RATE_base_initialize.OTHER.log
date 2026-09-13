@@ -1,0 +1,13 @@
+# D5c1 partitioned run
+# part: OTHER (D5C1_PART=1)
+# command: D5C1_PART=1 halmos --contract XPNTsV2RateHalmosTest --function check_RATE_base_initialize --panic-error-codes * --default-bytes-lengths 0,65 --early-exit
+# git_head: D5c-1 tree + mutation M-F1 (see M-F1.diff)
+# tree_note: D5c-1 tree + mutation M-F1 (see M-F1.diff)
+# (trimmed: 5514 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
+[31mCounterexample: 
+    halmos_initRate_uint256_bfe7147_01 = 0x400000000000[0m
+[31m[FAIL][0m check_RATE_base_initialize() (paths: 3, time: 0.25s, bounds: [])
+Symbolic test result: 0 passed; 1 failed; time: 0.32s
+
+# exit_code: 1  wall_seconds: 50

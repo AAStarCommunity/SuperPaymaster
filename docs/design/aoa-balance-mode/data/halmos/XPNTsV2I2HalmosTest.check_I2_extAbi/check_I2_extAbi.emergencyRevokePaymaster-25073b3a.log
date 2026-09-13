@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: emergencyRevokePaymaster-25073b3a (D5C1_PART=621230906)
+# command: D5C1_PART=621230906 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
+setup: 0.09s (decode: 0.01s, run: 0.07s)
+[32m[PASS][0m check_I2_extAbi() (paths: 5, time: 1.61s (paths: 1.61s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.70s
+
+[time] total: 19.76s (build: 3.74s, load: 14.32s, tests: 1.70s)
+
+# exit_code: 0  wall_seconds: 38

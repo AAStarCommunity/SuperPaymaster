@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: queueTierSource-b44612ba (D5C1_PART=3024491194)
+# command: D5C1_PART=3024491194 halmos --contract XPNTsV2RateHalmosTest --function check_RATE_step_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
+setup: 0.08s (decode: 0.03s, run: 0.05s)
+[32m[PASS][0m check_RATE_step_extAbi() (paths: 16, time: 3.16s (paths: 3.16s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 3.25s
+
+[time] total: 19.40s (build: 3.50s, load: 12.65s, tests: 3.25s)
+
+# exit_code: 0  wall_seconds: 34

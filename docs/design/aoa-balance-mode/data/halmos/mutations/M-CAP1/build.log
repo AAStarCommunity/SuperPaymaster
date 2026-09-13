@@ -1,0 +1,6 @@
+# (trimmed: 4848 lines of forge build output omitted; last 5 kept)
+287 │         require(block.timestamp < validBefore, "authorization expired");
+    │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+

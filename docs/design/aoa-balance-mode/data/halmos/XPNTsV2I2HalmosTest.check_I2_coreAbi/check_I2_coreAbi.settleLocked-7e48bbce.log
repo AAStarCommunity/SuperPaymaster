@@ -1,0 +1,18 @@
+# D5c1 partitioned run
+# part: settleLocked-7e48bbce (D5C1_PART=2118695886)
+# command: D5C1_PART=2118695886 halmos --contract XPNTsV2I2HalmosTest --function check_I2_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
+setup: 0.26s (decode: 0.09s, run: 0.17s)
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
+ERROR    solver_output.error='executor has been shutdown'                       
+         (solver_output.returncode=-1)                                          
