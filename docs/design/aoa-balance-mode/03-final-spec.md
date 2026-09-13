@@ -211,7 +211,7 @@ function BALANCE_MODE_VERSION() external pure returns (uint16);          // = 1
 
 | 帧 | 访问 | 槽 | 规则 |
 |---|---|---|---|
-| SP（已质押） | 读 | `SUPERPAYMASTER_ADDRESS`、`historicalSP[SP]`、`emergencyDisabled`、`exchangeRate`、`maxSingleTxLimit`、`creditPolicy`、`policyEpoch`、`creditTierSource`、`community`；Registry 的 `creditTierConfig` | STO-033 |
+| SP（已质押） | 读 | `SUPERPAYMASTER_ADDRESS`、`historicalSP[SP]`、`emergencyDisabled`、`exchangeRate`、`maxSingleTxLimit`、`creditPolicy`、`policyEpoch`、`creditTierSource`、`community`；Registry 的 `creditTierConfig`、`globalReputation[u]`、**`levelThresholds` 的长度和元素、Registry 代理的 EIP-1967 实现槽**（v3.9，D5 B7 的 trace 补全，发现 F3；都是已质押 SP 对非实体合约的只读，STO-033 允许） | STO-033 |
 | SP | 读写 | `lockedOf[u]`、`_auto[SP][u]`、`_budget[u]`、`autoRenewUsed[u]`、`_locks[h][u]`、`creditReservedOf[u]`、`_creditRes[h][u]`；只读 `renewalMode[u]`、`spenderDisabled[SP][u]`、`creditReq[u]`、`_balances[u]`、`debts[u]`、Registry 的 `globalReputation[u]` | STO-021 |
 | SP | TSTORE | 活标记 | OP-070 按 STO-021 处理 |
 | 账户（未质押） | 读写 | `renewForSelf` 只访问 `lockedOf[me]`、`creditReservedOf[me]`、`_auto[sp][me]`、`_budget[me]`、`autoRenewUsed[me]`、`renewalMode[me]` | STO-021；**不读任何全局槽** |
