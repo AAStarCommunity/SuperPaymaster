@@ -275,6 +275,11 @@ flags: bit0 = SP_RENEW（SP 传给 tryLockForGas），bit1 = ACCOUNT_RENEW（只
 context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOpGasLimit)
 ```
 
+**SDK 与 D7 的强制规范（v3.9，D5 B 层 F1/F2）**：
+- **`paymasterPostOpGasLimit ≥ 200,000`（= `MIN_POST_OP_GAS`）写死**，不能用 bundler 的估算值：Rundler v0.11.0 的估算结果里没有这个字段，Alto v1.2.5 在不传的情况下只估到 114,560。
+- **`paymasterVerificationGasLimit` 必须设下限**：不传时 Rundler 估成 38,403，而 SP 验证实测需要 198k–238k。下限按**最坏路径实测值加余量**来定（初稿建议 250k），**要在最坏路径（冷槽、CREDIT、SP_RENEW、多笔同 sender）上验证之后才写死**。估算请求里一定要带上 paymaster 的 gas 字段。
+- **在 F1 的处理方式确定之前：同一 sender 同时只能有 1 笔在途 op 经过 SP**（SDK 和 AirAccount 侧强制）。这也是 runbook 和 D7 的前置条件。我们自托管的 Rundler（论文实验用的就是它）配置 `--pool.same_sender_mempool_count 1`，写进 `b-layer/README.md` 和论文附录的配置。
+
 ### 3.3 代码改动
 
 | 改动 | 内容 |
@@ -311,6 +316,8 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | token v2 | 15,301 B + 估算 5–7 KB，要实测；工厂 initcode 远低于 49,152 B |
 
 ## 6. 升级与迁移 runbook（Codex H3-1、H3-2）
+
+**运营前置条件（F1 决定之前）**：同一 sender 同时只能有 1 笔在途 op 经过 SP；自托管的 Rundler 配置 `--pool.same_sender_mempool_count 1`（见 §3.2 的 SDK 规范、`b-layer/F1-erc7562-text.md`）。
 
 **倒排时间表（升级日 = T；DSR 2026-09-13 要求放在最前面）**
 
