@@ -549,14 +549,28 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | GOV-4 | aPNTs 铸币权（原 GOV-2） | (a) Safe + renounceFactory 已演练，runbook 7d；**(b) 在讨论**：作者倾向"初始上限 + 调高走治理多签加 48h timelock + reputation 动态监测"，先出设计草稿（`apnts-capped-design.md`），上限值等作者给出，不实现、不部署；**(d) 列为 TODO，5.5.x 不做（deferred）**；(c) 长期 | — |
 | GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | 等实验分支 `exp/buffer-and-params` 和 Codex 的结论 | — |
 
-**GOV-2 存储设计（更正：第一版写的"采用 OZ `Ownable2Step`"不是升级安全的，Codex 收尾审查指出）**
+**GOV-2 规范（第 3 版）**。第一版写的是"采用 OZ `Ownable2Step`"，不是升级安全的；第二版给了 ERC-7201 的存储设计，但 Codex 收尾审查指出它还有 1 个 Critical 和若干 High/Medium 问题。以下为最终规范，D5b 按此实现。
 
-- 事实：SP（`BasePaymasterUpgradeable`）和 Registry 都继承 OZ v5.0.2 的**非 upgradeable** `Ownable`，`_owner` 占顺序存储的 slot 0，紧接着就是 `_status`（slot 1），然后是各自的状态变量（见 `storage-layout/SuperPaymaster.json`、`storage-layout/Registry.json`）。OZ v5.0.2 的 `Ownable2Step` 会把 `_pendingOwner` 声明成普通状态变量，位置正好在 `_owner` 之后。**直接把基类换成它，会让之后的每一个槽都后移一格**，原地升级已有的代理就会造成存储错位。
-- **规范做法**：
-  1. **不改继承**，基类仍是 `Ownable`。在合约内自己实现两步转移：覆盖 `transferOwnership(newOwner)`，改为只记录待定 owner 并发出 `OwnershipTransferStarted`；新增 `acceptOwnership()`，要求 `msg.sender == pendingOwner`，再调用 `_transferOwnership`；新增 `pendingOwner()` 视图。`renounceOwnership` 一律 revert（timelock 治理之下，不允许放弃所有权）。
-  2. **`pendingOwner` 存在 ERC-7201 命名空间槽**（例如 `keccak256(abi.encode(uint256(keccak256("aastar.storage.Ownership2Step")) - 1)) & ~bytes32(uint256(0xff))`），不占用顺序布局，因此顺序布局的快照 diff 为零。SP 和 Registry 用同一段代码（可以抽成一个 library 或 abstract）。
-  3. **guardian 和 `paused`** 追加在 SP 顺序布局的末尾，占用 `__gap` 的 1 个槽（地址加布尔打包在同一个槽里）；`__gap` 从 27 缩到 26，**末端槽位不变**（DSR 的条件：快照 diff 只允许出现写明的新增槽）。GOV-5 如果被采纳，它的参数槽也按这个方式追加。
-- **测试与门槛**：`scripts/check_storage_layout.py` 通过，diff 只含写明的新增槽；UUPS 升级测试（从 5.5.0 升到 D5b）断言 `_owner` 和全部状态读回不变，并用 `vm.load` 在 ERC-7201 槽读到 `pendingOwner`；**负对照**：在一个 scratch 实现里改成继承 OZ `Ownable2Step`，布局检查必须报错（证明这道门槛能拦住这类错误）。
+*A. 存储与继承*
+- 事实：SP（`BasePaymasterUpgradeable`）和 Registry 都继承 OZ v5.0.2 的**非 upgradeable** `Ownable`，`_owner` 在顺序存储的 slot 0，紧接着就是 `_status`（slot 1）。**禁止把基类改成 OZ `Ownable2Step`**：它会在 `_owner` 之后插入 `_pendingOwner`，让之后的每一个槽后移一格。
+- 两步转移的状态 `pendingOwner` 放在 **ERC-7201 命名空间槽**（`keccak256(abi.encode(uint256(keccak256("aastar.storage.Ownership2Step")) - 1)) & ~bytes32(uint256(0xff))`）。SP 和 Registry 共用同一个 abstract（如 `Ownable2StepNamespaced`，继承 `Ownable`）。
+- SP 的 guardian 和全局 `paused` 追加在 SP 顺序布局的末尾，打包进一个槽（`__gap` 从 27 缩到 26，**末端槽位不变**）。**Registry 只加两步转移，不加 guardian。**
+
+*B. 行为（每条都要有测试）*
+1. `transferOwnership(newOwner)` **必须显式带 `onlyOwner`**（Solidity 的 override 不会继承修饰器）：记录 `pendingOwner = newOwner`，发出 `OwnershipTransferStarted(owner, newOwner)`。**`newOwner == address(0)` 表示取消**，清空 pending（与 OZ `Ownable2Step` 一致）；再次调用会替换原来的提名。
+2. `acceptOwnership()`：`msg.sender == pendingOwner` 才能调用，然后调 `_transferOwnership(msg.sender)`。
+3. **覆盖 `_transferOwnership`：先删除 pending，再调 `super._transferOwnership`**。这样任何修改 owner 的路径（accept、initialize、将来的 reinitializer）都会清掉旧的提名，旧提名不能在之后接管。
+4. `renounceOwnership()` 一律 revert。
+5. **非零 owner**：两边的初始化都必须拒绝 `address(0)`。SP 已经这样做了（`SuperPaymaster.sol:293`）；**Registry.initialize 目前直接调 `_transferOwnership(_owner)`，不检查零地址（`Registry.sol:87`），要补上**。
+6. guardian（只在 SP）：`setGuardian` 只能由 owner 调用；guardian **只能**做下面两件事：① `setOperatorPaused(op, true)`，传 `false` 必须 revert（不能沿用现有的 bool setter 简单改成 `onlyOwnerOrGuardian`）；② 把全局 `paused` 从 false 设为 true。**解除暂停（包括逐个 operator 的解除和全局解除）只能由 owner（timelock）执行。** 全局 `paused` 的检查要放在 `validatePaymasterUserOp` 解析 operator 和 paymasterAndData **之前**，这样格式错误的 op 也会返回 sigFail，而不是 revert。**暂停不能影响 postOp、`releaseStaleSponsorship`、token 侧的 stale release**，已经在途的 op 照常结算或释放。
+
+*C. 升级流程（GOV-1 之后）*
+- M1 之后，`deploy-core` 当前走的 `UpgradeLive`（EOA 直接调用 `upgradeToAndCall`，`UpgradeLive.s.sol:131`）就不能用了。**需要一个感知 timelock 的流程**：部署新的 impl（按 default artifact、读回校验）→ 在 timelock 上 `schedule(upgradeToAndCall(impl, 初始化 calldata))` → 等 48h → `execute` → 读回 `version()` 和实现槽。这个流程随 D5b 一起实现，并在 fork 上演练。
+
+*D. 门槛与测试*
+- **存储门槛**：`scripts/check_storage_layout.py` 目前只做逐字节相等的快照比对（`:98`），而 `update` 会直接覆盖基线（`:86`），所以它表达不了"只允许写明的新增槽"。D5b 要把它扩展为：与旧基线比较，只允许在列出的位置出现新增项（`__gap` 缩小、末端不变），其他一律报错；另外单独写一个测试，用 `vm.load` 断言 ERC-7201 槽的位置和内容。
+- **必须覆盖**：非 owner 提名 revert；替换提名、用零地址取消；只有被提名的人能 accept；每条 `_transferOwnership` 路径都会清空 pending；两个合约的全新初始化（包括 Registry 的零 owner 被拒）；两个代理都从当前线上的旧实现原地升级，状态读回不变；用真实的 48h TimelockController 完成两个代理的 accept；guardian 解除单个 operator 暂停被拒；全局暂停时格式错误的 op 返回 sigFail；暂停期间 postOp 和 release 照常工作。
+- **负对照**：一个 scratch 实现改成继承 OZ `Ownable2Step`，布局门槛必须报错；另一个 scratch 实现的 `transferOwnership` 覆盖漏掉 `onlyOwner`，测试必须变红。
 
 ### 10.8 独立审计闸门（runbook 新增）
 
