@@ -48,3 +48,17 @@ bufWei' = (C_POSTOP + ⌈(callGasLimit + postOpGasLimit)·10/100⌉ + C_WRAP') �
 2. G 层补上"postOp 最坏 gas ≤ C_POSTOP"的测量断言和变异。
 3. 送 Codex 挑战（重点：C_POSTOP 的最坏路径是否覆盖完整；有没有让 postOp 超过 C_POSTOP 的输入）。
 4. 结论和数据交 DSR 和作者：接受就实施（改 SP 常量和 §11 公式，G 层、G2 重跑，体积重测）；不接受就在论文里如实报告现在这组数字。
+
+## 5. DSR 同意方向时附加的条件（2026-09-13，已并入）
+
+1. **C_POSTOP 写成规则、由测试守住**：规范里写 `C_POSTOP ≥ W_postop × (1 + m)`，m 由作者决定（DSR 建议 ≥ 15%）。G 层测试**在测试内现场测量** W_postop（不是抄一个常数），并直接断言上面这个关系；这样合约一改、postOp 变重，测试会自动变红。最坏路径至少要覆盖：
+   - BALANCE 和 CREDIT 两种模式；
+   - 用户第一次使用（所有槽都是冷的）；
+   - 限频时间戳的冷写；
+   - 按实际最长的 context；
+   - 经过 SP 代理的 delegatecall；
+   - 急停状态下的结算（E-2）；
+   - 换 SP 之后由旧 locker 结算（L-3）。
+   W_postop 取这些路径中的最大值，按规范 EntryPoint 调用 postOp 的方式测整帧。
+2. **I9 双重守护是硬门槛**：G2 fuzz 在新公式下重跑，"不补贴"断言逐笔检查、零容忍。另加**负对照**：把 C_POSTOP 故意设到低于 W_postop，fuzz 必须报出补贴。这证明守护本身是有效的。
+3. **交给作者的数据**：两组（postOpGasLimit 在 MIN 附近；1–1.5M）各给均值、P95、最大值，新旧公式并排；写明 m 的取值，以及 m 对多付比例的影响（给出几个 m 值对应的多付）；并引用 R-AMS：Amsterdam 之后 C_POSTOP 的上界要重测。
