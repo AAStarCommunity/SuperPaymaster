@@ -88,3 +88,55 @@ m 对新公式多付率的影响（C_POSTOP = ⌈W × (1+m) / 1k⌉ × 1k，W = 
 - 旧公式在大 limit 那组的多付（均值 243%）几乎完全消失了。剩下约 20% 的多付主要来自惩罚项的上界：它按 limit 而不是按实际未用量计算，这一项按设计保持不变（eval §2）；其次才是 C_POSTOP 相对 W 的余量和 C_WRAP 的余量。
 - 本分支取 170k 时 m 实际约为 16%。作者如果要取 m = 15%，按规则应当是 169k；二者对多付率的影响只有约 0.3 个百分点。
 - **R-AMS**：Amsterdam（EIP-8037/8038）会让 SSTORE、SLOAD、CALL 变贵，W_postop 随之上升。一旦目标链公布 Amsterdam 的激活时间，必须在 Amsterdam 级的链上重跑 `SuperPaymasterV55PostOpBound`（W_postop 和规则）；规则不满足时，Part A 只能通过 UUPS 升级下发新常量（Part B 把它改成了带 48 h 时间锁的参数）。
+
+## Part B：把 gas 参数改成治理参数（commit B，建在 A 之上，可以单独评判）
+
+### B.1 改动
+
+- `MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_WRAP`、`C_POSTOP` 四个值改成 owner 可设的存储参数，放在一个槽里（4 个 uint32，`GasParams`，slot 38）。待生效值加上 eta 放在另一个槽里（`PendingGasParams`，slot 39）。这两个槽追加在 `_inflight`（slot 37）之后，`__gap` 从 27 改为 25；`storage-layout/SuperPaymaster.json` 已经用 `scripts/check_storage_layout.py update` 更新，重新检查结果为 OK（40 个条目）。
+- **槽全为 0 时使用默认值**（200k / 160k / 5k / 170k，也就是原来的常量，SP `_gp()` :1416）。所以原地升级不需要额外的初始化步骤，旧代理升级之后行为不变。
+- `queueGasParams`（onlyOwner，:1431）→ 48 h → `executeGasParams`（:1440）→ 可以 `cancelGasParams`。硬编码的上下界在 queue **和** execute 两处都检查，关系约束也包含在同一个检查里。事件：`GasParamsQueued`、`GasParamsExecuted`、`GasParamsCancelled`。查询：`gasParams()` 返回当前生效值（未设置时返回默认值）和待生效的提议。
+- **execute 只允许 owner 调用**（没有做成任何人都能调）。原因：如果任何人都能调，就可以在某个 bundle 里由一笔 user op 的执行去调用它，时间点正好在这个 bundle 的验证之后、postOp 之前。这样一来，已经通过验证的 op 在 postOp 时会遇到新的 SETTLE_GAS_BOUND：如果调高了，这些 postOp 会触发 PostOpGasTooLow，也就是 I10 情形，赞助失败；如果 C_POSTOP 变了，charge 也会跟着变（仍然受 a0 封顶）。
+- 验证期读 `_gasParams.minPostOpGas`（:1256）：这是一次冷 SLOAD，读的是 SP 自己的槽。SP 是质押过的，所以符合 STO-031。postOp 在入口检查之前读整个 `GasParams`（:1370），此时这个槽已经是热的。
+- `SuperPaymasterLens` 不再保留 MIN_POST_OP_GAS 的副本，改为从 SP 的 `gasParams()` 读。lens 绑定的 SP 版本改为 `"SuperPaymaster-5.5.1-exp"`，SP 的 `version()` 也同步修改（**只在本分支**）；lens 自己的版本为 `SuperPaymasterLens-1.1.0-exp`。`contracts/script/` 里还有 6 处写死了 `"SuperPaymaster-5.5.0"` 的读回校验，本实验没有改，所以部署脚本在这个分支上会拒绝这个版本号；如果采纳，需要一起更新。
+
+### B.2 上下界及其依据（在本分支实测）
+
+| 参数 | 硬编码范围 | 依据 |
+|---|---|---|
+| SETTLE_GAS_BOUND | **[155k, 1M]** | 在 SETTLE 取不同值时，对最坏路径（CREDIT、首笔债务、限频时间戳冷写）扫描 postOp 可用 gas：**143k 时仍有 OOG 区间（入口检查通过、结算中途耗尽），144k 起没有了**。取 155k 留出 7.6%。**建议里的 120k 不安全**（140k 时实测 39 个采样点落在 OOG 区间）。`test_settle_floor_keeps_no_oog_band` 在下限值上重新扫描，守住这一点 |
+| MIN_POST_OP_GAS | [SETTLE + 20k, 2M] | 入口检查之前的开销实测约 8.1k（minLimit 168,139 − 160k），20k 约为它的 2.5 倍 |
+| C_POSTOP | [150k, MIN_POST_OP_GAS] | 下限高于实测 W_postop（B 为 147,478）；上限 ≤ MIN，保证 `min(limit, C_POSTOP) == C_POSTOP`。**注意**：下限 150k **不满足** m = 15% 的规则（规则要求 169.6k）。规则由 G 层测试守住，而 G 层测试测的是当前生效的参数值。按 A.3 的负对照，C_POSTOP ≥ 约 W − 20k 时实际不会产生补贴，所以 150k 仍然不会造成补贴；但到了 Amsterdam，W 会上升，这个下限就保护不了 |
+| C_WRAP | [2k, 50k] | EntryPoint 的 wrap 实测 1.7k |
+
+测试 `SuperPaymasterV55GasParams.t.sol`（11 个）：默认值和槽位置（slot 38 为 0 表示默认值；slot 38/39 的打包方式）；queue、execute、cancel、时间锁、事件、重新 queue 会重新计时；非 owner 调用被拒；每个上下界的边缘值被接受、越界 1 被拒；execute 时重新检查上下界（用篡改存储的方式验证）；MIN 参数确实驱动验证和 lens；SETTLE 参数确实驱动 postOp 的入口检查；C_POSTOP 和 C_WRAP 参数确实驱动 charge（精确值）；参数取到最大值时 charge 仍然被 a0 封顶；SETTLE 取下限值时没有 OOG 区间。
+
+### B.3 体积和 gas
+
+| 项 | A（常量） | B（存储参数） | 差 |
+|---|---|---|---|
+| SP runtime（default profile，source keccak 已核对） | 21,747 B | **23,452 B** | +1,705 B |
+| 余量（相对 24,576） | 2,829 | **1,124** | 仍然 ≥ 1,024 的发布门槛，但只剩 100 B 富余 |
+| 相对原基线 22,915 / 1,661 | — | +537 B | — |
+| validatePaymasterUserOp（首次用户） | 229,557 | 231,693 | **+2,136**（一次冷 SLOAD 2,100 加少量解包） |
+| postOp（BALANCE，限频时间戳冷写） | 140,186 | 141,064 | **+878** |
+
+体积上 A 到 B 的 +1,705 B 里有一部分是 via_ir 内联决策变化带来的（A 本身比基线小了 1,168 B，也是同样的原因），但 B 的余量是实打实的 1,124 B。**如果采纳 B，之后的特性就几乎没有体积空间了。**
+
+### B.4 重测 W_postop 和规则（B）
+
+postOp 多了 878 gas，W_postop 从 146,600 升到 **147,478**（每条路径都增加了同样的量）。规则 `170,000 ≥ 147,478 × 1.15 = 169,600` **通过，余量 15.27%，已经贴着 15% 的线**。如果采纳 B，建议把默认 C_POSTOP 设为 175k 左右，否则下一次 postOp 稍微变重，规则就会变红。测试同时校验：getter 返回的 `C_POSTOP + C_WRAP` 等于 SP 实际计费用的值（175,000）；wrap 1,702 ≤ 5k；`MIN 200k ≥ max minLimit 168,139`。变异：默认 C_POSTOP 改为 165k，规则变红（165,000 < 169,600）。G2 fuzz 在 B 上（判定用的参数来自 `gasParams()`，并断言与判定常量一致）1000 runs 加 1000 个固定种子全绿，补贴 0，多付率（≤ MIN+50k）为 23.4% / 37.9% / 45.1%。全量 `forge test`：cancun 127 个 suite，1581 通过 / 0 失败 / 49 跳过；prague 1490 通过 / 0 失败 / 21 跳过。
+
+### B.5 信任面
+
+- **每笔多收不会超过 a0**：`charge = min(a0, …)`（SP `:1394`，`if (charge > c.a0) charge = c.a0`），而 a0 是在验证期按用户签名承诺的 maxCost 预留的。所以把 C_POSTOP 或 C_WRAP 调大，最多让每笔收到 a0，不可能超过。测试 `test_charge_capped_at_a0_even_at_max_parameters` 把四个参数都设到最大值来验证这一点。
+- **比现状更窄**：owner 现在就可以立即做 UUPS 升级（`BasePaymasterUpgradeable.sol:42`，`_authorizeUpgrade … onlyOwner`，没有时间锁），可以直接把这些常量换掉，甚至换掉整个计费逻辑。改成参数之后，owner 可以在不升级的情况下调整它们，但必须经过 48 h 公示，而且只能在硬编码范围内调整。所以这个参数只会**缩小**实际的信任面，不会扩大（前提是 UUPS 升级权本身不变；信任矩阵 §10.7 对升级权的建议仍然适用）。
+- 调小的方向同样有界：SETTLE ≥ 155k 守住了 no-OOG；C_POSTOP ≥ 150k、C_WRAP ≥ 2k 在当前 gas 规则下不会造成补贴（见 B.2 注意事项）；MIN ≥ SETTLE + 20k 保证 postOp 能开始执行。
+
+## 需要作者关注的地方
+
+1. **建议的 SETTLE 下限 120k 不安全**：实测 143k 时仍然有 OOG 区间，本分支改为 155k。
+2. **W_postop 用"消耗"而不是"最小可用 limit"**：minLimit 在所有路径上都是 167–168k，它是由入口检查（SETTLE）决定的，不是结算本身的开销，而且 EntryPoint 不按它计费。如果用它作为 W，170k 会不满足规则（需要 192.5k），但那样取值是错的。
+3. **规则余量非常紧**：A 为 15.96%，B 为 15.27%。如果 m 取 15%，建议 C_POSTOP 取 175k（多付率增加不到 1 个百分点）。
+4. **fuzz 负对照的灵敏度**：只有低于 W 大约 25k 时才会报补贴，W − 20k 时仍然是绿的，原因是惩罚上界和 C_WRAP 的结构性余量。所以 G 层规则才是第一道防线。
+5. **B 的体积余量只剩 1,124 B**。

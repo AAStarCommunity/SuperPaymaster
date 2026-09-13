@@ -50,6 +50,23 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint96 a0;
     }
 
+    /// @dev exp/params: owner-settable gas parameters, one slot (4 x uint32).
+    struct GasParams {
+        uint32 minPostOpGas;
+        uint32 settleGasBound;
+        uint32 cWrap;
+        uint32 cPostop;
+    }
+
+    /// @dev exp/params: pending proposal + eta, one slot.
+    struct PendingGasParams {
+        uint32 minPostOpGas;
+        uint32 settleGasBound;
+        uint32 cWrap;
+        uint32 cPostop;
+        uint64 eta;
+    }
+
     /// @dev 5.5.0 postOp context (spec §3.2, R10-M3: price snapshot taken at validation).
     struct OpCtx {
         address token;
@@ -80,7 +97,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.5.0"; // v5.5.0: AOA balance mode (xPNTs v2 escrow + reservation credit), in-flight sponsorship accounting
+        return "SuperPaymaster-5.5.1-exp"; // v5.5.0: AOA balance mode (xPNTs v2 escrow + reservation credit), in-flight sponsorship accounting
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes
@@ -104,7 +121,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // drain + protocolRevenue inflation). Measured postOp: ~142k (burn) / ~137k (debt
     // path w/ minTxInterval); conservative cold-storage worst ~178k. 200k covers it
     // with headroom and matches the gas-limit builders already use.
-    uint256 internal constant MIN_POST_OP_GAS = 200_000;
+    uint256 internal constant MIN_POST_OP_GAS = 200_000; // exp/params: DEFAULT (see GasParams)
 
     // ---- 5.5.0 balance mode (spec 03 §1, §3.2, §10.1, §11.1) ----
     /// @dev paymasterAndData: [paymaster 20][verifGas 16][postOpGas 16][operator 20][maxRate 32][token 20][flags 1]
@@ -131,6 +148,24 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      measured in-test on the worst paths (SuperPaymasterV55PostOpBoundTest, m = 15%).
     ///      MIN_POST_OP_GAS >= C_POSTOP, so min(postOpGasLimit, C_POSTOP) == C_POSTOP.
     uint256 internal constant C_POSTOP_GAS = 170_000;
+    // exp/params: the four constants above (MIN_POST_OP_GAS, SETTLE_GAS_BOUND, C_WRAP_GAS,
+    // C_POSTOP_GAS) are the DEFAULTS of the owner-settable `GasParams` (48 h timelock). Hard bounds,
+    // checked at queue AND execute (measurements: buffer-and-params-experiment.md §B.2):
+    //   SETTLE_GAS_BOUND in [155k, 1M]   smallest value with no OOG band above the guard, measured
+    //                                     on the worst path (CREDIT, first debt, cold timestamp): 144k
+    //                                     (143k still has one); 155k = +7.6%
+    //   MIN_POST_OP_GAS  in [SETTLE + 20k, 2M]   pre-check overhead measured ~7.4k (x2.7 margin)
+    //   C_POSTOP         in [150k, MIN_POST_OP_GAS]   >= measured W_postop 146.6k; <= MIN keeps
+    //                                     min(postOpGasLimit, C_POSTOP) == C_POSTOP
+    //   C_WRAP           in [2k, 50k]    EntryPoint wrap measured ~1.7k
+    uint256 internal constant GP_SETTLE_MIN = 155_000;
+    uint256 internal constant GP_SETTLE_MAX = 1_000_000;
+    uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
+    uint256 internal constant GP_MINPOST_MAX = 2_000_000;
+    uint256 internal constant GP_CPOSTOP_MIN = 150_000;
+    uint256 internal constant GP_CWRAP_MIN = 2_000;
+    uint256 internal constant GP_CWRAP_MAX = 50_000;
+    uint256 internal constant GP_TIMELOCK = 48 hours;
     bytes32 internal constant INFLIGHT_SEED = keccak256("SP.v5.5.inflight.live");
 
     // Protocol Fee (Basis Points)
@@ -236,6 +271,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     error InvalidAddress();
     error InvalidConfiguration();
     error PostOpGasTooLow();
+    error GasParamsTimelock();
+    event GasParamsQueued(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop, uint64 eta);
+    event GasParamsExecuted(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop);
+    event GasParamsCancelled();
     error SponsorshipInFlight();
     event SponsorshipReleased(bytes32 indexed opHash, address indexed operator, uint256 aPNTs);
     error InsufficientBalance(uint256 available, uint256 required);
@@ -1214,7 +1253,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // debit (below) is never refunded → operator drain + revenue inflation.
         if (userOp.paymasterAndData.length >= POSTOP_GAS_OFFSET + 16) {
             uint128 pmPostOpGas = uint128(bytes16(userOp.paymasterAndData[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16]));
-            if (pmPostOpGas < MIN_POST_OP_GAS) {
+            uint256 minPost = _gasParams.minPostOpGas; // exp/params: one SLOAD of SP's own slot (staked, STO-031)
+            if (pmPostOpGas < (minPost == 0 ? MIN_POST_OP_GAS : minPost)) {
                 return ("", _packValidationData(true, 0, 0));
             }
         }
@@ -1327,9 +1367,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint256 actualUserOpFeePerGas
     ) external override onlyEntryPoint nonReentrant {
         if (context.length == 0) return;
+        GasParams memory gp = _gp();
         // B-1 §10.1 ③: never START a settlement that could run out of gas half-way. Reverting here
         // rolls back the user's execution (EntryPoint v0.7 innerHandleOp), so nothing is kept unpaid.
-        if (gasleft() < SETTLE_GAS_BOUND) revert PostOpGasTooLow();
+        if (gasleft() < gp.settleGasBound) revert PostOpGasTooLow();
 
         OpCtx memory c = abi.decode(context, (OpCtx));
 
@@ -1344,8 +1385,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         operators[c.operator].totalTxSponsored++;
 
         // R10-M3: conservative charge in wei, priced at the VALIDATION-time snapshot.
-        uint256 bufWei = (C_POSTOP_GAS + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)
-            + C_WRAP_GAS) * actualUserOpFeePerGas;
+        uint256 bufWei = (uint256(gp.cPostop) + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)
+            + gp.cWrap) * actualUserOpFeePerGas;
         uint256 aGas = Math.mulDiv(
             (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil
         );
@@ -1367,6 +1408,53 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         protocolRevenue += charge;
 
         emit TransactionSponsored(c.operator, c.user, aGas, charge);
+    }
+
+    // ---- exp/params: governable gas parameters ----
+
+    /// @dev Effective parameters; an all-zero slot (fresh proxy or pre-exp upgrade) = the defaults.
+    function _gp() internal view returns (GasParams memory p) {
+        p = _gasParams;
+        if (p.minPostOpGas == 0) {
+            p = GasParams(uint32(MIN_POST_OP_GAS), uint32(SETTLE_GAS_BOUND), uint32(C_WRAP_GAS), uint32(C_POSTOP_GAS));
+        }
+    }
+
+    function _checkGasParams(uint256 minPost, uint256 settle, uint256 cWrap, uint256 cPostop) private pure {
+        if (settle < GP_SETTLE_MIN || settle > GP_SETTLE_MAX
+            || minPost < settle + GP_MINPOST_OVER_SETTLE || minPost > GP_MINPOST_MAX
+            || cPostop < GP_CPOSTOP_MIN || cPostop > minPost
+            || cWrap < GP_CWRAP_MIN || cWrap > GP_CWRAP_MAX) revert InvalidConfiguration();
+    }
+
+    /// @notice Queue new gas parameters; effective after GP_TIMELOCK via `executeGasParams`.
+    function queueGasParams(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop) external onlyOwner {
+        _checkGasParams(minPostOpGas, settleGasBound, cWrap, cPostop);
+        uint64 eta = uint64(block.timestamp + GP_TIMELOCK);
+        _pendingGasParams = PendingGasParams(minPostOpGas, settleGasBound, cWrap, cPostop, eta);
+        emit GasParamsQueued(minPostOpGas, settleGasBound, cWrap, cPostop, eta);
+    }
+
+    /// @notice Owner-only on purpose: a permissionless execute could be triggered from a user op's
+    ///         execution between a bundle's validations and postOps (see the experiment report).
+    function executeGasParams() external onlyOwner {
+        PendingGasParams memory q = _pendingGasParams;
+        if (q.eta == 0 || block.timestamp < q.eta) revert GasParamsTimelock();
+        _checkGasParams(q.minPostOpGas, q.settleGasBound, q.cWrap, q.cPostop);
+        _gasParams = GasParams(q.minPostOpGas, q.settleGasBound, q.cWrap, q.cPostop);
+        delete _pendingGasParams;
+        emit GasParamsExecuted(q.minPostOpGas, q.settleGasBound, q.cWrap, q.cPostop);
+    }
+
+    function cancelGasParams() external onlyOwner {
+        if (_pendingGasParams.eta == 0) revert GasParamsTimelock();
+        delete _pendingGasParams;
+        emit GasParamsCancelled();
+    }
+
+    /// @notice Effective parameters (defaults when never set) and the pending proposal.
+    function gasParams() external view returns (GasParams memory current, PendingGasParams memory pending) {
+        return (_gp(), _pendingGasParams);
     }
 
     /// @notice R10-M1b: after the original transaction, restore an operator's in-flight a0 whose
@@ -1554,5 +1642,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // Appended at the end of storage (UUPS-safe); consumes one __gap slot (28 → 27).
     mapping(bytes32 => Inflight) internal _inflight;
 
-    uint256[27] private __gap;
+    // exp/params: governable gas parameters (appended; UUPS-safe; __gap 27 → 25).
+    GasParams internal _gasParams;
+    PendingGasParams internal _pendingGasParams;
+
+    uint256[25] private __gap;
 }

@@ -55,11 +55,11 @@ interface IVmStatePB {
  *         EntryPoint address, in the SAME transaction as the validation that produced the context
  *         (as in production: EIP-2929 warmth from validation is real, the transient live markers
  *         are set). The measurement is made on the proxy, so the delegatecall is included.
- * @dev C_POSTOP and C_WRAP are internal constants. The test OBSERVES their sum from SP's own charge
- *      (prices chosen so every rounding step is exact) and attributes it as C_POSTOP_obs = sum − C_WRAP
- *      spec (5k), while `wrap` (EntryPoint's overhead around the call, D3 probe on the canonical
- *      bytecode) is asserted <= the 5k spec. Lowering EITHER constant in the source lowers the sum
- *      and can only turn the rule red.
+ * @dev exp/params: the parameters are read from SP's `gasParams()` getter, AND their sum is
+ *      cross-checked against the charge SP actually applies (prices chosen so every rounding step
+ *      is exact) — so the getter cannot drift from the value the charge really uses. `wrap`
+ *      (EntryPoint's overhead around the call, D3 probe on the canonical bytecode) is held against
+ *      the getter's C_WRAP, MIN_POST_OP_GAS against the entry-guard bound.
  */
 contract SuperPaymasterV55PostOpBoundTest is Test {
     IVmStatePB constant vmx = IVmStatePB(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -70,9 +70,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     /// @notice m of the rule C_POSTOP >= W_postop x (1 + m) (DSR: >= 15%; author decides).
     uint256 constant M_BPS = 1_500;
-    /// @notice spec value of C_WRAP (SuperPaymaster.C_WRAP_GAS) the wrap measurement is held against.
-    uint256 constant C_WRAP_SPEC = 5_000;
-    uint256 constant MIN_POST_OP_GAS = 200_000;
+    uint256 constant MIN_POST_OP_GAS = 200_000; // the op's postOpGasLimit in these scenarios (== default)
     uint256 constant OWNER_PK = 0xA0A0;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant P_WEI = 1e14;
@@ -337,27 +335,31 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     function test_rule_C_POSTOP_ge_W_postop_times_1_plus_m() public {
         (uint256 W, uint256 maxMinLimit) = _wPostop();
         uint256 sum = _observedConstSum();
-        uint256 cPostop = sum - C_WRAP_SPEC;
+        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        assertEq(sum, uint256(g.cPostop) + g.cWrap, "getter == what the charge really uses (C_POSTOP + C_WRAP)");
+        uint256 cPostop = g.cPostop;
         uint256 wrap = _wrapUpper();
         uint256 need = Math.mulDiv(W, 10_000 + M_BPS, 10_000, Math.Rounding.Ceil);
         console.log("W_postop (max over paths)", W);
         console.log("observed C_POSTOP + C_WRAP / C_POSTOP_obs", sum, cPostop);
         console.log("W_postop x (1 + m), m bps", need, M_BPS);
         console.log("margin of C_POSTOP over W_postop (bps)", (cPostop - W) * 10_000 / W);
-        console.log("EntryPoint wrap upper bound / C_WRAP spec", wrap, C_WRAP_SPEC);
+        console.log("EntryPoint wrap upper bound / C_WRAP", wrap, g.cWrap);
         assertGt(W, 100_000, "positive control: the measurement is live (a real settlement)");
         assertGe(cPostop, need, "rule: C_POSTOP >= W_postop x (1 + m)");
-        assertLe(wrap, C_WRAP_SPEC, "rule: EntryPoint wrap <= C_WRAP");
+        assertLe(wrap, g.cWrap, "rule: EntryPoint wrap <= C_WRAP");
         // C_POSTOP replaces postOpGasLimit only because MIN_POST_OP_GAS >= C_POSTOP
-        assertLe(cPostop, MIN_POST_OP_GAS, "MIN_POST_OP_GAS >= C_POSTOP (min(limit, C_POSTOP) == C_POSTOP)");
+        assertLe(cPostop, g.minPostOpGas, "MIN_POST_OP_GAS >= C_POSTOP (min(limit, C_POSTOP) == C_POSTOP)");
         // the non-charged requirement: a postOp given MIN_POST_OP_GAS completes on every path
-        console.log("max minLimit (entry-guard bound) / MIN_POST_OP_GAS", maxMinLimit, MIN_POST_OP_GAS);
-        assertGe(MIN_POST_OP_GAS, maxMinLimit, "MIN_POST_OP_GAS >= smallest completing postOp gas limit (T-R14-09)");
+        console.log("max minLimit (entry-guard bound) / MIN_POST_OP_GAS", maxMinLimit, g.minPostOpGas);
+        assertGe(g.minPostOpGas, maxMinLimit, "MIN_POST_OP_GAS >= smallest completing postOp gas limit (T-R14-09)");
     }
 
     /// @notice Per-path report (and each path must also individually satisfy the rule).
     function test_each_path_within_C_POSTOP() public {
-        uint256 cPostop = _observedConstSum() - C_WRAP_SPEC;
+        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        assertEq(_observedConstSum(), uint256(g.cPostop) + g.cWrap, "getter == charge");
+        uint256 cPostop = g.cPostop;
         for (uint8 p; p < N_PATHS; p++) {
             uint256 sid = vmx.snapshotState();
             (uint256 consumed, ) = _measure(p);

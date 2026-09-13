@@ -344,7 +344,7 @@ contract SuperPaymasterV55Test is Test {
     }
 
     function test_version() public view {
-        assertEq(sp.version(), "SuperPaymaster-5.5.0");
+        assertEq(sp.version(), "SuperPaymaster-5.5.1-exp");
     }
 
     // ------------------------------------------------------------------

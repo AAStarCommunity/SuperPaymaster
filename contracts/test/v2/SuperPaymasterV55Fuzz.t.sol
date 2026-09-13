@@ -101,6 +101,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     uint256 private _cWrap;
     bool private _bufOld;
     bool private _countSubsidy;
+    bool private _cPostopFromEnv;
     uint256 constant VERIF_GAS = 400_000;
     uint256 constant PM_VERIF_GAS = 700_000;
     uint256 constant PVG = 50_000;
@@ -309,6 +310,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     function setUp() public {
         _cPostop = vm.envOr("G2_C_POSTOP", uint256(170_000));
         _cWrap = vm.envOr("G2_C_WRAP", uint256(5_000));
+        _cPostopFromEnv = vm.envOr("G2_C_POSTOP", uint256(0)) != 0;
         _bufOld = vm.envOr("G2_BUF_OLD", false);
         _countSubsidy = vm.envOr("G2_COUNT_SUBSIDY", false);
         vm.etch(EP, vm.parseBytes(vm.readFile("contracts/test/fixtures/entrypoint-v0.7.runtime.hex")));
@@ -338,6 +340,12 @@ contract SuperPaymasterV55FuzzTest is Test {
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         sp.updatePrice();
         sp.deposit{value: 100 ether}();
+        // exp/params: without an env override, the oracle must use exactly what SP says it uses
+        (SuperPaymaster.GasParams memory gpar, ) = sp.gasParams();
+        if (!_cPostopFromEnv && !_bufOld) {
+            assertEq(uint256(gpar.cPostop), _cPostop, "oracle C_POSTOP == SP gasParams().cPostop");
+            assertEq(uint256(gpar.cWrap), _cWrap, "oracle C_WRAP == SP gasParams().cWrap");
+        }
         sp.transferOwnership(address(relay)); // owner actions from now on go through the relay
         vm.stopPrank();
 
