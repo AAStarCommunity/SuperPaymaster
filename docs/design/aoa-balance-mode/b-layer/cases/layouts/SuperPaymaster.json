@@ -1,0 +1,668 @@
+{
+  "storage": [
+    {
+      "astId": 166903,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_owner",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_address"
+    },
+    {
+      "astId": 172185,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_status",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 57814,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "APNTS_TOKEN",
+      "offset": 0,
+      "slot": "2",
+      "type": "t_address"
+    },
+    {
+      "astId": 57816,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "xpntsFactory",
+      "offset": 0,
+      "slot": "3",
+      "type": "t_address"
+    },
+    {
+      "astId": 57821,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "treasury",
+      "offset": 0,
+      "slot": "4",
+      "type": "t_address"
+    },
+    {
+      "astId": 57826,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "operators",
+      "offset": 0,
+      "slot": "5",
+      "type": "t_mapping(t_address,t_struct(OperatorConfig)47451_storage)"
+    },
+    {
+      "astId": 57868,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "userOpState",
+      "offset": 0,
+      "slot": "6",
+      "type": "t_mapping(t_address,t_mapping(t_address,t_struct(UserOperatorState)57861_storage))"
+    },
+    {
+      "astId": 57872,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "sbtHolders",
+      "offset": 0,
+      "slot": "7",
+      "type": "t_mapping(t_address,t_bool)"
+    },
+    {
+      "astId": 57878,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "slashHistory",
+      "offset": 0,
+      "slot": "8",
+      "type": "t_mapping(t_address,t_array(t_struct(SlashRecord)47463_storage)dyn_storage)"
+    },
+    {
+      "astId": 57907,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "aPNTsPriceUSD",
+      "offset": 0,
+      "slot": "9",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 57910,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "cachedPrice",
+      "offset": 0,
+      "slot": "10",
+      "type": "t_struct(PriceCache)57809_storage"
+    },
+    {
+      "astId": 57960,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "protocolFeeBPS",
+      "offset": 0,
+      "slot": "13",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 57975,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "BLS_AGGREGATOR",
+      "offset": 0,
+      "slot": "14",
+      "type": "t_address"
+    },
+    {
+      "astId": 57977,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "totalTrackedBalance",
+      "offset": 0,
+      "slot": "15",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 57979,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "protocolRevenue",
+      "offset": 0,
+      "slot": "16",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 57985,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "pendingDebts",
+      "offset": 0,
+      "slot": "17",
+      "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+    },
+    {
+      "astId": 58501,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "priceMode",
+      "offset": 0,
+      "slot": "18",
+      "type": "t_uint8"
+    },
+    {
+      "astId": 58504,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "emergencyQueuedAt",
+      "offset": 0,
+      "slot": "19",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 58507,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "emergencyPendingPrice",
+      "offset": 0,
+      "slot": "20",
+      "type": "t_int256"
+    },
+    {
+      "astId": 58510,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "emergencyActivatedAt",
+      "offset": 0,
+      "slot": "21",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 59191,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "priceStalenessThreshold",
+      "offset": 0,
+      "slot": "22",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 61645,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "agentIdentityRegistry",
+      "offset": 0,
+      "slot": "23",
+      "type": "t_address"
+    },
+    {
+      "astId": 61647,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "agentReputationRegistry",
+      "offset": 0,
+      "slot": "24",
+      "type": "t_address"
+    },
+    {
+      "astId": 61649,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "__deprecated_x402_facilitatorFeeBPS",
+      "offset": 0,
+      "slot": "25",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 61653,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "__deprecated_x402_operatorFacilitatorFees",
+      "offset": 0,
+      "slot": "26",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 61657,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "__deprecated_x402_settlementNonces",
+      "offset": 0,
+      "slot": "27",
+      "type": "t_mapping(t_bytes32,t_bool)"
+    },
+    {
+      "astId": 61663,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "__deprecated_x402_facilitatorEarnings",
+      "offset": 0,
+      "slot": "28",
+      "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+    },
+    {
+      "astId": 61666,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "pendingAPNTsToken",
+      "offset": 0,
+      "slot": "29",
+      "type": "t_address"
+    },
+    {
+      "astId": 61669,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "pendingAPNTsTokenEta",
+      "offset": 0,
+      "slot": "30",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 61673,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_slashCd",
+      "offset": 0,
+      "slot": "31",
+      "type": "t_mapping(t_address,t_uint48)"
+    },
+    {
+      "astId": 61675,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "pendingBLSAgg",
+      "offset": 0,
+      "slot": "32",
+      "type": "t_address"
+    },
+    {
+      "astId": 61677,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "pendingBLSAggEta",
+      "offset": 20,
+      "slot": "32",
+      "type": "t_uint48"
+    },
+    {
+      "astId": 61809,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_settledDebtOps",
+      "offset": 0,
+      "slot": "33",
+      "type": "t_mapping(t_bytes32,t_bool)"
+    },
+    {
+      "astId": 61813,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_pendingSlash",
+      "offset": 0,
+      "slot": "34",
+      "type": "t_mapping(t_address,t_bool)"
+    },
+    {
+      "astId": 61817,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_blsSlashCd",
+      "offset": 0,
+      "slot": "35",
+      "type": "t_mapping(t_address,t_uint48)"
+    },
+    {
+      "astId": 61819,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_blsSlashCdFloor",
+      "offset": 0,
+      "slot": "36",
+      "type": "t_uint48"
+    },
+    {
+      "astId": 61824,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "_inflight",
+      "offset": 0,
+      "slot": "37",
+      "type": "t_mapping(t_bytes32,t_struct(Inflight)57832_storage)"
+    },
+    {
+      "astId": 61828,
+      "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+      "label": "__gap",
+      "offset": 0,
+      "slot": "38",
+      "type": "t_array(t_uint256)27_storage"
+    }
+  ],
+  "types": {
+    "t_address": {
+      "encoding": "inplace",
+      "label": "address",
+      "numberOfBytes": "20"
+    },
+    "t_array(t_struct(SlashRecord)47463_storage)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "struct ISuperPaymaster.SlashRecord[]",
+      "numberOfBytes": "32",
+      "base": "t_struct(SlashRecord)47463_storage"
+    },
+    "t_array(t_uint256)27_storage": {
+      "encoding": "inplace",
+      "label": "uint256[27]",
+      "numberOfBytes": "864",
+      "base": "t_uint256"
+    },
+    "t_bool": {
+      "encoding": "inplace",
+      "label": "bool",
+      "numberOfBytes": "1"
+    },
+    "t_bytes32": {
+      "encoding": "inplace",
+      "label": "bytes32",
+      "numberOfBytes": "32"
+    },
+    "t_enum(SlashLevel)47432": {
+      "encoding": "inplace",
+      "label": "enum ISuperPaymaster.SlashLevel",
+      "numberOfBytes": "1"
+    },
+    "t_int256": {
+      "encoding": "inplace",
+      "label": "int256",
+      "numberOfBytes": "32"
+    },
+    "t_mapping(t_address,t_array(t_struct(SlashRecord)47463_storage)dyn_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => struct ISuperPaymaster.SlashRecord[])",
+      "numberOfBytes": "32",
+      "value": "t_array(t_struct(SlashRecord)47463_storage)dyn_storage"
+    },
+    "t_mapping(t_address,t_bool)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => bool)",
+      "numberOfBytes": "32",
+      "value": "t_bool"
+    },
+    "t_mapping(t_address,t_mapping(t_address,t_struct(UserOperatorState)57861_storage))": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => mapping(address => struct SuperPaymaster.UserOperatorState))",
+      "numberOfBytes": "32",
+      "value": "t_mapping(t_address,t_struct(UserOperatorState)57861_storage)"
+    },
+    "t_mapping(t_address,t_mapping(t_address,t_uint256))": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => mapping(address => uint256))",
+      "numberOfBytes": "32",
+      "value": "t_mapping(t_address,t_uint256)"
+    },
+    "t_mapping(t_address,t_struct(OperatorConfig)47451_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => struct ISuperPaymaster.OperatorConfig)",
+      "numberOfBytes": "32",
+      "value": "t_struct(OperatorConfig)47451_storage"
+    },
+    "t_mapping(t_address,t_struct(UserOperatorState)57861_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => struct SuperPaymaster.UserOperatorState)",
+      "numberOfBytes": "32",
+      "value": "t_struct(UserOperatorState)57861_storage"
+    },
+    "t_mapping(t_address,t_uint256)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => uint256)",
+      "numberOfBytes": "32",
+      "value": "t_uint256"
+    },
+    "t_mapping(t_address,t_uint48)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => uint48)",
+      "numberOfBytes": "32",
+      "value": "t_uint48"
+    },
+    "t_mapping(t_bytes32,t_bool)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => bool)",
+      "numberOfBytes": "32",
+      "value": "t_bool"
+    },
+    "t_mapping(t_bytes32,t_struct(Inflight)57832_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct SuperPaymaster.Inflight)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Inflight)57832_storage"
+    },
+    "t_string_storage": {
+      "encoding": "bytes",
+      "label": "string",
+      "numberOfBytes": "32"
+    },
+    "t_struct(Inflight)57832_storage": {
+      "encoding": "inplace",
+      "label": "struct SuperPaymaster.Inflight",
+      "numberOfBytes": "32",
+      "members": [
+        {
+          "astId": 57829,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "operator",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_address"
+        },
+        {
+          "astId": 57831,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "a0",
+          "offset": 20,
+          "slot": "0",
+          "type": "t_uint96"
+        }
+      ]
+    },
+    "t_struct(OperatorConfig)47451_storage": {
+      "encoding": "inplace",
+      "label": "struct ISuperPaymaster.OperatorConfig",
+      "numberOfBytes": "160",
+      "members": [
+        {
+          "astId": 47434,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "aPNTsBalance",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 47436,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "isConfigured",
+          "offset": 16,
+          "slot": "0",
+          "type": "t_bool"
+        },
+        {
+          "astId": 47438,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "isPaused",
+          "offset": 17,
+          "slot": "0",
+          "type": "t_bool"
+        },
+        {
+          "astId": 47440,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "xPNTsToken",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_address"
+        },
+        {
+          "astId": 47442,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "reputation",
+          "offset": 20,
+          "slot": "1",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 47444,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "minTxInterval",
+          "offset": 24,
+          "slot": "1",
+          "type": "t_uint48"
+        },
+        {
+          "astId": 47446,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "treasury",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_address"
+        },
+        {
+          "astId": 47448,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "totalSpent",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 47450,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "totalTxSponsored",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_uint256"
+        }
+      ]
+    },
+    "t_struct(PriceCache)57809_storage": {
+      "encoding": "inplace",
+      "label": "struct SuperPaymaster.PriceCache",
+      "numberOfBytes": "96",
+      "members": [
+        {
+          "astId": 57802,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "price",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_int256"
+        },
+        {
+          "astId": 57804,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "updatedAt",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 57806,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "roundId",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_uint80"
+        },
+        {
+          "astId": 57808,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "decimals",
+          "offset": 10,
+          "slot": "2",
+          "type": "t_uint8"
+        }
+      ]
+    },
+    "t_struct(SlashRecord)47463_storage": {
+      "encoding": "inplace",
+      "label": "struct ISuperPaymaster.SlashRecord",
+      "numberOfBytes": "160",
+      "members": [
+        {
+          "astId": 47453,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "timestamp",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 47455,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "amount",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 47457,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "reputationLoss",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 47459,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "reason",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_string_storage"
+        },
+        {
+          "astId": 47462,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "level",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_enum(SlashLevel)47432"
+        }
+      ]
+    },
+    "t_struct(UserOperatorState)57861_storage": {
+      "encoding": "inplace",
+      "label": "struct SuperPaymaster.UserOperatorState",
+      "numberOfBytes": "32",
+      "members": [
+        {
+          "astId": 57858,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "lastTimestamp",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint48"
+        },
+        {
+          "astId": 57860,
+          "contract": "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol:SuperPaymaster",
+          "label": "isBlocked",
+          "offset": 6,
+          "slot": "0",
+          "type": "t_bool"
+        }
+      ]
+    },
+    "t_uint128": {
+      "encoding": "inplace",
+      "label": "uint128",
+      "numberOfBytes": "16"
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    },
+    "t_uint32": {
+      "encoding": "inplace",
+      "label": "uint32",
+      "numberOfBytes": "4"
+    },
+    "t_uint48": {
+      "encoding": "inplace",
+      "label": "uint48",
+      "numberOfBytes": "6"
+    },
+    "t_uint8": {
+      "encoding": "inplace",
+      "label": "uint8",
+      "numberOfBytes": "1"
+    },
+    "t_uint80": {
+      "encoding": "inplace",
+      "label": "uint80",
+      "numberOfBytes": "10"
+    },
+    "t_uint96": {
+      "encoding": "inplace",
+      "label": "uint96",
+      "numberOfBytes": "12"
+    }
+  }
+}

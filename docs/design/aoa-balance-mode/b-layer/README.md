@@ -77,3 +77,8 @@ node src/lib/cli/alto.js run --entrypoints 0x0000000071727De22E5E9d8BAf0edAc6f37
 node script/b-layer/b0-send.mjs <setup.json> http://127.0.0.1:<bundler port> <label> <out.json>
 ```
 构建方式：Rundler 用 `cargo build --release --bin rundler`，需要 forge 在 PATH 上、子模块已初始化，以及 protoc 29.3（官方 release 二进制，放在 scratchpad 里，sha256 `2b8a3403…`，没有装到系统）。Alto 用 corepack 提供的 pnpm 8.15.4 执行 `pnpm run build:contracts && pnpm run build`。geth v1.17.5 用 `go install github.com/ethereum/go-ethereum/cmd/geth@v1.17.5`（go 1.26.4）从源码构建，启动时加 `--ipcdisable`。私钥只用 anvil 公开的开发者私钥。
+
+## 4. G1 用例 B1–B10（D5.4）
+
+结果、trace 获取方式、§3.4 逐行对照与发现见 [B1-B10.md](B1-B10.md)，原始证据在 `cases/`。
+一键复现：`script/b-layer/g1-run.sh <workDir> <rundler 目录> <alto125 目录>`，然后 `script/b-layer/g1-collect.sh <workDir>`。

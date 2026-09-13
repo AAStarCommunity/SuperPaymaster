@@ -1,0 +1,528 @@
+{
+  "storage": [
+    {
+      "astId": 198257,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "_owner",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_address"
+    },
+    {
+      "astId": 203642,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "_status",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 44672,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "GTOKEN_STAKING",
+      "offset": 0,
+      "slot": "2",
+      "type": "t_contract(IGTokenStaking)48884"
+    },
+    {
+      "astId": 44675,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "MYSBT",
+      "offset": 0,
+      "slot": "3",
+      "type": "t_contract(IMySBT)48981"
+    },
+    {
+      "astId": 44677,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "SUPER_PAYMASTER",
+      "offset": 0,
+      "slot": "4",
+      "type": "t_address"
+    },
+    {
+      "astId": 44679,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "blsAggregator",
+      "offset": 0,
+      "slot": "5",
+      "type": "t_address"
+    },
+    {
+      "astId": 44684,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleConfigs",
+      "offset": 0,
+      "slot": "6",
+      "type": "t_mapping(t_bytes32,t_struct(RoleConfig)49048_storage)"
+    },
+    {
+      "astId": 44691,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "hasRole",
+      "offset": 0,
+      "slot": "7",
+      "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bool))"
+    },
+    {
+      "astId": 44698,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleStakes",
+      "offset": 0,
+      "slot": "8",
+      "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    },
+    {
+      "astId": 44703,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleMembers",
+      "offset": 0,
+      "slot": "9",
+      "type": "t_mapping(t_bytes32,t_array(t_address)dyn_storage)"
+    },
+    {
+      "astId": 44709,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleMemberIndex",
+      "offset": 0,
+      "slot": "10",
+      "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    },
+    {
+      "astId": 44715,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleSBTTokenIds",
+      "offset": 0,
+      "slot": "11",
+      "type": "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))"
+    },
+    {
+      "astId": 44721,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "roleMetadata",
+      "offset": 0,
+      "slot": "12",
+      "type": "t_mapping(t_bytes32,t_mapping(t_address,t_bytes_storage))"
+    },
+    {
+      "astId": 44725,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "communityByName",
+      "offset": 0,
+      "slot": "13",
+      "type": "t_mapping(t_string_memory_ptr,t_address)"
+    },
+    {
+      "astId": 44729,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "communityByENS",
+      "offset": 0,
+      "slot": "14",
+      "type": "t_mapping(t_string_memory_ptr,t_address)"
+    },
+    {
+      "astId": 44734,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "userRoles",
+      "offset": 0,
+      "slot": "15",
+      "type": "t_mapping(t_address,t_array(t_bytes32)dyn_storage)"
+    },
+    {
+      "astId": 44738,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "userRoleCount",
+      "offset": 0,
+      "slot": "16",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 44742,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "globalReputation",
+      "offset": 0,
+      "slot": "17",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 44746,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "lastReputationEpoch",
+      "offset": 0,
+      "slot": "18",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 44750,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "creditTierConfig",
+      "offset": 0,
+      "slot": "19",
+      "type": "t_mapping(t_uint256,t_uint256)"
+    },
+    {
+      "astId": 44754,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "isReputationSource",
+      "offset": 0,
+      "slot": "20",
+      "type": "t_mapping(t_address,t_bool)"
+    },
+    {
+      "astId": 44758,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "executedProposals",
+      "offset": 0,
+      "slot": "21",
+      "type": "t_mapping(t_uint256,t_bool)"
+    },
+    {
+      "astId": 44761,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "levelThresholds",
+      "offset": 0,
+      "slot": "22",
+      "type": "t_array(t_uint256)dyn_storage"
+    },
+    {
+      "astId": 48043,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "blacklistNonce",
+      "offset": 0,
+      "slot": "23",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48046,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "maxAggregateCreditUpliftPerProposal",
+      "offset": 0,
+      "slot": "24",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48055,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "totalCreditExposure",
+      "offset": 0,
+      "slot": "25",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48058,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "maxTotalCreditExposure",
+      "offset": 0,
+      "slot": "26",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48073,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "creditPopulationTotal",
+      "offset": 0,
+      "slot": "27",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48078,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "creditPopulationEpochOf",
+      "offset": 0,
+      "slot": "28",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 48081,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "creditPopulationEpoch",
+      "offset": 0,
+      "slot": "29",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48084,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "creditPopulationSeededAt",
+      "offset": 0,
+      "slot": "30",
+      "type": "t_uint256"
+    },
+    {
+      "astId": 48088,
+      "contract": "contracts/src/core/Registry.sol:Registry",
+      "label": "__gap",
+      "offset": 0,
+      "slot": "31",
+      "type": "t_array(t_uint256)43_storage"
+    }
+  ],
+  "types": {
+    "t_address": {
+      "encoding": "inplace",
+      "label": "address",
+      "numberOfBytes": "20"
+    },
+    "t_array(t_address)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "address[]",
+      "numberOfBytes": "32",
+      "base": "t_address"
+    },
+    "t_array(t_bytes32)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "bytes32[]",
+      "numberOfBytes": "32",
+      "base": "t_bytes32"
+    },
+    "t_array(t_uint256)43_storage": {
+      "encoding": "inplace",
+      "label": "uint256[43]",
+      "numberOfBytes": "1376",
+      "base": "t_uint256"
+    },
+    "t_array(t_uint256)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "uint256[]",
+      "numberOfBytes": "32",
+      "base": "t_uint256"
+    },
+    "t_bool": {
+      "encoding": "inplace",
+      "label": "bool",
+      "numberOfBytes": "1"
+    },
+    "t_bytes32": {
+      "encoding": "inplace",
+      "label": "bytes32",
+      "numberOfBytes": "32"
+    },
+    "t_bytes_storage": {
+      "encoding": "bytes",
+      "label": "bytes",
+      "numberOfBytes": "32"
+    },
+    "t_contract(IGTokenStaking)48884": {
+      "encoding": "inplace",
+      "label": "contract IGTokenStaking",
+      "numberOfBytes": "20"
+    },
+    "t_contract(IMySBT)48981": {
+      "encoding": "inplace",
+      "label": "contract IMySBT",
+      "numberOfBytes": "20"
+    },
+    "t_mapping(t_address,t_array(t_bytes32)dyn_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => bytes32[])",
+      "numberOfBytes": "32",
+      "value": "t_array(t_bytes32)dyn_storage"
+    },
+    "t_mapping(t_address,t_bool)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => bool)",
+      "numberOfBytes": "32",
+      "value": "t_bool"
+    },
+    "t_mapping(t_address,t_bytes_storage)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => bytes)",
+      "numberOfBytes": "32",
+      "value": "t_bytes_storage"
+    },
+    "t_mapping(t_address,t_uint256)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => uint256)",
+      "numberOfBytes": "32",
+      "value": "t_uint256"
+    },
+    "t_mapping(t_bytes32,t_array(t_address)dyn_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => address[])",
+      "numberOfBytes": "32",
+      "value": "t_array(t_address)dyn_storage"
+    },
+    "t_mapping(t_bytes32,t_mapping(t_address,t_bool))": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => mapping(address => bool))",
+      "numberOfBytes": "32",
+      "value": "t_mapping(t_address,t_bool)"
+    },
+    "t_mapping(t_bytes32,t_mapping(t_address,t_bytes_storage))": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => mapping(address => bytes))",
+      "numberOfBytes": "32",
+      "value": "t_mapping(t_address,t_bytes_storage)"
+    },
+    "t_mapping(t_bytes32,t_mapping(t_address,t_uint256))": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => mapping(address => uint256))",
+      "numberOfBytes": "32",
+      "value": "t_mapping(t_address,t_uint256)"
+    },
+    "t_mapping(t_bytes32,t_struct(RoleConfig)49048_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct IRegistry.RoleConfig)",
+      "numberOfBytes": "32",
+      "value": "t_struct(RoleConfig)49048_storage"
+    },
+    "t_mapping(t_string_memory_ptr,t_address)": {
+      "encoding": "mapping",
+      "key": "t_string_memory_ptr",
+      "label": "mapping(string => address)",
+      "numberOfBytes": "32",
+      "value": "t_address"
+    },
+    "t_mapping(t_uint256,t_bool)": {
+      "encoding": "mapping",
+      "key": "t_uint256",
+      "label": "mapping(uint256 => bool)",
+      "numberOfBytes": "32",
+      "value": "t_bool"
+    },
+    "t_mapping(t_uint256,t_uint256)": {
+      "encoding": "mapping",
+      "key": "t_uint256",
+      "label": "mapping(uint256 => uint256)",
+      "numberOfBytes": "32",
+      "value": "t_uint256"
+    },
+    "t_string_memory_ptr": {
+      "encoding": "bytes",
+      "label": "string",
+      "numberOfBytes": "32"
+    },
+    "t_string_storage": {
+      "encoding": "bytes",
+      "label": "string",
+      "numberOfBytes": "32"
+    },
+    "t_struct(RoleConfig)49048_storage": {
+      "encoding": "inplace",
+      "label": "struct IRegistry.RoleConfig",
+      "numberOfBytes": "224",
+      "members": [
+        {
+          "astId": 49025,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "minStake",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 49027,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "ticketPrice",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 49029,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "slashThreshold",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 49031,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "slashBase",
+          "offset": 4,
+          "slot": "2",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 49033,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "slashInc",
+          "offset": 8,
+          "slot": "2",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 49035,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "slashMax",
+          "offset": 12,
+          "slot": "2",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 49037,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "exitFeePercent",
+          "offset": 16,
+          "slot": "2",
+          "type": "t_uint16"
+        },
+        {
+          "astId": 49039,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "isActive",
+          "offset": 18,
+          "slot": "2",
+          "type": "t_bool"
+        },
+        {
+          "astId": 49041,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "minExitFee",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_uint256"
+        },
+        {
+          "astId": 49043,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "description",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_string_storage"
+        },
+        {
+          "astId": 49045,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "owner",
+          "offset": 0,
+          "slot": "5",
+          "type": "t_address"
+        },
+        {
+          "astId": 49047,
+          "contract": "contracts/src/core/Registry.sol:Registry",
+          "label": "roleLockDuration",
+          "offset": 0,
+          "slot": "6",
+          "type": "t_uint256"
+        }
+      ]
+    },
+    "t_uint16": {
+      "encoding": "inplace",
+      "label": "uint16",
+      "numberOfBytes": "2"
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    },
+    "t_uint32": {
+      "encoding": "inplace",
+      "label": "uint32",
+      "numberOfBytes": "4"
+    }
+  }
+}
