@@ -524,6 +524,7 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | 主体 | 能力（源码位置） | 最坏后果 | 缓解 |
 |---|---|---|---|
 | SP owner | UUPS 升级；`setOperatorPaused`（`:589`）；`setProtocolFee`（`:459`，上限 20%）；`setTreasury`（`:469`）；`setAPNTSPrice`（`:437`）；`emergencySetPrice`（`:522`，1 h timelock）；`setXPNTsFactory`（`:475`，**即时生效**）；BLS 聚合器（`:1019`–`:1034`，queue/apply）；`slashOperator`（`:910`）；`updateReputation`（`:924`）；`setAgentRegistries`（`:1600`，影响资格判定）；`withdrawProtocolRevenue`（`:796`）；EntryPoint 存款与质押（Base `:48`–`:64`） | 升级为恶意实现：token 侧上界见 I6；operator 的 aPNTs 与 EntryPoint 押金可以被拿走；可以暂停或罚没 operator | 建议把升级权和即时生效的配置放到 timelock 后面（产品改进项）；论文如实写成信任假设 |
+| **（DSR，2026-09-13）SP 的升级权** | `_authorizeUpgrade` 是 `onlyOwner`，**没有 timelock**（`BasePaymasterUpgradeable.sol:42`）；owner 是 **EOA `0xb560…`**（Sepolia 实测），单步 `Ownable` | 即时替换实现：可以拿走 operator 存款、revenue、EP 押金和质押；**用户的 xPNTs 受 I6 保护**（token 侧的上界不依赖 SP 的实现） | **主网前决策项**：T1（owner 换成 TimelockController 48 h，Mycelium Safe 担任 proposer/canceller）+ G（guardian 只能暂停和全局停止赞助，恢复必须走 timelock）；Registry 同样处理。评估见 `upgrade-governance-eval.md` |
 | Registry owner | 即时替换 BLS 聚合器（`Registry.sol:283`）；立即升级（`:967`）；`setCreditTier`（`:676`）；`setReputationSource`（`:848`）；`setLevelThresholds`（`:870`）；`setSuperPaymaster`（`:276`） | 绕过 BLS、改变 AUTO 额度 | 用户申请上限约束信用暴露（I6）；建议 timelock。黑名单更新现在要求非空 BLS proof（`:619`–`:640`） |
 | `SP_REGISTRY` / `SPENDER_REGISTRY` / `TIER_SOURCE_REGISTRY` 的 owner | 增删白名单 | 把恶意合约加入白名单 | 白名单只是**必要条件**：激活仍需 communityOwner 提议并等 48 h；只在激活时检查，事后移除不影响已激活的；建议由 Mycelium Safe 持有，并对"加入"设 48 h timelock |
 | （DSR O2）白名单撤销的范围 | `AOAProtocolRegistry.revokeApproval` **只影响以后的激活**，不会撤下已经激活的 SP、spender 或分档源 | 已激活的对象出问题时，白名单撤销无济于事 | 已激活对象的应急路径在 **token 层**：SP → `emergencyRevokePaymaster`（S-4），之后走 S-6 切到备用 SP 或 S-3 换 SP；spender → `removeAutoApprovedSpender`（即时生效）；分档源 → `queueTierSource` 换源（48 h），紧急时可以先 `queueCreditPolicy(OFF)`，或者由用户自己 `disableSpenderForSelf` / `revokeCredit` |
@@ -532,6 +533,14 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | operator | `configureOperator`、`minTxInterval`、存取 aPNTs | 只影响自己的社区 | — |
 | keeper（任何人） | `updatePrice`（Chainlink，permissionless） | 价格来自 Chainlink，keeper 不能伪造 | 陈旧度通过 `validUntil` 约束 |
 | BLS 法定人数、中继、能签 UserOp 的主体 | 见 §7 | — | — |
+
+### 10.7b 主网前的治理决策项（汇总，待作者决定）
+
+| # | 事项 | 评估文档 | 推荐 |
+|---|---|---|---|
+| GOV-1 | SP 和 Registry 的 owner / 升级权放到 timelock 后面 | `upgrade-governance-eval.md` | T1 + G |
+| GOV-2 | aPNTs 铸币权 | `apnts-mint-authority.md` | (a) Safe + renounceFactory；(b) 主网 aPNTs 在 mint 里强制上限（初始上限值待定）；(d) 放到 5.5.x |
+| GOV-3 | gas 常数改成治理参数 + buffer 收紧 | `buffer-tightening-eval.md`，实验分支 `exp/buffer-and-params` | 等实验和 Codex 结论 |
 
 ### 10.8 独立审计闸门（runbook 新增）
 
