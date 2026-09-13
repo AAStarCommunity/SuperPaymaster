@@ -15,8 +15,20 @@ contract V55MutablePriceFeed {
     function decimals() external pure returns (uint8) { return 8; }
 }
 
-interface IPriceUpdatable {
+/// @dev TEST-ONLY permissionless forwarder. It is made the SuperPaymaster owner so that a user
+///      operation's EXECUTION (which runs between that bundle's validations and postOps) can move
+///      owner-controlled pricing (`setAPNTSPrice`). Never a pattern for production.
+contract V55OwnerRelay {
+    function exec(address to, bytes calldata data) external returns (bytes memory r) {
+        bool ok;
+        (ok, r) = to.call(data);
+        if (!ok) assembly { revert(add(r, 32), mload(r)) }
+    }
+}
+
+interface IFuzzSP {
     function updatePrice() external;
+    function aPNTsPriceUSD() external view returns (uint256);
 }
 
 /// @dev Target of every fuzzed user operation. `hits[id]` is the op's observable execution effect
@@ -37,12 +49,23 @@ contract V55FuzzTarget {
         while (true) {}
     }
 
-    /// @dev Records the effect and moves the ETH/USD price mid-bundle (permissionless
-    ///      `updatePrice`), so later ops' postOps run after the live price changed: SP must still
-    ///      charge at each op's VALIDATION-time snapshot (R10-M3).
-    function hitMovePrice(bytes32 id, address feed, address sp, int256 newAnswer) external {
+    /// @dev Records the effect and moves prices INSIDE the bundle, i.e. after every validation of the
+    ///      bundle and before this op's (and later ops') postOp: the ETH/USD answer (+ permissionless
+    ///      `updatePrice`) when `newAnswer != 0`, and aPNTs/USD by `aSteps` owner steps of exactly
+    ///      ±10% (the SP delta guard's bound) through the owner relay. SP must still charge at each
+    ///      op's VALIDATION-time snapshot (R10-M3).
+    function hitMovePrice(bytes32 id, address feed, address sp, address relay, int256 newAnswer, uint8 aSteps, bool aUp)
+        external
+    {
         hits[id] += 1;
-        V55MutablePriceFeed(feed).setAnswer(newAnswer);
-        IPriceUpdatable(sp).updatePrice();
+        if (newAnswer != 0) {
+            V55MutablePriceFeed(feed).setAnswer(newAnswer);
+            IFuzzSP(sp).updatePrice();
+        }
+        for (uint256 i; i < aSteps; i++) {
+            uint256 cur = IFuzzSP(sp).aPNTsPriceUSD();
+            uint256 np = aUp ? cur * 11_000 / 10_000 : cur * 9_000 / 10_000;
+            V55OwnerRelay(relay).exec(sp, abi.encodeWithSignature("setAPNTSPrice(uint256)", np));
+        }
     }
 }
