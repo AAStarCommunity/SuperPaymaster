@@ -1,0 +1,12 @@
+# D5c1 partitioned run
+# part: settleLocked-7e48bbce (D5C1_PART=2118695886)
+# command: D5C1_PART=2118695886 halmos --contract XPNTsV2A3xHalmosTest --function check_A3x_exactCeilBound --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 0ec063f78011c87a6bf374fbdd9b9a41918ec2df
+# tree_note: -
+# (trimmed: 5521 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3xHalmosTest
+setup: 0.05s (decode: 0.01s, run: 0.04s)
+
+# WALL-CAP: killed after 600 s (per-partition cap); no result line = bounded/open
+
+# exit_code: -9  wall_seconds: 600

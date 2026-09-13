@@ -1,0 +1,2 @@
+MintRepayLemmaHalmosTest.check_LEMMA_M1_floorDivTimesDivisor over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 564 s)
+  OTHER                                    TIMEOUT         paths=3 time=540.14s exit=1

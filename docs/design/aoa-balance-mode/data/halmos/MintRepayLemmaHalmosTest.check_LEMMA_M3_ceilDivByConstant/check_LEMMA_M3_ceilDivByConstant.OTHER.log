@@ -1,0 +1,12 @@
+# D5c1 partitioned run
+# part: OTHER (D5C1_PART=1)
+# command: D5C1_PART=1 halmos --contract MintRepayLemmaHalmosTest --function check_LEMMA_M3_ceilDivByConstant --panic-error-codes * --solver-timeout-assertion 540000
+# git_head: 0ec063f78011c87a6bf374fbdd9b9a41918ec2df
+# tree_note: -
+# (trimmed: 5521 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/MintRepayLemma.t.sol:MintRepayLemmaHalmosTest
+[33m[TIMEOUT][0m check_LEMMA_M3_ceilDivByConstant(uint256,uint256) (paths: 5, time: 540.18s, bounds: [])
+[36mTimeout queries saved in: /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/check_LEMMA_M3_ceilDivByConstant-skpyxt7w-timeout[0m
+Symbolic test result: 0 passed; 1 failed; time: 540.19s
+
+# exit_code: 1  wall_seconds: 563

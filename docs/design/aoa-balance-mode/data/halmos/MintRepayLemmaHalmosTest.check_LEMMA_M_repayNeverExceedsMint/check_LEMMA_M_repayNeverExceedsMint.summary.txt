@@ -1,0 +1,2 @@
+MintRepayLemmaHalmosTest.check_LEMMA_M_repayNeverExceedsMint over xPNTsTokenV2: NOT-ALL-PASS (1 parts, wall 565 s)
+  OTHER                                    TIMEOUT         paths=11 time=540.39s exit=1

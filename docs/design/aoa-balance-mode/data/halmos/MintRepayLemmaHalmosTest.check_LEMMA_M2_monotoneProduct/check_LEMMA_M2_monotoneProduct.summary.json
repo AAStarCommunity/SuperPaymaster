@@ -1,0 +1,25 @@
+{
+ "contract": "MintRepayLemmaHalmosTest",
+ "check": "check_LEMMA_M2_monotoneProduct",
+ "abi": "xPNTsTokenV2",
+ "parts": 1,
+ "verdict": "NOT-ALL-PASS",
+ "wall_s": 565,
+ "extra_args": [
+  "--solver-timeout-assertion",
+  "540000"
+ ],
+ "results": [
+  {
+   "part": "OTHER",
+   "D5C1_PART": 1,
+   "exit": 1,
+   "wall_s": 565,
+   "log": "check_LEMMA_M2_monotoneProduct.OTHER.log",
+   "result": "TIMEOUT",
+   "paths": 2,
+   "time_s": 540.09,
+   "counterexample": false
+  }
+ ]
+}
