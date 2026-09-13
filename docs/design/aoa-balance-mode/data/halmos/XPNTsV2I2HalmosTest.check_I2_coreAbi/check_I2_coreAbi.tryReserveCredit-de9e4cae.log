@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: tryReserveCredit-de9e4cae (D5C1_PART=3734916270)
+# command: D5C1_PART=3734916270 halmos --contract XPNTsV2I2HalmosTest --function check_I2_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 08172c7dbafe375648037853da07e793949e4218
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
+setup: 0.27s (decode: 0.10s, run: 0.17s)
+[32m[PASS][0m check_I2_coreAbi() (paths: 102, time: 75.82s (paths: 75.82s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 76.09s
+
+[time] total: 97.72s (build: 3.75s, load: 17.89s, tests: 76.09s)
+
+# exit_code: 0  wall_seconds: 160

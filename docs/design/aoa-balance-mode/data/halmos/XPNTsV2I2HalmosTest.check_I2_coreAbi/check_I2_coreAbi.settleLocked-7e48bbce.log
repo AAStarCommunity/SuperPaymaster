@@ -1,18 +1,15 @@
 # D5c1 partitioned run
 # part: settleLocked-7e48bbce (D5C1_PART=2118695886)
 # command: D5C1_PART=2118695886 halmos --contract XPNTsV2I2HalmosTest --function check_I2_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 08172c7dbafe375648037853da07e793949e4218
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
-setup: 0.26s (decode: 0.09s, run: 0.17s)
-ERROR    solver_output.error='executor has been shutdown'                       
-         (solver_output.returncode=-1)                                          
-ERROR    solver_output.error='executor has been shutdown'                       
-         (solver_output.returncode=-1)                                          
-ERROR    solver_output.error='executor has been shutdown'                       
-         (solver_output.returncode=-1)                                          
-ERROR    solver_output.error='executor has been shutdown'                       
-         (solver_output.returncode=-1)                                          
-ERROR    solver_output.error='executor has been shutdown'                       
-         (solver_output.returncode=-1)                                          
+setup: 0.09s (decode: 0.01s, run: 0.08s)
+[33m[TIMEOUT][0m check_I2_coreAbi() (paths: 575, time: 3366.02s (paths: 3361.10s, models: 4.92s), bounds: [])
+[36mTimeout queries saved in: /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/check_I2_coreAbi-9zao_z3h-timeout[0m
+Symbolic test result: 0 passed; 1 failed; time: 3366.11s
+
+[time] total: 3392.13s (build: 7.19s, load: 18.83s, tests: 3366.11s)
+
+# exit_code: 1  wall_seconds: 3411

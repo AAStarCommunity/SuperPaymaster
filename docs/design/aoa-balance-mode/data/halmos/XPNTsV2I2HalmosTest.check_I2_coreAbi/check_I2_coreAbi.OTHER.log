@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: OTHER (D5C1_PART=1)
 # command: D5C1_PART=1 halmos --contract XPNTsV2I2HalmosTest --function check_I2_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 08172c7dbafe375648037853da07e793949e4218
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
-setup: 0.08s (decode: 0.01s, run: 0.07s)
-[32m[PASS][0m check_I2_coreAbi() (paths: 2, time: 2.67s (paths: 2.67s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 2.76s
+setup: 0.06s (decode: 0.01s, run: 0.05s)
+[32m[PASS][0m check_I2_coreAbi() (paths: 2, time: 0.90s (paths: 0.90s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.96s
 
-[time] total: 15.34s (build: 2.59s, load: 9.99s, tests: 2.76s)
+[time] total: 7.45s (build: 1.40s, load: 5.09s, tests: 0.96s)
 
-# exit_code: 0  wall_seconds: 32
+# exit_code: 0  wall_seconds: 17
