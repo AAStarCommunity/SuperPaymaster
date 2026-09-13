@@ -1,0 +1,25 @@
+# F1 evidence manifest — frozen for paper appendix citation (DSR P5, 2026-09-13)
+# Any change to a listed file must be a new, separately versioned file; verify with: shasum -a 256 -c F1-EVIDENCE.sha256
+# git commit of the frozen set: c0d9e350b6f96eb341d528625f752b430aa901ea
+deefae97b424531dda4e0fb301e0a8949dbe5647aeec72865af29682e7dc3fcc  cases/f1/access-check-guard.json
+878a0315d4852d15c8b0f2ce99620fe2f6635747d5cf3ffdb1db9bf79ebf864a  cases/f1/access-check-guard.txt
+d126784fc6ad3d889fa58bf0d24ed663562f365f1426a00d5efaad7280a5dac4  cases/f1/alto-gRev-results.json
+55b71adbf05ea45d91fad5cf1b2a5f9a0cc999d32cf20faebc04abaa894d5835  cases/f1/alto-gSig-results.json
+31825e5ee6472c6b28360bb83e64471c288b30289c83bb94e168efee9dd11322  cases/f1/alto-sp3-results.json
+05eeb57f0d339199fe355092c8d1b4be4fb8649e7f807cc883962dcb70539703  cases/f1/alto-tpm-results.json
+434dbdedaa321d1fa293a0e657f04a0e4e2d4e63af5b4bb614699c80472f62ba  cases/f1/deploy.json
+997a37c534d794866d88e7f52cd65d22fb9e77be7bda13985292a9e9e7398923  cases/f1/g1-setup.json
+88cecaced97f66f4f0c856a0ba868540b8595589ee4b0890a21949ec12360d5a  cases/f1/joint-handleops.json
+ad6176b3fc4a460ee126184552a4b8bbd8ee2a2bf88d89aeea28af363de95069  cases/f1/joint-handleops.txt
+97837cb4d9b0db9d1bd4d124fb9969eba46afeaa0600543e4f35e197acf3c618  cases/f1/rundler-gRev-results.json
+6c18fadfeba029d38f728fddf71ce08335e3a54cf9fa88d4d8e48ff8822be316  cases/f1/rundler-gSig-results.json
+277107ff593cc77261bb5a10b3f0bd61a7befb04efcb25dfd5701aaa27c46d8c  cases/f1/rundler-sp3-results.json
+ee584e2bd76f224cefdbf66f7dd9ef74fcebeca42edade7d19c3cf864d4de588  cases/f1/rundler-tpm-results.json
+793656be98e2f269c9131a84ba9c585670005a0edd68f52ed4afd3426f30bbdf  cases/f1/rundlerSSMC1-sp3-results.json
+8cdb8e6235e3433ffec76e4473c23f95e968d69b44a97fa21d1c1dfd8bfb7b03  cases/f1/rundlerSSMC1-tpm-results.json
+63a3c50af239aa3d1d9a1760f07d7a960262aec249342b9c3e4228a4e21f7113  cases/f1/setup.json
+c1695e31fa07046e5310cd117f335b3672f4b73f4c885db42b8d5c955319c58d  cases/f1/TokenPaymaster.json
+186e31159d36a84d7b85e920d3975ba7ee8d23fe735b75012dce0245cd91d866  cases/f1/tpm-access.json
+065c584aed002d491deccfe92799ff8e6fe2077fed85183247a5fb5f726ac380  cases/f1/tpm-access.txt
+53dfb4ad01357e370635cf42a86d9bb5d92f698f3ecc0631a2960d9f9c1ad969  F1-investigation.md
+65a29db5e613d77cc289b5910c48a9ceba8384d53544b461c1358da00bdd9371  F1-erc7562-text.md
