@@ -47,4 +47,4 @@ DSR 指出：`BasePaymasterUpgradeable._authorizeUpgrade` 是 `onlyOwner`，没�
 2. 是否加 guardian（G）：只能暂停和全局停止赞助，恢复必须走 timelock。若加，同时决定是否一并把 owner 改为 Ownable2Step。
 3. 日常调价 `setAPNTSPrice` 在 timelock 之后怎么安排（接受 48 h / 受限的 keeper / 交给 guardian）。
 
-写进 03 §10.7 信任矩阵"SP owner"一行，并列为主网前的决策项（03 §10.8 AUD 之前）。
+写进 03 §10.7 信任矩阵"SP owner"一行，并列为主网前的决策项（03 §10.8 研究部署复核闸门（产品上线审计见 §10.8c））。

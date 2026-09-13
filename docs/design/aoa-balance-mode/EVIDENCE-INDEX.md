@@ -10,6 +10,7 @@
 - `onchain-real`：公链上已经上链的交易，本次只读取回（任何浏览器可查）。目前只有 5.5.0 之前的历史交易。
 - `onchain-readonly`：对公链的只读 JSON-RPC 查询（没有交易）。
 - `unit-test`：forge 进程内 EVM 的测试输出。
+- `spec-freeze`：规范冻结版本的 commit 与文件 sha256（不是实验数据；用于证明论文与 runbook 引用的是哪一版规范）。
 - `HISTORICAL-VOID`：原稿（`910d1f7` 那一代合约）的 OP 主网数据，**重投时作废**，只作拒稿前存档。
 
 "this commit" 指提交本索引的那个 commit（父 commit `df941d57`）。本 commit 对 `contracts/` 的唯一改动是 G2 fuzz 的导出钩子（环境变量不设时不生效，见 §1 U-01）；`contracts/src`、`foundry.toml` 未改。
@@ -46,6 +47,7 @@
 | U-11 | unit-test（构建产物） | `3b0d4821` / `c5fc803c` / `3e7ddd9a` / this commit / `31921fbc` | `data/sizes/sizes-*.json`（`.rows[]`：按产物自身 metadata 选 runs / evm，`sourceKeccakMatchesTree` 核对源码） | `node script/evidence/sizes.mjs <树根>`（历史 commit 用 `git archive` + `forge build`） | sha256(data/sizes/sizes-3b0d4821-sp542-baseline.json)=c3bd07ff38fef7ed525d29359385a3f155be4661a93e403787886cf4b4c29273；sha256(data/sizes/sizes-c5fc803c.json)=997cbcfe1a3dfc9fe67e4875be69d533033e625ddefd9ecd91ee91a89d5a0ab1；sha256(data/sizes/sizes-3e7ddd9a.json)=cd96208bc48aaaf5264fb09e0863efdc9802a0cf4a53ae7fc6e9cdffbd2b9a28；sha256(data/sizes/sizes-df941d57.json)=b13bbd7dd202d223ab2403e9dbf701e987f188175b90be584fa2f2761a01a064；sha256(data/sizes/sizes-31921fbc-exp-partA.json)=5955c1e346c14ca1076c1ab436ade5c0ca37b2ea2db3eead77a79db822e56b68 |
 | U-12 | unit-test | Part A = `git archive 31921fbc` + 导出钩子（`data/g2-31921fbc-partA.hook.diff`）；Part B = `6c3a9a0e`（exp/buffer-and-params，已合入本分支） | `data/g2-31921fbc-partA.jsonl`、`data/g2-6c3a9a0e-partB.jsonl`（各 6,069 笔 = 4,398 结算 + 1,671 注入失败；`formula` 标签 `A_Cpostop170k_Cwrap5k` / `B_Cpostop175k_Cwrap5k_default`）+ `*.stats.txt/json` + `*.forge.log`；变异证据 `data/mutations/`（b-nolen-asm 等价变异、b-slice、c-384-as-legacy） | 见 `data/README.md` 末节「Part A / Part B exports」；`node script/evidence/overpay-stats.mjs <file>`（0 处不一致、0 补贴；重跑逐字节相同；Codex 第 5 轮复核通过） | sha256(data/g2-31921fbc-partA.jsonl)=fef179f9feddf086d350082909a811b4202dfbd441a1299187e9cc4625f3f694；sha256(data/g2-6c3a9a0e-partB.jsonl)=3f018408eb57b1ce702c9bc05218e05c21c2fa90c9eb360bf01b324f9b028c65 |
 | T-01 | 模板 | this commit | `data/templates/p2-sepolia-runbook.csv`、`p4-deployments.csv`、`p4-op-mainnet-ops.csv`（只有表头；规范见 `03-final-spec.md` §6.1） | — | sha256(data/templates/p4-op-mainnet-ops.csv)=a882a46b1420aa921634327e04ae01d760f5088a7b2a180d8e49461eb0ac6b38 |
+| S-01 | spec-freeze | `9213a1591552edeb0c1921a545a855294b3b1cd3`（2026-09-13；源码基线 `cbcb7045`；前一版 `70f8085f` 是合入前的草稿，已被本 commit 的补充取代，不作为冻结版） | `03-final-spec.md` **v4.0**（冻结版；改动清单见文件头的 v4.0 条目与"合入前的补充"） | `git show 9213a159:docs/design/aoa-balance-mode/03-final-spec.md \| shasum -a 256`（在仓库根目录执行）；当前工作树上的同一个值说明规范自冻结以来没有改动 | 03-final-spec.md v4.0 的 sha256 = `029e23bab5adba6315e73f92e5c47e63bc458723d0c135b77206c1427e5130df`（规范不在 `EVIDENCE.sha256` 的范围内，这个值只记在本行；**故意不写成 `sha256(路径)=` 的形式**，否则 `build-manifest.mjs` 会在规范日后修改时把冻结值静默改写成新值。以后的版本新增一行，不改本行） |
 
 ## 2. 登记册数字 → 证据
 
