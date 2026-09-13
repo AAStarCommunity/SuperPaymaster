@@ -147,7 +147,11 @@ def main():
                 r["previous_attempt"] = {k: old[r["part"]].get(k) for k in ("result", "paths", "time_s", "log")}
             old[r["part"]] = r
         results = list(old.values())
-    verdict = "PASS" if all(r["result"] == "PASS" for r in results) else "NOT-ALL-PASS"
+    nb = sum(r["result"] in ("TIMEOUT", "TIMEOUT-WALL") for r in results)
+    nf = sum(r["result"] == "FAIL" for r in results)
+    na = sum(r["result"] not in ("PASS", "FAIL", "TIMEOUT", "TIMEOUT-WALL") for r in results)
+    # never PASS when any part is not PASS; BOUNDED parts are named, never folded into PASS
+    verdict = "PASS" if nb == nf == na == 0 else f"NOT-ALL-PASS ({nb} BOUNDED, {nf} FAIL, {na} ABORTED/ERROR)"
     summary = {"contract": a.contract, "check": a.check, "abi": ABI_OF[a.abi], "parts": len(results),
                "verdict": verdict, "wall_s": int(time.time() - t0), "extra_args": extra, "results": results}
     with open(os.path.join(a.out_dir, f"{a.check}.summary.json"), "w") as f:
