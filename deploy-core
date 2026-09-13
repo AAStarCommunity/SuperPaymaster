@@ -182,6 +182,11 @@ fi
 
 if [ "$SHOULD_RUN_DEPLOY" = true ]; then
     echo "🚀 Starting Phase 1: Core Infrastructure Deployment ($ENV)"
+    # AUD-4: the 5.5.0 contracts are deployed BY ARTIFACT PATH from out/<C>.sol/<C>.json
+    # (profile.default). `forge script` only compiles the script's own closure (under the
+    # registry-size profile, because the scripts import Registry.sol), so build the default
+    # artifacts first — otherwise a stale or missing out/ would be what gets deployed.
+    forge build
     forge script "contracts/script/v3/${SCRIPT_NAME}.s.sol:$SCRIPT_NAME" $FORGE_FLAGS
 
     # Sync ABI JSONs from compiled artifacts (keeps abis/ in sync with deployed bytecode)

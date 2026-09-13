@@ -51,6 +51,8 @@ ANVIL_RPC_URL=http://127.0.0.1:28545 ./deploy-core anvil --force           # exi
 ANVIL_RPC_URL=http://127.0.0.1:28545 ./prepare-test anvil                  # exit 0（第二次，幂等）
 ```
 
+> 下面是第一轮（commit `0fe77567`）的输出，当时 5.5.0 合约还是 registry-size 字节码。AUD-4 修复之后的重跑结果见 §8。
+
 deploy-core 输出尾部（节选）：
 
 ```
@@ -103,7 +105,7 @@ ENV=anvil forge script contracts/script/v3/L4GaslessTest.s.sol:L4GaslessTest --s
 
 ## 5. 验收 3：`UpgradeToV5_5_0.s.sol` 在 Sepolia fork 上演练
 
-入口：`inventory(address[])`、`inventoryDebts(address[],address[])`（第 0 步）；`executePendingAPNTs()` / `cancelPendingAPNTs()`（第 1 步，**需要作者决定**：不设 `V55_APNTS_DECISION=execute|cancel` 就拒绝执行，5.4.2 确有这两个函数）；`clearPendingDebts(...)`（第 2 步，D-21 核销，仅 5.4.2）；`pauseOperators(address[])`（第 3 步）；`run()`（第 4 → 5 → 5b → 6 步）；`ensureStake()`（单独执行 5b）；`issueCommunityToken(...)`（7a，社区广播）；`configureOperatorV2(token, treasury)`（7c-1，operator 广播，先 `updatePrice` 并读回）；`unpauseOperator(op)`（7c-2，SP owner 广播）。
+入口：`inventory(address[])`、`inventoryDebts(address[],address[])`（第 0 步）；`executePendingAPNTs(address[] ops)` / `cancelPendingAPNTs()`（第 1 步，**需要作者决定**：不设 `V55_APNTS_DECISION=execute|cancel` 就拒绝执行，5.4.2 确有这两个函数；execute 分支是完整的清空→切换→重存迁移，见 §9）；`clearPendingDebts(...)`（第 2 步，D-21 核销，仅 5.4.2）；`pauseOperators(address[])`（第 3 步）；`run()`（第 4 → 5 → 5b → 6 步）；`ensureStake()`（单独执行 5b）；`issueCommunityToken(...)`（7a，社区广播）；`configureOperatorV2(token, treasury)`（7c-1，operator 广播，先 `updatePrice` 并读回）；`unpauseOperator(op)`（7c-2，SP owner 广播）。
 脚本**不 import `Registry.sol`**，所以新 impl 是 profile.default（runs=500）的产物，第 5 步要求 `_artifactMatch == default`（见 §7 第 1 条）。
 
 ```
@@ -159,10 +161,84 @@ forge script …UpgradeToV5_5_0 [--sig …] --rpc-url http://127.0.0.1:28546 --u
 
 ## 7. 遗留问题（需要决定或另开工作项）
 
-1. **deploy-core 实际部署的是 runs=200 的字节码**。`foundry.toml` 对 `Registry.sol` 的 `compilation_restrictions` 会让 import 了 `Registry.sol` 的源文件连同整个依赖闭包都用 `registry-size`（runs=200）profile 编译。DeployAnvil / DeployLive 都 import 了 Registry，于是它们 `new` 出来的 SP、v2 模板等都是 `*.registry-size.json` 那一份（实测 SP 22,756 B，而 profile.default 是 22,915 B；xPNTsTokenV2 19,435 B vs 19,851 B）。这与 CLAUDE.md 里"deploy-core 编译的就是 [profile.default]、这就是上线的字节码"的说法不符，也意味着 D2 的体积/ABI 字节码证据测的不是 deploy-core 部署的那份。`UpgradeToV5_5_0` 刻意不 import Registry，并断言新 impl 等于 default artifact。是否让 DeployLive 也改成这样，需要决定。
+1. **（5.5.0 范围已解决，见 §8；以下为原始发现）deploy-core 实际部署的是 runs=200 的字节码**。`foundry.toml` 对 `Registry.sol` 的 `compilation_restrictions` 会让 import 了 `Registry.sol` 的源文件连同整个依赖闭包都用 `registry-size`（runs=200）profile 编译。DeployAnvil / DeployLive 都 import 了 Registry，于是它们 `new` 出来的 SP、v2 模板等都是 `*.registry-size.json` 那一份（实测 SP 22,756 B，而 profile.default 是 22,915 B；xPNTsTokenV2 19,435 B vs 19,851 B）。这与 CLAUDE.md 里"deploy-core 编译的就是 [profile.default]、这就是上线的字节码"的说法不符，也意味着 D2 的体积/ABI 字节码证据测的不是 deploy-core 部署的那份。`UpgradeToV5_5_0` 刻意不 import Registry，并断言新 impl 等于 default artifact。是否让 DeployLive 也改成这样，需要决定。
 2. **deploy-core 的 ABI 同步会改写已提交的 `abis/*.json`**：它用 `jq '.abi'` 把 `{abi, bytecode}` 格式的 bundle 覆盖成纯数组，并且用 `find | head -1` 选 artifact（D2 已在 `extract_v3_abis.sh` 修过同类问题）。而 audit-core 的选择器检查恰恰只认纯数组——提交的 bundle 格式会让它"无法解析、跳过"。本次运行后已 `git checkout -- abis/` 还原，未提交这些改动。两处要统一，另开项。
 3. `L4GaslessTest` 必须带 `--gas-estimate-multiplier 400`（§4）。
 4. v2 代币上的 X402Facilitator：TestAccountPrepare 已跳过（原逻辑会 revert）。要在 v2 代币上启用 x402，需要把 facilitator 的实现 codehash 加入 AOA registry 的 KIND_SPENDER（registry 已 seal，所以要走 48 h 的 propose/execute），再由社区 `proposeSpender` + 48 h `activateSpender`。
 5. AOA registry 与 factoryV2 的 owner：DeployLive 在设了 `GOVERNANCE_OWNER` 时移交并过闸；`UpgradeToV5_5_0` 在 Sepolia 上 owner 是 EOA，只打印提醒，没有移交。
 6. RepCredit 实验在 5.5.0 下的信用开通流程（按代币的 AUTO 策略 + 48 h + 用户 `requestCredit`）不在本次范围，`DeployRepCreditSepolia` 只做部署与接线。
 7. 下游（repo:sdk、repo:dvt、YAAA）：新的 paymasterAndData、Lens、v2 代币 ABI，按约定在 D5/D7 完成后开 issue。
+8. 新 aPNTs `0xBb46…9883` 的 `communityOwner` 就是 SP owner EOA `0xb560…df0E`（fork 上读回）。xPNTs 3.5.0 的 `mint` 没有上限检查，所以执行分支之后，协议存款资产的增发权在一把热钥匙上。见 §9。
+
+## 8. AUD-4 / R10-M5：部署出的字节码 = 审计/测量过的字节码（profile.default）
+
+**决定**（SP 技术设计）：5.5.0 范围内的合约——SuperPaymaster impl、AOAProtocolRegistry、GlobalTierSource、xPNTsTokenV2Ext、xPNTsTokenV2（模板）、xPNTsFactoryV2、SuperPaymasterLens——一律按**显式 artifact 路径**部署 profile.default 产物，部署后逐个断言运行时代码等于 default artifact（immutable 区间屏蔽），不等就直接失败。`foundry.toml`、`contracts/src` 不改。
+
+实现：
+- `V55Bootstrap._deployDefault(name, args)` = `vm.deployCode("out/<name>.sol/<name>.json", args)` + `_requireDefaultArtifact`（`_codeEqArtifact` 与 default 路径比对，只接受 default）。v2 栈的 6 个组件、DeployAnvil / DeployLive / DeployRepCreditSepolia / UpgradeToV5_5_0 的 SP impl 都改走这条路径。
+- `_verifyV55Stack` 对 6 个组件逐个 `_requireDefaultArtifact`，所以续跑时**复用**的组件也会被检查。DeployAnvil / DeployLive 另外要求代理的 ERC-1967 impl == 刚部署的 impl，并且它是 default 产物。
+- `_codeEqArtifact`：没有 immutable 的合约（AOAProtocolRegistry）的 `immutableReferences` 为空，`parseJsonKeys` 会报错，改为"没有需要屏蔽的区间"。
+- `deploy-core`：在 `forge script` 之前先 `forge build`。`forge script` 只编译脚本自己的依赖闭包（而且因为脚本 import 了 Registry，用的是 registry-size profile），按路径部署的 default artifact 必须先保证是最新的。
+
+**重跑验收 1**（全新 anvil 28545，`ANVIL_RPC_URL=… ./deploy-core anvil --force` exit 0，随后 `./prepare-test anvil` exit 0）：
+
+```
+    [v55] artifact default (runs=500): SuperPaymaster 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 22915
+    [v55] artifact default (runs=500): GlobalTierSource 0x3Aa5…443c 542
+    [v55] artifact default (runs=500): AOAProtocolRegistry 0xc6e7…4e7d 2554
+    [v55] artifact default (runs=500): xPNTsTokenV2Ext 0xa852…338f 21922
+    [v55] artifact default (runs=500): xPNTsTokenV2 0x4A67…5319 19851
+    [v55] artifact default (runs=500): xPNTsFactoryV2 0x7a20…814F 6899
+    [v55] artifact default (runs=500): SuperPaymasterLens 0x0963…ceBef 4731
+    [v55] step-4 read-back OK …
+  Check04/01/02/03/07/08/10/11/VerifyV3_1_1 → Script ran successfully
+  ✓ SuperPaymaster / Registry: all local ABI selectors present on-chain
+  ✓ SuperPaymaster proxy → 0x9a9f…63ae (matches config)
+✅ All audit dimensions passed!   [Phase 2.4b] 5.5.0 read-back OK   === Phase 2 Verification Success ===
+```
+
+`cast codesize <spImpl>` = **22,915**，等于 profile.default 的 SuperPaymaster（registry-size 是 22,756）。
+
+**重跑验收 2**（同一条链，L4GaslessTest，`--gas-estimate-multiplier 400`）：`handleOps` tx `0x04901d52…8752` status 1，`UserOperationEvent` success = 1，actualGasUsed = 490,024；`verify()` 从链上读回：用户 xPNTs 烧毁 78.327792839955120000，`lockedOf` = 0，operator 余额减少 78.327792839955120000 = `protocolRevenue` 增加 78.327792839955120000。
+
+**仍从 registry-size 部署的旧合约（范围外，已知的既有问题）**：DeployAnvil / DeployLive 里的其余 `new`，按运行时长度与两份 artifact 对比（immutable 不改变长度）：
+
+| 合约 | 部署长度 | default | registry-size | 结论 |
+|---|---|---|---|---|
+| GTokenStaking | 9,086 | 9,061 | 9,086 | registry-size |
+| MySBT | 12,093 | 12,111 | 12,093 | registry-size |
+| xPNTsFactory（3.x，同时决定 aPNTs 模板） | 6,815 | 6,802 | 6,815 | registry-size |
+| ReputationSystem | 6,993 | 7,044 | 6,993 | registry-size |
+| DVTValidator | 6,170 | 6,326 | 6,170 | registry-size |
+| BLSAggregator | 23,940 | 24,345 | 23,940 | registry-size |
+| PaymasterFactory | 6,084 | 6,158 | 6,084 | registry-size |
+| Paymaster（V4 impl） | 10,441 | 10,492 | 10,441 | registry-size |
+| X402Facilitator | 4,343 | 4,332 | 4,343 | registry-size |
+| TimelockController | 5,409 | — | 5,409 | registry-size |
+| GTokenAuthorization / MicroPaymentChannel / PolicyRegistry | 6,096 / 6,067 / 6,215 | 6,113 / 6,117 / 6,349 | 不在 `out/<C>.sol/<C>.registry-size.json` | 都不等于 default |
+| Registry | 23,038 | 23,038 | — | default（它自己的 default 就是受限的 runs=200） |
+| anvil 专用：EntryPoint、SimpleAccountFactory、MockPriceFeed、Mock agent registries、ERC1967Proxy | — | — | — | 未核对 |
+
+注意 BLSAggregator：默认产物是 24,345 B（与 memory 中"余量 231 B"的测量一致），而 deploy-core 实际部署的是 23,940 B 的版本。
+
+## 9. 第 1 步的两条分支——请作者决定
+
+事实（fork 块 11692260 读回，与协调方给出的 step-0 盘点一致）：operator `0xEcAA…33c9` 余额 844.540702843415794600，`0xb560…df0E` 余额 1690.008712737068326800；`protocolRevenue` 399.586525633215878600；`totalTrackedBalance` 2934.135941213700000000（= 两个 operator 之和 + revenue，没有漏掉的 operator）；待切换代币 `0xBb46…9883`（xPNTs 3.5.0 的 EIP-1167 克隆，"AAStar PNTs"/aPNTs），ETA 已过；没有 `DebtRecordFailed`，也就没有 pendingDebts。
+
+5.4.2 的 `executeAPNTsTokenChange` 要求 `totalTrackedBalance == protocolRevenue && protocolRevenue <= 0.1`。所以原来那个"只调 execute"的版本在 Sepolia 上**一定 revert**，已重写成一次完整的迁移：`executePendingAPNTs(address[] ops)` 仍然要求 `V55_APNTS_DECISION=execute`，步骤为：(1) 快照 → (2) 各 operator `withdraw` 全额 → (3) owner 把 revenue 提到 buffer → (4) 检查前置条件 → (5) execute 并读回 → (6) 各 operator 用**新**代币 approve + `deposit(snapshot × V55_APNTS_RATIO_WAD)`（旧→新比例由作者决定，默认 1:1）→ (7) 读回每个余额 = 快照 × 比例，并且 `totalTracked = Σ + revenue`。真实 operator 必须自己先拿到新代币，否则第 (6) 步明确报错。只有 fork 上的 `V55_REHEARSAL_FUND_NEW_APNTS=true` 会用新代币的 communityOwner 铸出差额。另外 inventory 的标签已改为 `pendingAPNTsTokenEta`。
+
+两条分支各用一个**全新的** fork（端口 28546 / 28547，块 11692260），每条都完整走：inventory → 第 1 步 → pause（两个 operator）→ `run()`（第 4–5–5b–6 步，**严格前置检查**，不再需要 rehearsal 开关）→ 7a（两个社区各发一枚 v2 代币）→ 7c-1 / 7c-2（两个 operator 都配置并取消暂停）。所有步骤 exit 0，所有读回通过；两条分支里 7 个 5.5.0 合约都记录为 `artifact default (runs=500)`，SP impl 22,915 B。
+
+| | **A：execute**（切到 `0xBb46…`） | **B：cancel**（保留 `0x696A…`） |
+|---|---|---|
+| 第 1 步读回 | `APNTS_TOKEN` 0x696A… → **0xBb46…**，pending = 0，ETA = 0 | pending = 0，ETA = 0，`APNTS_TOKEN` 仍是 **0x696A…** |
+| (2) operator 提走的旧代币 | 0xb560：1690.008712737068326800；0xEcAA：844.540702843415794600（旧 aPNTs 回到 operator 手里） | 不发生 |
+| (3) revenue | 399.486525633215878600 转到 treasury（= owner EOA `0xb560…`），留 0.1 buffer | 不变：399.586525633215878600 |
+| (6) 新代币来源 | 0xb560 本来就持有足够的新 aPNTs；0xEcAA 缺 844.54，由新代币 communityOwner（**正是 SP owner EOA 0xb560**）在 fork 上铸出 | 不发生 |
+| operator 余额（之前 → 之后） | 0xb560 1690.0087 → 1690.0087（新代币）；0xEcAA 844.5407 → 844.5407（新代币） | 两者都不变（旧代币） |
+| `totalTrackedBalance` / `protocolRevenue`（最终） | 2534.649415580484121400 / 0.1 | 2934.135941213700000000 / 399.586525633215878600 |
+| 最终 SP | 5.5.0；stake 1 ETH / 86400 / 未解锁；xpntsFactory = factoryV2 `0xF40a…e6C6` | 5.5.0；stake 1 ETH / 86400 / 未解锁；xpntsFactory = factoryV2 `0x499D…D962` |
+| operator 最终状态 | 两个都在 v2 代币上（0xb560 → `0x5779…39ac`，0xEcAA → `0x7971…5E8b`），未暂停 | 两个都在 v2 代币上（0xb560 → `0x7F2e…CC48`，0xEcAA → `0x49BF…ffb6`），未暂停 |
+| 剩余风险 | 留下的 0.1 revenue buffer 记在账上，但 SP 持有的是旧代币，不是新代币；新 aPNTs 的无上限增发权在一个 EOA 上；operator 手里多出一笔旧 aPNTs，需要另行处理（兑换/作废） | 待切换的新代币被放弃；如果以后还要切换，得在 5.5.0 上重新 `setAPNTsToken` 并等 7 天，再做同样的清空与重存 |
+
+**对 RepCredit 证据的影响（两条分支相同）**：已有的 RepCredit 证据是在 SP 5.4.x + aPNTs `0x696A…` 上采集的，两条分支都**不会改写**任何历史交易或事件，冻结的证据保持原样。runbook 第 10 步的重新采集用的是当时在用的 aPNTs：选 A 就是 `0xBb46…`，选 B 就是 `0x696A…`。选 A 时，论文里要写明存款资产在两次采集之间换过一次，并附上这里的迁移读回。

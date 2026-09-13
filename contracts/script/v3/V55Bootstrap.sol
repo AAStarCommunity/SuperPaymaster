@@ -103,7 +103,7 @@ abstract contract V55Bootstrap is Script {
             st.tierSource = prev.tierSource;
             console.log("  [v55] reuse GlobalTierSource   ", st.tierSource);
         } else {
-            st.tierSource = address(new GlobalTierSource(registry));
+            st.tierSource = _deployDefault("GlobalTierSource", abi.encode(registry));
             console.log("  [v55] new   GlobalTierSource   ", st.tierSource);
         }
 
@@ -113,7 +113,7 @@ abstract contract V55Bootstrap is Script {
             aoa = AOAProtocolRegistry(prev.aoaRegistry);
             console.log("  [v55] reuse AOAProtocolRegistry", address(aoa));
         } else {
-            aoa = new AOAProtocolRegistry(owner);
+            aoa = AOAProtocolRegistry(_deployDefault("AOAProtocolRegistry", abi.encode(owner)));
             console.log("  [v55] new   AOAProtocolRegistry", address(aoa));
         }
         st.aoaRegistry = address(aoa);
@@ -137,7 +137,7 @@ abstract contract V55Bootstrap is Script {
             st.ext = prev.ext;
             console.log("  [v55] reuse xPNTsTokenV2Ext    ", st.ext);
         } else {
-            st.ext = address(new xPNTsTokenV2Ext(st.aoaRegistry));
+            st.ext = _deployDefault("xPNTsTokenV2Ext", abi.encode(st.aoaRegistry));
             console.log("  [v55] new   xPNTsTokenV2Ext    ", st.ext);
         }
         if (
@@ -147,7 +147,7 @@ abstract contract V55Bootstrap is Script {
             st.impl = prev.impl;
             console.log("  [v55] reuse xPNTsTokenV2 impl  ", st.impl);
         } else {
-            st.impl = address(new xPNTsTokenV2(st.aoaRegistry, st.ext));
+            st.impl = _deployDefault("xPNTsTokenV2", abi.encode(st.aoaRegistry, st.ext));
             console.log("  [v55] new   xPNTsTokenV2 impl  ", st.impl);
         }
 
@@ -162,7 +162,7 @@ abstract contract V55Bootstrap is Script {
             if (f.SUPERPAYMASTER() != sp) f.setSuperPaymasterAddress(sp);
             if (f.defaultTierSource() != st.tierSource) f.setDefaultTierSource(st.tierSource);
         } else {
-            st.factory = address(new xPNTsFactoryV2(sp, registry, st.impl, st.tierSource));
+            st.factory = _deployDefault("xPNTsFactoryV2", abi.encode(sp, registry, st.impl, st.tierSource));
             console.log("  [v55] new   xPNTsFactoryV2     ", st.factory);
         }
 
@@ -171,7 +171,7 @@ abstract contract V55Bootstrap is Script {
             st.lens = prev.lens;
             console.log("  [v55] reuse SuperPaymasterLens ", st.lens);
         } else {
-            st.lens = address(new SuperPaymasterLens());
+            st.lens = _deployDefault("SuperPaymasterLens", "");
             console.log("  [v55] new   SuperPaymasterLens ", st.lens);
         }
     }
@@ -198,9 +198,15 @@ abstract contract V55Bootstrap is Script {
         require(address(impl.PROTOCOL_REGISTRY()) == st.aoaRegistry, "V55 readback: template registry");
         require(_strEq(impl.version(), XPNTS_V2_VERSION), "V55 readback: template version");
         require(impl.BALANCE_MODE_VERSION() == 1, "V55 readback: BALANCE_MODE_VERSION");
-        uint8 m = _artifactMatch(st.impl, "xPNTsTokenV2");
-        require(m != 0, "V55 readback: template runtime code != compiled artifact (immutables masked)");
-        console.log("  [v55] template code == artifact:", m == 1 ? "out/xPNTsTokenV2.sol/xPNTsTokenV2.json" : "out/xPNTsTokenV2.sol/xPNTsTokenV2.registry-size.json");
+        // AUD-4 / R10-M5: every 5.5.0 contract must run the profile.default (runs=500) bytes —
+        // the ones that were measured and audited — never the registry-size variant. Also covers
+        // components REUSED by a resumed run, which `_deployDefault` never touched.
+        _requireDefaultArtifact(st.tierSource, "GlobalTierSource");
+        _requireDefaultArtifact(st.aoaRegistry, "AOAProtocolRegistry");
+        _requireDefaultArtifact(st.ext, "xPNTsTokenV2Ext");
+        _requireDefaultArtifact(st.impl, "xPNTsTokenV2");
+        _requireDefaultArtifact(st.factory, "xPNTsFactoryV2");
+        _requireDefaultArtifact(st.lens, "SuperPaymasterLens");
 
         xPNTsFactoryV2 f = xPNTsFactoryV2(st.factory);
         require(_strEq(f.version(), FACTORY_V2_VERSION), "V55 readback: factory version");
@@ -215,6 +221,29 @@ abstract contract V55Bootstrap is Script {
             "V55 readback: lens bound to another SP version"
         );
         console.log("  [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)");
+    }
+
+    /// @notice out/<name>.sol/<name>.json — the profile.default (runs=500) artifact.
+    function _defaultArtifact(string memory name) internal pure returns (string memory) {
+        return string.concat("out/", name, ".sol/", name, ".json");
+    }
+
+    /// @notice Deploy `name` from the profile.default artifact BY PATH, then require the deployed
+    ///         runtime to equal that artifact (immutables masked). A plain `new X(...)` in a file
+    ///         that imports Registry.sol would silently pick the runs=200 "registry-size" build
+    ///         (foundry.toml compilation_restrictions); an explicit artifact path cannot.
+    /// @dev    Inside a broadcast, vm.deployCode is broadcast as a CREATE from the broadcaster.
+    function _deployDefault(string memory name, bytes memory args) internal returns (address a) {
+        a = vm.deployCode(_defaultArtifact(name), args);
+        _requireDefaultArtifact(a, name);
+    }
+
+    function _requireDefaultArtifact(address a, string memory name) internal view {
+        require(
+            _codeEqArtifact(a, _defaultArtifact(name)),
+            string.concat("V55: ", name, " runtime != profile.default artifact (AUD-4)")
+        );
+        console.log(string.concat("  [v55] artifact default (runs=500): ", name), a, a.code.length);
     }
 
     struct ImmRef {
@@ -246,7 +275,14 @@ abstract contract V55Bootstrap is Script {
         bytes memory art = vm.parseJsonBytes(json, ".deployedBytecode.object");
         bytes memory code = target.code;
         if (art.length == 0 || art.length != code.length) return false;
-        string[] memory keys = vm.parseJsonKeys(json, ".deployedBytecode.immutableReferences");
+        // A contract without immutables has an empty/absent immutableReferences object, which
+        // parseJsonKeys rejects — that simply means "nothing to mask".
+        string[] memory keys;
+        try vm.parseJsonKeys(json, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
+            keys = k;
+        } catch {
+            keys = new string[](0);
+        }
         for (uint256 i; i < keys.length; ++i) {
             ImmRef[] memory refs = abi.decode(
                 vm.parseJson(json, string.concat(".deployedBytecode.immutableReferences.", keys[i])), (ImmRef[])

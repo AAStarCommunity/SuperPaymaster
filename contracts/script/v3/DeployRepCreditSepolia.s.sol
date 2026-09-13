@@ -106,7 +106,10 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         );
         apnts.mint(deployer, 5_000 ether);
 
-        SuperPaymaster superPaymasterImpl = new SuperPaymaster(IEntryPoint(entryPoint), registry, priceFeed);
+        // AUD-4: explicit profile.default artifact (see V55Bootstrap._deployDefault)
+        SuperPaymaster superPaymasterImpl = SuperPaymaster(payable(_deployDefault(
+            "SuperPaymaster", abi.encode(entryPoint, address(registry), priceFeed)
+        )));
         bytes memory spInit = abi.encodeCall(
             SuperPaymaster.initialize,
             (deployer, address(apnts), deployer, 4_200)

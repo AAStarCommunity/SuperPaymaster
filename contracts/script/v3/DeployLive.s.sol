@@ -158,7 +158,11 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         console.log("  aPNTs Deployed at:", apntsAddr);
 
         console.log("=== Step 3: Deploy SuperPaymaster (UUPS Proxy) ===");
-        SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        // AUD-4: explicit profile.default artifact (this file imports Registry.sol, so a plain
+        // `new` would ship the runs=200 registry-size build).
+        SuperPaymaster spImpl = SuperPaymaster(payable(_deployDefault(
+            "SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)
+        )));
         spImplAddr = address(spImpl); // capture for config write
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
@@ -228,6 +232,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _verifyV55Stack(v55, address(superPaymaster), address(registry));
         _verifySPFactory(address(superPaymaster), v55.factory);
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "DeployLive: SP is not 5.5.0");
+        require(_implOf(address(superPaymaster)) == spImplAddr, "DeployLive: SP proxy impl != deployed impl");
+        _requireDefaultArtifact(spImplAddr, "SuperPaymaster"); // AUD-4
         if (pntsAddr != address(0)) {
             address anni = vm.addr(vm.envUint("PRIVATE_KEY_ANNI"));
             _verifyV2Token(pntsAddr, v55.factory, anni, address(superPaymaster));

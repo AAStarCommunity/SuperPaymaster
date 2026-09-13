@@ -23,6 +23,12 @@ interface ISP542Legacy {
     function clearPendingDebt(address token, address user) external;
 }
 
+/// @dev The pending aPNTs (Sepolia 0xBb46…: an EIP-1167 clone of xPNTs 3.5.0). Fork-only funding.
+interface IXPNTs35Mint {
+    function communityOwner() external view returns (address);
+    function mint(address to, uint256 amount) external;
+}
+
 interface IBLSPtr {
     function blsAggregator() external view returns (address);
     function BLS_AGGREGATOR() external view returns (address);
@@ -38,7 +44,8 @@ interface IBLSPtr {
  * Entry points (all read back and `require` the state they claim; all idempotent):
  *   inventory(address[] operators)                     step 0 (view)
  *   inventoryDebts(address[] tokens, address[] users)  step 0 (view, pendingDebts on 5.4.2)
- *   executePendingAPNTs()   step 1, branch A  ── AUTHOR DECISION REQUIRED
+ *   executePendingAPNTs(address[] ops)  step 1, branch A (full drain -> switch -> re-deposit)
+ *                                       ── AUTHOR DECISION REQUIRED
  *   cancelPendingAPNTs()    step 1, branch B  ── AUTHOR DECISION REQUIRED
  *                           Both refuse to run unless V55_APNTS_DECISION=execute|cancel matches.
  *   clearPendingDebts(address[] tokens, address[] users)  step 2 (D-21 write-off, 5.4.2 only)
@@ -62,7 +69,11 @@ interface IBLSPtr {
  * superPaymasterLens, spImpl) are written ONLY when V55_OUT_CONFIG names a file (path relative
  * to the project root; it is created from the input config if missing). Nothing is ever deleted.
  *
+ * Every 5.5.0 contract is deployed BY ARTIFACT PATH from out/<C>.sol/<C>.json (profile.default,
+ * AUD-4): run `forge build` first so those artifacts are current.
+ *
  * Fork rehearsal (never the public RPC):
+ *   forge build
  *   anvil --fork-url https://ethereum-sepolia-rpc.publicnode.com --port 28546
  *   cast rpc anvil_impersonateAccount <SP owner> --rpc-url http://127.0.0.1:28546
  *   ENV=sepolia V55_OUT_CONFIG=cache/d5-rehearsal/config.sepolia-fork.json \
@@ -175,7 +186,7 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         console.log("  owner             :", sp.owner());
         console.log("  APNTS_TOKEN       :", sp.APNTS_TOKEN());
         console.log("  pendingAPNTsToken :", sp.pendingAPNTsToken());
-        console.log("  pendingAPNTsEta   :", sp.pendingAPNTsTokenEta());
+        console.log("  pendingAPNTsTokenEta:", sp.pendingAPNTsTokenEta());
         console.log("  xpntsFactory      :", sp.xpntsFactory());
         (int256 price, uint256 updatedAt,,) = sp.cachedPrice();
         console.log("  cachedPrice       :", uint256(price));
@@ -217,23 +228,128 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
     // Step 1 — pending aPNTs switch: AUTHOR DECISION REQUIRED (do not pick a branch here)
     // =====================================================================
 
-    /// @notice Branch A. AUTHOR DECISION REQUIRED — refuses unless V55_APNTS_DECISION=execute.
-    ///         5.4.2 executeAPNTsTokenChange requires the timelock elapsed AND
-    ///         totalTrackedBalance == protocolRevenue <= 0.1 ether (every operator drained).
-    function executePendingAPNTs() external {
+    /// @dev 5.4.2 / 5.5.0 `PROTOCOL_REVENUE_BUFFER` (internal constant, 0.1 aPNTs).
+    uint256 internal constant PROTOCOL_REVENUE_BUFFER = 0.1 ether;
+
+    /// @notice Branch A — a COMPLETE aPNTs migration. AUTHOR DECISION REQUIRED: refuses unless
+    ///         V55_APNTS_DECISION=execute. `ops` must list EVERY operator with a balance (step-0
+    ///         inventory); a missed one makes (4) fail rather than strand its funds.
+    ///         5.4.2 `executeAPNTsTokenChange` requires the timelock elapsed AND
+    ///         totalTrackedBalance == protocolRevenue <= PROTOCOL_REVENUE_BUFFER, so:
+    ///           (1) snapshot each operator's aPNTsBalance;
+    ///           (2) each operator withdraw(balance)            — old token returns to the operator;
+    ///           (3) owner withdrawProtocolRevenue(treasury, revenue - buffer) if above the buffer;
+    ///           (4) require totalTrackedBalance == protocolRevenue <= buffer;
+    ///           (5) executeAPNTsTokenChange; read back APNTS_TOKEN == pending, pending == 0;
+    ///           (6) each operator approve + deposit(snapshot × V55_APNTS_RATIO_WAD / 1e18) in the
+    ///               NEW token (old→new ratio is an author decision; default 1:1);
+    ///           (7) read back each aPNTsBalance == snapshot × ratio and
+    ///               totalTrackedBalance == Σ + protocolRevenue.
+    ///         Real operators must OBTAIN the new token themselves before (6). On a fork only,
+    ///         V55_REHEARSAL_FUND_NEW_APNTS=true mints the shortfall from the new token's
+    ///         communityOwner (which must be impersonated/unlocked on the fork).
+    ///         NOT resumable past (5): once the switch executed, a re-run reverts "nothing pending";
+    ///         finish (6) by hand from the (1) snapshot in the log.
+    function executePendingAPNTs(address[] calldata ops) external {
         require(_strEq(vm.envOr("V55_APNTS_DECISION", string("")), "execute"), "V55: AUTHOR DECISION REQUIRED (V55_APNTS_DECISION=execute)");
         SuperPaymaster sp = SuperPaymaster(payable(_addrs().sp));
+        require(_strEq(sp.version(), FROM_VERSION), "V55 step1: run BEFORE the 5.5.0 upgrade (runbook order)");
         address pending = sp.pendingAPNTsToken();
-        if (pending == address(0)) {
-            console.log("  step 1: nothing pending (idempotent no-op)");
-            return;
+        require(pending != address(0), "V55 step1: nothing pending");
+        require(block.timestamp >= sp.pendingAPNTsTokenEta(), "V55 step1: aPNTs timelock not elapsed");
+        address owner = sp.owner();
+        address oldToken = sp.APNTS_TOKEN();
+        uint256 ratio = vm.envOr("V55_APNTS_RATIO_WAD", uint256(1e18));
+
+        // (1) snapshot
+        uint256[] memory snap = new uint256[](ops.length);
+        for (uint256 i; i < ops.length; ++i) {
+            (uint128 bal,,,,,,,,) = sp.operators(ops[i]);
+            snap[i] = bal;
+            console.log("  (1) snapshot", ops[i], snap[i]);
         }
-        vm.startBroadcast(sp.owner());
+        console.log("  (1) totalTracked / protocolRevenue:", sp.totalTrackedBalance(), sp.protocolRevenue());
+
+        // (2) operators withdraw everything (old token)
+        for (uint256 i; i < ops.length; ++i) {
+            if (snap[i] == 0) continue;
+            uint256 before = IERC20(oldToken).balanceOf(ops[i]);
+            vm.startBroadcast(ops[i]);
+            sp.withdraw(snap[i]);
+            vm.stopBroadcast();
+            (uint128 bal,,,,,,,,) = sp.operators(ops[i]);
+            require(bal == 0, "V55 step1(2) read-back: operator balance not drained");
+            require(IERC20(oldToken).balanceOf(ops[i]) == before + snap[i], "V55 step1(2) read-back: old token not received");
+        }
+
+        // (3) protocol revenue down to the buffer
+        uint256 rev = sp.protocolRevenue();
+        if (rev > PROTOCOL_REVENUE_BUFFER) {
+            address treasury = sp.treasury();
+            vm.startBroadcast(owner);
+            sp.withdrawProtocolRevenue(treasury, rev - PROTOCOL_REVENUE_BUFFER);
+            vm.stopBroadcast();
+            console.log("  (3) protocol revenue withdrawn to treasury:", treasury, rev - PROTOCOL_REVENUE_BUFFER);
+        }
+
+        // (4) the 5.4.2 execute precondition, checked before calling it
+        uint256 tracked = sp.totalTrackedBalance();
+        rev = sp.protocolRevenue();
+        require(tracked == rev && rev <= PROTOCOL_REVENUE_BUFFER, "V55 step1(4): operators not fully drained (missing from ops?)");
+        console.log("  (4) totalTracked == protocolRevenue <= buffer:", tracked);
+
+        // (5) execute
+        vm.startBroadcast(owner);
         sp.executeAPNTsTokenChange();
         vm.stopBroadcast();
-        require(sp.pendingAPNTsToken() == address(0), "V55 step1 read-back: pendingAPNTsToken != 0");
-        require(sp.APNTS_TOKEN() == pending, "V55 step1 read-back: APNTS_TOKEN != executed token");
-        console.log("  step 1 (execute): APNTS_TOKEN ->", pending);
+        require(sp.pendingAPNTsToken() == address(0), "V55 step1(5) read-back: pendingAPNTsToken != 0");
+        require(sp.pendingAPNTsTokenEta() == 0, "V55 step1(5) read-back: pendingAPNTsTokenEta != 0");
+        require(sp.APNTS_TOKEN() == pending, "V55 step1(5) read-back: APNTS_TOKEN != executed token");
+        console.log("  (5) APNTS_TOKEN:", oldToken, "->", pending);
+
+        // (6) re-deposit in the NEW token, (7) read back
+        _redepositNewAPNTs(sp, pending, ops, snap, ratio, rev);
+    }
+
+    function _redepositNewAPNTs(
+        SuperPaymaster sp,
+        address newToken,
+        address[] calldata ops,
+        uint256[] memory snap,
+        uint256 ratio,
+        uint256 rev
+    ) internal {
+        bool fund = vm.envOr("V55_REHEARSAL_FUND_NEW_APNTS", false);
+        uint256 sum;
+        for (uint256 i; i < ops.length; ++i) {
+            uint256 amt = snap[i] * ratio / 1e18;
+            sum += amt;
+            if (amt == 0) continue;
+            uint256 have = IERC20(newToken).balanceOf(ops[i]);
+            if (have < amt) {
+                if (!fund) {
+                    console.log("  (6) operator lacks the NEW aPNTs - it must obtain them first:", ops[i], amt - have);
+                    revert("V55 step1(6): operator does not hold the new aPNTs to re-deposit");
+                }
+                address funder = IXPNTs35Mint(newToken).communityOwner();
+                console.log("  (6) REHEARSAL funding from new-token communityOwner:", funder, amt - have);
+                vm.startBroadcast(funder);
+                IXPNTs35Mint(newToken).mint(ops[i], amt - have);
+                vm.stopBroadcast();
+            }
+            vm.startBroadcast(ops[i]);
+            IERC20(newToken).approve(address(sp), amt);
+            sp.deposit(amt);
+            vm.stopBroadcast();
+        }
+        for (uint256 i; i < ops.length; ++i) {
+            (uint128 bal,,,,,,,,) = sp.operators(ops[i]);
+            require(bal == snap[i] * ratio / 1e18, "V55 step1(7) read-back: operator balance != snapshot x ratio");
+            console.log("  (7) operator re-deposited", ops[i], uint256(bal));
+        }
+        require(sp.totalTrackedBalance() == sum + rev, "V55 step1(7) read-back: totalTracked != sum + protocolRevenue");
+        require(IERC20(newToken).balanceOf(address(sp)) >= sum, "V55 step1(7) read-back: SP does not hold the new aPNTs");
+        console.log("  (7) totalTracked == sum + protocolRevenue:", sp.totalTrackedBalance());
     }
 
     /// @notice Branch B. AUTHOR DECISION REQUIRED — refuses unless V55_APNTS_DECISION=cancel.
@@ -420,7 +536,10 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         } else {
             require(_strEq(pre.version, FROM_VERSION), "V55 step5: SP is neither 5.4.2 nor 5.5.0");
             vm.startBroadcast(owner);
-            SuperPaymaster impl = new SuperPaymaster(IEntryPoint(pre.entryPointImm), IRegistry(pre.registryImm), pre.feedImm);
+            // AUD-4: explicit profile.default artifact path (asserted == default below).
+            SuperPaymaster impl = SuperPaymaster(payable(_deployDefault(
+                "SuperPaymaster", abi.encode(pre.entryPointImm, pre.registryImm, pre.feedImm)
+            )));
             vm.stopBroadcast();
             newImpl = address(impl);
             // Pre-swap: the new impl must carry EXACTLY the live immutables and be the right build.

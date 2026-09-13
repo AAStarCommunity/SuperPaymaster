@@ -175,7 +175,11 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         apnts.mint(deployer, 2000 ether);
 
         console.log("=== Step 5: Deploy Core (UUPS Proxy) ===");
-        SuperPaymaster spImpl = new SuperPaymaster(IEntryPoint(entryPointAddr), registry, priceFeedAddr);
+        // AUD-4: explicit profile.default artifact (this file imports Registry.sol, so a plain
+        // `new` would ship the runs=200 registry-size build).
+        SuperPaymaster spImpl = SuperPaymaster(payable(_deployDefault(
+            "SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)
+        )));
         spImplAddr = address(spImpl);
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
@@ -314,14 +318,9 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         _verifyOperatorV2(address(superPaymaster), anni, demoXPNTsV2, anni);
         _verifyPriceFresh(address(superPaymaster));
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "DeployAnvil: SP is not 5.5.0");
-        {
-            // Diagnostic: which compiler profile's bytes actually shipped. This script imports
-            // Registry.sol, so foundry.toml's Registry compilation_restriction compiles its whole
-            // closure (SP included) under the runs=200 "registry-size" profile.
-            uint8 spArt = _artifactMatch(_implOf(address(superPaymaster)), "SuperPaymaster");
-            require(spArt != 0, "DeployAnvil: SP impl code matches no compiled artifact");
-            console.log("  SP impl artifact:", spArt == 1 ? "default (runs=500)" : "registry-size (runs=200)");
-        }
+        // AUD-4: the proxy's live implementation must be the profile.default SuperPaymaster.
+        require(_implOf(address(superPaymaster)) == spImplAddr, "DeployAnvil: SP proxy impl != deployed impl");
+        _requireDefaultArtifact(spImplAddr, "SuperPaymaster");
 
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
