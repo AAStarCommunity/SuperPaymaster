@@ -161,7 +161,7 @@ forge script …UpgradeToV5_5_0 [--sig …] --rpc-url http://127.0.0.1:28546 --u
 
 ## 7. 遗留问题（需要决定或另开工作项）
 
-1. **（5.5.0 范围已解决，见 §8；以下为原始发现）deploy-core 实际部署的是 runs=200 的字节码**。`foundry.toml` 对 `Registry.sol` 的 `compilation_restrictions` 会让 import 了 `Registry.sol` 的源文件连同整个依赖闭包都用 `registry-size`（runs=200）profile 编译。DeployAnvil / DeployLive 都 import 了 Registry，于是它们 `new` 出来的 SP、v2 模板等都是 `*.registry-size.json` 那一份（实测 SP 22,756 B，而 profile.default 是 22,915 B；xPNTsTokenV2 19,435 B vs 19,851 B）。这与 CLAUDE.md 里"deploy-core 编译的就是 [profile.default]、这就是上线的字节码"的说法不符，也意味着 D2 的体积/ABI 字节码证据测的不是 deploy-core 部署的那份。`UpgradeToV5_5_0` 刻意不 import Registry，并断言新 impl 等于 default artifact。是否让 DeployLive 也改成这样，需要决定。
+1. **（已全部解决：5.5.0 范围见 §8，整套部署见 §8.1 T-4；以下为原始发现）deploy-core 实际部署的是 runs=200 的字节码**。`foundry.toml` 对 `Registry.sol` 的 `compilation_restrictions` 会让 import 了 `Registry.sol` 的源文件连同整个依赖闭包都用 `registry-size`（runs=200）profile 编译。DeployAnvil / DeployLive 都 import 了 Registry，于是它们 `new` 出来的 SP、v2 模板等都是 `*.registry-size.json` 那一份（实测 SP 22,756 B，而 profile.default 是 22,915 B；xPNTsTokenV2 19,435 B vs 19,851 B）。这与 CLAUDE.md 里"deploy-core 编译的就是 [profile.default]、这就是上线的字节码"的说法不符，也意味着 D2 的体积/ABI 字节码证据测的不是 deploy-core 部署的那份。`UpgradeToV5_5_0` 刻意不 import Registry，并断言新 impl 等于 default artifact。是否让 DeployLive 也改成这样，需要决定。
 2. **deploy-core 的 ABI 同步会改写已提交的 `abis/*.json`**：它用 `jq '.abi'` 把 `{abi, bytecode}` 格式的 bundle 覆盖成纯数组，并且用 `find | head -1` 选 artifact（D2 已在 `extract_v3_abis.sh` 修过同类问题）。而 audit-core 的选择器检查恰恰只认纯数组——提交的 bundle 格式会让它"无法解析、跳过"。本次运行后已 `git checkout -- abis/` 还原，未提交这些改动。两处要统一，另开项。
 3. `L4GaslessTest` 必须带 `--gas-estimate-multiplier 400`（§4）。
 4. v2 代币上的 X402Facilitator：TestAccountPrepare 已跳过（原逻辑会 revert）。要在 v2 代币上启用 x402，需要把 facilitator 的实现 codehash 加入 AOA registry 的 KIND_SPENDER（registry 已 seal，所以要走 48 h 的 propose/execute），再由社区 `proposeSpender` + 48 h `activateSpender`。
@@ -201,25 +201,71 @@ forge script …UpgradeToV5_5_0 [--sig …] --rpc-url http://127.0.0.1:28546 --u
 
 **重跑验收 2**（同一条链，L4GaslessTest，`--gas-estimate-multiplier 400`）：`handleOps` tx `0x04901d52…8752` status 1，`UserOperationEvent` success = 1，actualGasUsed = 490,024；`verify()` 从链上读回：用户 xPNTs 烧毁 78.327792839955120000，`lockedOf` = 0，operator 余额减少 78.327792839955120000 = `protocolRevenue` 增加 78.327792839955120000。
 
-**仍从 registry-size 部署的旧合约（范围外，已知的既有问题）**：DeployAnvil / DeployLive 里的其余 `new`，按运行时长度与两份 artifact 对比（immutable 不改变长度）：
+### 8.1 T-4：整套部署都从 default artifact 部署（DSR P1 "tested == deployed"）
 
-| 合约 | 部署长度 | default | registry-size | 结论 |
-|---|---|---|---|---|
-| GTokenStaking | 9,086 | 9,061 | 9,086 | registry-size |
-| MySBT | 12,093 | 12,111 | 12,093 | registry-size |
-| xPNTsFactory（3.x，同时决定 aPNTs 模板） | 6,815 | 6,802 | 6,815 | registry-size |
-| ReputationSystem | 6,993 | 7,044 | 6,993 | registry-size |
-| DVTValidator | 6,170 | 6,326 | 6,170 | registry-size |
-| BLSAggregator | 23,940 | 24,345 | 23,940 | registry-size |
-| PaymasterFactory | 6,084 | 6,158 | 6,084 | registry-size |
-| Paymaster（V4 impl） | 10,441 | 10,492 | 10,441 | registry-size |
-| X402Facilitator | 4,343 | 4,332 | 4,343 | registry-size |
-| TimelockController | 5,409 | — | 5,409 | registry-size |
-| GTokenAuthorization / MicroPaymentChannel / PolicyRegistry | 6,096 / 6,067 / 6,215 | 6,113 / 6,117 / 6,349 | 不在 `out/<C>.sol/<C>.registry-size.json` | 都不等于 default |
-| Registry | 23,038 | 23,038 | — | default（它自己的 default 就是受限的 runs=200） |
-| anvil 专用：EntryPoint、SimpleAccountFactory、MockPriceFeed、Mock agent registries、ERC1967Proxy | — | — | — | 未核对 |
+**仍从 registry-size 部署的合约：没有了（none remaining）。** 上一版这里列出的 10 多个旧合约（GTokenStaking、MySBT、3.x xPNTsFactory、ReputationSystem、DVTValidator、BLSAggregator、PaymasterFactory、V4 Paymaster、X402Facilitator、TimelockController、GTokenAuthorization、MicroPaymentChannel、PolicyRegistry……），现在和 5.5.0 的 7 个合约一样，都按显式 default artifact 路径部署并断言。
 
-注意 BLSAggregator：默认产物是 24,345 B（与 memory 中"余量 231 B"的测量一致），而 deploy-core 实际部署的是 23,940 B 的版本。
+实现（`foundry.toml`、`contracts/src` 不改）：
+- 新文件 `contracts/script/v3/DefaultArtifacts.sol`：
+  - `_deployDefault(name, args)` = `vm.deployCode(<default artifact>, args)`，部署后立刻 `_requireDefaultArtifact`（immutable 区间屏蔽后逐字节比对）。
+  - `_requireDefaultProxy(proxy, impl)`：代理对 ERC1967Proxy 的 default artifact，实现（从 ERC-1967 槽读出）对它自己的 artifact。
+  - `_requireDefaultClone(clone, impl)`：EIP-1167 克隆（工厂发的代币、V4 paymaster）解出内嵌实现后再比对。
+  - V54Bootstrap / V55Bootstrap 都继承它，所以 X402Facilitator / TimelockController / PolicyRegistry 和 v2 栈走同一条路径。
+- **artifact 的解析不看文件名**。forge 的命名会随编译情况变化：只有一个 profile 编译过时叫 `X.json`，两个都编译过时叫 `X.default.json` / `X.registry-size.json`；源文件同名时还会嵌套，例如仓库里有 3 个 EntryPoint.sol，default 版本在 `out/core/EntryPoint.sol/EntryPoint.json`，而 `out/EntryPoint.sol/EntryPoint.json` 反而是 runs=200。解析器先把每个合约映射到它的源文件，尝试 forge 用过的所有布局，只接受 artifact 自己的 metadata 同时满足两点的那一份：`compilationTarget` 等于该源文件，`optimizer.runs == 500`。Registry 例外：它唯一的构建就是受限的 runs=200（`out/Registry.sol/Registry.json`，属于预期）。
+- **内存隔离**。`run()` 是一个调用帧，Solidity 不释放内存。每次检查都把几百 KB 的 JSON 交给解析 cheatcode，第一版在第 5 个合约就 `MemoryOOG`；改用 forge 缓存索引查路径，每次查找约 12M gas，同样耗尽。现在的做法：查找和比对放到一个单独的 `T4ArtifactReader` 合约里，通过外部 **view** 调用（STATICCALL，不会被广播）执行，每次调用的内存在返回时释放。forge 不允许脚本里用 `address(this)`，所以不能自调用。reader 在脚本构造函数里创建，不在任何 broadcast 里。验证：dry-run 的 72 笔交易里没有一笔发往 reader。
+- anvil 专用的基础设施（EntryPoint、SimpleAccountFactory/SimpleAccount、价格 mock）原来只在部署脚本的闭包里被编译，也就只有 runs=200 版本。新增 `contracts/test/helpers/AnvilMockPriceFeed.sol`：它 import 了前两者，并承接了原来写在 DeployAnvil 里的 MockPriceFeed（改名 `AnvilMockPriceFeed`），这样 `forge build` 会产出它们的 default 版本。
+- DeployAnvil、DeployLive、DeployRepCreditSepolia 末尾都有 `_assertAllDefaultArtifacts()`，把本脚本创建的所有东西（直接部署的、代理、工厂克隆）再核一遍。`prepare-test` 在 anvil 上最后运行新的只读检查 `contracts/script/checks/CheckDefaultArtifacts.s.sol`；live 链上还是 T-4 之前的部署，所以不在 live 链上跑。
+
+**验收 (1)**：全新 anvil（28545），`./deploy-core anvil --force` exit 0（deploy-core 日志里有 100 行 `default artifact OK`，每个合约在创建时和最后的 T-4 汇总里各出现一次），9 个 Check、ABI 选择器、代理指向检查全部通过，内置的 prepare-test 和 Check09 也通过；随后单独的 `./prepare-test anvil` exit 0。同一条链上的 L4 余额模式 op：链上烧毁 78.2766 = operator 余额减少 = revenue 增加，`lockedOf` = 0。
+
+**验收 (2)**：`CONFIG_FILE=config.anvil.json forge script contracts/script/checks/CheckDefaultArtifacts.s.sol:CheckDefaultArtifacts --rpc-url <anvil>`，逐个读出 config 里的地址，与 default artifact 比对（immutable 屏蔽）：**33 / 33 一致**。
+
+| key | 类型 | 地址 | artifact | 运行时 | 结果 |
+|---|---|---|---|---|---|
+| registry | ERC-1967 代理 | 0xCf7E…0Fc9 | ERC1967Proxy + impl Registry（0x9fE4…a6e0） | 100 B / 23,038 B | OK |
+| registryImpl | 直接 | 0x9fE4…a6e0 | Registry（runs=200，预期） | 23,038 B | OK |
+| superPaymaster | ERC-1967 代理 | 0x68B1…1aed | ERC1967Proxy + impl SuperPaymaster（0x9A9f…63AE） | 100 B / 22,915 B | OK |
+| spImpl | 直接 | 0x9A9f…63AE | SuperPaymaster | 22,915 B | OK |
+| gToken | 直接 | 0x5FC8…5707 | GTokenAuthorization | 6,113 B | OK |
+| staking | 直接 | 0x0165…Eb8F | GTokenStaking | 9,061 B | OK |
+| sbt | 直接 | 0xa513…C853 | MySBT | 12,111 B | OK |
+| xPNTsFactory | 直接 | 0xDc64…F6C9 | xPNTsFactory（3.x） | 6,802 B | OK |
+| aPNTs | EIP-1167 | 0xb027…9cC3 | → xPNTsToken 0x856e…8eae5 | 15,301 B | OK |
+| reputationSystem | 直接 | 0xc5a5…C42d | ReputationSystem | 7,044 B | OK |
+| dvtValidator | 直接 | 0x67d2…5933 | DVTValidator | 6,326 B | OK |
+| blsAggregator | 直接 | 0xE6E3…e57E | BLSAggregator | 24,345 B | OK |
+| paymasterFactory | 直接 | 0xc3e5…3690 | PaymasterFactory | 6,158 B | OK |
+| paymasterV4Impl | 直接 | 0x84eA…7fEB | Paymaster | 10,492 B | OK |
+| aPNTsPaymasterV4 | EIP-1167 | 0xa37a…D304 | → Paymaster 0x84eA…7fEB | 10,492 B | OK |
+| pNTsPaymasterV4 | EIP-1167 | 0xe3AD…e672 | → Paymaster 0x84eA…7fEB | 10,492 B | OK |
+| microPaymentChannel | 直接 | 0x9E54…3042 | MicroPaymentChannel | 6,117 B | OK |
+| x402Facilitator | 直接 | 0x1429…F20f | X402Facilitator | 4,332 B | OK |
+| policyRegistry | 直接 | 0x162A…6890 | PolicyRegistry | 6,349 B | OK |
+| timelockController | 直接 | 0xB0D4…Ca07 | TimelockController | 5,458 B | OK |
+| aoaProtocolRegistry | 直接 | 0xc6e7…4e7d | AOAProtocolRegistry | 2,554 B | OK |
+| globalTierSource | 直接 | 0x3Aa5…443c | GlobalTierSource | 542 B | OK |
+| xPNTsTokenV2Ext | 直接 | 0xa852…338f | xPNTsTokenV2Ext | 21,922 B | OK |
+| xPNTsTokenV2Impl | 直接 | 0x4A67…5319 | xPNTsTokenV2 | 19,851 B | OK |
+| xPNTsFactoryV2 | 直接 | 0x7a20…814F | xPNTsFactoryV2 | 6,899 B | OK |
+| superPaymasterLens | 直接 | 0x0963…ceBef | SuperPaymasterLens | 4,731 B | OK |
+| aastarXPNTsV2 | EIP-1167 | 0xDC17…20F4 | → xPNTsTokenV2 0x4A67…5319 | 19,851 B | OK |
+| pnts | EIP-1167 | 0x2C47…0700 | → xPNTsTokenV2 0x4A67…5319 | 19,851 B | OK |
+| entryPoint（anvil） | 直接 | 0xe7f1…0512 | EntryPoint（v0.7 core） | 12,143 B | OK |
+| simpleAccountFactory（anvil） | 直接 | 0xa82f…CFc9 | SimpleAccountFactory（其 SimpleAccount 实现 4,768 B 在部署时已核） | 1,447 B | OK |
+| priceFeed（anvil） | 直接 | 0x5FbD…0aa3 | AnvilMockPriceFeed | 142 B | OK |
+| agentIdentityRegistry（anvil） | 直接 | 0x1613…78E8 | MockAgentIdentityRegistry | 1,068 B | OK |
+| agentReputationRegistry（anvil） | 直接 | 0x8513…891C | MockAgentReputationRegistry | 1,422 B | OK |
+
+对比上一版：BLSAggregator 从 23,940 B 变为 24,345 B，GTokenStaking 从 9,086 B 变为 9,061 B，MySBT 从 12,093 B 变为 12,111 B，等等。现在部署的就是测试和体积测量所用的那份字节码。
+`agentValidationRegistry` 是 0 地址，不在表内。
+
+**反例（检查器确实会变红）**：在同一条 anvil 上用 `anvil_setCode` 把 BLSAggregator 换成 registry-size 构建（23,940 B），`CheckDefaultArtifacts` 输出 `blsAggregator | … | 23940 B | MISMATCH`、`checked 33 mismatches 1`，exit 1；恢复原代码后回到 `mismatches 0`，exit 0。
+
+**验收 (3)**：`forge build` 为 `No files changed`；`forge test`（Cancun）**124 个套件，1567 passed / 0 failed / 49 skipped**；`forge test --evm-version prague`（单独的 out/cache 目录）**1476 / 0 / 21**。
+
+**验收 (4)**：在 Sepolia fork（本地 28546）上**只模拟、不广播**，使用 anvil 测试私钥，`TESTNET_EOA_OWNER_ACK=true`。两个脚本都 exit 0，并执行了 `=== T-4: all contracts == profile.default artifact ===` 段：
+- DeployLive：56 行 `default artifact OK` + 3 个克隆，覆盖 26 类：AOAProtocolRegistry、BLSAggregator、DVTValidator、ERC1967Proxy（×2）、GTokenAuthorization、GTokenStaking、GlobalTierSource、MicroPaymentChannel、MySBT、Paymaster、PaymasterFactory、PolicyRegistry、Registry、ReputationSystem、SuperPaymaster、SuperPaymasterLens、TimelockController、X402Facilitator、xPNTsFactory、xPNTsFactoryV2、xPNTsToken、xPNTsTokenV2、xPNTsTokenV2Ext；克隆：aPNTs → xPNTsToken、V4 proxy → Paymaster、Mycelium PNTs → xPNTsTokenV2。
+- DeployRepCreditSepolia：46 行 + 2 个克隆，覆盖 21 类（同上，去掉 V4/x402/timelock/policy/MicroPaymentChannel，加上两个 Mock agent registry）。
 
 ## 9. 第 1 步的两条分支——请作者决定
 

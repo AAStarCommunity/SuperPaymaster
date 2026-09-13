@@ -109,21 +109,30 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 1: Deploy Foundation (Scheme B - UUPS Proxy) ===");
 
         // Deploy Registry as UUPS proxy first (no deps)
-        Registry regImpl = new Registry();
+        // T-4: EVERY contract below is deployed from its profile.default artifact by explicit
+        // path (DefaultArtifacts._deployDefault) and asserted equal to it right after creation;
+        // _assertAllDefaultArtifacts() re-checks the whole set at the end. This file imports
+        // Registry.sol, so a plain `new` would ship the runs=200 registry-size build.
+        Registry regImpl = Registry(_deployDefault("Registry", ""));
         registryImplAddr = address(regImpl); // capture for config write (UUPS upgrade support)
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
-        ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
-        registry = Registry(address(regProxy));
+        registry = Registry(_deployDefault("ERC1967Proxy", abi.encode(address(regImpl), regInit)));
 
         // Deploy xPNTsFactory early — GTokenAuthorization needs factory address (immutable)
-        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SP not deployed yet
+        xpntsFactory = xPNTsFactory(_deployDefault("xPNTsFactory", abi.encode(address(0), address(registry)))); // SP not deployed yet
 
         // Deploy GTokenAuthorization (replaces plain GToken)
-        gtoken = new GTokenAuthorization(21_000_000 * 1e18, address(xpntsFactory));
+        gtoken = GTokenAuthorization(_deployDefault(
+            "GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory))
+        ));
 
         // Deploy Staking and MySBT with immutable Registry + GToken references
-        staking = new GTokenStaking(address(gtoken), deployer, address(registry));
-        mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+        staking = GTokenStaking(_deployDefault(
+            "GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))
+        ));
+        mysbt = MySBT(_deployDefault(
+            "MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)
+        ));
 
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
@@ -165,20 +174,21 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         )));
         spImplAddr = address(spImpl); // capture for config write
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
-        ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
-        superPaymaster = SuperPaymaster(payable(address(spProxy)));
+        superPaymaster = SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(spImpl), spInit))));
 
         console.log("=== Step 3b: Deploy xPNTs v2 stack (runbook step 4) ===");
         v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         console.log("=== Step 4: Deploy Modules ===");
-        repSystem = new ReputationSystem(address(registry));
-        dvt = new DVTValidator(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
-        microPaymentCh = new MicroPaymentChannel(deployer);
+        repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry))));
+        aggregator = BLSAggregator(_deployDefault(
+            "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt))
+        ));
+        microPaymentCh = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
 
-        pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(address(registry));
+        pmFactory = PaymasterFactory(_deployDefault("PaymasterFactory", ""));
+        pmV4Impl = Paymaster(payable(_deployDefault("Paymaster", abi.encode(address(registry)))));
 
         console.log("=== Step 5: The Grand Wiring ===");
         _executeWiring();
@@ -239,7 +249,38 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
             _verifyV2Token(pntsAddr, v55.factory, anni, address(superPaymaster));
             _verifyOperatorV2(address(superPaymaster), anni, pntsAddr, anni);
         }
+        _assertAllDefaultArtifacts();
         _generateConfig();
+    }
+
+    /// @notice T-4 closing check: every contract this script created — directly, through a
+    ///         proxy, or as a factory clone — runs the profile.default bytes. View-only.
+    function _assertAllDefaultArtifacts() internal view {
+        console.log("=== T-4: all contracts == profile.default artifact ===");
+        _requireDefaultProxy(address(registry), "Registry");
+        _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
+        _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
+        require(_requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(), "T-4: aPNTs not a clone of the factory template");
+        _requireDefaultArtifact(address(gtoken), "GTokenAuthorization");
+        _requireDefaultArtifact(address(staking), "GTokenStaking");
+        _requireDefaultArtifact(address(mysbt), "MySBT");
+        _requireDefaultArtifact(address(repSystem), "ReputationSystem");
+        _requireDefaultArtifact(address(dvt), "DVTValidator");
+        _requireDefaultArtifact(address(aggregator), "BLSAggregator");
+        _requireDefaultArtifact(address(microPaymentCh), "MicroPaymentChannel");
+        _requireDefaultArtifact(address(pmFactory), "PaymasterFactory");
+        _requireDefaultArtifact(address(pmV4Impl), "Paymaster");
+        address pmProxy = pmFactory.getPaymasterByOperator(deployer);
+        if (pmProxy != address(0)) {
+            require(_requireDefaultClone(pmProxy, "Paymaster") == address(pmV4Impl), "T-4: V4 proxy not a clone of pmV4Impl");
+        }
+        _requireDefaultArtifact(x402FacilitatorAddr, "X402Facilitator");
+        _requireDefaultArtifact(policyRegistryAddr, "PolicyRegistry");
+        _requireDefaultArtifact(timelockControllerAddr, "TimelockController");
+        _verifyV55Stack(v55, address(superPaymaster), address(registry)); // the 7 v5.5.0 contracts
+        if (pntsAddr != address(0)) {
+            require(_requireDefaultClone(pntsAddr, "xPNTsTokenV2") == v55.impl, "T-4: PNTs not a clone of the v2 template");
+        }
     }
 
     function xPNTsFactoryV2Owner() internal view returns (address) {

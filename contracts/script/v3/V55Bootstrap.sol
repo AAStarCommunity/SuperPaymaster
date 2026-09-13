@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import {DefaultArtifacts} from "./DefaultArtifacts.sol";
 import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
 import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
 import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
@@ -65,7 +66,7 @@ interface ISPV55Script {
  *         read-back matches is reused; anything else is (re)deployed. Every step READS BACK and
  *         `require`s the state it claims — a call that silently no-ops fails the script.
  */
-abstract contract V55Bootstrap is Script {
+abstract contract V55Bootstrap is DefaultArtifacts {
     string internal constant SP_V55_VERSION = "SuperPaymaster-5.5.0";
     string internal constant XPNTS_V2_VERSION = "XPNTs-4.0.0";
     string internal constant FACTORY_V2_VERSION = "xPNTsFactory-3.0.0-v2";
@@ -223,81 +224,8 @@ abstract contract V55Bootstrap is Script {
         console.log("  [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)");
     }
 
-    /// @notice out/<name>.sol/<name>.json — the profile.default (runs=500) artifact.
-    function _defaultArtifact(string memory name) internal pure returns (string memory) {
-        return string.concat("out/", name, ".sol/", name, ".json");
-    }
-
-    /// @notice Deploy `name` from the profile.default artifact BY PATH, then require the deployed
-    ///         runtime to equal that artifact (immutables masked). A plain `new X(...)` in a file
-    ///         that imports Registry.sol would silently pick the runs=200 "registry-size" build
-    ///         (foundry.toml compilation_restrictions); an explicit artifact path cannot.
-    /// @dev    Inside a broadcast, vm.deployCode is broadcast as a CREATE from the broadcaster.
-    function _deployDefault(string memory name, bytes memory args) internal returns (address a) {
-        a = vm.deployCode(_defaultArtifact(name), args);
-        _requireDefaultArtifact(a, name);
-    }
-
-    function _requireDefaultArtifact(address a, string memory name) internal view {
-        require(
-            _codeEqArtifact(a, _defaultArtifact(name)),
-            string.concat("V55: ", name, " runtime != profile.default artifact (AUD-4)")
-        );
-        console.log(string.concat("  [v55] artifact default (runs=500): ", name), a, a.code.length);
-    }
-
-    struct ImmRef {
-        uint256 length; // JSON keys decode in alphabetical order
-        uint256 start;
-    }
-
-    /// @notice Which compiled artifact `target`'s runtime code equals, immutables masked:
-    ///         1 = out/<name>.sol/<name>.json (profile.default, runs=500),
-    ///         2 = out/<name>.sol/<name>.registry-size.json (the runs=200 compiler profile that
-    ///             foundry.toml's Registry `compilation_restrictions` pulls in for any source file
-    ///             importing Registry.sol — including every deploy script that does),
-    ///         0 = neither.
-    function _artifactMatch(address target, string memory name) internal view returns (uint8) {
-        string memory base = string.concat("out/", name, ".sol/", name);
-        if (_codeEqArtifact(target, string.concat(base, ".json"))) return 1;
-        if (_codeEqArtifact(target, string.concat(base, ".registry-size.json"))) return 2;
-        return 0;
-    }
-
-    function _codeEqArtifact(address target, string memory rel) internal view returns (bool) {
-        string memory path = string.concat(vm.projectRoot(), "/", rel);
-        string memory json;
-        try vm.readFile(path) returns (string memory j) {
-            json = j;
-        } catch {
-            return false; // artifact variant not built
-        }
-        bytes memory art = vm.parseJsonBytes(json, ".deployedBytecode.object");
-        bytes memory code = target.code;
-        if (art.length == 0 || art.length != code.length) return false;
-        // A contract without immutables has an empty/absent immutableReferences object, which
-        // parseJsonKeys rejects — that simply means "nothing to mask".
-        string[] memory keys;
-        try vm.parseJsonKeys(json, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
-            keys = k;
-        } catch {
-            keys = new string[](0);
-        }
-        for (uint256 i; i < keys.length; ++i) {
-            ImmRef[] memory refs = abi.decode(
-                vm.parseJson(json, string.concat(".deployedBytecode.immutableReferences.", keys[i])), (ImmRef[])
-            );
-            for (uint256 j; j < refs.length; ++j) {
-                uint256 end = refs[j].start + refs[j].length;
-                require(end <= code.length, "V55: immutable ref out of range");
-                for (uint256 k = refs[j].start; k < end; ++k) {
-                    code[k] = 0;
-                    art[k] = 0;
-                }
-            }
-        }
-        return keccak256(code) == keccak256(art);
-    }
+    // _deployDefault / _requireDefaultArtifact / _codeEqArtifact / _artifactMatch live in
+    // DefaultArtifacts.sol (shared with the legacy deploy paths, T-4).
 
     // ---------------------------------------------------------------------
     // Step 6: point SP at factoryV2

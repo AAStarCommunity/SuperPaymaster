@@ -37,7 +37,6 @@ import "src/mocks/MockAgentIdentityRegistry.sol";
 import "src/mocks/MockAgentReputationRegistry.sol";
 
 // External Interfaces
-import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
 import {SimpleAccountFactory} from "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
@@ -46,15 +45,8 @@ import {V54Bootstrap} from "./V54Bootstrap.sol";
 // v5.5.0 balance mode: xPNTs v2 stack (AOA registry, tier source, template, factoryV2, lens)
 import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
 
-contract MockPriceFeed {
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, 2000 * 1e8, 0, block.timestamp, 1);
-    }
-
-    function decimals() external pure returns (uint8) {
-        return 8;
-    }
-}
+// T-4: the local price feed now lives in contracts/test/helpers/AnvilMockPriceFeed.sol so that
+// `forge build` emits a profile.default artifact for it (and for EntryPoint/SimpleAccountFactory).
 
 /**
  * @title DeployAnvil
@@ -112,27 +104,35 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         vm.warp(86400);
         vm.startBroadcast(deployerPK);
 
-        priceFeedAddr = address(new MockPriceFeed());
-        entryPointAddr = address(new EntryPoint());
+        // T-4: EVERY contract below is deployed from its profile.default artifact by explicit
+        // path (DefaultArtifacts._deployDefault) and asserted equal to it at creation;
+        // _assertAllDefaultArtifacts() re-checks the whole set (incl. proxies and clones) at the end.
+        priceFeedAddr = _deployDefault("AnvilMockPriceFeed", "");
+        entryPointAddr = _deployDefault("EntryPoint", "");
 
         console.log("=== Step 1: Deploy Foundation (Scheme B) ===");
 
         // Deploy Registry as UUPS proxy first (no deps)
-        Registry regImpl = new Registry();
+        Registry regImpl = Registry(_deployDefault("Registry", ""));
         registryImplAddr = address(regImpl);
         bytes memory regInit = abi.encodeCall(Registry.initialize, (deployer, address(0), address(0)));
-        ERC1967Proxy regProxy = new ERC1967Proxy(address(regImpl), regInit);
-        registry = Registry(address(regProxy));
+        registry = Registry(_deployDefault("ERC1967Proxy", abi.encode(address(regImpl), regInit)));
 
         // Deploy xPNTsFactory early — GTokenAuthorization needs factory address (immutable)
-        xpntsFactory = new xPNTsFactory(address(0), address(registry)); // SP not deployed yet
+        xpntsFactory = xPNTsFactory(_deployDefault("xPNTsFactory", abi.encode(address(0), address(registry)))); // SP not deployed yet
 
         // Deploy GTokenAuthorization (replaces plain GToken)
-        gtoken = new GTokenAuthorization(21_000_000 * 1e18, address(xpntsFactory));
+        gtoken = GTokenAuthorization(_deployDefault(
+            "GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory))
+        ));
 
         // Deploy Staking and MySBT with immutable Registry + GToken references
-        staking = new GTokenStaking(address(gtoken), deployer, address(registry));
-        mysbt = new MySBT(address(gtoken), address(staking), address(registry), deployer);
+        staking = GTokenStaking(_deployDefault(
+            "GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))
+        ));
+        mysbt = MySBT(_deployDefault(
+            "MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)
+        ));
 
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
@@ -182,24 +182,25 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         )));
         spImplAddr = address(spImpl);
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
-        ERC1967Proxy spProxy = new ERC1967Proxy(address(spImpl), spInit);
-        superPaymaster = SuperPaymaster(payable(address(spProxy)));
+        superPaymaster = SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(spImpl), spInit))));
 
         console.log("=== Step 5b: Deploy xPNTs v2 stack (runbook step 4) ===");
         v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         console.log("=== Step 6: Deploy Other Modules ===");
-        repSystem = new ReputationSystem(address(registry));
+        repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
         // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
-        dvt = new DVTValidator(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
-        pmFactory = new PaymasterFactory();
-        pmV4Impl = new Paymaster(address(registry));
-        microPaymentCh = new MicroPaymentChannel(deployer);
-        accountFactory = new SimpleAccountFactory(IEntryPoint(entryPointAddr));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry))));
+        aggregator = BLSAggregator(_deployDefault(
+            "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt))
+        ));
+        pmFactory = PaymasterFactory(_deployDefault("PaymasterFactory", ""));
+        pmV4Impl = Paymaster(payable(_deployDefault("Paymaster", abi.encode(address(registry)))));
+        microPaymentCh = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
+        accountFactory = SimpleAccountFactory(_deployDefault("SimpleAccountFactory", abi.encode(entryPointAddr)));
         // Agent Registries (mock for local dev; production uses ERC-8004 official contracts on live networks)
-        mockAgentIdentity = new MockAgentIdentityRegistry();
-        mockAgentReputation = new MockAgentReputationRegistry();
+        mockAgentIdentity = MockAgentIdentityRegistry(_deployDefault("MockAgentIdentityRegistry", ""));
+        mockAgentReputation = MockAgentReputationRegistry(_deployDefault("MockAgentReputationRegistry", ""));
 
         console.log("=== Step 7: The Grand Wiring ===");
         _executeWiring();
@@ -332,7 +333,39 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         // different rules for no reason. Raised by pr-daemon on #404.
         GovernanceOwnerGate.requireGovernanceOwner(address(apnts), apnts.communityOwner(), "aPNTs");
         GovernanceOwnerGate.requireGovernanceOwner(address(xpntsFactory), xpntsFactory.owner(), "xPNTsFactory");
+        _assertAllDefaultArtifacts();
         _generateConfig();
+    }
+
+    /// @notice T-4 closing check: every contract this script created — directly, through a
+    ///         proxy, or as a factory clone — runs the profile.default bytes. View-only.
+    function _assertAllDefaultArtifacts() internal view {
+        console.log("=== T-4: all contracts == profile.default artifact ===");
+        _requireDefaultArtifact(priceFeedAddr, "AnvilMockPriceFeed");
+        _requireDefaultArtifact(entryPointAddr, "EntryPoint");
+        _requireDefaultProxy(address(registry), "Registry");
+        _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
+        _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
+        require(_requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(), "T-4: aPNTs not a clone of the factory template");
+        _requireDefaultArtifact(address(gtoken), "GTokenAuthorization");
+        _requireDefaultArtifact(address(staking), "GTokenStaking");
+        _requireDefaultArtifact(address(mysbt), "MySBT");
+        _requireDefaultArtifact(address(repSystem), "ReputationSystem");
+        _requireDefaultArtifact(address(dvt), "DVTValidator");
+        _requireDefaultArtifact(address(aggregator), "BLSAggregator");
+        _requireDefaultArtifact(address(pmFactory), "PaymasterFactory");
+        _requireDefaultArtifact(address(pmV4Impl), "Paymaster");
+        _requireDefaultArtifact(address(microPaymentCh), "MicroPaymentChannel");
+        _requireDefaultArtifact(address(accountFactory), "SimpleAccountFactory");
+        _requireDefaultArtifact(address(accountFactory.accountImplementation()), "SimpleAccount");
+        _requireDefaultArtifact(address(mockAgentIdentity), "MockAgentIdentityRegistry");
+        _requireDefaultArtifact(address(mockAgentReputation), "MockAgentReputationRegistry");
+        _requireDefaultArtifact(x402FacilitatorAddr, "X402Facilitator");
+        _requireDefaultArtifact(policyRegistryAddr, "PolicyRegistry");
+        _requireDefaultArtifact(timelockControllerAddr, "TimelockController");
+        _verifyV55Stack(v55, address(superPaymaster), address(registry)); // the 7 v5.5.0 contracts
+        require(_requireDefaultClone(aastarXPNTsV2, "xPNTsTokenV2") == v55.impl, "T-4: aXPNTs not a clone of the v2 template");
+        require(_requireDefaultClone(demoXPNTsV2, "xPNTsTokenV2") == v55.impl, "T-4: dPNTs not a clone of the v2 template");
     }
 
     function _executeWiring() internal {
