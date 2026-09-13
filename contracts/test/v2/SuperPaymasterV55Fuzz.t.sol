@@ -152,6 +152,17 @@ contract SuperPaymasterV55FuzzTest is Test {
     uint256 private _rs;    // campaign RNG state (reset from the seed per campaign)
     uint256[3] private _nk; // next nonce key per account
 
+    // ---- Raw per-op export (evidence only; default OFF). When the env var G2_EXPORT_PATH is set,
+    //      `test_G2_coverage_replay_fixed_seeds` appends one JSON object per ADMITTED op (settled or
+    //      injected-failure) to that file. Schema: docs/design/aoa-balance-mode/data/README.md.
+    //      Nothing here feeds an assertion; with the variable unset no storage is written and no
+    //      file is touched.
+    string private _expPath;
+    bool private _expOn;
+    uint256 private _expSeedIdx;
+    uint256 private _expSeed;
+    uint256 private _expBundle;
+
     /// @dev A failed-postOp record waiting for its stale release (lives across bundles).
     struct Pend {
         bytes32 h;
@@ -197,6 +208,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         bool seen;       // UserOperationEvent found
         bool success;
         uint256 G;       // UserOperationEvent.actualGasCost (taken from SP's EntryPoint deposit)
+        uint256 gUsed;   // UserOperationEvent.actualGasUsed (export only)
         bool postReverted;
         uint256 nTS;
         uint256 tsAGas;
@@ -211,6 +223,8 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 P;
         uint256 fpg;
         SuperPaymaster.OpCtx ctx;
+        uint256 ctxLen;
+        uint256 ctxSnap; // trailing word 12 of a 384-byte context
         // independent expectation
         uint256 chargeExp;
         uint256 xcExp;
@@ -447,12 +461,21 @@ contract SuperPaymasterV55FuzzTest is Test {
 
     function _coverage() internal {
         Stats memory st = _newStats(RATIO_CAP);
+        {
+            string memory p = vm.envOr("G2_EXPORT_PATH", string(""));
+            if (bytes(p).length != 0) {
+                (_expPath, _expOn) = (p, true);
+                if (vm.exists(p)) vm.removeFile(p);
+            }
+        }
         uint256 fmp;
         assembly ("memory-safe") { fmp := mload(0x40) }
         for (uint256 i; i < COVERAGE_SEEDS; i++) {
             vm.resetGasMetering();
             uint256 sid = vmx.snapshotState();
-            _campaign(uint256(keccak256(abi.encode("G2-coverage", i))), st);
+            uint256 seed_ = uint256(keccak256(abi.encode("G2-coverage", i)));
+            if (_expOn) (_expSeedIdx, _expSeed) = (i, seed_);
+            _campaign(seed_, st);
             vmx.revertToStateAndDelete(sid);
             // everything allocated by the campaign is dead; `st` lives below `fmp`
             assembly ("memory-safe") { mstore(0x40, fmp) }
@@ -581,6 +604,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         bool executed = _submit(x, st);
         vm.clearMockedCalls();
         Rel memory rel;
+        if (_expOn) _expBundle = b;
         if (executed) _checkOps(x, st, gh);
         _releaseSome(st, rel, false); // later tx; random subset of ALL outstanding stale records
         if (executed) {
@@ -878,6 +902,12 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.P = P;
             o.fpg = fpg;
             o.ctx = c;
+            o.ctxLen = ctxb.length;
+            if (ctxb.length == 384) {
+                uint256 w;
+                assembly ("memory-safe") { w := mload(add(ctxb, 384)) }
+                o.ctxSnap = w;
+            }
         }
     }
 
@@ -920,7 +950,7 @@ contract SuperPaymasterV55FuzzTest is Test {
             Op memory o = x.os[i];
             assertFalse(o.seen, "log: one UserOperationEvent per op");
             o.seen = true;
-            (, o.success, o.G, ) = abi.decode(l.data, (uint256, bool, uint256, uint256));
+            (, o.success, o.G, o.gUsed) = abi.decode(l.data, (uint256, bool, uint256, uint256));
             for (uint256 m = segStart; m < j; m++) {
                 Vm.Log memory s = logs[m];
                 if (s.topics.length == 0) continue;
@@ -1066,6 +1096,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 _pend.push(Pend(o.h, o.u, o.t, o.mode, o.a0, o.x0));
             }
             if (o.postGas == _minPost) st.atMinIncluded++;
+            if (_expOn) _exportOp(x, o, i, ethMoved, aMoved);
         }
         assertEq(bUnbCnt, 0, "I9: unbacked sponsorship count per bundle == 0");
         assertEq(bUnbAmt, 0, "I9: unbacked sponsorship amount per bundle == 0");
@@ -1082,12 +1113,14 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(o.nPost, 1, "exactly one postOp call per settled op");
         SuperPaymaster.OpCtx memory c = o.ctx;
         assertEq(c.price, int256(x.price), "R10-M3: postOp context carries the validation-time ETH/USD price");
-        assertEq(uint8(c.decSnap), x.dec, "R10-M3: postOp context carries the validation-time decimals");
+        assertEq(c.decimals, x.dec, "R10-M3: postOp context carries the validation-time decimals");
         assertEq(c.aPriceUSD, x.aPrice, "R10-M3: postOp context carries the validation-time aPNTs/USD price");
-        assertEq(uint32(c.decSnap >> 8), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
-        assertEq(uint32(c.decSnap >> 40), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
-        assertEq(uint32(c.decSnap >> 72), _cWrap, "exp/params: context carries the validation-time C_WRAP");
-        assertEq(c.decSnap >> 104, 0, "exp/params: no stray bits in the snapshot word");
+        assertEq(o.ctxLen, 384, "exp/params: context = 11 ABI-canonical 5.5.0 words + 1 snapshot word");
+        assertEq(uint32(o.ctxSnap), _minPost, "exp/params: snapshot word = GasParams slot at validation (MIN)");
+        assertEq(uint32(o.ctxSnap >> 32), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
+        assertEq(uint32(o.ctxSnap >> 64), _cWrap, "exp/params: context carries the validation-time C_WRAP");
+        assertEq(uint32(o.ctxSnap >> 96), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
+        assertEq(o.ctxSnap >> 128, 0, "exp/params: no stray bits in the snapshot word");
         assertEq(c.a0, o.a0, "context a0");
         assertEq(c.mode, o.mode, "context mode");
         assertEq(c.callGas, o.callGas, "context callGasLimit");
@@ -1127,6 +1160,57 @@ contract SuperPaymasterV55FuzzTest is Test {
     function _chargeEthNet(B memory x, uint256 charge) internal pure returns (uint256) {
         uint256 net = Math.mulDiv(charge, BPS, BPS + x.feeBps);
         return Math.mulDiv(net, (10 ** uint256(x.dec)) * x.aPrice, x.price * 1e18);
+    }
+
+    // ------------------------------------------------------------------
+    // raw per-op export (evidence only; see _expPath). Values > 2^53 are JSON strings.
+    // ------------------------------------------------------------------
+
+    function _exportOp(B memory x, Op memory o, uint256 i, bool ethMoved, bool aMoved) internal {
+        uint256 bufGas = _bufOld
+            ? uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + 30_000
+            : _cPostop + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + _cWrap;
+        string memory tag = _bufOld ? "OLD_postOpGasLimit_Cwrap30k" : string.concat(
+            "B_Cpostop", vm.toString(_cPostop / 1000), "k_Cwrap", vm.toString(_cWrap / 1000),
+            _settle == 160_000 && _minPost == 200_000 ? "k_default" : "k_configured");
+        uint256 eth = o.settled ? _chargeEthNet(x, o.spCharge) : 0;
+        string memory s1 = string.concat(
+            '{"formula":"', tag, '","seedIndex":', vm.toString(_expSeedIdx),
+            ',"seed":"', vm.toString(bytes32(_expSeed)),
+            '","bundle":', vm.toString(_expBundle),
+            ',"op":', vm.toString(i),
+            ',"userOpHash":"', vm.toString(o.h),
+            '","mode":"', o.mode == MODE_BALANCE ? "BALANCE" : "CREDIT",
+            '","settled":', o.settled ? "true" : "false",
+            ',"injected":', o.inject ? "true" : "false"
+        );
+        string memory s2 = string.concat(
+            ',"exec":"', o.exec == EX_OK ? "OK" : o.exec == EX_MOVE ? "MOVE" : o.exec == EX_REVERT ? "REVERT" : "OOG",
+            '","ethMovedBeforePostOp":', ethMoved ? "true" : "false",
+            ',"aMovedBeforePostOp":', aMoved ? "true" : "false",
+            ',"postOpGasLimit":', vm.toString(uint256(o.postGas)),
+            ',"callGasLimit":', vm.toString(uint256(o.callGas)),
+            ',"feePerGas":"', vm.toString(o.fpg),
+            '","P":"', vm.toString(o.P),
+            '","bufGas":', vm.toString(bufGas)
+        );
+        string memory s3 = string.concat(
+            ',"bufWei":"', vm.toString(bufGas * o.fpg),
+            '","a0":"', vm.toString(o.a0),
+            '","charge":"', vm.toString(o.spCharge),
+            '","charge_eth":"', vm.toString(eth),
+            '","G":"', vm.toString(o.G),
+            '","actualGasUsed":', vm.toString(o.gUsed),
+            ',"overpay_ppm":', o.settled ? vm.toString((eth - o.G) * 1e6 / o.G) : "null"
+        );
+        string memory s4 = string.concat(
+            ',"ethUsd":"', vm.toString(x.price),
+            '","ethUsdDecimals":', vm.toString(uint256(x.dec)),
+            ',"aPriceUSD":"', vm.toString(x.aPrice),
+            '","feeBps":', vm.toString(x.feeBps),
+            '}'
+        );
+        vm.writeLine(_expPath, string.concat(s1, s2, s3, s4));
     }
 
     // ------------------------------------------------------------------

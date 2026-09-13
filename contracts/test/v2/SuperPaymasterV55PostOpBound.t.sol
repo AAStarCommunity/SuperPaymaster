@@ -172,8 +172,8 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         (ctx, vd) = sp.validatePaymasterUserOp(op, h, maxCost);
         assertEq(vd & 1, 0, "validated");
         assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, wantMode, "precondition: mode");
-        // the context is 11 static words for every op (the 5.5.0 layout): this IS the longest real context
-        assertEq(ctx.length, 11 * 32, "context length is fixed (11 static words, 5.5.0-compatible)");
+        // every context is 11 ABI-canonical 5.5.0 words + 1 snapshot word: this IS the longest real context
+        assertEq(ctx.length, 12 * 32, "context length is fixed (384 B)");
     }
 
     /// @dev Path setup + validation + the between-phase event; returns the postOp calldata.

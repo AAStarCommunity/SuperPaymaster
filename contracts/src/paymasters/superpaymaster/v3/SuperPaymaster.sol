@@ -78,15 +78,35 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         uint128 callGas;
         uint128 postOpGas;
         int256 price;
-        // exp/params: word 9 = decimals (bits 0-7) | gas-parameter snapshot (bits 8-103):
-        // settleGasBound << 8 | cPostop << 40 | cWrap << 72, taken at validation (Codex B-HIGH-1) so
-        // an admitted op settles under the parameters it validated with. The context stays EXACTLY
-        // the 5.5.0 11-word layout (Codex round 2): a 5.5.0 context has only `decimals` in this word
-        // (snapshot bits zero), decodes unchanged, and settles with the 5.5.0 formula — OpCtx is an
-        // upgrade-compatibility surface (mid-bundle upgrade from the previous release).
-        uint256 decSnap;
+        uint8 decimals;
         uint256 aPriceUSD;
     }
+    // exp/params context format (Codex rounds 1-3). OpCtx is an upgrade-compatibility surface in
+    // BOTH directions; every word of OpCtx stays ABI-canonical for its 5.5.0 type (never pack into
+    // a narrow-typed word: 5.5.0's decoder reverts on dirty bits).
+    //   emitted : abi.encode(OpCtx) (the 11 5.5.0 words, 352 B) ‖ one trailing word (384 B total):
+    //             the GasParams slot as validation saw it (minPostOpGas | settleGasBound << 32 |
+    //             cWrap << 64 | cPostop << 96; never zero — defaults substituted).
+    //             5.5.0's `abi.decode(context, (OpCtx))` ignores the trailing word (rollback).
+    //   accepted: 384 B → snapshot; 352 B (a 5.5.0 context, forward upgrade) → LEGACY rules;
+    //             word 12 is read ONLY when the length is exactly 384.
+    /// @dev Emit-only layout: OpCtx's 11 words + the trailing snapshot word (ABI-identical to
+    ///      abi.encode(OpCtx) ‖ bytes32(gasSnap)). Decoding always uses OpCtx (trailing word ignored).
+    struct OpCtxOut {
+        address token;
+        address user;
+        uint256 a0;
+        bytes32 opHash;
+        address operator;
+        uint8 mode;
+        uint128 callGas;
+        uint128 postOpGas;
+        int256 price;
+        uint8 decimals;
+        uint256 aPriceUSD;
+        uint256 gasSnap;
+    }
+    uint256 internal constant CTX_LEN = 384;
 
     struct UserOperatorState {
         uint48 lastTimestamp; // 6 bytes
@@ -163,11 +183,11 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     //                                     (143k still has one); 155k = +7.6%
     //   MIN_POST_OP_GAS  in [SETTLE + 20k, 2M]   pre-check overhead measured ~7.4k (x2.7 margin)
     //   C_POSTOP         in [175k, MIN_POST_OP_GAS]   every accepted value satisfies the G-layer
-    //                                     rule C_POSTOP >= W_postop x 1.15 (W_postop 146,768 ->
-    //                                     168,784; 175k leaves +3.7% for drift); <= MIN keeps
+    //                                     rule C_POSTOP >= W_postop x 1.15 (W_postop 146,853 ->
+    //                                     168,881; 175k leaves +3.6% for drift); <= MIN keeps
     //                                     min(postOpGasLimit, C_POSTOP) == C_POSTOP
-    //   C_WRAP           in [5k, 50k]    EntryPoint wrap measured 1,702 with the 11-word context
-    //                                     (x2.9 margin)
+    //   C_WRAP           in [5k, 50k]    EntryPoint wrap measured 1,770 with the 12-word context
+    //                                     (x2.8 margin)
     //   All-floor tuple (175k, 155k, 5k, 175k) is consistent (MIN = SETTLE + 20k = C_POSTOP) and is
     //   exercised by the G-layer rule and the G2 fuzz. R-AMS: Amsterdam requires re-measuring and,
     //   if needed, raising these floors by upgrade.
@@ -1269,10 +1289,10 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // Without this an attacker forces postOp OOG and the optimistic operator
         // debit (below) is never refunded → operator drain + revenue inflation.
         // exp/params: one SLOAD of SP's own slot (staked, STO-031); snapshotted into the context.
-        GasParams memory gp = _gp();
+        uint256 gpRaw = _gpRaw();
         if (userOp.paymasterAndData.length >= POSTOP_GAS_OFFSET + 16) {
             uint128 pmPostOpGas = uint128(bytes16(userOp.paymasterAndData[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16]));
-            if (pmPostOpGas < gp.minPostOpGas) {
+            if (pmPostOpGas < uint32(gpRaw)) {
                 return ("", _packValidationData(true, 0, 0));
             }
         }
@@ -1330,7 +1350,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         _setInflightLive(userOpHash, true);
 
         PriceCache memory pc = cachedPrice;
-        context = abi.encode(OpCtx({
+        context = abi.encode(OpCtxOut({
             token: token,
             user: userOp.sender,
             a0: aPNTsAmount,
@@ -1340,9 +1360,9 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
             callGas: uint128(uint256(userOp.accountGasLimits)),
             postOpGas: uint128(bytes16(pmd[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16])),
             price: pc.price,
-            decSnap: uint256(pc.decimals) | (uint256(gp.settleGasBound) << 8) | (uint256(gp.cPostop) << 40)
-                | (uint256(gp.cWrap) << 72),
-            aPriceUSD: aPNTsPriceUSD
+            decimals: pc.decimals,
+            aPriceUSD: aPNTsPriceUSD,
+            gasSnap: gpRaw
         }));
         return (context, _packValidationData(false, validUntil, validAfter));
     }
@@ -1388,10 +1408,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         if (context.length == 0) return;
         // B-1 §10.1 ③: never START a settlement that could run out of gas half-way. Reverting here
         // rolls back the user's execution (EntryPoint v0.7 innerHandleOp), so nothing is kept unpaid.
-        // exp/params: the bound is the VALIDATION-time snapshot (OpCtx word 9, bits 8-39), read
-        // before decoding; the admitted limit satisfied MIN_v >= SETTLE_v + 20k, so a parameter change
-        // executed mid-bundle cannot move it. A 5.5.0 context (snapshot zero) keeps the 5.5.0 bound.
-        uint256 snapSettle = uint32(uint256(bytes32(context[288:320])) >> 8);
+        // exp/params: the bound is the VALIDATION-time snapshot (trailing word 12), read before
+        // decoding and ONLY for a 384-byte context; the admitted limit satisfied MIN_v >= SETTLE_v +
+        // 20k, so a parameter change executed mid-bundle cannot move it. Any other length (a 5.5.0
+        // context: 352 B) has no snapshot and keeps the 5.5.0 bound.
+        uint256 snap;
+        if (context.length == CTX_LEN) {
+            assembly ("memory-safe") { snap := calldataload(add(context.offset, 352)) }
+        }
+        uint256 snapSettle = uint32(snap >> 32);
         if (gasleft() < (snapSettle == 0 ? LEGACY_SETTLE_GAS_BOUND : snapSettle)) revert PostOpGasTooLow();
 
         OpCtx memory c = abi.decode(context, (OpCtx));
@@ -1409,13 +1434,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // R10-M3: conservative charge in wei, priced at the VALIDATION-time snapshot.
         // snapshot: C_POSTOP + C_WRAP of the validation; 5.5.0 context: the 5.5.0 formula itself
         // (postOpGasLimit + LEGACY_C_WRAP), i.e. exactly what that op was admitted and quoted under.
-        uint256 snap = c.decSnap >> 8;
         uint256 bufGas = snap == 0
             ? uint256(c.postOpGas) + LEGACY_C_WRAP_GAS
-            : uint256(uint32(snap >> 32)) + uint32(snap >> 64);
+            : uint256(uint32(snap >> 96)) + uint32(snap >> 64);
         uint256 bufWei = (bufGas + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)) * actualUserOpFeePerGas;
         uint256 aGas = Math.mulDiv(
-            (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(uint8(c.decSnap))) * c.aPriceUSD, Math.Rounding.Ceil
+            (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil
         );
         uint256 charge = Math.mulDiv(aGas, BPS_DENOMINATOR + protocolFeeBPS, BPS_DENOMINATOR, Math.Rounding.Ceil);
         if (charge > c.a0) charge = c.a0;
@@ -1440,11 +1464,18 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     // ---- exp/params: governable gas parameters ----
 
     /// @dev Effective parameters; an all-zero slot (fresh proxy or pre-exp upgrade) = the defaults.
-    function _gp() internal view returns (GasParams memory p) {
-        p = _gasParams;
-        if (p.minPostOpGas == 0) {
-            p = GasParams(uint32(MIN_POST_OP_GAS), uint32(SETTLE_GAS_BOUND), uint32(C_WRAP_GAS), uint32(C_POSTOP_GAS));
+    /// @dev The GasParams slot as one word (minPostOpGas | settle << 32 | cWrap << 64 | cPostop << 96);
+    ///      an all-zero slot (never set / pre-exp proxy) = the defaults.
+    function _gpRaw() internal view returns (uint256 raw) {
+        assembly ("memory-safe") { raw := sload(_gasParams.slot) }
+        if (raw == 0) {
+            raw = MIN_POST_OP_GAS | (SETTLE_GAS_BOUND << 32) | (C_WRAP_GAS << 64) | (C_POSTOP_GAS << 96);
         }
+    }
+
+    function _gp() internal view returns (GasParams memory p) {
+        uint256 r = _gpRaw();
+        p = GasParams(uint32(r), uint32(r >> 32), uint32(r >> 64), uint32(r >> 96));
     }
 
     function _checkGasParams(uint256 minPost, uint256 settle, uint256 cWrap, uint256 cPostop) private pure {
