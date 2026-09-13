@@ -317,7 +317,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 步 | 动作 | 验收（每一步都要带正对照读回） |
 |---|---|---|
 | 0 | **fork 层级检查（§10.8b R-AMS）**：`eth_config` 读 `current` / `next`，`next` 是 Amsterdam 就阻塞；盘点：枚举所有 `operators[*]`；按 `DebtRecordFailed` 事件枚举 `pendingDebts` 非零的条目；确认 `pendingAPNTsToken` 的状态 | 盘点表入库；日志扫描按"归档 RPC + 扫描完整性"纪律做交叉验证 |
-| 1 | aPNTs 切换（T0）：**执行或取消**，二选一，不能跨升级留在队列里 | `pendingAPNTsToken == 0` |
+| 1 | aPNTs 切换（T0）。**作者已决定（2026-09-13，经 DSR）：执行分支 A**，在升级窗口内执行，也就是 RepCredit B6 冻结之后，不提前。执行顺序：快照各 operator 余额 → 各 operator 取出全部余额 → `withdrawProtocolRevenue` 把 revenue 取到只剩 **0.1**（PROTOCOL_REVENUE_BUFFER）→ 读回 `totalTrackedBalance == protocolRevenue ≤ buffer` → `executeAPNTsTokenChange` → 各 operator 用新 aPNTs（`0xBb46…`）按 **1:1** 重新存入。实现：`UpgradeToV5_5_0.executePendingAPNTs(ops)`，设 `V55_APNTS_DECISION=execute`；演练记录见 D5-deploy-migration §9 | `pendingAPNTsToken == 0`；`APNTS_TOKEN == 0xBb46…`；每个 operator 的 `aPNTsBalance == 快照 × 1`；`totalTrackedBalance == Σ + protocolRevenue`。真实的 operator 要先拿到新 aPNTs，否则重新存入这一步会明确报错 |
 | 2 | `pendingDebts`：逐条对账，要么先用 5.4.2 的 `retryPendingDebt`/`clearPendingDebt` 处理，要么在文档里明确核销 | 所有条目为 0，或者有核销记录 |
 | 3 | 用 `setOperatorPaused`（SP `:589`）暂停所有旧代币的 operator；等 mempool 里的旧 op 清空 | 各 operator `isPaused == true` |
 | 4 | 按顺序部署：`GlobalTierSource` → codehash 白名单登记 → AOA 工厂（构造时生成 v2 模板，把默认分档源传给 token 的 initialize，**立即** `setSuperPaymasterAddress(SP)`）；如果需要 F1，再部署 lens | 模板 codehash 与 artifact 一致；工厂的 SUPERPAYMASTER 等于 SP |
@@ -327,6 +327,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 7a | 各社区在 AOA 工厂发 v2 代币（community 固定；`creditPolicy` 初始为 OFF），operator **仍处于暂停状态** | 代币 codehash 与模板一致；默认分档源读回正确 |
 | 7b | **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。下面保留原来的三个选项，仅作记录：(a) 把核对过的旧债导入 v2 代币；(b) 在 v2 代币上把欠债用户标记为不可开通信用；(c) 核销并在迁移记录里披露总额。**(a) 或 (b) 需要 v2 模板多一个一次性函数**（`importLegacyDebt(users, amounts)` 或 `setCreditIneligible(users)`，只有 communityOwner 能调，只能在 `creditPolicy` 首次离开 OFF 之前调用，而且之后永久关闭）；(c) 不需要改接口 | 对账记录入库；**这是 7c 的前置验收条件** |
 | 7c | **先 `SP.updatePrice()`，读回 `cachedPrice.updatedAt > 0` 且未过期**（D3 §8(a)：价格缓存为 0 时 validate 会 revert，得到 AA33 而不是 sigFail）→ `configureOperator` → 取消暂停（此时只有余额模式）；RepCredit 社区 `queueCreditPolicy(AUTO)`，48 h 后 execute，AUTO 才生效；AOA 社区保持 OFF | 探测通过；每个社区一笔余额模式 op 成功，AUTO 社区另加一笔信用 op 成功 |
+| 7d | **主网前**（任何时候都可以执行，作者要求保证随时可转）：aPNTs 铸币权交给 Mycelium Safe：先由当前 communityOwner 调 `renounceFactory()`，再 `transferCommunityOwnership(Safe)`（单步转移、没有 accept，**地址必须核对两遍**）。主网的新 aPNTs 部署时直接由 Safe 持有；是否在 mint 里强制上限，见 `apnts-mint-authority.md` §4，由作者决定 | `communityOwner == Safe`；`FACTORY == 0`；EOA 和工厂调 `mint` 都 revert，Safe 调 `mint` 成功（fork 演练，块 11692415，已通过） |
 | 8 | 旧代币：不迁移余额（旧债已在 7b 处理）；如果需要，另外提供 1:1 兑换合约，由用户自愿兑换，欠债用户能否兑换按 D-21 的结论决定 | — |
 | 9 | 下游：SDK / DVT / YAAA 按 02 §8.4 执行；在 airaccount-contract 开 issue（方案 A） | — |
 | 10 | RepCredit 重新采集，范围按 02 §8.4；新增同一 bundle 多笔的 Measured 测试（修正后的 L249） | — |
