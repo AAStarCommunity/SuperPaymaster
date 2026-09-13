@@ -57,7 +57,7 @@ D-9 由 DSR 按作者授权调整：原定"Alto 主用、Rundler 交叉验证"�
    - **解码那一帧**：revert data 以 `0x99410554` 开头，也就是 `DelegateAndRevert(bool,bytes)`。解码得到 `success = true`，`ret` 就是 ABI 编码的 `ValidationResult`。换句话说，**模拟本身成功了，结果也在这一帧里，只是 Alto 解码错了层**，于是任何 op 都会被拒，包括合规的对照。
    - **旁证**：Alto 仓库自带的 e2e 配置（`test/e2e/alto-config.json`）和本地配置（`scripts/config.local.json`）都是 `"safe-mode": false`。
    - 要不要给 Pimlico 提上游 issue，DSR 会去问作者（那是外部仓库）。
-2. **链的 fork 配置必须与目标链一致**：geth 1.17.5 `--dev` 的默认 genesis 在 0 块就启用了 Osaka 和 `bogota`（Osaka 之后的下一个 fork）。在这个配置下，验证期写存储会在 100k gas 内耗尽。只开到 Osaka 的 genesis 下同样的 op 按规则被拒（见矩阵），说明问题出在 `bogota`，而目标链都还没有这个 fork。**B 层统一用 Osaka**：anvil 加 `--hardfork osaka`；geth 用 `script/b-layer/geth-genesis.mjs` 生成 genesis 之后，删掉 `bogotaTime` 以及 blobSchedule 里多出的项。
+2. **链的 fork 配置必须与目标链一致**：geth 1.17.5 `--dev` 的默认 genesis 在 0 块就启用了 Osaka 和 `bogota`（Osaka 之后的下一个 fork）。在这个配置下，验证期写存储会在 100k gas 内耗尽。只开到 Osaka 的 genesis 下同样的 op 按规则被拒（见矩阵），说明问题出在 `bogota`，而目标链都还没有这个 fork。**原因（查 geth v1.17.5 源码 `core/vm/jump_table.go`）**：`bogota` = Amsterdam 指令集 = Osaka + EIP-7843 + EIP-8024 + **EIP-8037（多维 state-gas 计量）+ EIP-8038（state 访问重新定价）**，这两条改了 SSTORE、SLOAD 和 CALL 系列的 gas，所以验证期的 SSTORE 会耗尽 100k。Amsterdam 在 Sepolia 上还没有排期（`eth_config.next` 为空）。**B 层统一用 Osaka**：anvil 加 `--hardfork osaka`；geth 用 `script/b-layer/geth-genesis.mjs` 生成 genesis 之后，删掉 `bogotaTime` 以及 blobSchedule 里多出的项。
 3. **SP 的质押低于主用 bundler 的门槛**：2026-09-13 读回 `EntryPoint.getDepositInfo`，Sepolia 的 SP `0x09DF…` 和 OP 主网的 SP `0xA2c9…` 都是 stake 0.1 ETH、delay 86400。已写进 runbook 第 5b 步（03 §6）：补足到 ≥ 1 ETH，delay ≥ 86400，并加读回。B9 会实测"门槛以下被拒"。
 
 ## 3. 复现（固定的启动命令）

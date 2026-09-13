@@ -543,6 +543,13 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | AUD-3 | 修复 commit；有 High 或以上的修复时，必须复审 | **High 及以上全部关闭**，复审结论入库 |
 | AUD-4 | OP 主网部署的 commit 必须等于"审计 commit + 已复审的修复" | 部署记录里写明 commit 对应关系 |
 
+### 10.8b R-AMS：Amsterdam（EIP-8037/8038）的前向兼容风险（v3.9，D5 B0 发现）
+
+当前目标链（Sepolia、OP 主网、OP Sepolia）都在 Osaka（证据见 `b-layer/README.md` §0）。一旦 Amsterdam 在某条目标链上激活，EIP-8037（state-gas 计量）和 EIP-8038（state 访问重新定价）会让 SSTORE、SLOAD、CALL 变贵。在 geth 的 Amsterdam 级 dev 链上已经实测到：验证期写一个新槽，会耗尽 100k 的 paymaster 验证 gas。影响如下：
+- 验证期写入（锁记录、预留、在途记录，都是从零写成非零）→ `paymasterVerificationGasLimit` 要调高（SDK 侧）。
+- **`SETTLE_GAS_BOUND = 160k` 和 `MIN_POST_OP_GAS = 200k` 是写死在字节码里的常量**，可能不够用。不够时 postOp 会 revert，也就是 I10 情形：用户的执行被撤销、没有损失，但赞助不可用。
+- 处理办法：Amsterdam 进入某条目标链的排期后，在 Amsterdam 级链上重新测一遍 G 层（T-R14-09、no-OOG 扫描、C_WRAP）。如果常量需要调整，通过 SP 的 UUPS 升级下发，并同步更新 SDK 的 gas 取值。
+
 ### 10.9 Medium
 
 - **B-9**：buffer 带来的用户多付，要在 Sepolia 和 OP 主网上实测（最大值、典型值），写进论文的综合成本表。
