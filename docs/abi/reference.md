@@ -52,19 +52,37 @@ Authoritative, auto-generated reference for every external/public function, even
 - [BasePaymasterUpgradeable](#basepaymasterupgradeable) — `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
 - [MicroPaymentChannel](#micropaymentchannel) — `contracts/src/paymasters/superpaymaster/v3/MicroPaymentChannel.sol`
 - [SuperPaymaster](#superpaymaster) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
+- [SuperPaymasterAdmin](#superpaymasteradmin) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
+- [SuperPaymasterAdminCalls](#superpaymasteradmincalls) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol`
+- [ISPLensView](#isplensview) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol`
+- [SuperPaymasterLens](#superpaymasterlens) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol`
+- [SuperPaymasterStorage](#superpaymasterstorage) — `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
 - [X402Facilitator](#x402facilitator) — `contracts/src/paymasters/superpaymaster/v3/X402Facilitator.sol`
 - [PaymasterFactory](#paymasterfactory) — `contracts/src/paymasters/v4/core/PaymasterFactory.sol`
 - [Paymaster](#paymaster) — `contracts/src/paymasters/v4/Paymaster.sol`
 - [IERC20Metadata](#ierc20metadata) — `contracts/src/paymasters/v4/PaymasterBase.sol`
 - [PaymasterBase](#paymasterbase) — `contracts/src/paymasters/v4/PaymasterBase.sol`
+- [APNTsCapped](#apntscapped) — `contracts/src/tokens/APNTsCapped.sol`
 - [GToken](#gtoken) — `contracts/src/tokens/GToken.sol`
 - [GTokenAuthorization](#gtokenauthorization) — `contracts/src/tokens/GTokenAuthorization.sol`
 - [MySBT](#mysbt) — `contracts/src/tokens/MySBT.sol`
+- [AOAProtocolRegistry](#aoaprotocolregistry) — `contracts/src/tokens/v2/AOAProtocolRegistry.sol`
+- [GlobalTierSource](#globaltiersource) — `contracts/src/tokens/v2/GlobalTierSource.sol`
+- [IRegistryCreditLimit](#iregistrycreditlimit) — `contracts/src/tokens/v2/GlobalTierSource.sol`
+- [ICreditTierSource](#icredittiersource) — `contracts/src/tokens/v2/ICreditTierSource.sol`
+- [IxPNTsTokenV2](#ixpntstokenv2) — `contracts/src/tokens/v2/IxPNTsTokenV2.sol`
+- [xPNTsFactoryV2](#xpntsfactoryv2) — `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
+- [xPNTsTokenV2](#xpntstokenv2) — `contracts/src/tokens/v2/xPNTsTokenV2.sol`
+- [ISPStakeViewV2](#ispstakeviewv2) — `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- [IxPNTsFactoryCapV2](#ixpntsfactorycapv2) — `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- [xPNTsTokenV2Ext](#xpntstokenv2ext) — `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- [xPNTsV2Base](#xpntsv2base) — `contracts/src/tokens/v2/xPNTsV2Base.sol`
 - [xPNTsFactory](#xpntsfactory) — `contracts/src/tokens/xPNTsFactory.sol`
 - [ISPStakeView](#ispstakeview) — `contracts/src/tokens/xPNTsToken.sol`
 - [IxPNTsFactoryCap](#ixpntsfactorycap) — `contracts/src/tokens/xPNTsToken.sol`
 - [xPNTsToken](#xpntstoken) — `contracts/src/tokens/xPNTsToken.sol`
 - [BLS](#bls) — `contracts/src/utils/BLS.sol`
+- [Ownable2StepNamespaced](#ownable2stepnamespaced) — `contracts/src/utils/Ownable2StepNamespaced.sol`
 
 ## GTokenStaking
 
@@ -1055,12 +1073,13 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 50 · **Events:** 23 · **Errors:** 38
+- **Functions:** 52 · **Events:** 24 · **Errors:** 39
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
 | `0x1b02e44f` | `batchUpdateGlobalReputation(uint256,address[],uint256[],uint256,bytes)` | nonpayable | nonReentrant | Batch update global reputation |
 | `0xe20bce2e` | `blacklistNonce()` | view | — | Monotonic nonce for blacklist BLS proofs (P0-3 replay protection). |
 | `0xbe30742f` | `blsAggregator()` | view | — |  |
@@ -1089,9 +1108,10 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb8a8f126` | `maxTotalCreditExposure()` | view | — | Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed. |
 | `0x19c46e81` | `MYSBT()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
 | `0x669d7762` | `registerRole(bytes32,address,bytes)` | nonpayable | nonReentrant | Register a user for a specific role (unified API) |
-| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
 | `0x17e1c595` | `safeMintForRole(bytes32,address,bytes)` | nonpayable | nonReentrant |  |
 | `0x00166507` | `seedCreditPopulation(address[],uint256,bool)` | nonpayable | onlyOwner | Seed (or re-count) the credit population from this contract's own storage. |
 | `0xbc959101` | `setBLSAggregator(address)` | nonpayable | onlyOwner |  |
@@ -1106,13 +1126,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xbb8ca259` | `syncExitFees(bytes32[])` | nonpayable | onlyOwner | Admin-triggered batch sync. Emits SyncFailed for any role whose         call to staking reverts — indexers watch this topic for alerting. |
 | `0x7d960e37` | `syncStakeFromStaking(address,bytes32,uint256)` | nonpayable | — | Push a fresh stake snapshot from Staking into Registry's per-role cache. |
 | `0xfe201e68` | `totalCreditExposure()` | view | — | Protocol-wide OUTSTANDING aPNT credit exposure created by the REPUTATION         path: the sum, over every address, of the credit limit its current global         reputation buys it ABOVE the permissionless level-1 floor. |
-| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
 | `0xce830e7b` | `updateOperatorBlacklist(address,address[],bool[],bytes)` | nonpayable | nonReentrant | Update operator blacklist (via DVT consensus) |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
 | `0x4f1ef286` | `upgradeToAndCall(address,bytes)` | payable | — |  |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
 
 #### `batchUpdateGlobalReputation(uint256 proposalId, address[] users, uint256[] newScores, uint256 epoch, bytes proof)`
 
@@ -1436,6 +1462,16 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+> The nominated owner; address(0) when there is no pending transfer.
+
+| returns | type | description |
+|---|---|---|
+| `p` | `address` |  |
+
 #### `proxiableUUID()`
 
 `0x52d1902d` · view · access: —
@@ -1464,7 +1500,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x715018a6` · nonpayable · access: —
 
-*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+> Always reverts (GOV-2 B.4).
 
 #### `safeMintForRole(bytes32 roleId, address user, bytes data)`
 
@@ -1621,7 +1657,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xf2fde38b` · nonpayable · access: —
 
-*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
 
 | param | type | description |
 |---|---|---|
@@ -1684,6 +1722,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x171f7dbde35aed7cddf3ece2dad8f4eb62443a3d6bf8616586da6fd03c6b4ed9` | `MySBTContractUpdated(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xf2aa93d5b018c6d050bb3a6597b9d4a3cd7a9222079c7ce596ecf6c701216290` | `ProposalMarkedExecuted(uint256,address)` |
 | `0x9a12e4589099dde5227657d6f96fb3ecc16e2e7f8f85a1e78e02e776dfea9984` | `ReputationProposalUplift(uint256,uint256,uint256,uint256,uint256)` |
 | `0x6be30291a8f228c9342613e5e66df1a1b85aa570ac1bca9219f3ac7b7f73bbf3` | `ReputationSourceUpdated(address,bool)` |
@@ -1728,6 +1767,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xd7e6bcf8` | `NotInitializing()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
 | `0x51618d53` | `ProposalAlreadyExecuted()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x6dd4f06c` | `RoleAlreadyGranted(bytes32,address)` |
@@ -6970,7 +7010,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BasePaymasterUpgradeable
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
-- **Functions:** 15 · **Events:** 3 · **Errors:** 10
+- **Functions:** 17 · **Events:** 4 · **Errors:** 11
 - **Title:** BasePaymasterUpgradeable
 - UUPS-compatible base paymaster for ERC-4337 v0.7
 
@@ -6978,15 +7018,17 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
 | `0x0396cb60` | `addStake(uint32)` | payable | onlyOwner |  |
 | `0xd0e30db0` | `deposit()` | payable | onlyOwner |  |
 | `0xb0d691fe` | `entryPoint()` | view | — | The EntryPoint contract (immutable for gas savings on hot path) |
 | `0xc399ec88` | `getDeposit()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
 | `0x7c627b21` | `postOp(uint8,bytes,uint256,uint256)` | nonpayable | — | Post-operation handler. Must verify sender is the entryPoint. |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
-| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
-| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
 | `0xbb9fe6bf` | `unlockStake()` | nonpayable | onlyOwner |  |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
 | `0x4f1ef286` | `upgradeToAndCall(address,bytes)` | payable | — |  |
@@ -6995,6 +7037,12 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x205c2878` | `withdrawTo(address,uint256)` | nonpayable | onlyOwner |  |
 
 ### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
 
 #### `addStake(uint32 unstakeDelaySec)`
 
@@ -7036,6 +7084,16 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+> The nominated owner; address(0) when there is no pending transfer.
+
+| returns | type | description |
+|---|---|---|
+| `p` | `address` |  |
+
 #### `postOp(uint8 mode, bytes context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)`
 
 `0x7c627b21` · nonpayable · access: —
@@ -7063,13 +7121,15 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x715018a6` · nonpayable · access: —
 
-*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+> Always reverts (GOV-2 B.4).
 
 #### `transferOwnership(address newOwner)`
 
 `0xf2fde38b` · nonpayable · access: —
 
-*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
 
 | param | type | description |
 |---|---|---|
@@ -7138,6 +7198,7 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
 
 ### Errors
@@ -7152,6 +7213,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xd7e6bcf8` | `NotInitializing()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
 
@@ -7441,106 +7503,78 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 90 · **Events:** 41 · **Errors:** 34
-- **Title:** SuperPaymaster
+- **Functions:** 56 · **Events:** 45 · **Errors:** 38
+- **Title:** SuperPaymaster (CORE)
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
 | `0x0396cb60` | `addStake(uint32)` | payable | — |  |
 | `0xde5c62a6` | `agentIdentityRegistry()` | view | — |  |
 | `0x4382885d` | `agentReputationRegistry()` | view | — |  |
-| `0xddd595ca` | `APNTS_TOKEN_TIMELOCK()` | view | — | Window between queueing an `setAPNTsToken` change and being         allowed to execute it. Owner can cancel any time during this         window. Picked to give all integrators (operators, SDKs,         off-chain monitors) at least one weekly review cycle to react. |
 | `0x74f053c4` | `APNTS_TOKEN()` | view | — |  |
 | `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
-| `0xa0c5018b` | `applyBLSAggregator()` | nonpayable | onlyOwner |  |
 | `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
 | `0xf60fdcb3` | `cachedPrice()` | view | — |  |
-| `0x1d2282c9` | `cancelAPNTsTokenChange()` | nonpayable | onlyOwner | Abort a queued APNTS_TOKEN swap before it executes. |
-| `0x0c883112` | `cancelEmergencyPrice()` | nonpayable | onlyOwner | Cancel a queued emergency price. Useful when the multisig         realises the queued value is wrong before timelock elapses. |
-| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). |
-| `0x5d2e7e50` | `clearPendingDebt(address,address)` | nonpayable | onlyOwner | Admin function to clear stuck pending debt (escape hatch) |
-| `0x5c7c4b5f` | `configureOperator(address,address)` | nonpayable | — |  |
 | `0xd0e30db0` | `deposit()` | payable | nonReentrant |  |
-| `0xb6b55f25` | `deposit(uint256)` | nonpayable | nonReentrant | Deposit xPNTs tokens from msg.sender into their own operator balance. |
-| `0x2f4f21e2` | `depositFor(address,uint256)` | nonpayable | nonReentrant | Deposit xPNTs tokens on behalf of a specific operator address. |
-| `0x17a18778` | `dryRunValidation((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)` | view | — | P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of         validatePaymasterUserOp. Bundlers / SDKs / dApps call this         off-chain (eth_call) before submitting a UserOperation to         distinguish the 8 distinct rejection paths that         validatePaymasterUserOp returns as an opaque SIG_FAILURE. |
-| `0x60d7442b` | `EMERGENCY_TIMELOCK()` | view | — |  |
-| `0x3d63f215` | `emergencyActivatedAt()` | view | — | Timestamp at which EMERGENCY mode was first activated (i.e. first         `executeEmergencyPrice` call after a CHAINLINK→EMERGENCY transition).         Cleared to 0 on Chainlink recovery. Used to enforce EMERGENCY_EXPIRY. |
+| `0xb6b55f25` | `deposit(uint256)` | nonpayable | nonReentrant | Deposit aPNTs from msg.sender into their own operator balance (pull mode). |
+| `0x2f4f21e2` | `depositFor(address,uint256)` | nonpayable | nonReentrant | Deposit aPNTs on behalf of a specific operator address (must approve first). |
+| `0x3d63f215` | `emergencyActivatedAt()` | view | — | Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery. |
 | `0x34fde76a` | `emergencyPendingPrice()` | view | — | Pending emergency price (8 decimals, same scale as Chainlink). |
 | `0x75e09b51` | `emergencyQueuedAt()` | view | — | Timestamp at which `emergencySetPrice` was last called; 0 if none queued. |
-| `0x96ea1e38` | `emergencySetPrice(int256)` | nonpayable | onlyOwner | Queue an emergency price update. Only honored when Chainlink         is stale and the new price stays within ±20% of the last         cached price; eligible for execution after a 1-hour timelock. |
 | `0xb0d691fe` | `entryPoint()` | view | — | The EntryPoint contract (immutable for gas savings on hot path) |
 | `0xb0f0abe9` | `ETH_USD_PRICE_FEED()` | view | — |  |
-| `0x84450c3d` | `executeAPNTsTokenChange()` | nonpayable | onlyOwner | Apply a previously queued APNTS_TOKEN swap. |
-| `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. |
-| `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Execute slash triggered by BLS consensus (DVT Module only) |
-| `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
+| `0x46f13619` | `EXTENSION()` | view | — | Administration / governance / views implementation (SuperPaymasterAdmin). |
 | `0xc399ec88` | `getDeposit()` | view | — |  |
-| `0xc1d9cb08` | `getLatestSlash(address)` | view | — |  |
-| `0x66c36875` | `getSlashCount(address)` | view | — |  |
-| `0xa134d63a` | `getSlashHistory(address)` | view | — |  |
-| `0x39a73403` | `initBLSAggregator(address)` | nonpayable | onlyOwner |  |
+| `0x452a9320` | `guardian()` | view | — | May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only. |
+| `0x362f6582` | `inflightOf(bytes32)` | view | — |  |
 | `0xcf756fdf` | `initialize(address,address,address,uint256)` | nonpayable | initializer | Initialize the UUPS proxy state |
-| `0x8e0d8ed9` | `isChainlinkStale()` | view | — |  |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — | V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent |
 | `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Check if an address is a registered ERC-8004 agent |
-| `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether `operator` currently has a slash queued (withdraw-blocking flag set). |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | nonpayable | nonReentrant | Handle ERC1363 transferAndCall (Push Mode) |
-| `0x13e7c9d8` | `operators(address)` | view | — | Get operator configuration |
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
 | `0x60a9139b` | `pendingAPNTsToken()` | view | — | Pending APNTS_TOKEN swap; address(0) when none queued. |
 | `0xbb2ddb27` | `pendingAPNTsTokenEta()` | view | — | Earliest timestamp at which `executeAPNTsTokenChange` may run. |
 | `0xb7b76cbe` | `pendingBLSAgg()` | view | — |  |
 | `0xfe719e2f` | `pendingBLSAggEta()` | view | — |  |
-| `0x7b707185` | `pendingDebts(address,address)` | view | — |  |
-| `0x7c627b21` | `postOp(uint8,bytes,uint256,uint256)` | nonpayable | onlyEntryPoint, nonReentrant | Post-operation handler. Must verify sender is the entryPoint. |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
+| `0x7c627b21` | `postOp(uint8,bytes,uint256,uint256)` | nonpayable | onlyEntryPoint, nonReentrant |  |
 | `0x07615815` | `priceMode()` | view | — | 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active). |
 | `0xbd111870` | `priceStalenessThreshold()` | view | — | Price staleness threshold (seconds) |
-| `0x82309dd8` | `priceValidUntil()` | view | — | Returns the timestamp after which the cached price is considered stale. |
-| `0xb955bc68` | `primeBlsSlashCooldown()` | nonpayable | onlyOwner | One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`. |
 | `0x96daa322` | `protocolFeeBPS()` | view | — |  |
 | `0x7af3816c` | `protocolRevenue()` | view | — |  |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
-| `0xb54a8fca` | `queueBLSAggregator(address)` | nonpayable | onlyOwner |  |
-| `0xad1c98d7` | `queueSlash(address)` | nonpayable | — | Mark an operator as having a pending slash (owner or BLS aggregator only). |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
-| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
-| `0x8041c94a` | `retryPendingDebt(address,address,uint256)` | nonpayable | onlyOwner, nonReentrant | Retry recording a pending debt that failed during postOp. |
+| `0x3d024c25` | `releaseStaleSponsorship(bytes32)` | nonpayable | — | R10-M1b: after the original transaction, restore an operator's in-flight a0 whose         postOp never completed (a postOp revert also rolled back the user's execution).         Permissionless and idempotent. The EntryPoint ETH for that op stays spent (I10).         GOV-2: works while sponsorship is paused. |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
 | `0xf7e8cb0d` | `sbtHolders(address)` | view | — |  |
-| `0x6a4b23b1` | `setAgentRegistries(address,address)` | nonpayable | onlyOwner | Set ERC-8004 agent registries (Owner only) |
-| `0xec2123f1` | `setAPNTSPrice(uint256)` | nonpayable | onlyOwner | Set the APNTS Price in USD (Owner Only) |
-| `0xd20727d7` | `setAPNTsToken(address)` | nonpayable | onlyOwner | Queue a new APNTS_TOKEN. Cannot take effect until         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`         and `protocolRevenue` are within PROTOCOL_REVENUE_BUFFER (otherwise         existing operator deposits would be stranded under the new token's         accounting). |
-| `0xfc347007` | `setOperatorLimits(uint48)` | nonpayable | — |  |
-| `0xe8ade1a9` | `setOperatorPaused(address,bool)` | nonpayable | onlyOwner | Pause/Unpause an operator (Owner Only) |
-| `0x787dce3d` | `setProtocolFee(uint256)` | nonpayable | onlyOwner | Set the protocol fee basis points (Owner Only) |
-| `0xf0f44260` | `setTreasury(address)` | nonpayable | onlyOwner | Set the protocol treasury address (Owner Only) |
-| `0x58a2570a` | `setXPNTsFactory(address)` | nonpayable | onlyOwner |  |
 | `0x8e580213` | `slashHistory(address,uint256)` | view | — |  |
-| `0xbfa5a1eb` | `slashOperator(address,uint8,uint256,string)` | nonpayable | onlyOwner | Slash an operator (Admin/Governance only) |
 | `0x61ad446e` | `totalTrackedBalance()` | view | — |  |
-| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
 | `0x61d027b3` | `treasury()` | view | — |  |
 | `0xbb9fe6bf` | `unlockStake()` | nonpayable | — |  |
-| `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — | Batch update blocked status for users (Called by Registry via DVT) |
-| `0x673a7e28` | `updatePrice()` | nonpayable | — | Update price cache from Chainlink oracle (keeper-callable). |
-| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus (Chainlink fallback) |
-| `0xf5c91a08` | `updateReputation(address,uint256)` | nonpayable | onlyOwner | Update Operator Reputation (External Credit Manager) |
-| `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — | Update SBT holder status (Called by Registry) |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
 | `0x4f1ef286` | `upgradeToAndCall(address,bytes)` | payable | — |  |
 | `0x6640431f` | `userOpState(address,address)` | view | — |  |
 | `0x52b7512c` | `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)` | nonpayable | onlyEntryPoint, nonReentrant | Payment validation: check if paymaster agrees to pay. Must verify sender is the entryPoint. Revert to reject this request. Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted (whitelisted). The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns. |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 | `0x2e1a7d4d` | `withdraw(uint256)` | nonpayable | nonReentrant | Withdraw aPNTs |
-| `0xa4b5328f` | `withdrawProtocolRevenue(address,uint256)` | nonpayable | onlyOwner, nonReentrant | Withdraw accumulated Protocol Revenue |
 | `0xc23a5cea` | `withdrawStake(address)` | nonpayable | — |  |
 | `0x205c2878` | `withdrawTo(address,uint256)` | nonpayable | — |  |
 | `0x6d8a4aff` | `xpntsFactory()` | view | — |  |
 
 ### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
 
 #### `addStake(uint32 unstakeDelaySec)`
 
@@ -7566,16 +7600,6 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
-#### `APNTS_TOKEN_TIMELOCK()`
-
-`0xddd595ca` · view · access: —
-
-> Window between queueing an `setAPNTsToken` change and being         allowed to execute it. Owner can cancel any time during this         window. Picked to give all integrators (operators, SDKs,         off-chain monitors) at least one weekly review cycle to react.
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
-
 #### `APNTS_TOKEN()`
 
 `0x74f053c4` · view · access: —
@@ -7591,10 +7615,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
-
-#### `applyBLSAggregator()`
-
-`0xa0c5018b` · nonpayable · access: onlyOwner
 
 #### `BLS_AGGREGATOR()`
 
@@ -7615,54 +7635,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `roundId` | `uint80` |  |
 | `decimals` | `uint8` |  |
 
-#### `cancelAPNTsTokenChange()`
-
-`0x1d2282c9` · nonpayable · access: onlyOwner
-
-> Abort a queued APNTS_TOKEN swap before it executes.
-
-#### `cancelEmergencyPrice()`
-
-`0x0c883112` · nonpayable · access: onlyOwner
-
-> Cancel a queued emergency price. Useful when the multisig         realises the queued value is wrong before timelock elapses.
-
-#### `cancelSlash(address operator)`
-
-`0xfcc6bd8a` · nonpayable · access: onlyOwner
-
-> Cancel a previously queued slash (owner only).
-
-*@dev* Allows the owner to unblock an operator's withdraw if the slash was      queued in error.  Idempotent when no slash is pending.
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-
-#### `clearPendingDebt(address token, address user)`
-
-`0x5d2e7e50` · nonpayable · access: onlyOwner
-
-> Admin function to clear stuck pending debt (escape hatch)
-
-*@dev* Use when accumulated debt exceeds MAX_SINGLE_TX_LIMIT or token is unreachable
-
-| param | type | description |
-|---|---|---|
-| `token` | `address` | The xPNTs token address |
-| `user` | `address` | The user address |
-
-#### `configureOperator(address xPNTsToken, address _opTreasury)`
-
-`0x5c7c4b5f` · nonpayable · access: —
-
-*@dev* Registers msg.sender as an operator with the given xPNTs token; reverts if token not issued by the wired factory.
-
-| param | type | description |
-|---|---|---|
-| `xPNTsToken` | `address` |  |
-| `_opTreasury` | `address` |  |
-
 #### `deposit()`
 
 `0xd0e30db0` · payable · access: nonReentrant
@@ -7671,7 +7643,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xb6b55f25` · nonpayable · access: nonReentrant
 
-> Deposit xPNTs tokens from msg.sender into their own operator balance.
+> Deposit aPNTs from msg.sender into their own operator balance (pull mode).
 
 | param | type | description |
 |---|---|---|
@@ -7681,44 +7653,18 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x2f4f21e2` · nonpayable · access: nonReentrant
 
-> Deposit xPNTs tokens on behalf of a specific operator address.
+> Deposit aPNTs on behalf of a specific operator address (must approve first).
 
 | param | type | description |
 |---|---|---|
 | `targetOperator` | `address` |  |
 | `amount` | `uint256` |  |
 
-#### `dryRunValidation((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes) userOp, uint256 maxCost)`
-
-`0x17a18778` · view · access: —
-
-> P0-15 (J2-BLOCKER-1): pure-view diagnostic mirror of         validatePaymasterUserOp. Bundlers / SDKs / dApps call this         off-chain (eth_call) before submitting a UserOperation to         distinguish the 8 distinct rejection paths that         validatePaymasterUserOp returns as an opaque SIG_FAILURE.
-
-*@dev* Mirrors the main path order; intentionally does NOT mutate         storage or emit events (would brick ERC-7562 compliance and         is impossible from a `view` anyway). Mirrors STALE_PRICE         using the same comparison the main path delegates to         EntryPoint via `validUntil` — i.e., a price is stale when         `block.timestamp > cachedPrice.updatedAt + priceStalenessThreshold`.MERGE DEPENDENCY: This function must be deployed together with P0-16      (future-timestamp guard on cache writes). Without P0-16, dryRunValidation      may return ok=true for a future-timestamp cache, while the actual      validatePaymasterUserOp would revert after P0-16 is deployed.
-
-| param | type | description |
-|---|---|---|
-| `userOp` | `(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes)` | The UserOperation to dry-run. |
-| `maxCost` | `uint256` | Same maxCost EntryPoint will pass to validation. |
-
-| returns | type | description |
-|---|---|---|
-| `ok` | `bool` | True if validation would pass. |
-| `reasonCode` | `bytes32` | Zero when ok==true, otherwise one of the                     `DRYRUN_*` constants explaining why. |
-
-#### `EMERGENCY_TIMELOCK()`
-
-`0x60d7442b` · view · access: —
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint256` |  |
-
 #### `emergencyActivatedAt()`
 
 `0x3d63f215` · view · access: —
 
-> Timestamp at which EMERGENCY mode was first activated (i.e. first         `executeEmergencyPrice` call after a CHAINLINK→EMERGENCY transition).         Cleared to 0 on Chainlink recovery. Used to enforce EMERGENCY_EXPIRY.
+> Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery.
 
 | returns | type | description |
 |---|---|---|
@@ -7744,18 +7690,6 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
-#### `emergencySetPrice(int256 newPrice)`
-
-`0x96ea1e38` · nonpayable · access: onlyOwner
-
-> Queue an emergency price update. Only honored when Chainlink         is stale and the new price stays within ±20% of the last         cached price; eligible for execution after a 1-hour timelock.
-
-*@dev* P0-10 (D8): pre-fix the owner break-glass path inside         `updatePriceDVT` skipped the deviation check whenever Chainlink         was unavailable, leaving a compromised owner free to write         any price. The new path enforces:           1. Chainlink must actually be stale (otherwise normal              `updatePrice` should be used);           2. New price within ±20% of `cachedPrice.price`;           3. 1-hour timelock so off-chain monitors can flag the queue              event before it lands.
-
-| param | type | description |
-|---|---|---|
-| `newPrice` | `int256` |  |
-
 #### `entryPoint()`
 
 `0xb0d691fe` · view · access: —
@@ -7774,50 +7708,15 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
-#### `executeAPNTsTokenChange()`
+#### `EXTENSION()`
 
-`0x84450c3d` · nonpayable · access: onlyOwner
+`0x46f13619` · view · access: —
 
-> Apply a previously queued APNTS_TOKEN swap.
-
-*@dev* Requires the timelock to have elapsed AND the contract to be         drained of operator-tracked balance and protocol revenue —         the same balance-zero invariant the audit recommended,         enforced at execute-time so operators can decide when to         drain rather than blocking the queue itself.         Intentionally owner-only: unlike OZ TimelockController's         permissionless execute, token migration is sensitive enough         to require explicit owner confirmation. The owner can effectively         cancel any time before calling this function simply by not         calling it, or by calling cancelAPNTsTokenChange() to reset the         queue. Third-party execution is not allowed because it would         remove the owner's final veto after the timelock expires.
-
-#### `executeEmergencyPrice()`
-
-`0xdc61ae90` · nonpayable · access: —
-
-> Apply a previously queued emergency price.
-
-*@dev* Permissionless after the timelock — anyone can land the price,         not just the owner. The protective gates already ran inside         `emergencySetPrice` (Chainlink stale, ±20% band).Permissionless: any address may execute after the 1-hour timelock expires.      This mirrors the OZ TimelockController liveness pattern — the ±20% deviation      cap limits manipulation even if an untrusted party triggers execution.
-
-#### `executeSlashWithBLS(address operator, uint8 level, bytes proof)`
-
-`0x079d2d42` · nonpayable · access: —
-
-> Execute slash triggered by BLS consensus (DVT Module only)
-
-*@dev* M-5: Clears the pending-slash flag after execution so withdraw is unblocked.
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `level` | `uint8` |  |
-| `proof` | `bytes` |  |
-
-#### `getAvailableCredit(address user, address token)`
-
-`0xeafe74b5` · view · access: —
-
-> Get operator credit limit for a user
-
-| param | type | description |
-|---|---|---|
-| `user` | `address` |  |
-| `token` | `address` |  |
+> Administration / governance / views implementation (SuperPaymasterAdmin).
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `uint256` |  |
+| `_0` | `address` |  |
 
 #### `getDeposit()`
 
@@ -7827,49 +7726,28 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
-#### `getLatestSlash(address operator)`
+#### `guardian()`
 
-`0xc1d9cb08` · view · access: —
+`0x452a9320` · view · access: —
 
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
+> May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only.
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `(uint256,uint256,uint256,string,uint8)` |  |
+| `_0` | `address` |  |
 
-#### `getSlashCount(address operator)`
+#### `inflightOf(bytes32 opHash)`
 
-`0x66c36875` · view · access: —
+`0x362f6582` · view · access: —
 
 | param | type | description |
 |---|---|---|
-| `operator` | `address` |  |
+| `opHash` | `bytes32` |  |
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `uint256` |  |
-
-#### `getSlashHistory(address operator)`
-
-`0xa134d63a` · view · access: —
-
-| param | type | description |
-|---|---|---|
 | `operator` | `address` |  |
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `(uint256,uint256,uint256,string,uint8)[]` |  |
-
-#### `initBLSAggregator(address _bls)`
-
-`0x39a73403` · nonpayable · access: onlyOwner
-
-| param | type | description |
-|---|---|---|
-| `_bls` | `address` |  |
+| `a0` | `uint256` |  |
 
 #### `initialize(address _owner, address _apntsToken, address _protocolTreasury, uint256 _priceStalenessThreshold)`
 
@@ -7883,14 +7761,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `_apntsToken` | `address` | aPNTs token address |
 | `_protocolTreasury` | `address` | Treasury address for protocol fees |
 | `_priceStalenessThreshold` | `uint256` | Oracle staleness threshold in seconds |
-
-#### `isChainlinkStale()`
-
-`0x8e0d8ed9` · view · access: —
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `bool` |  |
 
 #### `isEligibleForSponsorship(address user)`
 
@@ -7912,27 +7782,11 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Check if an address is a registered ERC-8004 agent
 
-*@dev* Called inside validatePaymasterUserOp. ERC-7562 §3.2 permits this      external call because isRegisteredAgent(account) reads only      sender-associated storage, satisfying the "associated storage" rule.      Using the dedicated isRegisteredAgent() rather than generic balanceOf()      ensures only ERC-8004 compliant registries qualify — not arbitrary ERC-721s.      try/catch degrades gracefully if the registry is self-destructed or buggy.
+*@dev* Called inside validatePaymasterUserOp. ERC-7562 §3.2 permits this      external call because isRegisteredAgent(account) reads only      sender-associated storage, satisfying the "associated storage" rule.      try/catch degrades gracefully if the registry is self-destructed or buggy.
 
 | param | type | description |
 |---|---|---|
 | `account` | `address` |  |
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `bool` |  |
-
-#### `isSlashPending(address operator)`
-
-`0xa98e43a5` · view · access: —
-
-> Whether `operator` currently has a slash queued (withdraw-blocking flag set).
-
-*@dev* O(1) authoritative read of the private `_pendingSlash` flag. DVT peers use this      for failover — when the node that queued a slash dies before executing, another      peer detects the pending state and continues to execute rather than re-queuing      (which the aggregator replay-guard would reject). Replaces off-chain reconstruction      from SlashQueued/SlashCancelled/OperatorSlashed events.
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
 
 | returns | type | description |
 |---|---|---|
@@ -7961,8 +7815,6 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x13e7c9d8` · view · access: —
 
-> Get operator configuration
-
 | param | type | description |
 |---|---|---|
 | `arg0` | `address` |  |
@@ -7988,6 +7840,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `paused()`
+
+`0x5c975abb` · view · access: —
+
+> Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `pendingAPNTsToken()`
 
@@ -8025,31 +7887,26 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint48` |  |
 
-#### `pendingDebts(address arg0, address arg1)`
+#### `pendingOwner()`
 
-`0x7b707185` · view · access: —
+`0xe30c3978` · view · access: —
 
-| param | type | description |
-|---|---|---|
-| `arg0` | `address` |  |
-| `arg1` | `address` |  |
+> The nominated owner; address(0) when there is no pending transfer.
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `uint256` |  |
+| `p` | `address` |  |
 
-#### `postOp(uint8 mode, bytes context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)`
+#### `postOp(uint8 arg0, bytes context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)`
 
 `0x7c627b21` · nonpayable · access: onlyEntryPoint, nonReentrant
 
-> Post-operation handler. Must verify sender is the entryPoint.
-
 | param | type | description |
 |---|---|---|
-| `mode` | `uint8` | - Enum with the following options:                        opSucceeded - User operation succeeded.                        opReverted  - User op reverted. The paymaster still has to pay for gas.                        postOpReverted - never passed in a call to postOp(). |
-| `context` | `bytes` | - The context value returned by validatePaymasterUserOp |
-| `actualGasCost` | `uint256` | - Actual gas used so far (without this postOp call). |
-| `actualUserOpFeePerGas` | `uint256` | - the gas price this UserOp pays. This value is based on the UserOp's maxFeePerGas                        and maxPriorityFee (and basefee)                        It is not the same as tx.gasprice, which is what the bundler pays. |
+| `arg0` | `uint8` |  |
+| `context` | `bytes` |  |
+| `actualGasCost` | `uint256` |  |
+| `actualUserOpFeePerGas` | `uint256` |  |
 
 #### `priceMode()`
 
@@ -8070,26 +7927,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
-
-#### `priceValidUntil()`
-
-`0x82309dd8` · view · access: —
-
-> Returns the timestamp after which the cached price is considered stale.
-
-*@dev* Returns 0 if price has never been updated. Use to check freshness off-chain.
-
-| returns | type | description |
-|---|---|---|
-| `_0` | `uint48` |  |
-
-#### `primeBlsSlashCooldown()`
-
-`0xb955bc68` · nonpayable · access: onlyOwner
-
-> One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`.
-
-*@dev* Owner-only. Called atomically from the 5.4.2 upgrade (upgradeToAndCall data) so that,         immediately after the impl swap, no operator can be BLS-slashed for the cooldown         window — covering any operator that was slashed shortly before the upgrade and thus         has no per-operator `_blsSlashCd` recorded. Idempotent and harmless to re-call.
 
 #### `protocolFeeBPS()`
 
@@ -8117,26 +7954,6 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bytes32` |  |
 
-#### `queueBLSAggregator(address _bls)`
-
-`0xb54a8fca` · nonpayable · access: onlyOwner
-
-| param | type | description |
-|---|---|---|
-| `_bls` | `address` |  |
-
-#### `queueSlash(address operator)`
-
-`0xad1c98d7` · nonpayable · access: —
-
-> Mark an operator as having a pending slash (owner or BLS aggregator only).
-
-*@dev* M-5: Called as a first step before executing slashOperator or      executeSlashWithBLS. Once set, the operator's withdraw() is blocked until      the slash executes or is cancelled. This closes the front-run window: the      owner/aggregator queues the flag in one TX; by the time that TX is mined      the operator can no longer drain their balance before the slash lands.      Calling queueSlash when already pending is idempotent (no revert).
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-
 #### `REGISTRY()`
 
 `0x06433b1b` · view · access: —
@@ -8145,25 +7962,21 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `releaseStaleSponsorship(bytes32 opHash)`
+
+`0x3d024c25` · nonpayable · access: —
+
+> R10-M1b: after the original transaction, restore an operator's in-flight a0 whose         postOp never completed (a postOp revert also rolled back the user's execution).         Permissionless and idempotent. The EntryPoint ETH for that op stays spent (I10).         GOV-2: works while sponsorship is paused.
+
+| param | type | description |
+|---|---|---|
+| `opHash` | `bytes32` |  |
+
 #### `renounceOwnership()`
 
 `0x715018a6` · nonpayable · access: —
 
-*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
-
-#### `retryPendingDebt(address token, address user, uint256 amount)`
-
-`0x8041c94a` · nonpayable · access: onlyOwner, nonReentrant
-
-> Retry recording a pending debt that failed during postOp.
-
-*@dev* H-01: takes an explicit `amount` so a pending balance larger than the         token's per-tx limit (`maxSingleTxLimit`) can be drained in chunks —         call repeatedly with `amount <= maxSingleTxLimit` until empty. Previously         it always retried the full balance, which reverted (and stayed stuck)         whenever the accumulated debt exceeded that limit. The remainder stays in         `pendingDebts` for the next call. Pass `amount == 0` to attempt the full         balance in one shot (works when it is within the limit).
-
-| param | type | description |
-|---|---|---|
-| `token` | `address` | The xPNTs token address |
-| `user` | `address` | The user address |
-| `amount` | `uint256` | aPNTs to record this call; clamped to the pending balance. |
+> Always reverts (GOV-2 B.4).
 
 #### `sbtHolders(address arg0)`
 
@@ -8176,92 +7989,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bool` |  |
-
-#### `setAgentRegistries(address _identity, address _reputation)`
-
-`0x6a4b23b1` · nonpayable · access: onlyOwner
-
-> Set ERC-8004 agent registries (Owner only)
-
-*@dev* ERC-7562 constraint: _identity is called via isRegisteredAgent(sender) inside      validatePaymasterUserOp. The contract MUST be ERC-7562 compliant:      (1) no banned opcodes (TIMESTAMP, NUMBER, BLOCKHASH, ORIGIN, etc.),      (2) isRegisteredAgent() reads only sender-associated storage slots.      Requires IAgentIdentityRegistry.isRegisteredAgent() — generic ERC-721s      are NOT accepted since any NFT holder would qualify as an agent.      Non-compliant registries cause bundlers to reject all agent-sponsored      UserOps. Pass address(0) to disable agent sponsorship (SBT-only mode).
-
-| param | type | description |
-|---|---|---|
-| `_identity` | `address` |  |
-| `_reputation` | `address` |  |
-
-#### `setAPNTSPrice(uint256 newPrice)`
-
-`0xec2123f1` · nonpayable · access: onlyOwner
-
-> Set the APNTS Price in USD (Owner Only)
-
-*@dev* P0-11 (B2-N3): pre-fix the only check was `newPrice != 0`. Owner      could move the unit scale arbitrarily — combined with the lack of      timelock, a single mis-typed multisig call could distort the cost      basis for every operator at once. Inline bounds:      - absolute MIN/MAX: prevents nonsense magnitudes (e.g., off-by-1e18)      - ±10% per-tx delta vs current price: bounds blast of mis-clicks      - delta check skipped on first set (oldPrice == 0)      Three setters across SP / xPNTs / V4 PaymasterBase each have their      own MIN/MAX/DELTA tuned to the price they hold (different units),      so the implementations are inline rather than a shared mixin.Price-path independence: the ±10% delta cap enforced here is      independent of the break-glass ±20% cap in `emergencySetPrice`.      The two paths are separate entry points that operate on different      storage (`aPNTsPriceUSD` vs `cachedPrice`); neither can be called      through the other, so a caller cannot exploit one path to bypass      the deviation limit of the other.
-
-| param | type | description |
-|---|---|---|
-| `newPrice` | `uint256` |  |
-
-#### `setAPNTsToken(address newAPNTsToken)`
-
-`0xd20727d7` · nonpayable · access: onlyOwner
-
-> Queue a new APNTS_TOKEN. Cannot take effect until         `pendingAPNTsTokenEta` and only when both `totalTrackedBalance`         and `protocolRevenue` are within PROTOCOL_REVENUE_BUFFER (otherwise         existing operator deposits would be stranded under the new token's         accounting).
-
-*@dev* P0-9 (B2-N1): owner can cancel within the window via         `cancelAPNTsTokenChange`. Re-queueing a change refreshes the         timer (intentional — allows the owner to abort and restart).
-
-| param | type | description |
-|---|---|---|
-| `newAPNTsToken` | `address` |  |
-
-#### `setOperatorLimits(uint48 _minTxInterval)`
-
-`0xfc347007` · nonpayable · access: —
-
-| param | type | description |
-|---|---|---|
-| `_minTxInterval` | `uint48` |  |
-
-#### `setOperatorPaused(address operator, bool paused)`
-
-`0xe8ade1a9` · nonpayable · access: onlyOwner
-
-> Pause/Unpause an operator (Owner Only)
-
-*@dev* Used for security emergency stops
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `paused` | `bool` |  |
-
-#### `setProtocolFee(uint256 newFeeBPS)`
-
-`0x787dce3d` · nonpayable · access: onlyOwner
-
-> Set the protocol fee basis points (Owner Only)
-
-| param | type | description |
-|---|---|---|
-| `newFeeBPS` | `uint256` |  |
-
-#### `setTreasury(address _treasury)`
-
-`0xf0f44260` · nonpayable · access: onlyOwner
-
-> Set the protocol treasury address (Owner Only)
-
-| param | type | description |
-|---|---|---|
-| `_treasury` | `address` |  |
-
-#### `setXPNTsFactory(address _factory)`
-
-`0x58a2570a` · nonpayable · access: onlyOwner
-
-| param | type | description |
-|---|---|---|
-| `_factory` | `address` |  |
 
 #### `slashHistory(address arg0, uint256 arg1)`
 
@@ -8280,21 +8007,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `reason` | `string` |  |
 | `level` | `uint8` |  |
 
-#### `slashOperator(address operator, uint8 level, uint256 penaltyAmount, string reason)`
-
-`0xbfa5a1eb` · nonpayable · access: onlyOwner
-
-> Slash an operator (Admin/Governance only)
-
-*@dev* Reduces reputation and optionally pauses operator.      Clears the pending-slash flag so the operator can withdraw again after.
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `level` | `uint8` |  |
-| `penaltyAmount` | `uint256` |  |
-| `reason` | `string` |  |
-
 #### `totalTrackedBalance()`
 
 `0x61ad446e` · view · access: —
@@ -8307,7 +8019,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xf2fde38b` · nonpayable · access: —
 
-*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
 
 | param | type | description |
 |---|---|---|
@@ -8324,65 +8038,6 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `unlockStake()`
 
 `0xbb9fe6bf` · nonpayable · access: —
-
-#### `updateBlockedStatus(address operator, address[] users, bool[] statuses)`
-
-`0x5f4cd4fe` · nonpayable · access: —
-
-> Batch update blocked status for users (Called by Registry via DVT)
-
-*@dev* Allows DVT to sync credit-exhausted users to Paymaster blacklist
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `users` | `address[]` |  |
-| `statuses` | `bool[]` |  |
-
-#### `updatePrice()`
-
-`0x673a7e28` · nonpayable · access: —
-
-> Update price cache from Chainlink oracle (keeper-callable).
-
-*@dev* No future-timestamp guard is needed on this path: `updatedAt` is      read directly from a validated Chainlink response, not supplied by      an untrusted caller. Chainlink nodes always set `updatedAt` to the      block timestamp of the round, which is always <= block.timestamp at      the time of the call. The existing staleness check      (`updatedAt < block.timestamp - priceStalenessThreshold`) already      rejects data that is too old; a Chainlink answer with a future      `updatedAt` is practically impossible (it would require a Chainlink      node to report a timestamp ahead of on-chain time) and would be      caught by the staleness check inverting direction. Contrast with      `updatePriceDVT`, where `updatedAt` is caller-supplied and      therefore requires an explicit future-timestamp guard (P0-16).
-
-#### `updatePriceDVT(int256 price, uint256 updatedAt, bytes proof, uint8 chainlinkRecovered)`
-
-`0x53afb8be` · nonpayable · access: —
-
-> Update price via DVT/BLS consensus (Chainlink fallback)
-
-*@dev* Verifies BLS proof from DVT validators, with ±20% deviation check against Chainlink
-
-| param | type | description |
-|---|---|---|
-| `price` | `int256` | New ETH/USD price (8 decimals) |
-| `updatedAt` | `uint256` | Timestamp of price update |
-| `proof` | `bytes` | BLS aggregated proof from DVT validators |
-| `chainlinkRecovered` | `uint8` | 0 = Chainlink feed still unavailable (price-only update);                            1 = Chainlink feed has recovered — clears priceMode to 0                                and resets emergencyActivatedAt. |
-
-#### `updateReputation(address operator, uint256 newScore)`
-
-`0xf5c91a08` · nonpayable · access: onlyOwner
-
-> Update Operator Reputation (External Credit Manager)
-
-| param | type | description |
-|---|---|---|
-| `operator` | `address` |  |
-| `newScore` | `uint256` |  |
-
-#### `updateSBTStatus(address user, bool status)`
-
-`0xa3970ae6` · nonpayable · access: —
-
-> Update SBT holder status (Called by Registry)
-
-| param | type | description |
-|---|---|---|
-| `user` | `address` |  |
-| `status` | `bool` |  |
 
 #### `UPGRADE_INTERFACE_VERSION()`
 
@@ -8450,22 +8105,11 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Withdraw aPNTs
 
-*@dev* M-5: Reverts when a slash has been queued for this operator via      queueSlash(). The slash must be executed (or cancelled) before the      operator can withdraw, closing the front-run window where an operator      could observe a pending slash TX in the mempool and drain their balance      before it lands.
+*@dev* M-5: Reverts when a slash has been queued for this operator via queueSlash().
 
 | param | type | description |
 |---|---|---|
 | `amount` | `uint256` |  |
-
-#### `withdrawProtocolRevenue(address to, uint256 amount)`
-
-`0xa4b5328f` · nonpayable · access: onlyOwner, nonReentrant
-
-> Withdraw accumulated Protocol Revenue
-
-| param | type | description |
-|---|---|---|
-| `to` | `address` | Address to receive funds (usually treasury) |
-| `amount` | `uint256` | Amount of aPNTs to withdraw |
 
 #### `withdrawStake(address to)`
 
@@ -8509,16 +8153,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
 | `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
 | `0x028dfa1d2bc951d60682384a066c9424c3829ea5f25cb00a5f659caed927faea` | `EmergencyPriceQueued(int256,uint256)` |
+| `0x644df2ca8e50cc6469fa4e7260119a1a60f3146e0218f378ec342ad1d59fe494` | `GasParamsCancelled()` |
+| `0x9995b9b78ccf8754a92553c09d3f85d1c27ec162113bb629069fe1d73a6c3384` | `GasParamsExecuted(uint32,uint32,uint32,uint32)` |
+| `0xe59e383c70ea8897183b97ba6f529c524f603dd04667d60a4e686dbbb5fd40e2` | `GasParamsQueued(uint32,uint32,uint32,uint32,uint64)` |
+| `0xde0c166bd04b7c5598a692aa3a66306b07503d9ad8f5099063811005e828f332` | `GlobalPauseSet(address,bool)` |
+| `0xc3ce29e3ab42e524b6f6f1b4d3674898d503ee3577a64ac87b555904ebc14138` | `GuardianSet(address,address)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
-| `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
 | `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
 | `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
 | `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
-| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
 | `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
 | `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
 | `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
 | `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
 | `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
@@ -8526,10 +8174,10 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
 | `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
-| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
 | `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
 | `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
 | `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
@@ -8553,6 +8201,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
 | `0xb398979f` | `ERC1967NonPayable()` |
 | `0x1425ea42` | `FailedInnerCall()` |
+| `0x5237dd3c` | `GasParamsTimelock()` |
 | `0xcf479181` | `InsufficientBalance(uint256,uint256)` |
 | `0xb4aa8063` | `InsufficientRevenue()` |
 | `0xe6c4247b` | `InvalidAddress()` |
@@ -8568,11 +8217,1963 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb41b6cb1` | `OracleError()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x8890295d` | `PostOpGasTooLow()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
 | `0x82c6707e` | `ScoreExceedsUint32()` |
 | `0xbe3963ef` | `SlashCooldown()` |
 | `0x57064225` | `SlashPending()` |
+| `0x92959fd7` | `SponsorshipInFlight()` |
+| `0x82b42900` | `Unauthorized()` |
+| `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
+| `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+
+## SuperPaymasterAdmin
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
+- **Functions:** 88 · **Events:** 45 · **Errors:** 37
+- **Title:** SuperPaymasterAdmin (EXTENSION)
+- Governance, administration and non-hot-path views of SuperPaymaster 5.5.0 (D5b).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
+| `0x0396cb60` | `addStake(uint32)` | payable | — |  |
+| `0xde5c62a6` | `agentIdentityRegistry()` | view | — |  |
+| `0x4382885d` | `agentReputationRegistry()` | view | — |  |
+| `0xddd595ca` | `APNTS_TOKEN_TIMELOCK()` | view | — | Window between queueing a `setAPNTsToken` change and being allowed to execute it. |
+| `0x74f053c4` | `APNTS_TOKEN()` | view | — |  |
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
+| `0xa0c5018b` | `applyBLSAggregator()` | nonpayable | onlyOwner |  |
+| `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
+| `0xf60fdcb3` | `cachedPrice()` | view | — |  |
+| `0x1d2282c9` | `cancelAPNTsTokenChange()` | nonpayable | onlyOwner | Abort a queued APNTS_TOKEN swap before it executes. |
+| `0x0c883112` | `cancelEmergencyPrice()` | nonpayable | onlyOwner | Cancel a queued emergency price. |
+| `0xec11fa81` | `cancelGasParams()` | nonpayable | onlyOwner |  |
+| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). Idempotent. |
+| `0x5c7c4b5f` | `configureOperator(address,address)` | nonpayable | — | Registers msg.sender as an operator with the given xPNTs token (must be the token the         wired factory issued for msg.sender, and a balance-mode v2 token). |
+| `0xd0e30db0` | `deposit()` | payable | — |  |
+| `0x60d7442b` | `EMERGENCY_TIMELOCK()` | view | — |  |
+| `0x3d63f215` | `emergencyActivatedAt()` | view | — | Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery. |
+| `0x34fde76a` | `emergencyPendingPrice()` | view | — | Pending emergency price (8 decimals, same scale as Chainlink). |
+| `0x75e09b51` | `emergencyQueuedAt()` | view | — | Timestamp at which `emergencySetPrice` was last called; 0 if none queued. |
+| `0x96ea1e38` | `emergencySetPrice(int256)` | nonpayable | onlyOwner | Queue an emergency price update. Only honored when Chainlink is stale and the new         price stays within ±20% of the last cached price; executable after EMERGENCY_TIMELOCK. |
+| `0xb0d691fe` | `entryPoint()` | view | — | The EntryPoint contract (immutable for gas savings on hot path) |
+| `0xb0f0abe9` | `ETH_USD_PRICE_FEED()` | view | — |  |
+| `0x84450c3d` | `executeAPNTsTokenChange()` | nonpayable | onlyOwner | Apply a previously queued APNTS_TOKEN swap. Owner only; requires the timelock to         have elapsed AND every operator balance drained (totalTrackedBalance ==         protocolRevenue <= PROTOCOL_REVENUE_BUFFER). |
+| `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. Permissionless after the timelock         (the protective gates already ran in `emergencySetPrice`). |
+| `0x5848bb03` | `executeGasParams()` | nonpayable | onlyOwner | Owner-only. NOT relied upon for mid-bundle safety: an owner such as a         TimelockController with an open executor role can be driven from inside a user op.         Safety comes from the OpCtx snapshot (settleGasBound, cPostop, cWrap). |
+| `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Execute slash triggered by BLS consensus (DVT Module only) |
+| `0xbe875cf3` | `gasParams()` | view | — | Effective parameters (defaults when never set) and the pending proposal. |
+| `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Remaining credit headroom for `user` on `token` (saturating; spec §10.4 / R4-H4). |
+| `0xc399ec88` | `getDeposit()` | view | — |  |
+| `0xc1d9cb08` | `getLatestSlash(address)` | view | — |  |
+| `0x66c36875` | `getSlashCount(address)` | view | — |  |
+| `0xa134d63a` | `getSlashHistory(address)` | view | — |  |
+| `0x452a9320` | `guardian()` | view | — | May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only. |
+| `0x39a73403` | `initBLSAggregator(address)` | nonpayable | onlyOwner |  |
+| `0x8e0d8ed9` | `isChainlinkStale()` | view | — |  |
+| `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether `operator` currently has a slash queued (withdraw-blocking flag set). |
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
+| `0x60a9139b` | `pendingAPNTsToken()` | view | — | Pending APNTS_TOKEN swap; address(0) when none queued. |
+| `0xbb2ddb27` | `pendingAPNTsTokenEta()` | view | — | Earliest timestamp at which `executeAPNTsTokenChange` may run. |
+| `0xb7b76cbe` | `pendingBLSAgg()` | view | — |  |
+| `0xfe719e2f` | `pendingBLSAggEta()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
+| `0x7c627b21` | `postOp(uint8,bytes,uint256,uint256)` | pure | — |  |
+| `0x07615815` | `priceMode()` | view | — | 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active). |
+| `0xbd111870` | `priceStalenessThreshold()` | view | — | Price staleness threshold (seconds) |
+| `0x82309dd8` | `priceValidUntil()` | view | — | Returns the timestamp after which the cached price is considered stale (0 if never set). |
+| `0xb955bc68` | `primeBlsSlashCooldown()` | nonpayable | onlyOwner | One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`. |
+| `0x96daa322` | `protocolFeeBPS()` | view | — |  |
+| `0x7af3816c` | `protocolRevenue()` | view | — |  |
+| `0x52d1902d` | `proxiableUUID()` | view | — |  |
+| `0xb54a8fca` | `queueBLSAggregator(address)` | nonpayable | onlyOwner |  |
+| `0xb4c18746` | `queueGasParams(uint32,uint32,uint32,uint32)` | nonpayable | onlyOwner | Queue new gas parameters; effective after GP_TIMELOCK via `executeGasParams`. |
+| `0xad1c98d7` | `queueSlash(address)` | nonpayable | — | Mark an operator as having a pending slash (owner or BLS aggregator only). |
+| `0x06433b1b` | `REGISTRY()` | view | — |  |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
+| `0xf7e8cb0d` | `sbtHolders(address)` | view | — |  |
+| `0x6a4b23b1` | `setAgentRegistries(address,address)` | nonpayable | onlyOwner | Set ERC-8004 agent registries (Owner only). The identity registry is called from         validation (`isRegisteredAgent`) and MUST be ERC-7562 compliant. address(0) disables. |
+| `0xec2123f1` | `setAPNTSPrice(uint256)` | nonpayable | onlyOwner | Set the APNTS Price in USD (Owner Only) |
+| `0xd20727d7` | `setAPNTsToken(address)` | nonpayable | onlyOwner | Queue a new APNTS_TOKEN (effective after APNTS_TOKEN_TIMELOCK via executeAPNTsTokenChange).         Re-queueing refreshes the timer. |
+| `0x76cad834` | `setGlobalPaused(bool)` | nonpayable | — | Stop (true) or resume (false) ALL sponsorship. Owner: both. Guardian: stop only. |
+| `0x8a0dac4a` | `setGuardian(address)` | nonpayable | onlyOwner | Set (or clear, with address(0)) the emergency guardian. Owner only. |
+| `0xfc347007` | `setOperatorLimits(uint48)` | nonpayable | — |  |
+| `0xe8ade1a9` | `setOperatorPaused(address,bool)` | nonpayable | — | Pause / unpause an operator. Owner: both directions. Guardian: pause only. |
+| `0x787dce3d` | `setProtocolFee(uint256)` | nonpayable | onlyOwner | Set the protocol fee basis points (Owner Only; hard cap MAX_PROTOCOL_FEE) |
+| `0xf0f44260` | `setTreasury(address)` | nonpayable | onlyOwner | Set the protocol treasury address (Owner Only) |
+| `0x58a2570a` | `setXPNTsFactory(address)` | nonpayable | onlyOwner |  |
+| `0x8e580213` | `slashHistory(address,uint256)` | view | — |  |
+| `0xbfa5a1eb` | `slashOperator(address,uint8,uint256,string)` | nonpayable | onlyOwner | Slash an operator (Admin/Governance only). Requires queueSlash first; 24h cooldown. |
+| `0x61ad446e` | `totalTrackedBalance()` | view | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
+| `0x61d027b3` | `treasury()` | view | — |  |
+| `0xbb9fe6bf` | `unlockStake()` | nonpayable | — |  |
+| `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — | Batch update blocked status for users (Called by Registry via DVT) |
+| `0x673a7e28` | `updatePrice()` | nonpayable | — | Update price cache from Chainlink oracle (keeper-callable). |
+| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus (Chainlink fallback) |
+| `0xf5c91a08` | `updateReputation(address,uint256)` | nonpayable | onlyOwner | Update Operator Reputation (External Credit Manager) |
+| `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — | Update SBT holder status (Called by Registry) |
+| `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
+| `0x4f1ef286` | `upgradeToAndCall(address,bytes)` | payable | — |  |
+| `0x6640431f` | `userOpState(address,address)` | view | — |  |
+| `0x52b7512c` | `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)` | pure | — |  |
+| `0xa4b5328f` | `withdrawProtocolRevenue(address,uint256)` | nonpayable | onlyOwner, nonReentrant | Withdraw accumulated Protocol Revenue (leaves PROTOCOL_REVENUE_BUFFER). |
+| `0xc23a5cea` | `withdrawStake(address)` | nonpayable | — |  |
+| `0x205c2878` | `withdrawTo(address,uint256)` | nonpayable | — |  |
+| `0x6d8a4aff` | `xpntsFactory()` | view | — |  |
+
+### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
+
+#### `addStake(uint32 unstakeDelaySec)`
+
+`0x0396cb60` · payable · access: —
+
+| param | type | description |
+|---|---|---|
+| `unstakeDelaySec` | `uint32` |  |
+
+#### `agentIdentityRegistry()`
+
+`0xde5c62a6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `agentReputationRegistry()`
+
+`0x4382885d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `APNTS_TOKEN_TIMELOCK()`
+
+`0xddd595ca` · view · access: —
+
+> Window between queueing a `setAPNTsToken` change and being allowed to execute it.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `APNTS_TOKEN()`
+
+`0x74f053c4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `applyBLSAggregator()`
+
+`0xa0c5018b` · nonpayable · access: onlyOwner
+
+#### `BLS_AGGREGATOR()`
+
+`0xc06f58e8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `cachedPrice()`
+
+`0xf60fdcb3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `price` | `int256` |  |
+| `updatedAt` | `uint256` |  |
+| `roundId` | `uint80` |  |
+| `decimals` | `uint8` |  |
+
+#### `cancelAPNTsTokenChange()`
+
+`0x1d2282c9` · nonpayable · access: onlyOwner
+
+> Abort a queued APNTS_TOKEN swap before it executes.
+
+#### `cancelEmergencyPrice()`
+
+`0x0c883112` · nonpayable · access: onlyOwner
+
+> Cancel a queued emergency price.
+
+#### `cancelGasParams()`
+
+`0xec11fa81` · nonpayable · access: onlyOwner
+
+#### `cancelSlash(address operator)`
+
+`0xfcc6bd8a` · nonpayable · access: onlyOwner
+
+> Cancel a previously queued slash (owner only). Idempotent.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+#### `configureOperator(address xPNTsToken, address _opTreasury)`
+
+`0x5c7c4b5f` · nonpayable · access: —
+
+> Registers msg.sender as an operator with the given xPNTs token (must be the token the         wired factory issued for msg.sender, and a balance-mode v2 token).
+
+| param | type | description |
+|---|---|---|
+| `xPNTsToken` | `address` |  |
+| `_opTreasury` | `address` |  |
+
+#### `deposit()`
+
+`0xd0e30db0` · payable · access: —
+
+#### `EMERGENCY_TIMELOCK()`
+
+`0x60d7442b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `emergencyActivatedAt()`
+
+`0x3d63f215` · view · access: —
+
+> Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `emergencyPendingPrice()`
+
+`0x34fde76a` · view · access: —
+
+> Pending emergency price (8 decimals, same scale as Chainlink).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `int256` |  |
+
+#### `emergencyQueuedAt()`
+
+`0x75e09b51` · view · access: —
+
+> Timestamp at which `emergencySetPrice` was last called; 0 if none queued.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `emergencySetPrice(int256 newPrice)`
+
+`0x96ea1e38` · nonpayable · access: onlyOwner
+
+> Queue an emergency price update. Only honored when Chainlink is stale and the new         price stays within ±20% of the last cached price; executable after EMERGENCY_TIMELOCK.
+
+| param | type | description |
+|---|---|---|
+| `newPrice` | `int256` |  |
+
+#### `entryPoint()`
+
+`0xb0d691fe` · view · access: —
+
+> The EntryPoint contract (immutable for gas savings on hot path)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `ETH_USD_PRICE_FEED()`
+
+`0xb0f0abe9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `executeAPNTsTokenChange()`
+
+`0x84450c3d` · nonpayable · access: onlyOwner
+
+> Apply a previously queued APNTS_TOKEN swap. Owner only; requires the timelock to         have elapsed AND every operator balance drained (totalTrackedBalance ==         protocolRevenue <= PROTOCOL_REVENUE_BUFFER).
+
+#### `executeEmergencyPrice()`
+
+`0xdc61ae90` · nonpayable · access: —
+
+> Apply a previously queued emergency price. Permissionless after the timelock         (the protective gates already ran in `emergencySetPrice`).
+
+#### `executeGasParams()`
+
+`0x5848bb03` · nonpayable · access: onlyOwner
+
+> Owner-only. NOT relied upon for mid-bundle safety: an owner such as a         TimelockController with an open executor role can be driven from inside a user op.         Safety comes from the OpCtx snapshot (settleGasBound, cPostop, cWrap).
+
+#### `executeSlashWithBLS(address operator, uint8 level, bytes proof)`
+
+`0x079d2d42` · nonpayable · access: —
+
+> Execute slash triggered by BLS consensus (DVT Module only)
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `level` | `uint8` |  |
+| `proof` | `bytes` |  |
+
+#### `gasParams()`
+
+`0xbe875cf3` · view · access: —
+
+> Effective parameters (defaults when never set) and the pending proposal.
+
+| returns | type | description |
+|---|---|---|
+| `current` | `(uint32,uint32,uint32,uint32)` |  |
+| `pending` | `(uint32,uint32,uint32,uint32,uint64)` |  |
+
+#### `getAvailableCredit(address user, address token)`
+
+`0xeafe74b5` · view · access: —
+
+> Remaining credit headroom for `user` on `token` (saturating; spec §10.4 / R4-H4).
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `token` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `getDeposit()`
+
+`0xc399ec88` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `getLatestSlash(address operator)`
+
+`0xc1d9cb08` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint256,uint256,uint256,string,uint8)` |  |
+
+#### `getSlashCount(address operator)`
+
+`0x66c36875` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `getSlashHistory(address operator)`
+
+`0xa134d63a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint256,uint256,uint256,string,uint8)[]` |  |
+
+#### `guardian()`
+
+`0x452a9320` · view · access: —
+
+> May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `initBLSAggregator(address _bls)`
+
+`0x39a73403` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `_bls` | `address` |  |
+
+#### `isChainlinkStale()`
+
+`0x8e0d8ed9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isSlashPending(address operator)`
+
+`0xa98e43a5` · view · access: —
+
+> Whether `operator` currently has a slash queued (withdraw-blocking flag set).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `operators(address arg0)`
+
+`0x13e7c9d8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `aPNTsBalance` | `uint128` |  |
+| `isConfigured` | `bool` |  |
+| `isPaused` | `bool` |  |
+| `xPNTsToken` | `address` |  |
+| `reputation` | `uint32` |  |
+| `minTxInterval` | `uint48` |  |
+| `treasury` | `address` |  |
+| `totalSpent` | `uint256` |  |
+| `totalTxSponsored` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `paused()`
+
+`0x5c975abb` · view · access: —
+
+> Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `pendingAPNTsToken()`
+
+`0x60a9139b` · view · access: —
+
+> Pending APNTS_TOKEN swap; address(0) when none queued.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingAPNTsTokenEta()`
+
+`0xbb2ddb27` · view · access: —
+
+> Earliest timestamp at which `executeAPNTsTokenChange` may run.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `pendingBLSAgg()`
+
+`0xb7b76cbe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingBLSAggEta()`
+
+`0xfe719e2f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+> The nominated owner; address(0) when there is no pending transfer.
+
+| returns | type | description |
+|---|---|---|
+| `p` | `address` |  |
+
+#### `postOp(uint8 arg0, bytes arg1, uint256 arg2, uint256 arg3)`
+
+`0x7c627b21` · pure · access: —
+
+*@dev* Unreachable through the proxy (the core answers this selector); inert if called directly.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint8` |  |
+| `arg1` | `bytes` |  |
+| `arg2` | `uint256` |  |
+| `arg3` | `uint256` |  |
+
+#### `priceMode()`
+
+`0x07615815` · view · access: —
+
+> 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `priceStalenessThreshold()`
+
+`0xbd111870` · view · access: —
+
+> Price staleness threshold (seconds)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `priceValidUntil()`
+
+`0x82309dd8` · view · access: —
+
+> Returns the timestamp after which the cached price is considered stale (0 if never set).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `primeBlsSlashCooldown()`
+
+`0xb955bc68` · nonpayable · access: onlyOwner
+
+> One-shot prime of the global BLS-slash cooldown floor to `now + SLASH_BLS_COOLDOWN`.
+
+#### `protocolFeeBPS()`
+
+`0x96daa322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `protocolRevenue()`
+
+`0x7af3816c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `proxiableUUID()`
+
+`0x52d1902d` · view · access: —
+
+*@dev* Implementation of the ERC1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation's compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `queueBLSAggregator(address _bls)`
+
+`0xb54a8fca` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `_bls` | `address` |  |
+
+#### `queueGasParams(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop)`
+
+`0xb4c18746` · nonpayable · access: onlyOwner
+
+> Queue new gas parameters; effective after GP_TIMELOCK via `executeGasParams`.
+
+| param | type | description |
+|---|---|---|
+| `minPostOpGas` | `uint32` |  |
+| `settleGasBound` | `uint32` |  |
+| `cWrap` | `uint32` |  |
+| `cPostop` | `uint32` |  |
+
+#### `queueSlash(address operator)`
+
+`0xad1c98d7` · nonpayable · access: —
+
+> Mark an operator as having a pending slash (owner or BLS aggregator only).
+
+*@dev* M-5: withdraw() is blocked until the slash executes or is cancelled. CC-13: the BLS      path may not re-arm during its cooldown. Idempotent.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+> Always reverts (GOV-2 B.4).
+
+#### `sbtHolders(address arg0)`
+
+`0xf7e8cb0d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `setAgentRegistries(address _identity, address _reputation)`
+
+`0x6a4b23b1` · nonpayable · access: onlyOwner
+
+> Set ERC-8004 agent registries (Owner only). The identity registry is called from         validation (`isRegisteredAgent`) and MUST be ERC-7562 compliant. address(0) disables.
+
+| param | type | description |
+|---|---|---|
+| `_identity` | `address` |  |
+| `_reputation` | `address` |  |
+
+#### `setAPNTSPrice(uint256 newPrice)`
+
+`0xec2123f1` · nonpayable · access: onlyOwner
+
+> Set the APNTS Price in USD (Owner Only)
+
+*@dev* P0-11: absolute MIN/MAX and a ±10% per-update delta (skipped when the old price is 0).      Independent of the break-glass ±20% band of `emergencySetPrice` (different storage).
+
+| param | type | description |
+|---|---|---|
+| `newPrice` | `uint256` |  |
+
+#### `setAPNTsToken(address newAPNTsToken)`
+
+`0xd20727d7` · nonpayable · access: onlyOwner
+
+> Queue a new APNTS_TOKEN (effective after APNTS_TOKEN_TIMELOCK via executeAPNTsTokenChange).         Re-queueing refreshes the timer.
+
+| param | type | description |
+|---|---|---|
+| `newAPNTsToken` | `address` |  |
+
+#### `setGlobalPaused(bool isPaused)`
+
+`0x76cad834` · nonpayable · access: —
+
+> Stop (true) or resume (false) ALL sponsorship. Owner: both. Guardian: stop only.
+
+*@dev* GOV-2 B.6 ②. While set, validatePaymasterUserOp returns SIG_FAILURE for every op before         parsing it; postOp, releaseStaleSponsorship and the token-side stale release keep         working, so ops already in flight settle or are released normally.
+
+| param | type | description |
+|---|---|---|
+| `isPaused` | `bool` |  |
+
+#### `setGuardian(address newGuardian)`
+
+`0x8a0dac4a` · nonpayable · access: onlyOwner
+
+> Set (or clear, with address(0)) the emergency guardian. Owner only.
+
+| param | type | description |
+|---|---|---|
+| `newGuardian` | `address` |  |
+
+#### `setOperatorLimits(uint48 _minTxInterval)`
+
+`0xfc347007` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `_minTxInterval` | `uint48` |  |
+
+#### `setOperatorPaused(address operator, bool isPaused)`
+
+`0xe8ade1a9` · nonpayable · access: —
+
+> Pause / unpause an operator. Owner: both directions. Guardian: pause only.
+
+*@dev* GOV-2 B.6 ①: NOT a plain `onlyOwnerOrGuardian` bool setter — the guardian passing         `false` reverts, so unpausing always goes through the owner (the timelock).
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `isPaused` | `bool` |  |
+
+#### `setProtocolFee(uint256 newFeeBPS)`
+
+`0x787dce3d` · nonpayable · access: onlyOwner
+
+> Set the protocol fee basis points (Owner Only; hard cap MAX_PROTOCOL_FEE)
+
+| param | type | description |
+|---|---|---|
+| `newFeeBPS` | `uint256` |  |
+
+#### `setTreasury(address _treasury)`
+
+`0xf0f44260` · nonpayable · access: onlyOwner
+
+> Set the protocol treasury address (Owner Only)
+
+| param | type | description |
+|---|---|---|
+| `_treasury` | `address` |  |
+
+#### `setXPNTsFactory(address _factory)`
+
+`0x58a2570a` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `_factory` | `address` |  |
+
+#### `slashHistory(address arg0, uint256 arg1)`
+
+`0x8e580213` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `timestamp` | `uint256` |  |
+| `amount` | `uint256` |  |
+| `reputationLoss` | `uint256` |  |
+| `reason` | `string` |  |
+| `level` | `uint8` |  |
+
+#### `slashOperator(address operator, uint8 level, uint256 penaltyAmount, string reason)`
+
+`0xbfa5a1eb` · nonpayable · access: onlyOwner
+
+> Slash an operator (Admin/Governance only). Requires queueSlash first; 24h cooldown.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `level` | `uint8` |  |
+| `penaltyAmount` | `uint256` |  |
+| `reason` | `string` |  |
+
+#### `totalTrackedBalance()`
+
+`0x61ad446e` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `treasury()`
+
+`0x61d027b3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `unlockStake()`
+
+`0xbb9fe6bf` · nonpayable · access: —
+
+#### `updateBlockedStatus(address operator, address[] users, bool[] statuses)`
+
+`0x5f4cd4fe` · nonpayable · access: —
+
+> Batch update blocked status for users (Called by Registry via DVT)
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `users` | `address[]` |  |
+| `statuses` | `bool[]` |  |
+
+#### `updatePrice()`
+
+`0x673a7e28` · nonpayable · access: —
+
+> Update price cache from Chainlink oracle (keeper-callable).
+
+#### `updatePriceDVT(int256 price, uint256 updatedAt, bytes proof, uint8 chainlinkRecovered)`
+
+`0x53afb8be` · nonpayable · access: —
+
+> Update price via DVT/BLS consensus (Chainlink fallback)
+
+| param | type | description |
+|---|---|---|
+| `price` | `int256` |  |
+| `updatedAt` | `uint256` |  |
+| `proof` | `bytes` |  |
+| `chainlinkRecovered` | `uint8` | 0 = Chainlink still unavailable; 1 = recovered (clears priceMode). |
+
+#### `updateReputation(address operator, uint256 newScore)`
+
+`0xf5c91a08` · nonpayable · access: onlyOwner
+
+> Update Operator Reputation (External Credit Manager)
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `newScore` | `uint256` |  |
+
+#### `updateSBTStatus(address user, bool status)`
+
+`0xa3970ae6` · nonpayable · access: —
+
+> Update SBT holder status (Called by Registry)
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `status` | `bool` |  |
+
+#### `UPGRADE_INTERFACE_VERSION()`
+
+`0xad3cb1cc` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `upgradeToAndCall(address newImplementation, bytes data)`
+
+`0x4f1ef286` · payable · access: —
+
+*@dev* Upgrade the implementation of the proxy to `newImplementation`, and subsequently execute the function call encoded in `data`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event.
+
+| param | type | description |
+|---|---|---|
+| `newImplementation` | `address` |  |
+| `data` | `bytes` |  |
+
+#### `userOpState(address arg0, address arg1)`
+
+`0x6640431f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `lastTimestamp` | `uint48` |  |
+| `isBlocked` | `bool` |  |
+
+#### `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes) arg0, bytes32 arg1, uint256 arg2)`
+
+`0x52b7512c` · pure · access: —
+
+*@dev* Unreachable through the proxy (the core answers this selector); inert if called directly.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes)` |  |
+| `arg1` | `bytes32` |  |
+| `arg2` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes` |  |
+| `_1` | `uint256` |  |
+
+#### `withdrawProtocolRevenue(address to, uint256 amount)`
+
+`0xa4b5328f` · nonpayable · access: onlyOwner, nonReentrant
+
+> Withdraw accumulated Protocol Revenue (leaves PROTOCOL_REVENUE_BUFFER).
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `withdrawStake(address to)`
+
+`0xc23a5cea` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+
+#### `withdrawTo(address to, uint256 amount)`
+
+`0x205c2878` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `xpntsFactory()`
+
+`0x6d8a4aff` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` |
+| `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
+| `0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee` | `APNTsTokenChangeCancelled(address)` |
+| `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` |
+| `0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c` | `APNTsTokenChangeQueued(address,uint256)` |
+| `0x75f4cc3f3f70100dc11e396f47f8af2dec5cf7ec94e06062222be779cf2f3dec` | `APNTsTokenUpdated(address,address)` |
+| `0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d` | `BLSAggregatorQueued(address,uint48)` |
+| `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
+| `0x18e257fa1330af492bc6ba2454ed697ff9a225a325b2ba1c8f436508e7b102c2` | `BlsSlashCooldownPrimed(uint48)` |
+| `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` |
+| `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
+| `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
+| `0x028dfa1d2bc951d60682384a066c9424c3829ea5f25cb00a5f659caed927faea` | `EmergencyPriceQueued(int256,uint256)` |
+| `0x644df2ca8e50cc6469fa4e7260119a1a60f3146e0218f378ec342ad1d59fe494` | `GasParamsCancelled()` |
+| `0x9995b9b78ccf8754a92553c09d3f85d1c27ec162113bb629069fe1d73a6c3384` | `GasParamsExecuted(uint32,uint32,uint32,uint32)` |
+| `0xe59e383c70ea8897183b97ba6f529c524f603dd04667d60a4e686dbbb5fd40e2` | `GasParamsQueued(uint32,uint32,uint32,uint32,uint64)` |
+| `0xde0c166bd04b7c5598a692aa3a66306b07503d9ad8f5099063811005e828f332` | `GlobalPauseSet(address,bool)` |
+| `0xc3ce29e3ab42e524b6f6f1b4d3674898d503ee3577a64ac87b555904ebc14138` | `GuardianSet(address,address)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
+| `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
+| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
+| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
+| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
+| `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
+| `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
+| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
+| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
+| `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
+| `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
+| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
+| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
+| `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
+| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
+| `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
+| `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
+| `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
+| `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
+| `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
+| `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x9996b315` | `AddressEmptyCode(address)` |
+| `0xcd786059` | `AddressInsufficientBalance(address)` |
+| `0x54ada055` | `AmountExceedsUint128()` |
+| `0x4efd1550` | `ChainlinkNotStale()` |
+| `0x144f0768` | `DepositNotVerified()` |
+| `0x4a1a5610` | `EmergencyExpired()` |
+| `0x6b049335` | `EmergencyPriceOutOfRange()` |
+| `0x5d2ccdb4` | `EmergencyTimelockNotElapsed()` |
+| `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
+| `0xb398979f` | `ERC1967NonPayable()` |
+| `0x1425ea42` | `FailedInnerCall()` |
+| `0x5237dd3c` | `GasParamsTimelock()` |
+| `0xcf479181` | `InsufficientBalance(uint256,uint256)` |
+| `0xb4aa8063` | `InsufficientRevenue()` |
+| `0xe6c4247b` | `InvalidAddress()` |
+| `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0x49e27cff` | `InvalidOwner()` |
+| `0x67cc8b75` | `InvalidXPNTsToken()` |
+| `0xa24a1471` | `NoEmergencyPending()` |
+| `0x0d0a552c` | `NoPendingDebt()` |
+| `0xe0a1dc31` | `NoSlashHistory()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xb41b6cb1` | `OracleError()` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x8890295d` | `PostOpGasTooLow()` |
+| `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
+| `0x5274afe7` | `SafeERC20FailedOperation(address)` |
+| `0x82c6707e` | `ScoreExceedsUint32()` |
+| `0xbe3963ef` | `SlashCooldown()` |
+| `0x57064225` | `SlashPending()` |
+| `0x92959fd7` | `SponsorshipInFlight()` |
+| `0x82b42900` | `Unauthorized()` |
+| `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
+| `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+
+## SuperPaymasterAdminCalls
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol`
+- **Functions:** 0 · **Events:** 0 · **Errors:** 0
+- **Title:** SuperPaymasterAdminCalls
+- Solidity-side typing sugar for the D5b split: `using SuperPaymasterAdminCalls for SuperPaymaster;`         lets code holding a `SuperPaymaster` reference call the functions served by the         SuperPaymasterAdmin extension (`sp.setGuardian(x)`, `sp.gasParams()`, …) exactly as before         the split. Every wrapper is an ordinary external call to the SAME address — the proxy —         whose core fallback routes it to the extension; nothing here changes routing or adds         authority. (Off-chain callers use the merged ABI `abis/SuperPaymaster.full.json`.)
+
+## ISPLensView
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol`
+- **Functions:** 10 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
+| `0xf60fdcb3` | `cachedPrice()` | view | — |  |
+| `0xb0d691fe` | `entryPoint()` | view | — |  |
+| `0xbe875cf3` | `gasParams()` | view | — |  |
+| `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — |  |
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
+| `0xbd111870` | `priceStalenessThreshold()` | view | — |  |
+| `0x96daa322` | `protocolFeeBPS()` | view | — |  |
+| `0x6640431f` | `userOpState(address,address)` | view | — |  |
+| `0x54fd4d50` | `version()` | view | — |  |
+
+### Functions
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `cachedPrice()`
+
+`0xf60fdcb3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `price` | `int256` |  |
+| `updatedAt` | `uint256` |  |
+| `roundId` | `uint80` |  |
+| `decimals` | `uint8` |  |
+
+#### `entryPoint()`
+
+`0xb0d691fe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `gasParams()`
+
+`0xbe875cf3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `current` | `(uint32,uint32,uint32,uint32)` |  |
+| `pending` | `(uint32,uint32,uint32,uint32,uint64)` |  |
+
+#### `isEligibleForSponsorship(address user)`
+
+`0x6a16e22d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `operators(address operator)`
+
+`0x13e7c9d8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `aPNTsBalance` | `uint128` |  |
+| `isConfigured` | `bool` |  |
+| `isPaused` | `bool` |  |
+| `xPNTsToken` | `address` |  |
+| `reputation` | `uint32` |  |
+| `minTxInterval` | `uint48` |  |
+| `treasury` | `address` |  |
+| `totalSpent` | `uint256` |  |
+| `totalTxSponsored` | `uint256` |  |
+
+#### `priceStalenessThreshold()`
+
+`0xbd111870` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `protocolFeeBPS()`
+
+`0x96daa322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `userOpState(address operator, address user)`
+
+`0x6640431f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `lastTimestamp` | `uint48` |  |
+| `isBlocked` | `bool` |  |
+
+#### `version()`
+
+`0x54fd4d50` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+## SuperPaymasterLens
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol`
+- **Functions:** 18 · **Events:** 0 · **Errors:** 1
+- **Title:** SuperPaymasterLens
+- Off-chain diagnostic mirror of `SuperPaymaster.validatePaymasterUserOp` (5.5.0), moved         out of SP for EIP-170 (spec F1 / §5). Distinguishes the rejection paths that validation         reports as an opaque SIG_FAILURE.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x965e1890` | `DRYRUN_CREDIT_REJECTED()` | view | — |  |
+| `0xc73491db` | `DRYRUN_INSUFFICIENT_BALANCE()` | view | — |  |
+| `0xc18a2405` | `DRYRUN_LOCK_REJECTED()` | view | — |  |
+| `0xf3848dda` | `DRYRUN_OK()` | view | — |  |
+| `0x0579b6bc` | `DRYRUN_OPERATOR_NOT_CONFIGURED()` | view | — |  |
+| `0x8d253f7c` | `DRYRUN_OPERATOR_PAUSED()` | view | — |  |
+| `0x47b0a10a` | `DRYRUN_POSTOP_GAS_TOO_LOW()` | view | — |  |
+| `0xfb0aab65` | `DRYRUN_RATE_COMMITMENT_VIOLATED()` | view | — |  |
+| `0xe09bfe9c` | `DRYRUN_RATE_LIMITED()` | view | — |  |
+| `0x6ec85439` | `DRYRUN_SPONSORSHIP_PAUSED()` | view | — |  |
+| `0x5f93f8ac` | `DRYRUN_STALE_PRICE()` | view | — |  |
+| `0x3c1b7a2c` | `DRYRUN_TOKEN_MISMATCH()` | view | — |  |
+| `0x38c88f7b` | `DRYRUN_USER_BLOCKED()` | view | — |  |
+| `0x6911dd5f` | `DRYRUN_USER_NOT_ELIGIBLE()` | view | — |  |
+| `0xaf567e26` | `DRYRUN_VERSION_MISMATCH()` | view | — |  |
+| `0x56a07f70` | `dryRunValidation(address,(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)` | view | — | Would `sp.validatePaymasterUserOp(userOp, hash, maxCost)` sponsor this op, and if         not, why. Hard failures take precedence over the soft rate limit. |
+| `0x267bafee` | `EXPECTED_SP_VERSION()` | view | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `DRYRUN_CREDIT_REJECTED()`
+
+`0x965e1890` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_INSUFFICIENT_BALANCE()`
+
+`0xc73491db` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_LOCK_REJECTED()`
+
+`0xc18a2405` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_OK()`
+
+`0xf3848dda` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_OPERATOR_NOT_CONFIGURED()`
+
+`0x0579b6bc` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_OPERATOR_PAUSED()`
+
+`0x8d253f7c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_POSTOP_GAS_TOO_LOW()`
+
+`0x47b0a10a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_RATE_COMMITMENT_VIOLATED()`
+
+`0xfb0aab65` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_RATE_LIMITED()`
+
+`0xe09bfe9c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_SPONSORSHIP_PAUSED()`
+
+`0x6ec85439` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_STALE_PRICE()`
+
+`0x5f93f8ac` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_TOKEN_MISMATCH()`
+
+`0x3c1b7a2c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_USER_BLOCKED()`
+
+`0x38c88f7b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_USER_NOT_ELIGIBLE()`
+
+`0x6911dd5f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `DRYRUN_VERSION_MISMATCH()`
+
+`0xaf567e26` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `dryRunValidation(address sp, (address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes) userOp, uint256 maxCost)`
+
+`0x56a07f70` · view · access: —
+
+> Would `sp.validatePaymasterUserOp(userOp, hash, maxCost)` sponsor this op, and if         not, why. Hard failures take precedence over the soft rate limit.
+
+| param | type | description |
+|---|---|---|
+| `sp` | `address` |  |
+| `userOp` | `(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes)` |  |
+| `maxCost` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `ok` | `bool` |  |
+| `reasonCode` | `bytes32` |  |
+
+#### `EXPECTED_SP_VERSION()`
+
+`0x267bafee` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x227bc153` | `MathOverflowedMulDiv()` |
+
+## SuperPaymasterStorage
+
+- **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
+- **Functions:** 45 · **Events:** 42 · **Errors:** 35
+- **Title:** SuperPaymasterStorage
+- D5b: the ONE storage/inheritance chain shared by the SuperPaymaster core and its         SuperPaymasterAdmin extension (reached from the core's fallback via DELEGATECALL).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
+| `0x0396cb60` | `addStake(uint32)` | payable | — |  |
+| `0xde5c62a6` | `agentIdentityRegistry()` | view | — |  |
+| `0x4382885d` | `agentReputationRegistry()` | view | — |  |
+| `0x74f053c4` | `APNTS_TOKEN()` | view | — |  |
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
+| `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
+| `0xf60fdcb3` | `cachedPrice()` | view | — |  |
+| `0xd0e30db0` | `deposit()` | payable | — |  |
+| `0x3d63f215` | `emergencyActivatedAt()` | view | — | Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery. |
+| `0x34fde76a` | `emergencyPendingPrice()` | view | — | Pending emergency price (8 decimals, same scale as Chainlink). |
+| `0x75e09b51` | `emergencyQueuedAt()` | view | — | Timestamp at which `emergencySetPrice` was last called; 0 if none queued. |
+| `0xb0d691fe` | `entryPoint()` | view | — | The EntryPoint contract (immutable for gas savings on hot path) |
+| `0xb0f0abe9` | `ETH_USD_PRICE_FEED()` | view | — |  |
+| `0xc399ec88` | `getDeposit()` | view | — |  |
+| `0x452a9320` | `guardian()` | view | — | May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only. |
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
+| `0x60a9139b` | `pendingAPNTsToken()` | view | — | Pending APNTS_TOKEN swap; address(0) when none queued. |
+| `0xbb2ddb27` | `pendingAPNTsTokenEta()` | view | — | Earliest timestamp at which `executeAPNTsTokenChange` may run. |
+| `0xb7b76cbe` | `pendingBLSAgg()` | view | — |  |
+| `0xfe719e2f` | `pendingBLSAggEta()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
+| `0x7c627b21` | `postOp(uint8,bytes,uint256,uint256)` | nonpayable | — | Post-operation handler. Must verify sender is the entryPoint. |
+| `0x07615815` | `priceMode()` | view | — | 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active). |
+| `0xbd111870` | `priceStalenessThreshold()` | view | — | Price staleness threshold (seconds) |
+| `0x96daa322` | `protocolFeeBPS()` | view | — |  |
+| `0x7af3816c` | `protocolRevenue()` | view | — |  |
+| `0x52d1902d` | `proxiableUUID()` | view | — |  |
+| `0x06433b1b` | `REGISTRY()` | view | — |  |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
+| `0xf7e8cb0d` | `sbtHolders(address)` | view | — |  |
+| `0x8e580213` | `slashHistory(address,uint256)` | view | — |  |
+| `0x61ad446e` | `totalTrackedBalance()` | view | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
+| `0x61d027b3` | `treasury()` | view | — |  |
+| `0xbb9fe6bf` | `unlockStake()` | nonpayable | — |  |
+| `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
+| `0x4f1ef286` | `upgradeToAndCall(address,bytes)` | payable | — |  |
+| `0x6640431f` | `userOpState(address,address)` | view | — |  |
+| `0x52b7512c` | `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),bytes32,uint256)` | nonpayable | — | Payment validation: check if paymaster agrees to pay. Must verify sender is the entryPoint. Revert to reject this request. Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted (whitelisted). The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns. |
+| `0xc23a5cea` | `withdrawStake(address)` | nonpayable | — |  |
+| `0x205c2878` | `withdrawTo(address,uint256)` | nonpayable | — |  |
+| `0x6d8a4aff` | `xpntsFactory()` | view | — |  |
+
+### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
+
+#### `addStake(uint32 unstakeDelaySec)`
+
+`0x0396cb60` · payable · access: —
+
+| param | type | description |
+|---|---|---|
+| `unstakeDelaySec` | `uint32` |  |
+
+#### `agentIdentityRegistry()`
+
+`0xde5c62a6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `agentReputationRegistry()`
+
+`0x4382885d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `APNTS_TOKEN()`
+
+`0x74f053c4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `BLS_AGGREGATOR()`
+
+`0xc06f58e8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `cachedPrice()`
+
+`0xf60fdcb3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `price` | `int256` |  |
+| `updatedAt` | `uint256` |  |
+| `roundId` | `uint80` |  |
+| `decimals` | `uint8` |  |
+
+#### `deposit()`
+
+`0xd0e30db0` · payable · access: —
+
+#### `emergencyActivatedAt()`
+
+`0x3d63f215` · view · access: —
+
+> Timestamp at which EMERGENCY mode was first activated; cleared on Chainlink recovery.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `emergencyPendingPrice()`
+
+`0x34fde76a` · view · access: —
+
+> Pending emergency price (8 decimals, same scale as Chainlink).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `int256` |  |
+
+#### `emergencyQueuedAt()`
+
+`0x75e09b51` · view · access: —
+
+> Timestamp at which `emergencySetPrice` was last called; 0 if none queued.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `entryPoint()`
+
+`0xb0d691fe` · view · access: —
+
+> The EntryPoint contract (immutable for gas savings on hot path)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `ETH_USD_PRICE_FEED()`
+
+`0xb0f0abe9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `getDeposit()`
+
+`0xc399ec88` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `guardian()`
+
+`0x452a9320` · view · access: —
+
+> May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `operators(address arg0)`
+
+`0x13e7c9d8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `aPNTsBalance` | `uint128` |  |
+| `isConfigured` | `bool` |  |
+| `isPaused` | `bool` |  |
+| `xPNTsToken` | `address` |  |
+| `reputation` | `uint32` |  |
+| `minTxInterval` | `uint48` |  |
+| `treasury` | `address` |  |
+| `totalSpent` | `uint256` |  |
+| `totalTxSponsored` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `paused()`
+
+`0x5c975abb` · view · access: —
+
+> Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `pendingAPNTsToken()`
+
+`0x60a9139b` · view · access: —
+
+> Pending APNTS_TOKEN swap; address(0) when none queued.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingAPNTsTokenEta()`
+
+`0xbb2ddb27` · view · access: —
+
+> Earliest timestamp at which `executeAPNTsTokenChange` may run.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `pendingBLSAgg()`
+
+`0xb7b76cbe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingBLSAggEta()`
+
+`0xfe719e2f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+> The nominated owner; address(0) when there is no pending transfer.
+
+| returns | type | description |
+|---|---|---|
+| `p` | `address` |  |
+
+#### `postOp(uint8 mode, bytes context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)`
+
+`0x7c627b21` · nonpayable · access: —
+
+> Post-operation handler. Must verify sender is the entryPoint.
+
+| param | type | description |
+|---|---|---|
+| `mode` | `uint8` | - Enum with the following options:                        opSucceeded - User operation succeeded.                        opReverted  - User op reverted. The paymaster still has to pay for gas.                        postOpReverted - never passed in a call to postOp(). |
+| `context` | `bytes` | - The context value returned by validatePaymasterUserOp |
+| `actualGasCost` | `uint256` | - Actual gas used so far (without this postOp call). |
+| `actualUserOpFeePerGas` | `uint256` | - the gas price this UserOp pays. This value is based on the UserOp's maxFeePerGas                        and maxPriorityFee (and basefee)                        It is not the same as tx.gasprice, which is what the bundler pays. |
+
+#### `priceMode()`
+
+`0x07615815` · view · access: —
+
+> 0 = CHAINLINK (normal), 1 = EMERGENCY (owner override active).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `priceStalenessThreshold()`
+
+`0xbd111870` · view · access: —
+
+> Price staleness threshold (seconds)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `protocolFeeBPS()`
+
+`0x96daa322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `protocolRevenue()`
+
+`0x7af3816c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `proxiableUUID()`
+
+`0x52d1902d` · view · access: —
+
+*@dev* Implementation of the ERC1822 {proxiableUUID} function. This returns the storage slot used by the implementation. It is used to validate the implementation's compatibility when performing an upgrade. IMPORTANT: A proxy pointing at a proxiable contract should not be considered proxiable itself, because this risks bricking a proxy that upgrades to it, by delegating to itself until out of gas. Thus it is critical that this function revert if invoked through a proxy. This is guaranteed by the `notDelegated` modifier.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+> Always reverts (GOV-2 B.4).
+
+#### `sbtHolders(address arg0)`
+
+`0xf7e8cb0d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `slashHistory(address arg0, uint256 arg1)`
+
+`0x8e580213` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `timestamp` | `uint256` |  |
+| `amount` | `uint256` |  |
+| `reputationLoss` | `uint256` |  |
+| `reason` | `string` |  |
+| `level` | `uint8` |  |
+
+#### `totalTrackedBalance()`
+
+`0x61ad446e` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `treasury()`
+
+`0x61d027b3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `unlockStake()`
+
+`0xbb9fe6bf` · nonpayable · access: —
+
+#### `UPGRADE_INTERFACE_VERSION()`
+
+`0xad3cb1cc` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `upgradeToAndCall(address newImplementation, bytes data)`
+
+`0x4f1ef286` · payable · access: —
+
+*@dev* Upgrade the implementation of the proxy to `newImplementation`, and subsequently execute the function call encoded in `data`. Calls {_authorizeUpgrade}. Emits an {Upgraded} event.
+
+| param | type | description |
+|---|---|---|
+| `newImplementation` | `address` |  |
+| `data` | `bytes` |  |
+
+#### `userOpState(address arg0, address arg1)`
+
+`0x6640431f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `lastTimestamp` | `uint48` |  |
+| `isBlocked` | `bool` |  |
+
+#### `validatePaymasterUserOp((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost)`
+
+`0x52b7512c` · nonpayable · access: —
+
+> Payment validation: check if paymaster agrees to pay. Must verify sender is the entryPoint. Revert to reject this request. Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted (whitelisted). The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns.
+
+| param | type | description |
+|---|---|---|
+| `userOp` | `(address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes)` | - The user operation. |
+| `userOpHash` | `bytes32` | - Hash of the user's request data. |
+| `maxCost` | `uint256` | - The maximum cost of this transaction (based on maximum gas and gas price from userOp). |
+
+| returns | type | description |
+|---|---|---|
+| `context` | `bytes` | - Value to send to a postOp. Zero length to signify postOp is not required. |
+| `validationData` | `uint256` | - Signature and time-range of this operation, encoded the same as the return                          value of validateUserOperation.                          <20-byte> sigAuthorizer - 0 for valid signature, 1 to mark signature failure,                                                    other values are invalid for paymaster.                          <6-byte> validUntil - last timestamp this operation is valid. 0 for "indefinite"                          <6-byte> validAfter - first timestamp this operation is valid                          Note that the validation code cannot use block.timestamp (or block.number) directly. |
+
+#### `withdrawStake(address to)`
+
+`0xc23a5cea` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+
+#### `withdrawTo(address to, uint256 amount)`
+
+`0x205c2878` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `xpntsFactory()`
+
+`0x6d8a4aff` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` |
+| `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
+| `0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee` | `APNTsTokenChangeCancelled(address)` |
+| `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` |
+| `0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c` | `APNTsTokenChangeQueued(address,uint256)` |
+| `0x75f4cc3f3f70100dc11e396f47f8af2dec5cf7ec94e06062222be779cf2f3dec` | `APNTsTokenUpdated(address,address)` |
+| `0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d` | `BLSAggregatorQueued(address,uint48)` |
+| `0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4` | `BLSAggregatorUpdated(address,address)` |
+| `0x18e257fa1330af492bc6ba2454ed697ff9a225a325b2ba1c8f436508e7b102c2` | `BlsSlashCooldownPrimed(uint48)` |
+| `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` |
+| `0xd1cdd29a2fc16e6ed81266a11c8f7f06897e72e22d1bb9ccf34d63c3583d5df3` | `EmergencyPriceCancelled(int256)` |
+| `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` |
+| `0x028dfa1d2bc951d60682384a066c9424c3829ea5f25cb00a5f659caed927faea` | `EmergencyPriceQueued(int256,uint256)` |
+| `0x644df2ca8e50cc6469fa4e7260119a1a60f3146e0218f378ec342ad1d59fe494` | `GasParamsCancelled()` |
+| `0x9995b9b78ccf8754a92553c09d3f85d1c27ec162113bb629069fe1d73a6c3384` | `GasParamsExecuted(uint32,uint32,uint32,uint32)` |
+| `0xe59e383c70ea8897183b97ba6f529c524f603dd04667d60a4e686dbbb5fd40e2` | `GasParamsQueued(uint32,uint32,uint32,uint32,uint64)` |
+| `0xde0c166bd04b7c5598a692aa3a66306b07503d9ad8f5099063811005e828f332` | `GlobalPauseSet(address,bool)` |
+| `0xc3ce29e3ab42e524b6f6f1b4d3674898d503ee3577a64ac87b555904ebc14138` | `GuardianSet(address,address)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
+| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
+| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
+| `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
+| `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
+| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
+| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
+| `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
+| `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
+| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
+| `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
+| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
+| `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
+| `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
+| `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
+| `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
+| `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
+| `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x9996b315` | `AddressEmptyCode(address)` |
+| `0x54ada055` | `AmountExceedsUint128()` |
+| `0x4efd1550` | `ChainlinkNotStale()` |
+| `0x144f0768` | `DepositNotVerified()` |
+| `0x4a1a5610` | `EmergencyExpired()` |
+| `0x6b049335` | `EmergencyPriceOutOfRange()` |
+| `0x5d2ccdb4` | `EmergencyTimelockNotElapsed()` |
+| `0x4c9c8ce3` | `ERC1967InvalidImplementation(address)` |
+| `0xb398979f` | `ERC1967NonPayable()` |
+| `0x1425ea42` | `FailedInnerCall()` |
+| `0x5237dd3c` | `GasParamsTimelock()` |
+| `0xcf479181` | `InsufficientBalance(uint256,uint256)` |
+| `0xb4aa8063` | `InsufficientRevenue()` |
+| `0xe6c4247b` | `InvalidAddress()` |
+| `0xc52a9bd3` | `InvalidConfiguration()` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0x49e27cff` | `InvalidOwner()` |
+| `0x67cc8b75` | `InvalidXPNTsToken()` |
+| `0xa24a1471` | `NoEmergencyPending()` |
+| `0x0d0a552c` | `NoPendingDebt()` |
+| `0xe0a1dc31` | `NoSlashHistory()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xb41b6cb1` | `OracleError()` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x8890295d` | `PostOpGasTooLow()` |
+| `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
+| `0x82c6707e` | `ScoreExceedsUint32()` |
+| `0xbe3963ef` | `SlashCooldown()` |
+| `0x57064225` | `SlashPending()` |
+| `0x92959fd7` | `SponsorshipInFlight()` |
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
@@ -10525,6 +12126,459 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
 
+## APNTsCapped
+
+- **Source:** `contracts/src/tokens/APNTsCapped.sol`
+- **Functions:** 32 · **Events:** 10 · **Errors:** 26
+- **Title:** APNTsCapped
+- aPNTs — the operator deposit asset of SuperPaymaster — with an ENFORCED supply cap         (GOV-4 (b), docs/design/aoa-balance-mode/apnts-capped-design.md).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — |  |
+| `0xdd62ed3e` | `allowance(address,address)` | view | — |  |
+| `0x095ea7b3` | `approve(address,uint256)` | nonpayable | — |  |
+| `0x70a08231` | `balanceOf(address)` | view | — |  |
+| `0x42966c68` | `burn(uint256)` | nonpayable | — | Burn caller's own balance (frees minting room). No third-party burn exists. |
+| `0x355274ea` | `cap()` | view | — | Maximum totalSupply reachable through `mint` (enforced, not advisory). |
+| `0x738ec422` | `capGuardian()` | view | — | May lower the cap immediately (the owner may too). |
+| `0x313ce567` | `decimals()` | view | — |  |
+| `0x3644e515` | `DOMAIN_SEPARATOR()` | view | — |  |
+| `0x84b0196e` | `eip712Domain()` | view | — |  |
+| `0xbeaf15d9` | `isOverIssued()` | view | — | True only after lowerCap took the cap below the current supply. |
+| `0xb733b3f8` | `issuanceCap()` | view | — | Same as `cap` — here an ENFORCED ceiling, not an advisory flag. |
+| `0x4e3e5280` | `lowerCap(uint256)` | nonpayable | — | Lower the cap, immediately. capGuardian or owner, strictly downwards. May go         below totalSupply: that stops all minting and flips isOverIssued() to true;         existing balances are untouched. |
+| `0x40c10f19` | `mint(address,uint256)` | nonpayable | — | Mint `amount` to `to`. Only the minter; reverts CapExceeded if         totalSupply() + amount > cap (also when the cap was lowered below supply). |
+| `0x07546172` | `minter()` | view | — | The only address allowed to mint. |
+| `0x06fdde03` | `name()` | view | — |  |
+| `0x7ecebe00` | `nonces(address)` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — |  |
+| `0xd505accf` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | nonpayable | — |  |
+| `0x5410ac50` | `raiseCap(uint256)` | nonpayable | onlyOwner | Raise the cap. Owner only (the 48h timelock), strictly upwards. |
+| `0x715018a6` | `renounceOwnership()` | pure | — | Disabled: an ownerless token could never have its roles rotated. |
+| `0xbe5c920c` | `setCapGuardian(address)` | nonpayable | onlyOwner |  |
+| `0xfca3b5aa` | `setMinter(address)` | nonpayable | onlyOwner |  |
+| `0x95d89b41` | `symbol()` | view | — |  |
+| `0x18160ddd` | `totalSupply()` | view | — |  |
+| `0xa9059cbb` | `transfer(address,uint256)` | nonpayable | — |  |
+| `0x4000aea0` | `transferAndCall(address,uint256,bytes)` | nonpayable | — | Transfer to a contract and call `onTransferReceived(operator, from, value, data)`         with operator = from = msg.sender (the same call xPNTsToken makes). The receiver         must return the `onTransferReceived` selector. |
+| `0x1296ee62` | `transferAndCall(address,uint256)` | nonpayable | — |  |
+| `0x23b872dd` | `transferFrom(address,address,uint256)` | nonpayable | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+*@dev* The new owner accepts the ownership transfer.
+
+#### `allowance(address owner, address spender)`
+
+`0xdd62ed3e` · view · access: —
+
+*@dev* See {IERC20-allowance}.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `approve(address spender, uint256 value)`
+
+`0x095ea7b3` · nonpayable · access: —
+
+*@dev* See {IERC20-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address.
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `balanceOf(address account)`
+
+`0x70a08231` · view · access: —
+
+*@dev* See {IERC20-balanceOf}.
+
+| param | type | description |
+|---|---|---|
+| `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `burn(uint256 amount)`
+
+`0x42966c68` · nonpayable · access: —
+
+> Burn caller's own balance (frees minting room). No third-party burn exists.
+
+| param | type | description |
+|---|---|---|
+| `amount` | `uint256` |  |
+
+#### `cap()`
+
+`0x355274ea` · view · access: —
+
+> Maximum totalSupply reachable through `mint` (enforced, not advisory).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `capGuardian()`
+
+`0x738ec422` · view · access: —
+
+> May lower the cap immediately (the owner may too).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `decimals()`
+
+`0x313ce567` · view · access: —
+
+*@dev* Returns the number of decimals used to get its user representation. For example, if `decimals` equals `2`, a balance of `505` tokens should be displayed to a user as `5.05` (`505 / 10 ** 2`). Tokens usually opt for a value of 18, imitating the relationship between Ether and Wei. This is the default value returned by this function, unless it's overridden. NOTE: This information is only used for _display_ purposes: it in no way affects any of the arithmetic of the contract, including {IERC20-balanceOf} and {IERC20-transfer}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `DOMAIN_SEPARATOR()`
+
+`0x3644e515` · view · access: —
+
+*@dev* Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `eip712Domain()`
+
+`0x84b0196e` · view · access: —
+
+*@dev* See {IERC-5267}.
+
+| returns | type | description |
+|---|---|---|
+| `fields` | `bytes1` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
+| `chainId` | `uint256` |  |
+| `verifyingContract` | `address` |  |
+| `salt` | `bytes32` |  |
+| `extensions` | `uint256[]` |  |
+
+#### `isOverIssued()`
+
+`0xbeaf15d9` · view · access: —
+
+> True only after lowerCap took the cap below the current supply.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+> Same as `cap` — here an ENFORCED ceiling, not an advisory flag.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `lowerCap(uint256 newCap)`
+
+`0x4e3e5280` · nonpayable · access: —
+
+> Lower the cap, immediately. capGuardian or owner, strictly downwards. May go         below totalSupply: that stops all minting and flips isOverIssued() to true;         existing balances are untouched.
+
+| param | type | description |
+|---|---|---|
+| `newCap` | `uint256` |  |
+
+#### `mint(address to, uint256 amount)`
+
+`0x40c10f19` · nonpayable · access: —
+
+> Mint `amount` to `to`. Only the minter; reverts CapExceeded if         totalSupply() + amount > cap (also when the cap was lowered below supply).
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `minter()`
+
+`0x07546172` · view · access: —
+
+> The only address allowed to mint.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `name()`
+
+`0x06fdde03` · view · access: —
+
+*@dev* Returns the name of the token.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `nonces(address owner)`
+
+`0x7ecebe00` · view · access: —
+
+*@dev* Returns the current nonce for `owner`. This value must be included whenever a signature is generated for {permit}. Every successful call to {permit} increases ``owner``'s nonce by one. This prevents a signature from being used multiple times.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+*@dev* Returns the address of the pending owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`
+
+`0xd505accf` · nonpayable · access: —
+
+*@dev* Sets `value` as the allowance of `spender` over ``owner``'s tokens, given ``owner``'s signed approval. IMPORTANT: The same issues {IERC20-approve} has related to transaction ordering also apply here. Emits an {Approval} event. Requirements: - `spender` cannot be the zero address. - `deadline` must be a timestamp in the future. - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner` over the EIP712-formatted function arguments. - the signature must use ``owner``'s current nonce (see {nonces}). For more information on the signature format, see the https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP section]. CAUTION: See Security Considerations above.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+| `deadline` | `uint256` |  |
+| `v` | `uint8` |  |
+| `r` | `bytes32` |  |
+| `s` | `bytes32` |  |
+
+#### `raiseCap(uint256 newCap)`
+
+`0x5410ac50` · nonpayable · access: onlyOwner
+
+> Raise the cap. Owner only (the 48h timelock), strictly upwards.
+
+| param | type | description |
+|---|---|---|
+| `newCap` | `uint256` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · pure · access: —
+
+> Disabled: an ownerless token could never have its roles rotated.
+
+#### `setCapGuardian(address newGuardian)`
+
+`0xbe5c920c` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `newGuardian` | `address` |  |
+
+#### `setMinter(address newMinter)`
+
+`0xfca3b5aa` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `newMinter` | `address` |  |
+
+#### `symbol()`
+
+`0x95d89b41` · view · access: —
+
+*@dev* Returns the symbol of the token, usually a shorter version of the name.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `totalSupply()`
+
+`0x18160ddd` · view · access: —
+
+*@dev* See {IERC20-totalSupply}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transfer(address to, uint256 value)`
+
+`0xa9059cbb` · nonpayable · access: —
+
+*@dev* See {IERC20-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferAndCall(address to, uint256 amount, bytes data)`
+
+`0x4000aea0` · nonpayable · access: —
+
+> Transfer to a contract and call `onTransferReceived(operator, from, value, data)`         with operator = from = msg.sender (the same call xPNTsToken makes). The receiver         must return the `onTransferReceived` selector.
+
+*@dev* Stricter than xPNTsToken 3.5.0 in two ways, both fail-closed: a receiver without         code reverts (ERC-1363), and a receiver revert is bubbled (not swallowed into a         generic message), so e.g. SP's `Unauthorized` / role errors reach the caller.         State is updated before the callback; the callback gets no extra power.
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+| `data` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferAndCall(address to, uint256 amount)`
+
+`0x1296ee62` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferFrom(address from, address to, uint256 value)`
+
+`0x23b872dd` · nonpayable · access: —
+
+*@dev* See {IERC20-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required by the EIP. See the note at the beginning of {ERC20}. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+*@dev* Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one. Can only be called by the current owner.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` |
+| `0x678f3b512e97a893fd0f94798231ec155bba808b3755ab415f1a044358e91855` | `CapGuardianSet(address,address)` |
+| `0xc36616a9c50da57d0592dd04dfa275b5553b8ec92ea04115c963a66f6ffbe178` | `CapLowered(uint256,uint256,address)` |
+| `0x0e6972ceebba9c855f94bf61b686def6eb9fd69224e6ab849e48a23c438bdfab` | `CapRaised(uint256,uint256)` |
+| `0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31` | `EIP712DomainChanged()` |
+| `0x5a3358a3d27a5373c0df2604662088d37894d56b7cfd27f315770440f4e0d919` | `Minted(address,uint256,uint256,uint256)` |
+| `0x02b23d62d8f733974f8cb13eb804b20135521322b70997c991fc01406632389f` | `MinterSet(address,address)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
+| `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef` | `Transfer(address,address,uint256)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x0cf95ce5` | `CapExceeded(uint256,uint256,uint256)` |
+| `0x6ce8826d` | `CapNotLowered(uint256,uint256)` |
+| `0x3fe2f3e5` | `CapNotRaised(uint256,uint256)` |
+| `0xf645eedf` | `ECDSAInvalidSignature()` |
+| `0xfce698f7` | `ECDSAInvalidSignatureLength(uint256)` |
+| `0xd78bce0c` | `ECDSAInvalidSignatureS(bytes32)` |
+| `0xfb8f41b2` | `ERC20InsufficientAllowance(address,uint256,uint256)` |
+| `0xe450d38c` | `ERC20InsufficientBalance(address,uint256,uint256)` |
+| `0xe602df05` | `ERC20InvalidApprover(address)` |
+| `0xec442f05` | `ERC20InvalidReceiver(address)` |
+| `0x96c6fd1e` | `ERC20InvalidSender(address)` |
+| `0x94280d62` | `ERC20InvalidSpender(address)` |
+| `0x62791302` | `ERC2612ExpiredSignature(uint256)` |
+| `0x4b800e46` | `ERC2612InvalidSigner(address,address)` |
+| `0x752d88c0` | `InvalidAccountNonce(address,uint256)` |
+| `0xb3512b0c` | `InvalidShortString()` |
+| `0x728ada7d` | `NotCapGuardian(address)` |
+| `0x361c31f2` | `NotMinter(address)` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0xec18aced` | `ReceiverNotContract(address)` |
+| `0xcaf25535` | `ReceiverRejected(address,bytes4)` |
+| `0x89051165` | `RenounceDisabled()` |
+| `0x305a27a9` | `StringTooLong(string)` |
+| `0xd92e233d` | `ZeroAddress()` |
+| `0xdd616a45` | `ZeroCap()` |
+
 ## GToken
 
 - **Source:** `contracts/src/tokens/GToken.sol`
@@ -11850,6 +13904,4680 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x59f1a2a1` | `RoleNotHeld()` |
 | `0x4fc726b0` | `SBTNotFound()` |
 | `0xd19f5674` | `TooManyMemberships()` |
+
+## AOAProtocolRegistry
+
+- **Source:** `contracts/src/tokens/v2/AOAProtocolRegistry.sol`
+- **Functions:** 20 · **Events:** 5 · **Errors:** 6
+- **Title:** AOAProtocolRegistry
+- Protocol-governed allowlists consulted by xPNTs v2 tokens when a community         activates a SuperPaymaster, an auto-approved spender, or a credit tier source.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x274b4a11` | `approved(uint8,bytes32)` | view | — | kind => key => approved |
+| `0x711ab3f3` | `bootstrapApprove(uint8,bytes32)` | nonpayable | onlyOwner | Bootstrap-only instant approval; unavailable once sealed. |
+| `0xee590301` | `executeApproval(uint8,bytes32)` | nonpayable | — |  |
+| `0xd52c6e82` | `implCodehash(address)` | view | — | Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other proxy is NOT resolved —         its own codehash will simply never be on the list. |
+| `0xfadec6be` | `isApprovedImpl(uint8,address)` | view | — | True when `target`'s implementation codehash is approved for `kind`. |
+| `0xd9114c1e` | `isApprovedSP(address)` | view | — |  |
+| `0xfbdc3d59` | `KIND_SP()` | view | — |  |
+| `0x027d7926` | `KIND_SPENDER()` | view | — |  |
+| `0xf8f78c88` | `KIND_TIER_SOURCE()` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x577ea39f` | `pendingAt(uint8,bytes32)` | view | — | kind => key => earliest execution time of a pending addition (0 = none) |
+| `0xe042d31d` | `proposeApproval(uint8,bytes32)` | nonpayable | onlyOwner |  |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x976f2653` | `revokeApproval(uint8,bytes32)` | nonpayable | onlyOwner |  |
+| `0x3fb27b85` | `seal()` | nonpayable | onlyOwner | Irreversibly turn on the addition time-lock. |
+| `0xbf5390b9` | `sealed_()` | view | — | Before sealing, the owner may approve instantly (deployment bootstrap). |
+| `0xf9d96d97` | `spKey(address)` | pure | — |  |
+| `0x7aadef8b` | `TIMELOCK()` | view | — |  |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `approved(uint8 arg0, bytes32 arg1)`
+
+`0x274b4a11` · view · access: —
+
+> kind => key => approved
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint8` |  |
+| `arg1` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `bootstrapApprove(uint8 kind, bytes32 key)`
+
+`0x711ab3f3` · nonpayable · access: onlyOwner
+
+> Bootstrap-only instant approval; unavailable once sealed.
+
+| param | type | description |
+|---|---|---|
+| `kind` | `uint8` |  |
+| `key` | `bytes32` |  |
+
+#### `executeApproval(uint8 kind, bytes32 key)`
+
+`0xee590301` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `kind` | `uint8` |  |
+| `key` | `bytes32` |  |
+
+#### `implCodehash(address target)`
+
+`0xd52c6e82` · view · access: —
+
+> Codehash of `target`, resolving a canonical EIP-1167 minimal proxy to the         codehash of its embedded implementation. Any other proxy is NOT resolved —         its own codehash will simply never be on the list.
+
+| param | type | description |
+|---|---|---|
+| `target` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `isApprovedImpl(uint8 kind, address target)`
+
+`0xfadec6be` · view · access: —
+
+> True when `target`'s implementation codehash is approved for `kind`.
+
+| param | type | description |
+|---|---|---|
+| `kind` | `uint8` |  |
+| `target` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isApprovedSP(address sp)`
+
+`0xd9114c1e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sp` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `KIND_SP()`
+
+`0xfbdc3d59` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `KIND_SPENDER()`
+
+`0x027d7926` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `KIND_TIER_SOURCE()`
+
+`0xf8f78c88` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingAt(uint8 arg0, bytes32 arg1)`
+
+`0x577ea39f` · view · access: —
+
+> kind => key => earliest execution time of a pending addition (0 = none)
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint8` |  |
+| `arg1` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `proposeApproval(uint8 kind, bytes32 key)`
+
+`0xe042d31d` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `kind` | `uint8` |  |
+| `key` | `bytes32` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+
+#### `revokeApproval(uint8 kind, bytes32 key)`
+
+`0x976f2653` · nonpayable · access: onlyOwner
+
+| param | type | description |
+|---|---|---|
+| `kind` | `uint8` |  |
+| `key` | `bytes32` |  |
+
+#### `seal()`
+
+`0x3fb27b85` · nonpayable · access: onlyOwner
+
+> Irreversibly turn on the addition time-lock.
+
+#### `sealed_()`
+
+`0xbf5390b9` · view · access: —
+
+> Before sealing, the owner may approve instantly (deployment bootstrap).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `spKey(address sp)`
+
+`0xf9d96d97` · pure · access: —
+
+| param | type | description |
+|---|---|---|
+| `sp` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `TIMELOCK()`
+
+`0x7aadef8b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x3801c587b2a2bac27f3fff4385775a7f5b1ee79c521a5ae7c1419fda78a6bfdc` | `ApprovalExecuted(uint8,bytes32)` |
+| `0x84b1e20b37c4c8128383fcfb0605c53047d2b6aa2e5d563bc5cf3bf2a426065d` | `ApprovalProposed(uint8,bytes32,uint64)` |
+| `0x61e1192a74acb6e815fcc47b859fa781295f5dbee3d1ccd21fde47a8a47970c0` | `ApprovalRevoked(uint8,bytes32)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x1b2d71eb44f882534bf4e86f940c56ccc869ffb927e2bab86561de93950c2216` | `Sealed()` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x423311c0` | `AlreadySealed()` |
+| `0x2b79ed30` | `InvalidKind()` |
+| `0x7dc6505a` | `NotPending()` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0xddffe20e` | `TimelockActive(uint64)` |
+
+## GlobalTierSource
+
+- **Source:** `contracts/src/tokens/v2/GlobalTierSource.sol`
+- **Functions:** 3 · **Events:** 0 · **Errors:** 0
+- **Title:** GlobalTierSource
+- 5.5.0's only credit tier source: the protocol-wide reputation tier from Registry.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x06433b1b` | `REGISTRY()` | view | — |  |
+| `0xc77aca48` | `tierOf(address,address)` | view | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `tierOf(address arg0, address user)`
+
+`0xc77aca48` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` | Credit ceiling in aPNTs for `user` within `community`. |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+## IRegistryCreditLimit
+
+- **Source:** `contracts/src/tokens/v2/GlobalTierSource.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x2c333e25` | `getCreditLimit(address)` | view | — |  |
+
+### Functions
+
+#### `getCreditLimit(address user)`
+
+`0x2c333e25` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+## ICreditTierSource
+
+- **Source:** `contracts/src/tokens/v2/ICreditTierSource.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- Pluggable credit tier source for xPNTs v2 (spec §8.7).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0xc77aca48` | `tierOf(address,address)` | view | — |  |
+
+### Functions
+
+#### `tierOf(address community, address user)`
+
+`0xc77aca48` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `tier` | `uint256` | Credit ceiling in aPNTs for `user` within `community`. |
+
+## IxPNTsTokenV2
+
+- **Source:** `contracts/src/tokens/v2/IxPNTsTokenV2.sol`
+- **Functions:** 12 · **Events:** 0 · **Errors:** 0
+- The SuperPaymaster-facing surface of xPNTs v2 (spec 03 §2.2).
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x3ce4123d` | `BALANCE_MODE_VERSION()` | pure | — |  |
+| `0x63cde8f2` | `creditReservedOf(address)` | view | — |  |
+| `0x2ecd4e7d` | `debts(address)` | view | — |  |
+| `0xa7c791d7` | `effectiveCreditCap(address)` | view | — |  |
+| `0x3ba0b9a9` | `exchangeRate()` | view | — |  |
+| `0x2d6f3a3a` | `maxSingleTxLimit()` | view | — |  |
+| `0x5ce94e3c` | `previewCredit(address,address,bytes32,uint256)` | view | — |  |
+| `0xb393eddd` | `previewLock(address,address,bytes32,uint256,bool)` | view | — |  |
+| `0x1baf4408` | `settleCredit(address,bytes32,uint256)` | nonpayable | — |  |
+| `0x7e48bbce` | `settleLocked(address,bytes32,uint256)` | nonpayable | — |  |
+| `0xec290731` | `tryLockForGas(address,bytes32,uint256,bool)` | nonpayable | — |  |
+| `0xde9e4cae` | `tryReserveCredit(address,bytes32,uint256)` | nonpayable | — |  |
+
+### Functions
+
+#### `BALANCE_MODE_VERSION()`
+
+`0x3ce4123d` · pure · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `creditReservedOf(address user)`
+
+`0x63cde8f2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `debts(address user)`
+
+`0x2ecd4e7d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `effectiveCreditCap(address user)`
+
+`0xa7c791d7` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `exchangeRate()`
+
+`0x3ba0b9a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `maxSingleTxLimit()`
+
+`0x2d6f3a3a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `previewCredit(address spender, address user, bytes32 opHash, uint256 aPNTs)`
+
+`0x5ce94e3c` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `aPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `result` | `uint8` |  |
+
+#### `previewLock(address spender, address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)`
+
+`0xb393eddd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `reserveAPNTs` | `uint256` |  |
+| `spRenew` | `bool` |  |
+
+| returns | type | description |
+|---|---|---|
+| `result` | `uint8` |  |
+| `xLocked` | `uint256` |  |
+
+#### `settleCredit(address user, bytes32 opHash, uint256 chargeAPNTs)`
+
+`0x1baf4408` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `chargeAPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `debtAdded` | `uint256` |  |
+
+#### `settleLocked(address user, bytes32 opHash, uint256 chargeAPNTs)`
+
+`0x7e48bbce` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `chargeAPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `xBurned` | `uint256` |  |
+
+#### `tryLockForGas(address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)`
+
+`0xec290731` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `reserveAPNTs` | `uint256` |  |
+| `spRenew` | `bool` |  |
+
+| returns | type | description |
+|---|---|---|
+| `result` | `uint8` |  |
+| `xLocked` | `uint256` |  |
+
+#### `tryReserveCredit(address user, bytes32 opHash, uint256 aPNTs)`
+
+`0xde9e4cae` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `aPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `result` | `uint8` |  |
+
+## xPNTsFactoryV2
+
+- **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
+- **Functions:** 44 · **Events:** 11 · **Errors:** 12
+- **Title:** xPNTsFactoryV2
+- xPNTs v2 (XPNTs-4.0.0) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x001b4db8` | `APNTS_PRICE_DELTA_BPS()` | view | — |  |
+| `0xa121377a` | `APNTS_PRICE_MAX()` | view | — |  |
+| `0x931c7065` | `APNTS_PRICE_MIN()` | view | — |  |
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — | aPNTs USD price (18 decimals, e.g., 0.02e18 = $0.02) |
+| `0xdf74dee5` | `capRatioBps()` | view | — | CC-28: fraction of industryScaleUSD granted as the baseline cap, in basis points. |
+| `0x32794a4f` | `categoryRegistered(string)` | view | — | CC-28: whether a category key has been governance-registered (via         setIndustryScaleUSD or constructor seeding). Distinguishes a DELIBERATE         zero-baseline category (registered, scale 0 → full stake-backing required)         from a typo'd category name (never registered) in setTokenCategory. |
+| `0x08c2ddcd` | `communityToToken(address)` | view | — | Mapping: community address => xPNTs token address |
+| `0xa137891e` | `DEFAULT_SAFETY_FACTOR()` | view | — | Default safety factor: 1.5x (50% buffer) |
+| `0x4a3cbc55` | `defaultTierSource()` | view | — | Credit tier source handed to each newly deployed token (R4-H5). Owner-settable         for FUTURE tokens only; an existing token changes its source via its own 48 h queue. |
+| `0xec81aadb` | `deployedTokens(uint256)` | view | — | List of all deployed tokens |
+| `0x954ebd3b` | `deployxPNTsToken(string,string,string,string,uint256,address)` | nonpayable | — | Deploy new xPNTs token |
+| `0x2a5c792a` | `getAllTokens()` | view | — | Get all deployed tokens |
+| `0x59734e1a` | `getAPNTsPrice()` | view | — | Get current aPNTs USD price |
+| `0x0ff65414` | `getDeployedCount()` | view | — | Get total deployed tokens count |
+| `0xbe382cdb` | `getDepositBreakdown(address)` | view | — | Calculate deposit breakdown |
+| `0xdf9a70ea` | `getIndustryMultiplier(string)` | view | — | Get industry multiplier |
+| `0xae9a6d6f` | `getPredictionParams(address)` | view | — | Get prediction parameters for community |
+| `0xb8d7b669` | `getTokenAddress(address)` | view | — | Get xPNTs token address for community |
+| `0x9bb0f599` | `hasToken(address)` | view | — | Check if community has deployed token |
+| `0x5c60da1b` | `implementation()` | view | — | The xPNTsTokenV2 (core) implementation cloned for every community. |
+| `0xab798449` | `industryMultipliers(string)` | view | — | Industry multipliers (name => value in 1e18) |
+| `0x68894411` | `industryScaleUSD(string)` | view | — | CC-28 over-issue model: baseline issuance ceiling per industry category         (USD, 18 decimals). The non-staked credit floor a category is trusted with.         Governance-set. 0 => the category has no baseline (a community in it must back         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD(). |
+| `0x96e28d28` | `isXPNTs(address)` | view | — | Whitelist of tokens this factory has deployed. |
+| `0x737a4fef` | `MAX_INDUSTRY_SCALE_USD()` | view | — | CC-28: safety ceiling on a category's baseline (guards effectiveCapUSD overflow). |
+| `0x8dbb03b1` | `MIN_SUGGESTED_AMOUNT()` | view | — | Minimum suggested amount: 100 aPNTs |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0xb2bcfd34` | `predictDepositAmount(address)` | view | — | AI-powered deposit amount prediction |
+| `0x35fa61fa` | `predictions(address)` | view | — | Mapping: community address => prediction parameters |
+| `0x67d7bc06` | `propagateSuperPaymaster(uint256,uint256)` | nonpayable | onlyOwner | Propagate current SUPERPAYMASTER address to a batch of deployed tokens. |
+| `0x06433b1b` | `REGISTRY()` | view | — | Registry contract address |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x433428fc` | `setCapRatioBps(uint16)` | nonpayable | onlyOwner | CC-28: set the global baseline cap ratio in basis points (0 < bps <= 10000). |
+| `0xd970edbd` | `setDefaultTierSource(address)` | nonpayable | onlyOwner | Owner: set the tier source handed to FUTURE tokens. |
+| `0xa5509758` | `setIndustryMultiplier(string,uint256)` | nonpayable | onlyOwner | Set industry multiplier (only owner) |
+| `0x937aa202` | `setIndustryScaleUSD(string,uint256)` | nonpayable | onlyOwner | CC-28: set the baseline issuance ceiling (USD, 18 decimals) for a category. |
+| `0x7ade132c` | `setSuperPaymasterAddress(address)` | nonpayable | onlyOwner |  |
+| `0xf6cce899` | `setTokenCategory(address,string)` | nonpayable | onlyOwner | CC-28: assign the industry category for an xPNTs token. Governance-only so the         audited community cannot self-select a higher-baseline category to evade         over-issue detection. Empty string resets the token to the "default" baseline. |
+| `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — | SuperPaymaster contract address |
+| `0x0ad026dd` | `tokenCategory(address)` | view | — | CC-28: governance-assigned industry category per xPNTs token. |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
+| `0x2598c32a` | `updateAPNTsPrice(uint256)` | nonpayable | onlyOwner | Update aPNTs USD price (only owner) |
+| `0x358064a8` | `updatePrediction(uint256,uint256,string,uint256)` | nonpayable | — | Update prediction parameters |
+| `0x382c8036` | `updatePredictionCustom(uint256,uint256,uint256,uint256)` | nonpayable | — | Update prediction with custom multiplier |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `APNTS_PRICE_DELTA_BPS()`
+
+`0x001b4db8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `APNTS_PRICE_MAX()`
+
+`0xa121377a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `APNTS_PRICE_MIN()`
+
+`0x931c7065` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+> aPNTs USD price (18 decimals, e.g., 0.02e18 = $0.02)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `capRatioBps()`
+
+`0xdf74dee5` · view · access: —
+
+> CC-28: fraction of industryScaleUSD granted as the baseline cap, in basis points.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `categoryRegistered(string arg0)`
+
+`0x32794a4f` · view · access: —
+
+> CC-28: whether a category key has been governance-registered (via         setIndustryScaleUSD or constructor seeding). Distinguishes a DELIBERATE         zero-baseline category (registered, scale 0 → full stake-backing required)         from a typo'd category name (never registered) in setTokenCategory.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `communityToToken(address arg0)`
+
+`0x08c2ddcd` · view · access: —
+
+> Mapping: community address => xPNTs token address
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `DEFAULT_SAFETY_FACTOR()`
+
+`0xa137891e` · view · access: —
+
+> Default safety factor: 1.5x (50% buffer)
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `defaultTierSource()`
+
+`0x4a3cbc55` · view · access: —
+
+> Credit tier source handed to each newly deployed token (R4-H5). Owner-settable         for FUTURE tokens only; an existing token changes its source via its own 48 h queue.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `deployedTokens(uint256 arg0)`
+
+`0xec81aadb` · view · access: —
+
+> List of all deployed tokens
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `deployxPNTsToken(string name, string symbol, string communityName, string communityENS, uint256 exchangeRate, address paymasterAOA)`
+
+`0x954ebd3b` · nonpayable · access: —
+
+> Deploy new xPNTs token
+
+| param | type | description |
+|---|---|---|
+| `name` | `string` | Token name (e.g., "MyDAO Points") |
+| `symbol` | `string` | Token symbol (e.g., "xMDAO") |
+| `communityName` | `string` | Community display name |
+| `communityENS` | `string` | Community ENS domain |
+| `exchangeRate` | `uint256` | Exchange rate with aPNTs (18 decimals, e.g., 1e18 = 1:1) |
+| `paymasterAOA` | `address` | Paymaster address for AOA mode (optional, use address(0) for AOA+ only) |
+
+| returns | type | description |
+|---|---|---|
+| `token` | `address` | Deployed token address |
+
+#### `getAllTokens()`
+
+`0x2a5c792a` · view · access: —
+
+> Get all deployed tokens
+
+| returns | type | description |
+|---|---|---|
+| `tokens` | `address[]` | Array of token addresses |
+
+#### `getAPNTsPrice()`
+
+`0x59734e1a` · view · access: —
+
+> Get current aPNTs USD price
+
+*@dev* Used by PaymasterV4 and SuperPaymaster V2 for gas cost calculation
+
+| returns | type | description |
+|---|---|---|
+| `price` | `uint256` | aPNTs price in USD (18 decimals) |
+
+#### `getDeployedCount()`
+
+`0x0ff65414` · view · access: —
+
+> Get total deployed tokens count
+
+| returns | type | description |
+|---|---|---|
+| `count` | `uint256` | Total count |
+
+#### `getDepositBreakdown(address community)`
+
+`0xbe382cdb` · view · access: —
+
+> Calculate deposit breakdown
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` | Community address |
+
+| returns | type | description |
+|---|---|---|
+| `dailyCost` | `uint256` | Daily cost estimate |
+| `monthlyCost` | `uint256` | Monthly cost estimate |
+| `suggestedAmount` | `uint256` | Suggested deposit with safety factor |
+| `multiplierUsed` | `uint256` | Industry multiplier used |
+| `safetyFactorUsed` | `uint256` | Safety factor used |
+
+#### `getIndustryMultiplier(string industry)`
+
+`0xdf9a70ea` · view · access: —
+
+> Get industry multiplier
+
+| param | type | description |
+|---|---|---|
+| `industry` | `string` | Industry name |
+
+| returns | type | description |
+|---|---|---|
+| `multiplier` | `uint256` | Multiplier value (scaled by 1e18) |
+
+#### `getPredictionParams(address community)`
+
+`0xae9a6d6f` · view · access: —
+
+> Get prediction parameters for community
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` | Community address |
+
+| returns | type | description |
+|---|---|---|
+| `params` | `(uint256,uint256,uint256,uint256)` | Prediction parameters |
+
+#### `getTokenAddress(address community)`
+
+`0xb8d7b669` · view · access: —
+
+> Get xPNTs token address for community
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` | Community address |
+
+| returns | type | description |
+|---|---|---|
+| `token` | `address` | Token address (address(0) if not deployed) |
+
+#### `hasToken(address community)`
+
+`0x9bb0f599` · view · access: —
+
+> Check if community has deployed token
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` | Community address |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` | hasToken True if token deployed |
+
+#### `implementation()`
+
+`0x5c60da1b` · view · access: —
+
+> The xPNTsTokenV2 (core) implementation cloned for every community.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `industryMultipliers(string arg0)`
+
+`0xab798449` · view · access: —
+
+> Industry multipliers (name => value in 1e18)
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `industryScaleUSD(string arg0)`
+
+`0x68894411` · view · access: —
+
+> CC-28 over-issue model: baseline issuance ceiling per industry category         (USD, 18 decimals). The non-staked credit floor a category is trusted with.         Governance-set. 0 => the category has no baseline (a community in it must back         its issuance entirely with staked aPNTs). Read by xPNTsToken.effectiveCapUSD().
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `isXPNTs(address arg0)`
+
+`0x96e28d28` · view · access: —
+
+> Whitelist of tokens this factory has deployed.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `MAX_INDUSTRY_SCALE_USD()`
+
+`0x737a4fef` · view · access: —
+
+> CC-28: safety ceiling on a category's baseline (guards effectiveCapUSD overflow).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MIN_SUGGESTED_AMOUNT()`
+
+`0x8dbb03b1` · view · access: —
+
+> Minimum suggested amount: 100 aPNTs
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `predictDepositAmount(address community)`
+
+`0xb2bcfd34` · view · access: —
+
+> AI-powered deposit amount prediction
+
+| param | type | description |
+|---|---|---|
+| `community` | `address` | Community address |
+
+| returns | type | description |
+|---|---|---|
+| `suggestedAmount` | `uint256` | Suggested deposit amount in aPNTs |
+
+#### `predictions(address arg0)`
+
+`0x35fa61fa` · view · access: —
+
+> Mapping: community address => prediction parameters
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `avgDailyTx` | `uint256` |  |
+| `avgGasCost` | `uint256` |  |
+| `industryMultiplier` | `uint256` |  |
+| `safetyFactor` | `uint256` |  |
+
+#### `propagateSuperPaymaster(uint256 start, uint256 limit)`
+
+`0x67d7bc06` · nonpayable · access: onlyOwner
+
+> Propagate current SUPERPAYMASTER address to a batch of deployed tokens.
+
+*@dev* Best-effort: failures emit SuperPaymasterPropagationFailed without reverting.      Call repeatedly with increasing `start` to handle large deployedTokens arrays      and to retry previously failed tokens.
+
+| param | type | description |
+|---|---|---|
+| `start` | `uint256` | Index in deployedTokens to start from (inclusive). |
+| `limit` | `uint256` | Maximum number of tokens to process in this call. |
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+> Registry contract address
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+*@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+
+#### `setCapRatioBps(uint16 bps)`
+
+`0x433428fc` · nonpayable · access: onlyOwner
+
+> CC-28: set the global baseline cap ratio in basis points (0 < bps <= 10000).
+
+| param | type | description |
+|---|---|---|
+| `bps` | `uint16` |  |
+
+#### `setDefaultTierSource(address source)`
+
+`0xd970edbd` · nonpayable · access: onlyOwner
+
+> Owner: set the tier source handed to FUTURE tokens.
+
+| param | type | description |
+|---|---|---|
+| `source` | `address` |  |
+
+#### `setIndustryMultiplier(string industry, uint256 multiplier)`
+
+`0xa5509758` · nonpayable · access: onlyOwner
+
+> Set industry multiplier (only owner)
+
+| param | type | description |
+|---|---|---|
+| `industry` | `string` | Industry name |
+| `multiplier` | `uint256` | Multiplier value (scaled by 1e18) |
+
+#### `setIndustryScaleUSD(string category, uint256 scaleUSD)`
+
+`0x937aa202` · nonpayable · access: onlyOwner
+
+> CC-28: set the baseline issuance ceiling (USD, 18 decimals) for a category.
+
+*@dev* 0 is allowed — it means the category has no baseline credit and communities in         it must back all issuance with staked aPNTs. Governance-controlled.
+
+| param | type | description |
+|---|---|---|
+| `category` | `string` |  |
+| `scaleUSD` | `uint256` |  |
+
+#### `setSuperPaymasterAddress(address _superPaymaster)`
+
+`0x7ade132c` · nonpayable · access: onlyOwner
+
+*@dev* M-8: stores new SP address only; use propagateSuperPaymaster() to PROPOSE it to deployed tokens.
+
+| param | type | description |
+|---|---|---|
+| `_superPaymaster` | `address` |  |
+
+#### `setTokenCategory(address token, string category)`
+
+`0xf6cce899` · nonpayable · access: onlyOwner
+
+> CC-28: assign the industry category for an xPNTs token. Governance-only so the         audited community cannot self-select a higher-baseline category to evade         over-issue detection. Empty string resets the token to the "default" baseline.
+
+*@dev* L-1: the token must be one this factory deployed (isXPNTs), so a typo'd address         can't seed junk state. L-2: a non-empty category must already be REGISTERED (via         setIndustryScaleUSD or constructor), so a governance typo can't silently assign an         unknown zero-baseline category that forces 100% stake coverage. A deliberate         zero-baseline category is still assignable — register it with setIndustryScaleUSD         (any value, including 0). Pass "" to use the default baseline.
+
+| param | type | description |
+|---|---|---|
+| `token` | `address` |  |
+| `category` | `string` |  |
+
+#### `SUPERPAYMASTER()`
+
+`0x5ae48ba4` · view · access: —
+
+> SuperPaymaster contract address
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `tokenCategory(address arg0)`
+
+`0x0ad026dd` · view · access: —
+
+> CC-28: governance-assigned industry category per xPNTs token.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: —
+
+*@dev* Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `updateAPNTsPrice(uint256 newPrice)`
+
+`0x2598c32a` · nonpayable · access: onlyOwner
+
+> Update aPNTs USD price (only owner)
+
+*@dev* Price is updated off-chain periodically for dynamic pricing.P0-12: absolute bounds + 30% per-tx delta to prevent price manipulation.EXECUTION CHECKLIST — this number leaves the repo. `aPNTsPriceUSD` is the      denominator for anything that prices aPNTs in dollars, and at least one such      consumer bakes the result into storage it can never loosen again:      repo:airaccount's account guard fixes per-tier transfer limits in absolute      aPNTs at `initialize`, and `tier1Limit`/`tier2Limit` are then permanently      unchangeable (`addTokenConfig` reverts on an already-configured token);      `dailyLimit` can only be lowered. Raising the price therefore RELAXES a guard      that cannot be tightened back, on accounts that already exist.      The bounds here do not protect that: `APNTS_PRICE_MAX` is 100 ether, five      thousand times the $0.02 the token launches at, and the ±30% delta only makes      the walk take steps rather than preventing it.      So before calling this, check the new price against the limits already baked      by every downstream consumer, and tell them before it lands. Neither side's      tests can see this: the change happens here and the consequence lands in      their immutable storage, and nothing on either side reads the other.
+
+| param | type | description |
+|---|---|---|
+| `newPrice` | `uint256` | New price in USD (18 decimals, e.g., 0.02e18 = $0.02) |
+
+#### `updatePrediction(uint256 avgDailyTx, uint256 avgGasCost, string industry, uint256 safetyFactor)`
+
+`0x358064a8` · nonpayable · access: —
+
+> Update prediction parameters
+
+| param | type | description |
+|---|---|---|
+| `avgDailyTx` | `uint256` | Average daily transactions |
+| `avgGasCost` | `uint256` | Average gas cost in wei |
+| `industry` | `string` | Industry type (e.g., "DeFi", "Gaming") |
+| `safetyFactor` | `uint256` | Safety factor (scaled by 1e18, default 1.5e18) |
+
+#### `updatePredictionCustom(uint256 avgDailyTx, uint256 avgGasCost, uint256 customMultiplier, uint256 safetyFactor)`
+
+`0x382c8036` · nonpayable · access: —
+
+> Update prediction with custom multiplier
+
+| param | type | description |
+|---|---|---|
+| `avgDailyTx` | `uint256` | Average daily transactions |
+| `avgGasCost` | `uint256` | Average gas cost in wei |
+| `customMultiplier` | `uint256` | Custom industry multiplier (scaled by 1e18) |
+| `safetyFactor` | `uint256` | Safety factor (scaled by 1e18) |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2` | `APNTsPriceUpdated(uint256,uint256)` |
+| `0xa02c50e0f4c9c39686d753f1483900ff6da6ffaf49134611fdcfc0986e1e6f8c` | `CapRatioBpsSet(uint16,uint16)` |
+| `0x4bea76f3309d60543efdcea3904bba05cd2c7a2e58668e7de988d525fd6a3f96` | `IndustryMultiplierSet(string,uint256)` |
+| `0x0fa6b73052e306e24d4e65db9a430e3890436d6a8d6f7647898646aa7bbaa28d` | `IndustryScaleSet(string,uint256)` |
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x2b4eaa806f1ef4367c0f395b151c87df87dcd9a99bdfa956df2e02a9a24d805e` | `PredictionUpdated(address,uint256)` |
+| `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
+| `0x41c3159aaba10d821e771f08c4f9f3370426fd58cb304fdbd96b5b9e75c872d1` | `SuperPaymasterPropagated(address,address)` |
+| `0x5d4bb2355e56aab4ce3c351d050e2a54fb3096e84130577503d5f4b940e0e59e` | `SuperPaymasterPropagationFailed(address,address)` |
+| `0x574f3ea27e1d303444a64d09b26a6e5a626093a6af7e469056593ab35c214064` | `TokenCategorySet(address,string)` |
+| `0xabfc2cb9c596be68324e2badae1694b9003727b1c82695e6c2cfa7ad8a587592` | `xPNTsTokenDeployed(address,address,string,string)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x29ab51bf` | `AlreadyDeployed(address)` |
+| `0x1e82e519` | `CallerNotCommunity()` |
+| `0xf7566e2a` | `CategoryNotSeeded()` |
+| `0xc2f868f4` | `ERC1167FailedCreateClone()` |
+| `0x8e4c8aa6` | `InvalidAddress(address)` |
+| `0x77eb0977` | `InvalidCapRatio()` |
+| `0x6f12f3dc` | `InvalidMultiplier()` |
+| `0xe5239090` | `InvalidParameters()` |
+| `0x00bfc921` | `InvalidPrice()` |
+| `0xfefa4dc9` | `NotFactoryToken()` |
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+
+## xPNTsTokenV2
+
+- **Source:** `contracts/src/tokens/v2/xPNTsTokenV2.sol`
+- **Functions:** 89 · **Events:** 42 · **Errors:** 49
+- **Title:** xPNTsTokenV2 (CORE)
+- Community gas token with a BOUNDED auto-allowance and validation-time escrow.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x2d0f591f` | `actionNonce(address)` | view | — |  |
+| `0xdd62ed3e` | `allowance(address,address)` | view | — | Explicit approval plus the remaining auto-allowance (live rate, rounded down).         B-7: saturating add. The live-rate figure is NOT a settlement promise: SP settles         at the lock-time ratio (D-12). SP (current or historical) can never pull: reads 0. |
+| `0x095ea7b3` | `approve(address,uint256)` | nonpayable | — |  |
+| `0xeca9f014` | `approvedFacilitators(address)` | view | — |  |
+| `0x2d28e349` | `autoAllowance(address,address)` | view | — |  |
+| `0xf1d85d55` | `autoApprovedSpenders(address)` | view | — |  |
+| `0x172bdfc1` | `autoRenewUsed(address)` | view | — |  |
+| `0x3ce4123d` | `BALANCE_MODE_VERSION()` | view | — |  |
+| `0x70a08231` | `balanceOf(address)` | view | — |  |
+| `0x9dc29fac` | `burn(address,uint256)` | nonpayable | — |  |
+| `0x42966c68` | `burn(uint256)` | nonpayable | — |  |
+| `0xdc1fb5a5` | `community()` | view | — |  |
+| `0x66b48f91` | `communityENS()` | view | — |  |
+| `0xc6d572ae` | `communityName()` | view | — |  |
+| `0x38518bfe` | `communityOwner()` | view | — |  |
+| `0xfaaddb94` | `creditPolicy()` | view | — |  |
+| `0x1dac808a` | `creditReq(address)` | view | — |  |
+| `0x5bb70f6f` | `creditReservationOf(bytes32,address)` | view | — |  |
+| `0x63cde8f2` | `creditReservedOf(address)` | view | — |  |
+| `0xd095fe72` | `creditTierSource()` | view | — |  |
+| `0x2ecd4e7d` | `debts(address)` | view | — |  |
+| `0x313ce567` | `decimals()` | view | — |  |
+| `0x3644e515` | `DOMAIN_SEPARATOR()` | view | — |  |
+| `0xa7c791d7` | `effectiveCreditCap(address)` | view | — |  |
+| `0x84b0196e` | `eip712Domain()` | view | — |  |
+| `0xae8866d9` | `emergencyDisabled()` | view | — |  |
+| `0x20b05859` | `emergencyRevokedAddress()` | view | — |  |
+| `0x3ba0b9a9` | `exchangeRate()` | view | — |  |
+| `0xd5f6e0dd` | `exchangeRateUpdatedAt()` | view | — |  |
+| `0x46f13619` | `EXTENSION()` | view | — | Administration / settings / views implementation (xPNTsTokenV2Ext). |
+| `0x2dd31000` | `FACTORY()` | view | — |  |
+| `0x7ae2aa5b` | `hasPendingPolicy()` | view | — |  |
+| `0x47b77308` | `historicalSP(address)` | view | — |  |
+| `0xdd1ea56c` | `initialize((string,string,address,address,string,string,uint256,address,address,address))` | nonpayable | initializer | Clone initializer, called once by the factory. A-9: the factory is NOT a spender. |
+| `0xb733b3f8` | `issuanceCap()` | view | — |  |
+| `0xa932492f` | `K()` | view | — |  |
+| `0xa5f1e282` | `lockedOf(address)` | view | — |  |
+| `0x150717b2` | `lockOf(bytes32,address)` | view | — |  |
+| `0x2d6f3a3a` | `maxSingleTxLimit()` | view | — |  |
+| `0x49f38369` | `MODE_ACCOUNT_ONLY()` | view | — |  |
+| `0xd234acc6` | `MODE_SP_K()` | view | — |  |
+| `0x06fdde03` | `name()` | view | — |  |
+| `0x7ecebe00` | `nonces(address)` | view | — |  |
+| `0xe6c5cf40` | `pendingPolicy()` | view | — |  |
+| `0x800094d2` | `pendingPolicyEta()` | view | — |  |
+| `0x4ef0698c` | `pendingSP()` | view | — |  |
+| `0x38679889` | `pendingSPByFactory()` | view | — |  |
+| `0xbb9547a9` | `pendingSPEta()` | view | — |  |
+| `0xad7c467a` | `pendingStandby()` | view | — |  |
+| `0x08c0283e` | `pendingStandbyEta()` | view | — |  |
+| `0x24ef43f3` | `pendingTierSource()` | view | — |  |
+| `0xdf73e593` | `pendingTierSourceEta()` | view | — |  |
+| `0xd505accf` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | nonpayable | — |  |
+| `0x25331796` | `POLICY_AUTO()` | view | — |  |
+| `0x08b35f22` | `POLICY_MANUAL()` | view | — |  |
+| `0xf74597e0` | `POLICY_OFF()` | view | — |  |
+| `0xa921d322` | `policyEpoch()` | view | — |  |
+| `0x5ce94e3c` | `previewCredit(address,address,bytes32,uint256)` | view | — | Read-only mirror of `tryReserveCredit` for dryRun/lens (same code path). |
+| `0xb393eddd` | `previewLock(address,address,bytes32,uint256,bool)` | view | — | Read-only mirror of `tryLockForGas` for dryRun/lens (same code path). |
+| `0xd95aa9e6` | `PROTOCOL_CREDIT_CEILING()` | view | — |  |
+| `0x6fe53e62` | `PROTOCOL_MAX_CAP()` | view | — |  |
+| `0xd4278e33` | `PROTOCOL_REGISTRY()` | view | — | Protocol allowlists (SP address / spender impl / tier-source impl). |
+| `0xde4880ca` | `releaseStaleCredit(address,bytes32)` | nonpayable | — |  |
+| `0xf7b3d30d` | `releaseStaleLock(address,bytes32)` | nonpayable | — | L-4: after the original transaction, anyone may release a lock whose postOp never         settled it (a postOp revert rolls back the user's execution, §2.4). Full refund. |
+| `0x94137194` | `renewalMode(address)` | view | — |  |
+| `0xe8c122c7` | `renewForSelf(address)` | nonpayable | — | Touches ONLY slots keyed by msg.sender: `lockedOf`, `creditReservedOf`,         `_auto[spender][me]`, `_budget[me]`, `autoRenewUsed` (an unstaked account frame         has no STO-033 read privilege, so no global slot is read). |
+| `0x1baf4408` | `settleCredit(address,bytes32,uint256)` | nonpayable | — |  |
+| `0x7e48bbce` | `settleLocked(address,bytes32,uint256)` | nonpayable | — |  |
+| `0x924e57dd` | `SP_CAP_FLOOR()` | view | — |  |
+| `0xdfeb8b6b` | `SP_DEFAULT_CAP()` | view | — |  |
+| `0x5f72b548` | `spenderActivatesAt(address)` | view | — |  |
+| `0xa68f9524` | `spenderDailyCapOverride(address)` | view | — |  |
+| `0xbf855565` | `spenderDailyCapTokens()` | view | — |  |
+| `0x3b11d995` | `spenderDisabled(address,address)` | view | — |  |
+| `0xda21d73e` | `spenderRateLimit(address)` | view | — |  |
+| `0xe089c17f` | `standbySP()` | view | — |  |
+| `0x5054dbd0` | `SUPERPAYMASTER_ADDRESS()` | view | — |  |
+| `0x95d89b41` | `symbol()` | view | — |  |
+| `0x23f6af4c` | `TIER_SOURCE_GAS()` | view | — |  |
+| `0x7aadef8b` | `TIMELOCK()` | view | — |  |
+| `0x18160ddd` | `totalSupply()` | view | — |  |
+| `0xa9059cbb` | `transfer(address,uint256)` | nonpayable | — |  |
+| `0x23b872dd` | `transferFrom(address,address,uint256)` | nonpayable | — |  |
+| `0xec290731` | `tryLockForGas(address,bytes32,uint256,bool)` | nonpayable | — |  |
+| `0xde9e4cae` | `tryReserveCredit(address,bytes32,uint256)` | nonpayable | — |  |
+| `0x7fd6327a` | `usedOpHashes(bytes32)` | view | — |  |
+| `0x9710744d` | `USER_TOTAL_DEFAULT()` | view | — |  |
+| `0xe601cf44` | `userTotal(address)` | view | — |  |
+| `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
+
+### Functions
+
+#### `actionNonce(address user)`
+
+`0x2d0f591f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `allowance(address owner, address spender)`
+
+`0xdd62ed3e` · view · access: —
+
+> Explicit approval plus the remaining auto-allowance (live rate, rounded down).         B-7: saturating add. The live-rate figure is NOT a settlement promise: SP settles         at the lock-time ratio (D-12). SP (current or historical) can never pull: reads 0.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `approve(address spender, uint256 value)`
+
+`0x095ea7b3` · nonpayable · access: —
+
+*@dev* See {IERC20-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address.
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `approvedFacilitators(address arg0)`
+
+`0xeca9f014` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoAllowance(address user, address spender)`
+
+`0x2d28e349` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `spender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `cap` | `uint256` |  |
+| `used` | `uint256` |  |
+
+#### `autoApprovedSpenders(address arg0)`
+
+`0xf1d85d55` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoRenewUsed(address user)`
+
+`0x172bdfc1` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `BALANCE_MODE_VERSION()`
+
+`0x3ce4123d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `balanceOf(address account)`
+
+`0x70a08231` · view · access: —
+
+*@dev* See {IERC20-balanceOf}.
+
+| param | type | description |
+|---|---|---|
+| `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `burn(address from, uint256 amount)`
+
+`0x9dc29fac` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `burn(uint256 amount)`
+
+`0x42966c68` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `amount` | `uint256` |  |
+
+#### `community()`
+
+`0xdc1fb5a5` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `communityENS()`
+
+`0x66b48f91` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityName()`
+
+`0xc6d572ae` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityOwner()`
+
+`0x38518bfe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `creditPolicy()`
+
+`0xfaaddb94` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `creditReq(address user)`
+
+`0x1dac808a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `requestedCap` | `uint112` |  |
+| `approvedCap` | `uint112` |  |
+| `epoch` | `uint32` |  |
+
+#### `creditReservationOf(bytes32 opHash, address user)`
+
+`0x5bb70f6f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `opHash` | `bytes32` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint128,address)` |  |
+
+#### `creditReservedOf(address user)`
+
+`0x63cde8f2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `creditTierSource()`
+
+`0xd095fe72` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `debts(address user)`
+
+`0x2ecd4e7d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `decimals()`
+
+`0x313ce567` · view · access: —
+
+*@dev* Returns the number of decimals used to get its user representation. For example, if `decimals` equals `2`, a balance of `505` tokens should be displayed to a user as `5.05` (`505 / 10 ** 2`). Tokens usually opt for a value of 18, imitating the relationship between Ether and Wei. This is the default value returned by this function, unless it's overridden. NOTE: This information is only used for _display_ purposes: it in no way affects any of the arithmetic of the contract, including {IERC20-balanceOf} and {IERC20-transfer}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `DOMAIN_SEPARATOR()`
+
+`0x3644e515` · view · access: —
+
+*@dev* Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `effectiveCreditCap(address user)`
+
+`0xa7c791d7` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `eip712Domain()`
+
+`0x84b0196e` · view · access: —
+
+*@dev* See {IERC-5267}.
+
+| returns | type | description |
+|---|---|---|
+| `fields` | `bytes1` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
+| `chainId` | `uint256` |  |
+| `verifyingContract` | `address` |  |
+| `salt` | `bytes32` |  |
+| `extensions` | `uint256[]` |  |
+
+#### `emergencyDisabled()`
+
+`0xae8866d9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `emergencyRevokedAddress()`
+
+`0x20b05859` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `exchangeRate()`
+
+`0x3ba0b9a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `exchangeRateUpdatedAt()`
+
+`0xd5f6e0dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `EXTENSION()`
+
+`0x46f13619` · view · access: —
+
+> Administration / settings / views implementation (xPNTsTokenV2Ext).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `FACTORY()`
+
+`0x2dd31000` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `hasPendingPolicy()`
+
+`0x7ae2aa5b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `historicalSP(address arg0)`
+
+`0x47b77308` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `initialize((string,string,address,address,string,string,uint256,address,address,address) c)`
+
+`0xdd1ea56c` · nonpayable · access: initializer
+
+> Clone initializer, called once by the factory. A-9: the factory is NOT a spender.
+
+| param | type | description |
+|---|---|---|
+| `c` | `(string,string,address,address,string,string,uint256,address,address,address)` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `K()`
+
+`0xa932492f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `lockedOf(address user)`
+
+`0xa5f1e282` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `lockOf(bytes32 opHash, address user)`
+
+`0x150717b2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `opHash` | `bytes32` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(uint128,uint128,address)` |  |
+
+#### `maxSingleTxLimit()`
+
+`0x2d6f3a3a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MODE_ACCOUNT_ONLY()`
+
+`0x49f38369` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `MODE_SP_K()`
+
+`0xd234acc6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `name()`
+
+`0x06fdde03` · view · access: —
+
+*@dev* Returns the name of the token.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `nonces(address owner)`
+
+`0x7ecebe00` · view · access: —
+
+*@dev* Returns the current nonce for `owner`. This value must be included whenever a signature is generated for {permit}. Every successful call to {permit} increases ``owner``'s nonce by one. This prevents a signature from being used multiple times.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `pendingPolicy()`
+
+`0xe6c5cf40` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `pendingPolicyEta()`
+
+`0x800094d2` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingSP()`
+
+`0x4ef0698c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingSPByFactory()`
+
+`0x38679889` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `pendingSPEta()`
+
+`0xbb9547a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingStandby()`
+
+`0xad7c467a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingStandbyEta()`
+
+`0x08c0283e` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingTierSource()`
+
+`0x24ef43f3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingTierSourceEta()`
+
+`0xdf73e593` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`
+
+`0xd505accf` · nonpayable · access: —
+
+*@dev* Sets `value` as the allowance of `spender` over ``owner``'s tokens, given ``owner``'s signed approval. IMPORTANT: The same issues {IERC20-approve} has related to transaction ordering also apply here. Emits an {Approval} event. Requirements: - `spender` cannot be the zero address. - `deadline` must be a timestamp in the future. - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner` over the EIP712-formatted function arguments. - the signature must use ``owner``'s current nonce (see {nonces}). For more information on the signature format, see the https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP section]. CAUTION: See Security Considerations above.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+| `deadline` | `uint256` |  |
+| `v` | `uint8` |  |
+| `r` | `bytes32` |  |
+| `s` | `bytes32` |  |
+
+#### `POLICY_AUTO()`
+
+`0x25331796` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_MANUAL()`
+
+`0x08b35f22` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_OFF()`
+
+`0xf74597e0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `policyEpoch()`
+
+`0xa921d322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint32` |  |
+
+#### `previewCredit(address spender, address user, bytes32 opHash, uint256 aPNTs)`
+
+`0x5ce94e3c` · view · access: —
+
+> Read-only mirror of `tryReserveCredit` for dryRun/lens (same code path).
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `aPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `previewLock(address spender, address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)`
+
+`0xb393eddd` · view · access: —
+
+> Read-only mirror of `tryLockForGas` for dryRun/lens (same code path).
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `reserveAPNTs` | `uint256` |  |
+| `spRenew` | `bool` |  |
+
+| returns | type | description |
+|---|---|---|
+| `r` | `uint8` |  |
+| `x` | `uint256` |  |
+
+#### `PROTOCOL_CREDIT_CEILING()`
+
+`0xd95aa9e6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_MAX_CAP()`
+
+`0x6fe53e62` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_REGISTRY()`
+
+`0xd4278e33` · view · access: —
+
+> Protocol allowlists (SP address / spender impl / tier-source impl).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `releaseStaleCredit(address user, bytes32 opHash)`
+
+`0xde4880ca` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+
+#### `releaseStaleLock(address user, bytes32 opHash)`
+
+`0xf7b3d30d` · nonpayable · access: —
+
+> L-4: after the original transaction, anyone may release a lock whose postOp never         settled it (a postOp revert rolls back the user's execution, §2.4). Full refund.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+
+#### `renewalMode(address user)`
+
+`0x94137194` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `renewForSelf(address spender)`
+
+`0xe8c122c7` · nonpayable · access: —
+
+> Touches ONLY slots keyed by msg.sender: `lockedOf`, `creditReservedOf`,         `_auto[spender][me]`, `_budget[me]`, `autoRenewUsed` (an unstaked account frame         has no STO-033 read privilege, so no global slot is read).
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `settleCredit(address user, bytes32 opHash, uint256 chargeAPNTs)`
+
+`0x1baf4408` · nonpayable · access: —
+
+*@dev* C-2: consumes only the admitted reservation; never rereads policy or tier (C-4, I6-ii).
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `chargeAPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `debtAdded` | `uint256` |  |
+
+#### `settleLocked(address user, bytes32 opHash, uint256 chargeAPNTs)`
+
+`0x7e48bbce` · nonpayable · access: —
+
+*@dev* postOp. L-3: recorded locker only, inside the original transaction only, no      external calls, bounded gas, CEI. Cannot fail on balance: balance ≥ lockedOf ≥      xLocked ≥ xBurned (B-1 §10.1 ②). Proceeds during an emergency (E-2).
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `chargeAPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `xBurned` | `uint256` |  |
+
+#### `SP_CAP_FLOOR()`
+
+`0x924e57dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `SP_DEFAULT_CAP()`
+
+`0xdfeb8b6b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderActivatesAt(address arg0)`
+
+`0x5f72b548` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `spenderDailyCapOverride(address arg0)`
+
+`0xa68f9524` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDailyCapTokens()`
+
+`0xbf855565` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDisabled(address spender, address user)`
+
+`0x3b11d995` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `spenderRateLimit(address arg0)`
+
+`0xda21d73e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `dailyBurnTotal` | `uint128` |  |
+| `windowStart` | `uint64` |  |
+| `reserved` | `uint64` |  |
+
+#### `standbySP()`
+
+`0xe089c17f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `SUPERPAYMASTER_ADDRESS()`
+
+`0x5054dbd0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `symbol()`
+
+`0x95d89b41` · view · access: —
+
+*@dev* Returns the symbol of the token, usually a shorter version of the name.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `TIER_SOURCE_GAS()`
+
+`0x23f6af4c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `TIMELOCK()`
+
+`0x7aadef8b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `totalSupply()`
+
+`0x18160ddd` · view · access: —
+
+*@dev* See {IERC20-totalSupply}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transfer(address to, uint256 value)`
+
+`0xa9059cbb` · nonpayable · access: —
+
+*@dev* See {IERC20-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferFrom(address from, address to, uint256 value)`
+
+`0x23b872dd` · nonpayable · access: —
+
+*@dev* See {IERC20-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required by the EIP. See the note at the beginning of {ERC20}. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `tryLockForGas(address user, bytes32 opHash, uint256 reserveAPNTs, bool spRenew)`
+
+`0xec290731` · nonpayable · access: —
+
+*@dev* Validation phase. Returns a typed result; writes NOTHING unless it succeeds (L-1).      An SP-relayed renewal is precomputed and committed only on success (§9 A-5/L-1).
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `reserveAPNTs` | `uint256` |  |
+| `spRenew` | `bool` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+| `_1` | `uint256` |  |
+
+#### `tryReserveCredit(address user, bytes32 opHash, uint256 aPNTs)`
+
+`0xde9e4cae` · nonpayable · access: —
+
+*@dev* Validation phase. C-1: `debts + reserved + amount ≤ effectiveCreditCap`.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `opHash` | `bytes32` |  |
+| `aPNTs` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `usedOpHashes(bytes32 arg0)`
+
+`0x7fd6327a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `USER_TOTAL_DEFAULT()`
+
+`0x9710744d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `userTotal(address user)`
+
+`0xe601cf44` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `cap` | `uint256` |  |
+| `used` | `uint256` |  |
+
+#### `version()`
+
+`0x54fd4d50` · pure · access: —
+
+> Get human-readable version string
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` | versionString The version string (e.g., "v3.1.0") |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x6088ceffbcad592dc1c5b41cd7affcb4ef5cae9558cc519e60a53111fe71610b` | `AllowanceRenewed(address,address,bool)` |
+| `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` |
+| `0x4cffadf3c7ae36057555c496fd6f52cef67a7cd2324ad64e1f8f096681d9e0c4` | `AutoAllowanceSet(address,address,uint256)` |
+| `0xcd244ccee31904b178ff7bfc95631cea7812a955f9a330ac216c0c8c9dbfaf20` | `AutoApprovedSpenderAdded(address)` |
+| `0x49debedb360a6c155dc3046b522ec5e27906afea1be0015b4625302e9192e2d8` | `AutoApprovedSpenderRemoved(address)` |
+| `0x1191f7dd7e510e69e54c21c704f6f3c1179351c8a1a8d6a2a66d1e20aed6fd0f` | `CommunityOwnerUpdated(address,address)` |
+| `0x03f2b0a571f42a54bad31280b4477b153a5d3c6cd78dda720706c67bdf31e80e` | `CreditApproved(address,uint256,uint32)` |
+| `0x7b32f4d45974a956aea3042047d08a8ebd626d4d7a9c58c200f7bde19ec4919f` | `CreditPolicyCancelled()` |
+| `0x4a53aec9f255b2d5bcb9ce63ec2e9263cd6094537eec19973e8708c1b1e35f02` | `CreditPolicyExecuted(uint8,uint32)` |
+| `0x5cb61087fafc3f392cb4740c8edbc0e0045ac0ad01bed63c3ecd0becd3ead604` | `CreditPolicyQueued(uint8,uint64)` |
+| `0xdad6678c895f98939e7284e161055630849182add6c69672f905c25a73369269` | `CreditReleased(address,bytes32,uint256)` |
+| `0x461c35193646fcf074b251c0793df157d875bc39bcc307ccbcb1eb8435d56a32` | `CreditRequested(address,uint256,uint32)` |
+| `0xe7f1ceee255e2908b896f5fa254cb3bac9e538bdac389f75de2fc3446d2a7b69` | `CreditReserved(address,bytes32,address,uint256)` |
+| `0xe24e7f4be2a6dcf7000d9d67421687e27dcf1f62554dbdeec78adb103aae6323` | `CreditSettled(address,bytes32,uint256)` |
+| `0x798353030d4251a345706609acf9ea7527f2ace26f73150a098c0fae89e5886d` | `DebtRepaid(address,uint256,uint256)` |
+| `0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31` | `EIP712DomainChanged()` |
+| `0x56a64ec95bb93ae6af923c082ef9ab2bd5bdd6f1a121c45e8c05a39ab73bbf06` | `EmergencyDisabledCleared(address)` |
+| `0x51745cdc5b4ed1fe5c20c1cbf61290785ef5df0cb643101a29618bed23d8305c` | `EmergencyDisabledSet(address)` |
+| `0xc8d1043f24843c0a1c9251fdc30017d84e87498fbcf232af9f86816b5e182bde` | `ExchangeRateUpdated(uint256,uint256)` |
+| `0x14b842314c1bed1881a6aaf3371cb59429fa3f849dbd8ad0698501dc4aa0574c` | `FacilitatorApproved(address)` |
+| `0xa8fe5b89f35f2ebd6f3f95a7ef215f4bd89179e10c101073ae76cffad14734cf` | `FacilitatorRemoved(address)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0xef63ce43724fdeb93d5f0c9cd6dd8e4adb86224b4f189d6073b8c3e2aa1b5452` | `IssuanceCapUpdated(uint256,uint256)` |
+| `0x03da0f36cf019c40dd1b53d90ab4c01e862440c7ea050399b5fd643fc32fb766` | `LockCreated(address,bytes32,address,uint256,uint256)` |
+| `0x3fd2eee5028b09fa70abe3da4f6023ea41bfde24cfcb9c167f17d6fbe79eece3` | `LockReleased(address,bytes32,uint256)` |
+| `0x0db2e760de332f46e05e4200a1577fc713d3601c848f570fbbe50a4d281ecec1` | `LockSettled(address,bytes32,uint256,uint256)` |
+| `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` |
+| `0x9d06dee325dc997b1cc3dc4dc4c7e23d437834b142552cec7fe2875786b50480` | `RenewalModeSet(address,uint8)` |
+| `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` |
+| `0x68639863c58fa667262fab7192372355b1b2cb2731dcd7636cedbfcd1900f05d` | `SpenderDailyCapUpdated(uint256,uint256)` |
+| `0x9255a7c0ff8f13508480e90b4262cef466dd9c1bf72a08ab689bbf3fe2083a5c` | `SpenderDisabledByUser(address,address,bool)` |
+| `0xc595e3a7c1fbcc886e9c956e668629b0e3c0c60f7e6d4c1bd98e04b3a1a89d20` | `SpenderProposed(address,uint64)` |
+| `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` |
+| `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
+| `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
+| `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
+| `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
+| `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
+| `0x5646b81a05541afaeccb3a3855d109ee4acb88a43b8c62390c067d873780121c` | `TierSourceQueued(address,uint64)` |
+| `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef` | `Transfer(address,address,uint256)` |
+| `0x0bb8f89cb8c5df7baaf7e9f33532bd5654ff700c9b505086876a7d0bf7cfa2e4` | `UserTotalCapSet(address,uint256)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x18bc406e` | `AboveCeiling()` |
+| `0xf6c8add6` | `AutoAllowanceExceeded()` |
+| `0xd9aa4778` | `BalanceLocked(address,uint256)` |
+| `0x4e7e2916` | `BelowFloor()` |
+| `0x07df4537` | `BurnExceedsAllowance()` |
+| `0x588569f7` | `BurnExceedsBalance()` |
+| `0xf645eedf` | `ECDSAInvalidSignature()` |
+| `0xfce698f7` | `ECDSAInvalidSignatureLength(uint256)` |
+| `0xd78bce0c` | `ECDSAInvalidSignatureS(bytes32)` |
+| `0x4e97bcfc` | `EmergencyStop()` |
+| `0xfb8f41b2` | `ERC20InsufficientAllowance(address,uint256,uint256)` |
+| `0xe450d38c` | `ERC20InsufficientBalance(address,uint256,uint256)` |
+| `0xe602df05` | `ERC20InvalidApprover(address)` |
+| `0xec442f05` | `ERC20InvalidReceiver(address)` |
+| `0x96c6fd1e` | `ERC20InvalidSender(address)` |
+| `0x94280d62` | `ERC20InvalidSpender(address)` |
+| `0x62791302` | `ERC2612ExpiredSignature(uint256)` |
+| `0x4b800e46` | `ERC2612InvalidSigner(address,address)` |
+| `0x150c57e5` | `ExchangeRateCannotBeZero()` |
+| `0x91bd60f2` | `ExchangeRateCooldownActive()` |
+| `0xbba592ba` | `ExchangeRateDeltaTooLarge(uint256,uint256,uint256)` |
+| `0x34607448` | `ExchangeRateOutOfRange(uint256,uint256,uint256)` |
+| `0x752d88c0` | `InvalidAccountNonce(address,uint256)` |
+| `0x8e4c8aa6` | `InvalidAddress(address)` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0xd2529034` | `InvalidParam()` |
+| `0xb3512b0c` | `InvalidShortString()` |
+| `0x8baa579f` | `InvalidSignature()` |
+| `0x227bc153` | `MathOverflowedMulDiv()` |
+| `0x54641f00` | `NoDebtToRepay()` |
+| `0xba112c93` | `NoLock()` |
+| `0x0ca968d8` | `NotApproved(address)` |
+| `0x175c1aea` | `NothingPending()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xbaf13b3f` | `NotLive()` |
+| `0xfeffcf0a` | `RecoveryNotComplete()` |
+| `0xc89b5c83` | `RenewBlocked()` |
+| `0xe31d04ea` | `RepayExceedsDebt()` |
+| `0x0819bdcd` | `SignatureExpired()` |
+| `0x2c1032b5` | `SingleTxLimitExceeded()` |
+| `0x4c768bf6` | `SPCannotTransfer()` |
+| `0xc4fae443` | `SpenderDailyCapExceeded(address,uint256,uint256)` |
+| `0xa8c03c8f` | `SpenderIsDisabled()` |
+| `0x1ba9efb6` | `StillLive()` |
+| `0x305a27a9` | `StringTooLong(string)` |
+| `0xddffe20e` | `TimelockActive(uint64)` |
+| `0x8e4a23d6` | `Unauthorized(address)` |
+| `0x9405c086` | `UnauthorizedRecipient()` |
+| `0x60df9f87` | `UnknownAction(uint8)` |
+
+## ISPStakeViewV2
+
+- **Source:** `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x13e7c9d8` | `operators(address)` | view | — |  |
+
+### Functions
+
+#### `operators(address operator)`
+
+`0x13e7c9d8` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `aPNTsBalance` | `uint128` |  |
+| `isConfigured` | `bool` |  |
+| `isPaused` | `bool` |  |
+| `xPNTsToken` | `address` |  |
+| `reputation` | `uint32` |  |
+| `minTxInterval` | `uint48` |  |
+| `treasury` | `address` |  |
+| `totalSpent` | `uint256` |  |
+| `totalTxSponsored` | `uint256` |  |
+
+## IxPNTsFactoryCapV2
+
+- **Source:** `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- **Functions:** 5 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x594a6f23` | `aPNTsPriceUSD()` | view | — |  |
+| `0xdf74dee5` | `capRatioBps()` | view | — |  |
+| `0x68894411` | `industryScaleUSD(string)` | view | — |  |
+| `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — |  |
+| `0x0ad026dd` | `tokenCategory(address)` | view | — |  |
+
+### Functions
+
+#### `aPNTsPriceUSD()`
+
+`0x594a6f23` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `capRatioBps()`
+
+`0xdf74dee5` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint16` |  |
+
+#### `industryScaleUSD(string category)`
+
+`0x68894411` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `category` | `string` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `SUPERPAYMASTER()`
+
+`0x5ae48ba4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `tokenCategory(address token)`
+
+`0x0ad026dd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `token` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+## xPNTsTokenV2Ext
+
+- **Source:** `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
+- **Functions:** 128 · **Events:** 42 · **Errors:** 49
+- **Title:** xPNTsTokenV2Ext (EXTENSION)
+- Administration, user settings, relayed actions and CC-28 views of xPNTs v2.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x0169754f` | `ACT_DISABLE()` | view | — |  |
+| `0x20300372` | `ACT_ENABLE()` | view | — |  |
+| `0xecb62d46` | `ACT_RENEW()` | view | — |  |
+| `0x927ba940` | `ACT_REQUEST_CREDIT()` | view | — |  |
+| `0xee51bcd4` | `ACT_REVOKE_CREDIT()` | view | — |  |
+| `0xeb9b56ce` | `ACT_SET_ALLOWANCE()` | view | — |  |
+| `0x9bb97111` | `ACT_SET_MODE()` | view | — |  |
+| `0x5def6db1` | `ACT_SET_TOTAL()` | view | — |  |
+| `0x5a35b84a` | `ACTION_TYPEHASH()` | view | — |  |
+| `0xc635e432` | `actionDigest(address,uint8,bytes,uint256,uint256)` | view | — | EIP-712 digest a wallet signs for `executeBySig` (convenience for SDK/tests). |
+| `0x2d0f591f` | `actionNonce(address)` | view | — |  |
+| `0x9c707a14` | `activateSP()` | nonpayable | — | S-3. During an emergency only a community-originated (≥48 h public) proposal         may activate; never auto-clears the emergency. |
+| `0x1615e5dc` | `activateSpender(address)` | nonpayable | — |  |
+| `0xc322b416` | `activateStandbyDesignation()` | nonpayable | — | S-5b. Designation grants NO privilege and does not mark historicalSP. |
+| `0x819c2ff8` | `addApprovedFacilitator(address)` | nonpayable | — |  |
+| `0xdd62ed3e` | `allowance(address,address)` | view | — |  |
+| `0x095ea7b3` | `approve(address,uint256)` | nonpayable | — |  |
+| `0x709f2101` | `approveCredit(address,uint256)` | nonpayable | — | MANUAL: approval is a CEILING (never a fixed amount) on a current-epoch request. |
+| `0xeca9f014` | `approvedFacilitators(address)` | view | — |  |
+| `0xf1d85d55` | `autoApprovedSpenders(address)` | view | — |  |
+| `0x172bdfc1` | `autoRenewUsed(address)` | view | — |  |
+| `0x5b71d476` | `backingValueUSD()` | view | — |  |
+| `0x70a08231` | `balanceOf(address)` | view | — |  |
+| `0x04ad0733` | `cancelCreditPolicy()` | nonpayable | — |  |
+| `0x0c2fd48b` | `cancelSP()` | nonpayable | — | S-2. |
+| `0xdc1fb5a5` | `community()` | view | — |  |
+| `0x66b48f91` | `communityENS()` | view | — |  |
+| `0xc6d572ae` | `communityName()` | view | — |  |
+| `0x38518bfe` | `communityOwner()` | view | — |  |
+| `0xfaaddb94` | `creditPolicy()` | view | — |  |
+| `0x1dac808a` | `creditReq(address)` | view | — |  |
+| `0x63cde8f2` | `creditReservedOf(address)` | view | — |  |
+| `0xd095fe72` | `creditTierSource()` | view | — |  |
+| `0x2ecd4e7d` | `debts(address)` | view | — |  |
+| `0x313ce567` | `decimals()` | view | — |  |
+| `0x2d2d92ca` | `disableSpenderForSelf(address)` | nonpayable | — |  |
+| `0x3644e515` | `DOMAIN_SEPARATOR()` | view | — |  |
+| `0x5089a6ff` | `effectiveCapUSD()` | view | — |  |
+| `0x84b0196e` | `eip712Domain()` | view | — |  |
+| `0xae8866d9` | `emergencyDisabled()` | view | — |  |
+| `0x20b05859` | `emergencyRevokedAddress()` | view | — |  |
+| `0x25073b3a` | `emergencyRevokePaymaster()` | nonpayable | — | S-4. Also cancels a factory-originated pending proposal. |
+| `0x11d15e9d` | `emergencySwitchToStandby()` | nonpayable | — | S-6. |
+| `0xe3fb7f2f` | `enableSpenderForSelf(address)` | nonpayable | — |  |
+| `0xc1550b28` | `EXCHANGE_RATE_COOLDOWN()` | view | — |  |
+| `0x00ef5f4f` | `EXCHANGE_RATE_DELTA_BPS()` | view | — |  |
+| `0xaf43e2d1` | `EXCHANGE_RATE_MAX()` | view | — |  |
+| `0x7c3c26e6` | `EXCHANGE_RATE_MIN()` | view | — |  |
+| `0x3ba0b9a9` | `exchangeRate()` | view | — |  |
+| `0xd5f6e0dd` | `exchangeRateUpdatedAt()` | view | — |  |
+| `0xd182c298` | `executeBySig(address,uint8,bytes,uint256,bytes)` | nonpayable | — | Relayed R2 action (D-13 recovery path). `sig` is verified with SignatureChecker         (EOA or ERC-1271) OUTSIDE any validation frame, so 1271 has no ERC-7562 constraint. |
+| `0x5050a44a` | `executeCreditPolicy()` | nonpayable | — |  |
+| `0xf0575df6` | `executeTierSource()` | nonpayable | — |  |
+| `0x2dd31000` | `FACTORY()` | view | — |  |
+| `0x7a5b4f59` | `getMetadata()` | view | — |  |
+| `0x7ae2aa5b` | `hasPendingPolicy()` | view | — |  |
+| `0x47b77308` | `historicalSP(address)` | view | — |  |
+| `0xbeaf15d9` | `isOverIssued()` | view | — |  |
+| `0xb733b3f8` | `issuanceCap()` | view | — |  |
+| `0xc7341731` | `issuedValueUSD()` | view | — |  |
+| `0xa932492f` | `K()` | view | — |  |
+| `0xa5f1e282` | `lockedOf(address)` | view | — |  |
+| `0xb8441cd6` | `MAX_SINGLE_TX_LIMIT_CAP()` | view | — |  |
+| `0x2d6f3a3a` | `maxSingleTxLimit()` | view | — |  |
+| `0x40c10f19` | `mint(address,uint256)` | nonpayable | — |  |
+| `0x49f38369` | `MODE_ACCOUNT_ONLY()` | view | — |  |
+| `0xd234acc6` | `MODE_SP_K()` | view | — |  |
+| `0x06fdde03` | `name()` | view | — |  |
+| `0x7ecebe00` | `nonces(address)` | view | — |  |
+| `0xe6c5cf40` | `pendingPolicy()` | view | — |  |
+| `0x800094d2` | `pendingPolicyEta()` | view | — |  |
+| `0x4ef0698c` | `pendingSP()` | view | — |  |
+| `0x38679889` | `pendingSPByFactory()` | view | — |  |
+| `0xbb9547a9` | `pendingSPEta()` | view | — |  |
+| `0xad7c467a` | `pendingStandby()` | view | — |  |
+| `0x08c0283e` | `pendingStandbyEta()` | view | — |  |
+| `0x24ef43f3` | `pendingTierSource()` | view | — |  |
+| `0xdf73e593` | `pendingTierSourceEta()` | view | — |  |
+| `0xd505accf` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | nonpayable | — |  |
+| `0x25331796` | `POLICY_AUTO()` | view | — |  |
+| `0x08b35f22` | `POLICY_MANUAL()` | view | — |  |
+| `0xf74597e0` | `POLICY_OFF()` | view | — |  |
+| `0xa921d322` | `policyEpoch()` | view | — |  |
+| `0x95483c15` | `proposeSP(address)` | nonpayable | — | S-1. Community priority: a factory proposal never overrides a community one,         and the factory cannot propose during an emergency. |
+| `0x9c664f84` | `proposeSpender(address)` | nonpayable | — |  |
+| `0x6553cf6b` | `proposeStandby(address)` | nonpayable | — | S-5a. |
+| `0xd95aa9e6` | `PROTOCOL_CREDIT_CEILING()` | view | — |  |
+| `0x6fe53e62` | `PROTOCOL_MAX_CAP()` | view | — |  |
+| `0xd4278e33` | `PROTOCOL_REGISTRY()` | view | — | Protocol allowlists (SP address / spender impl / tier-source impl). |
+| `0x41068c0c` | `queueCreditPolicy(uint8)` | nonpayable | — |  |
+| `0xb44612ba` | `queueTierSource(address)` | nonpayable | — |  |
+| `0xe575720c` | `releaseAndDisable(address,bytes32)` | nonpayable | — | E-4: disable `spender` first, then release this opHash's stale lock and/or credit         reservation. Reverts as a whole (disable included) if a record is still live. |
+| `0x8501dd1b` | `removeApprovedFacilitator(address)` | nonpayable | — |  |
+| `0xc504e209` | `removeAutoApprovedSpender(address)` | nonpayable | — | Immediate removal (safe direction). Counters are kept (B-7). |
+| `0x94137194` | `renewalMode(address)` | view | — |  |
+| `0xd49bdad0` | `renounceFactory()` | nonpayable | — |  |
+| `0x6b09de45` | `repayDebt(uint256)` | nonpayable | — | User repays own debt by burning xPNTs (floor conversion; cannot over-repay). |
+| `0xb6b1d5ca` | `requestCredit(uint256)` | nonpayable | — |  |
+| `0x48567aab` | `revokeCredit()` | nonpayable | — |  |
+| `0xca7f9c4a` | `setAutoAllowance(address,uint256)` | nonpayable | — |  |
+| `0xca9f8d7b` | `setIssuanceCap(uint256)` | nonpayable | — |  |
+| `0x4e4852f3` | `setMaxSingleTxLimit(uint256)` | nonpayable | — |  |
+| `0x199b8d6e` | `setRenewalMode(uint8)` | nonpayable | — |  |
+| `0x1eb6ca03` | `setSpenderDailyCap(uint256)` | nonpayable | — |  |
+| `0x433ae8eb` | `setSpenderDailyCapFor(address,uint256)` | nonpayable | — |  |
+| `0x81097512` | `setUserTotalCap(uint256)` | nonpayable | — |  |
+| `0x924e57dd` | `SP_CAP_FLOOR()` | view | — |  |
+| `0xdfeb8b6b` | `SP_DEFAULT_CAP()` | view | — |  |
+| `0x5f72b548` | `spenderActivatesAt(address)` | view | — |  |
+| `0xa68f9524` | `spenderDailyCapOverride(address)` | view | — |  |
+| `0xbf855565` | `spenderDailyCapTokens()` | view | — |  |
+| `0x3b11d995` | `spenderDisabled(address,address)` | view | — |  |
+| `0xda21d73e` | `spenderRateLimit(address)` | view | — |  |
+| `0xe089c17f` | `standbySP()` | view | — |  |
+| `0x5054dbd0` | `SUPERPAYMASTER_ADDRESS()` | view | — |  |
+| `0x95d89b41` | `symbol()` | view | — |  |
+| `0x23f6af4c` | `TIER_SOURCE_GAS()` | view | — |  |
+| `0x7aadef8b` | `TIMELOCK()` | view | — |  |
+| `0x18160ddd` | `totalSupply()` | view | — |  |
+| `0xa9059cbb` | `transfer(address,uint256)` | nonpayable | — |  |
+| `0x4000aea0` | `transferAndCall(address,uint256,bytes)` | nonpayable | — |  |
+| `0x1296ee62` | `transferAndCall(address,uint256)` | nonpayable | — |  |
+| `0x623330ae` | `transferCommunityOwnership(address)` | nonpayable | — |  |
+| `0x23b872dd` | `transferFrom(address,address,uint256)` | nonpayable | — |  |
+| `0x027e6d67` | `unsetEmergencyDisabled()` | nonpayable | — | S-7. |
+| `0xb9e205ae` | `updateExchangeRate(uint256)` | nonpayable | — |  |
+| `0x7fd6327a` | `usedOpHashes(bytes32)` | view | — |  |
+| `0x9710744d` | `USER_TOTAL_DEFAULT()` | view | — |  |
+
+### Functions
+
+#### `ACT_DISABLE()`
+
+`0x0169754f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_ENABLE()`
+
+`0x20300372` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_RENEW()`
+
+`0xecb62d46` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_REQUEST_CREDIT()`
+
+`0x927ba940` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_REVOKE_CREDIT()`
+
+`0xee51bcd4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_SET_ALLOWANCE()`
+
+`0xeb9b56ce` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_SET_MODE()`
+
+`0x9bb97111` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACT_SET_TOTAL()`
+
+`0x5def6db1` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `ACTION_TYPEHASH()`
+
+`0x5a35b84a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `actionDigest(address user, uint8 kind, bytes params, uint256 nonce, uint256 deadline)`
+
+`0xc635e432` · view · access: —
+
+> EIP-712 digest a wallet signs for `executeBySig` (convenience for SDK/tests).
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `kind` | `uint8` |  |
+| `params` | `bytes` |  |
+| `nonce` | `uint256` |  |
+| `deadline` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `actionNonce(address user)`
+
+`0x2d0f591f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `activateSP()`
+
+`0x9c707a14` · nonpayable · access: —
+
+> S-3. During an emergency only a community-originated (≥48 h public) proposal         may activate; never auto-clears the emergency.
+
+#### `activateSpender(address spender)`
+
+`0x1615e5dc` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `activateStandbyDesignation()`
+
+`0xc322b416` · nonpayable · access: —
+
+> S-5b. Designation grants NO privilege and does not mark historicalSP.
+
+#### `addApprovedFacilitator(address facilitator)`
+
+`0x819c2ff8` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `facilitator` | `address` |  |
+
+#### `allowance(address owner, address spender)`
+
+`0xdd62ed3e` · view · access: —
+
+*@dev* See {IERC20-allowance}.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `approve(address spender, uint256 value)`
+
+`0x095ea7b3` · nonpayable · access: —
+
+*@dev* See {IERC20-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address.
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `approveCredit(address user, uint256 capAPNTs)`
+
+`0x709f2101` · nonpayable · access: —
+
+> MANUAL: approval is a CEILING (never a fixed amount) on a current-epoch request.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `capAPNTs` | `uint256` |  |
+
+#### `approvedFacilitators(address arg0)`
+
+`0xeca9f014` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoApprovedSpenders(address arg0)`
+
+`0xf1d85d55` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoRenewUsed(address user)`
+
+`0x172bdfc1` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `backingValueUSD()`
+
+`0x5b71d476` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `balanceOf(address account)`
+
+`0x70a08231` · view · access: —
+
+*@dev* See {IERC20-balanceOf}.
+
+| param | type | description |
+|---|---|---|
+| `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `cancelCreditPolicy()`
+
+`0x04ad0733` · nonpayable · access: —
+
+#### `cancelSP()`
+
+`0x0c2fd48b` · nonpayable · access: —
+
+> S-2.
+
+#### `community()`
+
+`0xdc1fb5a5` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `communityENS()`
+
+`0x66b48f91` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityName()`
+
+`0xc6d572ae` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityOwner()`
+
+`0x38518bfe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `creditPolicy()`
+
+`0xfaaddb94` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `creditReq(address user)`
+
+`0x1dac808a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `requestedCap` | `uint112` |  |
+| `approvedCap` | `uint112` |  |
+| `epoch` | `uint32` |  |
+
+#### `creditReservedOf(address user)`
+
+`0x63cde8f2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `creditTierSource()`
+
+`0xd095fe72` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `debts(address user)`
+
+`0x2ecd4e7d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `decimals()`
+
+`0x313ce567` · view · access: —
+
+*@dev* Returns the number of decimals used to get its user representation. For example, if `decimals` equals `2`, a balance of `505` tokens should be displayed to a user as `5.05` (`505 / 10 ** 2`). Tokens usually opt for a value of 18, imitating the relationship between Ether and Wei. This is the default value returned by this function, unless it's overridden. NOTE: This information is only used for _display_ purposes: it in no way affects any of the arithmetic of the contract, including {IERC20-balanceOf} and {IERC20-transfer}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `disableSpenderForSelf(address spender)`
+
+`0x2d2d92ca` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `DOMAIN_SEPARATOR()`
+
+`0x3644e515` · view · access: —
+
+*@dev* Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `effectiveCapUSD()`
+
+`0x5089a6ff` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `eip712Domain()`
+
+`0x84b0196e` · view · access: —
+
+*@dev* See {IERC-5267}.
+
+| returns | type | description |
+|---|---|---|
+| `fields` | `bytes1` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
+| `chainId` | `uint256` |  |
+| `verifyingContract` | `address` |  |
+| `salt` | `bytes32` |  |
+| `extensions` | `uint256[]` |  |
+
+#### `emergencyDisabled()`
+
+`0xae8866d9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `emergencyRevokedAddress()`
+
+`0x20b05859` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `emergencyRevokePaymaster()`
+
+`0x25073b3a` · nonpayable · access: —
+
+> S-4. Also cancels a factory-originated pending proposal.
+
+#### `emergencySwitchToStandby()`
+
+`0x11d15e9d` · nonpayable · access: —
+
+> S-6.
+
+#### `enableSpenderForSelf(address spender)`
+
+`0xe3fb7f2f` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `EXCHANGE_RATE_COOLDOWN()`
+
+`0xc1550b28` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `EXCHANGE_RATE_DELTA_BPS()`
+
+`0x00ef5f4f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `EXCHANGE_RATE_MAX()`
+
+`0xaf43e2d1` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `EXCHANGE_RATE_MIN()`
+
+`0x7c3c26e6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `exchangeRate()`
+
+`0x3ba0b9a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `exchangeRateUpdatedAt()`
+
+`0xd5f6e0dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `executeBySig(address user, uint8 kind, bytes params, uint256 deadline, bytes sig)`
+
+`0xd182c298` · nonpayable · access: —
+
+> Relayed R2 action (D-13 recovery path). `sig` is verified with SignatureChecker         (EOA or ERC-1271) OUTSIDE any validation frame, so 1271 has no ERC-7562 constraint.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `kind` | `uint8` |  |
+| `params` | `bytes` |  |
+| `deadline` | `uint256` |  |
+| `sig` | `bytes` |  |
+
+#### `executeCreditPolicy()`
+
+`0x5050a44a` · nonpayable · access: —
+
+#### `executeTierSource()`
+
+`0xf0575df6` · nonpayable · access: —
+
+#### `FACTORY()`
+
+`0x2dd31000` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `getMetadata()`
+
+`0x7a5b4f59` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+| `_1` | `string` |  |
+| `_2` | `string` |  |
+| `_3` | `string` |  |
+| `_4` | `address` |  |
+
+#### `hasPendingPolicy()`
+
+`0x7ae2aa5b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `historicalSP(address arg0)`
+
+`0x47b77308` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `isOverIssued()`
+
+`0xbeaf15d9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `issuedValueUSD()`
+
+`0xc7341731` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `K()`
+
+`0xa932492f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `lockedOf(address user)`
+
+`0xa5f1e282` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MAX_SINGLE_TX_LIMIT_CAP()`
+
+`0xb8441cd6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `maxSingleTxLimit()`
+
+`0x2d6f3a3a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `mint(address to, uint256 amount)`
+
+`0x40c10f19` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+#### `MODE_ACCOUNT_ONLY()`
+
+`0x49f38369` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `MODE_SP_K()`
+
+`0xd234acc6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `name()`
+
+`0x06fdde03` · view · access: —
+
+*@dev* Returns the name of the token.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `nonces(address owner)`
+
+`0x7ecebe00` · view · access: —
+
+*@dev* Returns the current nonce for `owner`. This value must be included whenever a signature is generated for {permit}. Every successful call to {permit} increases ``owner``'s nonce by one. This prevents a signature from being used multiple times.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `pendingPolicy()`
+
+`0xe6c5cf40` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `pendingPolicyEta()`
+
+`0x800094d2` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingSP()`
+
+`0x4ef0698c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingSPByFactory()`
+
+`0x38679889` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `pendingSPEta()`
+
+`0xbb9547a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingStandby()`
+
+`0xad7c467a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingStandbyEta()`
+
+`0x08c0283e` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingTierSource()`
+
+`0x24ef43f3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingTierSourceEta()`
+
+`0xdf73e593` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`
+
+`0xd505accf` · nonpayable · access: —
+
+*@dev* Sets `value` as the allowance of `spender` over ``owner``'s tokens, given ``owner``'s signed approval. IMPORTANT: The same issues {IERC20-approve} has related to transaction ordering also apply here. Emits an {Approval} event. Requirements: - `spender` cannot be the zero address. - `deadline` must be a timestamp in the future. - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner` over the EIP712-formatted function arguments. - the signature must use ``owner``'s current nonce (see {nonces}). For more information on the signature format, see the https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP section]. CAUTION: See Security Considerations above.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+| `deadline` | `uint256` |  |
+| `v` | `uint8` |  |
+| `r` | `bytes32` |  |
+| `s` | `bytes32` |  |
+
+#### `POLICY_AUTO()`
+
+`0x25331796` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_MANUAL()`
+
+`0x08b35f22` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_OFF()`
+
+`0xf74597e0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `policyEpoch()`
+
+`0xa921d322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint32` |  |
+
+#### `proposeSP(address newSP)`
+
+`0x95483c15` · nonpayable · access: —
+
+> S-1. Community priority: a factory proposal never overrides a community one,         and the factory cannot propose during an emergency.
+
+| param | type | description |
+|---|---|---|
+| `newSP` | `address` |  |
+
+#### `proposeSpender(address spender)`
+
+`0x9c664f84` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `proposeStandby(address s)`
+
+`0x6553cf6b` · nonpayable · access: —
+
+> S-5a.
+
+| param | type | description |
+|---|---|---|
+| `s` | `address` |  |
+
+#### `PROTOCOL_CREDIT_CEILING()`
+
+`0xd95aa9e6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_MAX_CAP()`
+
+`0x6fe53e62` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_REGISTRY()`
+
+`0xd4278e33` · view · access: —
+
+> Protocol allowlists (SP address / spender impl / tier-source impl).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `queueCreditPolicy(uint8 p)`
+
+`0x41068c0c` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `p` | `uint8` |  |
+
+#### `queueTierSource(address s)`
+
+`0xb44612ba` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `s` | `address` |  |
+
+#### `releaseAndDisable(address spender, bytes32 opHash)`
+
+`0xe575720c` · nonpayable · access: —
+
+> E-4: disable `spender` first, then release this opHash's stale lock and/or credit         reservation. Reverts as a whole (disable included) if a record is still live.
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `opHash` | `bytes32` |  |
+
+#### `removeApprovedFacilitator(address facilitator)`
+
+`0x8501dd1b` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `facilitator` | `address` |  |
+
+#### `removeAutoApprovedSpender(address spender)`
+
+`0xc504e209` · nonpayable · access: —
+
+> Immediate removal (safe direction). Counters are kept (B-7).
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+
+#### `renewalMode(address user)`
+
+`0x94137194` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `renounceFactory()`
+
+`0xd49bdad0` · nonpayable · access: —
+
+#### `repayDebt(uint256 amountXPNTs)`
+
+`0x6b09de45` · nonpayable · access: —
+
+> User repays own debt by burning xPNTs (floor conversion; cannot over-repay).
+
+| param | type | description |
+|---|---|---|
+| `amountXPNTs` | `uint256` |  |
+
+#### `requestCredit(uint256 maxCapAPNTs)`
+
+`0xb6b1d5ca` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `maxCapAPNTs` | `uint256` |  |
+
+#### `revokeCredit()`
+
+`0x48567aab` · nonpayable · access: —
+
+#### `setAutoAllowance(address spender, uint256 capAPNTs)`
+
+`0xca7f9c4a` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `capAPNTs` | `uint256` |  |
+
+#### `setIssuanceCap(uint256 newCap)`
+
+`0xca9f8d7b` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `newCap` | `uint256` |  |
+
+#### `setMaxSingleTxLimit(uint256 newLimit)`
+
+`0x4e4852f3` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `newLimit` | `uint256` |  |
+
+#### `setRenewalMode(uint8 mode)`
+
+`0x199b8d6e` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `mode` | `uint8` |  |
+
+#### `setSpenderDailyCap(uint256 newCap)`
+
+`0x1eb6ca03` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `newCap` | `uint256` |  |
+
+#### `setSpenderDailyCapFor(address spender, uint256 newCap)`
+
+`0x433ae8eb` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `newCap` | `uint256` |  |
+
+#### `setUserTotalCap(uint256 capAPNTs)`
+
+`0x81097512` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `capAPNTs` | `uint256` |  |
+
+#### `SP_CAP_FLOOR()`
+
+`0x924e57dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `SP_DEFAULT_CAP()`
+
+`0xdfeb8b6b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderActivatesAt(address arg0)`
+
+`0x5f72b548` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `spenderDailyCapOverride(address arg0)`
+
+`0xa68f9524` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDailyCapTokens()`
+
+`0xbf855565` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDisabled(address spender, address user)`
+
+`0x3b11d995` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `spenderRateLimit(address arg0)`
+
+`0xda21d73e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `dailyBurnTotal` | `uint128` |  |
+| `windowStart` | `uint64` |  |
+| `reserved` | `uint64` |  |
+
+#### `standbySP()`
+
+`0xe089c17f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `SUPERPAYMASTER_ADDRESS()`
+
+`0x5054dbd0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `symbol()`
+
+`0x95d89b41` · view · access: —
+
+*@dev* Returns the symbol of the token, usually a shorter version of the name.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `TIER_SOURCE_GAS()`
+
+`0x23f6af4c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `TIMELOCK()`
+
+`0x7aadef8b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `totalSupply()`
+
+`0x18160ddd` · view · access: —
+
+*@dev* See {IERC20-totalSupply}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transfer(address to, uint256 value)`
+
+`0xa9059cbb` · nonpayable · access: —
+
+*@dev* See {IERC20-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferAndCall(address to, uint256 amount, bytes data)`
+
+`0x4000aea0` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+| `data` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferAndCall(address to, uint256 amount)`
+
+`0x1296ee62` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `amount` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferCommunityOwnership(address newOwner)`
+
+`0x623330ae` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+#### `transferFrom(address from, address to, uint256 value)`
+
+`0x23b872dd` · nonpayable · access: —
+
+*@dev* See {IERC20-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required by the EIP. See the note at the beginning of {ERC20}. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `unsetEmergencyDisabled()`
+
+`0x027e6d67` · nonpayable · access: —
+
+> S-7.
+
+#### `updateExchangeRate(uint256 newRate)`
+
+`0xb9e205ae` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `newRate` | `uint256` |  |
+
+#### `usedOpHashes(bytes32 arg0)`
+
+`0x7fd6327a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `USER_TOTAL_DEFAULT()`
+
+`0x9710744d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x6088ceffbcad592dc1c5b41cd7affcb4ef5cae9558cc519e60a53111fe71610b` | `AllowanceRenewed(address,address,bool)` |
+| `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` |
+| `0x4cffadf3c7ae36057555c496fd6f52cef67a7cd2324ad64e1f8f096681d9e0c4` | `AutoAllowanceSet(address,address,uint256)` |
+| `0xcd244ccee31904b178ff7bfc95631cea7812a955f9a330ac216c0c8c9dbfaf20` | `AutoApprovedSpenderAdded(address)` |
+| `0x49debedb360a6c155dc3046b522ec5e27906afea1be0015b4625302e9192e2d8` | `AutoApprovedSpenderRemoved(address)` |
+| `0x1191f7dd7e510e69e54c21c704f6f3c1179351c8a1a8d6a2a66d1e20aed6fd0f` | `CommunityOwnerUpdated(address,address)` |
+| `0x03f2b0a571f42a54bad31280b4477b153a5d3c6cd78dda720706c67bdf31e80e` | `CreditApproved(address,uint256,uint32)` |
+| `0x7b32f4d45974a956aea3042047d08a8ebd626d4d7a9c58c200f7bde19ec4919f` | `CreditPolicyCancelled()` |
+| `0x4a53aec9f255b2d5bcb9ce63ec2e9263cd6094537eec19973e8708c1b1e35f02` | `CreditPolicyExecuted(uint8,uint32)` |
+| `0x5cb61087fafc3f392cb4740c8edbc0e0045ac0ad01bed63c3ecd0becd3ead604` | `CreditPolicyQueued(uint8,uint64)` |
+| `0xdad6678c895f98939e7284e161055630849182add6c69672f905c25a73369269` | `CreditReleased(address,bytes32,uint256)` |
+| `0x461c35193646fcf074b251c0793df157d875bc39bcc307ccbcb1eb8435d56a32` | `CreditRequested(address,uint256,uint32)` |
+| `0xe7f1ceee255e2908b896f5fa254cb3bac9e538bdac389f75de2fc3446d2a7b69` | `CreditReserved(address,bytes32,address,uint256)` |
+| `0xe24e7f4be2a6dcf7000d9d67421687e27dcf1f62554dbdeec78adb103aae6323` | `CreditSettled(address,bytes32,uint256)` |
+| `0x798353030d4251a345706609acf9ea7527f2ace26f73150a098c0fae89e5886d` | `DebtRepaid(address,uint256,uint256)` |
+| `0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31` | `EIP712DomainChanged()` |
+| `0x56a64ec95bb93ae6af923c082ef9ab2bd5bdd6f1a121c45e8c05a39ab73bbf06` | `EmergencyDisabledCleared(address)` |
+| `0x51745cdc5b4ed1fe5c20c1cbf61290785ef5df0cb643101a29618bed23d8305c` | `EmergencyDisabledSet(address)` |
+| `0xc8d1043f24843c0a1c9251fdc30017d84e87498fbcf232af9f86816b5e182bde` | `ExchangeRateUpdated(uint256,uint256)` |
+| `0x14b842314c1bed1881a6aaf3371cb59429fa3f849dbd8ad0698501dc4aa0574c` | `FacilitatorApproved(address)` |
+| `0xa8fe5b89f35f2ebd6f3f95a7ef215f4bd89179e10c101073ae76cffad14734cf` | `FacilitatorRemoved(address)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0xef63ce43724fdeb93d5f0c9cd6dd8e4adb86224b4f189d6073b8c3e2aa1b5452` | `IssuanceCapUpdated(uint256,uint256)` |
+| `0x03da0f36cf019c40dd1b53d90ab4c01e862440c7ea050399b5fd643fc32fb766` | `LockCreated(address,bytes32,address,uint256,uint256)` |
+| `0x3fd2eee5028b09fa70abe3da4f6023ea41bfde24cfcb9c167f17d6fbe79eece3` | `LockReleased(address,bytes32,uint256)` |
+| `0x0db2e760de332f46e05e4200a1577fc713d3601c848f570fbbe50a4d281ecec1` | `LockSettled(address,bytes32,uint256,uint256)` |
+| `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` |
+| `0x9d06dee325dc997b1cc3dc4dc4c7e23d437834b142552cec7fe2875786b50480` | `RenewalModeSet(address,uint8)` |
+| `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` |
+| `0x68639863c58fa667262fab7192372355b1b2cb2731dcd7636cedbfcd1900f05d` | `SpenderDailyCapUpdated(uint256,uint256)` |
+| `0x9255a7c0ff8f13508480e90b4262cef466dd9c1bf72a08ab689bbf3fe2083a5c` | `SpenderDisabledByUser(address,address,bool)` |
+| `0xc595e3a7c1fbcc886e9c956e668629b0e3c0c60f7e6d4c1bd98e04b3a1a89d20` | `SpenderProposed(address,uint64)` |
+| `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` |
+| `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
+| `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
+| `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
+| `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
+| `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
+| `0x5646b81a05541afaeccb3a3855d109ee4acb88a43b8c62390c067d873780121c` | `TierSourceQueued(address,uint64)` |
+| `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef` | `Transfer(address,address,uint256)` |
+| `0x0bb8f89cb8c5df7baaf7e9f33532bd5654ff700c9b505086876a7d0bf7cfa2e4` | `UserTotalCapSet(address,uint256)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x18bc406e` | `AboveCeiling()` |
+| `0xf6c8add6` | `AutoAllowanceExceeded()` |
+| `0xd9aa4778` | `BalanceLocked(address,uint256)` |
+| `0x4e7e2916` | `BelowFloor()` |
+| `0x07df4537` | `BurnExceedsAllowance()` |
+| `0x588569f7` | `BurnExceedsBalance()` |
+| `0xf645eedf` | `ECDSAInvalidSignature()` |
+| `0xfce698f7` | `ECDSAInvalidSignatureLength(uint256)` |
+| `0xd78bce0c` | `ECDSAInvalidSignatureS(bytes32)` |
+| `0x4e97bcfc` | `EmergencyStop()` |
+| `0xfb8f41b2` | `ERC20InsufficientAllowance(address,uint256,uint256)` |
+| `0xe450d38c` | `ERC20InsufficientBalance(address,uint256,uint256)` |
+| `0xe602df05` | `ERC20InvalidApprover(address)` |
+| `0xec442f05` | `ERC20InvalidReceiver(address)` |
+| `0x96c6fd1e` | `ERC20InvalidSender(address)` |
+| `0x94280d62` | `ERC20InvalidSpender(address)` |
+| `0x62791302` | `ERC2612ExpiredSignature(uint256)` |
+| `0x4b800e46` | `ERC2612InvalidSigner(address,address)` |
+| `0x150c57e5` | `ExchangeRateCannotBeZero()` |
+| `0x91bd60f2` | `ExchangeRateCooldownActive()` |
+| `0xbba592ba` | `ExchangeRateDeltaTooLarge(uint256,uint256,uint256)` |
+| `0x34607448` | `ExchangeRateOutOfRange(uint256,uint256,uint256)` |
+| `0x752d88c0` | `InvalidAccountNonce(address,uint256)` |
+| `0x8e4c8aa6` | `InvalidAddress(address)` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0xd2529034` | `InvalidParam()` |
+| `0xb3512b0c` | `InvalidShortString()` |
+| `0x8baa579f` | `InvalidSignature()` |
+| `0x227bc153` | `MathOverflowedMulDiv()` |
+| `0x54641f00` | `NoDebtToRepay()` |
+| `0xba112c93` | `NoLock()` |
+| `0x0ca968d8` | `NotApproved(address)` |
+| `0x175c1aea` | `NothingPending()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xbaf13b3f` | `NotLive()` |
+| `0xfeffcf0a` | `RecoveryNotComplete()` |
+| `0xc89b5c83` | `RenewBlocked()` |
+| `0xe31d04ea` | `RepayExceedsDebt()` |
+| `0x0819bdcd` | `SignatureExpired()` |
+| `0x2c1032b5` | `SingleTxLimitExceeded()` |
+| `0x4c768bf6` | `SPCannotTransfer()` |
+| `0xc4fae443` | `SpenderDailyCapExceeded(address,uint256,uint256)` |
+| `0xa8c03c8f` | `SpenderIsDisabled()` |
+| `0x1ba9efb6` | `StillLive()` |
+| `0x305a27a9` | `StringTooLong(string)` |
+| `0xddffe20e` | `TimelockActive(uint64)` |
+| `0x8e4a23d6` | `Unauthorized(address)` |
+| `0x9405c086` | `UnauthorizedRecipient()` |
+| `0x60df9f87` | `UnknownAction(uint8)` |
+
+## xPNTsV2Base
+
+- **Source:** `contracts/src/tokens/v2/xPNTsV2Base.sol`
+- **Functions:** 69 · **Events:** 42 · **Errors:** 48
+- **Title:** xPNTsV2Base
+- Shared storage, constants, events, errors and internal logic of xPNTs v2.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x2d0f591f` | `actionNonce(address)` | view | — |  |
+| `0xdd62ed3e` | `allowance(address,address)` | view | — |  |
+| `0x095ea7b3` | `approve(address,uint256)` | nonpayable | — |  |
+| `0xeca9f014` | `approvedFacilitators(address)` | view | — |  |
+| `0xf1d85d55` | `autoApprovedSpenders(address)` | view | — |  |
+| `0x172bdfc1` | `autoRenewUsed(address)` | view | — |  |
+| `0x70a08231` | `balanceOf(address)` | view | — |  |
+| `0xdc1fb5a5` | `community()` | view | — |  |
+| `0x66b48f91` | `communityENS()` | view | — |  |
+| `0xc6d572ae` | `communityName()` | view | — |  |
+| `0x38518bfe` | `communityOwner()` | view | — |  |
+| `0xfaaddb94` | `creditPolicy()` | view | — |  |
+| `0x1dac808a` | `creditReq(address)` | view | — |  |
+| `0x63cde8f2` | `creditReservedOf(address)` | view | — |  |
+| `0xd095fe72` | `creditTierSource()` | view | — |  |
+| `0x2ecd4e7d` | `debts(address)` | view | — |  |
+| `0x313ce567` | `decimals()` | view | — |  |
+| `0x3644e515` | `DOMAIN_SEPARATOR()` | view | — |  |
+| `0x84b0196e` | `eip712Domain()` | view | — |  |
+| `0xae8866d9` | `emergencyDisabled()` | view | — |  |
+| `0x20b05859` | `emergencyRevokedAddress()` | view | — |  |
+| `0x3ba0b9a9` | `exchangeRate()` | view | — |  |
+| `0xd5f6e0dd` | `exchangeRateUpdatedAt()` | view | — |  |
+| `0x2dd31000` | `FACTORY()` | view | — |  |
+| `0x7ae2aa5b` | `hasPendingPolicy()` | view | — |  |
+| `0x47b77308` | `historicalSP(address)` | view | — |  |
+| `0xb733b3f8` | `issuanceCap()` | view | — |  |
+| `0xa932492f` | `K()` | view | — |  |
+| `0xa5f1e282` | `lockedOf(address)` | view | — |  |
+| `0x2d6f3a3a` | `maxSingleTxLimit()` | view | — |  |
+| `0x49f38369` | `MODE_ACCOUNT_ONLY()` | view | — |  |
+| `0xd234acc6` | `MODE_SP_K()` | view | — |  |
+| `0x06fdde03` | `name()` | view | — |  |
+| `0x7ecebe00` | `nonces(address)` | view | — |  |
+| `0xe6c5cf40` | `pendingPolicy()` | view | — |  |
+| `0x800094d2` | `pendingPolicyEta()` | view | — |  |
+| `0x4ef0698c` | `pendingSP()` | view | — |  |
+| `0x38679889` | `pendingSPByFactory()` | view | — |  |
+| `0xbb9547a9` | `pendingSPEta()` | view | — |  |
+| `0xad7c467a` | `pendingStandby()` | view | — |  |
+| `0x08c0283e` | `pendingStandbyEta()` | view | — |  |
+| `0x24ef43f3` | `pendingTierSource()` | view | — |  |
+| `0xdf73e593` | `pendingTierSourceEta()` | view | — |  |
+| `0xd505accf` | `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` | nonpayable | — |  |
+| `0x25331796` | `POLICY_AUTO()` | view | — |  |
+| `0x08b35f22` | `POLICY_MANUAL()` | view | — |  |
+| `0xf74597e0` | `POLICY_OFF()` | view | — |  |
+| `0xa921d322` | `policyEpoch()` | view | — |  |
+| `0xd95aa9e6` | `PROTOCOL_CREDIT_CEILING()` | view | — |  |
+| `0x6fe53e62` | `PROTOCOL_MAX_CAP()` | view | — |  |
+| `0xd4278e33` | `PROTOCOL_REGISTRY()` | view | — | Protocol allowlists (SP address / spender impl / tier-source impl). |
+| `0x94137194` | `renewalMode(address)` | view | — |  |
+| `0x924e57dd` | `SP_CAP_FLOOR()` | view | — |  |
+| `0xdfeb8b6b` | `SP_DEFAULT_CAP()` | view | — |  |
+| `0x5f72b548` | `spenderActivatesAt(address)` | view | — |  |
+| `0xa68f9524` | `spenderDailyCapOverride(address)` | view | — |  |
+| `0xbf855565` | `spenderDailyCapTokens()` | view | — |  |
+| `0x3b11d995` | `spenderDisabled(address,address)` | view | — |  |
+| `0xda21d73e` | `spenderRateLimit(address)` | view | — |  |
+| `0xe089c17f` | `standbySP()` | view | — |  |
+| `0x5054dbd0` | `SUPERPAYMASTER_ADDRESS()` | view | — |  |
+| `0x95d89b41` | `symbol()` | view | — |  |
+| `0x23f6af4c` | `TIER_SOURCE_GAS()` | view | — |  |
+| `0x7aadef8b` | `TIMELOCK()` | view | — |  |
+| `0x18160ddd` | `totalSupply()` | view | — |  |
+| `0xa9059cbb` | `transfer(address,uint256)` | nonpayable | — |  |
+| `0x23b872dd` | `transferFrom(address,address,uint256)` | nonpayable | — |  |
+| `0x7fd6327a` | `usedOpHashes(bytes32)` | view | — |  |
+| `0x9710744d` | `USER_TOTAL_DEFAULT()` | view | — |  |
+
+### Functions
+
+#### `actionNonce(address user)`
+
+`0x2d0f591f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `allowance(address owner, address spender)`
+
+`0xdd62ed3e` · view · access: —
+
+*@dev* See {IERC20-allowance}.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `approve(address spender, uint256 value)`
+
+`0x095ea7b3` · nonpayable · access: —
+
+*@dev* See {IERC20-approve}. NOTE: If `value` is the maximum `uint256`, the allowance is not updated on `transferFrom`. This is semantically equivalent to an infinite approval. Requirements: - `spender` cannot be the zero address.
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `approvedFacilitators(address arg0)`
+
+`0xeca9f014` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoApprovedSpenders(address arg0)`
+
+`0xf1d85d55` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `autoRenewUsed(address user)`
+
+`0x172bdfc1` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `balanceOf(address account)`
+
+`0x70a08231` · view · access: —
+
+*@dev* See {IERC20-balanceOf}.
+
+| param | type | description |
+|---|---|---|
+| `account` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `community()`
+
+`0xdc1fb5a5` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `communityENS()`
+
+`0x66b48f91` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityName()`
+
+`0xc6d572ae` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `communityOwner()`
+
+`0x38518bfe` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `creditPolicy()`
+
+`0xfaaddb94` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `creditReq(address user)`
+
+`0x1dac808a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `requestedCap` | `uint112` |  |
+| `approvedCap` | `uint112` |  |
+| `epoch` | `uint32` |  |
+
+#### `creditReservedOf(address user)`
+
+`0x63cde8f2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `creditTierSource()`
+
+`0xd095fe72` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `debts(address user)`
+
+`0x2ecd4e7d` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `decimals()`
+
+`0x313ce567` · view · access: —
+
+*@dev* Returns the number of decimals used to get its user representation. For example, if `decimals` equals `2`, a balance of `505` tokens should be displayed to a user as `5.05` (`505 / 10 ** 2`). Tokens usually opt for a value of 18, imitating the relationship between Ether and Wei. This is the default value returned by this function, unless it's overridden. NOTE: This information is only used for _display_ purposes: it in no way affects any of the arithmetic of the contract, including {IERC20-balanceOf} and {IERC20-transfer}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `DOMAIN_SEPARATOR()`
+
+`0x3644e515` · view · access: —
+
+*@dev* Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `eip712Domain()`
+
+`0x84b0196e` · view · access: —
+
+*@dev* See {IERC-5267}.
+
+| returns | type | description |
+|---|---|---|
+| `fields` | `bytes1` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
+| `chainId` | `uint256` |  |
+| `verifyingContract` | `address` |  |
+| `salt` | `bytes32` |  |
+| `extensions` | `uint256[]` |  |
+
+#### `emergencyDisabled()`
+
+`0xae8866d9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `emergencyRevokedAddress()`
+
+`0x20b05859` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `exchangeRate()`
+
+`0x3ba0b9a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `exchangeRateUpdatedAt()`
+
+`0xd5f6e0dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `FACTORY()`
+
+`0x2dd31000` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `hasPendingPolicy()`
+
+`0x7ae2aa5b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `historicalSP(address arg0)`
+
+`0x47b77308` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `issuanceCap()`
+
+`0xb733b3f8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `K()`
+
+`0xa932492f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `lockedOf(address user)`
+
+`0xa5f1e282` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `maxSingleTxLimit()`
+
+`0x2d6f3a3a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `MODE_ACCOUNT_ONLY()`
+
+`0x49f38369` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `MODE_SP_K()`
+
+`0xd234acc6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `name()`
+
+`0x06fdde03` · view · access: —
+
+*@dev* Returns the name of the token.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `nonces(address owner)`
+
+`0x7ecebe00` · view · access: —
+
+*@dev* Returns the current nonce for `owner`. This value must be included whenever a signature is generated for {permit}. Every successful call to {permit} increases ``owner``'s nonce by one. This prevents a signature from being used multiple times.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `pendingPolicy()`
+
+`0xe6c5cf40` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `pendingPolicyEta()`
+
+`0x800094d2` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingSP()`
+
+`0x4ef0698c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingSPByFactory()`
+
+`0x38679889` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `pendingSPEta()`
+
+`0xbb9547a9` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingStandby()`
+
+`0xad7c467a` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingStandbyEta()`
+
+`0x08c0283e` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `pendingTierSource()`
+
+`0x24ef43f3` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingTierSourceEta()`
+
+`0xdf73e593` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`
+
+`0xd505accf` · nonpayable · access: —
+
+*@dev* Sets `value` as the allowance of `spender` over ``owner``'s tokens, given ``owner``'s signed approval. IMPORTANT: The same issues {IERC20-approve} has related to transaction ordering also apply here. Emits an {Approval} event. Requirements: - `spender` cannot be the zero address. - `deadline` must be a timestamp in the future. - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner` over the EIP712-formatted function arguments. - the signature must use ``owner``'s current nonce (see {nonces}). For more information on the signature format, see the https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP section]. CAUTION: See Security Considerations above.
+
+| param | type | description |
+|---|---|---|
+| `owner` | `address` |  |
+| `spender` | `address` |  |
+| `value` | `uint256` |  |
+| `deadline` | `uint256` |  |
+| `v` | `uint8` |  |
+| `r` | `bytes32` |  |
+| `s` | `bytes32` |  |
+
+#### `POLICY_AUTO()`
+
+`0x25331796` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_MANUAL()`
+
+`0x08b35f22` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `POLICY_OFF()`
+
+`0xf74597e0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `policyEpoch()`
+
+`0xa921d322` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint32` |  |
+
+#### `PROTOCOL_CREDIT_CEILING()`
+
+`0xd95aa9e6` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_MAX_CAP()`
+
+`0x6fe53e62` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `PROTOCOL_REGISTRY()`
+
+`0xd4278e33` · view · access: —
+
+> Protocol allowlists (SP address / spender impl / tier-source impl).
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `renewalMode(address user)`
+
+`0x94137194` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint8` |  |
+
+#### `SP_CAP_FLOOR()`
+
+`0x924e57dd` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `SP_DEFAULT_CAP()`
+
+`0xdfeb8b6b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderActivatesAt(address arg0)`
+
+`0x5f72b548` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint64` |  |
+
+#### `spenderDailyCapOverride(address arg0)`
+
+`0xa68f9524` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDailyCapTokens()`
+
+`0xbf855565` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `spenderDisabled(address spender, address user)`
+
+`0x3b11d995` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `spender` | `address` |  |
+| `user` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `spenderRateLimit(address arg0)`
+
+`0xda21d73e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `dailyBurnTotal` | `uint128` |  |
+| `windowStart` | `uint64` |  |
+| `reserved` | `uint64` |  |
+
+#### `standbySP()`
+
+`0xe089c17f` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `SUPERPAYMASTER_ADDRESS()`
+
+`0x5054dbd0` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `symbol()`
+
+`0x95d89b41` · view · access: —
+
+*@dev* Returns the symbol of the token, usually a shorter version of the name.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `string` |  |
+
+#### `TIER_SOURCE_GAS()`
+
+`0x23f6af4c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `TIMELOCK()`
+
+`0x7aadef8b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `totalSupply()`
+
+`0x18160ddd` · view · access: —
+
+*@dev* See {IERC20-totalSupply}.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `transfer(address to, uint256 value)`
+
+`0xa9059cbb` · nonpayable · access: —
+
+*@dev* See {IERC20-transfer}. Requirements: - `to` cannot be the zero address. - the caller must have a balance of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `transferFrom(address from, address to, uint256 value)`
+
+`0x23b872dd` · nonpayable · access: —
+
+*@dev* See {IERC20-transferFrom}. Emits an {Approval} event indicating the updated allowance. This is not required by the EIP. See the note at the beginning of {ERC20}. NOTE: Does not update the allowance if the current allowance is the maximum `uint256`. Requirements: - `from` and `to` cannot be the zero address. - `from` must have a balance of at least `value`. - the caller must have allowance for ``from``'s tokens of at least `value`.
+
+| param | type | description |
+|---|---|---|
+| `from` | `address` |  |
+| `to` | `address` |  |
+| `value` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `usedOpHashes(bytes32 arg0)`
+
+`0x7fd6327a` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `USER_TOTAL_DEFAULT()`
+
+`0x9710744d` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x6088ceffbcad592dc1c5b41cd7affcb4ef5cae9558cc519e60a53111fe71610b` | `AllowanceRenewed(address,address,bool)` |
+| `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` |
+| `0x4cffadf3c7ae36057555c496fd6f52cef67a7cd2324ad64e1f8f096681d9e0c4` | `AutoAllowanceSet(address,address,uint256)` |
+| `0xcd244ccee31904b178ff7bfc95631cea7812a955f9a330ac216c0c8c9dbfaf20` | `AutoApprovedSpenderAdded(address)` |
+| `0x49debedb360a6c155dc3046b522ec5e27906afea1be0015b4625302e9192e2d8` | `AutoApprovedSpenderRemoved(address)` |
+| `0x1191f7dd7e510e69e54c21c704f6f3c1179351c8a1a8d6a2a66d1e20aed6fd0f` | `CommunityOwnerUpdated(address,address)` |
+| `0x03f2b0a571f42a54bad31280b4477b153a5d3c6cd78dda720706c67bdf31e80e` | `CreditApproved(address,uint256,uint32)` |
+| `0x7b32f4d45974a956aea3042047d08a8ebd626d4d7a9c58c200f7bde19ec4919f` | `CreditPolicyCancelled()` |
+| `0x4a53aec9f255b2d5bcb9ce63ec2e9263cd6094537eec19973e8708c1b1e35f02` | `CreditPolicyExecuted(uint8,uint32)` |
+| `0x5cb61087fafc3f392cb4740c8edbc0e0045ac0ad01bed63c3ecd0becd3ead604` | `CreditPolicyQueued(uint8,uint64)` |
+| `0xdad6678c895f98939e7284e161055630849182add6c69672f905c25a73369269` | `CreditReleased(address,bytes32,uint256)` |
+| `0x461c35193646fcf074b251c0793df157d875bc39bcc307ccbcb1eb8435d56a32` | `CreditRequested(address,uint256,uint32)` |
+| `0xe7f1ceee255e2908b896f5fa254cb3bac9e538bdac389f75de2fc3446d2a7b69` | `CreditReserved(address,bytes32,address,uint256)` |
+| `0xe24e7f4be2a6dcf7000d9d67421687e27dcf1f62554dbdeec78adb103aae6323` | `CreditSettled(address,bytes32,uint256)` |
+| `0x798353030d4251a345706609acf9ea7527f2ace26f73150a098c0fae89e5886d` | `DebtRepaid(address,uint256,uint256)` |
+| `0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31` | `EIP712DomainChanged()` |
+| `0x56a64ec95bb93ae6af923c082ef9ab2bd5bdd6f1a121c45e8c05a39ab73bbf06` | `EmergencyDisabledCleared(address)` |
+| `0x51745cdc5b4ed1fe5c20c1cbf61290785ef5df0cb643101a29618bed23d8305c` | `EmergencyDisabledSet(address)` |
+| `0xc8d1043f24843c0a1c9251fdc30017d84e87498fbcf232af9f86816b5e182bde` | `ExchangeRateUpdated(uint256,uint256)` |
+| `0x14b842314c1bed1881a6aaf3371cb59429fa3f849dbd8ad0698501dc4aa0574c` | `FacilitatorApproved(address)` |
+| `0xa8fe5b89f35f2ebd6f3f95a7ef215f4bd89179e10c101073ae76cffad14734cf` | `FacilitatorRemoved(address)` |
+| `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0xef63ce43724fdeb93d5f0c9cd6dd8e4adb86224b4f189d6073b8c3e2aa1b5452` | `IssuanceCapUpdated(uint256,uint256)` |
+| `0x03da0f36cf019c40dd1b53d90ab4c01e862440c7ea050399b5fd643fc32fb766` | `LockCreated(address,bytes32,address,uint256,uint256)` |
+| `0x3fd2eee5028b09fa70abe3da4f6023ea41bfde24cfcb9c167f17d6fbe79eece3` | `LockReleased(address,bytes32,uint256)` |
+| `0x0db2e760de332f46e05e4200a1577fc713d3601c848f570fbbe50a4d281ecec1` | `LockSettled(address,bytes32,uint256,uint256)` |
+| `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` |
+| `0x9d06dee325dc997b1cc3dc4dc4c7e23d437834b142552cec7fe2875786b50480` | `RenewalModeSet(address,uint8)` |
+| `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` |
+| `0x68639863c58fa667262fab7192372355b1b2cb2731dcd7636cedbfcd1900f05d` | `SpenderDailyCapUpdated(uint256,uint256)` |
+| `0x9255a7c0ff8f13508480e90b4262cef466dd9c1bf72a08ab689bbf3fe2083a5c` | `SpenderDisabledByUser(address,address,bool)` |
+| `0xc595e3a7c1fbcc886e9c956e668629b0e3c0c60f7e6d4c1bd98e04b3a1a89d20` | `SpenderProposed(address,uint64)` |
+| `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` |
+| `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
+| `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
+| `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
+| `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
+| `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
+| `0x5646b81a05541afaeccb3a3855d109ee4acb88a43b8c62390c067d873780121c` | `TierSourceQueued(address,uint64)` |
+| `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef` | `Transfer(address,address,uint256)` |
+| `0x0bb8f89cb8c5df7baaf7e9f33532bd5654ff700c9b505086876a7d0bf7cfa2e4` | `UserTotalCapSet(address,uint256)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x18bc406e` | `AboveCeiling()` |
+| `0xf6c8add6` | `AutoAllowanceExceeded()` |
+| `0xd9aa4778` | `BalanceLocked(address,uint256)` |
+| `0x4e7e2916` | `BelowFloor()` |
+| `0x07df4537` | `BurnExceedsAllowance()` |
+| `0x588569f7` | `BurnExceedsBalance()` |
+| `0xf645eedf` | `ECDSAInvalidSignature()` |
+| `0xfce698f7` | `ECDSAInvalidSignatureLength(uint256)` |
+| `0xd78bce0c` | `ECDSAInvalidSignatureS(bytes32)` |
+| `0x4e97bcfc` | `EmergencyStop()` |
+| `0xfb8f41b2` | `ERC20InsufficientAllowance(address,uint256,uint256)` |
+| `0xe450d38c` | `ERC20InsufficientBalance(address,uint256,uint256)` |
+| `0xe602df05` | `ERC20InvalidApprover(address)` |
+| `0xec442f05` | `ERC20InvalidReceiver(address)` |
+| `0x96c6fd1e` | `ERC20InvalidSender(address)` |
+| `0x94280d62` | `ERC20InvalidSpender(address)` |
+| `0x62791302` | `ERC2612ExpiredSignature(uint256)` |
+| `0x4b800e46` | `ERC2612InvalidSigner(address,address)` |
+| `0x150c57e5` | `ExchangeRateCannotBeZero()` |
+| `0x91bd60f2` | `ExchangeRateCooldownActive()` |
+| `0xbba592ba` | `ExchangeRateDeltaTooLarge(uint256,uint256,uint256)` |
+| `0x34607448` | `ExchangeRateOutOfRange(uint256,uint256,uint256)` |
+| `0x752d88c0` | `InvalidAccountNonce(address,uint256)` |
+| `0x8e4c8aa6` | `InvalidAddress(address)` |
+| `0xf92ee8a9` | `InvalidInitialization()` |
+| `0xd2529034` | `InvalidParam()` |
+| `0xb3512b0c` | `InvalidShortString()` |
+| `0x8baa579f` | `InvalidSignature()` |
+| `0x54641f00` | `NoDebtToRepay()` |
+| `0xba112c93` | `NoLock()` |
+| `0x0ca968d8` | `NotApproved(address)` |
+| `0x175c1aea` | `NothingPending()` |
+| `0xd7e6bcf8` | `NotInitializing()` |
+| `0xbaf13b3f` | `NotLive()` |
+| `0xfeffcf0a` | `RecoveryNotComplete()` |
+| `0xc89b5c83` | `RenewBlocked()` |
+| `0xe31d04ea` | `RepayExceedsDebt()` |
+| `0x0819bdcd` | `SignatureExpired()` |
+| `0x2c1032b5` | `SingleTxLimitExceeded()` |
+| `0x4c768bf6` | `SPCannotTransfer()` |
+| `0xc4fae443` | `SpenderDailyCapExceeded(address,uint256,uint256)` |
+| `0xa8c03c8f` | `SpenderIsDisabled()` |
+| `0x1ba9efb6` | `StillLive()` |
+| `0x305a27a9` | `StringTooLong(string)` |
+| `0xddffe20e` | `TimelockActive(uint64)` |
+| `0x8e4a23d6` | `Unauthorized(address)` |
+| `0x9405c086` | `UnauthorizedRecipient()` |
+| `0x60df9f87` | `UnknownAction(uint8)` |
 
 ## xPNTsFactory
 
@@ -13527,3 +20255,81 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x89083b91` | `MapFp2ToG2Failed()` |
 | `0x24a289fc` | `MapFpToG1Failed()` |
 | `0x4df45e2f` | `PairingFailed()` |
+
+## Ownable2StepNamespaced
+
+- **Source:** `contracts/src/utils/Ownable2StepNamespaced.sol`
+- **Functions:** 5 · **Events:** 2 · **Errors:** 3
+- **Title:** Ownable2StepNamespaced
+- GOV-2 (spec 03 §10.7b, "GOV-2 规范（第 3 版）" A/B): two-step ownership transfer for the         UUPS proxies SuperPaymaster and Registry, WITHOUT touching their sequential storage.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x79ba5097` | `acceptOwnership()` | nonpayable | — | Complete a transfer started by `transferOwnership`; callable only by the nominee. |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
+| `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
+| `0xf2fde38b` | `transferOwnership(address)` | nonpayable | onlyOwner | Start (or replace, or with address(0) cancel) a two-step ownership transfer. |
+
+### Functions
+
+#### `acceptOwnership()`
+
+`0x79ba5097` · nonpayable · access: —
+
+> Complete a transfer started by `transferOwnership`; callable only by the nominee.
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+*@dev* Returns the address of the current owner.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `pendingOwner()`
+
+`0xe30c3978` · view · access: —
+
+> The nominated owner; address(0) when there is no pending transfer.
+
+| returns | type | description |
+|---|---|---|
+| `p` | `address` |  |
+
+#### `renounceOwnership()`
+
+`0x715018a6` · nonpayable · access: —
+
+> Always reverts (GOV-2 B.4).
+
+#### `transferOwnership(address newOwner)`
+
+`0xf2fde38b` · nonpayable · access: onlyOwner
+
+> Start (or replace, or with address(0) cancel) a two-step ownership transfer.
+
+*@dev* `onlyOwner` is written out explicitly: an override does NOT inherit modifiers.
+
+| param | type | description |
+|---|---|---|
+| `newOwner` | `address` |  |
+
+### Events
+
+| topic0 | event |
+|---|---|
+| `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
+| `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
+
+### Errors
+
+| selector | error |
+|---|---|
+| `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
+| `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x3df11b96` | `OwnershipRenounceDisabled()` |
