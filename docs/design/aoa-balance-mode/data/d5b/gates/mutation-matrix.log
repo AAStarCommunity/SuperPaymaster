@@ -1,7 +1,7 @@
-column 0 (unmutated): 32 tests, red = []
+column 0 (unmutated): 34 tests, red = []
 
 == b-transferOwnership-without-onlyOwner: GOV-2 D / B.1: the transferOwnership override drops its explicit onlyOwner
-   red (3/30):
+   red (3/32):
      - test_gov2_guardian_has_no_other_power: next call did not revert as expected
      - test_gov2_registry_two_step: next call did not revert as expected
      - test_gov2_sp_transferOwnership_requires_owner: next call did not revert as expected
@@ -10,22 +10,24 @@ column 0 (unmutated): 32 tests, red = []
    RESULT: OK
 
 == c-core-two-step-override-deleted: §2.1: the core chain's two-step transferOwnership is deleted → OZ single-step is live
-   red (9/30):
+   red (11/32):
      - test_d5b_sp_inplace_upgrade_from_previous_release_preserves_state: assertion failed: 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
      - test_gov2_misconfigured_timelock_cannot_accept: EOA still owner: misconfigured timelock is a natural abort point: 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a != 0x0000000000000000000000000000000000000a11
      - test_gov2_registry_two_step: Registry: owner unchanged after transferOwnership: 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
+     - test_gov2_rollback_cannot_carry_a_stale_nomination: Error != expected error: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11) != PendingOwnershipTransfer(0x0000000000000000000000000000000000
      - test_gov2_sp_accept_only_by_pending_and_clears_it: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000A12)
      - test_gov2_sp_nomination_replace_and_cancel: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11)
      - test_gov2_sp_pendingOwner_erc7201_slot: nominee stored in the ERC-7201 slot: 0x0000000000000000000000000000000000000000000000000000000000000000 != 0x000000000000000000000000000000000000000000000000000
      - test_gov2_sp_transferOwnership_emits_started_by_proxy: OwnershipTransferred != expected OwnershipTransferStarted
      - test_gov2_sp_transferOwnership_via_proxy_is_two_step: owner unchanged after transferOwnership (two-step): 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
      - test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian: EOA still owner after step 1 (nomination only): 0xc7183455a4C133Ae270771860664b6B7ec320bB1 != 0x0000000000000000000000000000000000000a11
+     - test_gov2_upgrade_refused_while_nomination_pending: Error != expected error: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11) != PendingOwnershipTransfer(0x0000000000000000000000000000000000
    expected red ['test_gov2_sp_transferOwnership_via_proxy_is_two_step', 'test_gov2_registry_two_step', 'test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian'] -> missing []
    blind columns ['test_gov2_sp_transferOwnership_requires_owner', 'test_gov2_sp_renounce_always_reverts', 'test_gov2_guardian_cannot_unpause_operator'] -> turned red []
    RESULT: OK
 
 == d-guardian-may-unpause: GOV-2 B.6: the guardian may also pass false (unpause)
-   red (2/30):
+   red (2/32):
      - test_gov2_guardian_cannot_lift_global_pause: next call did not revert as expected
      - test_gov2_guardian_cannot_unpause_operator: next call did not revert as expected
    expected red ['test_gov2_guardian_cannot_unpause_operator', 'test_gov2_guardian_cannot_lift_global_pause'] -> missing []
@@ -33,45 +35,55 @@ column 0 (unmutated): 32 tests, red = []
    RESULT: OK
 
 == e1-pause-check-after-pmd-parsing: GOV-2 B.6: the global pause check moved after operator / paymasterAndData / token / rate parsing
-   red (1/30):
+   red (1/32):
      - test_gov2_global_pause_sigFails_before_parsing: expected call to 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a with data 0xe21b38d20000000000000000000000000000000000000000000000000000000000c0ffee to be called 0 
    expected red ['test_gov2_global_pause_sigFails_before_parsing'] -> missing []
    blind columns ['test_gov2_pause_does_not_block_postOp_settlement', 'test_gov2_pause_does_not_block_stale_release', 'test_d5b_lens_through_fallback_agrees_with_validation'] -> turned red []
    RESULT: OK
 
 == e2-pause-check-after-reservation-math: GOV-2 B.6: the global pause check moved after the a0 price math
-   red (1/30):
+   red (1/32):
      - test_gov2_global_pause_sigFails_before_parsing: OracleError()
    expected red ['test_gov2_global_pause_sigFails_before_parsing'] -> missing []
    blind columns ['test_gov2_pause_does_not_block_postOp_settlement', 'test_gov2_pause_does_not_block_stale_release'] -> turned red []
    RESULT: OK
 
 == e3-pause-check-after-extractOperator: EQUIVALENT-MUTATION PROBE: pause check moved just after _extractOperator (before any external call). No observable difference is expected — recorded to state the blind spot, not hidden.
-   red (0/30):
+   red (0/32):
    equivalent-mutation probe: no test distinguishes it (as expected)
    expected red [] -> missing []
    blind columns ['test_gov2_global_pause_sigFails_before_parsing'] -> turned red []
    RESULT: OK
 
 == f-pause-blocks-postOp: GOV-2 B.6: postOp also refuses while paused
-   red (2/32):
+   red (2/34):
      - test_d5b_forward_mid_bundle_upgrade_with_extension_calls: forward: no victim postOp fails: 2 != 0
      - test_gov2_pause_does_not_block_postOp_settlement: Unauthorized()
    expected red ['test_gov2_pause_does_not_block_postOp_settlement', 'test_d5b_forward_mid_bundle_upgrade_with_extension_calls'] -> missing []
    blind columns ['test_gov2_pause_does_not_block_stale_release', 'test_gov2_global_pause_sigFails_before_parsing'] -> turned red []
    RESULT: OK
 
+== h-upgrade-allowed-with-pending-nomination: Codex D5b High: _authorizeUpgrade no longer refuses while a nomination is pending
+   red (2/32):
+     - test_gov2_rollback_cannot_carry_a_stale_nomination: next call did not revert as expected
+     - test_gov2_upgrade_refused_while_nomination_pending: next call did not revert as expected
+   expected red ['test_gov2_upgrade_refused_while_nomination_pending', 'test_gov2_rollback_cannot_carry_a_stale_nomination'] -> missing []
+   blind columns ['test_d5b_sp_inplace_upgrade_from_previous_release_preserves_state', 'test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian'] -> turned red []
+   RESULT: OK
+
 == g-transferOwnership-override-only-in-extension: §2.1: the two-step override is removed from the shared chain and re-added ONLY in the extension (dead code behind the core's selector)
-   red (9/30):
+   red (11/32):
      - test_d5b_sp_inplace_upgrade_from_previous_release_preserves_state: assertion failed: 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
      - test_gov2_misconfigured_timelock_cannot_accept: EOA still owner: misconfigured timelock is a natural abort point: 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a != 0x0000000000000000000000000000000000000a11
      - test_gov2_registry_two_step: Registry: owner unchanged after transferOwnership: 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
+     - test_gov2_rollback_cannot_carry_a_stale_nomination: Error != expected error: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11) != PendingOwnershipTransfer(0x0000000000000000000000000000000000
      - test_gov2_sp_accept_only_by_pending_and_clears_it: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000A12)
      - test_gov2_sp_nomination_replace_and_cancel: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11)
      - test_gov2_sp_pendingOwner_erc7201_slot: nominee stored in the ERC-7201 slot: 0x0000000000000000000000000000000000000000000000000000000000000000 != 0x000000000000000000000000000000000000000000000000000
      - test_gov2_sp_transferOwnership_emits_started_by_proxy: OwnershipTransferred != expected OwnershipTransferStarted
      - test_gov2_sp_transferOwnership_via_proxy_is_two_step: owner unchanged after transferOwnership (two-step): 0x0000000000000000000000000000000000000A12 != 0x0000000000000000000000000000000000000a11
      - test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian: EOA still owner after step 1 (nomination only): 0xc7183455a4C133Ae270771860664b6B7ec320bB1 != 0x0000000000000000000000000000000000000a11
+     - test_gov2_upgrade_refused_while_nomination_pending: Error != expected error: OwnableUnauthorizedAccount(0x0000000000000000000000000000000000000a11) != PendingOwnershipTransfer(0x0000000000000000000000000000000000
    expected red ['test_gov2_sp_transferOwnership_via_proxy_is_two_step'] -> missing []
    blind columns ['test_gov2_sp_transferOwnership_requires_owner'] -> turned red []
    RESULT: OK

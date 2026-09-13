@@ -11,7 +11,7 @@
     5c done. Registry impl: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
 
 === A / runbook 5: SP rc -> D5b (EOA): deploy-impl + direct-upgrade ===
-    SP impl ready (default build, immutables == live, headroom >= 1,024): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13571
     new implementation (pass as TL_NEW_IMPL): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
@@ -21,23 +21,23 @@
 
 === B / M1: two-step transfer to the timelock + ONE scheduleBatch ===
   after step 1: SP.owner=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 pendingOwner=0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
-    M1 batch scheduled; ready at: 1789463874
+    M1 batch scheduled; ready at: 1789467671
   negative ok: execute-accept before 48h reverted (Error: script failed: M1: batch not ready)
     M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
   negative ok: old EOA owner upgradeToAndCall after M1 reverted (Error: Failed to estimate gas: server returned an error response: error code 3: execution reverted: custom error 0x118cdaa7: 00)
 
 === C / §10.7b C: timelock-aware upgrade (SP then Registry) ===
-    SP impl ready (default build, immutables == live, headroom >= 1,024): 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13504
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13571
     new implementation (pass as TL_NEW_IMPL): 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1
-    scheduled; ready at: 1789636681
+    scheduled; ready at: 1789640479
   negative ok: execute-upgrade SP before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x24B3c7704709ed1491473F30393FFc93cFB0FC34
     SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
     SuperPaymaster: raw slots 0..N-1 byte-identical, N = 65
-    Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23258
+    Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
     new implementation (pass as TL_NEW_IMPL): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE
-    scheduled; ready at: 1789809487
+    scheduled; ready at: 1789813288
   negative ok: execute-upgrade REGISTRY before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
     Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15

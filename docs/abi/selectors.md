@@ -1684,6 +1684,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x9996b315` | `AddressEmptyCode(address)` | GTokenStaking |
 | `0x999802f0` | `OnlyDAO()` | MySBT |
 | `0x9aec0022` | `SlashQueueProofAlreadyUsed(bytes32)` | BLSAggregator |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` | Registry |
 | `0x9cbe2357` | `NonTransferable()` | MySBT |
 | `0x9ce0e962` | `DebtAlreadyRecorded(bytes32)` | xPNTsToken |
 | `0x9e79f854` | `ERC20ExceededCap(uint256,uint256)` | GToken |

@@ -2,9 +2,9 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    [artifact] default artifact OK: Registry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23258
-    Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23258
-    scheduled; ready at: 1789809487
+    [artifact] default artifact OK: Registry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
+    Registry impl ready (default build, runs=200): 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
+    scheduled; ready at: 1789813288
   0x6aca9ea9645cf3484a92f4b5e5680664ce05ef04fcaf0c2d4126447192a113e0
 
 ## Setting up 1 EVM.
@@ -13,11 +13,11 @@ Script ran successfully.
 
 Chain 31337
 
-Estimated gas price: 0.126670575 gwei
+Estimated gas price: 0.127361923 gwei
 
 Estimated total gas used for script: 78698
 
-Estimated amount required: 0.00000996872091135 ETH
+Estimated amount required: 0.000010023128616254 ETH
 
 ==========================
 

@@ -252,6 +252,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         TimelockController tl = _timelock(c);
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
+        require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
         if (isSP) _requireSPImplReady(impl, c);
         else _requireRegistryImplReady(impl);
         bytes memory data = _upgradeCall(impl);
@@ -277,6 +278,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         bytes memory data = _upgradeCall(impl);
         bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
         require(tl.isOperationReady(id), "execute: operation not ready (not scheduled, or minDelay not elapsed)");
+        require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
         address owner = ID5bOwned(proxy).owner();
         Bls3 memory bls = _bls(c);
         bytes32[] memory before = _slots(proxy, isSP ? SP_LAYOUT_END : REGISTRY_LAYOUT_END);
@@ -305,6 +307,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     function directUpgrade(Cfg memory c, bool isSP, address impl, address owner) public {
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == owner, "direct-upgrade: owner is not the broadcaster (after M1 use schedule/execute)");
+        require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
         if (isSP) _requireSPImplReady(impl, c);
         else _requireRegistryImplReady(impl);
         Bls3 memory bls = _bls(c);

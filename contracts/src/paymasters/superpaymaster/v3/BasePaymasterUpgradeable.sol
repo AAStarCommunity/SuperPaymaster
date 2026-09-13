@@ -41,7 +41,8 @@ abstract contract BasePaymasterUpgradeable is IPaymaster, Ownable2StepNamespaced
     // UUPS Authorization
     // ====================================
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    /// @dev GOV-2: no implementation change while a two-step nomination is pending (see Ownable2StepNamespaced).
+    function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
 
     // ====================================
     // EntryPoint Stake Management

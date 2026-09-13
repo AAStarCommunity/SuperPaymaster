@@ -1073,7 +1073,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 52 · **Events:** 24 · **Errors:** 39
+- **Functions:** 52 · **Events:** 24 · **Errors:** 40
 
 ### Function selector index
 
@@ -1768,6 +1768,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |
 | `0x51618d53` | `ProposalAlreadyExecuted()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x6dd4f06c` | `RoleAlreadyGranted(bytes32,address)` |
@@ -7010,7 +7011,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BasePaymasterUpgradeable
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
-- **Functions:** 17 · **Events:** 4 · **Errors:** 11
+- **Functions:** 17 · **Events:** 4 · **Errors:** 12
 - **Title:** BasePaymasterUpgradeable
 - UUPS-compatible base paymaster for ERC-4337 v0.7
 
@@ -7214,6 +7215,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
 
@@ -7503,7 +7505,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 56 · **Events:** 45 · **Errors:** 38
+- **Functions:** 56 · **Events:** 45 · **Errors:** 39
 - **Title:** SuperPaymaster (CORE)
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -8218,6 +8220,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |
 | `0x8890295d` | `PostOpGasTooLow()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
@@ -8232,7 +8235,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 88 · **Events:** 45 · **Errors:** 37
+- **Functions:** 88 · **Events:** 45 · **Errors:** 38
 - **Title:** SuperPaymasterAdmin (EXTENSION)
 - Governance, administration and non-hot-path views of SuperPaymaster 5.5.0 (D5b).
 
@@ -9263,6 +9266,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |
 | `0x8890295d` | `PostOpGasTooLow()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x5274afe7` | `SafeERC20FailedOperation(address)` |
@@ -9605,7 +9609,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterStorage
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
-- **Functions:** 45 · **Events:** 42 · **Errors:** 35
+- **Functions:** 45 · **Events:** 42 · **Errors:** 36
 - **Title:** SuperPaymasterStorage
 - D5b: the ONE storage/inheritance chain shared by the SuperPaymaster core and its         SuperPaymasterAdmin extension (reached from the core's fallback via DELEGATECALL).
 
@@ -10168,6 +10172,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |
 | `0x8890295d` | `PostOpGasTooLow()` |
 | `0x3ee5aeb5` | `ReentrancyGuardReentrantCall()` |
 | `0x82c6707e` | `ScoreExceedsUint32()` |
@@ -20259,7 +20264,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Ownable2StepNamespaced
 
 - **Source:** `contracts/src/utils/Ownable2StepNamespaced.sol`
-- **Functions:** 5 · **Events:** 2 · **Errors:** 3
+- **Functions:** 5 · **Events:** 2 · **Errors:** 4
 - **Title:** Ownable2StepNamespaced
 - GOV-2 (spec 03 §10.7b, "GOV-2 规范（第 3 版）" A/B): two-step ownership transfer for the         UUPS proxies SuperPaymaster and Registry, WITHOUT touching their sequential storage.
 
@@ -20333,3 +20338,4 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0x3df11b96` | `OwnershipRenounceDisabled()` |
+| `0x9b1d94fe` | `PendingOwnershipTransfer(address)` |

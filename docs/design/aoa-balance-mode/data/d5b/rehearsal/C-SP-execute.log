@@ -3,7 +3,7 @@ Script ran successfully.
 
 == Logs ==
     [artifact] default artifact OK: ERC1967Proxy 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9 100
-    [artifact] default artifact OK: SuperPaymaster 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13504
+    [artifact] default artifact OK: SuperPaymaster 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1 13571
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x24B3c7704709ed1491473F30393FFc93cFB0FC34
     SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
@@ -15,11 +15,11 @@ Script ran successfully.
 
 Chain 31337
 
-Estimated gas price: 0.165357405 gwei
+Estimated gas price: 0.166256515 gwei
 
-Estimated total gas used for script: 78825
+Estimated total gas used for script: 81780
 
-Estimated amount required: 0.000013034297449125 ETH
+Estimated amount required: 0.0000135964577967 ETH
 
 ==========================
 

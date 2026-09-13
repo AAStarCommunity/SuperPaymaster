@@ -13,9 +13,9 @@ Warning: Your project has missing dependencies that could not be installed.
 No files changed, compilation skipped
 
 Ran 5 tests for contracts/test/v2/SuperPaymasterV55Fuzz.t.sol:SuperPaymasterV55FuzzTest
-[PASS] testFuzz_G2_I8_I9_I10_conservation(uint256) (runs: 1000, μ: 11868927, ~: 11172223)
-[PASS] testFuzz_G2_floor_params(uint256) (runs: 1000, μ: 12539445, ~: 11984451)
-[PASS] testFuzz_G2_noOOGBand_direct_postOp(uint256,bool) (runs: 1000, μ: 315845, ~: 335259)
+[PASS] testFuzz_G2_I8_I9_I10_conservation(uint256) (runs: 1000, μ: 11843605, ~: 11167770)
+[PASS] testFuzz_G2_floor_params(uint256) (runs: 1000, μ: 12638038, ~: 12087193)
+[PASS] testFuzz_G2_noOOGBand_direct_postOp(uint256,bool) (runs: 1000, μ: 315602, ~: 335259)
 [PASS] test_G2_coverage_replay_fixed_seeds() (gas: 52170121)
 Logs:
   G2 campaign: seeds 1000 bundles executed 2531
@@ -104,6 +104,6 @@ Logs:
     buffer: C_POSTOP / C_WRAP / old formula 175000 5000 0
     SUBSIDY: ops / total wei / max ppm 0 0 0
 
-Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 35.53s (98.48s CPU time)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 41.87s (113.58s CPU time)
 
-Ran 1 test suite in 35.54s (35.53s CPU time): 5 tests passed, 0 failed, 0 skipped (5 total tests)
+Ran 1 test suite in 41.88s (41.87s CPU time): 5 tests passed, 0 failed, 0 skipped (5 total tests)

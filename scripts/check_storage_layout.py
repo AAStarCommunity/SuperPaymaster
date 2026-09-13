@@ -32,6 +32,7 @@ Usage:
                                                              # then empty the allow-list)
 """
 import copy
+import hashlib
 import json
 import os
 import re
@@ -180,6 +181,16 @@ def check(layouts=None, quiet=False):
             print(f"MISSING snapshot {snap_path} — run: python3 scripts/check_storage_layout.py update")
             failed = True
             continue
+        # The baseline itself is pinned (Codex D5b review, Medium): `update` rewrites the snapshot, and
+        # a rewritten snapshot would make any drift "unchanged". The pin lives in the reviewed
+        # allow-list, so replacing a baseline takes a second, explicit edit that shows up in review.
+        pin = (allow_all.get(contract) or {}).get("baseline_sha256")
+        got = hashlib.sha256(open(snap_path, "rb").read()).hexdigest()
+        if pin != got:
+            failed = True
+            print(f"BASELINE CHANGED  {snap_path}: sha256 {got} != pinned {pin} in {ALLOW_PATH} — a snapshot "
+                  f"may only be replaced deliberately (update the pin in the same reviewed change)")
+            continue
         old = json.load(open(snap_path))
         problems = compare(old, cur, allow_all.get(contract))
         if not problems:
@@ -262,6 +273,8 @@ def negative_control():
             s = open(p).read()
             assert frm in s and "Ownable2StepNamespaced," in s, rel
             s = s.replace(frm, oz).replace("Ownable2StepNamespaced,", "Ownable2Step,")
+            # OZ Ownable2Step has no namespaced-pending helper; drop the upgrade guard in the scratch
+            s = s.replace(" _requireNoPendingOwner(); ", " ")
             open(p, "w").write(s)
         layouts = {c: current_layout(c, cwd=tmp) for c in CONTRACTS}
     finally:
@@ -290,7 +303,8 @@ def main():
             with open(snap_path, "w") as f:
                 json.dump(cur, f, indent=2)
                 f.write("\n")
-            print(f"updated {snap_path} ({len(cur)} slots) — now empty {ALLOW_PATH}'s appended lists")
+            print(f"updated {snap_path} ({len(cur)} slots) — now empty {ALLOW_PATH}'s appended lists and "
+                  f"re-pin baseline_sha256 = {hashlib.sha256(open(snap_path, 'rb').read()).hexdigest()}")
         return
     sys.exit(1 if check() else 0)
 

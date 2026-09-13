@@ -3,7 +3,7 @@ Script ran successfully.
 
 == Logs ==
     [artifact] default artifact OK: ERC1967Proxy 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 100
-    [artifact] default artifact OK: Registry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23258
+    [artifact] default artifact OK: Registry 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE 23306
     Registry read-back OK: impl / version / owner / pendingOwner == 0; version = Registry-5.9.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
     Registry: raw slots 0..N-1 byte-identical, N = 74
@@ -14,11 +14,11 @@ Script ran successfully.
 
 Chain 31337
 
-Estimated gas price: 0.101799295 gwei
+Estimated gas price: 0.102364565 gwei
 
-Estimated total gas used for script: 78819
+Estimated total gas used for script: 81814
 
-Estimated amount required: 0.000008023718632605 ETH
+Estimated amount required: 0.00000837485452091 ETH
 
 ==========================
 

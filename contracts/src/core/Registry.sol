@@ -969,7 +969,8 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         }
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    /// @dev GOV-2: no implementation change while a two-step nomination is pending (see Ownable2StepNamespaced).
+    function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
 
     /// @notice Monotonic nonce for blacklist BLS proofs (P0-3 replay protection).
     uint256 public blacklistNonce;

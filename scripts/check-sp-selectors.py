@@ -147,12 +147,14 @@ def check(core, ext, base, reg, contracts):
             if cname == "SuperPaymaster" and sig in ext_only_sigs:
                 problems.append(f"R4 {cname}: GOV-2 selector {sig} is extension-only (§2.1: dead code)")
             who, d = effective(contracts, cname, fn)
-            if who not in (GOV2_BASE, cname):
+            # EXACTLY the shared base: a local override in the core / Registry is not accepted even with
+            # onlyOwner, because a name-level check cannot see its body (Codex D5b review, Low).
+            if who != GOV2_BASE:
                 problems.append(f"R4 {cname}: effective {fn} is {who}'s, not the {GOV2_BASE} override")
             if fn == "transferOwnership" and d is not None and "onlyOwner" not in d["modifiers"]:
                 problems.append(f"R4 {cname}: effective transferOwnership ({who}) lacks onlyOwner")
         who, _ = effective(contracts, cname, "_transferOwnership")
-        if who not in (GOV2_BASE, cname):
+        if who != GOV2_BASE:
             problems.append(f"R4 {cname}: effective _transferOwnership is {who}'s (pending not cleared)")
     return problems, ext_only
 

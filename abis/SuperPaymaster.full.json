@@ -2061,6 +2061,17 @@
     },
     {
       "type": "error",
+      "name": "PendingOwnershipTransfer",
+      "inputs": [
+        {
+          "name": "pendingOwner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
       "name": "PostOpGasTooLow",
       "inputs": []
     },

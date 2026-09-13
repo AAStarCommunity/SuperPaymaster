@@ -40,6 +40,19 @@ abstract contract Ownable2StepNamespaced is Ownable {
     /// @notice renounceOwnership is disabled (GOV-2 B.4): an ownerless proxy can never be upgraded.
     error OwnershipRenounceDisabled();
 
+    /// @notice An implementation change was attempted while a nomination is pending.
+    error PendingOwnershipTransfer(address pendingOwner);
+
+    /// @dev Called from `_authorizeUpgrade`. A rollback to a pre-GOV-2 implementation (single-step
+    ///      OZ Ownable, which neither reads nor clears the ERC-7201 slot) would otherwise let a stale
+    ///      nomination survive an owner change made under that implementation and be accepted after
+    ///      the next forward upgrade (Codex D5b review, High). Cancel with transferOwnership(address(0))
+    ///      before upgrading.
+    function _requireNoPendingOwner() internal view {
+        address p = pendingOwner();
+        if (p != address(0)) revert PendingOwnershipTransfer(p);
+    }
+
     /// @notice The nominated owner; address(0) when there is no pending transfer.
     function pendingOwner() public view virtual returns (address p) {
         bytes32 slot = OWNERSHIP_2STEP_SLOT;

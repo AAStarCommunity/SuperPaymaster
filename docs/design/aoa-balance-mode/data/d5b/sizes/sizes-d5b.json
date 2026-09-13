@@ -8,8 +8,8 @@
       "runs": 500,
       "evm": "cancun",
       "viaIR": true,
-      "runtimeBytes": 13504,
-      "headroom": 11072,
+      "runtimeBytes": 13571,
+      "headroom": 11005,
       "sourceKeccakMatchesTree": true
     },
     {
@@ -18,8 +18,18 @@
       "runs": 200,
       "evm": "cancun",
       "viaIR": true,
-      "runtimeBytes": 13115,
-      "headroom": 11461,
+      "runtimeBytes": 13163,
+      "headroom": 11413,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/v3/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13163,
+      "headroom": 11413,
       "sourceKeccakMatchesTree": true
     },
     {
@@ -28,8 +38,8 @@
       "runs": 500,
       "evm": "cancun",
       "viaIR": true,
-      "runtimeBytes": 17897,
-      "headroom": 6679,
+      "runtimeBytes": 19208,
+      "headroom": 5368,
       "sourceKeccakMatchesTree": true
     },
     {
@@ -38,8 +48,18 @@
       "runs": 200,
       "evm": "cancun",
       "viaIR": true,
-      "runtimeBytes": 17568,
-      "headroom": 7008,
+      "runtimeBytes": 18885,
+      "headroom": 5691,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/v3/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 18885,
+      "headroom": 5691,
       "sourceKeccakMatchesTree": true
     },
     {
@@ -68,8 +88,8 @@
       "runs": 200,
       "evm": "cancun",
       "viaIR": true,
-      "runtimeBytes": 23258,
-      "headroom": 1318,
+      "runtimeBytes": 23306,
+      "headroom": 1270,
       "sourceKeccakMatchesTree": true
     },
     {

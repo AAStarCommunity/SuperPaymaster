@@ -64,6 +64,6 @@ Logs:
   EntryPoint wrap upper bound / C_WRAP 1770 5000
   max minLimit (entry-guard bound) / MIN_POST_OP_GAS 162242 175000
 
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 28.68ms (43.43ms CPU time)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 29.77ms (40.90ms CPU time)
 
-Ran 1 test suite in 39.23ms (28.68ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)
+Ran 1 test suite in 32.42ms (29.77ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

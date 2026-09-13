@@ -76,7 +76,8 @@ contract SuperPaymasterLens is IVersioned {
         return "SuperPaymasterLens-1.2.0";
     }
 
-    /// @dev D5b: `paused()` is an extension selector, reached through SP's fallback (D5b-design §2.3).
+    /// @dev D5b: `paused()` is the public getter of SuperPaymasterStorage, answered by the core itself
+    ///      (only `gasParams()` is reached through the fallback, D5b-design §2.3).
     ///      A pre-D5b 5.5.0 core has neither the selector nor a fallback → the staticcall fails and the
     ///      lens reports "not paused", which is exactly what that implementation's validation does.
     function _globallyPaused(address sp) private view returns (bool) {

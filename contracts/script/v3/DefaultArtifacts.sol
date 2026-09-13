@@ -200,6 +200,31 @@ contract T4ArtifactReader is Script {
         try vm.parseJsonBytes32(j, string.concat("$.metadata.sources['", src, "'].keccak256")) returns (bytes32 k) {
             if (k != srcHash) return false;
         } catch { return false; }
+        return _localImportsFresh(j);
+    }
+
+    /// @notice Every first-party source in the build (contracts/src/**, i.e. the target's IMPORTS
+    ///         too) must equal the file on disk. Checking only the compilation target let a stale
+    ///         artifact through when just an imported base changed — e.g. SuperPaymasterStorage.sol
+    ///         or Ownable2StepNamespaced.sol under an unchanged SuperPaymaster.sol (Codex D5b
+    ///         review, Medium). Dependencies under lib/ are pinned by the submodule commits.
+    function _localImportsFresh(string memory j) internal view returns (bool) {
+        string[] memory keys;
+        try vm.parseJsonKeys(j, "$.metadata.sources") returns (string[] memory k) {
+            keys = k;
+        } catch {
+            return false;
+        }
+        for (uint256 i; i < keys.length; ++i) {
+            if (!_startsWith(keys[i], "contracts/src/")) continue;
+            (bool ok, string memory body) = _tryRead(keys[i]);
+            if (!ok) return false;
+            try vm.parseJsonBytes32(j, string.concat("$.metadata.sources['", keys[i], "'].keccak256")) returns (bytes32 k) {
+                if (k != keccak256(bytes(body))) return false;
+            } catch {
+                return false;
+            }
+        }
         return true;
     }
 

@@ -550,8 +550,8 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertGt(address(ext).code.length, 0);
     }
 
-    /// @notice §2.3: the lens reads gasParams() and paused() — both extension selectors — through the
-    ///         core's fallback, and still agrees with validation, including under a global pause.
+    /// @notice §2.3: the lens reads gasParams() (an extension selector, through the core's fallback) and
+    ///         paused() (a core getter), and still agrees with validation, including under a global pause.
     function test_d5b_lens_through_fallback_agrees_with_validation() public {
         PackedUserOperation memory op = _op(0);
         bytes32 h = entryPoint.getUserOpHash(op);
@@ -764,5 +764,57 @@ contract SuperPaymasterD5bGov2Test is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(wrong)));
         wrong.execute(address(sp), 0, data, bytes32(0), bytes32(0));
         assertEq(sp.owner(), owner, "EOA still owner: misconfigured timelock is a natural abort point");
+    }
+
+    // =====================================================================
+    // Codex D5b review (High): a nomination must not survive a rollback to single-step Ownable
+    // =====================================================================
+
+    function test_gov2_upgrade_refused_while_nomination_pending() public {
+        address newImpl = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        vm.prank(owner);
+        sp.transferOwnership(stranger);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable2StepNamespaced.PendingOwnershipTransfer.selector, stranger));
+        sp.upgradeToAndCall(newImpl, "");
+        vm.prank(owner);
+        sp.transferOwnership(address(0)); // cancel
+        vm.prank(owner);
+        sp.upgradeToAndCall(newImpl, "");
+        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), newImpl, "upgrade allowed once cancelled");
+
+        Registry r = _registryProxy(owner);
+        address newReg = address(new Registry());
+        vm.prank(owner);
+        r.transferOwnership(stranger);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable2StepNamespaced.PendingOwnershipTransfer.selector, stranger));
+        r.upgradeToAndCall(newReg, "");
+    }
+
+    /// @notice nominate → (rollback refused) → cancel → rollback to c30854f9 → owner change under the
+    ///         single-step implementation → forward upgrade: the old nominee has nothing to accept.
+    function test_gov2_rollback_cannot_carry_a_stale_nomination() public {
+        address oldImpl = _deployFixture("contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
+            abi.encode(address(entryPoint), address(registry), address(feed)));
+        vm.prank(owner);
+        sp.transferOwnership(stranger);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable2StepNamespaced.PendingOwnershipTransfer.selector, stranger));
+        sp.upgradeToAndCall(oldImpl, "");
+        vm.startPrank(owner);
+        sp.transferOwnership(address(0));
+        sp.upgradeToAndCall(oldImpl, ""); // rollback to the single-step release
+        sp.transferOwnership(newOwner);    // OZ single-step under the old implementation
+        vm.stopPrank();
+        assertEq(sp.owner(), newOwner, "precondition: single-step transfer under the previous release");
+        address d5b = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        vm.prank(newOwner);
+        sp.upgradeToAndCall(d5b, "");
+        assertEq(sp.pendingOwner(), address(0), "no stale nomination after the round trip");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sp.acceptOwnership();
+        assertEq(sp.owner(), newOwner);
     }
 }

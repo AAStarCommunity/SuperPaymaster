@@ -2,11 +2,11 @@ No files changed, compilation skipped
 Script ran successfully.
 
 == Logs ==
-    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13571
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
-    SP impl ready (default build, immutables == live, headroom >= 1,024): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13571
     [artifact] default artifact OK: ERC1967Proxy 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9 100
-    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13571
     [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
     SuperPaymaster read-back OK: impl / version / owner / pendingOwner == 0; version = SuperPaymaster-5.5.0
     BLS three legs unchanged (SP / Registry / DVT): 0x0000000000000000000000000000000000000b15 0x0000000000000000000000000000000000000b15
@@ -18,11 +18,11 @@ Script ran successfully.
 
 Chain 31337
 
-Estimated gas price: 0.480756623 gwei
+Estimated gas price: 0.480802013 gwei
 
 Estimated total gas used for script: 51950
 
-Estimated amount required: 0.00002497530656485 ETH
+Estimated amount required: 0.00002497766457535 ETH
 
 ==========================
 

@@ -98,6 +98,16 @@ MUTATIONS = [
         "suites": [GOV2, RACE],
     },
     {
+        "name": "h-upgrade-allowed-with-pending-nomination",
+        "what": "Codex D5b High: _authorizeUpgrade no longer refuses while a nomination is pending",
+        "edits": [("contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+                   "function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }",
+                   "function _authorizeUpgrade(address) internal override onlyOwner {}")],
+        "red": ["test_gov2_upgrade_refused_while_nomination_pending", "test_gov2_rollback_cannot_carry_a_stale_nomination"],
+        "blind": ["test_d5b_sp_inplace_upgrade_from_previous_release_preserves_state",
+                  "test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian"],
+    },
+    {
         "name": "g-transferOwnership-override-only-in-extension",
         "what": ("§2.1: the two-step override is removed from the shared chain and re-added ONLY in the "
                  "extension (dead code behind the core's selector)"),
