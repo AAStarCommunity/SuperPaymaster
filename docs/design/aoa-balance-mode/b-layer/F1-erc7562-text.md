@@ -7,7 +7,7 @@
 | 版本 | 位置 | sha256 | 行数 | "MUST first validate them together" | GREP-040 |
 |---|---|---|---|---|---|
 | A：`ethereum/ERCs` master `84b46e7d`（2026-09-13 从 GitHub raw 取得） | `ERCS/erc-7562.md` | `c272039c7b74…62ac4c` | 426 | **L384**：`- A bundler MAY include multiple \`UserOperation\`s of the same account in a bundle, but MUST first validate them together.` | L248 |
-| B：本仓库子模块 `standards/ercs`（本机 `git submodule status` 显示 `c6d2d5e3ac26…`；DSR 转述为 `5cbe19bd`，**两者提交号不一致，但文件 sha256 相同**） | `standards/ercs/ERCS/erc-7562.md` | `dd12ceaf8c0e…9c4d16` | 442 | **L387**：`- (A bundler MAY include multiple UserOperations of the same account in a bundle, but MUST first validate them together)` | L248（措辞略有不同："fails the bundle creation after passing second validation"） |
+| B：本仓库子模块 `standards/ercs` @ **`c6d2d5e3ac261769cec2fb49b3e382fe2bf21e88`**（`git submodule status` 和 `git ls-tree HEAD standards/ercs` 都是这个；DSR 最初给的 `5cbe19bd` 是父仓库里最后一次修改子模块指针的提交，已由 DSR 更正） | `standards/ercs/ERCS/erc-7562.md` | `dd12ceaf8c0e…9c4d16` | 442 | **L387**：`- (A bundler MAY include multiple UserOperations of the same account in a bundle, but MUST first validate them together)` | L248（措辞略有不同："fails the bundle creation after passing second validation"） |
 
 **注意这句话的形式**：在两个版本里，它都位于 **§Rationale for limiting storage access**，是这一节第二个要点里的一句话；版本 B 原文**用括号括起来，是一条括号注释**，版本 A 去掉了括号。两个版本都不在 Specification 的编号规则清单里。下表的行号按版本 A 标注。
 
@@ -27,8 +27,8 @@
 
 1. **SP 5.5.0 的存储访问符合 ERC-7562**：验证期只读写与 sender 关联的槽（STO-021），以及已质押实体自己的存储和只读（STO-031/033）。B 层 106 次模拟逐行对照，清单外访问为 0。
 2. **规范预见了"同一账户的多笔 op 在验证期相互依赖"这一情形，并要求 bundler 先把它们放在一起验证**（L384）。按这个要求，B2b 的第 3 笔会在（联合的）第二次验证时失败，按 §Running 第 5 条从 bundle 里丢掉即可。按条文推导：此时 GREP-040 **不适用**（它的前提是"通过了第二次验证、却在 bundle 创建时失败"），SP 只会按常规比例记一次 opsSeen，不会被立即封禁。**这是推论，尚未在做联合验证的 bundler 上实测**（Alto v1.2.5 的 B2b 结果——提交时就拒绝第 3 笔、SP 信誉不受影响——与这个推论一致，但 Alto 走的是提交时联合模拟，不是第二次验证）。
-3. 已观测到的事实（B 层 B2b，`B1-B10.md`）：Rundler v0.11.0 把同一 sender 的 3 笔 op 放进同一个 bundle，在整 bundle 模拟时第 3 笔以 AA34 失败，于是按 GREP-040 立即封禁 paymaster。**"其第二次验证是逐笔各自进行的"这一机制解释尚待源码核查。**如果核查成立，**它与 L384 的"MUST first validate them together"不一致**。所以 F1 更准确的定性是：**Rundler 在同一 sender 多笔 op 上没有实现联合验证 × SP 验证期托管设计的交互**，而不是 SP 违反了 ERC-7562。（"Rundler 的第二次验证是否逐笔进行"由对照实验和代码核实，见 `F1-investigation.md`。）
-4. **保留意见**：L384 这条 MUST 写在 Rationale 一节，而 Specification 的规则清单里没有对应的编号条目（例如没有 STO-xxx 或 GREP-xxx 与之对应），所以各家 bundler 的实现可能不一致（Alto 在提交时就把同 sender 的待处理 op 排在前面一起模拟，符合这条；Rundler 不符合）。论文里不应该写成"Rundler 违反规范"，而应写成：**"ERC-7562 在其 Rationale 中要求 bundler 对同一账户的多笔 UserOperation 做联合验证；在不做联合验证的 bundler 上，任何验证期托管型 paymaster 都会触发 GREP-040 的连带封禁。"** 这句话是否成立，取决于 TokenPaymaster 对照实验的结果（调查 1）。
+3. 已观测到的事实（B 层 B2b，`B1-B10.md`）：Rundler v0.11.0 在提交时接受了同一 sender 的全部 3 笔 op，把它们放进同一个 bundle；在整 bundle 模拟时第 3 笔以 AA34 失败，随后 paymaster 被置为 BANNED（信誉读回 `opsSeen 0x2710`、状态 2）。**造成这一结果的机制尚未确认**：可能是第二次验证逐笔针对基础状态进行（没有联合验证），也可能是别的原因。这要由 Rundler 源码核查（file:line）和调查 1 来判定。**只有在核查确认"第二次验证没有联合进行"之后**，才能说它与 L384 的"MUST first validate them together"不一致，也才能把 F1 定性为"bundler 未做联合验证 × 验证期托管设计"的交互。在此之前，F1 的定性只是"观测到的交互，机制待定"；可以确定的只有一点：SP 的存储访问本身符合 ERC-7562（本节第 1 条）。
+4. **保留意见**：L384 这条 MUST 写在 Rationale 一节，而 Specification 的规则清单里没有对应的编号条目（例如没有 STO-xxx 或 GREP-xxx 与之对应），所以各家 bundler 的实现可能不一致。已观测到：Alto v1.2.5 在提交时就把同 sender 的待处理 op 排在前面一起模拟（B2b 的第 3 笔在提交时被拒）；Rundler v0.11.0 在提交时接受了全部 3 笔。**Rundler 的第二次验证是否联合进行，尚待源码核查**，在此之前不下"符合"或"不符合"的结论。论文里不应该写成"Rundler 违反规范"，而应写成：**"ERC-7562 在其 Rationale 中要求 bundler 对同一账户的多笔 UserOperation 做联合验证；在不做联合验证的 bundler 上，任何验证期托管型 paymaster 都会触发 GREP-040 的连带封禁。"** 这句话是否成立，取决于 TokenPaymaster 对照实验的结果（调查 1）。
 
 ## 3. 对缓解方案的含义
 
