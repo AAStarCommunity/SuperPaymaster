@@ -34,8 +34,8 @@ interface ISPStakeViewV2 {
  */
 contract xPNTsTokenV2Ext is xPNTsV2Base {
     uint256 public constant MAX_SINGLE_TX_LIMIT_CAP = 50_000 ether;
-    uint256 public constant EXCHANGE_RATE_MIN = 1e14;
-    uint256 public constant EXCHANGE_RATE_MAX = 1e22;
+    uint256 public constant EXCHANGE_RATE_MIN = _RATE_MIN;
+    uint256 public constant EXCHANGE_RATE_MAX = _RATE_MAX;
     uint256 public constant EXCHANGE_RATE_DELTA_BPS = 2000;
     uint256 public constant EXCHANGE_RATE_COOLDOWN = 1 hours;
     uint256 private constant BPS = 10_000;

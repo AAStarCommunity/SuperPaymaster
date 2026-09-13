@@ -34,6 +34,11 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     uint256 public constant PROTOCOL_CREDIT_CEILING = 50_000 ether; // C-0 (aPNTs)
     uint256 public constant TIMELOCK = 48 hours;                     // X4 / C-3 / S-*
     uint256 public constant TIER_SOURCE_GAS = 100_000;              // §9: forwarded-gas cap for tierOf
+    // exchangeRate range, enforced at initialize AND in updateExchangeRate. Together with
+    // reserveAPNTs <= maxSingleTxLimit <= 50_000e18 it bounds a lock's x to <= 5e26 < 2^128,
+    // so LockRec.xLocked (uint128) never truncates (I4; D5c-1 finding).
+    uint256 internal constant _RATE_MIN = 1e14;
+    uint256 internal constant _RATE_MAX = 1e22;
 
     uint8 public constant POLICY_OFF = 0;
     uint8 public constant POLICY_MANUAL = 1;

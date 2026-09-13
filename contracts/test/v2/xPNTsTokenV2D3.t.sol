@@ -750,4 +750,49 @@ contract xPNTsTokenV2D3Test is Test {
         t.tryReserveCredit(user, OP1, 1 ether);
         assertEq(t.allowance(user, sp), 0, "historical SP still reads 0");
     }
+
+    // ==================================================================
+    // I4 / D5c-1 finding: exchangeRate is range-checked at initialize, so a lock's x
+    // always fits LockRec.xLocked (uint128) and settle leaves no orphaned lockedOf.
+    // ==================================================================
+
+    function test_I4_initialize_rejects_rate_out_of_range() public {
+        address c3 = address(0xC3);
+        uint256 hi = 1e22 + 1;
+        uint256 lo = 1e14 - 1;
+        vm.prank(c3);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.ExchangeRateOutOfRange.selector, hi, 1e14, 1e22));
+        factory.deployxPNTsToken("C3", "x3", "C3", "c3.eth", hi, address(0));
+        vm.prank(c3);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.ExchangeRateOutOfRange.selector, lo, 1e14, 1e22));
+        factory.deployxPNTsToken("C3", "x3", "C3", "c3.eth", lo, address(0));
+        // positive controls: both inclusive bounds deploy
+        vm.prank(c3);
+        assertEq(xPNTsTokenV2(factory.deployxPNTsToken("C3", "x3", "C3", "c3.eth", 1e22, address(0))).exchangeRate(), 1e22);
+        address c4 = address(0xC4);
+        vm.prank(c4);
+        assertEq(xPNTsTokenV2(factory.deployxPNTsToken("C4", "x4", "C4", "c4.eth", 1e14, address(0))).exchangeRate(), 1e14);
+    }
+
+    function test_I4_max_rate_lock_records_exact_x_and_settle_clears_lockedOf() public {
+        address c3 = address(0xC3);
+        vm.prank(c3);
+        xPNTsTokenV2 t3 = xPNTsTokenV2(factory.deployxPNTsToken("C3", "x3", "C3", "c3.eth", 1e22, address(0)));
+        uint256 a0 = 5_000 ether;                   // default single-tx limit and default caps
+        uint256 x = a0 * 1e22 / 1e18;               // exact (no rounding at this rate)
+        vm.prank(c3);
+        IExt(address(t3)).mint(user, x);
+        vm.prank(sp);
+        (IxPNTsTokenV2.LockResult r, uint256 xl) = t3.tryLockForGas(user, OP1, a0, false);
+        assertEq(uint8(r), uint8(IxPNTsTokenV2.LockResult.OK));
+        assertEq(xl, x);
+        assertEq(uint256(t3.lockOf(OP1, user).xLocked), x, "recorded xLocked == locked x (no truncation)");
+        assertEq(t3.lockedOf(user), x);
+        vm.prank(sp);
+        t3.settleLocked(user, OP1, a0 / 2);
+        assertEq(t3.lockedOf(user), 0, "no orphaned lockedOf after settle");
+        assertEq(t3.balanceOf(user), x - x / 2, "burn == charge share of the exact x");
+        // the structural bound behind the fix: max x = PROTOCOL_MAX_CAP-sized reserve at the max rate
+        assertLt(uint256(50_000 ether) * 1e22 / 1e18, uint256(type(uint128).max));
+    }
 }
