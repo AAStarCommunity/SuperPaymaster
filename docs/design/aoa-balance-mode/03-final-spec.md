@@ -586,6 +586,12 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 *C. 升级流程（GOV-1 之后）*
 - M1 之后，`deploy-core` 当前走的 `UpgradeLive`（EOA 直接调用 `upgradeToAndCall`，`UpgradeLive.s.sol:131`）就不能用了。**需要一个感知 timelock 的流程**：部署新的 impl（按 default artifact、读回校验）→ 在 timelock 上 `schedule(upgradeToAndCall(impl, 初始化 calldata))` → 等 48h → `execute` → 读回 `version()` 和实现槽。这个流程随 D5b 一起实现，并在 fork 上演练。
 
+*C2. OpCtx 是升级兼容面（v3.9，Codex 对实验分支 Part B 第 2 轮审查的 High）*
+- 背景：validate 返回的 context 由 EntryPoint 保存，同一 `handleOps` 里的 postOp 会原样收到它。如果 SP 的实现**在同一个 bundle 中途**被升级（owner 是 open executor 的 TimelockController 时，一笔 UserOp 就能执行已到期的升级；即使 executor 限定为多签，只要多签本身是一个以 UserOp 方式运作的 4337 账户，同样可能），前面按旧实现验证的 op，会由新实现来执行 postOp。context 格式一旦不兼容（例如新实现读取旧 context 里并不存在的字节），postOp 就会 panic：用户的执行被撤销，gas 却由 SP 押金承担，这就是押金耗损攻击。
+- **规则**：任何 SP 升级都必须保证**上一版实现产生的 context 能被新实现正确结算**（字段含义和长度兼容；新增信息放进已有字的空闲位，并对"旧 context 缺少该字段"定义明确、安全的回退）。每次升级都要有测试覆盖"从上一个发布版本**在 bundle 中途**升级到新版本"：op0 通过 timelock 执行升级，后面按旧实现验证的 op 必须全部正常结算。
+- 纵深防御：GOV-1 的 timelock executor 只授予多签（不开放给任何人）；runbook 的升级步骤在暂停状态下进行（第 3 步暂停 operator）。**合约的正确性不依赖这两点。**
+- 目前的 5.4.2 → 5.5.0 升级由 EOA 以单独的交易执行，不存在 bundle 中途的窗口；GOV-1 生效之后的所有升级都适用本规则。
+
 *D. 门槛与测试*
 - **存储门槛**：`scripts/check_storage_layout.py` 目前只做逐字节相等的快照比对（`:98`），而 `update` 会直接覆盖基线（`:86`），所以它表达不了"只允许写明的新增槽"。D5b 要把它扩展为：与旧基线比较，只允许在列出的位置出现新增项（`__gap` 缩小、末端不变），其他一律报错；另外单独写一个测试，用 `vm.load` 断言 ERC-7201 槽的位置和内容。
 - **必须覆盖**：非 owner 提名 revert；替换提名、用零地址取消；只有被提名的人能 accept；每条 `_transferOwnership` 路径都会清空 pending；两个合约的全新初始化（包括 Registry 的零 owner 被拒）；两个代理都从当前线上的旧实现原地升级，状态读回不变；用真实的 48h TimelockController 完成两个代理的 accept；guardian 解除单个 operator 暂停被拒；全局暂停时格式错误的 op 返回 sigFail；暂停期间 postOp 和 release 照常工作。
