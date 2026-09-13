@@ -151,7 +151,8 @@ claim ledger 里那几组测试是在 `a439044` 上跑的，它的 `foundry.toml
   registry-size 问题**没有**污染已冻结或历史的 Sepolia 证据。论文的可复现说明里可以写“部署字节码 = `forge build` default artifact @ `d23ab088`（B3）/ 部署当时的唯一 profile（其余）”。
 - **T-2（按需说明）**：RepCredit 的行为测试大多在 runs=200 下编译（§3.2），测的是 registry-size 字节码。论文如果写“测试覆盖的就是部署的字节码”，要改成“同一源码，优化档不同（runs 200 vs 500）”；
   或者引用那几个 default 下编译的套件（`DVT_BLS`、`CC48VerifierConformance`、`CC115GenuinePragueCrossRepo`）。行为结论本身不受影响。
-- **T-3（需要处理，与 profile 无关）**：§5.4.3 和 §4.3.2 的 111,977 / 144,907 / 244,232 在已部署的 4.11.0 源码上复现不出来（278,837 / 416,140 / 438,270，§3.1）。
+- **T-3（与 profile 无关；影响范围已由 DSR 更正，2026-09-13）**：111,977 / 144,907 / 244,232 在已部署的 4.11.0 源码上复现不出来（重跑结果为 278,837 / 416,140 / 438,270，§3.1）。
+  **更正影响范围**：DSR 用 grep 核实过，RepCredit 的权威稿 `paper_draft_v16_iet.md` 和投稿包 `submission_IET_v16/` **都没有引用**这三个数。它们只出现在旧章节文件 `05_evaluation.md`（L146–149）和 review_rounds 的历史审稿意见里。**所以 T-3 不阻塞 RepCredit v16。** 给作者的记录：旧章节文件不能再作为数据来源；以后如果要引用 forge 的 BLS gas 数据，用在 `d23ab088` 上重跑的结果，并注明优化器配置（runs=500，via_ir）。下面几条原来的建议只适用于将来要引用这组数据的情况。
   这些数字是 2026-02 的树（runs=10000、旧版 BLSAggregator）上测的。可选：(a) 标注测量时的 commit/版本；(b) 在 `d23ab088` 上重测后替换；(c) B6 有了真实 Prague 回执以后，只保留回执。
   补充：常数项（配对）/线性项（重建）的划分不受这点影响，只是绝对值变了。
 - **T-4（事前防范）**：第 10 步重新采集时，如果部署**新栈**，不要用 `DeployRepCreditSepolia` / `DeployLive` 现在的 `new` 路径部署 BLSAggregator、DVTValidator、GTokenStaking 等：它们 import 了 Registry.sol，按 D5 §8 的机制会部署出 registry-size 版本（HEAD 下 BLSAggregator 是 23,940 B，不是 24,345 B）。
