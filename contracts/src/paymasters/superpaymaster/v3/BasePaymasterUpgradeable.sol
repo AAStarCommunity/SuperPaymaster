@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import "../../../utils/Ownable2StepNamespaced.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -13,8 +13,10 @@ import "@account-abstraction-v7/core/Helpers.sol";
  * @notice UUPS-compatible base paymaster for ERC-4337 v0.7
  * @dev Keeps entryPoint as immutable (stored in implementation bytecode).
  *      On upgrade, deploy new implementation with same entryPoint address.
+ *      D5b GOV-2: ownership is two-step (Ownable2StepNamespaced: pending owner in an ERC-7201 slot,
+ *      renounce disabled); the sequential layout is still exactly OZ Ownable's (`_owner` at slot 0).
  */
-abstract contract BasePaymasterUpgradeable is IPaymaster, Ownable, Initializable, UUPSUpgradeable {
+abstract contract BasePaymasterUpgradeable is IPaymaster, Ownable2StepNamespaced, Initializable, UUPSUpgradeable {
     /// @notice The EntryPoint contract (immutable for gas savings on hot path)
     IEntryPoint public immutable entryPoint;
 

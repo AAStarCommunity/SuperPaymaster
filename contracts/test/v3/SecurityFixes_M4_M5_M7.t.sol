@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -50,7 +52,7 @@ contract MockOracleV4 {
 }
 
 // -----------------------------------------------------------------------
-// M-4: SuperPaymaster.configureOperator() exchangeRate uint96 overflow
+// M-4: SuperPaymasterAdmin.configureOperator() exchangeRate uint96 overflow
 // -----------------------------------------------------------------------
 
 /**
@@ -141,7 +143,7 @@ contract M4_ExchangeRateOverflowTest is Test {
         for (uint256 i; i < bad.length; i++) {
             mockFactory.setToken(OPERATOR, bad[i]); // factory binding satisfied
             vm.prank(OPERATOR);
-            vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+            vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
             paymaster.configureOperator(bad[i], TREASURY);
             (, bool isConfigured,,,,,,, ) = paymaster.operators(OPERATOR);
             assertFalse(isConfigured, "rejected token must not configure the operator");
@@ -179,7 +181,7 @@ contract M5_InitializeZeroOwnerTest is Test {
             SuperPaymaster.initialize,
             (address(0), address(0x10), address(0x20), 3600) // owner == address(0)
         );
-        vm.expectRevert(SuperPaymaster.InvalidOwner.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidOwner.selector);
         new ERC1967Proxy(address(impl), initData);
     }
 
@@ -221,7 +223,7 @@ contract M5_InitializeZeroOwnerTest is Test {
         uint256[3] memory bad = [uint256(59), 86401, type(uint256).max];
         for (uint256 i; i < bad.length; ++i) {
             bytes memory initData = abi.encodeCall(SuperPaymaster.initialize, (address(0x42), address(0), address(0x20), bad[i]));
-            vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+            vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
             new ERC1967Proxy(address(impl), initData);
         }
         // positive controls: inclusive bounds and the 0 -> 3600 default

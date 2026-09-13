@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -192,7 +194,7 @@ contract SuperPaymasterTest is Test {
 
     function testUnregisteredOperatorCannotDeposit() public {
         vm.startPrank(address(0xdead));
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.deposit(100 ether);
         vm.stopPrank();
     }
@@ -288,7 +290,7 @@ contract SuperPaymasterTest is Test {
     function testConfigureOperator_RejectsLegacy3xToken() public {
         mockFactory.setToken(operator, address(apnts)); // factory binding satisfied
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(address(apnts), treasury);
         (, bool configured,,,,,,,) = paymaster.operators(operator);
         assertFalse(configured, "legacy token must not configure the operator");
@@ -336,7 +338,7 @@ contract SuperPaymasterTest is Test {
 
         // Operator tries to front-run by withdrawing before slash executes
         vm.prank(operator);
-        vm.expectRevert(SuperPaymaster.SlashPending.selector);
+        vm.expectRevert(SuperPaymasterStorage.SlashPending.selector);
         paymaster.withdraw(100 ether);
     }
 
@@ -382,7 +384,7 @@ contract SuperPaymasterTest is Test {
     /// @notice M-5: queueSlash reverts for callers that are neither owner nor BLS aggregator.
     function testQueueSlashUnauthorizedReverts() public {
         vm.prank(user);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.queueSlash(operator);
     }
 
@@ -460,7 +462,7 @@ contract SuperPaymasterTest is Test {
         paymaster.withdrawProtocolRevenue(treasury, withdrawable);
         assertEq(apnts.balanceOf(treasury), treasuryBalBefore + withdrawable);
         // Verify buffer prevents full drain
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientRevenue.selector));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InsufficientRevenue.selector));
         paymaster.withdrawProtocolRevenue(treasury, revenue);
         vm.stopPrank();
     }

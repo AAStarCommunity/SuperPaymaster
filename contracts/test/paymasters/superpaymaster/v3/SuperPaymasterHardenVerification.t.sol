@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "../../../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -209,7 +211,7 @@ contract SuperPaymasterHardenVerification is Test {
         address fakeToken = address(0xdead);
 
         vm.prank(community);
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InvalidXPNTsToken.selector));
         paymaster.configureOperator(fakeToken, community);
 
         // Now deploy a real one through the (v2) factory
@@ -232,7 +234,7 @@ contract SuperPaymasterHardenVerification is Test {
         vm.startPrank(community);
         address legacyToken = factory.deployxPNTsToken("Old", "OLD", "Old", "old.eth", 1e18, address(0));
         assertEq(factory.getTokenAddress(community), legacyToken, "factory binding holds");
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InvalidXPNTsToken.selector));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InvalidXPNTsToken.selector));
         paymaster.configureOperator(legacyToken, community);
         vm.stopPrank();
     }
@@ -248,7 +250,7 @@ contract SuperPaymasterHardenVerification is Test {
             abi.encode(address(mal))
         );
         vm.prank(community);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(address(mal), community);
     }
 

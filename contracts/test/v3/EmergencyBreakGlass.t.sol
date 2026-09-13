@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -101,21 +103,21 @@ contract EmergencyBreakGlassTest is Test {
         // Make Chainlink fresh again.
         oracle.setUpdatedAt(block.timestamp);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.ChainlinkNotStale.selector);
+        vm.expectRevert(SuperPaymasterStorage.ChainlinkNotStale.selector);
         paymaster.emergencySetPrice(1900e8);
     }
 
     function test_EmergencySetPrice_RejectsAboveBand() public {
         // 2000 * 1.21 = 2420 — outside the ±20% upper bound (2400).
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.EmergencyPriceOutOfRange.selector);
+        vm.expectRevert(SuperPaymasterStorage.EmergencyPriceOutOfRange.selector);
         paymaster.emergencySetPrice(2420e8);
     }
 
     function test_EmergencySetPrice_RejectsBelowBand() public {
         // 2000 * 0.79 = 1580 — below the lower bound (1600).
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.EmergencyPriceOutOfRange.selector);
+        vm.expectRevert(SuperPaymasterStorage.EmergencyPriceOutOfRange.selector);
         paymaster.emergencySetPrice(1580e8);
     }
 
@@ -136,11 +138,11 @@ contract EmergencyBreakGlassTest is Test {
 
     function test_EmergencySetPrice_RejectsZeroOrNegative() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.OracleError.selector);
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
         paymaster.emergencySetPrice(0);
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.OracleError.selector);
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
         paymaster.emergencySetPrice(-1);
     }
 
@@ -180,12 +182,12 @@ contract EmergencyBreakGlassTest is Test {
         vm.prank(owner);
         paymaster.emergencySetPrice(1900e8);
         vm.warp(block.timestamp + paymaster.EMERGENCY_TIMELOCK() - 1);
-        vm.expectRevert(SuperPaymaster.EmergencyTimelockNotElapsed.selector);
+        vm.expectRevert(SuperPaymasterStorage.EmergencyTimelockNotElapsed.selector);
         paymaster.executeEmergencyPrice();
     }
 
     function test_ExecuteEmergencyPrice_RevertsWithNothingPending() public {
-        vm.expectRevert(SuperPaymaster.NoEmergencyPending.selector);
+        vm.expectRevert(SuperPaymasterStorage.NoEmergencyPending.selector);
         paymaster.executeEmergencyPrice();
     }
 
@@ -323,7 +325,7 @@ contract EmergencyBreakGlassTest is Test {
         vm.warp(block.timestamp + 7 days + 1);
         oracle.setUpdatedAt(block.timestamp - 2 hours);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.EmergencyExpired.selector);
+        vm.expectRevert(SuperPaymasterStorage.EmergencyExpired.selector);
         paymaster.emergencySetPrice(1910e8);
     }
 

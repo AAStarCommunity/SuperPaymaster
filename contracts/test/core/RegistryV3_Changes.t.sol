@@ -93,7 +93,7 @@ contract RegistryV3_Changes_Test is Test {
         vm.stopPrank();
     }
 
-    /// @dev M-2 (#324): a reverting SuperPaymaster.updateSBTStatus must NOT deadlock exitRole and
+    /// @dev M-2 (#324): a reverting SuperPaymasterAdmin.updateSBTStatus must NOT deadlock exitRole and
     ///      freeze the user's locked stake. exitRole succeeds, emits SBTStatusSyncFailed, releases stake.
     function test_ExitRole_NonFatal_When_UpdateSBTStatus_Reverts() public {
         RevertingSP badSP = new RevertingSP();

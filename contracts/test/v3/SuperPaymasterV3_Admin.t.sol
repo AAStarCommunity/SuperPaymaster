@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "forge-std/StdStorage.sol";
@@ -254,7 +256,7 @@ contract SuperPaymaster_Admin_Test is Test {
         mockFactory.setToken(operator1, address(legacy)); // factory binding satisfied
 
         vm.prank(operator1);
-        vm.expectRevert(SuperPaymaster.InvalidXPNTsToken.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidXPNTsToken.selector);
         paymaster.configureOperator(address(legacy), address(0x444));
 
         (, bool isConfigured,, address token,,,,,) = paymaster.operators(operator1);
@@ -264,7 +266,7 @@ contract SuperPaymaster_Admin_Test is Test {
 
     function test_ConfigureOperator_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.configureOperator(address(0x555), address(0x444));
     }
 
@@ -284,7 +286,7 @@ contract SuperPaymaster_Admin_Test is Test {
 
     function test_Deposit_NotRegistered() public {
         vm.prank(user1);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.deposit(100 ether);
     }
 
@@ -309,7 +311,7 @@ contract SuperPaymaster_Admin_Test is Test {
         paymaster.deposit(100 ether);
         
         vm.prank(operator1);
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymaster.InsufficientBalance.selector, 100 ether, 200 ether));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InsufficientBalance.selector, 100 ether, 200 ether));
         paymaster.withdraw(200 ether);
     }
 
@@ -445,7 +447,7 @@ contract SuperPaymaster_Admin_Test is Test {
     ///         break of all xPNTs-dependent paths via owner misoperation.
     function test_SetXPNTsFactory_ZeroAddress_Reverts() public {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidAddress.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidAddress.selector);
         paymaster.setXPNTsFactory(address(0));
     }
 

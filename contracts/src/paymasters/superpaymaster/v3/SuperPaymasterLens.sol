@@ -69,9 +69,19 @@ contract SuperPaymasterLens is IVersioned {
     /// @dev low byte carries the IxPNTsTokenV2.LockResult / CreditResult value
     bytes32 public constant DRYRUN_LOCK_REJECTED            = bytes32("LOCK_REJECTED");
     bytes32 public constant DRYRUN_CREDIT_REJECTED          = bytes32("CREDIT_REJECTED");
+    /// @dev D5b GOV-2: global sponsorship stop (`paused()`), checked by validation before anything else.
+    bytes32 public constant DRYRUN_SPONSORSHIP_PAUSED       = bytes32("SPONSORSHIP_PAUSED");
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymasterLens-1.1.0";
+        return "SuperPaymasterLens-1.2.0";
+    }
+
+    /// @dev D5b: `paused()` is an extension selector, reached through SP's fallback (D5b-design §2.3).
+    ///      A pre-D5b 5.5.0 core has neither the selector nor a fallback → the staticcall fails and the
+    ///      lens reports "not paused", which is exactly what that implementation's validation does.
+    function _globallyPaused(address sp) private view returns (bool) {
+        (bool ok, bytes memory ret) = sp.staticcall(abi.encodeWithSignature("paused()"));
+        return ok && ret.length >= 32 && abi.decode(ret, (bool));
     }
 
     function _minPostOpGas(ISPLensView s) private view returns (uint256) {
@@ -86,6 +96,7 @@ contract SuperPaymasterLens is IVersioned {
     {
         ISPLensView s = ISPLensView(sp);
         if (keccak256(bytes(s.version())) != EXPECTED_SP_VERSION) return (false, DRYRUN_VERSION_MISMATCH);
+        if (_globallyPaused(sp)) return (false, DRYRUN_SPONSORSHIP_PAUSED);
 
         bytes calldata pmd = userOp.paymasterAndData;
         address operator = pmd.length < 72 ? address(0) : address(bytes20(pmd[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 20]));

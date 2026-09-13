@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -525,7 +527,7 @@ contract SupplementaryLifecycleTest is Test {
         registry.registerRole(ROLE_PAYMASTER_SUPER, communityUser, "");
         vm.stopPrank();
 
-        // Registry.updateBlockedStatusBLS -> SuperPaymaster.updateBlockedStatus
+        // Registry.updateBlockedStatusBLS -> SuperPaymasterAdmin.updateBlockedStatus
         address[] memory users = new address[](2);
         users[0] = address(0x999);
         users[1] = address(0x888);
@@ -564,14 +566,14 @@ contract SupplementaryLifecycleTest is Test {
         statuses[0] = true;
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         superPaymaster.updateBlockedStatus(communityUser, users, statuses);
     }
 
     function test_UpdateSBTStatus_OnlyRegistry() public {
         // Direct call should revert
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         superPaymaster.updateSBTStatus(endUser, true);
     }
 

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
@@ -357,6 +359,8 @@ contract SuperPaymasterV55FuzzTest is Test {
         _loadParams();
         sp.transferOwnership(address(relay)); // owner actions from now on go through the relay
         vm.stopPrank();
+        vm.prank(address(relay)); // D5b GOV-2: two-step — the nominee accepts
+        sp.acceptOwnership();
 
         for (uint256 t; t < 2; t++) {
             registry.setRole(keccak256("PAYMASTER_SUPER"), opr[t], true);
@@ -425,9 +429,9 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _configureFloor() internal {
-        _owner(abi.encodeCall(SuperPaymaster.queueGasParams, (175_000, 155_000, 5_000, 175_000)));
+        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (175_000, 155_000, 5_000, 175_000)));
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
-        _owner(abi.encodeCall(SuperPaymaster.executeGasParams, ()));
+        _owner(abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ()));
         sp.updatePrice();
         _loadParams();
         assertEq(_settle, 155_000, "precondition: all-floor tuple active");
@@ -553,7 +557,7 @@ contract SuperPaymasterV55FuzzTest is Test {
             assertEq(tok[0].lockOf(h, u).locker, address(0), "no-OOG: success -> lock settled");
             assertEq(tok[0].creditReservationOf(h, u).locker, address(0), "no-OOG: success -> reservation settled");
         } else {
-            assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector),
+            assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
                 "no-OOG band: a postOp that passed the SETTLE_GAS_BOUND entry check must complete");
         }
     }
@@ -1469,7 +1473,7 @@ contract SuperPaymasterV55FuzzTest is Test {
             // operator pause / unpause (SP owner)
             (, , bool paused, , , , , , ) = sp.operators(opr[t]);
             if (paused ? _r(100) < 60 : _r(100) < 6) {
-                _owner(abi.encodeCall(SuperPaymaster.setOperatorPaused, (opr[t], !paused)));
+                _owner(abi.encodeCall(SuperPaymasterAdmin.setOperatorPaused, (opr[t], !paused)));
                 st.evPause++;
             }
             // operator top-up (keeps the solvency boundary moving in both directions)

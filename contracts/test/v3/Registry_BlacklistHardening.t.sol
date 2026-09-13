@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
@@ -333,7 +335,7 @@ contract Registry_BlacklistHardeningTest is Test {
     // ====================================
 
     function test_UpdateBlacklist_HappyPath_PropagatesToPaymaster() public {
-        // Register user1 with SBT so SuperPaymaster.updateBlockedStatus accepts.
+        // Register user1 with SBT so SuperPaymasterAdmin.updateBlockedStatus accepts.
         vm.prank(address(registry));
         paymaster.updateSBTStatus(user1, true);
 

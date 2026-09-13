@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
@@ -141,13 +143,13 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
 
         vm.expectEmit(address(sp));
-        emit SuperPaymaster.GasParamsQueued(250_000, 170_000, 6_000, 180_000, uint64(vm.getBlockTimestamp() + 48 hours));
+        emit SuperPaymasterStorage.GasParamsQueued(250_000, 170_000, 6_000, 180_000, uint64(vm.getBlockTimestamp() + 48 hours));
         vm.prank(owner);
         sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
 
         vm.warp(vm.getBlockTimestamp() + 48 hours - 1);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.GasParamsTimelock.selector);
+        vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
         assertEq(_cur().minPostOpGas, 200_000, "not effective before the timelock");
 
@@ -157,29 +159,29 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.executeGasParams(); // owner-only (mid-bundle execution guard)
 
         vm.expectEmit(address(sp));
-        emit SuperPaymaster.GasParamsExecuted(250_000, 170_000, 6_000, 180_000);
+        emit SuperPaymasterStorage.GasParamsExecuted(250_000, 170_000, 6_000, 180_000);
         vm.prank(owner);
         sp.executeGasParams();
         assertEq(_cur().minPostOpGas, 250_000);
         assertEq(_cur().cPostop, 180_000);
 
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.GasParamsTimelock.selector);
+        vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams(); // nothing pending
 
         vm.prank(owner);
         sp.queueGasParams(300_000, 200_000, 7_000, 190_000);
         vm.expectEmit(address(sp));
-        emit SuperPaymaster.GasParamsCancelled();
+        emit SuperPaymasterStorage.GasParamsCancelled();
         vm.prank(owner);
         sp.cancelGasParams();
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.GasParamsTimelock.selector);
+        vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
         assertEq(_cur().minPostOpGas, 250_000, "cancelled proposal never takes effect");
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.GasParamsTimelock.selector);
+        vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.cancelGasParams();
     }
 
@@ -192,7 +194,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.queueGasParams(260_000, 170_000, 6_000, 180_000);
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.GasParamsTimelock.selector);
+        vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
     }
 
@@ -200,7 +202,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
 
     function _expectBad(uint32 minPost, uint32 settle, uint32 cWrap, uint32 cPostop) internal {
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         sp.queueGasParams(minPost, settle, cWrap, cPostop);
     }
 
@@ -237,7 +239,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
             bytes32(uint256(200_000) | (uint256(160_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96) | (uint256(eta) << 128)));
         vm.warp(eta);
         vm.prank(owner);
-        vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
         sp.executeGasParams();
     }
 
@@ -264,7 +266,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         (bool s, bytes memory ret) = address(sp).call{gas: 250_000}(
             abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei)));
         assertFalse(s, "250k < new SETTLE_GAS_BOUND 300k: refused");
-        assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector));
+        assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
         vm.prank(EP);
         (s, ) = address(sp).call{gas: 400_000}(
             abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei)));
@@ -305,7 +307,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
             (bool s, bytes memory ret) = address(sp).call{gas: g}(cd);
             vm.revertTo(snap);
             if (s) { okN++; continue; }
-            assertEq(ret, abi.encodeWithSelector(SuperPaymaster.PostOpGasTooLow.selector),
+            assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
                 "SETTLE floor: no OOG band above the entry guard");
             assertEq(okN, 0, "monotone");
             guard++;

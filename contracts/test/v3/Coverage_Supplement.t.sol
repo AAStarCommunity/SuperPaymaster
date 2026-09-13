@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
+import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/core/Registry.sol";
@@ -544,7 +546,7 @@ contract CoverageSupplementTest is Test {
     function test_Paymaster_Deposit_NotRegistered() public {
         vm.startPrank(user); // User is not operator
         gtoken.approve(address(paymaster), 100 ether);
-        vm.expectRevert(SuperPaymaster.Unauthorized.selector);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         paymaster.addStake{value: 1 ether}(1000);
         
         vm.warp(block.timestamp + 2 hours);
