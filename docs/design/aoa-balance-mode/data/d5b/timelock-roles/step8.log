@@ -1,0 +1,17 @@
+timelock 0x5FbDB2315678afecb367f032d93F642f64180aa3: 4 role logs in [4, 7] from http://127.0.0.1:18792; depth probe FAILED; completeness NOT independently verified (no --rpc2)
+  PROPOSER_ROLE: (none)
+  EXECUTOR_ROLE: (none)
+TIMELOCK ROLE CHECK FAILED:
+  - depth probe failed: no code at deploymentBlock 4 or code already at 3 (wrong block or non-archive endpoint)
+  - positive control failed: constructor grant DEFAULT_ADMIN_ROLE -> timelock not found in the scanned history
+  - positive control failed: no RoleGranted(PROPOSER_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) in the history
+  - positive control failed: no RoleGranted(CANCELLER_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) in the history
+  - positive control failed: no RoleGranted(EXECUTOR_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) in the history
+  - DEFAULT_ADMIN_ROLE: history holders [] != manifest [0x5FbDB2315678afecb367f032d93F642f64180aa3]
+  - PROPOSER_ROLE: history holders [] != manifest [0x70997970C51812dc3A010C7d01b50e0d17dc79C8]
+  - CANCELLER_ROLE: history holders [] != manifest [0x70997970C51812dc3A010C7d01b50e0d17dc79C8]
+  - EXECUTOR_ROLE: history holders [] != manifest [0x70997970C51812dc3A010C7d01b50e0d17dc79C8]
+  - state cross-check: hasRole(DEFAULT_ADMIN_ROLE, 0x5FbDB2315678afecb367f032d93F642f64180aa3) = true but the replayed history says false
+  - state cross-check: hasRole(PROPOSER_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) = true but the replayed history says false
+  - state cross-check: hasRole(CANCELLER_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) = true but the replayed history says false
+  - state cross-check: hasRole(EXECUTOR_ROLE, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8) = true but the replayed history says false

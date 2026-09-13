@@ -10,20 +10,24 @@ fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktree
 fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
 Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
 Warning: Your project has missing dependencies that could not be installed.
-Compiling 5 files with Solc 0.8.33
-Solc 0.8.33 finished in 26.32s
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 11.04s
 Compiler run successful with warnings:
 Warning (4591): There are more than 256 warnings. Ignoring the rest.
 
-Ran 8 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
-[PASS] test_non_safe_caller_does_not_schedule() (gas: 1409875)
-[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1549069)
-[PASS] test_preflight_rejects_72h_delay() (gas: 1359789)
-[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1401541)
-[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1443642)
-[PASS] test_preflight_rejects_open_executor() (gas: 1393490)
-[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1354528)
-[PASS] test_preflight_reruns_before_execute() (gas: 1505868)
-Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 28.90ms (9.60ms CPU time)
+Ran 12 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
+[PASS] test_non_safe_caller_does_not_schedule() (gas: 1417472)
+[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1571185)
+[PASS] test_preflight_is_bounded_unlisted_admin_passes() (gas: 1511364)
+[PASS] test_preflight_manifest_file_missing_reverts() (gas: 1338725)
+[PASS] test_preflight_rejects_72h_delay() (gas: 1365087)
+[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1408048)
+[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1450245)
+[PASS] test_preflight_rejects_manifest_for_another_timelock() (gas: 1352376)
+[PASS] test_preflight_rejects_manifest_not_m1_policy() (gas: 1343895)
+[PASS] test_preflight_rejects_open_executor() (gas: 1399935)
+[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1360950)
+[PASS] test_preflight_reruns_before_execute() (gas: 1520185)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 26.76ms (10.57ms CPU time)
 
-Ran 1 test suite in 35.85ms (28.90ms CPU time): 8 tests passed, 0 failed, 0 skipped (8 total tests)
+Ran 1 test suite in 28.92ms (26.76ms CPU time): 12 tests passed, 0 failed, 0 skipped (12 total tests)

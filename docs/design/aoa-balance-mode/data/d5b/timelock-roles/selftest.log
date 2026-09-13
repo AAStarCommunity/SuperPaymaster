@@ -1,0 +1,10 @@
+timelock 0x5fbdb2315678afecb367f032d93f642f64180aa3 deployed in block 1
+  step 1 ok: correct M1 timelock == manifest (exit 0)
+  step 2 ok: unlisted DEFAULT_ADMIN granted (exit 1)
+  step 3 ok: unlisted admin revoked (exit 0)
+  step 4 ok: PROPOSER granted to an address not in the manifest (exit 1)
+  step 5 ok: that proposer revoked (exit 0)
+  step 6 ok: EXECUTOR granted to a mustHoldNothing account (old owner) (exit 1)
+  step 7 ok: that executor revoked (exit 0)
+  step 8 ok: manifest deploymentBlock wrong (depth probe / positive control) (exit 1)
+TIMELOCK ROLE CHECKER SELF-TEST OK

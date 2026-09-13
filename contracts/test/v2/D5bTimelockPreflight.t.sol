@@ -17,7 +17,10 @@ import { UpgradeViaTimelock } from "../../script/v3/UpgradeViaTimelock.s.sol";
  *         schedule / execute is broadcast, so an ownership hand-over can never complete on a wrong
  *         timelock and only then fail a post-condition. One positive path and one negative control per
  *         condition; each negative asserts the M1 batch was never scheduled and the owners / nominations
- *         are unchanged.
+ *         are unchanged. The preflight is a BOUNDED known-account check (OZ AccessControl is not
+ *         enumerable): `test_preflight_is_bounded_unlisted_admin_passes` shows an admin that the manifest
+ *         does not name passes it — that case is caught by script/governance/check-timelock-roles.mjs
+ *         (event-history enumeration), whose anvil self-test is scripts/d5b-timelock-roles-selftest.sh.
  */
 contract D5bTimelockPreflightTest is Test {
     UpgradeViaTimelock script;
@@ -67,8 +70,14 @@ contract D5bTimelockPreflightTest is Test {
         c.timelock = address(tl);
     }
 
-    function _forbidden() internal view returns (address[] memory) {
-        return _two(deployer, eoa); // the deployer EOA (= old owner) and an extra known EOA
+    /// @dev The committed-manifest shape (M1 policy); mustHoldNothing = deployer (= old owner) + a known EOA.
+    function _manifest(TimelockController tl) internal view returns (UpgradeViaTimelock.RoleManifest memory m) {
+        m.timelock = address(tl);
+        m.admins = _one(address(tl));
+        m.proposers = _one(safe);
+        m.cancellers = _one(safe);
+        m.executors = _one(safe);
+        m.mustHoldNothing = _two(deployer, eoa);
     }
 
     function _batchId(TimelockController tl) internal view returns (bytes32) {
@@ -86,7 +95,7 @@ contract D5bTimelockPreflightTest is Test {
     ///      nothing was scheduled, ownership / nominations untouched.
     function _assertRejectedBeforeSchedule(TimelockController tl, string memory reason) internal {
         vm.expectRevert(bytes(reason));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _forbidden());
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
         assertFalse(tl.isOperation(_batchId(tl)), "nothing scheduled");
         assertEq(sp.owner(), deployer, "SP owner unchanged");
         assertEq(reg.owner(), deployer, "Registry owner unchanged");
@@ -98,11 +107,11 @@ contract D5bTimelockPreflightTest is Test {
 
     function test_preflight_correct_timelock_passes_and_M1_completes() public {
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        script.m1Preflight(tl, safe, _forbidden());
-        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _forbidden());
+        script.m1Preflight(tl, _manifest(tl));
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
         assertTrue(tl.isOperationPending(id), "scheduled");
         vm.warp(block.timestamp + 48 hours);
-        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _forbidden());
+        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
         assertEq(sp.owner(), address(tl));
         assertEq(reg.owner(), address(tl));
         assertEq(sp.guardian(), safe);
@@ -111,7 +120,7 @@ contract D5bTimelockPreflightTest is Test {
     /// @notice A non-Safe caller never broadcasts: it only gets the Safe's calldata.
     function test_non_safe_caller_does_not_schedule() public {
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, eoa, _forbidden());
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, eoa, _manifest(tl));
         assertFalse(tl.isOperation(_batchId(tl)), "no schedule from a non-Safe caller");
     }
 
@@ -129,7 +138,7 @@ contract D5bTimelockPreflightTest is Test {
 
     function test_preflight_rejects_deployer_still_admin() public {
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), deployer);
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: external account holds DEFAULT_ADMIN_ROLE");
+        _assertRejectedBeforeSchedule(tl, "M1 preflight: a listed account holds DEFAULT_ADMIN_ROLE");
     }
 
     function test_preflight_rejects_safe_missing_canceller() public {
@@ -142,22 +151,61 @@ contract D5bTimelockPreflightTest is Test {
 
     function test_preflight_rejects_extra_eoa_proposer() public {
         TimelockController tl = _tl(48 hours, _two(safe, eoa), _one(safe), address(0));
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: a forbidden account holds a timelock role");
+        _assertRejectedBeforeSchedule(tl, "M1 preflight: a listed account holds a timelock role");
     }
 
     /// @notice The preflight also runs immediately before the acceptance broadcast: a role granted
     ///         AFTER scheduling (here an extra executor) stops the execute, owners unchanged.
     function test_preflight_reruns_before_execute() public {
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _forbidden());
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
         vm.startPrank(address(tl));
         tl.grantRole(tl.EXECUTOR_ROLE(), eoa);
         vm.stopPrank();
         vm.warp(block.timestamp + 48 hours);
-        vm.expectRevert(bytes("M1 preflight: a forbidden account holds a timelock role"));
-        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _forbidden());
+        vm.expectRevert(bytes("M1 preflight: a listed account holds a timelock role"));
+        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
         assertTrue(tl.isOperationReady(id), "batch still ready, not executed");
         assertEq(sp.owner(), deployer, "SP owner unchanged");
         assertEq(reg.owner(), deployer, "Registry owner unchanged");
+    }
+
+    // ------------------------------------------------------------------ manifest binding and the bound
+
+    function test_preflight_rejects_manifest_for_another_timelock() public {
+        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl);
+        m.timelock = address(0xBEEF);
+        vm.expectRevert(bytes("M1 preflight: manifest timelock != timelock"));
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
+        assertFalse(tl.isOperation(_batchId(tl)), "nothing scheduled");
+    }
+
+    function test_preflight_rejects_manifest_not_m1_policy() public {
+        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl);
+        m.executors = _two(safe, eoa);
+        vm.expectRevert(bytes("M1 preflight: manifest is not the M1 policy (admin=[timelock], P=C=E=[Safe])"));
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
+    }
+
+    function test_preflight_manifest_file_missing_reverts() public {
+        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
+        // ENV unset -> "anvil"; no deployments/timelock-roles.anvil.json is committed (only the example schema)
+        assertFalse(vm.isFile("deployments/timelock-roles.anvil.json"), "precondition: no anvil manifest committed");
+        vm.expectRevert(bytes("M1 preflight: manifest deployments/timelock-roles.<ENV>.json missing"));
+        script.manifestOf(_cfg(tl));
+    }
+
+    /// @notice DOCUMENTED BOUND: an admin the manifest does not name is invisible to the forge preflight
+    ///         (AccessControl cannot enumerate holders). The preflight PASSES here; the event-history
+    ///         checker (check-timelock-roles.mjs) is what catches it — see its anvil self-test.
+    function test_preflight_is_bounded_unlisted_admin_passes() public {
+        address unlisted = address(0xAD1);
+        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), unlisted);
+        assertTrue(tl.hasRole(tl.DEFAULT_ADMIN_ROLE(), unlisted), "precondition: an unlisted external admin exists");
+        script.m1Preflight(tl, _manifest(tl)); // passes: bounded known-account check
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        assertTrue(tl.isOperationPending(id), "bounded: the forge preflight alone lets this timelock through");
     }
 }

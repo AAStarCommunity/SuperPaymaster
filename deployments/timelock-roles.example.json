@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Schema of deployments/timelock-roles.<ENV>.json — the committed expected-holder manifest of the GOV-1",
+    "48h TimelockController that owns SuperPaymaster and Registry after runbook M1 (spec 03 §10.7b GOV-1/2).",
+    "Create the real file for a network when its timelock is deployed (A5s on Sepolia, A6 on OP mainnet) and",
+    "update it only through a reviewed change. Both checks read it:",
+    "  - UpgradeViaTimelock.m1Preflight (forge, bounded): hasRole for the timelock, the Safe and every address",
+    "    listed here; reverts if the file is missing or `timelock` differs from the configured timelock;",
+    "  - script/governance/check-timelock-roles.mjs (event history): rebuilds the FULL holder set of every",
+    "    role from RoleGranted/RoleRevoked since `deploymentBlock` and fails unless it equals `roles` exactly.",
+    "`roles` must be the M1 policy: DEFAULT_ADMIN_ROLE = [timelock] only; PROPOSER/CANCELLER/EXECUTOR = [Safe]",
+    "only (Mycelium Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 on live chains; no open executor).",
+    "`mustHoldNothing` = HISTORICAL accounts persisted here (deployer, old SP owner, old Registry owner, any",
+    "other known EOA), never derived from the proxies' current owner()."
+  ],
+  "network": "<env>",
+  "chainId": 0,
+  "timelock": "0x0000000000000000000000000000000000000000",
+  "deploymentBlock": 0,
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": ["0x0000000000000000000000000000000000000000"],
+    "PROPOSER_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"],
+    "CANCELLER_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"],
+    "EXECUTOR_ROLE": ["0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"]
+  },
+  "mustHoldNothing": [],
+  "mustHoldNothingLabels": []
+}

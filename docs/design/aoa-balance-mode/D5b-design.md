@@ -92,7 +92,7 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 | C2 中途升级测试 | 通过（见下方 C2 小节） | `SuperPaymasterD5bUpgradeRace.t.sol`；原有 `SuperPaymasterV55UpgradeRace`（旧 5.5.0 fixture ↔ 当前）仍绿 |
 | B 层重跑 | 通过（结论与已提交的 G1 基线逐项相同）：本机 anvil（Osaka）+ Rundler v0.11.0 + Alto v1.2.5（默认与 86400 s 两组），16 × 3 个用例的 `pass` 判定与 `b-layer/cases/*-results.json` 完全一致（原有的已知 FAIL：Rundler B10、B2b，Alto B2a/B3/B4-lowStake/B9-below，未增未减）；ERC-7562 访问检查 OUTSIDE = 0、FORBIDDEN = 0，正对照 `allFlagged = true`；SP 自有槽读取从 26 到 28（多出 GOV-5 参数槽和 D5b 的 slot 40，均为 SP 自有存储） | `data/d5b/b-layer/`（`verdict-diff-vs-committed.txt`、`access-check.txt/json`、三组 results / cases / traces）；运行方式 `scripts/d5b-blayer-rerun.sh`（`g1-run.sh` 的副本，端口 +200，输出只写 `data/d5b/b-layer/`，没有碰 `b-layer/cases` 与 F1 冻结集） |
 | 体积门槛 | 通过：核心 13,571 B（余量 11,005）、扩展 19,208、Registry 23,306（余量 1,270）、lens 5,329、BLSAggregator 24,345（余量 231，未改动） | `scripts/check-sp-size.py --self-test`（余量 1,023 被拒、恰好 1,024 通过）→ `gates/check-sp-size.log`；`sizes/sizes-d5b.json`（`script/evidence/sizes.mjs`）；CI：`.github/workflows/test.yml` 新增 "D5b release gates" 一步 |
-| Cancun / Prague 全量 | Cancun：136 个套件，**1,667 passed / 0 failed / 49 skipped**；Prague（最后跑）：**1,576 / 0 / 21**（passed / failed / skipped）；之后重新 `forge build` 恢复 default 产物 | `unit-test/forge-test-cancun.log`、`unit-test/forge-test-prague.log` 末行 |
+| Cancun / Prague 全量 | Cancun：136 个套件，**1,671 passed / 0 failed / 49 skipped**；Prague（最后跑）：**1,580 / 0 / 21**（passed / failed / skipped）；之后重新 `forge build` 恢复 default 产物 | `unit-test/forge-test-cancun.log`、`unit-test/forge-test-prague.log` 末行 |
 | Codex 审阅 | 见 §6.4 | — |
 
 ### §6.1 变异表（`gates/mutation-matrix.log`；先跑未变异的第 0 列 34 个测试全绿）
@@ -124,9 +124,25 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 - Registry 版本 `Registry-5.8.0` → **`Registry-5.9.0`**；SP 仍为 `SuperPaymaster-5.5.0`；lens 因为新增 `DRYRUN_SPONSORSHIP_PAUSED`（ABI 变化）改为 **`SuperPaymasterLens-1.2.0`**（`SPReleaseVersion.LENS` 同步）。
 - SDK：`abis/SuperPaymaster.json` 只剩核心函数，**必须改用 `abis/SuperPaymaster.full.json`**（核心 + 扩展独有 46 项，同一个代理地址）；需要通知 repo:sdk、repo:dvt。Solidity 调用方用 `SuperPaymasterAdminCalls`（`using … for SuperPaymaster`）。
 
-### §6.3b M1 配置预检（Codex 收尾审阅，Medium）
+### §6.3b M1 配置预检：forge 侧是**有界的已知账户检查**，排他性由事件历史检查建立（Codex 收尾审阅与复核，两条 Medium）
 
-`UpgradeViaTimelock.m1Preflight` 在 schedule 之前、以及每一次 execute / acceptance 广播之前都运行，不满足就 revert：`getMinDelay() == 172800`（原来只要求 ≥ 48h，而且精确值只在 accept 广播**之后**才读回）；Safe（env `SAFE`，线上即 Mycelium 多签 `0x51eD…E114`）同时持有 PROPOSER、CANCELLER、EXECUTOR；`address(0)` 没有 EXECUTOR（不开放执行）；DEFAULT_ADMIN_ROLE 只在 timelock 自己手里（Safe 与每个禁用账户都显式检查）；禁用账户（env `TL_FORBIDDEN` 的部署者 / 其他 EOA，加上仍非 timelock 的旧 owner）不持有任何角色。执行路径：只有调用者就是 Safe 时才广播，其他调用者只拿到给 Safe 的 calldata。测试 `contracts/test/v2/D5bTimelockPreflight.t.sol`：正例（完整走完 M1）、非 Safe 调用者不调度，以及 72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer 五个负对照——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；另有一条"调度之后再授予角色，execute 前的第二次预检拦下"。anvil 演练按新参数重跑通过。
+**forge 侧 `UpgradeViaTimelock.m1Preflight`（有界的已知账户检查）**。在 schedule 之前、以及每一次 execute / acceptance 广播之前都运行（四个受治理的广播：schedule-upgrade、execute-upgrade、schedule-accept、execute-accept）。它读取**提交在仓库里的逐网络清单** `deployments/timelock-roles.<ENV>.json`（格式见 `deployments/timelock-roles.example.json`），不满足下列任一条就 revert：清单存在且 `timelock` 与配置的 timelock 相同；`getMinDelay() == 172800`（原来只要求 ≥ 48h，而且精确值只在 accept 广播**之后**才读回）；清单写的就是 M1 策略（DEFAULT_ADMIN = [timelock]；PROPOSER = CANCELLER = EXECUTOR = [Safe]，线上 Safe 是 Mycelium 多签 `0x51eD…E114`）；清单列出的持有者都确实持有对应角色；`address(0)` 没有 EXECUTOR；Safe 没有 DEFAULT_ADMIN；清单 `mustHoldNothing` 里的每个账户四种角色都没有。`mustHoldNothing` 是**持久记录在清单里的历史账户**（部署者、SP 与 Registry 的旧 owner 等），不再像上一版那样从代理当前的 `owner()` 推出——那种推法在 M1 执行之后就把旧 owner 丢掉了。执行路径：只有调用者就是 Safe 时才广播，其他调用者只拿到给 Safe 的 calldata。
+
+**局限（必须如实写）**：OZ `TimelockController` 用的是不可枚举的 `AccessControl`，链上没有办法列出某个角色的全部持有者。forge 预检只能对它被告知的账户（timelock、Safe、清单里的账户）调用 `hasRole`；**清单没列出的持有者，forge 预检看不到**。本文此前"DEFAULT_ADMIN_ROLE 只在 timelock 自己手里"的说法是过度声称，已撤回。测试 `test_preflight_is_bounded_unlisted_admin_passes` 正面展示了这一点：一个清单没列出的外部 admin 能通过 forge 预检。
+
+**排他性由事件历史检查建立**：`script/governance/check-timelock-roles.mjs`（viem）从清单的 `deploymentBlock` 到 `latest` 分块拉取该 timelock 的全部 `RoleGranted` / `RoleRevoked`，按（块号，logIndex）重放出每个角色的**完整**持有者集合，与清单**逐项相等**才退出 0；`mustHoldNothing` 账户持有任何角色都失败。完整性：日志扫描无法仅凭返回的数据证明没有漏掉区间（缺失区间与空区间逐字节相同），脚本实际检查并在报告里写明的是：① 深度探针——`deploymentBlock` 有代码、前一块没有，说明端点提供该深度的状态；② 正对照——构造函数自己的授予（timelock 自身的 DEFAULT_ADMIN，以及清单里的 proposer / canceller / executor）必须出现在扫描结果里；③ 状态交叉核对——对每个重放出的持有者、清单持有者和 `mustHoldNothing` 账户，在扫描头块读 `hasRole`，必须与重放结果一致；④ 可选第二个独立端点 `--rpc2`，逐条比对日志。没有 ④ 时，报告写"completeness NOT independently verified"。
+
+**自测**（`scripts/d5b-timelock-roles-selftest.sh`，本机 anvil）：正确的 M1 timelock → 通过；授予一个清单外的 DEFAULT_ADMIN → 失败；撤销 → 通过；把 PROPOSER 授给清单外地址 → 失败，撤销 → 通过；把 EXECUTOR 授给 `mustHoldNothing` 账户（旧 owner）→ 失败，撤销 → 通过；清单 `deploymentBlock` 写错 → 深度探针与正对照失败。输出在 `data/d5b/timelock-roles/`。forge 侧与事件侧的对照：同一个"清单外 admin"，forge 预检**通过**（`test_preflight_is_bounded_unlisted_admin_passes`），事件检查**失败**（自测第 2 步）。
+
+**forge 测试** `contracts/test/v2/D5bTimelockPreflight.t.sol`（12 个）：正例（完整走完 M1）；非 Safe 调用者不调度；五个负对照——72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；调度之后再授予角色，execute 前的第二次预检拦下；清单指向另一个 timelock、清单不是 M1 策略、清单文件缺失，三者都 revert；以及上面的"有界"正面展示。
+
+### §6.3c runbook 附加要求（M1 与之后每一次 timelock 升级；写入下一版 03 §6 之前以本节为准）
+
+1. M1 之前提交 `deployments/timelock-roles.<env>.json`（timelock 地址、部署块、M1 策略的四个角色集合、`mustHoldNothing` 历史账户及标签），走评审。
+2. **每一次 schedule 之前**（M1 的 `scheduleBatch`，以及之后每一次经 timelock 的升级或参数修改）运行 `node script/governance/check-timelock-roles.mjs --rpc <归档端点> --rpc2 <第二个独立归档端点> --manifest deployments/timelock-roles.<env>.json --out <报告>`，退出码必须为 0；报告与命令行（RPC 已脱敏）按 03 §6.1 归档。只有一个端点时，报告里的"completeness NOT independently verified"要原样记录，不能写成"已验证完整"。
+3. 然后才运行 `UpgradeViaTimelock` 的 schedule / execute 模式（它们会再做一次 forge 侧的有界预检）。anvil 演练已按这个顺序执行：`data/d5b/rehearsal/roles-*.log`。
+
+**不受 M1 预检保护的路径（明确说明）**：Registry 第 5c 步（`UpgradeRegistryD5b`）、`deploy-impl`、`direct-upgrade` 是 **M1 之前的 EOA 路径**，不涉及 timelock，也不运行 M1 预检；它们只依赖"owner == 广播者"与各自的读回。M1 之后这三条路径不能再用于代理升级（`direct-upgrade` 与 5c 会因 owner 不是广播者而拒绝；`deploy-impl` 只部署 impl，不改代理）。
 
 ### §6.4 Codex 审阅（第 1 轮，2026-09-13，只读，范围 = `c30854f9..HEAD` 的 src、升级脚本、布局 / selector 门槛）
 
@@ -143,3 +159,5 @@ MCP 形式的 Codex 连接失败，改用 codex 插件的后台任务（`task-mt
 **Codex 第 2 轮（只读，复核上述修复与整个 `contracts/src` 差异）：没有 Critical / High / Medium**；确认 High、两条 Medium、selector 那条 Low 已修；认为挂起提名检查无法经 `upgradeToAndCall` 的 calldata 绕过（授权先于实现切换与 setup 调用），也不会把紧急升级卡死（owner 可先 `transferOwnership(0)`，timelock 可把取消与升级放进同一个 batch）；剩下两条 Low：① `_resolve_type` 仍未记录 `encoding` / `numberOfBytes`（登记为后续项，同上）；② lens 注释、测试注释和本文把 `paused()` 写成了扩展 selector，实际它是共享基类的公开 getter、由核心直接应答——**已更正**（只有 `gasParams()` 经 fallback）。第 2 轮没有写出"APPROVE"字样，结论是"无 Critical/High/Medium，两条 Low"。
 
 **Codex 收尾审阅（`072863b2`）**：无 Critical / High，其余全部审过无问题；1 Medium + 2 Low 未批准，均已修：Medium = M1 配置预检（§6.3b）；Low = 前向 C2 缺守恒断言（已补，变异 (i) 证明新断言有效）；Low = 本文 §4 把快照写成"放进已有字的空闲位"（已按实现改成追加第 12 个字）。
+
+**Codex 复核（`036a2921`）**：此前各项修复全部确认；新提 1 条 Medium——forge 预检无法证明角色排他（`AccessControl` 不可枚举），而注释与本文把它写成了排他性保证；旧 owner 只在仍是 owner 时才被列入禁用名单，M1 之后就掉出去。已处理（§6.3b、§6.3c）：措辞改为"有界的已知账户检查"；强制使用提交在仓库里的逐网络清单（历史账户持久记录，不再从 `owner()` 推）；新增事件历史检查脚本 `check-timelock-roles.mjs` 与 anvil 自测；runbook 要求每次 schedule 前运行并归档；明确 5c、`deploy-impl`、`direct-upgrade` 是不受 M1 预检保护的 M1 前 EOA 路径；测试里同时展示"清单外 admin：forge 预检通过、事件检查失败"。

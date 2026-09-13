@@ -29,7 +29,8 @@ EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 
 "$ANVIL" --port "$PORT" --chain-id 31337 --hardfork osaka >"$W/anvil.log" 2>&1 &
 APID=$!; echo "$APID" >"$W/anvil.pid"
-cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG"; }
+MANIFEST="deployments/timelock-roles.$ENVNAME.json"
+cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG" "$ROOT/$MANIFEST"; }
 trap cleanup EXIT
 for _ in $(seq 1 100); do "$CAST" chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 0.2; done
 
@@ -60,6 +61,7 @@ SP_INIT=$("$CAST" calldata "initialize(address,address,address,uint256)" "$OWNER
 SP=$(create "$PROXY_CODE$("$CAST" abi-encode "c(address,bytes)" "$SP_IMPL" "$SP_INIT" | sed 's/^0x//')")
 TL_CODE=$(art "$(ls out/TimelockController.sol/TimelockController*.json | head -1)")
 TL=$(create "$TL_CODE$("$CAST" abi-encode "c(uint256,address[],address[],address)" 172800 "[$MULTISIG]" "[$MULTISIG]" 0x0000000000000000000000000000000000000000 | sed 's/^0x//')")
+TL_BLOCK=$("$CAST" block-number --rpc-url "$RPC") # automine: the timelock CREATE is the latest block
 send "$OWNER" "$REG" "setSuperPaymaster(address)" "$SP"
 send "$OWNER" "$REG" "setBLSAggregator(address)" 0x0000000000000000000000000000000000000B15
 send "$OWNER" "$SP" "initBLSAggregator(address)" 0x0000000000000000000000000000000000000B15
@@ -67,6 +69,13 @@ send "$OWNER" "$SP" "updatePrice()"
 printf '{\n  "superPaymaster": "%s",\n  "registry": "%s",\n  "entryPoint": "%s",\n  "priceFeed": "%s",\n  "timelockController": "%s"\n}\n' \
   "$SP" "$REG" "$EP" "$FEED" "$TL" >"$CFG"
 cp "$CFG" "$W/config.$ENVNAME.json"
+# committed-manifest shape (deployments/timelock-roles.example.json): M1 policy + historical accounts
+printf '{\n  "network": "%s",\n  "chainId": 31337,\n  "timelock": "%s",\n  "deploymentBlock": %s,\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer / old SP and Registry owner"]\n}\n' \
+  "$ENVNAME" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$MANIFEST"
+cp "$MANIFEST" "$W/timelock-roles.$ENVNAME.json"
+roles_check() { # runbook: event-history role check, output archived, BEFORE every schedule
+  node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$MANIFEST" --out "$W/roles-$1.json" | tee "$W/roles-$1.log" | tail -1
+}
 echo "  SP proxy $SP (impl $SP_IMPL, $("$CAST" call "$SP" 'version()(string)' --rpc-url "$RPC"))"
 echo "  Registry proxy $REG (impl $REG_IMPL, $("$CAST" call "$REG" 'version()(string)' --rpc-url "$RPC"))"
 echo "  TimelockController $TL (minDelay $("$CAST" call "$TL" 'getMinDelay()(uint256)' --rpc-url "$RPC"))"
@@ -85,10 +94,11 @@ step "B / M1: two-step transfer to the timelock + ONE scheduleBatch"
 send "$OWNER" "$SP" "transferOwnership(address)" "$TL"
 send "$OWNER" "$REG" "transferOwnership(address)" "$TL"
 echo "  after step 1: SP.owner=$("$CAST" call "$SP" 'owner()(address)' --rpc-url "$RPC") pendingOwner=$("$CAST" call "$SP" 'pendingOwner()(address)' --rpc-url "$RPC")"
-fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER" | tee "$W/B-schedule.log" | grep -E "scheduled|Error|revert" || true
-must_fail "execute-accept before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER"
+roles_check before-M1
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept | tee "$W/B-schedule.log" | grep -E "scheduled|Error|revert" || true
+must_fail "execute-accept before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept
 warp48h
-fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER" | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$W/B-execute.log"
 must_fail "old EOA owner upgradeToAndCall after M1" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
 
@@ -96,10 +106,11 @@ step "C / §10.7b C: timelock-aware upgrade (SP then Registry)"
 for T in SP REGISTRY; do
   fscript UpgradeViaTimelock "$OWNER" TL_MODE=deploy-impl TL_TARGET=$T | tee "$W/C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$W/C-$T-deploy.log" | awk '{print $NF}')
-  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
-  must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
+  roles_check "before-$T-upgrade"
+  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
+  must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
   warp48h
-  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade SAFE="$MULTISIG" TL_FORBIDDEN="$OWNER" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
+  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
   grep -q "read-back OK" "$W/C-$T-execute.log"
 done
 if [ "$(impl_of "$SP" | tr A-F a-f)" = "$(echo "$NEW_SP" | tr A-F a-f)" ]; then echo "C: SP impl did not move"; exit 1; fi

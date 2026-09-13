@@ -152,6 +152,7 @@ abstract contract D5bUpgradeChecks is DefaultArtifacts {
  *         initialize guard, `Registry-5.9.0`). Read-backs: version, ERC-1967 slot, owner unchanged,
  *         pendingOwner() == 0, BLS three legs unchanged, raw sequential slots 0..73 byte-identical.
  *         Storage gate beforehand: `python3 scripts/check_storage_layout.py` (Registry: no change allowed).
+ *         PRE-M1 EOA path: NOT guarded by the M1 timelock preflight (no timelock is involved yet).
  * @dev    ENV=<config> forge script contracts/script/v3/UpgradeViaTimelock.s.sol:UpgradeRegistryD5b \
  *           --rpc-url $RPC --sender <registry owner> --broadcast   (plain `forge build` first)
  *         Refuses if the Registry owner is not the broadcaster (after M1 use UpgradeViaTimelock).
@@ -202,6 +203,10 @@ contract UpgradeRegistryD5b is D5bUpgradeChecks {
  *                                                    SP.setGuardian(SAFE)] — runbook M1 ② / M2
  *           execute-accept    SAFE                   executeBatch + read-backs (owner == timelock, pendingOwner 0,
  *                                                    guardian == SAFE, minDelay == 172800)
+ *         GUARD SCOPE: schedule-upgrade / execute-upgrade / schedule-accept / execute-accept run the M1
+ *         preflight (a bounded known-account check against deployments/timelock-roles.<ENV>.json, see
+ *         m1Preflight). deploy-impl, direct-upgrade and UpgradeRegistryD5b (runbook 5c) are PRE-M1 EOA
+ *         paths and are NOT guarded by it (they touch no timelock; they rely on owner == broadcaster).
  *         TL_SALT (bytes32, default keccak256("d5b")). The proposer / executor is the broadcaster
  *         (`--sender`); when it lacks the role the script only PRINTS the calldata for the Safe.
  */
@@ -215,8 +220,8 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         if (m == keccak256("schedule-upgrade")) { scheduleUpgrade(c, _target(), vm.envAddress("TL_NEW_IMPL"), salt, msg.sender); return; }
         if (m == keccak256("execute-upgrade")) { executeUpgrade(c, _target(), vm.envAddress("TL_NEW_IMPL"), salt, msg.sender); return; }
         if (m == keccak256("direct-upgrade")) { directUpgrade(c, _target(), vm.envAddress("TL_NEW_IMPL"), msg.sender); return; }
-        if (m == keccak256("schedule-accept")) { scheduleAccept(c, vm.envAddress("SAFE"), salt, msg.sender); return; }
-        if (m == keccak256("execute-accept")) { executeAccept(c, vm.envAddress("SAFE"), salt, msg.sender); return; }
+        if (m == keccak256("schedule-accept")) { scheduleAccept(c, _safeOf(_manifest(c)), salt, msg.sender); return; }
+        if (m == keccak256("execute-accept")) { executeAccept(c, _safeOf(_manifest(c)), salt, msg.sender); return; }
         revert("UpgradeViaTimelock: unknown TL_MODE");
     }
 
@@ -231,38 +236,84 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         tl = TimelockController(payable(c.timelock));
     }
 
-    /// @dev Accounts that must hold NO timelock role: env TL_FORBIDDEN (comma list: the deployer, any
-    ///      extra EOA) plus the proxies' current owners when they are not the timelock (the old EOA owner).
-    function _forbidden(Cfg memory c) internal view returns (address[] memory f) {
-        address[] memory extra = vm.envOr("TL_FORBIDDEN", ",", new address[](0));
-        f = new address[](extra.length + 2);
-        for (uint256 i; i < extra.length; ++i) f[i] = extra[i];
-        address tl = c.timelock;
-        address o1 = ID5bOwned(c.sp).owner();
-        address o2 = ID5bOwned(c.registry).owner();
-        f[extra.length] = o1 == tl ? address(0) : o1;
-        f[extra.length + 1] = o2 == tl ? address(0) : o2;
+    /// @notice Committed, per-network expected-holder manifest of the GOV-1 timelock
+    ///         (deployments/timelock-roles.<ENV>.json; schema in deployments/timelock-roles.example.json).
+    ///         `mustHoldNothing` are HISTORICAL accounts persisted in the file (deployer, the old SP and
+    ///         Registry owners, …) — never derived from the proxies' current owner(), which stops naming
+    ///         them once M1 has executed.
+    struct RoleManifest {
+        address timelock;
+        uint256 deploymentBlock;
+        address[] admins;
+        address[] proposers;
+        address[] cancellers;
+        address[] executors;
+        address[] mustHoldNothing;
     }
 
-    function _safe() internal view returns (address) {
-        return vm.envAddress("SAFE"); // live chains: Mycelium Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    function _manifest(Cfg memory c) internal view returns (RoleManifest memory m) {
+        string memory env = vm.envOr("ENV", string("anvil"));
+        string memory path = string.concat(vm.projectRoot(), "/deployments/timelock-roles.", env, ".json");
+        string memory j;
+        try vm.readFile(path) returns (string memory body) {
+            j = body;
+        } catch {
+            revert("M1 preflight: manifest deployments/timelock-roles.<ENV>.json missing");
+        }
+        m.timelock = vm.parseJsonAddress(j, ".timelock");
+        m.deploymentBlock = vm.parseJsonUint(j, ".deploymentBlock");
+        m.admins = vm.parseJsonAddressArray(j, ".roles.DEFAULT_ADMIN_ROLE");
+        m.proposers = vm.parseJsonAddressArray(j, ".roles.PROPOSER_ROLE");
+        m.cancellers = vm.parseJsonAddressArray(j, ".roles.CANCELLER_ROLE");
+        m.executors = vm.parseJsonAddressArray(j, ".roles.EXECUTOR_ROLE");
+        m.mustHoldNothing = vm.parseJsonAddressArray(j, ".mustHoldNothing");
+        require(m.timelock == c.timelock, "M1 preflight: manifest timelock != configured timelock");
+    }
+
+    /// @notice Public for tests / operators: the manifest the governed modes will enforce.
+    function manifestOf(Cfg memory c) public view returns (RoleManifest memory) {
+        return _manifest(c);
+    }
+
+    /// @dev The Safe is the manifest's single proposer; an explicit SAFE env must agree with it.
+    function _safeOf(RoleManifest memory m) internal view returns (address safe) {
+        require(m.proposers.length == 1, "M1 preflight: manifest must list exactly one proposer (the Safe)");
+        safe = m.proposers[0];
+        address envSafe = vm.envOr("SAFE", address(0));
+        require(envSafe == address(0) || envSafe == safe, "M1 preflight: SAFE env != manifest Safe");
+    }
+
+    function _exactly(address[] memory list, address who) internal pure returns (bool) {
+        return list.length == 1 && list[0] == who;
     }
 
     /**
-     * @notice Mandatory GOV-1 / M1 configuration preflight (Codex D5b closing review, Medium). Runs
-     *         BEFORE scheduling and AGAIN before broadcasting any execute, so a mis-configured timelock
-     *         can never complete an ownership hand-over or an upgrade and only fail a post-condition.
-     *         Reverts unless: minDelay == 172800 exactly; the Safe holds PROPOSER, CANCELLER and
-     *         EXECUTOR; the executor role is not open (address(0)); DEFAULT_ADMIN_ROLE is held by no
-     *         external account (only the timelock itself, OZ 5.0.2) — the Safe and every `forbidden`
-     *         account are checked; and no `forbidden` account (deployer, old owner, extras) holds
-     *         PROPOSER / CANCELLER / EXECUTOR. Execution path: the functions below broadcast ONLY when the
-     *         acting caller IS the Safe (on anvil: the unlocked / pranked Safe); any other caller only gets
-     *         the calldata to submit from the Safe — never a broadcast from another account.
+     * @notice GOV-1 / M1 configuration preflight (Codex D5b closing review). Runs BEFORE scheduling and
+     *         AGAIN before broadcasting any execute, so a mis-configured timelock can never complete an
+     *         ownership hand-over or an upgrade and only then fail a post-condition.
+     *
+     *         THIS IS A BOUNDED KNOWN-ACCOUNT CHECK. OZ TimelockController (AccessControl, not
+     *         AccessControlEnumerable) cannot list role holders on-chain, so this function can only ask
+     *         `hasRole` about accounts it is told about: the timelock, the Safe and every account in the
+     *         committed manifest. An UNLISTED holder of any role is NOT detected here. Exclusivity is
+     *         established off-chain by script/governance/check-timelock-roles.mjs, which rebuilds the
+     *         full holder set from the RoleGranted / RoleRevoked history and must equal the manifest;
+     *         the runbook requires running it (output archived) before every schedule.
+     *
+     *         Reverts unless: minDelay == 172800 exactly; the manifest is for this timelock and states the
+     *         M1 policy (DEFAULT_ADMIN = [timelock]; PROPOSER = CANCELLER = EXECUTOR = [Safe]); every
+     *         listed holder holds its role; the executor role is not open (address(0)); the Safe does not
+     *         hold DEFAULT_ADMIN; and no `mustHoldNothing` account holds any of the four roles. Execution
+     *         path: the functions below broadcast ONLY when the acting caller IS the Safe (on anvil: the
+     *         unlocked / pranked Safe); any other caller only gets the calldata to submit from the Safe.
      */
-    function m1Preflight(TimelockController tl, address safe, address[] memory forbidden) public view {
+    function m1Preflight(TimelockController tl, RoleManifest memory m) public view {
+        require(m.timelock == address(tl), "M1 preflight: manifest timelock != timelock");
         require(tl.getMinDelay() == GOV1_MIN_DELAY, "M1 preflight: minDelay != 172800");
+        address safe = m.proposers.length == 1 ? m.proposers[0] : address(0);
         require(safe != address(0) && safe != address(tl), "M1 preflight: Safe unset");
+        require(_exactly(m.admins, address(tl)) && _exactly(m.proposers, safe) && _exactly(m.cancellers, safe)
+            && _exactly(m.executors, safe), "M1 preflight: manifest is not the M1 policy (admin=[timelock], P=C=E=[Safe])");
         bytes32 P = tl.PROPOSER_ROLE();
         bytes32 C = tl.CANCELLER_ROLE();
         bytes32 E = tl.EXECUTOR_ROLE();
@@ -272,12 +323,12 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         require(!tl.hasRole(E, address(0)), "M1 preflight: executor role is OPEN (address(0))");
         require(tl.hasRole(A, address(tl)), "M1 preflight: timelock is not its own admin");
         require(!tl.hasRole(A, safe), "M1 preflight: Safe holds DEFAULT_ADMIN_ROLE");
-        for (uint256 i; i < forbidden.length; ++i) {
-            address f = forbidden[i];
-            if (f == address(0) || f == safe) continue;
-            require(!tl.hasRole(A, f), "M1 preflight: external account holds DEFAULT_ADMIN_ROLE");
+        for (uint256 i; i < m.mustHoldNothing.length; ++i) {
+            address f = m.mustHoldNothing[i];
+            require(f != safe && f != address(tl), "M1 preflight: manifest lists the Safe / timelock as must-hold-nothing");
+            require(!tl.hasRole(A, f), "M1 preflight: a listed account holds DEFAULT_ADMIN_ROLE");
             require(!tl.hasRole(P, f) && !tl.hasRole(C, f) && !tl.hasRole(E, f),
-                "M1 preflight: a forbidden account holds a timelock role");
+                "M1 preflight: a listed account holds a timelock role");
         }
     }
 
@@ -297,14 +348,15 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function scheduleUpgrade(Cfg memory c, bool isSP, address impl, bytes32 salt, address proposer) public returns (bytes32 id) {
-        return scheduleUpgradeWith(c, isSP, impl, salt, proposer, _safe(), _forbidden(c));
+        return scheduleUpgradeWith(c, isSP, impl, salt, proposer, _manifest(c));
     }
 
-    function scheduleUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address proposer, address safe,
-        address[] memory forbidden) public returns (bytes32 id)
+    function scheduleUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address proposer,
+        RoleManifest memory m) public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, safe, forbidden);
+        m1Preflight(tl, m);
+        address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
         require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
@@ -328,14 +380,15 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function executeUpgrade(Cfg memory c, bool isSP, address impl, bytes32 salt, address executor) public {
-        executeUpgradeWith(c, isSP, impl, salt, executor, _safe(), _forbidden(c));
+        executeUpgradeWith(c, isSP, impl, salt, executor, _manifest(c));
     }
 
-    function executeUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address executor, address safe,
-        address[] memory forbidden) public
+    function executeUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address executor,
+        RoleManifest memory m) public
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, safe, forbidden); // again, immediately before the execute broadcast
+        m1Preflight(tl, m); // again, immediately before the execute broadcast
+        address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         bytes memory data = _upgradeCall(impl);
         bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
@@ -397,14 +450,15 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function scheduleAccept(Cfg memory c, address safe, bytes32 salt, address proposer) public returns (bytes32 id) {
-        return scheduleAcceptWith(c, safe, salt, proposer, _forbidden(c));
+        return scheduleAcceptWith(c, safe, salt, proposer, _manifest(c));
     }
 
-    function scheduleAcceptWith(Cfg memory c, address safe, bytes32 salt, address proposer, address[] memory forbidden)
+    function scheduleAcceptWith(Cfg memory c, address safe, bytes32 salt, address proposer, RoleManifest memory m)
         public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, safe, forbidden);
+        m1Preflight(tl, m);
+        require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         require(ID5bOwned(c.sp).pendingOwner() == address(tl), "M1: SP.pendingOwner != timelock (run SP.transferOwnership(timelock) first)");
         require(ID5bOwned(c.registry).pendingOwner() == address(tl), "M1: Registry.pendingOwner != timelock");
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
@@ -424,12 +478,13 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function executeAccept(Cfg memory c, address safe, bytes32 salt, address executor) public {
-        executeAcceptWith(c, safe, salt, executor, _forbidden(c));
+        executeAcceptWith(c, safe, salt, executor, _manifest(c));
     }
 
-    function executeAcceptWith(Cfg memory c, address safe, bytes32 salt, address executor, address[] memory forbidden) public {
+    function executeAcceptWith(Cfg memory c, address safe, bytes32 salt, address executor, RoleManifest memory m) public {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, safe, forbidden); // again, immediately before the acceptance broadcast
+        m1Preflight(tl, m); // again, immediately before the acceptance broadcast
+        require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
         bytes32 id = tl.hashOperationBatch(t, v, p, bytes32(0), salt);
         require(tl.isOperationReady(id), "M1: batch not ready");
