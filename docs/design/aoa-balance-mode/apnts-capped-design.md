@@ -19,8 +19,8 @@
 | 角色 | 持有者（建议） | 权限 |
 |---|---|---|
 | `owner`（Ownable2Step） | GOV-1 的 48h TimelockController（proposer 是 AAStar 社区治理多签） | `raiseCap(newCap)`（只能调高），也就是说**调高必须经治理多签提案并公示 48h**；更换 `minter` 和 `capGuardian` |
-| `minter` | Mycelium Safe 或治理多签（**待作者定**） | `mint(to, amount)`，**必须满足 `totalSupply() + amount ≤ cap`** |
-| `capGuardian` | 治理多签（不经 timelock） | `lowerCap(newCap)`（只能调低，**即时生效**，属于安全方向） |
+| `minter` | **治理多签 `0x51eD…E114`**（作者已定；以后改用售卖合约时，由多签把 minter 转过去） | `mint(to, amount)`，**必须满足 `totalSupply() + amount ≤ cap`** |
+| `capGuardian` | **治理多签 `0x51eD…E114`**（作者已定，不经 timelock） | `lowerCap(newCap)`（只能调低，**即时生效**，属于安全方向） |
 
 **状态与规则**：
 - `cap`（uint256）：构造时设初始值（作者给数），并要求 `cap ≥ totalSupply`（初始 supply 为 0，或者等于构造时的初始铸造量）。
@@ -53,9 +53,9 @@
 - `SP.APNTS_TOKEN() == token`；
 - 负对照：部署 EOA 调 mint、raiseCap、lowerCap 都 revert。
 
-## 5. 需要作者决定
+## 5. 作者的决定（2026-09-13，经 DSR；取代本节原来的待决事项）
 
-1. 初始 `cap` 的数值（建议按 SP 在 EntryPoint 的押金规模和预期运营量来定，让"cap 折算成 ETH"落在可接受的最大损失之内）。
-2. `minter` 的持有者：Mycelium Safe 还是 AAStar 社区治理多签。
-3. `capGuardian`（即时调低）是否就是治理多签。
-4. Sepolia 维持现有的 `0xBb46…`，按 runbook 7d 交给 Safe；主网用 `APNTsCapped`。是否同意这样分开处理。
+1. 初始 `cap`：**主网 300,000e18**（DSR 按作者口径计算，见 03 §10.7b GOV-4）；Sepolia 用标明为测试值的上限（`TEST_CAP_SEPOLIA`）。
+2. `minter`：治理多签 `0x51eD…E114`。
+3. `capGuardian`：治理多签 `0x51eD…E114`。
+4. **Sepolia 也换成 `APNTsCapped`，两条链保持一致**（原来提议"Sepolia 维持 `0xBb46`"的方案作废）；`0xBb46` 弃用，按 7d 交给多签后闲置；runbook 第 1 步已按此改写（03 §6）。
