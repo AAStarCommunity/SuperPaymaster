@@ -79,3 +79,17 @@ Cancun 和 Prague 都通过（本机合并后两边各复跑一次，结果一�
   - `APNTsTokenChangeQueued` 2 条，没有 execute 也没有 cancel；当前 pending 是 `0xBb46…`（xPNTs 3.5.0 的 EIP-1167 克隆，"AAStar PNTs"/aPNTs，总量 2,000,000），ETA 1789099908 已过。
   - `protocolRevenue` 399.59，`totalTrackedBalance` 2934.14。
 - 对第 1 步的影响：execute 分支要求所有 operator 先把余额全部取出（`totalTrackedBalance == protocolRevenue ≤ buffer`），所以它其实是一次完整的"取出 → 切换 → 用新币重新存入"迁移。已交给 D5.2 在 `UpgradeToV5_5_0` 里补全，两条分支分别在 fork 上演练、并列写出，交作者决定。**作者决定之前，第 1 步保持阻塞。**
+
+## 3. D5.2 部署脚本迁移 — `cc23d9c0`、`407d2ead`
+
+详见 [D5-deploy-migration.md](D5-deploy-migration.md)。
+
+- 迁移的脚本：DeployAnvil、DeployLive、TestAccountPrepare、InitializeAAStar、InitializeTestCommunities、DeployRepCreditSepolia、L4GaslessTest、08b/11/11_1、Check08、Check09；新增 `V55Bootstrap.sol`、`UpgradeToV5_5_0.s.sol`（第 0–3 步是单独的入口；第 4 → 5 → 5b → 6 步由 `run()` 执行；7a/7c 也有入口；每一步都读回并 `require`，重复执行时复用已部署的合约）。
+- **AUD-4 / R10-M5**：之前 `deploy-core` 部署的实际是 runs=200 的 `registry-size` 字节码，因为 import 了 Registry 的脚本会把整个依赖闭包带进这个 profile（SP 22,756 B，而 default 是 22,915 B）。修复后，7 个 5.5.0 合约一律按显式 artifact 路径用 `vm.deployCode` 部署 default 产物，部署后逐个断言运行时代码与 artifact 一致（屏蔽 immutable）；`deploy-core` 在 `forge script` 之前先 `forge build`。验证：全新 anvil 上部署出的 SP impl 为 22,915 B，日志显示 7 个合约全部是 `default (runs=500)`。**范围之外、仍按 registry-size 部署的旧合约**（GTokenStaking、MySBT、BLSAggregator 等）列在迁移文档 §8。
+- 验收：`./deploy-core anvil --force`、`./prepare-test anvil` 以及全部 Check 都通过；一笔真实的 gasless 余额模式 op 上链，读回用户烧毁量 = operator 减少量 = revenue 增加量（78.3278）、`lockedOf` = 0；Sepolia fork 上 `run()` 严格模式通过，读回 `version()` = 5.5.0，stake 为 1 ETH / 86400。
+- **第 1 步两条分支**（各用一个全新的 Sepolia fork，块 11692260，都完整走到 7c，读回全部通过；对照表见迁移文档 §9）：
+  - A（execute）：operator 先取出全部余额 → revenue 转到 treasury，只留 0.1 的 buffer → 切换 → 两个 operator 按 1:1 用新 aPNTs 重新存入（1690.0087 / 844.5407）。
+  - B（cancel）：什么都不动。
+  - 两条分支都不改写已有的 RepCredit 证据。
+- **需要作者知悉（SP 已独立核实）**：新 aPNTs `0xBb46…` 的 `communityOwner` 是 SP owner 那个 EOA `0xb560…`，现在的 aPNTs `0x696A…` 的 `communityOwner` 是另一个 EOA `0x51C0…`（链上代码长度为 0）。xPNTs 3.5.0 的 mint 没有上限，所以**无论选哪条分支，协议存款资产的增发权都在一个 EOA 上**。主网部署前应转给 Mycelium Safe。另外，选 A 之后留下的 0.1 revenue buffer 对应的是旧代币。
+- 合并后全量测试：124 个套件，1567 通过 / 0 失败 / 49 跳过。
