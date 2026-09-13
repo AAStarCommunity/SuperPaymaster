@@ -91,7 +91,10 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
         sp = SuperPaymaster(payable(address(new ERC1967Proxy(
             startOnNew ? newImpl : oldImpl, abi.encodeCall(SuperPaymaster.initialize, (owner, address(apnts), owner, 3600))
         ))));
-        assertEq(sp.version(), startOnNew ? "SuperPaymaster-5.5.1-exp" : "SuperPaymaster-5.5.0", "precondition: starting implementation");
+        // Both implementations report "SuperPaymaster-5.5.0" (release identity = commit + codehash,
+        // spec §6), so tell them apart by bytecode, not by version string.
+        assertTrue(oldImpl.codehash != newImpl.codehash, "precondition: the 5.5.0 fixture and the new impl differ");
+        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), startOnNew ? newImpl : oldImpl, "precondition: starting implementation");
 
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
@@ -225,8 +228,7 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
     function test_mid_bundle_upgrade_from_5_5_0_settles_contexts_of_the_old_impl() public {
         _boot(false);
         (bytes32[3] memory h, Res memory r) = _runUpgradeBundle(newImpl);
-        assertEq(sp.version(), "SuperPaymaster-5.5.1-exp", "precondition: the attacker's op upgraded SP mid-bundle");
-        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), newImpl);
+        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), newImpl, "precondition: the attacker's op upgraded SP mid-bundle");
         _assertVictimsSettled(h, r, "forward");
         _assertChargedWith550Formula(r);
     }
@@ -251,8 +253,7 @@ contract SuperPaymasterV55UpgradeRaceTest is Test {
         uint256 supply0 = token.totalSupply();
 
         (bytes32[3] memory h, Res memory r) = _runUpgradeBundle(oldImpl);
-        assertEq(sp.version(), "SuperPaymaster-5.5.0", "precondition: the attacker's op rolled SP back mid-bundle");
-        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), oldImpl);
+        assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), oldImpl, "precondition: the attacker's op rolled SP back mid-bundle");
         _assertVictimsSettled(h, r, "rollback");
         _assertChargedWith550Formula(r);
         assertEq(ctxLen, 384, "the victims' contexts were the experiment format (11 + 1 words)");

@@ -123,7 +123,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     mapping(address => ISuperPaymaster.SlashRecord[]) public slashHistory;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.5.1-exp"; // v5.5.0: AOA balance mode (xPNTs v2 escrow + reservation credit), in-flight sponsorship accounting
+        return "SuperPaymaster-5.5.0"; // v5.5.0: AOA balance mode (xPNTs v2 escrow + reservation credit), in-flight sponsorship accounting
     }
 
     uint256 internal constant PRICE_CACHE_DURATION = 300; // 5 minutes

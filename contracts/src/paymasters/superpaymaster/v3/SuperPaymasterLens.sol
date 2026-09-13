@@ -40,7 +40,7 @@ interface ISPLensView {
  *         Kept in lock-step with validation by the D-layer consistency test.
  */
 contract SuperPaymasterLens is IVersioned {
-    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.1-exp");
+    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.0");
 
     // --- copies of SuperPaymaster 5.5.0 internal constants ---
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
@@ -71,7 +71,7 @@ contract SuperPaymasterLens is IVersioned {
     bytes32 public constant DRYRUN_CREDIT_REJECTED          = bytes32("CREDIT_REJECTED");
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymasterLens-1.1.0-exp";
+        return "SuperPaymasterLens-1.1.0";
     }
 
     function _minPostOpGas(ISPLensView s) private view returns (uint256) {

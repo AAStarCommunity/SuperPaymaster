@@ -14,6 +14,7 @@ import {IxPNTsFactory} from "src/interfaces/IxPNTsFactory.sol";
 import {UUPSUpgradeable} from "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {V54Bootstrap} from "./V54Bootstrap.sol";
+import {SPReleaseVersion} from "./SPReleaseVersion.sol";
 
 /**
  * @title UpgradeLive
@@ -98,7 +99,7 @@ contract UpgradeLive is V54Bootstrap {
             // Refuse the 5.4.x -> 5.5.0 jump: it is a migration (runbook 03 §6 steps 4-7c).
             string memory curV = SuperPaymaster(payable(spProxy)).version();
             require(
-                keccak256(bytes(curV)) == keccak256("SuperPaymaster-5.5.0"),
+                keccak256(bytes(curV)) == keccak256(bytes(SPReleaseVersion.SP)),
                 "UpgradeLive: SP is not 5.5.0 - use UpgradeToV5_5_0.s.sol (runbook steps 4-7c), not a bare impl swap"
             );
         }

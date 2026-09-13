@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import {DefaultArtifacts} from "../v3/DefaultArtifacts.sol";
+import {SPReleaseVersion} from "../v3/SPReleaseVersion.sol";
 
 /**
  * @title CheckDefaultArtifacts
@@ -223,7 +224,7 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
         address sp = _cfgAddr("superPaymaster");
         if (sp.code.length == 0) return false;
         (bool ok, bytes memory r) = sp.staticcall(abi.encodeWithSignature("version()"));
-        return ok && keccak256(abi.decode(r, (bytes))) == keccak256("SuperPaymaster-5.5.0");
+        return ok && keccak256(abi.decode(r, (bytes))) == keccak256(bytes(SPReleaseVersion.SP));
     }
 
     /// @notice The live wiring must point at the config's addresses — a config that omits or
