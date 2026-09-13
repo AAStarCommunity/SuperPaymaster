@@ -1,10 +1,11 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-09-12T22:12:01Z",
-  "totalHash": "175b77d2eb5b95d4c95e30d223953cb5b0546422b43f2a04e30e1ff633e822f9",
+  "buildTime": "2026-09-13T01:27:04Z",
+  "totalHash": "a1f3a1e35b9943174da2f37818eda9cca79460a23c67fc6e463ce01ca8a707f4",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "40a79094f89e59bb9c3c9ad0ae72a6d6a34a110d456fd3d8ce73f48b0d360acc" },
+    { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
     { "name": "BLSAggregator-4.11.0.deployed.json", "hash": "df667b4d7e59b78afda728c03259c35074ef634a7c257e7f40fa3247e81106ce" },
     { "name": "BLSAggregator.json", "hash": "4f20651ba7cc1ff325f56223dd99c9e91e567f03febbd7068e136877d9dd6447" },
     { "name": "DVTValidator.json", "hash": "24f8aff0ad9cab66232b765e3e05293632644de51acc8a622ade41fd9475a50f" },
