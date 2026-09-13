@@ -1,0 +1,4931 @@
+{
+  "at": "2026-09-13T01:59:50.283Z",
+  "files": {
+    "rundler-gSig-traces.jsonl": [
+      {
+        "i": 0,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "creditReservedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "acct:gSig",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x357d95c0…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x357d95c0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x357d95c0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x357d95c0…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x357d95c0…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x357d95c0…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x357d95c0…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 1,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 3,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 4,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 5,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 8,
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter1"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "acct:spAfter1",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8240f8a9…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8240f8a9…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8240f8a9…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8240f8a9…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x8240f8a9…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x8240f8a9…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x8240f8a9…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 9,
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter1"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      }
+    ],
+    "rundler-gRev-traces.jsonl": [
+      {
+        "i": 0,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "creditReservedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "acct:gRev",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8315ab06…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8315ab06…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8315ab06…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8315ab06…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x8315ab06…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x8315ab06…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x8315ab06…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 1,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 3,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 4,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 5,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 8,
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter2"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "acct:spAfter2",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0xf2eeb1f0…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0xf2eeb1f0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0xf2eeb1f0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0xf2eeb1f0…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0xf2eeb1f0…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0xf2eeb1f0…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0xf2eeb1f0…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 9,
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter2"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      }
+    ],
+    "alto-gSig-traces.jsonl": [
+      {
+        "i": 0,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "creditReservedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "acct:gSig",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x357d95c0…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x357d95c0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x357d95c0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x357d95c0…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x357d95c0…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x357d95c0…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x357d95c0…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 1,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 3,
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gSig"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gSig"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 6,
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter1"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "acct:spAfter1",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8240f8a9…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8240f8a9…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8240f8a9…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8240f8a9…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x8240f8a9…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x8240f8a9…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x8240f8a9…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 7,
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter1"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      }
+    ],
+    "alto-gRev-traces.jsonl": [
+      {
+        "i": 0,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "creditReservedOf[u]",
+            "row": "R4",
+            "n": 1
+          },
+          {
+            "phase": "account",
+            "addr": "acct:gRev",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8315ab06…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0x8315ab06…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8315ab06…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0x8315ab06…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0x8315ab06…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0x8315ab06…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0x8315ab06…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 1,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 0,
+          "R2": 0,
+          "R3": 0,
+          "R4": 2,
+          "spOwn": 0,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 0,
+          "R2": 0,
+          "R3": 0,
+          "R4": 2,
+          "spOwn": 0,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          }
+        ]
+      },
+      {
+        "i": 3,
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0xa5f1e282",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0xa5f1e282",
+            "from": "token"
+          },
+          {
+            "phase": "account",
+            "type": "STATICCALL",
+            "sel": "0x63cde8f2",
+            "from": "acct:gRev"
+          },
+          {
+            "phase": "account",
+            "type": "DELEGATECALL",
+            "sel": "0x63cde8f2",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:gRev"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      },
+      {
+        "i": 6,
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter2"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ],
+        "table": [
+          {
+            "phase": "account",
+            "addr": "acct:spAfter2",
+            "op": "SLOAD",
+            "var": "slot0",
+            "row": "account-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "ERC1967.implementation",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_status",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 4
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot11",
+            "row": "SP-own",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "priceStalenessThreshold",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "sbtHolders[u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "userOpState[operator][u]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+1",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "exchangeRate",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "cachedPrice",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "slot12",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "aPNTsPriceUSD",
+            "row": "SP-own",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "protocolFeeBPS",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "SUPERPAYMASTER_ADDRESS",
+            "row": "R1",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "pendingSP/pendingSPEta/pendingSPByFactory/emergencyDisabled",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "spenderDisabled[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "maxSingleTxLimit",
+            "row": "R1",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0xf2eeb1f0…][u]+1",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 3
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_balances[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_auto[SP][u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_budget[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "lockedOf[u]",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SLOAD",
+            "var": "_locks[0xf2eeb1f0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0xf2eeb1f0…][u]",
+            "row": "R2",
+            "n": 2
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "SSTORE",
+            "var": "_locks[0xf2eeb1f0…][u]+1",
+            "row": "R2",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "token",
+            "op": "TSTORE",
+            "var": "LOCK_SEED[0xf2eeb1f0…][u]",
+            "row": "R3",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SLOAD",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "operators[operator]+3",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "SSTORE",
+            "var": "_inflight[0xf2eeb1f0…]",
+            "row": "SP-own",
+            "n": 1
+          },
+          {
+            "phase": "paymaster",
+            "addr": "SP",
+            "op": "TSTORE",
+            "var": "INFLIGHT_SEED[0xf2eeb1f0…]",
+            "row": "R3(SP)",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "i": 7,
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "allowedCreate2": 0,
+        "outsideCount": 0,
+        "forbiddenCount": 0,
+        "outside": [],
+        "forbidden": [],
+        "otherBanned": [],
+        "tokenFrames": [
+          {
+            "phase": "paymaster",
+            "type": "STATICCALL",
+            "sel": "0x3ba0b9a9",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0x3ba0b9a9",
+            "from": "token"
+          },
+          {
+            "phase": "paymaster",
+            "type": "CALL",
+            "sel": "0xec290731",
+            "from": "SP"
+          },
+          {
+            "phase": "paymaster",
+            "type": "DELEGATECALL",
+            "sel": "0xec290731",
+            "from": "token"
+          }
+        ],
+        "phases": [
+          {
+            "kind": "account",
+            "target": "acct:spAfter2"
+          },
+          {
+            "kind": "paymaster",
+            "target": "SP"
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "rundler-gSig-traces.jsonl": [
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      }
+    ],
+    "rundler-gRev-traces.jsonl": [
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      }
+    ],
+    "alto-gSig-traces.jsonl": [
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig",
+        "sender": "acct:gSig",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gSig-after",
+        "sender": "acct:spAfter1",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      }
+    ],
+    "alto-gRev-traces.jsonl": [
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 0,
+          "R2": 0,
+          "R3": 0,
+          "R4": 2,
+          "spOwn": 0,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 0,
+          "R2": 0,
+          "R3": 0,
+          "R4": 2,
+          "spOwn": 0,
+          "accountOwn": 0,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL"
+      },
+      {
+        "label": "gRev",
+        "sender": "acct:gRev",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 2,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "account:STATICCALL,account:DELEGATECALL,account:STATICCALL,account:DELEGATECALL,paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      },
+      {
+        "label": "gRev-after",
+        "sender": "acct:spAfter2",
+        "rows": {
+          "R1": 6,
+          "R2": 19,
+          "R3": 2,
+          "R4": 0,
+          "spOwn": 26,
+          "accountOwn": 1,
+          "registryListed": 0,
+          "registryUnlisted": 0
+        },
+        "outside": 0,
+        "forbidden": 0,
+        "otherBanned": 0,
+        "tokenFrames": "paymaster:STATICCALL,paymaster:DELEGATECALL,paymaster:CALL,paymaster:DELEGATECALL"
+      }
+    ]
+  }
+}

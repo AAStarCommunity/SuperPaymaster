@@ -1,0 +1,164 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "at": "2026-09-13T01:57:40.494Z",
+  "scenarios": {
+    "gRev": {
+      "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+      "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "jointHandleOps": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOpWithRevert",
+          "args": [
+            "1",
+            "AA23 reverted",
+            "0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000"
+          ]
+        },
+        "inner": {
+          "name": "EscrowPending",
+          "args": [
+            "345600000000000000000",
+            "0"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x8315ab06043ec3b1f863cbe7396f73584a4f646abd7c39c05d657c98be834619",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x8315ab06043ec3b1f863cbe7396f73584a4f646abd7c39c05d657c98be834619"
+          }
+        },
+        {
+          "userOpHash": "0x26f22f138eb28ed65866d85cfa0ece1305586759bc07f7fd07bdb573930b5509",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA23 reverted - 0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000",
+              "code": -32500
+            }
+          }
+        },
+        {
+          "userOpHash": "0x1008bd8a118ebd322c90933e9fdb9dead0a824ea582e05b906f19aca378f4002",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA23 reverted - 0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000",
+              "code": -32500
+            }
+          }
+        }
+      ],
+      "bundles": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x19c3f650beece5bac4da086afc25234009b1d16d948e85eeaff62456dbe92e6d"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x19c3f650beece5bac4da086afc25234009b1d16d948e85eeaff62456dbe92e6d"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA23 reverted - 0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000",
+            "code": -32500
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA23 reverted - 0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000",
+            "code": -32500
+          }
+        }
+      ],
+      "repBefore": {
+        "raw": null,
+        "entries": []
+      },
+      "repAfter": {
+        "raw": null,
+        "entries": [
+          {
+            "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "opsSeen": "0x1",
+            "opsIncluded": "0x1",
+            "status": "0x0"
+          },
+          {
+            "address": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+            "opsSeen": "0x0",
+            "opsIncluded": "0x1",
+            "status": "0x0"
+          }
+        ]
+      },
+      "after": {
+        "sender": "0xe94AeD212CceFad4c280946dE12dc3DF456b38c1",
+        "sub": {
+          "userOpHash": "0xf2eeb1f089fc5f154b0ae4bbddf2f0ca53196a37e8e25b2f3df95028edeb8cfe",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xf2eeb1f089fc5f154b0ae4bbddf2f0ca53196a37e8e25b2f3df95028edeb8cfe"
+          }
+        },
+        "bundle": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        "verdict": "included",
+        "receipt": {
+          "success": true,
+          "tx": "0x54d5e6a17777c5bc3be8ad94804e79e9d288b24a32a5068bf07d8241ab286d4f"
+        },
+        "status": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "status": "included",
+            "transactionHash": "0x54d5e6a17777c5bc3be8ad94804e79e9d288b24a32a5068bf07d8241ab286d4f"
+          }
+        }
+      }
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  }
+}

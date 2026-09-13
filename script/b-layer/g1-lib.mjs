@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { createWalletClient, http, concat, pad, toHex, encodeFunctionData, getAddress } from "viem";
 import { ROOT, EP, artifact, buildOp, rpc } from "./lib.mjs";
 
-export const DEPLOY_JSON = resolve(ROOT, "docs/design/aoa-balance-mode/b-layer/cases/deploy.json");
+export const DEPLOY_JSON = process.env.G1_DEPLOY_JSON ? resolve(ROOT, process.env.G1_DEPLOY_JSON) : resolve(ROOT, "docs/design/aoa-balance-mode/b-layer/cases/deploy.json");
 
 // Fixed UserOperation gas/fee fields for every case (so a0 = maxCost-priced reservation is the
 // same on both bundlers). paymasterPostOpGasLimit ≥ MIN_POST_OP_GAS (200000, spec §3.2).

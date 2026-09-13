@@ -1,0 +1,161 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "at": "2026-09-13T01:58:43.530Z",
+  "scenarios": {
+    "sp3": {
+      "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+      "paymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "jointHandleOps": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOp",
+          "args": [
+            "2",
+            "AA34 signature error"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x63f6ea0f15152f98c6610a40ebf152788c8147c7e90825b94b8f36d04e75a7cb",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x63f6ea0f15152f98c6610a40ebf152788c8147c7e90825b94b8f36d04e75a7cb"
+          }
+        },
+        {
+          "userOpHash": "0x038d8e46d5129490a3db8981cb243816313670b1795f9141b5e7e51dbbae392b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x038d8e46d5129490a3db8981cb243816313670b1795f9141b5e7e51dbbae392b"
+          }
+        },
+        {
+          "userOpHash": "0x9fcbe9ce8a2dde9115ad9754c5a8401fd22e1fcf6b52564f6eafe5539f2c6d9b",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA34 signature error",
+              "code": -32500
+            }
+          }
+        }
+      ],
+      "bundles": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x92e30df3841095d57646c14ab7f9a53f4c2d7857ec7747214c4c937691915b03"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x92e30df3841095d57646c14ab7f9a53f4c2d7857ec7747214c4c937691915b03"
+            }
+          }
+        },
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0x92e30df3841095d57646c14ab7f9a53f4c2d7857ec7747214c4c937691915b03"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0x92e30df3841095d57646c14ab7f9a53f4c2d7857ec7747214c4c937691915b03"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA34 signature error",
+            "code": -32500
+          }
+        }
+      ],
+      "repBefore": {
+        "raw": null,
+        "entries": []
+      },
+      "repAfter": {
+        "raw": null,
+        "entries": [
+          {
+            "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+            "opsSeen": "0x2",
+            "opsIncluded": "0x2",
+            "status": "0x0"
+          },
+          {
+            "address": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+            "opsSeen": "0x0",
+            "opsIncluded": "0x2",
+            "status": "0x0"
+          }
+        ]
+      },
+      "after": {
+        "sender": "0x1E7Ff8256EDdA640BA206ffD62E0De57B0dCA79f",
+        "sub": {
+          "userOpHash": "0xf04dbab1409516ae7a28b4095447692077baf298b9e262f2a09a2f17f4c52888",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0xf04dbab1409516ae7a28b4095447692077baf298b9e262f2a09a2f17f4c52888"
+          }
+        },
+        "bundle": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        "verdict": "included",
+        "receipt": {
+          "success": true,
+          "tx": "0x11892d826623a964749a3dce39bcd7ba4a88f97a7f81d567642e28cddf7c8b50"
+        },
+        "status": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "status": "included",
+            "transactionHash": "0x11892d826623a964749a3dce39bcd7ba4a88f97a7f81d567642e28cddf7c8b50"
+          }
+        }
+      }
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  }
+}

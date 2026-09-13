@@ -1,0 +1,24 @@
+rundler-tpm tpm3: 4 ops [0x6904f1:k0 0x6904f1:k1 0x6904f1:k2 0x000000:k0] -> {"name":"FailedOpWithRevert","args":["2","AA33 reverted","0xe450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee538000"]}
+alto-tpm tpm1: 1 ops [0x20f883:k0] -> {"ok":"0x75625"}
+alto-tpm tpm1: 1 ops [0x20f883:k0] -> {"ok":"0x75625"}
+alto-tpm tpm3: 2 ops [0x6904f1:k0 0x6904f1:k1] -> {"ok":"0x7e5c0"}
+alto-tpm tpm3: 2 ops [0x6904f1:k0 0x6904f1:k1] -> {"ok":"0x7e5c0"}
+alto-tpm tpm3-after: 1 ops [0x6872A7:k0] -> {"ok":"0x6d099"}
+alto-tpm tpm3-after: 1 ops [0x6872A7:k0] -> {"ok":"0x6d099"}
+rundler-gSig gSig: 4 ops [0xD0141E:k0 0xD0141E:k1 0xD0141E:k2 0x000000:k0] -> {"name":"FailedOp","args":["1","AA24 signature error"]}
+rundler-gSig gSig: 3 ops [0xD0141E:k0 0xD0141E:k2 0x000000:k0] -> {"name":"FailedOp","args":["1","AA24 signature error"]}
+alto-gSig gSig: 1 ops [0xD0141E:k0] -> {"ok":"0xa26dd"}
+alto-gSig gSig: 1 ops [0xD0141E:k0] -> {"ok":"0xa26dd"}
+alto-gSig gSig-after: 1 ops [0x2ef8B0:k0] -> {"ok":"0x98a3d"}
+alto-gSig gSig-after: 1 ops [0x2ef8B0:k0] -> {"ok":"0x98a3d"}
+rundler-gRev gRev: 4 ops [0x22753E:k0 0x22753E:k1 0x22753E:k2 0x000000:k0] -> {"name":"FailedOpWithRevert","args":["1","AA23 reverted","0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000"]}
+rundler-gRev gRev: 3 ops [0x22753E:k0 0x22753E:k2 0x000000:k0] -> {"name":"FailedOpWithRevert","args":["1","AA23 reverted","0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000"]}
+alto-gRev gRev: 1 ops [0x22753E:k0] -> {"ok":"0xa26dd"}
+alto-gRev gRev: 1 ops [0x22753E:k0] -> {"ok":"0xa26dd"}
+alto-gRev gRev-after: 1 ops [0xe94AeD:k0] -> {"ok":"0x98a3d"}
+alto-gRev gRev-after: 1 ops [0xe94AeD:k0] -> {"ok":"0x98a3d"}
+rundler-sp3 sp3: 4 ops [0x740Be5:k0 0x740Be5:k1 0x740Be5:k2 0x000000:k0] -> {"name":"FailedOp","args":["2","AA34 signature error"]}
+alto-sp3 sp3: 2 ops [0x740Be5:k0 0x740Be5:k1] -> {"ok":"0xe22c2"}
+alto-sp3 sp3: 2 ops [0x740Be5:k0 0x740Be5:k1] -> {"ok":"0xe22c2"}
+alto-sp3 sp3-after: 1 ops [0x1E7Ff8:k0] -> {"ok":"0x98a3d"}
+alto-sp3 sp3-after: 1 ops [0x1E7Ff8:k0] -> {"ok":"0x98a3d"}

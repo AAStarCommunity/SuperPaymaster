@@ -1,0 +1,11 @@
+account   acct:t1         SLOAD  slot0                                        assoc=sender (own storage) x1
+paymaster TokenPaymaster  SLOAD  slot9                                        assoc=TokenPaymaster (own storage) x1
+paymaster TokenPaymaster  SLOAD  slot10                                       assoc=TokenPaymaster (own storage) x2
+paymaster TokenPaymaster  SLOAD  slot3                                        assoc=TokenPaymaster (own storage) x1
+paymaster F1TestToken     SLOAD  _allowances[acct:t1][TokenPaymaster]         assoc=TokenPaymaster x1
+paymaster F1TestToken     SSTORE _allowances[acct:t1][TokenPaymaster]         assoc=TokenPaymaster x1
+paymaster F1TestToken     SLOAD  _balances[acct:t1]                           assoc=acct:t1 x1
+paymaster F1TestToken     SSTORE _balances[acct:t1]                           assoc=acct:t1 x1
+paymaster F1TestToken     SLOAD  _balances[TokenPaymaster]                    assoc=TokenPaymaster x1
+paymaster F1TestToken     SSTORE _balances[TokenPaymaster]                    assoc=TokenPaymaster x1
+paymaster TokenPaymaster  SLOAD  slot4                                        assoc=TokenPaymaster (own storage) x1

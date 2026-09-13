@@ -10,7 +10,7 @@ const TOKEN = S.deploy.operatorToken.toLowerCase(), SP = S.deploy.superPaymaster
 const out = {};
 for (const pair of pairs) {
     const [label, file] = pair.split("=");
-    const lines = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((l) => l.label === "B8");
+    const lines = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((l) => l.label === "B8" && l.ourTrace);
     out[label] = lines.map((l) => {
         const ts = l.ourTrace.acc.filter((a) => a.op === "TSTORE" && (a.a === TOKEN || a.a === SP));
         const levels = l.bundlerTrace?.callsFromEntryPoint ?? [];

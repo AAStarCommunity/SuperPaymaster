@@ -1,0 +1,555 @@
+{
+  "rundler-tpm": [
+    {
+      "at": "2026-09-13T01:54:58.238Z",
+      "label": "tpm3",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "1",
+          "seq": "0"
+        },
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x65c8fd4d: 0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000d41413333207265766572746564000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064e450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee53800000000000000000000000000000000000000000000000000000000000",
+        "decoded": {
+          "name": "FailedOpWithRevert",
+          "args": [
+            "2",
+            "AA33 reverted",
+            "0xe450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee538000"
+          ]
+        }
+      }
+    }
+  ],
+  "alto-tpm": [
+    {
+      "at": "2026-09-13T01:55:45.141Z",
+      "label": "tpm1",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x20f88388009049b85f6Ae6b1C6e1C311Bba149d9",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x75625"
+      }
+    },
+    {
+      "at": "2026-09-13T01:55:45.148Z",
+      "label": "tpm1",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x20f88388009049b85f6Ae6b1C6e1C311Bba149d9",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x75625"
+      }
+    },
+    {
+      "at": "2026-09-13T01:55:51.899Z",
+      "label": "tpm3",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "1",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x7e5c0"
+      }
+    },
+    {
+      "at": "2026-09-13T01:55:51.905Z",
+      "label": "tpm3",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+          "nonceKey": "1",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x7e5c0"
+      }
+    },
+    {
+      "at": "2026-09-13T01:55:57.774Z",
+      "label": "tpm3-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x6872A7924313D4d5756f55b52a1156aee91235E4",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x6d099"
+      }
+    },
+    {
+      "at": "2026-09-13T01:55:57.785Z",
+      "label": "tpm3-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x6872A7924313D4d5756f55b52a1156aee91235E4",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x6d099"
+      }
+    }
+  ],
+  "rundler-gSig": [
+    {
+      "at": "2026-09-13T01:56:09.267Z",
+      "label": "gSig",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "1",
+          "seq": "0"
+        },
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x220266b6: \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000@\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014AA24 signature error\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+        "decoded": {
+          "name": "FailedOp",
+          "args": [
+            "1",
+            "AA24 signature error"
+          ]
+        }
+      }
+    },
+    {
+      "at": "2026-09-13T01:56:09.270Z",
+      "label": "gSig",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x220266b6: \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000@\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014AA24 signature error\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+        "decoded": {
+          "name": "FailedOp",
+          "args": [
+            "1",
+            "AA24 signature error"
+          ]
+        }
+      }
+    }
+  ],
+  "alto-gSig": [
+    {
+      "at": "2026-09-13T01:56:50.645Z",
+      "label": "gSig",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xa26dd"
+      }
+    },
+    {
+      "at": "2026-09-13T01:56:50.650Z",
+      "label": "gSig",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0xD0141E899a65C95a556fE2B27e5982A6DE7fDD7A",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xa26dd"
+      }
+    },
+    {
+      "at": "2026-09-13T01:56:56.336Z",
+      "label": "gSig-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x2ef8B0700Dfb15c022df5eD5252A1fc27F9aD4f8",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    },
+    {
+      "at": "2026-09-13T01:56:56.341Z",
+      "label": "gSig-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x2ef8B0700Dfb15c022df5eD5252A1fc27F9aD4f8",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    }
+  ],
+  "rundler-gRev": [
+    {
+      "at": "2026-09-13T01:57:05.272Z",
+      "label": "gRev",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "1",
+          "seq": "0"
+        },
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x65c8fd4d: 0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000d41413233207265766572746564000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044b3c7b25f000000000000000000000000000000000000000000000012bc29d8eec7000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "decoded": {
+          "name": "FailedOpWithRevert",
+          "args": [
+            "1",
+            "AA23 reverted",
+            "0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000"
+          ]
+        }
+      }
+    },
+    {
+      "at": "2026-09-13T01:57:05.276Z",
+      "label": "gRev",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x65c8fd4d: 0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000d41413233207265766572746564000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044b3c7b25f000000000000000000000000000000000000000000000012bc29d8eec7000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "decoded": {
+          "name": "FailedOpWithRevert",
+          "args": [
+            "1",
+            "AA23 reverted",
+            "0xb3c7b25f000000000000000000000000000000000000000000000012bc29d8eec70000000000000000000000000000000000000000000000000000000000000000000000"
+          ]
+        }
+      }
+    }
+  ],
+  "alto-gRev": [
+    {
+      "at": "2026-09-13T01:57:45.144Z",
+      "label": "gRev",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xa26dd"
+      }
+    },
+    {
+      "at": "2026-09-13T01:57:45.153Z",
+      "label": "gRev",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x22753E4264FDDc6181dc7cce468904A80a363E44",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xa26dd"
+      }
+    },
+    {
+      "at": "2026-09-13T01:57:50.770Z",
+      "label": "gRev-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0xe94AeD212CceFad4c280946dE12dc3DF456b38c1",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    },
+    {
+      "at": "2026-09-13T01:57:50.783Z",
+      "label": "gRev-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0xe94AeD212CceFad4c280946dE12dc3DF456b38c1",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    }
+  ],
+  "rundler-sp3": [
+    {
+      "at": "2026-09-13T01:57:59.626Z",
+      "label": "sp3",
+      "method": "eth_call",
+      "block": "pending",
+      "ops": [
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "1",
+          "seq": "0"
+        },
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "2",
+          "seq": "0"
+        },
+        {
+          "sender": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "code": 3,
+        "message": "execution reverted: custom error 0x220266b6: \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000@\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014AA34 signature error\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+        "decoded": {
+          "name": "FailedOp",
+          "args": [
+            "2",
+            "AA34 signature error"
+          ]
+        }
+      }
+    }
+  ],
+  "alto-sp3": [
+    {
+      "at": "2026-09-13T01:58:50.002Z",
+      "label": "sp3",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "1",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xe22c2"
+      }
+    },
+    {
+      "at": "2026-09-13T01:58:50.013Z",
+      "label": "sp3",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "0",
+          "seq": "0"
+        },
+        {
+          "sender": "0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722",
+          "nonceKey": "1",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0xe22c2"
+      }
+    },
+    {
+      "at": "2026-09-13T01:58:55.628Z",
+      "label": "sp3-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x1E7Ff8256EDdA640BA206ffD62E0De57B0dCA79f",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    },
+    {
+      "at": "2026-09-13T01:58:55.637Z",
+      "label": "sp3-after",
+      "method": "eth_estimateGas",
+      "block": "latest",
+      "ops": [
+        {
+          "sender": "0x1E7Ff8256EDdA640BA206ffD62E0De57B0dCA79f",
+          "nonceKey": "0",
+          "seq": "0"
+        }
+      ],
+      "answer": {
+        "ok": "0x98a3d"
+      }
+    }
+  ],
+  "rundlerSSMC1-sp3": [],
+  "rundlerSSMC1-tpm": []
+}

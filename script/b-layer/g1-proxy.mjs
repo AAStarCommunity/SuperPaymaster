@@ -6,7 +6,9 @@
 //      the one the bundler is about to trace;
 //   2. forwards the bundler's request unchanged and returns anvil's answer unchanged;
 //   3. appends {case label, request (tracer code replaced by its sha256), bundler tracer result,
-//      our tracer result} to <outJsonl>.
+//      our tracer result} to <outJsonl>;
+//   4. (F1) also logs every eth_call / eth_estimateGas of EntryPoint.handleOps with its raw answer
+//      (kind "handleOps-call"): the bundler's joint, untraced bundle check.
 // eth_estimateUserOperationGas traffic (eth_call / eth_estimateGas) and everything else passes
 // through untouched. The runner sets the current case label via POST /__label {"label": "..."}.
 // Usage: node script/b-layer/g1-proxy.mjs <listenPort> <upstreamUrl> <outJsonl>
@@ -49,6 +51,16 @@ async function handleOne(req) {
             ourTrace: mine.result ?? null, ourTraceError: mine.error ?? null }) + "\n");
         return theirs;
     }
+    // F1: also record the bundler's JOINT bundle check — an eth_call/eth_estimateGas of
+    // EntryPoint.handleOps (0x765e827f) — with its raw answer (no tracer involved).
+    const call = req?.params?.[0];
+    const data = call?.data ?? call?.input;
+    if ((req?.method === "eth_call" || req?.method === "eth_estimateGas") && typeof data === "string" && data.startsWith("0x765e827f")) {
+        const ans = JSON.parse(await up(JSON.stringify(req)));
+        appendFileSync(outJsonl, JSON.stringify({ at: new Date().toISOString(), label, kind: "handleOps-call", request: req,
+            response: ans }) + "\n");
+        return ans;
+    }
     return JSON.parse(await up(JSON.stringify(req)));
 }
 
@@ -64,7 +76,9 @@ http.createServer((req, res) => {
             }
             const parsed = JSON.parse(body);
             // Only the (rare) traced simulations are intercepted; plain traffic is piped as-is.
-            const needs = (x) => x && x.method === "debug_traceCall";
+            const isHandleOps = (x) => (x?.method === "eth_call" || x?.method === "eth_estimateGas")
+                && String(x.params?.[0]?.data ?? x.params?.[0]?.input ?? "").startsWith("0x765e827f");
+            const needs = (x) => x && (x.method === "debug_traceCall" || isHandleOps(x));
             let out;
             if (Array.isArray(parsed) ? parsed.some(needs) : needs(parsed)) {
                 out = JSON.stringify(Array.isArray(parsed) ? await Promise.all(parsed.map(handleOne)) : await handleOne(parsed));

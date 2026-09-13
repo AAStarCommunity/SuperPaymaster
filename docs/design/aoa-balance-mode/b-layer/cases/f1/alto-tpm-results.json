@@ -1,0 +1,205 @@
+{
+  "kind": "alto",
+  "bundlerUrl": "http://127.0.0.1:18660",
+  "at": "2026-09-13T01:55:42.256Z",
+  "scenarios": {
+    "tpm1": {
+      "sub": {
+        "userOpHash": "0xc1eb49f6b7f531899d16fac65f453f312f5f4cdba6feaf08c315dbcf75a50a1d",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0xc1eb49f6b7f531899d16fac65f453f312f5f4cdba6feaf08c315dbcf75a50a1d"
+        }
+      },
+      "bundle": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "ok"
+      },
+      "verdict": "included",
+      "receipt": {
+        "success": true,
+        "tx": "0xb41c9cff8d9e1123ae914b6bbb562195a36d35830450e04e61a853083b04b655"
+      },
+      "status": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "status": "included",
+          "transactionHash": "0xb41c9cff8d9e1123ae914b6bbb562195a36d35830450e04e61a853083b04b655"
+        }
+      }
+    },
+    "tpm3": {
+      "sender": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+      "paymaster": "0xe8D2A1E88c91DCd5433208d4152Cc4F399a7e91d",
+      "jointHandleOps": {
+        "reverted": true,
+        "error": {
+          "name": "FailedOpWithRevert",
+          "args": [
+            "2",
+            "AA33 reverted",
+            "0xe450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee538000"
+          ]
+        },
+        "inner": {
+          "name": "ERC20InsufficientBalance",
+          "args": [
+            "0x6904f148cC3502f9bdf150685913A0705B116d24",
+            "1500000000000000",
+            "3000000000000000"
+          ]
+        }
+      },
+      "subs": [
+        {
+          "userOpHash": "0x0a94eaa59c5a0b2d04893cc2e85b8ba46ff8d704b057274c4c72f5bb04054a70",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x0a94eaa59c5a0b2d04893cc2e85b8ba46ff8d704b057274c4c72f5bb04054a70"
+          }
+        },
+        {
+          "userOpHash": "0x5d066c26c7b48e528172924e46695035f147f61b952810a7a491af7288d3af50",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x5d066c26c7b48e528172924e46695035f147f61b952810a7a491af7288d3af50"
+          }
+        },
+        {
+          "userOpHash": "0xf0b65a089e17bddde7f0dcdf4203dd9cfd7450f073613fd46e7c49218258124d",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+              "message": "AA33 reverted - 0xe450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee538000",
+              "code": -32500
+            }
+          }
+        }
+      ],
+      "bundles": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        }
+      ],
+      "outs": [
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xcacf6c67bc4498dc4e1ab24e6f0fbbfc60e54f6a74ca383b132273822005fb36"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xcacf6c67bc4498dc4e1ab24e6f0fbbfc60e54f6a74ca383b132273822005fb36"
+            }
+          }
+        },
+        {
+          "verdict": "included",
+          "receipt": {
+            "success": true,
+            "tx": "0xcacf6c67bc4498dc4e1ab24e6f0fbbfc60e54f6a74ca383b132273822005fb36"
+          },
+          "status": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "status": "included",
+              "transactionHash": "0xcacf6c67bc4498dc4e1ab24e6f0fbbfc60e54f6a74ca383b132273822005fb36"
+            }
+          }
+        },
+        {
+          "verdict": "reject",
+          "error": {
+            "message": "AA33 reverted - 0xe450d38c0000000000000000000000006904f148cc3502f9bdf150685913a0705b116d240000000000000000000000000000000000000000000000000005543df729c000000000000000000000000000000000000000000000000000000aa87bee538000",
+            "code": -32500
+          }
+        }
+      ],
+      "repBefore": {
+        "raw": null,
+        "entries": [
+          {
+            "address": "0xe8D2A1E88c91DCd5433208d4152Cc4F399a7e91d",
+            "opsSeen": "0x1",
+            "opsIncluded": "0x1",
+            "status": "0x0"
+          }
+        ]
+      },
+      "repAfter": {
+        "raw": null,
+        "entries": [
+          {
+            "address": "0xe8D2A1E88c91DCd5433208d4152Cc4F399a7e91d",
+            "opsSeen": "0x3",
+            "opsIncluded": "0x3",
+            "status": "0x0"
+          },
+          {
+            "address": "0x6904f148cC3502f9bdf150685913A0705B116d24",
+            "opsSeen": "0x0",
+            "opsIncluded": "0x2",
+            "status": "0x0"
+          }
+        ]
+      },
+      "after": {
+        "sender": "0x6872A7924313D4d5756f55b52a1156aee91235E4",
+        "sub": {
+          "userOpHash": "0x865c87163f9fdbc3412cd0a6bb745358c0b4a7cc70e6bdcd381232b4939e93e5",
+          "response": {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": "0x865c87163f9fdbc3412cd0a6bb745358c0b4a7cc70e6bdcd381232b4939e93e5"
+          }
+        },
+        "bundle": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "ok"
+        },
+        "verdict": "included",
+        "receipt": {
+          "success": true,
+          "tx": "0xa6b4fb781ada3cc852696756653e4c5afe593c1ed6d9e3c6f1a0bf440c758f7b"
+        },
+        "status": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "status": "included",
+            "transactionHash": "0xa6b4fb781ada3cc852696756653e4c5afe593c1ed6d9e3c6f1a0bf440c758f7b"
+          }
+        }
+      }
+    }
+  },
+  "bundlingMode": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": "ok"
+  }
+}

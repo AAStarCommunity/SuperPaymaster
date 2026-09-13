@@ -29,6 +29,7 @@ SNAP=$("$CAST" rpc evm_snapshot --rpc-url "$RPC" | tr -d '"')
 run_one() { # <label> <proxyPort> <bundlerPort> <kind> <start command...>
   local label="$1" pport="$2" bport="$3" kind="$4"; shift 4
   node "$ROOT/script/b-layer/g1-proxy.mjs" "$pport" "$RPC" "$W/$label-traces.jsonl" >"$W/proxy-$label.log" 2>&1 & local ppid=$!
+  wait_rpc "http://127.0.0.1:$pport" # the bundler must not start before its upstream answers
   "$@" >"$W/$label.log" 2>&1 & local bpid=$!
   PIDS+=("$ppid" "$bpid")
   wait_rpc "http://127.0.0.1:$bport"

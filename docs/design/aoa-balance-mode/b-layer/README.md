@@ -82,3 +82,23 @@ node script/b-layer/b0-send.mjs <setup.json> http://127.0.0.1:<bundler port> <la
 
 结果、trace 获取方式、§3.4 逐行对照与发现见 [B1-B10.md](B1-B10.md)，原始证据在 `cases/`。
 一键复现：`script/b-layer/g1-run.sh <workDir> <rundler 目录> <alto125 目录>`，然后 `script/b-layer/g1-collect.sh <workDir>`。
+
+## 5. 自托管 Rundler 的配置（论文实验用）与选 Rundler 作主用的补充理由（F1 之后）
+
+**论文实验所用的自托管 Rundler v0.11.0 固定加 `--pool.same_sender_mempool_count 1`**（其余与 §3 / B1-B10.md §1 相同）。
+依据是 F1 调查（[F1-investigation.md](F1-investigation.md)）：Rundler 的「二次验证」逐笔独立进行，同一 sender 的多笔 op 只在出块前一次
+不带 tracer 的 `handleOps` 联合调用里才一起执行；那里 paymaster 失败（AA30/31/33/34）会让已质押的 paymaster 被按 SREP-050 封禁，
+标准的 eth-infinitism `TokenPaymaster` 同样如此。把同一 sender 在内存池里的 op 数限为 1，就不会出现同一 sender 的多笔 op 进同一 bundle。
+
+实测（`cases/f1/rundlerSSMC1-sp3-*`，B2b 同样的三笔 op）：第 1 笔接受并上链；**第 2、3 笔在提交时就被拒**，响应原文
+`{"code":-32505,"message":"Max operations (1) reached for account:\"0x740Be5d5c1d56ff61a7839A212947e36Fe2d5722\" due to being unstaked"}`；
+SP 信誉 `opsSeen 0x1 / opsIncluded 0x1 / status 0`（未封禁），随后别的用户经 SP 的 op 正常上链。
+（注意：这个上限只对**未质押**的账户生效，`crates/pool/src/mempool/uo_pool.rs:711`；而且只保护我们自己的节点，不能约束第三方 bundler。）
+
+**Rundler 作主用的补充理由**：Alto v1.2.5 在 safe mode 下有两处与 SP 无关的上游缺陷（证据见 [B1-B10.md](B1-B10.md) §5）：
+1. **质押检查不看 `--min-entity-*`**：存储规则判断「是否已质押」用的 `isStaked` 写死为 `1 wei ≤ stake && 1 s ≤ unstakeDelay`
+   （`src/rpc/validation/TracerResultParserV07.ts:66-70`）；`--min-entity-stake / --min-entity-unstake-delay` 只进信誉管理
+   （`src/mempool/reputationManager.ts:307、792`），且前者按 wei 比较。结果：SP 质押 0.1 ETH、工厂质押 0.5 ETH 或 delay 3600 s 都被接受。
+2. **trace 归属跨 sender 错位**：提交时把同 paymaster 的待处理 op 排在前面一起模拟（`src/store/createMemoryOutstandingStore.ts:221-251`），
+   解析器却用 `callsFromEntryPoint.find(...)` 取到**第一个** op 的 `validateUserOp` 层（`TracerResultParserV07.ts:531`），把前一个 sender
+   读自己存储的访问记到当前 op 头上 → `unstaked account accessed <另一个 sender> slot 0x0`。两个不同 sender 共用一个 paymaster 时必然触发。

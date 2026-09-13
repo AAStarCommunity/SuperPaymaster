@@ -216,6 +216,9 @@ function checkFile(file) {
     const seen = new Set();
     const lines = readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
     for (const [i, e] of lines.entries()) {
+        // optional ACCESS_LABELS=<regex>: check only matching case labels (F1 runs mix in a non-SP paymaster)
+        if (process.env.ACCESS_LABELS && !new RegExp(process.env.ACCESS_LABELS).test(e.label)) continue;
+        if (e.kind === "handleOps-call") continue; // joint bundle check logged by the proxy (no trace)
         if (!e.ourTrace) { out.push({ i, label: e.label, error: e.ourTraceError }); continue; }
         const sender = senderOf(e.label, e);
         if (!sender) continue;
