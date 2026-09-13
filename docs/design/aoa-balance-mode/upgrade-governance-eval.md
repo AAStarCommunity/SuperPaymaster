@@ -36,7 +36,7 @@ DSR 指出：`BasePaymasterUpgradeable._authorizeUpgrade` 是 `onlyOwner`，没�
 所以只用 T1 时，快速止损要靠每个社区各自动手，这就是推荐加上 G 的原因。
 
 **其他注意点**：
-- `Ownable` 是单步转移。转给 timelock 那一笔交易的地址**必须核对两遍**，交易之后读回 `owner() == timelock`，并确认 timelock 的角色配置正确（proposer、canceller、executor，以及 admin 已放弃）。要不要改成 Ownable2Step，需要改代码，可以和 G 一起做。
+- `Ownable` 是单步转移。转给 timelock 那一笔交易的地址**必须核对两遍**，交易之后读回 `owner() == timelock`，并确认 timelock 的角色配置正确（proposer、canceller、executor，以及 admin 已放弃）。要不要改成两步转移，需要改代码，可以和 G 一起做。**注意（更正）：不能直接改用 OZ `Ownable2Step` 作为基类**：它会在 `_owner`（slot 0）之后插入 `_pendingOwner`，让 SP 和 Registry 之后的所有槽后移，破坏原地升级。升级安全的做法见 03 §10.7b 的"GOV-2 存储设计"：自己实现两步转移，`pendingOwner` 放在 ERC-7201 命名空间槽。
 - 日常运营的影响：`setAPNTSPrice` 本来是日常调价，放到 48 h 之后运营会变慢。可以选择：接受；把调价交给一个受限的 keeper（仍然受 ±30% 和上下界约束）；或者由 guardian 负责。需要作者决定。
 - **Registry 同样处理**：Registry 的 owner 和升级权也应该放到 timelock 后面，否则 SP 放进 timelock 之后，Registry 就成了新的即时大权限（它能即时替换 BLS 聚合器、调整信用分档）。
 - 与"gas 常数改为治理参数"的关系：参数调整的 48 h timelock 与本方案一致。T1 之后，升级本身也要等 48 h，参数化带来的新增信任面就更小了。

@@ -544,10 +544,19 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | # | 事项 | 作者决定 | 落地 |
 |---|---|---|---|
 | GOV-1 | SP 和 Registry 的 owner / 升级权 | **同意**：两者的 owner 都改为 **48h TimelockController**，作为主网上线的前提 | runbook 主网前步骤 M1；评估见 `upgrade-governance-eval.md` T1 |
-| GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。实现和 Codex 都在主网前完成，体积要实测（余量 1,661 B）；runbook M2 |
+| GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。**存储必须升级安全（见下方 GOV-2 存储设计）**。实现和 Codex 都在主网前完成（D5b），体积要实测（余量 1,661 B）；runbook M2 |
 | GOV-3 | aPNTs 价格（`setAPNTSPrice`） | **走 48h timelock，只能由 AAStar 社区治理多签更改**（即 GOV-1 那个 timelock，proposer 是这把治理多签），**不设 keeper 例外** | GOV-1 完成后自动生效，不另改代码；治理多签的地址待确认（TBD）。作者补充：aPNTs 作为 xPNTs 的一种，发行量和信用由 reputation system 按发行量、行业参数等做动态分析并实时展示，这属于 reputation system 的范围，不进 SP 5.5.x |
 | GOV-4 | aPNTs 铸币权（原 GOV-2） | (a) Safe + renounceFactory 已演练，runbook 7d；**(b) 在讨论**：作者倾向"初始上限 + 调高走治理多签加 48h timelock + reputation 动态监测"，先出设计草稿（`apnts-capped-design.md`），上限值等作者给出，不实现、不部署；**(d) 列为 TODO，5.5.x 不做（deferred）**；(c) 长期 | — |
 | GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | 等实验分支 `exp/buffer-and-params` 和 Codex 的结论 | — |
+
+**GOV-2 存储设计（更正：第一版写的"采用 OZ `Ownable2Step`"不是升级安全的，Codex 收尾审查指出）**
+
+- 事实：SP（`BasePaymasterUpgradeable`）和 Registry 都继承 OZ v5.0.2 的**非 upgradeable** `Ownable`，`_owner` 占顺序存储的 slot 0，紧接着就是 `_status`（slot 1），然后是各自的状态变量（见 `storage-layout/SuperPaymaster.json`、`storage-layout/Registry.json`）。OZ v5.0.2 的 `Ownable2Step` 会把 `_pendingOwner` 声明成普通状态变量，位置正好在 `_owner` 之后。**直接把基类换成它，会让之后的每一个槽都后移一格**，原地升级已有的代理就会造成存储错位。
+- **规范做法**：
+  1. **不改继承**，基类仍是 `Ownable`。在合约内自己实现两步转移：覆盖 `transferOwnership(newOwner)`，改为只记录待定 owner 并发出 `OwnershipTransferStarted`；新增 `acceptOwnership()`，要求 `msg.sender == pendingOwner`，再调用 `_transferOwnership`；新增 `pendingOwner()` 视图。`renounceOwnership` 一律 revert（timelock 治理之下，不允许放弃所有权）。
+  2. **`pendingOwner` 存在 ERC-7201 命名空间槽**（例如 `keccak256(abi.encode(uint256(keccak256("aastar.storage.Ownership2Step")) - 1)) & ~bytes32(uint256(0xff))`），不占用顺序布局，因此顺序布局的快照 diff 为零。SP 和 Registry 用同一段代码（可以抽成一个 library 或 abstract）。
+  3. **guardian 和 `paused`** 追加在 SP 顺序布局的末尾，占用 `__gap` 的 1 个槽（地址加布尔打包在同一个槽里）；`__gap` 从 27 缩到 26，**末端槽位不变**（DSR 的条件：快照 diff 只允许出现写明的新增槽）。GOV-5 如果被采纳，它的参数槽也按这个方式追加。
+- **测试与门槛**：`scripts/check_storage_layout.py` 通过，diff 只含写明的新增槽；UUPS 升级测试（从 5.5.0 升到 D5b）断言 `_owner` 和全部状态读回不变，并用 `vm.load` 在 ERC-7201 槽读到 `pendingOwner`；**负对照**：在一个 scratch 实现里改成继承 OZ `Ownable2Step`，布局检查必须报错（证明这道门槛能拦住这类错误）。
 
 ### 10.8 独立审计闸门（runbook 新增）
 
