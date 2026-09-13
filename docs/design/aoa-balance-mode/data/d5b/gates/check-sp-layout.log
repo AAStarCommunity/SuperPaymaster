@@ -1,0 +1,4 @@
+$ python3 scripts/check-sp-layout.py --self-test
+self-test ok: a shifted slot and a shifted struct member are detected
+OK: SuperPaymaster core and SuperPaymasterAdmin storage layouts identical (42 entries, last = __gap@41)
+exit 0

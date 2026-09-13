@@ -72,3 +72,56 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 ## §5 验收清单（逐项附证据）
 
 存储布局（只含写明的新增项）；核心与扩展布局一致（脚本 + self-test）；selector 路由（交集为空；GOV-2 的 4 个 selector 在核心）；§2.1 的负对照和变异；扩展直接调用无作用；immutable 绑定读回；lens 经 fallback；G 层规则（W_postop 重测，包括核心和扩展拆分之后的 postOp）；G2 fuzz 零补贴；C2 中途升级测试；B 层重跑；体积门槛；Cancun 和 Prague 全量（Prague 最后跑，然后重新 `forge build`）；Codex 审阅。
+
+## §6 实现记录（D5b，2026-09-13；分支 `d5b/core-admin-gov2`，基线 `c30854f9`）
+
+证据文件都在 `data/d5b/`（登记见 `EVIDENCE-INDEX.md` 的 D5B-* 行）。下表按 §5 的顺序逐项列出。
+
+| §5 项 | 结论 | 证据 |
+|---|---|---|
+| 存储布局只含写明的新增项 | 通过。SP：快照 + `guardian`(slot 40, off 0) + `paused`(slot 40, off 20)，`__gap` 25 → 24，末端 65 不变；结构体只是声明作用域从 `SuperPaymaster` 改到 `SuperPaymasterStorage`（成员逐项比较）。Registry：顺序布局完全不变 | `storage-layout/allowed-changes.json`；`scripts/check_storage_layout.py`（改为"快照 + 允许清单"，`--self-test` 8 个合成变异全部被拒；`--negative-control` 把基类换成 OZ `Ownable2Step` 的 scratch 树，SP 与 Registry 都在 entry 1 报 `_status → _pendingOwner`）→ `data/d5b/gates/check_storage_layout-*.log`；ERC-7201 槽位置和内容：`test_gov2_sp_pendingOwner_erc7201_slot`、`test_gov2_registry_two_step`（`vm.load`，并断言提名不改动 0..64 / 0..73 任何顺序槽） |
+| 核心与扩展布局一致 | 通过（42 项，最后 `__gap@41`）；self-test 能发现槽位移动和结构体成员偏移 | `scripts/check-sp-layout.py --self-test` → `gates/check-sp-layout.log` |
+| selector 路由 | 通过：base 45 ⊆ core 56；扩展独有 43 个 selector，与核心交集为空；18 个热路径 selector 在核心且不在扩展独有集合；GOV-2 的 4 个 selector 与 `_transferOwnership` 的**有效定义**（按编译器 AST 重算 C3 线性化）在 SP 和 Registry 上都是 `Ownable2StepNamespaced`，`transferOwnership` 带 `onlyOwner`。self-test 覆盖：遮蔽、override 只在扩展、缺 `onlyOwner`、缺 `_transferOwnership` override、GOV-2 selector 由扩展应答 | `scripts/check-sp-selectors.py --self-test` → `gates/check-sp-selectors.log` |
+| §2.1 负对照与变异 | 通过（见下方变异表） | `scripts/d5b-mutation-matrix.py` → `gates/mutation-matrix.log`；代理上的负对照 `test_gov2_sp_transferOwnership_via_proxy_is_two_step` |
+| 扩展直接调用无作用 | 通过：扩展 `owner()==0`、没有 initializer、`setGuardian`/`setGlobalPaused`/`upgradeToAndCall`/`validatePaymasterUserOp` 直接调用 revert；能通过检查的写入只落在扩展自己的存储（代理的 `sbtHolders`、`paused` 不变）；核心实现的 `initialize` 同样不可调用 | `test_d5b_extension_direct_calls_are_inert` |
+| fallback 非 payable | 通过：普通 ETH 转账、带 value 的扩展 selector、未知 selector 都 revert；不带 value 的同一路由调用成功（正对照） | `test_d5b_fallback_is_non_payable` |
+| immutable 绑定读回 | 通过。扩展由核心的构造函数用同一组参数创建（结构上相等）；测试读回 entryPoint / REGISTRY / ETH_USD_PRICE_FEED；部署侧：`DefaultArtifacts._requireDefaultArtifact("SuperPaymaster")` 现在额外要求 `EXTENSION` 是 profile.default 的 `SuperPaymasterAdmin` 且三个 immutable 与核心相同（运行时比对会屏蔽 `EXTENSION` 这个 immutable，所以必须单独查）；`CheckDefaultArtifacts`、`UpgradeLive`、`UpgradeToV5_5_0` 第 5 步读回同步 | `test_d5b_immutable_binding`；anvil 演练日志里每次 SP 部署都有 `[artifact] SuperPaymasterAdmin extension OK` |
+| lens 经 fallback | 通过：lens 读 `gasParams()` 与 `paused()`（都是扩展 selector）；全局暂停时 lens 返回 `SPONSORSHIP_PAUSED`，validate 同样 SIG_FAILURE。对 D5b 之前的 5.5.0 核心（没有 `paused()`，没有 fallback），lens 的 staticcall 失败时按"未暂停"处理，与那个实现的验证一致 | `test_d5b_lens_through_fallback_agrees_with_validation`；原有 `test_lens_agrees_with_validation` 仍绿 |
+| G 层规则（W_postop 重测） | 通过但余量变小：拆分后 **W_postop = 147,888**（`c30854f9` 同一测试 146,853，+1,035，+0.70%）；×1.15 = 170,072 ≤ C_POSTOP 175,000（C_POSTOP 高出 W_postop 18.33%；硬下限处的余量从 3.6% 降到 2.9%）；wrap 1,770 ≤ C_WRAP 5,000；全下限参数组同样成立。直接调用 postOp 的测量同样 +1,034（141,007 → 142,041），说明增量在 SP 的 postOp 帧内；postOp 源码未改，**增量来自拆分后核心的代码生成，没有进一步归因到具体指令** | `g-layer/PostOpBound-d5b.log` L35–L40、`g-layer/PostOpBound-c30854f9-baseline.log`（`c30854f9` 源码 + 该 commit 的测试文件） |
+| G2 fuzz 零补贴 | 通过：两组固定种子各注入约 1,670 次结算失败，I9 unbacked 0 / 0，SUBSIDY 0 / 0 / 0；三个 fuzz 各 1,000 runs 通过 | `g-layer/V55Fuzz-G2-d5b.log` L39、L61、L83、L105 |
+| C2 中途升级测试 | 通过（见下方 C2 小节） | `SuperPaymasterD5bUpgradeRace.t.sol`；原有 `SuperPaymasterV55UpgradeRace`（旧 5.5.0 fixture ↔ 当前）仍绿 |
+| B 层重跑 | 通过（结论与已提交的 G1 基线逐项相同）：本机 anvil（Osaka）+ Rundler v0.11.0 + Alto v1.2.5（默认与 86400 s 两组），16 × 3 个用例的 `pass` 判定与 `b-layer/cases/*-results.json` 完全一致（原有的已知 FAIL：Rundler B10、B2b，Alto B2a/B3/B4-lowStake/B9-below，未增未减）；ERC-7562 访问检查 OUTSIDE = 0、FORBIDDEN = 0，正对照 `allFlagged = true`；SP 自有槽读取从 26 到 28（多出 GOV-5 参数槽和 D5b 的 slot 40，均为 SP 自有存储） | `data/d5b/b-layer/`（`verdict-diff-vs-committed.txt`、`access-check.txt/json`、三组 results / cases / traces）；运行方式 `scripts/d5b-blayer-rerun.sh`（`g1-run.sh` 的副本，端口 +200，输出只写 `data/d5b/b-layer/`，没有碰 `b-layer/cases` 与 F1 冻结集） |
+| 体积门槛 | 通过：核心 13,504 B（余量 11,072）、扩展 17,897、Registry 23,258（余量 1,318）、lens 5,329、BLSAggregator 24,345（余量 231，未改动） | `scripts/check-sp-size.py --self-test`（余量 1,023 被拒、恰好 1,024 通过）→ `gates/check-sp-size.log`；`sizes/sizes-d5b.json`（`script/evidence/sizes.mjs`）；CI：`.github/workflows/test.yml` 新增 "D5b release gates" 一步 |
+| Cancun / Prague 全量 | Cancun：135 个套件，**1,657 passed / 0 failed / 49 skipped**；Prague（最后跑）：**1,566 passed / 0 failed / 21 skipped**；之后重新 `forge build` 恢复 default 产物 | `unit-test/forge-test-cancun.log`、`unit-test/forge-test-prague.log` 末行 |
+| Codex 审阅 | 见 §6.4 | — |
+
+### §6.1 变异表（`gates/mutation-matrix.log`；先跑未变异的第 0 列 32 个测试全绿）
+
+| 变异 | 变红的具名断言 | 应当不受影响、实测仍绿的列 |
+|---|---|---|
+| (a) 基类改成 OZ `Ownable2Step`（scratch 树） | 布局门槛：`entry 1 changed: _status@1/0 -> _pendingOwner@1/0`（SP、Registry） | — |
+| (b) `transferOwnership` override 去掉 `onlyOwner` | `test_gov2_sp_transferOwnership_requires_owner`（期望的 `OwnableUnauthorizedAccount` 没有出现，即"non-owner nomination must revert"）；另 `registry_two_step`、`guardian_has_no_other_power` | via_proxy_is_two_step、nomination_replace_and_cancel、accept_only_by_pending、renounce_always_reverts |
+| (c) 删除核心链上的两步 override（OZ 单步生效） | `test_gov2_sp_transferOwnership_via_proxy_is_two_step`："owner unchanged after transferOwnership (two-step)"；另 registry_two_step、timelock_scheduleBatch 等 | requires_owner、renounce、guardian_cannot_unpause_operator |
+| (d) guardian 可以解除暂停 | `test_gov2_guardian_cannot_unpause_operator`、`test_gov2_guardian_cannot_lift_global_pause`（"guardian cannot unpause" 的 expectRevert） | guardian_pauses_operator、strangers_cannot_pause、guardian_has_no_other_power |
+| (e1) 全局暂停检查移到 paymasterAndData / token / rate 解析之后 | `test_gov2_global_pause_sigFails_before_parsing`："paused validation must not call the token"（`exchangeRate` 被调用 1 次，期望 0 次） | postOp、stale release、lens 一致性 |
+| (e2) 移到 a0 价格计算之后 | 同一测试：`OracleError()`（"paused validation must not reach the price math"） | postOp、stale release |
+| (e3) 移到 `_extractOperator` 之后（任何外部调用之前） | **没有测试能区分——等价变异**：两者之间只有对 SP 自有存储的读取，外部可观察行为相同。如实记为盲区，不声称覆盖 | — |
+| (f) postOp 在暂停时也拒绝 | `test_gov2_pause_does_not_block_postOp_settlement`（`Unauthorized()`）；`test_d5b_forward_mid_bundle_upgrade_with_extension_calls`："forward: no victim postOp fails: 2 != 0" | stale release、global_pause_sigFails |
+| (g) 两步 override 只写在扩展里 | `test_gov2_sp_transferOwnership_via_proxy_is_two_step`："owner unchanged…"（扩展里的 override 是死代码） | requires_owner |
+
+### §6.2 C2（spec §10.7b C2，覆盖扩展函数）
+
+- **前向**（`c30854f9` 的 5.5.0 rc → D5b，`test_d5b_forward_mid_bundle_upgrade_with_extension_calls`）：owner = 开放 executor 的 TimelockController。bundle = [攻击者 op 执行已到期的 batch：`upgradeToAndCall(D5b)` → `executeGasParams()`（D5b 核心 fallback 到扩展）→ `setGuardian(guardian 账户)`；guardian 账户的 op 执行全局暂停 + 暂停受害者的 operator；受害者 1、2（由 rc 验证）]。结果：0 个 postOp 失败，两笔都结算、执行保留、在途清零；按**验证时快照**（C_POSTOP 175k + C_WRAP 5k）计费，而不是 bundle 中途生效的参数（400k + 50k）。
+- **回滚**（D5b → `c30854f9`，`test_d5b_rollback_mid_bundle_with_extension_calls`）：bundle = [guardian 账户经扩展全局暂停；攻击者 op 执行 batch：`executeGasParams()`（扩展）→ `upgradeToAndCall(c30854f9)`；受害者 1、2（由 D5b 验证，context 384 B）]。结果：0 个 postOp 失败，按快照计费；守恒：operator 支出 = 两笔 charge = revenue 增量 = 烧毁量；slot 40 保留 guardian|paused，rc 忽略它。
+- "上一个发布版本"用 `contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex`（creation 码，runtime 含部署相关的 immutable，所以不用 runtime fixture）；来源与全部源码 keccak 见 `d5b-previous-release.provenance.json`。按 spec §6 A2 第 5 条，rc1 上 Sepolia 之后要用链上 runtime codehash 核对这份 fixture。
+
+### §6.3 升级流程与演练
+
+- `contracts/script/v3/UpgradeViaTimelock.s.sol`：`UpgradeRegistryD5b`（runbook 第 5c 步，EOA）；`UpgradeViaTimelock` 的 `deploy-impl` / `direct-upgrade`（M1 之前）/ `schedule-upgrade` / `execute-upgrade`（§10.7b C）/ `schedule-accept` / `execute-accept`（M1 的单个 `scheduleBatch` + M2 的 `setGuardian`）。广播者没有 proposer / executor 角色时只打印给 Safe 的 calldata。`UpgradeLive` 遇到 timelock 持有的代理直接拒绝并指向本脚本。
+- 本机 anvil 演练（`scripts/d5b-anvil-rehearsal.sh`，`--unlocked`，不传私钥）：c30854f9 的 SP / Registry 上链 → 5c → SP rc→D5b（EOA）→ M1（两步转移、单个 scheduleBatch、48h 前执行失败、48h 后执行、原 EOA 升级失败）→ SP 与 Registry 各一次 schedule → 48h → execute（提前执行失败）→ M2 演练（guardian 暂停；guardian 解除失败；timelock 48h 后解除）。全部读回通过：`REHEARSAL OK` → `data/d5b/rehearsal/`。这是本机演练，不是 fork 演练；rc1 门槛要求的 Sepolia fork 演练（spec §6 A2）没有做。
+- Registry 版本 `Registry-5.8.0` → **`Registry-5.9.0`**；SP 仍为 `SuperPaymaster-5.5.0`；lens 因为新增 `DRYRUN_SPONSORSHIP_PAUSED`（ABI 变化）改为 **`SuperPaymasterLens-1.2.0`**（`SPReleaseVersion.LENS` 同步）。
+- SDK：`abis/SuperPaymaster.json` 只剩核心函数，**必须改用 `abis/SuperPaymaster.full.json`**（核心 + 扩展独有 46 项，同一个代理地址）；需要通知 repo:sdk、repo:dvt。Solidity 调用方用 `SuperPaymasterAdminCalls`（`using … for SuperPaymaster`）。
+
+### §6.4 Codex 审阅
+
+见本分支之后的补充提交（审阅在本记录写入时仍在进行，结论另行记录，不在这里预写）。

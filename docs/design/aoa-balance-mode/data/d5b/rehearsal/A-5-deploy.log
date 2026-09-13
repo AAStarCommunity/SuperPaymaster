@@ -1,0 +1,34 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
+    [artifact] default artifact OK: SuperPaymaster 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x1F708C24a0D3A740cD47cC0444E9480899f3dA7D
+    SP impl ready (default build, immutables == live, headroom >= 1,024): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0 13504
+    new implementation (pass as TL_NEW_IMPL): 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 31337
+
+Estimated gas price: 0.549239371 gwei
+
+Estimated total gas used for script: 9232315
+
+Estimated amount required: 0.005070750883473865 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/broadcast/UpgradeViaTimelock.s.sol/31337/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/cache/UpgradeViaTimelock.s.sol/31337/run-latest.json
+

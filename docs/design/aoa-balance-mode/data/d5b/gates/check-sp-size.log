@@ -1,0 +1,11 @@
+$ python3 scripts/check-sp-size.py --self-test
+  SuperPaymaster          13504 B  headroom  11072  (out/SuperPaymaster.sol/SuperPaymaster.json)
+  SuperPaymasterAdmin     17897 B  headroom   6679  (out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json)
+  SuperPaymasterLens       5329 B  headroom  19247  (out/SuperPaymasterLens.sol/SuperPaymasterLens.json)
+  Registry                23258 B  headroom   1318  (out/Registry.sol/Registry.json)
+  BLSAggregator           24345 B  headroom    231  (out/BLSAggregator.sol/BLSAggregator.json)
+  xPNTsTokenV2            19929 B  headroom   4647  (out/xPNTsTokenV2.sol/xPNTsTokenV2.json)
+  xPNTsTokenV2Ext         21922 B  headroom   2654  (out/xPNTsTokenV2Ext.sol/xPNTsTokenV2Ext.json)
+self-test ok: headroom 1,023 and an over-limit extension are rejected; exactly 1,024 passes
+OK: SuperPaymaster core headroom 11072 B >= 1024; all 7 deployables <= EIP-170
+exit 0

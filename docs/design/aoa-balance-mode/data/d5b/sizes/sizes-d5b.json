@@ -1,0 +1,96 @@
+{
+  "tree": ".",
+  "eip170": 24576,
+  "rows": [
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13504,
+      "headroom": 11072,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 13115,
+      "headroom": 11461,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 17897,
+      "headroom": 6679,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterAdmin",
+      "artifact": "out/SuperPaymasterAdmin.sol/SuperPaymasterAdmin.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 17568,
+      "headroom": 7008,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 5329,
+      "headroom": 19247,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "artifact": "out/SuperPaymasterLens.sol/SuperPaymasterLens.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 5310,
+      "headroom": 19266,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "Registry",
+      "artifact": "out/Registry.sol/Registry.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23258,
+      "headroom": 1318,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 24345,
+      "headroom": 231,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23940,
+      "headroom": 636,
+      "sourceKeccakMatchesTree": true
+    }
+  ]
+}

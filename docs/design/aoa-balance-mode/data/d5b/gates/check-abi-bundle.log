@@ -1,0 +1,5 @@
+$ node scripts/check-abi-bundle.mjs
+compared 25 bundles against out/
+external / pinned to a deployment, NOT compared: BLSAggregator-4.11.0.deployed, EntryPoint, SimpleAccount, SimpleAccountFactory, SuperPaymaster.full, TimelockController, xPNTsTokenV2.full
+abis/ matches the compiled contracts (full shape, not just names)
+exit 0

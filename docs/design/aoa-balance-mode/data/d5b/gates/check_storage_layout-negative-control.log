@@ -1,0 +1,8 @@
+$ python3 scripts/check_storage_layout.py --negative-control
+negative control: scratch tree with OZ Ownable2Step as the base —
+DRIFT  SuperPaymaster storage layout differs from snapshot + allowed changes — UUPS-upgrade-UNSAFE:
+    entry 1 changed: _status@1/0 -> _pendingOwner@1/0
+DRIFT  Registry storage layout differs from snapshot + allowed changes — UUPS-upgrade-UNSAFE:
+    entry 1 changed: _status@1/0 -> _pendingOwner@1/0
+negative control ok: the gate rejects an OZ Ownable2Step base
+exit 0
