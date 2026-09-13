@@ -10,6 +10,7 @@
 - `onchain-real`：公链上已经上链的交易，本次只读取回（任何浏览器可查）。目前只有 5.5.0 之前的历史交易。
 - `onchain-readonly`：对公链的只读 JSON-RPC 查询（没有交易）。
 - `unit-test`：forge 进程内 EVM 的测试输出。
+- `spec-freeze`：规范冻结版本的 commit 与文件 sha256（不是实验数据；用于证明论文与 runbook 引用的是哪一版规范）。
 - `HISTORICAL-VOID`：原稿（`910d1f7` 那一代合约）的 OP 主网数据，**重投时作废**，只作拒稿前存档。
 
 "this commit" 指提交本索引的那个 commit（父 commit `df941d57`）。本 commit 对 `contracts/` 的唯一改动是 G2 fuzz 的导出钩子（环境变量不设时不生效，见 §1 U-01）；`contracts/src`、`foundry.toml` 未改。
@@ -46,6 +47,7 @@
 | U-11 | unit-test（构建产物） | `3b0d4821` / `c5fc803c` / `3e7ddd9a` / this commit / `31921fbc` | `data/sizes/sizes-*.json`（`.rows[]`：按产物自身 metadata 选 runs / evm，`sourceKeccakMatchesTree` 核对源码） | `node script/evidence/sizes.mjs <树根>`（历史 commit 用 `git archive` + `forge build`） | sha256(data/sizes/sizes-3b0d4821-sp542-baseline.json)=c3bd07ff38fef7ed525d29359385a3f155be4661a93e403787886cf4b4c29273；sha256(data/sizes/sizes-c5fc803c.json)=997cbcfe1a3dfc9fe67e4875be69d533033e625ddefd9ecd91ee91a89d5a0ab1；sha256(data/sizes/sizes-3e7ddd9a.json)=cd96208bc48aaaf5264fb09e0863efdc9802a0cf4a53ae7fc6e9cdffbd2b9a28；sha256(data/sizes/sizes-df941d57.json)=b13bbd7dd202d223ab2403e9dbf701e987f188175b90be584fa2f2761a01a064；sha256(data/sizes/sizes-31921fbc-exp-partA.json)=5955c1e346c14ca1076c1ab436ade5c0ca37b2ea2db3eead77a79db822e56b68 |
 | U-12 | unit-test | **PENDING（exp/buffer-and-params）** | 预定：`data/g2-expA-31921fbc-*.jsonl`、`data/g2-expB-e0cf0dc8-*.jsonl`（同一 schema，自带 `formula` 标签）+ 同一脚本的 stats | 同 U-01 / U-02（钩子原样移植，只有 `bufGas` 一行按该分支的收费预言改） | — |
 | T-01 | 模板 | this commit | `data/templates/p2-sepolia-runbook.csv`、`p4-deployments.csv`、`p4-op-mainnet-ops.csv`（只有表头；规范见 `03-final-spec.md` §6.1） | — | sha256(data/templates/p4-op-mainnet-ops.csv)=a882a46b1420aa921634327e04ae01d760f5088a7b2a180d8e49461eb0ac6b38 |
+| S-01 | spec-freeze | `70f8085f550708fa2b27ac7dd8d03f2dc50fa5eb`（父 commit `cbcb7045`；2026-09-13） | `03-final-spec.md` **v4.0**（冻结版；改动清单见文件头的 v4.0 条目） | `git show 70f8085f:docs/design/aoa-balance-mode/03-final-spec.md \| shasum -a 256`（在仓库根目录执行）；当前工作树上的同一个值说明规范自冻结以来没有改动 | 03-final-spec.md v4.0 的 sha256 = `10dfcbed8ab870936295222873a480f208ccf23d26380c8aa3a0713260112a0d`（规范不在 `EVIDENCE.sha256` 的范围内，这个值只记在本行；**故意不写成 `sha256(路径)=` 的形式**，否则 `build-manifest.mjs` 会在规范日后修改时把冻结值静默改写成新值。以后的版本新增一行，不改本行） |
 
 ## 2. 登记册数字 → 证据
 
