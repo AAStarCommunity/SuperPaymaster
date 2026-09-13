@@ -9,6 +9,7 @@ import "src/tokens/GToken.sol";
 import "src/tokens/xPNTsToken.sol";
 import "src/tokens/xPNTsFactory.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import { SPReleaseVersion } from "./SPReleaseVersion.sol";
 import "src/paymasters/v4/Paymaster.sol";
 import "src/paymasters/v4/core/PaymasterFactory.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -93,7 +94,7 @@ contract InitializeAAStar is Script {
         // 5.5.0: SP only accepts an xPNTs v2 token from the factory it is wired to
         // (xPNTsFactoryV2); the 3.x aPNTs above stays the operator DEPOSIT asset.
         address opToken = apntsAddr;
-        if (keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0")) {
+        if (keccak256(bytes(sp.version())) == keccak256(bytes(SPReleaseVersion.SP))) {
             address factoryV2 = sp.xpntsFactory();
             require(factoryV2 == vm.parseJsonAddress(json, ".xPNTsFactoryV2"), "InitializeAAStar: SP factory != config.xPNTsFactoryV2");
             // xPNTsFactoryV2 keeps the 3.x getTokenAddress / deployxPNTsToken signatures.

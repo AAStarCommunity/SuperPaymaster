@@ -113,7 +113,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         assertEq(c.minPostOpGas, 200_000);
         assertEq(c.settleGasBound, 160_000);
         assertEq(c.cWrap, 5_000);
-        assertEq(c.cPostop, 170_000);
+        assertEq(c.cPostop, 175_000);
         assertEq(_pend().eta, 0, "nothing pending");
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "slot 38 zero = defaults (upgrade-safe)");
         assertEq(sp.version(), "SuperPaymaster-5.5.1-exp");
@@ -207,30 +207,30 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_bounds_checked_at_queue() public {
         // positive control: every edge value accepted
         vm.prank(owner);
-        sp.queueGasParams(175_000, 155_000, 2_000, 150_000);
+        sp.queueGasParams(175_000, 155_000, 5_000, 175_000);
         vm.prank(owner);
         sp.queueGasParams(2_000_000, 1_000_000, 50_000, 2_000_000);
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 170_000);
+        sp.queueGasParams(200_000, 160_000, 5_000, 175_000);
         // SETTLE in [155k, 1M]
-        _expectBad(200_000, 154_999, 5_000, 170_000);
-        _expectBad(2_000_000, 1_000_001, 5_000, 170_000);
+        _expectBad(200_000, 154_999, 5_000, 175_000);
+        _expectBad(2_000_000, 1_000_001, 5_000, 175_000);
         // MIN in [SETTLE + 20k, 2M]
-        _expectBad(179_999, 160_000, 5_000, 170_000);
-        _expectBad(2_000_001, 160_000, 5_000, 170_000);
-        // C_POSTOP in [150k, MIN]
-        _expectBad(200_000, 160_000, 5_000, 149_999);
+        _expectBad(179_999, 160_000, 5_000, 175_000);
+        _expectBad(2_000_001, 160_000, 5_000, 175_000);
+        // C_POSTOP in [175k, MIN]
+        _expectBad(200_000, 160_000, 5_000, 174_999);
         _expectBad(200_000, 160_000, 5_000, 200_001);
-        // C_WRAP in [2k, 50k]
-        _expectBad(200_000, 160_000, 1_999, 170_000);
-        _expectBad(200_000, 160_000, 50_001, 170_000);
+        // C_WRAP in [5k, 50k]
+        _expectBad(200_000, 160_000, 4_999, 175_000);
+        _expectBad(200_000, 160_000, 50_001, 175_000);
     }
 
     /// @notice Execute re-checks the bounds: a pending value that no longer satisfies them (only
     ///         reachable by corrupting storage, e.g. a bad upgrade) is refused.
     function test_bounds_rechecked_at_execute() public {
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 170_000);
+        sp.queueGasParams(200_000, 160_000, 5_000, 175_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
         // corrupt the pending cPostop to 100k (below the 150k floor)
         vm.store(address(sp), bytes32(GAS_PARAMS_SLOT + 1),
@@ -244,7 +244,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     // ------------------------------------------------------------------ effects
 
     function test_min_post_op_gas_parameter_drives_validation_and_lens() public {
-        _set(250_000, 160_000, 5_000, 170_000);
+        _set(250_000, 160_000, 5_000, 175_000);
         (bool ok, ) = _validates(249_999, keccak256("a"));
         assertFalse(ok, "below the new MIN: sigFail");
         (ok, ) = _validates(250_000, keccak256("b"));
@@ -257,7 +257,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     }
 
     function test_settle_gas_bound_parameter_drives_postOp_guard() public {
-        _set(320_000, 300_000, 5_000, 170_000);
+        _set(320_000, 300_000, 5_000, 175_000);
         (bool ok, bytes memory ctx) = _validates(320_000, keccak256("s"));
         assertTrue(ok);
         vm.prank(EP);
@@ -278,7 +278,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_settle_floor_keeps_no_oog_band() public {
         vm.prank(operator);
         sp.setOperatorLimits(60);
-        _set(200_000, 155_000, 5_000, 170_000); // SETTLE at its hard floor
+        _set(175_000, 155_000, 5_000, 175_000); // all-floor tuple (SETTLE, MIN, C_POSTOP, C_WRAP)
         address poor = address(0xC0FFEE);
         vm.prank(address(registry));
         sp.updateSBTStatus(poor, true);
@@ -290,7 +290,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.updatePrice();
         vm.prank(poor);
         IV2Ext(address(token)).requestCredit(50_000 ether);
-        PackedUserOperation memory op = _op(200_000);
+        PackedUserOperation memory op = _op(175_000); // the op's limit at the floor MIN
         op.sender = poor;
         vm.prank(EP);
         (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, keccak256("floor"), 1e16);
@@ -330,7 +330,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     }
 
     function test_c_postop_and_c_wrap_parameters_drive_the_charge() public {
-        assertEq(_charge(keccak256("c0")), _expected(170_000, 5_000), "defaults");
+        assertEq(_charge(keccak256("c0")), _expected(175_000, 5_000), "defaults");
         _set(200_000, 160_000, 9_000, 190_000);
         assertEq(_charge(keccak256("c1")), _expected(190_000, 9_000), "new C_POSTOP / C_WRAP");
     }

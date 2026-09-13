@@ -13,7 +13,7 @@ import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 ///      EntryPoint's wrapping overhead unknown. Its context has the same length as SP's OpCtx.
 contract PostOpProbePaymaster is IPaymaster {
     uint256 public constant BURN_FLOOR = 300;
-    uint256 public constant CTX_WORDS = 11; // == SuperPaymaster.OpCtx (11 static fields)
+    uint256 public constant CTX_WORDS = 12; // == SuperPaymaster.OpCtx (12 static fields since exp/params)
     uint256 public lastPassedGas;
     uint256 public calls;
 

@@ -9,6 +9,7 @@ import "../../src/tokens/MySBT.sol";
 import "../../src/core/GTokenStaking.sol";
 import "../../src/core/Registry.sol";
 import "../../src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import { SPReleaseVersion } from "../v3/SPReleaseVersion.sol";
 
 interface IFactoryV2Check {
     function SUPERPAYMASTER() external view returns (address);
@@ -90,7 +91,7 @@ contract Check08_Wiring is Script {
         // SP 5.5.0 binds operators to tokens from xPNTsFactoryV2 (runbook step 6), so on 5.5.0
         // SP.xpntsFactory must be the v2 factory; before 5.5.0 it is the 3.x factory.
         address spFactory = SuperPaymaster(payable(superPaymaster)).xpntsFactory();
-        if (keccak256(bytes(SuperPaymaster(payable(superPaymaster)).version())) == keccak256("SuperPaymaster-5.5.0")) {
+        if (keccak256(bytes(SuperPaymaster(payable(superPaymaster)).version())) == keccak256(bytes(SPReleaseVersion.SP))) {
             require(vm.keyExistsJson(json, ".xPNTsFactoryV2"), "Check08: SP is 5.5.0 but config has no xPNTsFactoryV2");
             address factoryV2 = stdJson.readAddress(json, ".xPNTsFactoryV2");
             require(spFactory == factoryV2, "Check08: SP -> FactoryV2 Failed");

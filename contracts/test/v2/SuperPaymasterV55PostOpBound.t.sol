@@ -172,8 +172,8 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         (ctx, vd) = sp.validatePaymasterUserOp(op, h, maxCost);
         assertEq(vd & 1, 0, "validated");
         assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, wantMode, "precondition: mode");
-        // the context is 11 static words for every op: this IS the longest real context
-        assertEq(ctx.length, 11 * 32, "context length is fixed (11 static words)");
+        // the context is 12 static words for every op: this IS the longest real context
+        assertEq(ctx.length, 12 * 32, "context length is fixed (12 static words)");
     }
 
     /// @dev Path setup + validation + the between-phase event; returns the postOp calldata.
@@ -333,6 +333,25 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     /// @notice The rule. Mutation: lowering C_POSTOP_GAS (or C_WRAP_GAS) in the source below the
     ///         bound turns the named assertion red.
     function test_rule_C_POSTOP_ge_W_postop_times_1_plus_m() public {
+        _assertRule();
+    }
+
+    /// @notice Codex B-HIGH-2: the rule must hold for EVERY bounds-valid configuration, so the
+    ///         all-floor tuple (MIN 175k, SETTLE 155k, C_WRAP 5k, C_POSTOP 175k) is configured
+    ///         through SP's queue/execute and the whole rule is re-run on it.
+    function test_rule_under_all_floor_params() public {
+        vm.prank(owner);
+        sp.queueGasParams(175_000, 155_000, 5_000, 175_000);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        vm.prank(owner);
+        sp.executeGasParams();
+        sp.updatePrice();
+        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        assertEq(g.settleGasBound, 155_000, "precondition: floor tuple active");
+        _assertRule();
+    }
+
+    function _assertRule() internal {
         (uint256 W, uint256 maxMinLimit) = _wPostop();
         uint256 sum = _observedConstSum();
         (SuperPaymaster.GasParams memory g, ) = sp.gasParams();

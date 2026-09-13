@@ -102,6 +102,8 @@ contract SuperPaymasterV55FuzzTest is Test {
     bool private _bufOld;
     bool private _countSubsidy;
     bool private _cPostopFromEnv;
+    uint256 private _minPost; // SP gasParams().minPostOpGas (exp/params)
+    uint256 private _settle;  // SP gasParams().settleGasBound
     uint256 constant VERIF_GAS = 400_000;
     uint256 constant PM_VERIF_GAS = 700_000;
     uint256 constant PVG = 50_000;
@@ -308,8 +310,6 @@ contract SuperPaymasterV55FuzzTest is Test {
     // ------------------------------------------------------------------
 
     function setUp() public {
-        _cPostop = vm.envOr("G2_C_POSTOP", uint256(170_000));
-        _cWrap = vm.envOr("G2_C_WRAP", uint256(5_000));
         _cPostopFromEnv = vm.envOr("G2_C_POSTOP", uint256(0)) != 0;
         _bufOld = vm.envOr("G2_BUF_OLD", false);
         _countSubsidy = vm.envOr("G2_COUNT_SUBSIDY", false);
@@ -340,12 +340,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         sp.updatePrice();
         sp.deposit{value: 100 ether}();
-        // exp/params: without an env override, the oracle must use exactly what SP says it uses
-        (SuperPaymaster.GasParams memory gpar, ) = sp.gasParams();
-        if (!_cPostopFromEnv && !_bufOld) {
-            assertEq(uint256(gpar.cPostop), _cPostop, "oracle C_POSTOP == SP gasParams().cPostop");
-            assertEq(uint256(gpar.cWrap), _cWrap, "oracle C_WRAP == SP gasParams().cWrap");
-        }
+        _loadParams();
         sp.transferOwnership(address(relay)); // owner actions from now on go through the relay
         vm.stopPrank();
 
@@ -385,6 +380,46 @@ contract SuperPaymasterV55FuzzTest is Test {
     // Tests
     // ==================================================================
 
+    /// @notice Same campaign with the ALL-FLOOR parameter tuple (MIN 175k, SETTLE 155k, C_WRAP 5k,
+    ///         C_POSTOP 175k) configured through SP's queue/execute (Codex B-HIGH-2).
+    /// forge-config: default.isolate = true
+    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.seed = "0xd5c4"
+    /// forge-config: default.fuzz.dictionary.dictionary_weight = 0
+    function testFuzz_G2_floor_params(uint256 seed) public {
+        _configureFloor();
+        Stats memory st = _newStats(64);
+        _campaign(seed, st);
+        assertEq(st.subsidyCnt, 0, "DSR no-subsidy: subsidised settled ops in this campaign == 0");
+    }
+
+    /// @notice Coverage replay (fixed seeds) under the all-floor tuple.
+    /// forge-config: default.isolate = true
+    function test_G2_coverage_replay_floor_params() public {
+        _configureFloor();
+        _coverage();
+    }
+
+    /// @dev exp/params: the oracle uses exactly what SP says it uses (env overrides only for the
+    ///      negative control / OLD-formula comparison of Part A).
+    function _loadParams() internal {
+        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        _minPost = g.minPostOpGas;
+        _settle = g.settleGasBound;
+        _cPostop = vm.envOr("G2_C_POSTOP", uint256(g.cPostop));
+        _cWrap = vm.envOr("G2_C_WRAP", uint256(g.cWrap));
+    }
+
+    function _configureFloor() internal {
+        _owner(abi.encodeCall(SuperPaymaster.queueGasParams, (175_000, 155_000, 5_000, 175_000)));
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        _owner(abi.encodeCall(SuperPaymaster.executeGasParams, ()));
+        sp.updatePrice();
+        _loadParams();
+        assertEq(_settle, 155_000, "precondition: all-floor tuple active");
+        assertEq(_minPost, 175_000, "precondition: all-floor tuple active");
+    }
+
     /// @notice G2 inline fuzz: every run is one seeded campaign; all per-op / per-bundle /
     ///         per-operator / per-release assertions run inside. Fixed seed for reproducibility.
     /// forge-config: default.isolate = true
@@ -407,6 +442,10 @@ contract SuperPaymasterV55FuzzTest is Test {
     ///      resets only the test frame's own counter; every isolated handleOps tx is metered normally.
     /// forge-config: default.isolate = true
     function test_G2_coverage_replay_fixed_seeds() public {
+        _coverage();
+    }
+
+    function _coverage() internal {
         Stats memory st = _newStats(RATIO_CAP);
         uint256 fmp;
         assembly ("memory-safe") { fmp := mload(0x40) }
@@ -571,9 +610,9 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.exec = e < 45 ? EX_OK : e < 63 ? EX_MOVE : e < 82 ? EX_REVERT : EX_OOG;
             uint256 pkd = _r(100);
             o.postGas = uint128(
-                pkd < 8 ? MIN_POST_OP_GAS - 1
-                : pkd < 38 ? MIN_POST_OP_GAS
-                : pkd < 80 ? MIN_POST_OP_GAS + _r(50_001)
+                pkd < 8 ? _minPost - 1
+                : pkd < 38 ? _minPost
+                : pkd < 80 ? _minPost + _r(50_001)
                 : 1_000_000 + _r(500_001)
             );
             o.callGas = uint128(
@@ -599,7 +638,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         xPNTsTokenV2 k = tok[o.t];
         (, , bool paused, , , , , , ) = sp.operators(opr[o.t]);
         (, bool blocked) = sp.userOpState(opr[o.t], u);
-        hardSP = o.postGas < MIN_POST_OP_GAS || !sp.sbtHolders(u) || blocked || paused;
+        hardSP = o.postGas < _minPost || !sp.sbtHolders(u) || blocked || paused;
         hardTok = k.emergencyDisabled() || k.spenderDisabled(address(sp), u) || o.a0 > k.maxSingleTxLimit();
     }
 
@@ -803,7 +842,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                     "model: the first predicted-invalid op is rejected by SP (AA34) at its index (k-th op rejected)");
                 x.os[firstNi].rejected = true;
                 st.rejected++;
-                if (x.os[firstNi].postGas < MIN_POST_OP_GAS) st.rejMinMinus1++;
+                if (x.os[firstNi].postGas < _minPost) st.rejMinMinus1++;
                 if (x.os[firstNi].rejSolv) st.rejSolvency++;
                 continue;
             }
@@ -991,13 +1030,13 @@ contract SuperPaymasterV55FuzzTest is Test {
                 if (!o.success) st.opReverted++;
                 if (o.exec == EX_OOG) st.oogSettled++;
                 if (o.kept) st.kept++;
-                if (o.postGas == MIN_POST_OP_GAS) st.atMinSettled++;
+                if (o.postGas == _minPost) st.atMinSettled++;
                 uint256 ppm = eth >= o.G ? (eth - o.G) * 1e6 / o.G : 0;
                 if (st.nRatio < st.ratioPpm.length) {
                     st.ratioPpm[st.nRatio++] = ppm;
                     st.sumRatioPpm += ppm;
                 }
-                if (o.postGas <= MIN_POST_OP_GAS + 50_000 && st.nTight < st.tightPpm.length) {
+                if (o.postGas <= _minPost + 50_000 && st.nTight < st.tightPpm.length) {
                     st.tightPpm[st.nTight++] = ppm;
                     st.sumTightPpm += ppm;
                 }
@@ -1026,7 +1065,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 st.sumGInjected += o.G;
                 _pend.push(Pend(o.h, o.u, o.t, o.mode, o.a0, o.x0));
             }
-            if (o.postGas == MIN_POST_OP_GAS) st.atMinIncluded++;
+            if (o.postGas == _minPost) st.atMinIncluded++;
         }
         assertEq(bUnbCnt, 0, "I9: unbacked sponsorship count per bundle == 0");
         assertEq(bUnbAmt, 0, "I9: unbacked sponsorship amount per bundle == 0");
@@ -1045,6 +1084,10 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(c.price, int256(x.price), "R10-M3: postOp context carries the validation-time ETH/USD price");
         assertEq(c.decimals, x.dec, "R10-M3: postOp context carries the validation-time decimals");
         assertEq(c.aPriceUSD, x.aPrice, "R10-M3: postOp context carries the validation-time aPNTs/USD price");
+        assertEq(uint32(c.gasSnap), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
+        assertEq(uint32(c.gasSnap >> 32), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
+        assertEq(uint32(c.gasSnap >> 64), _cWrap, "exp/params: context carries the validation-time C_WRAP");
+        assertEq(c.gasSnap >> 96, 0, "exp/params: no stray bits in the snapshot word");
         assertEq(c.a0, o.a0, "context a0");
         assertEq(c.mode, o.mode, "context mode");
         assertEq(c.callGas, o.callGas, "context callGasLimit");

@@ -91,6 +91,8 @@ m 对新公式多付率的影响（C_POSTOP = ⌈W × (1+m) / 1k⌉ × 1k，W = 
 
 ## Part B：把 gas 参数改成治理参数（commit B，建在 A 之上，可以单独评判）
 
+> **Codex 结论**：Part A（`31921fbc`）APPROVE；Part B（`d7ae5099`）REQUEST CHANGES，已在 B2 修复（见文末「B2：Codex 第 1 轮修复」）。**B.1–B.5 描述的是 `d7ae5099` 时的状态，凡与 B2 冲突的地方以 B2 为准**（尤其是：execute 的安全论证、C_POSTOP/C_WRAP 下限、默认 C_POSTOP、体积与 gas 数字）。
+
 ### B.1 改动
 
 - `MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_WRAP`、`C_POSTOP` 四个值改成 owner 可设的存储参数，放在一个槽里（4 个 uint32，`GasParams`，slot 38）。待生效值加上 eta 放在另一个槽里（`PendingGasParams`，slot 39）。这两个槽追加在 `_inflight`（slot 37）之后，`__gap` 从 27 改为 25；`storage-layout/SuperPaymaster.json` 已经用 `scripts/check_storage_layout.py update` 更新，重新检查结果为 OK（40 个条目）。
@@ -140,3 +142,53 @@ postOp 多了 878 gas，W_postop 从 146,600 升到 **147,478**（每条路径�
 3. **规则余量非常紧**：A 为 15.96%，B 为 15.27%。如果 m 取 15%，建议 C_POSTOP 取 175k（多付率增加不到 1 个百分点）。
 4. **fuzz 负对照的灵敏度**：只有低于 W 大约 25k 时才会报补贴，W − 20k 时仍然是绿的，原因是惩罚上界和 C_WRAP 的结构性余量。所以 G 层规则才是第一道防线。
 5. **B 的体积余量只剩 1,124 B**。
+
+## B2：Codex 第 1 轮修复（B 的第二个 commit，建在 `d7ae5099` 之上）
+
+### 1. HIGH：验证与 postOp 之间的参数竞争（TimelockController + 开放 executor）
+
+**问题（成立）**：验证期读的是旧的 `minPostOpGas`，postOp 读的却是当时的 `settleGasBound`、`cPostop`、`cWrap`。`d7ae5099` 用"execute 只允许 owner 调用"来论证安全，但如果 owner 是一个 executor 角色开放的 TimelockController（GOV-1 允许这样配置），任何账户都可以在一笔 UserOp 里触发 `timelock.execute`，时间点正好在 bundle 的验证之后、postOp 之前。于是已经通过验证的 op（limit 200k）会撞上 `gasleft() < 1M`，postOp 回滚，执行被撤销，gas 由 SP 的押金承担，这就构成了 griefing。
+
+**修复**：验证时把 `settleGasBound`、`cPostop`、`cWrap` 打包成一个字写进 context，也就是 `OpCtx.gasSnap = settle | cPostop<<32 | cWrap<<64`。postOp 的入口检查直接从 context 的第 11 个字读 settle（在解码之前读），计费也用 context 里的 cPostop 和 cWrap。这样，通过验证的 op 一定按它验证时的那组参数结算。`minPostOpGas` 只在验证期使用，不需要快照。合约的安全性**不再依赖** onlyOwner；`executeGasParams` 的注释也已改写。
+- **为什么打包成一个字**：先试过写成 3 个独立字段，SP runtime 变成 **24,908 B，超过 EIP-170（差 332 B）**，全部测试照样是绿的，因为 forge 测试不检查 EIP-170。打包成一个字之后是 **23,497 B（余量 1,079，高于 1,024 的门槛）**。**这说明需要单独的体积门槛，测试全绿不能代表可以部署。**
+- **真实复现测试** `SuperPaymasterV55ParamRace.t.sol`：规范 EntryPoint；SP 的 owner 是 OpenZeppelin `TimelockController`（proposer 是 multisig，executor 是 `address(0)`，也就是开放的）。先经 timelock 执行 queue(MIN 1.1M, SETTLE 1M, C_WRAP 50k, C_POSTOP 1M)，等 SP 的 48 h，再把 `executeGasParams` 放进 timelock 并等到可执行。bundle 里第一笔是攻击者的 op（自付 gas，不经过 SP，所以 SP 这边没有任何东西能回滚它），它通过开放的 executor 执行这次参数修改；后面两笔是 SP 赞助的受害者 op（limit 200k）。断言：参数确实在 bundle 中途变了；受害者的 postOp **没有一笔失败**，都已结算，执行结果都保留；它们按**验证时**的 buffer 计费（`aGas` 按快照价格换算后落在 [G, G + (175k + 10% + 5k)·fee] 之内）；对照：一笔新 op 用 200k 的 limit 会被 AA34 拒绝，证明新参数确实生效了。
+- **变异**：postOp 改回读实时的 settle → `B-HIGH-1: no admitted op's postOp fails …` 变红（2 笔失败）；计费改回读实时的 cPostop/cWrap → `B-HIGH-1: charged with the VALIDATION-time C_POSTOP / C_WRAP` 变红。
+- **纵深防御**：GOV-1 仍然应当把 executor 角色限定为 multisig，但合约的正确性不依赖这一点。
+
+### 2. HIGH：硬边界允许违反规则的配置
+
+**修复**：提高下限，使**所有能通过边界检查的配置**都满足当前的 G 层规则：
+
+| 参数 | 旧范围（d7ae5099） | 新范围 | 依据 |
+|---|---|---|---|
+| C_POSTOP | [150k, MIN] | **[175k, MIN]** | W_postop（B2 实测）146,817，×1.15 = 168,840，175k 还留出 +3.6% 的漂移空间。**默认值也从 170k 提到 175k**，因为默认值必须落在边界之内 |
+| C_WRAP | [2k, 50k] | **[5k, 50k]** | 12 字 context 下 wrap 实测 1,770，余量 2.8 倍 |
+| SETTLE_GAS_BOUND | [155k, 1M] | 不变 | 重新扫描：下限值 155k 上没有 OOG 区间（最坏的 CREDIT 路径，op limit 就取下限 MIN 175k） |
+| MIN_POST_OP_GAS | [SETTLE + 20k, 2M] | 不变 | 全部取下限时 MIN = 175k = C_POSTOP 的下限，关系一致；SETTLE 取 155k 时 max minLimit 为 162,334 ≤ 175k |
+
+**全下限组合 (MIN 175k, SETTLE 155k, C_WRAP 5k, C_POSTOP 175k)** 都经过真实的 queue/execute 配置上去，再分别跑两道检查：
+- G 层规则 `test_rule_under_all_floor_params`：W 146,817，175k ≥ 168,840，wrap 1,770 ≤ 5k，MIN 175k ≥ minLimit 162,334，全部通过；
+- G2 `testFuzz_G2_floor_params`（1000 runs，seed `0xd5c4`）和 `test_G2_coverage_replay_floor_params`（1000 个固定种子）：补贴 0 笔，其余断言全绿。
+
+另外 G2 的判定常量改为从 `gasParams()` 读，并逐笔断言 context 里的快照等于验证时的参数。
+- **变异**：C_POSTOP 下限改回 150k → `test_bounds_checked_at_queue` 变红。
+- **R-AMS**：Amsterdam 会让 W_postop 和 wrap 都上升，所以一旦 Amsterdam 的激活时间公布，就必须重测，必要时通过 UUPS 升级提高这些**硬编码下限**；参数本身不能突破硬边界。
+
+### 3. MEDIUM：版本号变更导致发布脚本失效
+
+新增 `contracts/script/v3/SPReleaseVersion.sol`，这是版本号的**唯一来源**（`SP = "SuperPaymaster-5.5.1-exp"`，`LENS = "SuperPaymasterLens-1.1.0-exp"`）。改为引用它的有：`V55Bootstrap.SP_V55_VERSION` / `LENS_VERSION`（UpgradeToV5_5_0、DeployAnvil、DeployLive、TestAccountPrepare、InitializeTestCommunities、L4GaslessTest、DeployRepCreditSepolia 都继承它），以及 Check08、Check09、InitializeAAStar 里原来写死的字符串。新增 `SPReleaseVersionPin.t.sol` 断言 `SP.version()`、lens 的 `version()`、`lens.EXPECTED_SP_VERSION` 三者都和这个常量一致，所以 UpgradeToV5_5_0 第 5 步的读回（`sp.version() == SP_V55_VERSION`）和 lens 的读回都不会再中止。这些脚本都已单独编译通过。第 5 步读回还会逐字节比较 0..SNAPSHOT_SLOTS 的原始槽，新增的 slot 38/39 在升级后仍然是 0（使用默认值），所以不受影响。**真正发布时，只需要在这个文件里改成最终的版本号**，SP 和 lens 的字符串要同步改，pin 测试会守住三者一致。本轮**没有**在 fork 上重跑 UpgradeToV5_5_0，只做了静态核对，外加 pin 测试和脚本编译。
+
+### 4. 重跑结果（B2 最终状态）
+
+| 项 | 结果 |
+|---|---|
+| 存储布局 | `check_storage_layout.py`：OK（40 个条目，与 d7ae5099 的快照相同；只有声明过的 slot 38/39，`__gap` 25，结束槽不变） |
+| 体积 | SP runtime **23,497 B**，余量 **1,079**（A 为 21,747；d7ae5099 为 23,452）。source keccak 与源码一致 |
+| gas | 验证 232,429（A 为 229,557，**+2,872**：一次冷 SLOAD 加上多编码一个字）；postOp 140,403（A 为 140,186，**+217**） |
+| W_postop / 规则 | 146,817；默认参数和全下限组合都满足 175,000 ≥ 168,840（余量 19.2%）；wrap 1,770 ≤ 5,000 |
+| G2（默认参数） | 1000 runs 加 1000 个固定种子，补贴 0。多付率：≤ MIN+50k 为 24.8% / 39.7% / 47.1%，1.0–1.5M 为 19.2% / 29.8% / 33.7% |
+| G2（全下限组合） | 同上，补贴 0。多付率：25.0% / 40.0% / 47.9%；19.3% / 29.8% / 33.7% |
+| 负对照 | 默认 C_POSTOP 设为 73,400（约 W/2，fuzz 判定跟随 getter）→ fuzz 和覆盖测试都在 `DSR no-subsidy …` 上变红；计数模式下 4,407 笔中 2,625 笔被补贴 |
+| 全量测试 | cancun 129 个 suite，1586 通过 / 0 失败 / 49 跳过；**prague 最后跑**，1495 通过 / 0 失败 / 21 跳过；之后又跑了一次 `forge build`（cancun 产物），体积数字取自这份产物 |
+
+多付率比 A 高出约 1 个百分点，原因是默认 C_POSTOP 从 170k 提到了 175k。
