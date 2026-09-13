@@ -1,0 +1,2 @@
+XPNTsV2I2MintNoDebtHalmosTest.check_I2_extAbi over xPNTsTokenV2Ext: PASS (1 parts, wall 20 s)
+  mint-40c10f19                            PASS            paths=70 time=5.16s exit=0

@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: mint-40c10f19 (D5C1_PART=1086394137)
+# command: D5C1_PART=1086394137 halmos --contract XPNTsV2A3MintNoDebtHalmosTest --function check_A3_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
+# tree_note: -
+# (trimmed: 5521 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2A3MintNoDebtHalmosTest
+setup: 0.03s (decode: 0.01s, run: 0.03s)
+[32m[PASS][0m check_A3_extAbi() (paths: 70, time: 5.25s (paths: 4.82s, models: 0.44s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 5.29s
+
+[time] total: 11.55s (build: 1.33s, load: 4.92s, tests: 5.29s)
+
+# exit_code: 0  wall_seconds: 19
