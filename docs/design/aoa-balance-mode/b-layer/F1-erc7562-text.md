@@ -2,7 +2,14 @@
 
 > **证据状态**：本文只包含**条文核查**（原文引用有来源和行号）和**据条文推导出的定性判断**。其中"联合验证时 SP 不会被立即封禁""Rundler 的第二次验证是逐笔进行的"两点**尚未实测或查证源码**，由调查 1（TokenPaymaster 对照）和 Rundler 源码核查来确认，结果将写进 `F1-investigation.md`（**目前还不存在**）。在那之前，下文第 2、3 节的结论都只能视为待验证的推论。
 
-来源：`ethereum/ERCs` master `84b46e7d`，`ERCS/erc-7562.md`（sha256 `c272039c…ac4c`，共 426 行）。下面引用的都是原文，行号指该文件。
+来源：两个版本的原文，内容一致，只是版本和行号不同，论文引用时审稿人按其中任何一个都能复核：
+
+| 版本 | 位置 | sha256 | 行数 | "MUST first validate them together" | GREP-040 |
+|---|---|---|---|---|---|
+| A：`ethereum/ERCs` master `84b46e7d`（2026-09-13 从 GitHub raw 取得） | `ERCS/erc-7562.md` | `c272039c7b74…62ac4c` | 426 | **L384**：`- A bundler MAY include multiple \`UserOperation\`s of the same account in a bundle, but MUST first validate them together.` | L248 |
+| B：本仓库子模块 `standards/ercs`（本机 `git submodule status` 显示 `c6d2d5e3ac26…`；DSR 转述为 `5cbe19bd`，**两者提交号不一致，但文件 sha256 相同**） | `standards/ercs/ERCS/erc-7562.md` | `dd12ceaf8c0e…9c4d16` | 442 | **L387**：`- (A bundler MAY include multiple UserOperations of the same account in a bundle, but MUST first validate them together)` | L248（措辞略有不同："fails the bundle creation after passing second validation"） |
+
+**注意这句话的形式**：在两个版本里，它都位于 **§Rationale for limiting storage access**，是这一节第二个要点里的一句话；版本 B 原文**用括号括起来，是一条括号注释**，版本 A 去掉了括号。两个版本都不在 Specification 的编号规则清单里。下表的行号按版本 A 标注。
 
 ## 1. 与 F1 直接相关的条文
 
