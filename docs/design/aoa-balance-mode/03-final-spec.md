@@ -318,7 +318,9 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 
 ## 6. 升级与迁移 runbook（Codex H3-1、H3-2）
 
-**运营前置条件（F1 决定之前）**：同一 sender 同时只能有 1 笔在途 op 经过 SP（见 §3.2 的 SDK 规范）。自托管 Rundler 配置 `--pool.same_sender_mempool_count 1`（已实测有效，局限见 §3.2）。
+**F1 处理方向（作者 2026-09-13 确认）**：① 自托管 Rundler 配置 `same_sender_mempool_count = 1`（已实测有效）+ ② SDK 限制单 sender 单笔在途 op + AirAccount 账户侧守卫（方案 A 账户在验证期读 `lockedOf(me)`；需要在 airaccount-contract 仓库开 issue）+ ④ 论文作为生态层面的限制披露（附 TokenPaymaster 对照）；③（合约层改为验证不依赖同 bundle 状态）列为研究项。
+
+**运营前置条件**：同一 sender 同时只能有 1 笔在途 op 经过 SP（见 §3.2 的 SDK 规范）。自托管 Rundler 配置 `--pool.same_sender_mempool_count 1`（已实测有效，局限见 §3.2）。
 
 **倒排时间表（升级日 = T；DSR 2026-09-13 要求放在最前面）**
 
@@ -564,7 +566,7 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。**存储必须升级安全（见下方 GOV-2 存储设计）**。实现和 Codex 都在主网前完成（D5b），体积要实测（余量 1,661 B）；runbook M2 |
 | GOV-3 | aPNTs 价格（`setAPNTSPrice`） | **走 48h timelock，只能由 AAStar 社区治理多签更改**（即 GOV-1 那个 timelock，proposer 是这把治理多签），**不设 keeper 例外** | GOV-1 完成后自动生效，不另改代码；治理多签 = **Mycelium 多签 `0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`**（作者确认，三条链同地址，Sepolia 上是 2-of-3）。作者补充：aPNTs 作为 xPNTs 的一种，发行量和信用由 reputation system 按发行量、行业参数等做动态分析并实时展示，这属于 reputation system 的范围，不进 SP 5.5.x |
 | GOV-4 | aPNTs 铸币权（原 GOV-2） | **已定（作者 2026-09-13，经 DSR）**：(b) 两条链都用 `APNTsCapped`：mint 强制上限；调高只能由治理多签 `0x51eD…E114` 经 48h timelock 执行；调低即时生效；minter 和 capGuardian 都是治理多签。**主网初始上限 300,000e18**（DSR 按作者口径计算：10 个社区 × 100 人 × 20 笔/月 × 每笔约 0.624 aPNTs × 12 个月 × 2 ≈ 299,482，取整，约合 $6,000；buffer 收紧后同一口径约为 242,880）；Sepolia 用标明为测试值的上限。(a) 适用于被弃用的旧 aPNTs `0xBb46`：renounceFactory 并转给多签后闲置（已演练，runbook 7d）。**TODO，不进 5.5.0**：(c) 售卖合约（独立小合约，按收款铸造，由多签把 minter 转给它）；(d) SP 侧的存款速率上限；reputation 的背书率监测（EntryPoint 押金价值 ÷ operator 持有的 aPNTs 负债，低于 1.2 报警） | `APNTsCapped` 作为独立小交付物实现，由 DSR 验收；设计见 `apnts-capped-design.md` |
-| GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | 等实验分支 `exp/buffer-and-params` 和 Codex 的结论 | — |
+| GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | **作者决定（2026-09-13）：这些参数不要写死在合约里，要能动态调整，由 SDK 控制；具体方式交 SP 决定。SP 的决定**：两类参数分开处理。① **每笔 op 的 gas limit 和费用参数**（`paymasterPostOpGasLimit`、`paymasterVerificationGasLimit`、`callGasLimit`、maxFee、maxRate）本来就由 SDK 动态设置；② **安全下限和计费常数**（`MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_POSTOP`、`C_WRAP`）**不能交给 SDK**：SDK 和 UserOp 都在攻击者手里，C_POSTOP 设低就等于让 SP 补贴，破坏 I9。所以它们由合约强制执行，但**不写死在字节码里**：改成链上治理参数（实验分支 Part B：治理多签经 48h timelock 调整，硬上下界本身必须满足 15% 规则），SDK 从链上的 `gasParams()` 读取当前值，据此动态设置每笔 op 的 gas。**采纳 Part A**（C_POSTOP 170k→按 m 定值、C_WRAP 5k，Codex APPROVE）；**Part B 在 Codex 第二轮通过后采纳**。另注：C_POSTOP 是 gas 单位，不随 gas 价格或市场波动变化，只随代码或硬分叉（R-AMS）变化；价格因素已经由 `actualUserOpFeePerGas` 和价格快照动态处理。**体积约束**：Part B 之后余量只剩 1,124 B，D5b（guardian + 两步所有权）也需要空间；合并实测放不下时，Part B 只保留 `C_POSTOP` 和 `SETTLE_GAS_BOUND` 两个参数 | 与 GOV-2 合并为 D5b 实施，由 DSR 验收 |
 
 **GOV-2 规范（第 3 版）**。第一版写的是"采用 OZ `Ownable2Step`"，不是升级安全的；第二版给了 ERC-7201 的存储设计，但 Codex 收尾审查指出它还有 1 个 Critical 和若干 High/Medium 问题。以下为最终规范，D5b 按此实现。
 
