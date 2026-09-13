@@ -1,0 +1,9 @@
+# mutation a-snapshot-in-word9 on contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 6c3a9a0e (patch: a-snapshot-in-word9.patch)
+# forge forge Version: 1.7.1
+## columns: forward + rollback (UpgradeRace), param-race (ParamRace), exact charge (GasParams::test_c_postop*)
+[FAIL: rollback: no victim postOp fails after a mid-bundle upgrade: 2 != 0] test_mid_bundle_rollback_to_5_5_0_settles_contexts_of_the_new_impl() (gas: 25885139)
+[PASS] test_mid_bundle_upgrade_from_5_5_0_settles_contexts_of_the_old_impl() (gas: 25705920)
+[PASS] test_open_executor_param_change_mid_bundle_does_not_harm_admitted_ops() (gas: 1036342)
+[PASS] test_c_postop_and_c_wrap_parameters_drive_the_charge() (gas: 507744)
+## G2 exact oracle (fixed-seed coverage replay)
+[FAIL: R10-M3: postOp context carries the validation-time decimals: 3549421680662654156781039061616640008 != 8] test_G2_coverage_replay_fixed_seeds() (gas: 2444212)

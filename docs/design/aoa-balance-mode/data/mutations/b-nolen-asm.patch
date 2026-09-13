@@ -1,6 +1,13 @@
---- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (8241349b)
-+++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (mutation b-nolen-asm)
-@@ -1413,9 +1413,7 @@
+# Mutation b-nolen-asm: delete ONLY the length condition, keep the assembly calldataload of word 12 (equivalent mutant)
+# Base: contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 6c3a9a0e (exp/buffer-and-params). Apply from the repo root:
+#   git apply docs/design/aoa-balance-mode/data/mutations/b-nolen-asm.patch   ...   git apply -R docs/design/aoa-balance-mode/data/mutations/b-nolen-asm.patch
+# Four-column result: b-nolen-asm.columns.log
+
+diff --git a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+index 5cd72c17..7de35e88 100644
+--- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
++++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+@@ -1413,9 +1413,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
          // 20k, so a parameter change executed mid-bundle cannot move it. Any other length (a 5.5.0
          // context: 352 B) has no snapshot and keeps the 5.5.0 bound.
          uint256 snap;

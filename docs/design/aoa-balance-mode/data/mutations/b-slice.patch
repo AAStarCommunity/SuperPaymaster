@@ -1,6 +1,13 @@
---- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (8241349b)
-+++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (mutation b-slice)
-@@ -1413,9 +1413,7 @@
+# Mutation b-slice: unconditional bounds-checked Solidity slice read context[352:384] (mislabelled '(b)' before round 4)
+# Base: contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 6c3a9a0e (exp/buffer-and-params). Apply from the repo root:
+#   git apply docs/design/aoa-balance-mode/data/mutations/b-slice.patch   ...   git apply -R docs/design/aoa-balance-mode/data/mutations/b-slice.patch
+# Four-column result: b-slice.columns.log
+
+diff --git a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+index 5cd72c17..f4ccb642 100644
+--- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
++++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+@@ -1413,9 +1413,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
          // 20k, so a parameter change executed mid-bundle cannot move it. Any other length (a 5.5.0
          // context: 352 B) has no snapshot and keeps the 5.5.0 bound.
          uint256 snap;

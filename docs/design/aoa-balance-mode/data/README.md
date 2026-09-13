@@ -144,3 +144,32 @@ g2-31921fbc-partA.hook.diff` (paths relative to the tree root), then the same co
 
 `e0cf0dc8` and `fb64e7eb` are intermediate Part B context formats that must never be deployed; no data
 was exported for them.
+
+## Mutation patches (`mutations/`, Part B context-format mutations)
+
+Each `mutations/<name>.patch` is a plain `git diff` of `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
+against its state at **`6c3a9a0e`** (standard `a/…` / `b/…` headers; provenance is in the `#` comment block
+above the diff, which `git apply` ignores). `mutations/<name>.columns.log` is the recorded four-column result
+(forward / rollback from `SuperPaymasterV55UpgradeRace`, param-race from `SuperPaymasterV55ParamRace`, exact
+charge from `SuperPaymasterV55GasParams::test_c_postop*`) plus the G2 exact oracle.
+
+| patch | mutation | recorded result |
+|---|---|---|
+| `a-snapshot-in-word9.patch` | snapshot back in word 9 (fb64e7eb packing: `decimals \| GasParams-slot << 8`, 352-byte context) | rollback **red** `rollback: no victim postOp fails after a mid-bundle upgrade: 2 != 0`; forward / param-race / exact charge green; G2 red on its context-format assertion `R10-M3: postOp context carries the validation-time decimals` (word 9 is no longer a clean uint8) |
+| `b-nolen-asm.patch` | only the length condition deleted, assembly load kept | all green — **equivalent mutant** (the 352-byte context is the calldata tail; CALLDATALOAD past calldatasize returns 0 → legacy path) |
+| `b-slice.patch` | unconditional bounds-checked slice `context[352:384]` | forward **red** `forward: no victim postOp fails after a mid-bundle upgrade: 2 != 0`; others green |
+| `c-384-as-legacy.patch` | 384-byte context treated as legacy | exact charge **red** `defaults: 40.7e18 != 35.2e18`; G2 red `R10-M3: aGas == … (exact)`; forward / rollback / param-race green |
+
+Apply and run (repo root, tree at `6c3a9a0e`, i.e. `SuperPaymaster.sol` identical to that commit):
+```
+git apply --check docs/design/aoa-balance-mode/data/mutations/<name>.patch
+git apply docs/design/aoa-balance-mode/data/mutations/<name>.patch
+forge test --match-path "contracts/test/v2/SuperPaymasterV55{UpgradeRace,ParamRace}.t.sol"
+forge test --match-path contracts/test/v2/SuperPaymasterV55GasParams.t.sol --match-test test_c_postop
+forge test --match-path contracts/test/v2/SuperPaymasterV55Fuzz.t.sol --match-test test_G2_coverage_replay_fixed_seeds
+git apply -R docs/design/aoa-balance-mode/data/mutations/<name>.patch   # revert
+```
+Mutation (a) widens the `OpCtx.decimals` field to `uint256`; the rest of the test tree still compiles against it.
+All four patches were verified with `git apply --check`, `git apply` and `git apply -R` on a clean
+`git archive 6c3a9a0e` tree (temporary repo, removed afterwards). Some `.columns.log` headers name `8241349b`:
+that commit only added data files; `SuperPaymaster.sol` there is identical to `6c3a9a0e`.

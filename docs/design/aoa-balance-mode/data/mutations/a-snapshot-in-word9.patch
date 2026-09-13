@@ -1,0 +1,61 @@
+# Mutation a-snapshot-in-word9: put the gas snapshot back into word 9 (fb64e7eb packing: decimals | GasParams-slot << 8, 352-byte context)
+# Base: contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 6c3a9a0e (exp/buffer-and-params). Apply from the repo root:
+#   git apply docs/design/aoa-balance-mode/data/mutations/a-snapshot-in-word9.patch   ...   git apply -R docs/design/aoa-balance-mode/data/mutations/a-snapshot-in-word9.patch
+# Four-column result: a-snapshot-in-word9.columns.log
+
+diff --git a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+index 5cd72c17..1a21c348 100644
+--- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
++++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
+@@ -78,7 +78,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
+         uint128 callGas;
+         uint128 postOpGas;
+         int256 price;
+-        uint8 decimals;
++        uint256 decimals;
+         uint256 aPriceUSD;
+     }
+     // exp/params context format (Codex rounds 1-3). OpCtx is an upgrade-compatibility surface in
+@@ -102,9 +102,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
+         uint128 callGas;
+         uint128 postOpGas;
+         int256 price;
+-        uint8 decimals;
++        uint256 decimals;
+         uint256 aPriceUSD;
+-        uint256 gasSnap;
+     }
+     uint256 internal constant CTX_LEN = 384;
+ 
+@@ -1360,9 +1359,8 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
+             callGas: uint128(uint256(userOp.accountGasLimits)),
+             postOpGas: uint128(bytes16(pmd[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16])),
+             price: pc.price,
+-            decimals: pc.decimals,
+-            aPriceUSD: aPNTsPriceUSD,
+-            gasSnap: gpRaw
++            decimals: uint256(pc.decimals) | (gpRaw << 8),
++            aPriceUSD: aPNTsPriceUSD
+         }));
+         return (context, _packValidationData(false, validUntil, validAfter));
+     }
+@@ -1413,9 +1411,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
+         // 20k, so a parameter change executed mid-bundle cannot move it. Any other length (a 5.5.0
+         // context: 352 B) has no snapshot and keeps the 5.5.0 bound.
+         uint256 snap;
+-        if (context.length == CTX_LEN) {
+-            assembly ("memory-safe") { snap := calldataload(add(context.offset, 352)) }
+-        }
++        assembly ("memory-safe") { snap := shr(8, calldataload(add(context.offset, 288))) }
+         uint256 snapSettle = uint32(snap >> 32);
+         if (gasleft() < (snapSettle == 0 ? LEGACY_SETTLE_GAS_BOUND : snapSettle)) revert PostOpGasTooLow();
+ 
+@@ -1439,7 +1435,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
+             : uint256(uint32(snap >> 96)) + uint32(snap >> 64);
+         uint256 bufWei = (bufGas + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)) * actualUserOpFeePerGas;
+         uint256 aGas = Math.mulDiv(
+-            (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil
++            (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(uint8(c.decimals))) * c.aPriceUSD, Math.Rounding.Ceil
+         );
+         uint256 charge = Math.mulDiv(aGas, BPS_DENOMINATOR + protocolFeeBPS, BPS_DENOMINATOR, Math.Rounding.Ceil);
+         if (charge > c.a0) charge = c.a0;

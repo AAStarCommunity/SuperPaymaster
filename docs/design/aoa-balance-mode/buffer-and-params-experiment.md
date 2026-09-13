@@ -252,7 +252,8 @@ postOp 多了 878 gas，W_postop 从 146,600 升到 **147,478**（每条路径�
 
 > **更正（Codex 第 4 轮，LOW，证据问题）**：本表原来的 (b) 写作"不做长度判断直接读第 12 个字 → 正向变红"，**这个说法不对**。当时实际做的改动是把整个 `if` 替换成**带越界检查的 Solidity 切片** `snap = uint256(bytes32(context[352:384]));`，352 B 的 context 在切片时越界 revert，所以正向变红。那是另一个变异，现在标为 **(b-slice)**。按字面意思"只删掉长度条件、保留汇编读取"（**b-nolen-asm**）是一个**等价变异**，四列全绿。原因是：EntryPoint 用标准 ABI 编码调用 `postOp`，`context` 是 calldata 里最后一个动态尾部，352 B 又是 32 的整数倍，所以 `calldataload(context.offset + 352)` 正好从 calldatasize 开始读；越界的 CALLDATALOAD 返回 0，快照为 0，于是走旧规则，结果与有长度判断时完全相同。**因此长度判断是纵深防御**：只有 context 不是 calldata 尾部，或者长度既不是 352 也不是 384 时，它才会起作用；而 `onlyEntryPoint` 加上 EntryPoint 的标准编码使这两种情况在实际中都不会出现。**长度判断保留，合约代码不改。** 本轮没有新增"强行读取非零第 12 个字"之类的变异，因为它对应不到任何真实的调用路径。
 >
-> 可复现的 patch 和四列日志放在 `data/mutations/`：`b-nolen-asm.patch/.columns.log`、`b-slice.patch/.columns.log`、`c-384-as-legacy.patch/.columns.log`，都是在 `6c3a9a0e` 的 SP 源码上生成的（日志头里写的是 `8241349b`，这个 commit 只加了数据文件，SP 源码与 `6c3a9a0e` 相同）。
+> 可复现的 patch 和四列日志放在 `data/mutations/`：`a-snapshot-in-word9`、`b-nolen-asm`、`b-slice`、`c-384-as-legacy` 四组，每组都有 `.patch` 和 `.columns.log`。patch 都是相对 `6c3a9a0e` 的 SP 源码生成的标准 `git diff`，`git apply --check` 可以直接使用（部分日志头里写的是 `8241349b`，这个 commit 只加了数据文件，SP 源码与 `6c3a9a0e` 相同）。使用方法见 `data/README.md`。
+> (a) 的复现（DSR 要求补齐）：回滚这一列变红，指名断言是 `rollback: no victim postOp fails after a mid-bundle upgrade: 2 != 0`；正向、参数竞争、精确计费三列都是绿。G2 也会变红，但红在它的 context 格式断言上（`R10-M3: postOp context carries the validation-time decimals`，因为第 9 个字已经不是干净的 uint8），这是格式检查失败，不是计费出错。
 
 | 变异 | 正向 | 回滚 | 参数竞争 | 计费（精确值） |
 |---|---|---|---|---|
