@@ -154,13 +154,20 @@ contract SuperPaymasterD5bGov2Test is Test {
     // =====================================================================
 
     /// @notice §2.1 negative control: through the PROXY, transferOwnership only nominates.
+    /// @dev No expectEmit here on purpose: the mutation "(c) core two-step override deleted" must turn
+    ///      THIS named state assertion red, not an event expectation that would fire first.
     function test_gov2_sp_transferOwnership_via_proxy_is_two_step() public {
-        vm.expectEmit(true, true, false, false, address(sp));
-        emit Ownable2StepNamespaced.OwnershipTransferStarted(owner, newOwner);
         vm.prank(owner);
         sp.transferOwnership(newOwner);
         assertEq(sp.owner(), owner, "owner unchanged after transferOwnership (two-step)");
         assertEq(sp.pendingOwner(), newOwner, "pendingOwner() == nominee");
+    }
+
+    function test_gov2_sp_transferOwnership_emits_started_by_proxy() public {
+        vm.expectEmit(true, true, false, false, address(sp));
+        emit Ownable2StepNamespaced.OwnershipTransferStarted(owner, newOwner);
+        vm.prank(owner);
+        sp.transferOwnership(newOwner);
     }
 
     function test_gov2_sp_transferOwnership_requires_owner() public {

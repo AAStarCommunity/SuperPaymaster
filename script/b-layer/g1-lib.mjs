@@ -33,7 +33,8 @@ function mergeAbis(...abis) {
 }
 
 export const ABI = {
-    sp: artifact("SuperPaymaster.sol", "SuperPaymaster").abi,
+    // D5b: one proxy address = core + SuperPaymasterAdmin extension (reached via the core's fallback)
+    sp: mergeAbis(artifact("SuperPaymaster.sol", "SuperPaymaster").abi, artifact("SuperPaymasterAdmin.sol", "SuperPaymasterAdmin").abi),
     token: mergeAbis(artifact("xPNTsTokenV2.sol", "xPNTsTokenV2").abi, artifact("xPNTsTokenV2Ext.sol", "xPNTsTokenV2Ext").abi),
     registry: artifact("Registry.sol", "Registry").abi,
     account: artifact("BLayerAccounts.sol", "MockAirAccount").abi,
