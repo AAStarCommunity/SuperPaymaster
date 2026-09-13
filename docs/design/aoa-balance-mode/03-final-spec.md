@@ -328,6 +328,9 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 7b | **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。下面保留原来的三个选项，仅作记录：(a) 把核对过的旧债导入 v2 代币；(b) 在 v2 代币上把欠债用户标记为不可开通信用；(c) 核销并在迁移记录里披露总额。**(a) 或 (b) 需要 v2 模板多一个一次性函数**（`importLegacyDebt(users, amounts)` 或 `setCreditIneligible(users)`，只有 communityOwner 能调，只能在 `creditPolicy` 首次离开 OFF 之前调用，而且之后永久关闭）；(c) 不需要改接口 | 对账记录入库；**这是 7c 的前置验收条件** |
 | 7c | **先 `SP.updatePrice()`，读回 `cachedPrice.updatedAt > 0` 且未过期**（D3 §8(a)：价格缓存为 0 时 validate 会 revert，得到 AA33 而不是 sigFail）→ `configureOperator` → 取消暂停（此时只有余额模式）；RepCredit 社区 `queueCreditPolicy(AUTO)`，48 h 后 execute，AUTO 才生效；AOA 社区保持 OFF | 探测通过；每个社区一笔余额模式 op 成功，AUTO 社区另加一笔信用 op 成功 |
 | 7d | **主网前**（任何时候都可以执行，作者要求保证随时可转）：aPNTs 铸币权交给 Mycelium Safe：先由当前 communityOwner 调 `renounceFactory()`，再 `transferCommunityOwnership(Safe)`（单步转移、没有 accept，**地址必须核对两遍**）。主网的新 aPNTs 部署时直接由 Safe 持有；是否在 mint 里强制上限，见 `apnts-mint-authority.md` §4，由作者决定 | `communityOwner == Safe`；`FACTORY == 0`；EOA 和工厂调 `mint` 都 revert，Safe 调 `mint` 成功（fork 演练，块 11692415，已通过） |
+| M1 | **主网前（GOV-1）**：SP 和 Registry 的 owner 转给 **48h TimelockController**（proposer/canceller 是 AAStar 社区治理多签，admin 已放弃）。GOV-2 实施之后是两步转移：`transferOwnership(timelock)` → timelock 通过提案执行 `acceptOwnership()` | `owner() == timelock`（SP 和 Registry 都要）；timelock `getMinDelay() == 172800`；proposer、canceller、executor 各角色的读回；负对照：原 EOA 调用 `upgradeToAndCall` 会 revert，timelock 在 48h 之前执行也会 revert |
+| M2 | **主网前（GOV-2）**：`setGuardian(Safe)`（通过 timelock）；演练：guardian 暂停 → validate 返回 sigFail；guardian 尝试恢复、升级、动资金，都 revert；timelock 恢复 | guardian 地址读回；上面各项正对照和负对照 |
+| M3 | **主网前（GOV-3）**：确认 `setAPNTSPrice` 只能由 timelock 调用（GOV-1 完成后自动如此） | EOA 调用 revert；timelock 的提案在 48h 之后执行成功 |
 | 8 | 旧代币：不迁移余额（旧债已在 7b 处理）；如果需要，另外提供 1:1 兑换合约，由用户自愿兑换，欠债用户能否兑换按 D-21 的结论决定 | — |
 | 9 | 下游：SDK / DVT / YAAA 按 02 §8.4 执行；在 airaccount-contract 开 issue（方案 A） | — |
 | 10 | RepCredit 重新采集，范围按 02 §8.4；新增同一 bundle 多笔的 Measured 测试（修正后的 L249） | — |
@@ -534,13 +537,17 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | keeper（任何人） | `updatePrice`（Chainlink，permissionless） | 价格来自 Chainlink，keeper 不能伪造 | 陈旧度通过 `validUntil` 约束 |
 | BLS 法定人数、中继、能签 UserOp 的主体 | 见 §7 | — | — |
 
-### 10.7b 主网前的治理决策项（汇总，待作者决定）
+### 10.7b 主网前的治理决策项（作者 2026-09-13 决定，经 DSR 转达）
 
-| # | 事项 | 评估文档 | 推荐 |
+> 编号说明（更正）：本节第一版把"aPNTs 铸币权"记为 GOV-2、"gas 常数参数化"记为 GOV-3。作者的决定使用 DSR 的编号，本节以此为准：原来的铸币权项改为 GOV-4，gas 常数项改为 GOV-5。
+
+| # | 事项 | 作者决定 | 落地 |
 |---|---|---|---|
-| GOV-1 | SP 和 Registry 的 owner / 升级权放到 timelock 后面 | `upgrade-governance-eval.md` | T1 + G |
-| GOV-2 | aPNTs 铸币权 | `apnts-mint-authority.md` | (a) Safe + renounceFactory；(b) 主网 aPNTs 在 mint 里强制上限（初始上限值待定）；(d) 放到 5.5.x |
-| GOV-3 | gas 常数改成治理参数 + buffer 收紧 | `buffer-tightening-eval.md`，实验分支 `exp/buffer-and-params` | 等实验和 Codex 结论 |
+| GOV-1 | SP 和 Registry 的 owner / 升级权 | **同意**：两者的 owner 都改为 **48h TimelockController**，作为主网上线的前提 | runbook 主网前步骤 M1；评估见 `upgrade-governance-eval.md` T1 |
+| GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。实现和 Codex 都在主网前完成，体积要实测（余量 1,661 B）；runbook M2 |
+| GOV-3 | aPNTs 价格（`setAPNTSPrice`） | **走 48h timelock，只能由 AAStar 社区治理多签更改**（即 GOV-1 那个 timelock，proposer 是这把治理多签），**不设 keeper 例外** | GOV-1 完成后自动生效，不另改代码；治理多签的地址待确认（TBD）。作者补充：aPNTs 作为 xPNTs 的一种，发行量和信用由 reputation system 按发行量、行业参数等做动态分析并实时展示，这属于 reputation system 的范围，不进 SP 5.5.x |
+| GOV-4 | aPNTs 铸币权（原 GOV-2） | (a) Safe + renounceFactory 已演练，runbook 7d；**(b) 在讨论**：作者倾向"初始上限 + 调高走治理多签加 48h timelock + reputation 动态监测"，先出设计草稿（`apnts-capped-design.md`），上限值等作者给出，不实现、不部署；**(d) 列为 TODO，5.5.x 不做（deferred）**；(c) 长期 | — |
+| GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | 等实验分支 `exp/buffer-and-params` 和 Codex 的结论 | — |
 
 ### 10.8 独立审计闸门（runbook 新增）
 
