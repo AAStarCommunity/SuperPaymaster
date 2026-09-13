@@ -279,7 +279,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 - **`paymasterPostOpGasLimit ≥ 200,000`（= `MIN_POST_OP_GAS`）写死**，不能用 bundler 的估算值：Rundler v0.11.0 的估算结果里没有这个字段，Alto v1.2.5 在不传的情况下只估到 114,560。
 - **`paymasterVerificationGasLimit` 必须设下限**：不传时 Rundler 估成 38,403，而 SP 验证实测需要 198k–238k。下限按**最坏路径实测值加余量**来定（初稿建议 250k），**要在最坏路径（冷槽、CREDIT、SP_RENEW、多笔同 sender）上验证之后才写死**。估算请求里一定要带上 paymaster 的 gas 字段。
 - **在 F1 的处理方式确定之前：同一 sender 同时只能有 1 笔在途 op 经过 SP**（SDK 和 AirAccount 侧强制）。这也是 runbook 和 D7 的前置条件。
-- **拟议（尚未验证）**：我们自托管的 Rundler（论文实验用的就是它）配置 `--pool.same_sender_mempool_count 1`。**这一配置能否避免 F1 的封禁，还没有实测**：B 层 agent 正在重跑 B2b 验证（结果写进 `b-layer/F1-investigation.md`，该文件目前还不存在）。验证通过之前，不得把它当作已生效的缓解措施，也不得写进论文附录。
+- **已实测**：我们自托管的 Rundler（论文实验用的就是它）配置 `--pool.same_sender_mempool_count 1`，B2b 的第 2、3 笔在提交时就被拒（`-32505`），SP 没有被封（`b-layer/F1-investigation.md`，`c0d9e350`）。局限：只对未质押的 sender 生效，只保护我们自己的节点，同一 sender 的 op 只能串行发送。F1 已定性为生态层面的交互（标准 TokenPaymaster 同样被封），处理方向等作者决定。
 
 ### 3.3 代码改动
 
@@ -318,7 +318,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 
 ## 6. 升级与迁移 runbook（Codex H3-1、H3-2）
 
-**运营前置条件（F1 决定之前）**：同一 sender 同时只能有 1 笔在途 op 经过 SP（见 §3.2 的 SDK 规范）。自托管 Rundler 配置 `--pool.same_sender_mempool_count 1` 目前是**拟议、未验证**的缓解措施（见 §3.2），不能当作已经生效。
+**运营前置条件（F1 决定之前）**：同一 sender 同时只能有 1 笔在途 op 经过 SP（见 §3.2 的 SDK 规范）。自托管 Rundler 配置 `--pool.same_sender_mempool_count 1`（已实测有效，局限见 §3.2）。
 
 **倒排时间表（升级日 = T；DSR 2026-09-13 要求放在最前面）**
 
