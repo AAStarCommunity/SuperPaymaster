@@ -607,7 +607,10 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 
 *C2. OpCtx 是升级兼容面（v3.9，Codex 对实验分支 Part B 第 2 轮审查的 High）*
 - 背景：validate 返回的 context 由 EntryPoint 保存，同一 `handleOps` 里的 postOp 会原样收到它。如果 SP 的实现**在同一个 bundle 中途**被升级（owner 是 open executor 的 TimelockController 时，一笔 UserOp 就能执行已到期的升级；即使 executor 限定为多签，只要多签本身是一个以 UserOp 方式运作的 4337 账户，同样可能），前面按旧实现验证的 op，会由新实现来执行 postOp。context 格式一旦不兼容（例如新实现读取旧 context 里并不存在的字节），postOp 就会 panic：用户的执行被撤销，gas 却由 SP 押金承担，这就是押金耗损攻击。
-- **规则**：任何 SP 升级都必须保证**上一版实现产生的 context 能被新实现正确结算**（字段含义和长度兼容；新增信息放进已有字的空闲位，并对"旧 context 缺少该字段"定义明确、安全的回退）。每次升级都要有测试覆盖"从上一个发布版本**在 bundle 中途**升级到新版本"：op0 通过 timelock 执行升级，后面按旧实现验证的 op 必须全部正常结算。
+- **规则（v3.10 更正为双向）**：任何 SP 升级都必须保证 context **双向兼容**：① 上一版实现产生的 context 能被新实现正确结算（前向）；② 新实现产生的 context 在**回滚**到上一版之后，也能被上一版正确结算（反向；回滚是支持的操作，见 `docs/deployment/2026-06-01-security-upgrade-checklist.md:117`）。
+  - **更正（Codex 对实验分支 Part B 第 3 轮的 High）**：v3.9 写的是"新增信息放进已有字的空闲位"，这是错的。对声明为窄类型的字（例如 `uint8 decimals`），Solidity 0.8 的 ABI 解码器会校验高位（`validator_revert_uint8`），旧实现遇到高位非零就 revert。因此**已有字必须保持 ABI 规范值，不得往里塞位**。
+  - 正确做法：新增信息**追加在末尾**（新的一个字）。新实现按长度区分：旧长度走明确、安全的回退，新长度才读取追加的字，其他长度按入口守卫处理；绝不越界读取。旧实现解码静态 struct 时会忽略末尾多出的字节（必须用回滚测试证明，不能靠假设）。
+  - 测试：每次升级都要有两个 bundle 中途测试。前向：op0 经 timelock 从上一个发布版本升级到新版本，后面按旧实现验证的 op 全部正常结算。反向：op0 经 timelock 回滚到上一个发布版本，后面按新实现验证的 op 全部正常结算。**从未发布过的中间格式**（例如实验分支的 `e0cf0dc8` 和 `fb64e7eb`）一律不得部署。
 - 纵深防御：GOV-1 的 timelock executor 只授予多签（不开放给任何人）；runbook 的升级步骤在暂停状态下进行（第 3 步暂停 operator）。**合约的正确性不依赖这两点。**
 - 目前的 5.4.2 → 5.5.0 升级由 EOA 以单独的交易执行，不存在 bundle 中途的窗口；GOV-1 生效之后的所有升级都适用本规则。
 
