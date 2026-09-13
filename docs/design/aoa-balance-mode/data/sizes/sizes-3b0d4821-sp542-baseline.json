@@ -1,0 +1,66 @@
+{
+  "tree": "git archive 3b0d48216f21a047f30b2f7f0aef6ecceb9e8a93 + forge build",
+  "eip170": 24576,
+  "rows": [
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23569,
+      "headroom": 1007,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymaster",
+      "artifact": "out/SuperPaymaster.sol/SuperPaymaster.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23356,
+      "headroom": 1220,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "SuperPaymasterLens",
+      "source": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "xPNTsTokenV2",
+      "source": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "xPNTsTokenV2Ext",
+      "source": "contracts/src/tokens/v2/xPNTsTokenV2Ext.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "APNTsCapped",
+      "source": "contracts/src/tokens/APNTsCapped.sol",
+      "note": "source not in this tree"
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.json",
+      "runs": 500,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 24345,
+      "headroom": 231,
+      "sourceKeccakMatchesTree": true
+    },
+    {
+      "contract": "BLSAggregator",
+      "artifact": "out/BLSAggregator.sol/BLSAggregator.registry-size.json",
+      "runs": 200,
+      "evm": "cancun",
+      "viaIR": true,
+      "runtimeBytes": 23940,
+      "headroom": 636,
+      "sourceKeccakMatchesTree": true
+    }
+  ]
+}

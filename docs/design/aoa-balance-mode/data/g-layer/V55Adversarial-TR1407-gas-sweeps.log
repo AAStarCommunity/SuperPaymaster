@@ -1,0 +1,20 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/v2/SuperPaymasterV55Adversarial.t.sol --match-test test_TR1407_ -vv
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:43:03Z
+# exit code: 0
+# (compiler output before line 15 omitted)
+Ran 3 tests for contracts/test/v2/SuperPaymasterV55Adversarial.t.sol:SuperPaymasterV55AdversarialTest
+[PASS] test_TR1407_bundler_gas_sweep_never_keeps_unpaid_execution() (gas: 46241896)
+Logs:
+  bundler gas sweep: reverted / executed+settled / postOp-undone 39 92 0
+
+[PASS] test_TR1407_direct_postOp_gas_sweep_returns_only_when_settled() (gas: 43706581)
+Logs:
+  direct postOp sweep: guard / other-revert / ok / min ok gas 108 0 73
+  min successful postOp gas 168000
+
+[PASS] test_TR1407_postOpGasLimit_sweep_via_entrypoint() (gas: 3198857)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 36.64ms (61.40ms CPU time)
+
+Ran 1 test suite in 38.00ms (36.64ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

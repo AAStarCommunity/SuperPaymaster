@@ -1,0 +1,10 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+    user xPNTs burned      : 78276939694334370000
+    lockedOf(user) after   : 0
+    operator aPNTs decrease: 78276939694334370000
+    protocolRevenue delta  : 78276939694334370000
+    (simulated burn was 70852547863511370000 )
+    L4 verify: settlement read back from chain state OK

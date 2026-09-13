@@ -1,0 +1,52 @@
+{
+  "file": "docs/design/aoa-balance-mode/data/g2-main-7fa7b705-oldformula.jsonl",
+  "formulas": [
+    "OLD_postOpGasLimit_Cwrap30k"
+  ],
+  "counts": {
+    "admitted": 6055,
+    "settledBalance": 3268,
+    "settledCredit": 1121,
+    "injectedBalance": 787,
+    "injectedCredit": 879,
+    "settledAfterEthMove": 817,
+    "settledAfterAMove": 835,
+    "settledAtMin": 1412
+  },
+  "consistencyMismatches": 0,
+  "groups": [
+    {
+      "group": "ALL settled",
+      "n": 4389,
+      "mean_ppm": 831541,
+      "p95_ppm": 2696041,
+      "max_ppm": 3711360,
+      "min_ppm": 218436,
+      "median_ppm": 449113,
+      "sumG_wei": "3598567523286642411",
+      "sumChargeEth_wei": "6855201064478057183"
+    },
+    {
+      "group": "postOpGasLimit <= MIN+50k (<= 250000)",
+      "n": 3489,
+      "mean_ppm": 418291,
+      "p95_ppm": 613227,
+      "max_ppm": 815045,
+      "min_ppm": 218436,
+      "median_ppm": 412226,
+      "sumG_wei": "2699351944136941159",
+      "sumChargeEth_wei": "3798457657109838294"
+    },
+    {
+      "group": "postOpGasLimit >= 1,000,000 (1.0M-1.5M band)",
+      "n": 900,
+      "mean_ppm": 2433573,
+      "p95_ppm": 3053375,
+      "max_ppm": 3711360,
+      "min_ppm": 1488450,
+      "median_ppm": 2418866,
+      "sumG_wei": "899215579149701252",
+      "sumChargeEth_wei": "3056743407368218889"
+    }
+  ]
+}

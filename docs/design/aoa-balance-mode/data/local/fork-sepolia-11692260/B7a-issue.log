@@ -1,0 +1,35 @@
+# command: forge script contracts/script/v3/UpgradeToV5_5_0.s.sol:UpgradeToV5_5_0 --sig issueCommunityToken(string,string,string,string,uint256) Mycelium PNTs PNTs Mycelium mycelium.eth 1000000000000000000 --rpc-url http://127.0.0.1:28563 --unlocked --sender 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 --broadcast
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:56:32Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    [v55] v2 token issued: PNTs 0x49BF1ad753D0858776B391DdA5d597a0e95Cffb6
+    step 7a: v2 token 0x49BF1ad753D0858776B391DdA5d597a0e95Cffb6
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 0.998556796 gwei
+
+Estimated total gas used for script: 706316
+
+Estimated amount required: 0.000705296641923536 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/broadcast/UpgradeToV5_5_0.s.sol/11155111/issueCommunityToken-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/UpgradeToV5_5_0.s.sol/11155111/issueCommunityToken-latest.json
+

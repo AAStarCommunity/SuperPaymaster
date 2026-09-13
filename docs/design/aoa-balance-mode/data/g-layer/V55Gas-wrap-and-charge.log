@@ -1,0 +1,39 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/v2/SuperPaymasterV55Gas.t.sol -vv
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:42:58Z
+# exit code: 0
+# (compiler output before line 18 omitted)
+Ran 5 tests for contracts/test/v2/SuperPaymasterV55Gas.t.sol:SuperPaymasterV55GasTest
+[PASS] test_G_sp_charge_covers_final_cost_large_limits() (gas: 18337215)
+Logs:
+  final cost wei 584963000000000
+  charge / need (aPNTs wei) 164860080000000000000 64345930000000000000
+
+[PASS] test_G_sp_charge_covers_final_cost_user_call_reverts() (gas: 18432606)
+Logs:
+  final cost wei 454169000000000
+  charge / need (aPNTs wei) 63010860000000000000 49958590000000000000
+
+[PASS] test_G_sp_charge_covers_final_cost_worst_postOp_at_floor() (gas: 18337280)
+Logs:
+  final cost wei 404963000000000
+  charge / need (aPNTs wei) 57060080000000000000 44545930000000000000
+
+[PASS] test_G_wrap_bound_canonical_entrypoint_bundle_positions() (gas: 3039298)
+Logs:
+  bundle position 0 wrap upper bound 1689
+  bundle position 1 wrap upper bound 1701
+  bundle position 2 wrap upper bound 1701
+  bundle position 3 wrap upper bound 1701
+
+[PASS] test_G_wrap_bound_canonical_entrypoint_single_ops() (gas: 2785769)
+Logs:
+  wrap upper bound: succeeded/200k 1689
+  wrap upper bound: succeeded/1M   1687
+  wrap upper bound: reverted/200k  1702
+  wrap upper bound (+penalty 10% of 3M unused callGas) 301546
+
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 7.30ms (12.30ms CPU time)
+
+Ran 1 test suite in 9.57ms (7.30ms CPU time): 5 tests passed, 0 failed, 0 skipped (5 total tests)

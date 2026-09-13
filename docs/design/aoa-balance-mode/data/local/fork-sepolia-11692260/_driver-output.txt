@@ -1,0 +1,71 @@
+fork on :28562 chainId 11155111 head 11692260
+== A0 inventory
+== A1 cancel 0xBb46 (step 1 ①)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/A1-cancel.receipts.json: 1 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL cancelAPNTsTokenChange() -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x5bf83d0ddee5237d26bbe5c37db901384f02ebe8219f5343a9b755cfb8b4e90d  block 11692261  status 0x1  gasUsed 31622
+== A2 GOV-1-shaped timelock (48h; proposer=canceller=executor=Safe; no admin), from the profile.default artifact
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/A2-timelock.receipts.json: 1 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  timelockDeploy  0x38d3b0d86a2545ef1d6185fc9aacb9cd70887286361fad7e01a235ea41a5b048  block 11692262  status 0x1  gasUsed 1378624
+   timelock 0x3e3fb7c518d749faf6f6f09fb57cbd0718e7d680
+== A3 DeployAPNTsCapped (step 1 ②), APNTS_SIMULATE_ACCEPT=true
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/A3-deploy-apnts-capped.receipts.json: 2 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CREATE APNTsCapped -> 0xf807ca59f7e6f866293ff9a4667d84121d0a9623  0x241afdde510eda34aa523dfe0d3c56a37f34c8b25b235e1fcdeceac7760f6526  block 11692263  status 0x1  gasUsed 1389741
+  CALL transferOwnership(address) -> 0xf807ca59f7e6f866293ff9a4667d84121d0a9623  0xed78603da6dc342c8a50d52459766247e448378c6e6b2fb030e3aed0a0108fbe  block 11692264  status 0x1  gasUsed 48238
+   APNTsCapped 0xf807ca59f7e6f866293ff9a4667d84121d0a9623
+== A4 real acceptOwnership on the fork: Safe schedules, +48h, Safe executes
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/A4-accept.receipts.json: 2 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  safeSchedule  0x6285f1b73e90d45d633aac989041aeed60acbcad99c013bf38e00bd9bc328dfa  block 11692265  status 0x1  gasUsed 55529
+  safeExecuteAccept  0x94a6bcfcb9e7b1aa09b45ae2330cc9b9c33120f211a17f799123dcba27d23eb0  block 11692267  status 0x1  gasUsed 47048
+== A5 re-queue setAPNTsToken(APNTsCapped) (step 1 ③) — manual cast, NOT scripted
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/A5-requeue.receipts.json: 1 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  setAPNTsToken  0x3eb3e7799263f1e21332089a2d993a4c5d72e10cb03f1878f3e5b788bd5e59e3  block 11692268  status 0x1  gasUsed 75929
+# read-back after A5 (cast call, block 11692268)
+pendingAPNTsToken    0xf807cA59f7E6f866293FF9a4667D84121d0a9623
+pendingAPNTsTokenEta 1790034993 [1.79e9]
+block.timestamp(tx)  1789430193   (eta must be this + 604800)
+APNTS_TOKEN          0x696A73701b104c6cCBbAadDD2216788ea08EaB89
+APNTsCapped.owner    0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+APNTsCapped.cap      10000000000000000000000000 [1e25]
+APNTsCapped.codehash 0x795b5455579ea61ca725872f58f12025a2698b571a00559cc55ab378df54ca44
+fork on :28563 chainId 11155111 head 11692260
+== B0 inventory
+== B1 cancel (step 1 ①)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B1-cancel.receipts.json: 1 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL cancelAPNTsTokenChange() -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x5bf83d0ddee5237d26bbe5c37db901384f02ebe8219f5343a9b755cfb8b4e90d  block 11692261  status 0x1  gasUsed 31622
+== B3 pauseOperators (step 3)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B3-pause.receipts.json: 2 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL setOperatorPaused(address,bool) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x0929a412b94d4c30880f12f0283551e87974ad6283e0da6aff9401a0e74d1066  block 11692262  status 0x1  gasUsed 36793
+  CALL setOperatorPaused(address,bool) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x052c5e8ab98f5ffa184d522b6e0f466c9260df90f59308c9d5c584f9a363eaaa  block 11692263  status 0x1  gasUsed 36805
+== B4 run() strict (steps 4 -> 5 -> 5b -> 6)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B4-run.receipts.json: 13 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CREATE GlobalTierSource -> 0x245d274eeb165f7b141179b79369a6c73179d12d  0x9b953202b823b03ecb8f4bc4b0a2820135bc8d26c04acccd29bb9a45b2cd6017  block 11692264  status 0x1  gasUsed 172969
+  CREATE AOAProtocolRegistry -> 0xad7a9c8bc655c3f2914eef86d9c3f2636464c196  0xb3b02c3055ef46919f54a8e2b8c7b0f6d8b37387c1b01b238a76a31c6420cbe0  block 11692265  status 0x1  gasUsed 632348
+  CALL bootstrapApprove(uint8,bytes32) -> 0xad7a9c8bc655c3f2914eef86d9c3f2636464c196  0x3b075304361b97f5f91cadf9eda774b3d99b066cef461e4051e1bd446950a868  block 11692265  status 0x1  gasUsed 49982
+  CALL bootstrapApprove(uint8,bytes32) -> 0xad7a9c8bc655c3f2914eef86d9c3f2636464c196  0xc31ff4c7e626a978a8952e766c3c20df63e8f220caece3ec22f204cfede3c6c9  block 11692265  status 0x1  gasUsed 50138
+  CALL seal() -> 0xad7a9c8bc655c3f2914eef86d9c3f2636464c196  0xdf6e2455d02c9a99e06ebdb60cbc2f3f6bfb8abe79702988befbcf0c5a731522  block 11692265  status 0x1  gasUsed 46282
+  CREATE xPNTsTokenV2Ext -> 0x42b5ecddc278f560e32c4322f66c18e6e17f2d2a  0xdaa6033b3fe91c006d426e4c3fcf40157da31dd6470adc885a1fc969365066de  block 11692266  status 0x1  gasUsed 4850727
+  CREATE xPNTsTokenV2 -> 0x40902201b582eded5c4af1918fdd0db14853a26d  0x32d1c0c701d60d1534a6e1e6ea01ef8e935ea174c8ce2f974e4eca2be6680846  block 11692266  status 0x1  gasUsed 4403635
+  CREATE xPNTsFactoryV2 -> 0x499d594b2090da8b86d3eee0c2511fcdc4f7d962  0xf3a3cd6833dafbc7cc8e11c12123ec262c5d50a12cfbe70fd5e58c876beaf692  block 11692266  status 0x1  gasUsed 2053117
+  CREATE SuperPaymasterLens -> 0x7b698c292b93a93bef6ab508af4356b2869513bc  0xa0b1bcc962b0711e700874536c5bad2ede1a505b40bb4640c8675f76c4fcdf8b  block 11692266  status 0x1  gasUsed 1075976
+  CREATE SuperPaymaster -> 0x0c0eaba28e28d96512ff7ccfc1847e0f9a3ce3bb  0xb0e1926d7077d27e0cfc52f60776e583c87347aac4c852bbb928cfe18077914e  block 11692266  status 0x1  gasUsed 5125662
+  CALL upgradeToAndCall(address,bytes) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x9dc9c29379564849f4b2cdc1c2928941f3c4f34f56721dfd5645411cd49dd8cb  block 11692266  status 0x1  gasUsed 37624
+  CALL addStake(uint32) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x87d297f1350b0736f13492ff2cef20ffee33aea723a52aae12cc9ddbc9a14887  block 11692266  status 0x1  gasUsed 48018
+  CALL setXPNTsFactory(address) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x7a9a97bcc25e299e19830659b257d2096ec56bee6dfc16dde7be57b6820d28d8  block 11692266  status 0x1  gasUsed 35647
+== B7a issueCommunityToken (Anni)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B7a-issue.receipts.json: 1 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL deployxPNTsToken(string,string,string,string,uint256,address) -> 0x499d594b2090da8b86d3eee0c2511fcdc4f7d962  0x6a7b984eb7b89499816ed356697029657c4748692993f79f1c233b63151b1617  block 11692267  status 0x1  gasUsed 511360
+   v2 token 0x49BF1ad753D0858776B391DdA5d597a0e95Cffb6
+== B7c-1 configureOperatorV2 (Anni)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B7c1-configure.receipts.json: 2 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL updatePrice() -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0xf9c288b11653696254443e0105e281ca734f96e723428d06b1f8585ef34b3779  block 11692268  status 0x1  gasUsed 69317
+  CALL configureOperator(address,address) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x6e4ebcea7cc2dabd495324624bbc4e743d7a1ecafc7f871fdbfca903af183d8e  block 11692269  status 0x1  gasUsed 68347
+== B7c-2 unpauseOperator (owner)
+wrote docs/design/aoa-balance-mode/data/local/fork-sepolia-11692260/B7c2-unpause.receipts.json: 2 tx, chainId 11155111, fork of chain 11155111 @ 11692260
+  CALL updatePrice() -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0x5ceed5f70e4b1b20e4497d54873a19b722feb2e818e69f08eaa4bfdb95e25647  block 11692270  status 0x1  gasUsed 60917
+  CALL setOperatorPaused(address,bool) -> 0x09df0d2e3722ec0e401fe3819e64278a42ae4de9  0xc939dfbebdc0f6843bc0204b349d1c6353bf80777e1bacc3541a22b55fe85921  block 11692271  status 0x1  gasUsed 36750
+# read-back after B7c-2 (cast call, block 11692271)
+SP.version            "SuperPaymaster-5.5.0"
+v2 token creditPolicy 0   (0 = OFF)
+EP depositInfo(SP)    (93470830000000000 [9.347e16], true, 1000000000000000000 [1e18], 86400 [8.64e4], 0)
+operators(Anni) raw   0x00000000000000000000000000000000000000000000002dc85b4eaaec8793a80000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049bf1ad753d0858776b391dda5d597a0e95cffb600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ecaacb915f7d92e9916f449f7ad42bd0408733c900000000000000000000000000000000000000000000001fd6870c5838e7fd000000000000000000000000000000000000000000000000000000000000000003
+done

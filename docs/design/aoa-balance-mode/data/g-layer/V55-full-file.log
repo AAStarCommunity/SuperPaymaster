@@ -1,0 +1,31 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/v2/SuperPaymasterV55.t.sol -vv
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:43:26Z
+# exit code: 0
+# (compiler output before line 18 omitted)
+Ran 18 tests for contracts/test/v2/SuperPaymasterV55.t.sol:SuperPaymasterV55Test
+[PASS] test_B1_no_oog_band_above_entry_guard() (gas: 52972799)
+[PASS] test_B1_postOp_bubbles_settlement_revert_direct_call() (gas: 103754)
+[PASS] test_B1_postOp_entry_gas_guard() (gas: 305550)
+[PASS] test_G_min_post_op_gas_covers_measured_postOp() (gas: 329864)
+Logs:
+  measured postOp gas (worst-ish, warm-in-test) 140770
+
+[PASS] test_I10_release_refused_while_in_flight() (gas: 255853)
+[PASS] test_I10_stale_sponsorship_restores_operator() (gas: 440699)
+[PASS] test_I8_settle_failure_rolls_back_user_execution_e2e() (gas: 1074537)
+[PASS] test_R10M3_charge_uses_validation_price_snapshot() (gas: 323494)
+[PASS] test_TR1409_control_below_floor_rejected() (gas: 107747)
+[PASS] test_TR1409_settles_at_MIN_POST_OP_GAS_worst_path() (gas: 442092)
+[PASS] test_balance_mode_end_to_end() (gas: 431984)
+[PASS] test_both_renew_flags_rejected() (gas: 50230)
+[PASS] test_configureOperator_rejects_non_factory_token() (gas: 487786)
+[PASS] test_credit_fallback_only_on_insufficient() (gas: 533486)
+[PASS] test_lens_agrees_with_validation() (gas: 314585)
+[PASS] test_lens_version_mismatch_is_explicit() (gas: 992990)
+[PASS] test_token_mismatch_rejected() (gas: 819364)
+[PASS] test_version() (gas: 15316)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 78.78ms (87.81ms CPU time)
+
+Ran 1 test suite in 80.36ms (78.78ms CPU time): 18 tests passed, 0 failed, 0 skipped (18 total tests)

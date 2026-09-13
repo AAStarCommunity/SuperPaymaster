@@ -1,0 +1,9 @@
+file: docs/design/aoa-balance-mode/data/g2-main-7fa7b705-oldformula.jsonl
+formula tag(s): OLD_postOpGasLimit_Cwrap30k
+admitted ops: 6055; settled BALANCE/CREDIT: 3268/1121; injected BALANCE/CREDIT: 787/879
+settled after mid-bundle ETH move / aPNTs move: 817/835; settled at postOpGasLimit == MIN: 1412
+internal consistency (charge / charge_eth / ppm / bufWei re-derived, no subsidy): OK (0 mismatches)
+overpay (charge_eth - G)/G   [mean = floor(sum ppm / n); P95 = nearest-rank a[ceil(0.95n)-1]]
+  ALL settled: n = 4389; mean 83.2% / P95 269.6% / max 371.1%  (ppm 831541 / 2696041 / 3711360; min 21.8%, median 44.9%)
+  postOpGasLimit <= MIN+50k (<= 250000): n = 3489; mean 41.8% / P95 61.3% / max 81.5%  (ppm 418291 / 613227 / 815045; min 21.8%, median 41.2%)
+  postOpGasLimit >= 1,000,000 (1.0M-1.5M band): n = 900; mean 243.4% / P95 305.3% / max 371.1%  (ppm 2433573 / 3053375 / 3711360; min 148.8%, median 241.9%)

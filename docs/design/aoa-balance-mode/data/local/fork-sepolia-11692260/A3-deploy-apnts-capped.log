@@ -1,0 +1,68 @@
+# command: forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --rpc-url http://127.0.0.1:28562 --unlocked --sender 0xb5600060e6de5E11D3636731964218E53caadf0E --broadcast
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:56:16Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    cap = TEST_CAP_SEPOLIA = 10000000000000000000000000 (TEST VALUE - not a production cap)
+  === DeployAPNTsCapped ===  mode: sepolia (TEST_CAP_SEPOLIA)
+    chainid 11155111
+    deployer 0xb5600060e6de5E11D3636731964218E53caadf0E
+    governance multisig (minter + capGuardian + timelock proposer) 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [artifact] APNTsCapped default profile (cancun, runs 500, via_ir): out/APNTsCapped.sol/APNTsCapped.json
+    [timelock] OK 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+      minDelay 172800; multisig proposer+canceller; executor multisig/open: true false
+    [artifact] default artifact OK: APNTsCapped 0xf807cA59f7E6f866293FF9a4667D84121d0a9623 5346
+    artifact out/APNTsCapped.sol/APNTsCapped.json
+    runtime codehash
+  0x795b5455579ea61ca725872f58f12025a2698b571a00559cc55ab378df54ca44
+    [phase A] version APNTsCapped-1.0.0
+    [phase A] cap 10000000000000000000000000
+    [phase A] owner (deployer) / pendingOwner (timelock) 0xb5600060e6de5E11D3636731964218E53caadf0E 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+    --- governance multisig -> timelock payloads (to: 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680 ) ---
+    1) schedule (now), then wait >= 48h:
+  0x01d5062a000000000000000000000000f807ca59f7e6f866293ff9a4667d84121d0a9623000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000f11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0000000000000000000000000000000000000000000000000000000000002a300000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000
+    2) execute (after 48h):
+  0x134008d3000000000000000000000000f807ca59f7e6f866293ff9a4667d84121d0a9623000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000f11f070957a0e534b6d069d538b46e504303e413a6f6624a0569520761ac74f0000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000
+    operation id:
+  0x59d8d2f5de66cd9fbf98a3c7b38ceacdf2808edadf4f2ca2a5df26633c7278f3
+    [sim] execute before 48h reverted (expected)
+    [sim] timelock executed acceptOwnership after 48h
+    [final] owner (timelock) 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+    [final] pendingOwner 0x0000000000000000000000000000000000000000
+    [final] cap / totalSupply 10000000000000000000000000 0
+    [final] minter / capGuardian 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [neg] reverted as expected: deployer mint
+    [neg] reverted as expected: deployer raiseCap
+    [neg] reverted as expected: deployer lowerCap
+    [neg] reverted as expected: deployer transferOwnership
+    [neg] reverted as expected: timelock renounceOwnership
+    [pos] minter mint-to-cap / +1 wei rejected / owner raise / guardian lower: OK (rolled back)
+  === SIMULATED acceptance + final read-backs: ALL PASS (simulation only, nothing broadcast) ===
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated gas price: 1.69451143 gwei
+
+Estimated total gas used for script: 1873290
+
+Estimated amount required: 0.0031743113167047 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/broadcast/DeployAPNTsCapped.s.sol/11155111/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a61ac94ceaa94194c/cache/DeployAPNTsCapped.s.sol/11155111/run-latest.json
+

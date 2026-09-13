@@ -1,0 +1,26 @@
+# command: forge script contracts/script/v3/DeployAPNTsCapped.s.sol:DeployAPNTsCapped --sig verify(address,address) 0xf807ca59f7e6f866293ff9a4667d84121d0a9623 0xb5600060e6de5E11D3636731964218E53caadf0E --rpc-url http://127.0.0.1:28562
+# git HEAD: df941d5724dd19fb449beed315154fa0d4b0c3d4 (+ uncommitted changes under contracts/)
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T03:56:19Z
+# exit code: 0
+# (compiler output before line 2 omitted)
+Script ran successfully.
+
+== Logs ==
+    cap = TEST_CAP_SEPOLIA = 10000000000000000000000000 (TEST VALUE - not a production cap)
+  === verify APNTsCapped === 0xf807cA59f7E6f866293FF9a4667D84121d0a9623
+    [artifact] APNTsCapped default profile (cancun, runs 500, via_ir): out/APNTsCapped.sol/APNTsCapped.json
+    [artifact] default artifact OK: APNTsCapped 0xf807cA59f7E6f866293FF9a4667D84121d0a9623 5346
+    [timelock] OK 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+      minDelay 172800; multisig proposer+canceller; executor multisig/open: true false
+    [final] owner (timelock) 0x3e3fB7c518D749FAf6F6F09FB57CbD0718E7d680
+    [final] pendingOwner 0x0000000000000000000000000000000000000000
+    [final] cap / totalSupply 10000000000000000000000000 0
+    [final] minter / capGuardian 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [neg] reverted as expected: deployer mint
+    [neg] reverted as expected: deployer raiseCap
+    [neg] reverted as expected: deployer lowerCap
+    [neg] reverted as expected: deployer transferOwnership
+    [neg] reverted as expected: timelock renounceOwnership
+    [pos] minter mint-to-cap / +1 wei rejected / owner raise / guardian lower: OK (rolled back)
+  === verify: ALL PASS ===

@@ -1,0 +1,13 @@
+{
+  "account": "0x299C29D4f46657D41860c9f0fE90b9e1307958b4",
+  "opHash": "0x68b0ffc2eec11e845b87177e6b6e3c77e6d710076e0b9280ab5b6cc67855cb94",
+  "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "postOpBal": "929147452136488630000",
+  "postRevenue": "70852547863511370000",
+  "postUserBal": "929147452136488630000",
+  "preNonce": 0,
+  "preOpBal": "1000000000000000000000",
+  "preRevenue": 0,
+  "preUserBal": "1000000000000000000000",
+  "token": "0x2C477DFdB744E3BAf87bbdE078e21D382bc40700"
+}
