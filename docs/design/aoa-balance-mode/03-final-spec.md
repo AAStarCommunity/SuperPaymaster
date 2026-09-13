@@ -316,7 +316,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 
 | 步 | 动作 | 验收（每一步都要带正对照读回） |
 |---|---|---|
-| 0 | 盘点：枚举所有 `operators[*]`；按 `DebtRecordFailed` 事件枚举 `pendingDebts` 非零的条目；确认 `pendingAPNTsToken` 的状态 | 盘点表入库；日志扫描按"归档 RPC + 扫描完整性"纪律做交叉验证 |
+| 0 | **fork 层级检查（§10.8b R-AMS）**：`eth_config` 读 `current` / `next`，`next` 是 Amsterdam 就阻塞；盘点：枚举所有 `operators[*]`；按 `DebtRecordFailed` 事件枚举 `pendingDebts` 非零的条目；确认 `pendingAPNTsToken` 的状态 | 盘点表入库；日志扫描按"归档 RPC + 扫描完整性"纪律做交叉验证 |
 | 1 | aPNTs 切换（T0）：**执行或取消**，二选一，不能跨升级留在队列里 | `pendingAPNTsToken == 0` |
 | 2 | `pendingDebts`：逐条对账，要么先用 5.4.2 的 `retryPendingDebt`/`clearPendingDebt` 处理，要么在文档里明确核销 | 所有条目为 0，或者有核销记录 |
 | 3 | 用 `setOperatorPaused`（SP `:589`）暂停所有旧代币的 operator；等 mempool 里的旧 op 清空 | 各 operator `isPaused == true` |
@@ -548,7 +548,9 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 当前目标链（Sepolia、OP 主网、OP Sepolia）都在 Osaka（证据见 `b-layer/README.md` §0）。一旦 Amsterdam 在某条目标链上激活，EIP-8037（state-gas 计量）和 EIP-8038（state 访问重新定价）会让 SSTORE、SLOAD、CALL 变贵。在 geth 的 Amsterdam 级 dev 链上已经实测到：验证期写一个新槽，会耗尽 100k 的 paymaster 验证 gas。影响如下：
 - 验证期写入（锁记录、预留、在途记录，都是从零写成非零）→ `paymasterVerificationGasLimit` 要调高（SDK 侧）。
 - **`SETTLE_GAS_BOUND = 160k` 和 `MIN_POST_OP_GAS = 200k` 是写死在字节码里的常量**，可能不够用。不够时 postOp 会 revert，也就是 I10 情形：用户的执行被撤销、没有损失，但赞助不可用。
-- 处理办法：Amsterdam 进入某条目标链的排期后，在 Amsterdam 级链上重新测一遍 G 层（T-R14-09、no-OOG 扫描、C_WRAP）。如果常量需要调整，通过 SP 的 UUPS 升级下发，并同步更新 SDK 的 gas 取值。
+- **触发条件（可检查）**：任何一条目标链公布了 Amsterdam 的激活时间 → 在 Amsterdam 级的链上重跑 G 层（T-R14-09、no-OOG 扫描、C_WRAP）和 B 层 → 如果常量不够，就通过 SP 的 UUPS 升级下发，并同步更新 SDK 的 gas 取值。
+- **上线前检查（runbook 第 0 步的附加项）**：用 `eth_config` 读目标链的 `current` 和 `next` fork（如果链不开放 `eth_config`，就用该链官方公布的升级时间表，外加 opcode 探针）。**`next` 是 Amsterdam，或者已经启用了 EIP-8037/8038，就阻塞上线**，先完成上一条的重测。
+- 论文口径：所有测量都注明硬分叉层级（Osaka + BPO2），R-AMS 写进 limitations 和前向风险（DSR 负责）。
 
 ### 10.9 Medium
 
