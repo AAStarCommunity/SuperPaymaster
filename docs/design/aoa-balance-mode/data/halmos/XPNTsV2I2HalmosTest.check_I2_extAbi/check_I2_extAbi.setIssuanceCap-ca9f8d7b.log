@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: setIssuanceCap-ca9f8d7b (D5C1_PART=3399454075)
 # command: D5C1_PART=3399454075 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
-setup: 0.12s (decode: 0.04s, run: 0.08s)
-[32m[PASS][0m check_I2_extAbi() (paths: 2, time: 1.31s (paths: 1.31s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 1.43s
+setup: 0.05s (decode: 0.01s, run: 0.04s)
+[32m[PASS][0m check_I2_extAbi() (paths: 2, time: 0.62s (paths: 0.62s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.67s
 
-[time] total: 16.37s (build: 3.42s, load: 11.52s, tests: 1.43s)
+[time] total: 9.70s (build: 2.24s, load: 6.79s, tests: 0.67s)
 
-# exit_code: 0  wall_seconds: 34
+# exit_code: 0  wall_seconds: 20

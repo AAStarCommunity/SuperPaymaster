@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: emergencySwitchToStandby-11d15e9d (D5C1_PART=298933917)
 # command: D5C1_PART=298933917 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
 setup: 0.05s (decode: 0.01s, run: 0.04s)
-[32m[PASS][0m check_I2_extAbi() (paths: 6, time: 0.95s (paths: 0.95s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 1.00s
+[32m[PASS][0m check_I2_extAbi() (paths: 6, time: 0.81s (paths: 0.81s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.86s
 
-[time] total: 14.12s (build: 3.86s, load: 9.25s, tests: 1.01s)
+[time] total: 9.34s (build: 1.91s, load: 6.57s, tests: 0.86s)
 
-# exit_code: 0  wall_seconds: 34
+# exit_code: 0  wall_seconds: 19

@@ -1,0 +1,24 @@
+Compiling 6 files with Solc 0.8.33
+Solc 0.8.33 finished in 40.93s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 4 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256) (runs: 10000, μ: 681395, ~: 670052)
+[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x5eedac1d000000000000000000000000000000000000000000000000000000000000525900000000000000000000000000000000000000000000000000000000ad7c467a000000000000000000000000000000000000000000000000000000001eb6ca030000000000000000000000000000000000000000000000000000000000000001 args=[21081 [2.108e4], 2910602874 [2.91e9], 515295747 [5.152e8], true]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,bool) (runs: 6, μ: 731680, ~: 731766)
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 814506, ~: 819604)
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 770497, ~: 758438)
+Suite result: FAILED. 3 passed; 1 failed; 0 skipped; finished in 3.13s (9.38s CPU time)
+
+Ran 1 test suite in 3.13s (3.13s CPU time): 3 tests passed, 1 failed, 0 skipped (4 total tests)
+
+Failing tests:
+Encountered 1 failing test in contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[FAIL: A3x exact bound on settleLocked: 64 != 0; counterexample: calldata=0x5eedac1d000000000000000000000000000000000000000000000000000000000000525900000000000000000000000000000000000000000000000000000000ad7c467a000000000000000000000000000000000000000000000000000000001eb6ca030000000000000000000000000000000000000000000000000000000000000001 args=[21081 [2.108e4], 2910602874 [2.91e9], 515295747 [5.152e8], true]] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,bool) (runs: 6, μ: 731680, ~: 731766)
+
+Encountered a total of 1 failing tests, 3 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test
+
+Fuzz seed: 0x405b677eea906576bed8dc61ce2d0230f24c672af8887d4978be2b6c36346178 (use `--fuzz-seed` to reproduce)
+reverted M-BURNALL: contracts/src/tokens/v2/xPNTsTokenV2.sol sha256 3e1b80d8a900412c5a12175416fbe36ab476dcc68f88a7ed7406ab33841bbb04

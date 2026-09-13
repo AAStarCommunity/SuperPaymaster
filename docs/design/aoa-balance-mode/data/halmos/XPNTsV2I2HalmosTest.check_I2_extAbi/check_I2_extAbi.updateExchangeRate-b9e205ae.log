@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: updateExchangeRate-b9e205ae (D5C1_PART=3118597550)
 # command: D5C1_PART=3118597550 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
-setup: 0.14s (decode: 0.02s, run: 0.13s)
-[32m[PASS][0m check_I2_extAbi() (paths: 22, time: 5.53s (paths: 5.53s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 5.67s
+setup: 0.14s (decode: 0.01s, run: 0.13s)
+[32m[PASS][0m check_I2_extAbi() (paths: 22, time: 4.70s (paths: 4.70s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 4.84s
 
-[time] total: 25.78s (build: 3.26s, load: 16.85s, tests: 5.67s)
+[time] total: 17.92s (build: 2.49s, load: 10.58s, tests: 4.84s)
 
-# exit_code: 0  wall_seconds: 64
+# exit_code: 0  wall_seconds: 41

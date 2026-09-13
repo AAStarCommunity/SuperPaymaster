@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: requestCredit-b6b1d5ca (D5C1_PART=3065107914)
 # command: D5C1_PART=3065107914 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
-setup: 0.06s (decode: 0.01s, run: 0.05s)
-[32m[PASS][0m check_I2_extAbi() (paths: 2, time: 1.26s (paths: 1.26s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 1.34s
+setup: 0.05s (decode: 0.01s, run: 0.04s)
+[32m[PASS][0m check_I2_extAbi() (paths: 2, time: 0.77s (paths: 0.77s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 0.82s
 
-[time] total: 16.55s (build: 3.00s, load: 12.21s, tests: 1.34s)
+[time] total: 9.84s (build: 2.05s, load: 6.97s, tests: 0.82s)
 
-# exit_code: 0  wall_seconds: 34
+# exit_code: 0  wall_seconds: 20

@@ -1,0 +1,14 @@
+# command: /Users/jason/.foundry/bin/forge test --match-path contracts/test/halmos/D5c1BoundedFuzz.t.sol
+# git HEAD: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
+# forge: forge Version: 1.7.1
+# utc: 2026-09-13T14:18:27Z
+# exit code: 0
+# (compiler output before line 6 omitted)
+Ran 4 tests for contracts/test/halmos/D5c1BoundedFuzz.t.sol:D5c1BoundedFuzzTest
+[PASS] testFuzz_D5c1_I2_burnFrom(uint256,uint256,uint256,uint256) (runs: 10000, μ: 681383, ~: 670052)
+[PASS] testFuzz_D5c1_I2_settleLocked(uint256,uint256,uint256,bool) (runs: 10000, μ: 731411, ~: 719441)
+[PASS] testFuzz_D5c1_I2_transferFrom(uint256,uint256,uint256,uint256,uint256) (runs: 10000, μ: 814520, ~: 819642)
+[PASS] testFuzz_D5c1_I2_tryLockForGas(uint256,uint256,uint256,uint256,uint256,bool) (runs: 10000, μ: 770586, ~: 758438)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.59s (6.35s CPU time)
+
+Ran 1 test suite in 1.60s (1.59s CPU time): 4 tests passed, 0 failed, 0 skipped (4 total tests)

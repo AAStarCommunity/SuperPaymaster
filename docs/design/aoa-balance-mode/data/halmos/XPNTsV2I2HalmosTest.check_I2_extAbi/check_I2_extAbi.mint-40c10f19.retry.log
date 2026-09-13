@@ -1,0 +1,15 @@
+# D5c1 partitioned run
+# part: mint-40c10f19 (D5C1_PART=1086394137)
+# command: D5C1_PART=1086394137 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics --solver-timeout-assertion 300000
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
+setup: 0.04s (decode: 0.01s, run: 0.03s)
+[33m[TIMEOUT][0m check_I2_extAbi() (paths: 70, time: 305.93s (paths: 6.08s, models: 299.85s), bounds: [])
+[36mTimeout queries saved in: /var/folders/j6/5646xx_x4ssbp7dv15yvvrd00000gp/T/check_I2_extAbi-mbl9_wb4-timeout[0m
+Symbolic test result: 0 passed; 1 failed; time: 305.97s
+
+[time] total: 312.43s (build: 1.48s, load: 4.97s, tests: 305.97s)
+
+# exit_code: 1  wall_seconds: 320

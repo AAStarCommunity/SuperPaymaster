@@ -53,6 +53,18 @@ MUTATIONS = {
         "old": "        if (rate < _RATE_MIN || rate > _RATE_MAX) revert ExchangeRateOutOfRange(rate, _RATE_MIN, _RATE_MAX);\n",
         "new": "        // D5c-1 M-F1: initialize rate-range guard removed\n",
     },
+    # liveness of the fuzz substitutes (D5c1BoundedFuzz): pull without the auto-allowance cap check
+    "M-PULL": {
+        "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "old": "        if (_remaining(spender, owner) < a) revert AutoAllowanceExceeded();\n",
+        "new": "        // D5c-1 M-PULL: auto-allowance cap check removed\n",
+    },
+    # liveness of the fuzz substitutes: settle burns the whole escrow whatever the charge
+    "M-BURNALL": {
+        "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",
+        "old": "        if (xBurned > r.xLocked) xBurned = r.xLocked;\n",
+        "new": "        xBurned = r.xLocked; // D5c-1 M-BURNALL: burn the whole escrow\n",
+    },
     # I6: the credit ceiling ignores the user's requestedCap (keeps the protocol ceiling + tier)
     "M-I6": {
         "file": "contracts/src/tokens/v2/xPNTsTokenV2.sol",

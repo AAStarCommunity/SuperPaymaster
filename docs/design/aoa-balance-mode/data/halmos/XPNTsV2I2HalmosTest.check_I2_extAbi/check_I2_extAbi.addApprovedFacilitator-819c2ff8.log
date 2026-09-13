@@ -1,14 +1,14 @@
 # D5c1 partitioned run
 # part: addApprovedFacilitator-819c2ff8 (D5C1_PART=2174496760)
 # command: D5C1_PART=2174496760 halmos --contract XPNTsV2I2HalmosTest --function check_I2_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5
+# git_head: 294a2fbab4bfd8e83f2edfb2241190d592c1e565
 # tree_note: -
 # (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
 Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I2HalmosTest
 setup: 0.05s (decode: 0.01s, run: 0.04s)
-[32m[PASS][0m check_I2_extAbi() (paths: 5, time: 1.00s (paths: 1.00s, models: 0.00s), bounds: [])
-Symbolic test result: 1 passed; 0 failed; time: 1.05s
+[32m[PASS][0m check_I2_extAbi() (paths: 5, time: 1.17s (paths: 1.17s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.22s
 
-[time] total: 12.77s (build: 2.97s, load: 8.74s, tests: 1.06s)
+[time] total: 10.76s (build: 2.29s, load: 7.25s, tests: 1.22s)
 
-# exit_code: 0  wall_seconds: 25
+# exit_code: 0  wall_seconds: 20
