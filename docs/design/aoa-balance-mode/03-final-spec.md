@@ -312,6 +312,15 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 
 ## 6. 升级与迁移 runbook（Codex H3-1、H3-2）
 
+**倒排时间表（升级日 = T；DSR 2026-09-13 要求放在最前面）**
+
+| 时点 | 事项 | 约束来源 |
+|---|---|---|
+| **T − 7d 之前（GOV-1 已生效时为 T − 7d − 48h）** | 第 1 步 ①–③：取消 `0xBb46` → 部署 `APNTsCapped` → `setAPNTsToken(APNTsCapped)` 重新排队 | SP 的 `APNTS_TOKEN_TIMELOCK = 7 days`；GOV-1 之后每一笔 owner 调用还要加 48h |
+| T − 7d 到 T | 通知各 operator 在 T 当天准备好取出和重新存入；确认 RepCredit B6 已冻结 | — |
+| T | 第 0 步的 fork 层级检查 → 第 1 步 ④ 执行切换 → 第 2–7c 步 | — |
+| 主网前 | M1–M3（GOV-1..3）、7d（铸币权交给多签） | §10.7b |
+
 前提：DSR 发布 "B6 evidence frozen"（对 RepCredit 旧证据而言）+ 作者 review 通过 + §8 的测试全绿。
 
 | 步 | 动作 | 验收（每一步都要带正对照读回） |
@@ -546,7 +555,7 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | GOV-1 | SP 和 Registry 的 owner / 升级权 | **同意**：两者的 owner 都改为 **48h TimelockController**，作为主网上线的前提 | runbook 主网前步骤 M1；评估见 `upgrade-governance-eval.md` T1 |
 | GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。**存储必须升级安全（见下方 GOV-2 存储设计）**。实现和 Codex 都在主网前完成（D5b），体积要实测（余量 1,661 B）；runbook M2 |
 | GOV-3 | aPNTs 价格（`setAPNTSPrice`） | **走 48h timelock，只能由 AAStar 社区治理多签更改**（即 GOV-1 那个 timelock，proposer 是这把治理多签），**不设 keeper 例外** | GOV-1 完成后自动生效，不另改代码；治理多签 = **Mycelium 多签 `0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`**（作者确认，三条链同地址，Sepolia 上是 2-of-3）。作者补充：aPNTs 作为 xPNTs 的一种，发行量和信用由 reputation system 按发行量、行业参数等做动态分析并实时展示，这属于 reputation system 的范围，不进 SP 5.5.x |
-| GOV-4 | aPNTs 铸币权（原 GOV-2） | (a) Safe + renounceFactory 已演练，runbook 7d；**(b) 在讨论**：作者倾向"初始上限 + 调高走治理多签加 48h timelock + reputation 动态监测"，先出设计草稿（`apnts-capped-design.md`），上限值等作者给出，不实现、不部署；**(d) 列为 TODO，5.5.x 不做（deferred）**；(c) 长期 | — |
+| GOV-4 | aPNTs 铸币权（原 GOV-2） | (a) Safe + renounceFactory 已演练，runbook 7d；**(b) 在讨论**：作者倾向"初始上限 + 调高走治理多签加 48h timelock + reputation 动态监测"，**作者已定：两条链都用 `APNTsCapped`（minter 和 capGuardian = 治理多签），主网初始上限 300,000e18**（DSR 按作者口径计算：10 个社区 × 100 人 × 20 笔/月 × 每笔约 0.624 aPNTs × 12 个月 × 2 ≈ 299,482，取整；约合 $6,000；buffer 收紧之后同一口径约为 242,880），Sepolia 用标明为测试值的上限；作为独立小交付物实现；**(d) 列为 TODO，5.5.x 不做（deferred）**；**TODO（不进 5.5.0）**：(c) 售卖合约，独立小合约，按收款铸造，由多签把 minter 转给它；reputation 的背书率监测（= EntryPoint 押金价值 ÷ operator 持有的 aPNTs 负债），低于 1.2 就报警；(c) 长期 | — |
 | GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | 等实验分支 `exp/buffer-and-params` 和 Codex 的结论 | — |
 
 **GOV-2 规范（第 3 版）**。第一版写的是"采用 OZ `Ownable2Step`"，不是升级安全的；第二版给了 ERC-7201 的存储设计，但 Codex 收尾审查指出它还有 1 个 Critical 和若干 High/Medium 问题。以下为最终规范，D5b 按此实现。
