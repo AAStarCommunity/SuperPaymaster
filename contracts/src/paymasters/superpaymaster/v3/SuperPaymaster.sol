@@ -122,8 +122,15 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
     ///      (test_B1_no_oog_band_above_entry_guard). MIN_POST_OP_GAS (200k) still clears it
     ///      after the pre-check overhead (T-R14-09 through EntryPoint).
     uint256 internal constant SETTLE_GAS_BOUND = 160_000;
-    /// @dev R10-M3: EntryPoint wrapper gas outside the postOp callback (auditable upper bound, G layer).
-    uint256 internal constant C_WRAP_GAS = 30_000;
+    /// @dev R10-M3 (exp/buffer): EntryPoint wrapper gas outside the postOp callback. Measured ~1.7k
+    ///      on the canonical EntryPoint (SuperPaymasterV55GasTest); 5k once the postOp term below is
+    ///      tightened, since C_WRAP then carries weight.
+    uint256 internal constant C_WRAP_GAS = 5_000;
+    /// @dev exp/buffer: upper bound of the WHOLE postOp frame gas on every path (replaces the user's
+    ///      paymasterPostOpGasLimit in the buffer). Rule: C_POSTOP >= W_postop x (1 + m), W_postop
+    ///      measured in-test on the worst paths (SuperPaymasterV55PostOpBoundTest, m = 15%).
+    ///      MIN_POST_OP_GAS >= C_POSTOP, so min(postOpGasLimit, C_POSTOP) == C_POSTOP.
+    uint256 internal constant C_POSTOP_GAS = 170_000;
     bytes32 internal constant INFLIGHT_SEED = keccak256("SP.v5.5.inflight.live");
 
     // Protocol Fee (Basis Points)
@@ -1337,7 +1344,7 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         operators[c.operator].totalTxSponsored++;
 
         // R10-M3: conservative charge in wei, priced at the VALIDATION-time snapshot.
-        uint256 bufWei = (uint256(c.postOpGas) + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)
+        uint256 bufWei = (C_POSTOP_GAS + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100)
             + C_WRAP_GAS) * actualUserOpFeePerGas;
         uint256 aGas = Math.mulDiv(
             (actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil

@@ -329,11 +329,11 @@ contract SuperPaymasterPricingV2Test is Test {
         assertTrue(charge != _expectedCharge(2200 * 1e8, actualGasCost, feePerGas), "control: current cache would differ");
     }
 
-    /// @dev Mirrors SP 5.5.0 postOp (R10-M3): bufWei = (postOpGas + ceil((callGas+postOpGas)*10%)
-    ///      + C_WRAP 30k) * feePerGas; charge = ceil(ceil(aGas) * (1 + 10% fee)). callGas = 0 here.
+    /// @dev Mirrors SP postOp (R10-M3, exp/buffer): bufWei = (C_POSTOP 170k + ceil((callGas+postOpGas)*10%)
+    ///      + C_WRAP 5k) * feePerGas; charge = ceil(ceil(aGas) * (1 + 10% fee)). callGas = 0 here.
     function _expectedCharge(uint256 price, uint256 actualGasCost, uint256 feePerGas) internal pure returns (uint256) {
         uint256 postOpGas = 200000;
-        uint256 bufWei = (postOpGas + Math.ceilDiv(postOpGas * 10, 100) + 30_000) * feePerGas;
+        uint256 bufWei = (170_000 + Math.ceilDiv(postOpGas * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * price, 1e18, 1e8 * 0.02 ether, Math.Rounding.Ceil);
         return Math.mulDiv(aGas, 11000, 10000, Math.Rounding.Ceil);
     }

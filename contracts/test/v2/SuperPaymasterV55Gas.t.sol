@@ -17,35 +17,7 @@ import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
 import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "../helpers/V55TestFixtures.sol";
-
-/// @dev Paymaster whose postOp records the actualGasCost EntryPoint passed it, then burns its
-///      frame down to <= BURN_FLOOR gas. The frame therefore consumes (limit - returned) with
-///      0 <= returned <= BURN_FLOOR, which pins the postOp frame's own gas and leaves only the
-///      EntryPoint's wrapping overhead unknown. Its context has the same length as SP's OpCtx.
-contract PostOpProbePaymaster is IPaymaster {
-    uint256 public constant BURN_FLOOR = 300;
-    uint256 public constant CTX_WORDS = 11; // == SuperPaymaster.OpCtx (11 static fields)
-    uint256 public lastPassedGas;
-    uint256 public calls;
-
-    function validatePaymasterUserOp(PackedUserOperation calldata, bytes32, uint256)
-        external pure returns (bytes memory context, uint256 validationData)
-    {
-        context = new bytes(CTX_WORDS * 32);
-        context[0] = 0x01; // non-empty so EntryPoint calls postOp
-        validationData = 0;
-    }
-
-    function postOp(PostOpMode, bytes calldata, uint256 actualGasCost, uint256 feePerGas) external {
-        lastPassedGas = actualGasCost / feePerGas;
-        calls += 1;
-        while (gasleft() > BURN_FLOOR) {}
-    }
-}
-
-contract GasBurner {
-    function burn() external view { while (true) { gasleft(); } }
-}
+import { PostOpProbePaymaster, GasBurner } from "../helpers/V55GasProbes.sol";
 
 /**
  * @title SuperPaymasterV55GasTest — spec §9 "G gas" / §11 R10-M3: the C_WRAP bound, trace-derived
@@ -67,9 +39,9 @@ contract SuperPaymasterV55GasTest is Test {
     address constant SENDER_CREATOR = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
     bytes32 constant EP_CODEHASH = 0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58;
     bytes32 constant USEROP_EVENT = keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)");
-    /// @dev SuperPaymaster.C_WRAP_GAS is internal; its value is pinned to exactly 30_000 by
+    /// @dev SuperPaymaster.C_WRAP_GAS is internal; its value (exp/buffer: 5_000) is pinned by
     ///      SuperPaymasterV55Test.test_R10M3_charge_uses_validation_price_snapshot (exact charge).
-    uint256 constant C_WRAP = 30_000;
+    uint256 constant C_WRAP = 5_000;
     uint256 constant BURN_FLOOR = 300;      // == PostOpProbePaymaster.BURN_FLOOR
     uint256 constant MIN_POST_OP_GAS = 200_000;
     uint256 constant OWNER_PK = 0xA0A0;
@@ -186,7 +158,7 @@ contract SuperPaymasterV55GasTest is Test {
         uint256 w = Math.max(Math.max(w1, w2), w3);
         assertGt(w, 0, "positive control: measurement is live");
         assertLe(w, C_WRAP, "C_WRAP bounds EntryPoint's postOp wrapping overhead");
-        assertLe(w * 5, C_WRAP, "C_WRAP keeps >= 5x headroom over the measured overhead");
+        assertLe(w * 2, C_WRAP, "C_WRAP keeps >= 2x headroom over the measured overhead (exp/buffer: 5k vs ~1.7k)");
         // the postOp limit does not leak into the estimate (the frame really burned to its limit)
         assertApproxEqAbs(w1, w2, 2_000, "estimate independent of postOpGasLimit");
         // the penalty inflates only the conservative estimate, never masks it

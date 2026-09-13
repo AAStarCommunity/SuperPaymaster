@@ -374,7 +374,8 @@ contract SuperPaymasterV55Test is Test {
 
         uint256 actualGasCost = 1e14;
         uint256 feePerGas = 1 gwei;
-        uint256 bufWei = (uint256(c.postOpGas) + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 30_000) * feePerGas;
+        // exp/buffer: C_POSTOP 170k replaces postOpGasLimit; C_WRAP 5k
+        uint256 bufWei = (170_000 + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil);
         uint256 expected = Math.mulDiv(aGas, 10_000 + sp.protocolFeeBPS(), 10_000, Math.Rounding.Ceil);
         assertLt(expected, c.a0, "precondition: charge below the reservation cap (cap cannot mask a wrong price)");
