@@ -248,12 +248,17 @@ postOp 多了 878 gas，W_postop 从 146,600 升到 **147,478**（每条路径�
 - **正向**（5.5.0 固定字节码 → 实验版，保留原测试）：受害者由 5.5.0 验证、由实验版结算；postOp 都没有失败，执行结果都保留，按 5.5.0 公式计费。
 - **回滚**（新增）：代理最初指向实验版，受害者由实验版验证（事先探测：context 长度 384，第 9 个字等于 8，是干净的 uint8），攻击者 op 回滚到已入库的 5.5.0 字节码。断言：`version()` 和实现槽都已读回为 5.5.0；**两笔受害者的 postOp 都没有失败**，都已结算，执行结果都保留；按 5.5.0 公式计费（落在上下界之内）；**守恒成立**：operator 减少的量 = 两笔 charge 之和 = revenue 增加的量 = 供应量减少的量 = LockSettled 里 xBurned 之和；在途记录和锁都已清空。探测到的格式断言放在结算断言**之后**，这样格式出错时，最先变红的是指名的结算断言。
 
-### 变异（每个变异都在三个测试上跑一遍，另外两个是它本来就不该影响的）
+### 变异（每个变异都在正向、回滚、参数竞争、精确计费四列上各跑一遍；表内每行只该让一列变红，其余几列是它本不该影响的对照）
+
+> **更正（Codex 第 4 轮，LOW，证据问题）**：本表原来的 (b) 写作"不做长度判断直接读第 12 个字 → 正向变红"，**这个说法不对**。当时实际做的改动是把整个 `if` 替换成**带越界检查的 Solidity 切片** `snap = uint256(bytes32(context[352:384]));`，352 B 的 context 在切片时越界 revert，所以正向变红。那是另一个变异，现在标为 **(b-slice)**。按字面意思"只删掉长度条件、保留汇编读取"（**b-nolen-asm**）是一个**等价变异**，四列全绿。原因是：EntryPoint 用标准 ABI 编码调用 `postOp`，`context` 是 calldata 里最后一个动态尾部，352 B 又是 32 的整数倍，所以 `calldataload(context.offset + 352)` 正好从 calldatasize 开始读；越界的 CALLDATALOAD 返回 0，快照为 0，于是走旧规则，结果与有长度判断时完全相同。**因此长度判断是纵深防御**：只有 context 不是 calldata 尾部，或者长度既不是 352 也不是 384 时，它才会起作用；而 `onlyEntryPoint` 加上 EntryPoint 的标准编码使这两种情况在实际中都不会出现。**长度判断保留，合约代码不改。** 本轮没有新增"强行读取非零第 12 个字"之类的变异，因为它对应不到任何真实的调用路径。
+>
+> 可复现的 patch 和四列日志放在 `data/mutations/`：`b-nolen-asm.patch/.columns.log`、`b-slice.patch/.columns.log`、`c-384-as-legacy.patch/.columns.log`，都是在 `6c3a9a0e` 的 SP 源码上生成的（日志头里写的是 `8241349b`，这个 commit 只加了数据文件，SP 源码与 `6c3a9a0e` 相同）。
 
 | 变异 | 正向 | 回滚 | 参数竞争 | 计费（精确值） |
 |---|---|---|---|---|
 | (a) 快照放回第 9 个字（也就是 `fb64e7eb` 的实现） | 绿 | **红**：`rollback: no victim postOp fails after a mid-bundle upgrade: 2 != 0` | 绿 | 绿 |
-| (b) 不做长度判断直接读第 12 个字 | **红**：`forward: no victim postOp fails …: 2 != 0` | 绿 | 绿 | 绿 |
+| (b-nolen-asm) 只删掉长度条件（仍用汇编 `calldataload` 读第 12 个字） | 绿 | 绿 | 绿 | 绿（G2 的精确判定也是绿）——**等价变异**，见上面的更正 |
+| (b-slice) 无条件用带越界检查的 Solidity 切片 `context[352:384]` 读取（原表误标为 (b) 的那个改动） | **红**：`forward: no victim postOp fails after a mid-bundle upgrade: 2 != 0` | 绿 | 绿 | 绿（G2 的精确判定也是绿） |
 | (c) 384 B 的 context 也按旧格式处理 | 绿 | 绿 | 绿（它的计费断言只检查上界，看不出这个差别） | **红**：`test_c_postop_and_c_wrap_parameters_drive_the_charge`，报 `defaults: 40.7e18 != 35.2e18`；G2 的精确判定也红：`R10-M3: aGas == … (exact)` |
 
 ### 重跑结果（B4 最终状态）

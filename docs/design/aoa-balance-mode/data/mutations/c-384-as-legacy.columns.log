@@ -1,0 +1,9 @@
+# mutation c-384-as-legacy on contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol at 8241349b (patch: c-384-as-legacy.patch)
+# forge forge Version: 1.7.1
+## columns: forward + rollback (UpgradeRace), param-race (ParamRace), exact charge (GasParams::test_c_postop*)
+[PASS] test_mid_bundle_rollback_to_5_5_0_settles_contexts_of_the_new_impl() (gas: 25688607)
+[PASS] test_mid_bundle_upgrade_from_5_5_0_settles_contexts_of_the_old_impl() (gas: 25461715)
+[PASS] test_open_executor_param_change_mid_bundle_does_not_harm_admitted_ops() (gas: 1036782)
+[FAIL: defaults: 40700000000000000000 != 35200000000000000000] test_c_postop_and_c_wrap_parameters_drive_the_charge() (gas: 372922)
+## G2 exact oracle (fixed-seed coverage replay)
+[FAIL: R10-M3: aGas == ceil((P + bufWei) x price_snap x 1e18 / (10^dec x aPrice_snap)) (exact): 99291960117073800000 != 89795480687073800000] test_G2_coverage_replay_fixed_seeds() (gas: 2495640)

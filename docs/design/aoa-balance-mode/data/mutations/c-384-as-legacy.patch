@@ -1,0 +1,11 @@
+--- a/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (8241349b)
++++ b/contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol (mutation c-384-as-legacy)
+@@ -1413,7 +1413,7 @@
+         // 20k, so a parameter change executed mid-bundle cannot move it. Any other length (a 5.5.0
+         // context: 352 B) has no snapshot and keeps the 5.5.0 bound.
+         uint256 snap;
+-        if (context.length == CTX_LEN) {
++        if (false) {
+             assembly ("memory-safe") { snap := calldataload(add(context.offset, 352)) }
+         }
+         uint256 snapSettle = uint32(snap >> 32);
