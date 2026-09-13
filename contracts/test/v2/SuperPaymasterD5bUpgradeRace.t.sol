@@ -290,6 +290,9 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
         ops[1] = _guardianPauseOp();         // guardian account: global + operator pause (extension)
         ops[2] = _victimOp(2, "v1");         // admitted by the PREVIOUS release
         ops[3] = _victimOp(3, "v2");
+        (uint128 opBal0, , , , , , , , ) = sp.operators(operator);
+        uint256 rev0 = sp.protocolRevenue();
+        uint256 supply0 = token.totalSupply();
         (bytes32[] memory h, Res memory r) = _run(ops);
 
         assertEq(address(uint160(uint256(vm.load(address(sp), IMPL_SLOT)))), newImpl, "precondition: upgraded mid-bundle");
@@ -304,7 +307,16 @@ contract SuperPaymasterD5bUpgradeRaceTest is Test {
             assertTrue(token.usedOpHashes(h[k]), "victim settled by D5b while paused");
             (address f, ) = sp.inflightOf(h[k]);
             assertEq(f, address(0), "in-flight cleared");
+            assertEq(token.lockedOf(acct[k]), 0, "forward: no residual lock");
         }
+        // conservation across the forward upgrade (same deltas as the rollback direction)
+        uint256 sumC = r.charge[2] + r.charge[3];
+        assertGt(sumC, 0, "positive control: the victims were charged");
+        (uint128 opBal1, , , , , , , , ) = sp.operators(operator);
+        assertEq(uint256(opBal0) - opBal1, sumC, "forward conservation: operator paid exactly the two charges");
+        assertEq(sp.protocolRevenue() - rev0, sumC, "forward conservation: revenue == sum(charge)");
+        assertEq(supply0 - token.totalSupply(), r.xBurned, "forward conservation: burned == LockSettled.xBurned");
+        assertEq(r.xBurned, sumC, "forward conservation: rate 1:1 -> burned xPNTs == charges");
     }
 
     function test_d5b_rollback_mid_bundle_with_extension_calls() public {

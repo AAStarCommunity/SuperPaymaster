@@ -108,6 +108,15 @@ MUTATIONS = [
                   "test_gov2_timelock_scheduleBatch_accepts_both_and_sets_guardian"],
     },
     {
+        "name": "i-postOp-refund-lost",
+        "what": ("Codex closing review (Low): postOp books the charge as revenue but credits the operator's "
+                 "refund (a0 - charge) nowhere"),
+        "edits": [(CORE, "        operators[c.operator].aPNTsBalance += uint128(c.a0 - charge);\n", "")],
+        "red": ["test_d5b_forward_mid_bundle_upgrade_with_extension_calls"],
+        "blind": ["test_d5b_rollback_mid_bundle_with_extension_calls"],
+        "suites": [RACE],
+    },
+    {
         "name": "g-transferOwnership-override-only-in-extension",
         "what": ("§2.1: the two-step override is removed from the shared chain and re-added ONLY in the "
                  "extension (dead code behind the core's selector)"),

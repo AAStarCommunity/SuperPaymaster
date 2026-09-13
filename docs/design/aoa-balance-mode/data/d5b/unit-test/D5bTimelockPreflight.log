@@ -1,0 +1,29 @@
+Missing dependencies found. Installing now...
+
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+Compiling 5 files with Solc 0.8.33
+Solc 0.8.33 finished in 26.32s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 8 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
+[PASS] test_non_safe_caller_does_not_schedule() (gas: 1409875)
+[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1549069)
+[PASS] test_preflight_rejects_72h_delay() (gas: 1359789)
+[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1401541)
+[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1443642)
+[PASS] test_preflight_rejects_open_executor() (gas: 1393490)
+[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1354528)
+[PASS] test_preflight_reruns_before_execute() (gas: 1505868)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 28.90ms (9.60ms CPU time)
+
+Ran 1 test suite in 35.85ms (28.90ms CPU time): 8 tests passed, 0 failed, 0 skipped (8 total tests)

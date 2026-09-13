@@ -1,0 +1,8 @@
+column 0 (unmutated): 34 tests, red = []
+
+== i-postOp-refund-lost: Codex closing review (Low): postOp books the charge as revenue but credits the operator's refund (a0 - charge) nowhere
+   red (1/2):
+     - test_d5b_forward_mid_bundle_upgrade_with_extension_calls: forward conservation: operator paid exactly the two charges: 396000000000000000000 != 112679490000000000000
+   expected red ['test_d5b_forward_mid_bundle_upgrade_with_extension_calls'] -> missing []
+   blind columns ['test_d5b_rollback_mid_bundle_with_extension_calls'] -> turned red []
+   RESULT: OK

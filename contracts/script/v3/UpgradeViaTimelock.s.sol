@@ -229,8 +229,56 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     function _timelock(Cfg memory c) internal view returns (TimelockController tl) {
         require(c.timelock != address(0) && c.timelock.code.length > 0, "timelock not configured (TIMELOCK / .timelockController)");
         tl = TimelockController(payable(c.timelock));
-        uint256 d = tl.getMinDelay();
-        require(d >= vm.envOr("TL_EXPECT_MIN_DELAY", GOV1_MIN_DELAY), "timelock minDelay below the GOV-1 48h");
+    }
+
+    /// @dev Accounts that must hold NO timelock role: env TL_FORBIDDEN (comma list: the deployer, any
+    ///      extra EOA) plus the proxies' current owners when they are not the timelock (the old EOA owner).
+    function _forbidden(Cfg memory c) internal view returns (address[] memory f) {
+        address[] memory extra = vm.envOr("TL_FORBIDDEN", ",", new address[](0));
+        f = new address[](extra.length + 2);
+        for (uint256 i; i < extra.length; ++i) f[i] = extra[i];
+        address tl = c.timelock;
+        address o1 = ID5bOwned(c.sp).owner();
+        address o2 = ID5bOwned(c.registry).owner();
+        f[extra.length] = o1 == tl ? address(0) : o1;
+        f[extra.length + 1] = o2 == tl ? address(0) : o2;
+    }
+
+    function _safe() internal view returns (address) {
+        return vm.envAddress("SAFE"); // live chains: Mycelium Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    }
+
+    /**
+     * @notice Mandatory GOV-1 / M1 configuration preflight (Codex D5b closing review, Medium). Runs
+     *         BEFORE scheduling and AGAIN before broadcasting any execute, so a mis-configured timelock
+     *         can never complete an ownership hand-over or an upgrade and only fail a post-condition.
+     *         Reverts unless: minDelay == 172800 exactly; the Safe holds PROPOSER, CANCELLER and
+     *         EXECUTOR; the executor role is not open (address(0)); DEFAULT_ADMIN_ROLE is held by no
+     *         external account (only the timelock itself, OZ 5.0.2) — the Safe and every `forbidden`
+     *         account are checked; and no `forbidden` account (deployer, old owner, extras) holds
+     *         PROPOSER / CANCELLER / EXECUTOR. Execution path: the functions below broadcast ONLY when the
+     *         acting caller IS the Safe (on anvil: the unlocked / pranked Safe); any other caller only gets
+     *         the calldata to submit from the Safe — never a broadcast from another account.
+     */
+    function m1Preflight(TimelockController tl, address safe, address[] memory forbidden) public view {
+        require(tl.getMinDelay() == GOV1_MIN_DELAY, "M1 preflight: minDelay != 172800");
+        require(safe != address(0) && safe != address(tl), "M1 preflight: Safe unset");
+        bytes32 P = tl.PROPOSER_ROLE();
+        bytes32 C = tl.CANCELLER_ROLE();
+        bytes32 E = tl.EXECUTOR_ROLE();
+        bytes32 A = tl.DEFAULT_ADMIN_ROLE();
+        require(tl.hasRole(P, safe) && tl.hasRole(C, safe) && tl.hasRole(E, safe),
+            "M1 preflight: Safe must hold PROPOSER, CANCELLER and EXECUTOR");
+        require(!tl.hasRole(E, address(0)), "M1 preflight: executor role is OPEN (address(0))");
+        require(tl.hasRole(A, address(tl)), "M1 preflight: timelock is not its own admin");
+        require(!tl.hasRole(A, safe), "M1 preflight: Safe holds DEFAULT_ADMIN_ROLE");
+        for (uint256 i; i < forbidden.length; ++i) {
+            address f = forbidden[i];
+            if (f == address(0) || f == safe) continue;
+            require(!tl.hasRole(A, f), "M1 preflight: external account holds DEFAULT_ADMIN_ROLE");
+            require(!tl.hasRole(P, f) && !tl.hasRole(C, f) && !tl.hasRole(E, f),
+                "M1 preflight: a forbidden account holds a timelock role");
+        }
     }
 
     function deployImpl(Cfg memory c, bool isSP) public returns (address impl) {
@@ -249,7 +297,14 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function scheduleUpgrade(Cfg memory c, bool isSP, address impl, bytes32 salt, address proposer) public returns (bytes32 id) {
+        return scheduleUpgradeWith(c, isSP, impl, salt, proposer, _safe(), _forbidden(c));
+    }
+
+    function scheduleUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address proposer, address safe,
+        address[] memory forbidden) public returns (bytes32 id)
+    {
         TimelockController tl = _timelock(c);
+        m1Preflight(tl, safe, forbidden);
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
         require(vm.load(proxy, OWNERSHIP_2STEP_SLOT) == bytes32(0), "pending ownership nomination: cancel it first (_authorizeUpgrade refuses)");
@@ -258,14 +313,14 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         bytes memory data = _upgradeCall(impl);
         uint256 delay = tl.getMinDelay();
         id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
-        if (tl.hasRole(tl.PROPOSER_ROLE(), proposer)) {
+        if (proposer == safe) {
             vm.startBroadcast(proposer);
             tl.schedule(proxy, 0, data, bytes32(0), salt, delay);
             vm.stopBroadcast();
             require(tl.isOperationPending(id), "schedule: not pending after schedule");
             console.log("  scheduled; ready at:", tl.getTimestamp(id));
         } else {
-            console.log("  broadcaster is not a proposer - submit this from the proposer (Safe):");
+            console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.log("  to  :", address(tl));
             console.logBytes(abi.encodeCall(TimelockController.schedule, (proxy, 0, data, bytes32(0), salt, delay)));
         }
@@ -273,7 +328,14 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function executeUpgrade(Cfg memory c, bool isSP, address impl, bytes32 salt, address executor) public {
+        executeUpgradeWith(c, isSP, impl, salt, executor, _safe(), _forbidden(c));
+    }
+
+    function executeUpgradeWith(Cfg memory c, bool isSP, address impl, bytes32 salt, address executor, address safe,
+        address[] memory forbidden) public
+    {
         TimelockController tl = _timelock(c);
+        m1Preflight(tl, safe, forbidden); // again, immediately before the execute broadcast
         address proxy = isSP ? c.sp : c.registry;
         bytes memory data = _upgradeCall(impl);
         bytes32 id = tl.hashOperation(proxy, 0, data, bytes32(0), salt);
@@ -282,9 +344,8 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         address owner = ID5bOwned(proxy).owner();
         Bls3 memory bls = _bls(c);
         bytes32[] memory before = _slots(proxy, isSP ? SP_LAYOUT_END : REGISTRY_LAYOUT_END);
-        bool can = tl.hasRole(tl.EXECUTOR_ROLE(), executor) || tl.hasRole(tl.EXECUTOR_ROLE(), address(0));
-        if (!can) {
-            console.log("  broadcaster is not an executor - submit this from the executor (Safe):");
+        if (executor != safe) {
+            console.log("  broadcaster is not the Safe - submit this from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.execute, (proxy, 0, data, bytes32(0), salt)));
             return;
         }
@@ -336,33 +397,44 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
     }
 
     function scheduleAccept(Cfg memory c, address safe, bytes32 salt, address proposer) public returns (bytes32 id) {
+        return scheduleAcceptWith(c, safe, salt, proposer, _forbidden(c));
+    }
+
+    function scheduleAcceptWith(Cfg memory c, address safe, bytes32 salt, address proposer, address[] memory forbidden)
+        public returns (bytes32 id)
+    {
         TimelockController tl = _timelock(c);
-        require(safe != address(0), "SAFE unset");
+        m1Preflight(tl, safe, forbidden);
         require(ID5bOwned(c.sp).pendingOwner() == address(tl), "M1: SP.pendingOwner != timelock (run SP.transferOwnership(timelock) first)");
         require(ID5bOwned(c.registry).pendingOwner() == address(tl), "M1: Registry.pendingOwner != timelock");
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
         uint256 delay = tl.getMinDelay();
         id = tl.hashOperationBatch(t, v, p, bytes32(0), salt);
-        if (tl.hasRole(tl.PROPOSER_ROLE(), proposer)) {
+        if (proposer == safe) {
             vm.startBroadcast(proposer);
             tl.scheduleBatch(t, v, p, bytes32(0), salt, delay);
             vm.stopBroadcast();
             require(tl.isOperationPending(id), "M1: batch not pending");
             console.log("  M1 batch scheduled; ready at:", tl.getTimestamp(id));
         } else {
-            console.log("  broadcaster is not a proposer - submit this scheduleBatch from the Safe:");
+            console.log("  broadcaster is not the Safe - submit this scheduleBatch from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.scheduleBatch, (t, v, p, bytes32(0), salt, delay)));
         }
         console.logBytes32(id);
     }
 
     function executeAccept(Cfg memory c, address safe, bytes32 salt, address executor) public {
+        executeAcceptWith(c, safe, salt, executor, _forbidden(c));
+    }
+
+    function executeAcceptWith(Cfg memory c, address safe, bytes32 salt, address executor, address[] memory forbidden) public {
         TimelockController tl = _timelock(c);
+        m1Preflight(tl, safe, forbidden); // again, immediately before the acceptance broadcast
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
         bytes32 id = tl.hashOperationBatch(t, v, p, bytes32(0), salt);
         require(tl.isOperationReady(id), "M1: batch not ready");
-        if (!tl.hasRole(tl.EXECUTOR_ROLE(), executor)) {
-            console.log("  broadcaster is not an executor - submit this executeBatch from the Safe:");
+        if (executor != safe) {
+            console.log("  broadcaster is not the Safe - submit this executeBatch from the Safe:");
             console.logBytes(abi.encodeCall(TimelockController.executeBatch, (t, v, p, bytes32(0), salt)));
             return;
         }
