@@ -5,7 +5,7 @@
 > **v4.0（2026-09-13）**：规范清理并冻结，依据是排期定稿 CC-122（DSR `AOA_RepCredit_Sequencing_Plan_2026-09-13.md` §7–§10，后节优先）。本版只改文档，基线 commit `cbcb7045`（`feat/aoa-balance-mode-5.5.0`）。改动：
 > 1. **D-9 bundler**：审阅记录下方"作者已定"一句（`cbcb7045` 上的 L16）和 §0 D-9 行（同上 L47）改为 v3.9 已执行的调整：主用自托管 Rundler v0.11.0（`2a3db237`，`same_sender_mempool_count = 1`），交叉验证 Alto v1.2.5（`45bbf341`）；保留历史说明。B 层"两个 bundler 都要测"的要求不变。
 > 2. **§6 前置条件**：所有"RepCredit B6 冻结"改为"RepCredit F0 硬验收包通过恢复演练（CC-122 R1）"（倒排表、前提行、第 1 步 ④、§6.1 P2）；第 7c 步去掉 RepCredit 开 AUTO，改为指向 CC-122 R3；第 10 步改为指向 CC-122 R3–R5。
-> 3. **runbook 新增**：第 5c 步（Registry 升级到 D5b 实现）；A3b 的 go/no-go 检查点 P1 / P2；第 5 步读回 `priceStalenessThreshold ∈ [60, 86400]`；每个写链阶段单独放行；M1–M3 在 Sepolia（A5s）的两步所有权与一次 `scheduleBatch`，白名单合约与 AOA 工厂的 owner 一并转给 timelock；感知 timelock 的升级流程纳入 rc1 门槛（A2）的 fork 演练；发布身份（commit + runtime codehash）。
+> 3. **runbook 新增**：第 5c 步（Registry 升级到 D5b 实现）；A3b 的 go/no-go 检查点 P1 / P2；第 5 步读回 `priceStalenessThreshold ∈ [60, 86400]`；每个写链阶段单独放行；M1–M3 在 Sepolia（A5s）的两步所有权与一次 `scheduleBatch`，`AOAProtocolRegistry` 与 AOA 工厂的 owner 一并转给 timelock（单步，转后读回）；感知 timelock 的升级流程纳入 rc1 门槛（A2）的 fork 演练；发布身份（commit + runtime codehash）。
 > 4. **§10.7b**：GOV-5 行改为 Part B 定稿设计（`fe3a728c` 实验报告 B2–B4）；GOV-2 行的体积数字改为 `cbcb7045` 实测。
 > 5. **C2**：与 Part B 定稿（384 B / 352 B 两种长度）核对一致；补上 D5b 扩展函数也在 bundle 中途测试的覆盖范围内。
 > 6. **§10.8b R-AMS**：`SETTLE_GAS_BOUND` / `MIN_POST_OP_GAS` 在 Part B 之后是有硬边界的治理参数，调整时效 ≥ 96h；超出硬上界才需要 UUPS 升级。
@@ -15,6 +15,8 @@
 > 10. **CC-30 盘点**（`docs/PRODUCTION_READINESS.md`）：外部审计项改为"研究部署：RDR-1…7；产品上线：§10.8c"。
 >
 > 顺带更正（均以 `cbcb7045` 源码为准）：§3.1 标注 Part B / D5b 会追加存储；§3.2 的 context 字段按实际的 11 个字改写并注明 Part B 的第 12 个字；§5 补 `cbcb7045` 的体积实测；§11.1 R10-M5 指向 §10.8c。
+>
+> **v4.0 合入前的补充**（SP 协调会话的决定；冻结版以 EVIDENCE-INDEX 的 S-01 行登记的 commit 为准，`70f8085f` 那一版不作为冻结版）：(a) 白名单按源码统一写成**一个** `AOAProtocolRegistry` 合约（三类 `KIND_SP` / `KIND_SPENDER` / `KIND_TIER_SOURCE`，token 经 immutable `PROTOCOL_REGISTRY` 引用）：§2.1、C-5、§10.5、§10.7、M1、AUD-1、AUD-5、R10-M5、§11.2；(b) M1 写明 `AOAProtocolRegistry` 与 AOA 工厂是单步 `Ownable`，转移后读回 `owner() == timelock`；(c) 全文 `SuperPaymaster.sol` / `Registry.sol` / `BasePaymasterUpgradeable.sol` 的行号按 `cbcb7045` 重核（§10.2 表整表重映射，含 token 三个文件；已不存在的引用写明）；(d) RDR-7 与 §10.7 SP owner 行补全最坏损失：owner 被攻破时加上 SP 持有的 aPNTs 与恶意 SP 可销毁的 xPNTs（I6 上界，逐项对照源码），合约漏洞一格写明依据与待验证假设；(e) Part B 的 Codex 状态：5 轮，第 5 轮（收尾，`fe3a728c`）APPROVE；(f) 体积：补上"这正是 D5b 拆分的原因、≥ 1,024 是发布门槛"；(g) §10.8c 移到 §10.8b 之后；(h) `upgrade-governance-eval.md` 末行改为指向 §10.8 / §10.8c。
 >
 > ---
 >
@@ -131,7 +133,7 @@ mapping(address user => uint256)   allowanceNonce; // R2 签名
 
 模板 immutable（按链写入；克隆通过 delegatecall 共享）：`SP_DEFAULT_CAP = 5,000e18`、`SP_CAP_FLOOR = 250e18`、
 `USER_TOTAL_DEFAULT = 5,000e18`、`PROTOCOL_MAX_CAP`、`PROTOCOL_CREDIT_CEILING`、**`K = 1`（常量，不可调；原先的 K_MAX 取消）**、`SPENDER_TIMELOCK = 48 h`、
-`SPENDER_REGISTRY`（codehash 白名单）、`TIER_SOURCE_REGISTRY`（分档源 codehash 白名单）。
+协议白名单 `PROTOCOL_REGISTRY`（immutable，指向**一个** `AOAProtocolRegistry` 合约，内分三类：`KIND_SP` 按代理地址登记，`KIND_SPENDER` 与 `KIND_TIER_SOURCE` 按实现合约 codehash 登记；`xPNTsV2Base.sol:53`，`AOAProtocolRegistry.sol:24–26`）。（源码核对：上面的额度、下限、`K`、48 h 在 `cbcb7045` 里都是 `constant`，`xPNTsV2Base.sol:29–35`，名称是 `TIMELOCK` 而不是 `SPENDER_TIMELOCK`；只有 `PROTOCOL_REGISTRY` 是 immutable。）
 
 ### 2.2 接口
 
@@ -223,7 +225,7 @@ function BALANCE_MODE_VERSION() external pure returns (uint16);          // = 1
 | C-2 | `settleCredit`：`debts += min(charge, amount)`；预留被消费掉之后才记债（CEI） |
 | C-3 | 策略切换：queue → 48 h → 任何人都可以 execute（写入时读 `block.timestamp` 没有问题，验证期不读 ETA）；execute 时 `policyEpoch += 1`，**之前所有的申请和批准都失效**，用户要重新申请。已准入的预留照常结算 |
 | C-4 | 撤销（用户 `revokeCredit`、owner 调低 `approvedCap`、声誉下降）只影响**新**预留，已有债务和已准入的预留不受影响 |
-| C-5 | 分档源切换：queue → 48 h → execute，执行时检查 codehash ∈ `TIER_SOURCE_REGISTRY`。5.5.0 的 `GlobalTierSource.tierOf(_, user) = Registry.getCreditLimit(user)` |
+| C-5 | 分档源切换：queue → 48 h → execute，执行时检查 codehash 在 `AOAProtocolRegistry` 的 `KIND_TIER_SOURCE` 白名单里（`xPNTsTokenV2Ext.sol:196`）。5.5.0 的 `GlobalTierSource.tierOf(_, user) = Registry.getCreditLimit(user)` |
 
 **验证期访问清单**（B 层逐项测；清单之外，token 在验证期不得访问任何槽）
 
@@ -260,7 +262,7 @@ L-4 规定释放时全额退回。`MIN_POST_OP_GAS` 必须 ≥ v2 postOp 最坏�
 | S-6 | `emergencySwitchToStandby()` | communityOwner | 处于急停状态；`standbySP != 0` 且不等于 `emergencyRevokedAddress`；重新检查 codehash | `current = standbySP`；`historicalSP` 置位；`standbySP = 0`；清空 pending |
 | S-7 | `unsetEmergencyDisabled()` | communityOwner | `current != emergencyRevokedAddress`（沿用现有规则） | `emergencyDisabled = false` |
 
-**实现位置（D6）**：S-0 在 `xPNTsTokenV2.sol:85–91`（`initialize`）。以下各转移都在 `xPNTsTokenV2Ext.sol` 中：S-1 `:223`、S-2 `:245`、S-3 `:257`、S-4 `:268`、S-5 `:280`（propose）和 `:289`（designate）、S-6 `:301`、S-7 `:311`；`_setCurrentSP` 在 `:318`，负责 `historicalSP` 写入和清空 pending。
+**实现位置（D6）**：S-0 在 `xPNTsTokenV2.sol:87–93`（`initialize` 内；`cbcb7045`，原写 `:85–91`）。以下各转移都在 `xPNTsTokenV2Ext.sol` 中：S-1 `:223`、S-2 `:245`、S-3 `:257`、S-4 `:268`、S-5 `:280`（propose）和 `:289`（designate）、S-6 `:301`、S-7 `:311`；`_setCurrentSP` 在 `:318`，负责 `historicalSP` 写入和清空 pending。
 覆盖测试：`xPNTsTokenV2Test.test_S1_S3_rotation_after_timelock`、`test_factory_proposal_cannot_override_community_and_is_cancelled_by_emergency`、`test_S6_S7_standby_recovery`，以及 `xPNTsTokenV2D3Test` 的 `test_S2_*`、`test_S3_*`、`test_A10_*`。
 
 **为什么急停期间还允许 S-3**（与 Codex 第 8 轮的建议不同）：如果急停期间只能走备用 SP，那么没有预设备用 SP 的社区会永久卡在急停状态（S-7 要求 current 不等于被撤销的地址）。只允许 communityOwner 发起、已公示满 48 h 的提议，它的安全性和备用 SP 相同（都是 48 h 前就公开的地址），而且不会卡死。
@@ -278,8 +280,8 @@ L-4 规定释放时全额退回。`MIN_POST_OP_GAS` 必须 ≥ v2 postOp 最坏�
 | 状态 | 处理 |
 |---|---|
 | `operators[*]` | 保留。旧代币的 operator 必须在升级前暂停（§6） |
-| `userOpState` | **保留并继续使用**：`isBlocked` 由 validate 读取，Registry 的黑名单同步（`updateBlockedStatus`，SP `:613` ← Registry `:639`）写入。旧的封禁记录**沿用** |
-| `_settledDebtOps` | **保留并继续使用**，作为 postOp 的幂等锁（SP `:1373`）；旧的 hash 无害 |
+| `userOpState` | **保留并继续使用**：`isBlocked` 由 validate 读取，Registry 的黑名单同步（`updateBlockedStatus`，SP `:669` ← Registry `:639`；行号按 `cbcb7045`）写入。旧的封禁记录**沿用** |
+| `_settledDebtOps` | **保留并继续使用**，作为 postOp 的幂等锁（SP `:1340–1341`，`cbcb7045`）；旧的 hash 无害 |
 | `pendingDebts`（slot 17） | 变成占位槽，不能删除。升级前按 §6 对账清零或明确核销 |
 | `sbtHolders`、BLS 指针、EntryPoint 质押、operator 的 aPNTs 余额 | 不变 |
 | `pendingAPNTsToken` | 升级**之前**必须执行或取消（§6）；它的 ETA 会跨升级保留，而且一直可以执行 |
@@ -364,7 +366,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 0 | **fork 层级检查（§10.8b R-AMS）**：`eth_config` 读 `current` / `next`，`next` 是 Amsterdam 就阻塞；盘点：枚举所有 `operators[*]`；按 `DebtRecordFailed` 事件枚举 `pendingDebts` 非零的条目；确认 `pendingAPNTsToken` 的状态 | 盘点表入库；日志扫描按"归档 RPC + 扫描完整性"纪律做交叉验证 | `eth_config` 原始响应（current/next）+ 读取时的区块号；CLZ 探针响应；盘点 JSON（两个端点、扫描区间、事件计数、正对照）及其 sha256 |
 | 1 | aPNTs 切换（T0）。**作者决定（2026-09-13，经 DSR，第二次）：两条链都换成 `APNTsCapped`**（设计见 `apnts-capped-design.md`；minter 和 capGuardian 都是治理多签 `0x51eD…E114`；Sepolia 用一个**标明为测试值**的上限；主网初始上限 **300,000e18**，见 §10.7b GOV-4）。这一决定取代了原先"切换到 `0xBb46`"的分支 A。步骤：① `cancelAPNTsTokenChange()` 取消挂着的 `0xBb46`（即时，没有 timelock；`setAPNTsToken` 本来就会覆盖 pending，但显式取消更清楚）；② 部署 `APNTsCapped`；③ `setAPNTsToken(APNTsCapped)` 重新排队，**ETA = 当时 + 7 天**（`APNTS_TOKEN_TIMELOCK`），所以**至少要在升级窗口 7 天之前排队**；如果 GOV-1 已经生效，每一笔 owner 调用还要再加 48h 的 timelock；④ 在升级窗口内执行，前提是 RepCredit F0 硬验收包已通过恢复演练（CC-122 R1）；④ 就是检查点 P1（见上）：快照 → 各 operator 取出全部余额 → revenue 取到只剩 0.1 → 读回前提 → `executeAPNTsTokenChange` → 按 1:1 用 `APNTsCapped` 重新存入（由 minter 多签给 operator 铸造）。**`0xBb46` 的处置**：弃用；按 7d 的做法 renounceFactory 并转给多签之后闲置，SP 只接受 `APNTS_TOKEN`，所以它剩下的铸币能力不影响 SP 的偿付能力。实现：`UpgradeToV5_5_0.executePendingAPNTs(ops)`（按新流程改写，fork 演练待完成） | 取消后 `pendingAPNTsToken == 0`；排队后 `pendingAPNTsToken == APNTsCapped`、`pendingAPNTsTokenEta == 排队时间 + 7 天`；执行后 `APNTS_TOKEN == APNTsCapped`；每个 operator 的余额 == 快照 × 1；`totalTrackedBalance == Σ + revenue`；`APNTsCapped.totalSupply() ≤ cap` | 每一笔的 tx hash + 区块号，以及每次读回的区块号：① `cancelAPNTsTokenChange`（取消 0xBb46）；② `APNTsCapped` 部署 tx + runtime codehash + timelock 地址，GOV-1 accept 的 schedule / execute tx；③ `setAPNTsToken(APNTsCapped)` 重新排队 tx（**排队区块时间 ≤ T − 7d**），`pendingAPNTsToken` / `pendingAPNTsTokenEta` 读回值；④ 快照读回、各 operator `withdraw`、revenue 提取、`executeAPNTsTokenChange`、minter 多签 `mint`、1:1 `deposit` 每一笔 |
 | 2 | `pendingDebts`：逐条对账，要么先用 5.4.2 的 `retryPendingDebt`/`clearPendingDebt` 处理，要么在文档里明确核销 | 所有条目为 0，或者有核销记录 | 每条 `retryPendingDebt` / `clearPendingDebt` 的 tx hash + 区块号，或核销记录（条目、金额、依据）；读回区块号 |
-| 3 | 用 `setOperatorPaused`（SP `:589`）暂停所有旧代币的 operator；等 mempool 里的旧 op 清空 | 各 operator `isPaused == true` | 每个 operator 的 `setOperatorPaused(op, true)` tx hash + 区块号；`isPaused` 读回区块号 |
+| 3 | 用 `setOperatorPaused`（SP `:645`）暂停所有旧代币的 operator；等 mempool 里的旧 op 清空 | 各 operator `isPaused == true` | 每个 operator 的 `setOperatorPaused(op, true)` tx hash + 区块号；`isPaused` 读回区块号 |
 | 4 | 按顺序部署：`GlobalTierSource` → codehash 白名单登记 → AOA 工厂（构造时生成 v2 模板，把默认分档源传给 token 的 initialize，**立即** `setSuperPaymasterAddress(SP)`）；如果需要 F1，再部署 lens | 模板 codehash 与 artifact 一致；工厂的 SUPERPAYMASTER 等于 SP | `GlobalTierSource`、`AOAProtocolRegistry`、每次 `bootstrapApprove`、`seal`、`xPNTsTokenV2Ext`、模板 `xPNTsTokenV2`、`xPNTsFactoryV2`、Lens 的 tx hash + 区块号 + 地址 + runtime codehash；模板 codehash 读回区块号 |
 | 5 | 升级之前核对 5.5.0 impl 的构造参数（`REGISTRY`、`ETH_USD_PRICE_FEED`、`entryPoint`）；SP `upgradeToAndCall` → 5.5.0。**这是检查点 P2（不可回退点）**。impl 必须从 tag 编译，runtime codehash 与发布证明一致（见下方"发布身份"） | `version()`；三个 immutable 读回，并与 5.4.2 一致；BLS 三腿不变；`sbtHolders` 抽样；`userOpState` 抽样；**`priceStalenessThreshold ∈ [60, 86400]`**（v4.0：全新部署由 `initialize` 强制这个范围，`SuperPaymaster.sol:309`，自 `cbcb7045` 起；原地升级的代理保留旧值，而 5.5.0 没有 setter，所以只能在这里读回断言；Sepolia 2026-09-13 的读数为 4200（`cbcb7045` 的提交说明；v4.0 起草时在 Sepolia 块 11,694,182 经 publicnode 单一端点复读，仍为 4200）；`UpgradeToV5_5_0` 第 5 步读回已断言该范围，`UpgradeToV5_5_0.s.sol:586`） | 5.5.0 impl 部署 tx + runtime codehash；`upgradeToAndCall` tx hash + 区块号；`version()`、三个 immutable、ERC-1967 槽、`priceStalenessThreshold` 的读回区块号 |
 | 5b | **SP 在 EntryPoint 的质押补足到 ≥ 1 ETH，`unstakeDelaySec` ≥ 86400**（v3.9，D-9 调整：主用 bundler Rundler v0.11.0 的默认门槛是 1 ETH / 86400 s，与 ERC-7562 的 MIN_UNSTAKE_DELAY 一致；SP 在验证期读全局槽，依赖 STO-033，不质押就会被 bundler 拒绝）。owner 调用 `SP.addStake{value: 差额}(max(86400, 当前 delay))`。2026-09-13 的实测：Sepolia 的 SP `0x09DF…` 和 OP 主网的 SP `0xA2c9…` 质押都只有 **0.1 ETH**（delay 86400） | `EntryPoint.getDepositInfo(SP)`：`staked == true`、`stake ≥ 1e18`、`unstakeDelaySec ≥ 86400`、`withdrawTime == 0` | `addStake` tx hash + 区块号（**补足到 1 ETH / 86400 s**）；`getDepositInfo(SP)` 原始读回 + 区块号 |
@@ -374,7 +376,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 | 7b | **D-21（作者定：不处理）**：旧代币里的债务都是测试数据，直接放弃，只在迁移记录里写一句。下面保留原来的三个选项，仅作记录：(a) 把核对过的旧债导入 v2 代币；(b) 在 v2 代币上把欠债用户标记为不可开通信用；(c) 核销并在迁移记录里披露总额。**(a) 或 (b) 需要 v2 模板多一个一次性函数**（`importLegacyDebt(users, amounts)` 或 `setCreditIneligible(users)`，只有 communityOwner 能调，只能在 `creditPolicy` 首次离开 OFF 之前调用，而且之后永久关闭）；(c) 不需要改接口 | 对账记录入库；**这是 7c 的前置验收条件** | 对账 / 放弃记录（文件路径 + sha256） |
 | 7c | **先 `SP.updatePrice()`，读回 `cachedPrice.updatedAt > 0` 且未过期**（D3 §8(a)：价格缓存为 0 时 validate 会 revert，得到 AA33 而不是 sigFail）→ `configureOperator` → 取消暂停（此时只有余额模式）。**升级窗口内所有社区的 `creditPolicy` 都保持 OFF**。（v4.0：原来写在这里的"RepCredit 社区 `queueCreditPolicy(AUTO)`，48 h 后 execute"已移出升级窗口：RepCredit 社区开 AUTO 属于 CC-122 R3，在 A4 之后的 RepCredit 独占测量窗内进行） | 探测通过；每个社区一笔余额模式 op 成功 | `updatePrice` tx hash + 区块号 + `cachedPrice.updatedAt` 读回；每个 operator 的 `configureOperator` tx；解除暂停 `setOperatorPaused(op, false)` tx；每个社区验收 op 的 TxHash + UserOpHash + 区块号；每个社区解除暂停后再读一次 `creditPolicy == OFF`（值 + 区块号） |
 | 7d | **主网前**（任何时候都可以执行，作者要求保证随时可转）：aPNTs 铸币权交给 Mycelium Safe：先由当前 communityOwner 调 `renounceFactory()`，再 `transferCommunityOwnership(Safe)`（单步转移、没有 accept，**地址必须核对两遍**）。主网的新 aPNTs 部署时直接由 Safe 持有；是否在 mint 里强制上限，见 `apnts-mint-authority.md` §4，由作者决定 | `communityOwner == Safe`；`FACTORY == 0`；EOA 和工厂调 `mint` 都 revert，Safe 调 `mint` 成功（fork 演练，块 11692415，已通过） | `renounceFactory`、`transferCommunityOwnership(Safe)` 的 tx hash + 区块号；`communityOwner` / `FACTORY` 读回区块号；负对照 revert 的调用记录 |
-| M1 | **主网前（GOV-1）；在 Sepolia 上就是 A5s**（v4.0 按计划 §8.1 第 2 条、§10.1 ★4 重写）：SP 和 Registry 的 owner 转给 **48h TimelockController**：proposer / canceller 是 AAStar 社区治理多签 = Mycelium 多签 `0x51eD…E114`；**executor 只授予治理多签**，不开放给任何人（这是 §10.7b C2 的纵深防御，合约的正确性不依赖它）；admin 已放弃。**两步转移**（前提：D5b 已随第 5 步、第 5c 步上链）：① EOA 分别调用 `SP.transferOwnership(timelock)`、`Registry.transferOwnership(timelock)`，这只记录 `pendingOwner`，owner 仍是 EOA；② 治理多签在 timelock 上用**一个** `scheduleBatch` 同时提交 [`SP.acceptOwnership()`, `Registry.acceptOwnership()`, `SP.setGuardian(Safe)`]，**只等一次 48h**，然后 `executeBatch`。timelock 配错（角色或 minDelay 不对）时 accept 执行不了，EOA 仍是 owner，这就是天然的中止点。**同一阶段一并转给这把 timelock**（计划 §10.1 ★4，属于 M-6，不是可选项）：三类白名单的 owner 与 AOA 工厂的 owner。源码里三类白名单是**同一个合约** `AOAProtocolRegistry` 的三个 kind（`KIND_SP` / `KIND_SPENDER` / `KIND_TIER_SOURCE`，`AOAProtocolRegistry.sol:23–26`；计划与本文 §10.7 称作 SP_REGISTRY / SPENDER_REGISTRY / TIER_SOURCE_REGISTRY），token 模板通过 immutable `PROTOCOL_REGISTRY`（`xPNTsV2Base.sol:53`）引用它；AOA 工厂是 `xPNTsFactoryV2`（`:40`，构造时 `Ownable(msg.sender)`，`:191`）。这两个合约用的是 OZ 单步 `Ownable`：`transferOwnership(timelock)` 一笔即生效、没有 accept，**地址必须核对两遍**。代价：`revokeApproval`（`AOAProtocolRegistry.sol:82`，onlyOwner）从即时变成 ≥ 48h；已激活对象的应急路径在 token 层（§10.7 O2 行），不受影响。**timelock 的选择**：Sepolia 上已有的 48h TimelockController `0x86C86c789EDc099801cc6a5F48334F1D67dC9564`（`deployments/config.sepolia.json` L32）的角色配置必须先读回，`apnts-capped-deliverable.md` L124 记录治理多签既不是它的 proposer 也不是 canceller；SP 倾向新部署一把符合 GOV-1 的（计划 §8.7）。整条路径（含 `scheduleBatch`）要在 rc1 门槛（A2）的 fork 演练里走通（见下方"rc1 门槛的 fork 演练范围"） | `owner() == timelock`、`pendingOwner() == 0`（SP 和 Registry 都要）；`AOAProtocolRegistry.owner() == timelock`、`xPNTsFactoryV2.owner() == timelock`；timelock `getMinDelay() == 172800`；proposer、canceller、executor 各角色的读回（executor 只有多签）；负对照：原 EOA 调用 `upgradeToAndCall` 会 revert，timelock 在 48h 之前执行也会 revert，非多签调用 `executeBatch` 会 revert | 两笔 `transferOwnership(timelock)`（SP、Registry）；`scheduleBatch` / `executeBatch` 的 tx hash + 区块号；`AOAProtocolRegistry` 与 `xPNTsFactoryV2` 的 `transferOwnership` tx；`owner()`、`pendingOwner()`、`getMinDelay()`、各角色读回区块号；负对照 revert 的调用记录 |
+| M1 | **主网前（GOV-1）；在 Sepolia 上就是 A5s**（v4.0 按计划 §8.1 第 2 条、§10.1 ★4 重写）：SP 和 Registry 的 owner 转给 **48h TimelockController**：proposer / canceller 是 AAStar 社区治理多签 = Mycelium 多签 `0x51eD…E114`；**executor 只授予治理多签**，不开放给任何人（这是 §10.7b C2 的纵深防御，合约的正确性不依赖它）；admin 已放弃。**两步转移**（前提：D5b 已随第 5 步、第 5c 步上链）：① EOA 分别调用 `SP.transferOwnership(timelock)`、`Registry.transferOwnership(timelock)`，这只记录 `pendingOwner`，owner 仍是 EOA；② 治理多签在 timelock 上用**一个** `scheduleBatch` 同时提交 [`SP.acceptOwnership()`, `Registry.acceptOwnership()`, `SP.setGuardian(Safe)`]，**只等一次 48h**，然后 `executeBatch`。timelock 配错（角色或 minDelay 不对）时 accept 执行不了，EOA 仍是 owner，这就是天然的中止点。**同一阶段一并转给这把 timelock**（计划 §10.1 ★4，属于 M-6，不是可选项）：`AOAProtocolRegistry` 的 owner（三类白名单都在这一个合约里，token 经 immutable `PROTOCOL_REGISTRY` 引用它）和 AOA 工厂 `xPNTsFactoryV2` 的 owner。**这两个合约都是 OZ v5.0.2 的单步 `Ownable`**（`AOAProtocolRegistry.sol:5`、`:23`；`xPNTsFactoryV2.sol:5`、`:40`，构造时 `Ownable(msg.sender)`，`:191`），不是 GOV-2 的两步所有权：`transferOwnership(timelock)` 一笔即生效，**没有 accept 这一步，也就没有 timelock 配错时的天然中止点**。所以：发送前**地址核对两遍**（与 SP、Registry 第 ① 步写入的 timelock 地址逐字节相同）；发送后立即读回 **`owner() == timelock`**（两个合约各一次，记录区块号）。代价：`revokeApproval`（`AOAProtocolRegistry.sol:82`，onlyOwner）从即时变成 ≥ 48h；已激活对象的应急路径在 token 层（§10.7 O2 行），不受影响。**timelock 的选择**：Sepolia 上已有的 48h TimelockController `0x86C86c789EDc099801cc6a5F48334F1D67dC9564`（`deployments/config.sepolia.json` L32）的角色配置必须先读回，`apnts-capped-deliverable.md` L124 记录治理多签既不是它的 proposer 也不是 canceller；SP 倾向新部署一把符合 GOV-1 的（计划 §8.7）。整条路径（含 `scheduleBatch`）要在 rc1 门槛（A2）的 fork 演练里走通（见下方"rc1 门槛的 fork 演练范围"） | `owner() == timelock`、`pendingOwner() == 0`（SP 和 Registry 都要）；`AOAProtocolRegistry.owner() == timelock`、`xPNTsFactoryV2.owner() == timelock`；timelock `getMinDelay() == 172800`；proposer、canceller、executor 各角色的读回（executor 只有多签）；负对照：原 EOA 调用 `upgradeToAndCall` 会 revert，timelock 在 48h 之前执行也会 revert，非多签调用 `executeBatch` 会 revert | 两笔 `transferOwnership(timelock)`（SP、Registry）；`scheduleBatch` / `executeBatch` 的 tx hash + 区块号；`AOAProtocolRegistry` 与 `xPNTsFactoryV2` 的 `transferOwnership` tx；`owner()`、`pendingOwner()`、`getMinDelay()`、各角色读回区块号；负对照 revert 的调用记录 |
 | M2 | **主网前（GOV-2）**：`setGuardian(Safe)`，已包含在 M1 的 `scheduleBatch` 里，不单独排队；演练：guardian 暂停 → validate 返回 sigFail；guardian 尝试恢复、升级、动资金，都 revert；timelock 恢复 | guardian 地址读回；上面各项正对照和负对照 | `setGuardian` 所在的 `scheduleBatch` / `executeBatch` tx；演练中每次 pause、恢复与负对照调用的 tx hash 或 revert 记录 + 区块号 |
 | M3 | **主网前（GOV-3）**：确认 `setAPNTSPrice` 只能由 timelock 调用（GOV-1 完成后自动如此） | EOA 调用 revert；timelock 的提案在 48h 之后执行成功 | EOA 调用 revert 的记录；timelock 提案 schedule / execute tx + 区块号 |
 | 8 | 旧代币：不迁移余额（旧债已在 7b 处理）；如果需要，另外提供 1:1 兑换合约，由用户自愿兑换，欠债用户能否兑换按 D-21 的结论决定 | — | 兑换合约（如有）的部署 tx + codehash |
@@ -384,7 +386,7 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 **rc1 门槛（A2）的 fork 演练范围（v4.0，计划 §8.1 第 2 条）**。A5s 之后 EOA 路径就没有了，第一次在真链上走 schedule → 48h → execute 时出错，就要再赔 48h，所以感知 timelock 的流程必须在 rc1 门槛就上 fork 演练（不广播）：
 1. 第 0–7c 步（EOA 路径）加第 5c 步（Registry）。
 2. A3a 完整路径：取消 `0xBb46` → 部署 `APNTsCapped` → 重新排队 → 快进 7 天 → 第 1 步 ④ 执行。（`EVIDENCE-INDEX.md` 记录：第 1 步 ④ 目前**没有脚本**，F-01 只演练到重新排队；这一项要补上。）
-3. M1–M3：两步转移 + 一个 `scheduleBatch` [SP.acceptOwnership, Registry.acceptOwnership, SP.setGuardian(Safe)]，以及白名单合约与 AOA 工厂的 owner 转移；负对照包括 timelock 配错时 accept 执行不了。
+3. M1–M3：两步转移 + 一个 `scheduleBatch` [SP.acceptOwnership, Registry.acceptOwnership, SP.setGuardian(Safe)]，以及 `AOAProtocolRegistry` 与 AOA 工厂的单步 owner 转移（含 `owner() == timelock` 读回）；负对照包括 timelock 配错时 accept 执行不了。
 4. **感知 timelock 的升级流程**（§10.7b C）：rc1 → rc1′（只改一个无害常量的 dummy bump）经 timelock 升级：部署 impl → `schedule(upgradeToAndCall)` → 48h → `execute` → 读回 `version()` 与实现槽。
 5. **C2 的 bundle 中途测试**（§10.7b C2）：A2 冻结 rc1 的 runtime fixture；A3b 之后与链上实测的 runtime codehash 核对，一致才能作为之后 C2 测试里的"上一个发布版本"。实验分支现有的 fixture（`superpaymaster-5.5.0-impl.creation.hex`，22,915 B 那一版源码）早于 `cbcb7045`，不能直接沿用。之后的每一个 rc(n+1)（例如 RDR 复核产生字节码修复时的 rc2）都要跑一次 rc(n) → rc(n+1) 的前向和回滚两个方向的 bundle 中途测试。
 
@@ -521,39 +523,39 @@ context: (token, user, aPNTsAmount, opHash, operator, mode, callGasLimit, postOp
 
 记号：`a0` = 验证期预留的 aPNTs（§10.3），`x0 = ceil(a0 · rate_v / 1e18)`（`rate_v` 是验证时的汇率），`c` = 结算额（aPNTs，`c ≤ a0`），
 `xc = min(x0, ceil(c · x0 / a0))`，`G` = EntryPoint 从 SP 的 ETH 押金里扣的最终费用。空格表示不变。
-行号对应 D3 头部 `1f8769c7`；`SP` = `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`，`T` = `contracts/src/tokens/v2/xPNTsTokenV2.sol`，`B` = `…/v2/xPNTsV2Base.sol`，`X` = `…/v2/xPNTsTokenV2Ext.sol`，`EP` = 规范 EntryPoint v0.7（codehash `0x8db5ff69…`）。
+行号对应 `cbcb7045`（v4.0 从原来的 D3 头部 `1f8769c7` 逐行重映射：按原行的源码内容在新树里定位；`SP`、`T`、`B` 有行移，`X` 引用的两行没有变）；`SP` = `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`，`T` = `contracts/src/tokens/v2/xPNTsTokenV2.sol`，`B` = `…/v2/xPNTsV2Base.sol`，`X` = `…/v2/xPNTsTokenV2Ext.sol`，`EP` = 规范 EntryPoint v0.7（codehash `0x8db5ff69…`）。
 
 | 事件 \ 状态 | 用户 xPNTs 余额 | lockedOf | creditReservedOf | debts | operator aPNTsBalance | SP 持有的 aPNTs | protocolRevenue | in-flight `_inflight[h]` | EP ETH 押金（SP） | xPNTs totalSupply |
 |---|---|---|---|---|---|---|---|---|---|---|
-| operator `deposit(amt)` | | | | | +amt（SP:775） | +amt（SP:764） | | | | |
-| operator `withdraw(amt)` | | | | | −amt（SP:829） | −amt（SP:833） | | | | |
-| validate 失败（sigFail，SP:1183–1255 各 return） | | | | | | | | | | |
-| BALANCE 锁定（validate） | | +x0（T:237） | | | −a0（SP:1258） | | **不变** | 写入 (op, a0)（SP:1260–1261） | −prefund（EP `_validatePaymasterPrepayment`） | |
-| CREDIT 预留（validate） | | | +a0（T:302） | | −a0（SP:1258） | | **不变** | 写入 (op, a0)（SP:1260–1261） | −prefund（同上） | |
-| postOp 成功（BALANCE） | −xc（T:264） | −x0（T:260） | | | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G)（EP `_postExecution`） | −xc（T:264） |
-| postOp 成功（CREDIT） | | | −a0（T:319） | +c（T:322） | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | |
-| opReverted（BALANCE，用户执行 revert） | −xc（T:264） | −x0（T:260） | | | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | −xc |
-| opReverted（CREDIT，用户执行 revert） | | | −a0（T:319） | +c（T:322） | +(a0−c)（SP:1342） | | +c（SP:1343） | 删除（SP:1340） | +(prefund−G) | |
+| operator `deposit(amt)` | | | | | +amt（SP:784） | +amt（SP:773） | | | | |
+| operator `withdraw(amt)` | | | | | −amt（SP:838） | −amt（SP:842） | | | | |
+| validate 失败（sigFail，SP:1192–1264 各 return） | | | | | | | | | | |
+| BALANCE 锁定（validate） | | +x0（T:239） | | | −a0（SP:1267） | | **不变** | 写入 (op, a0)（SP:1269–1270） | −prefund（EP `_validatePaymasterPrepayment`） | |
+| CREDIT 预留（validate） | | | +a0（T:304） | | −a0（SP:1267） | | **不变** | 写入 (op, a0)（SP:1269–1270） | −prefund（同上） | |
+| postOp 成功（BALANCE） | −xc（T:266） | −x0（T:262） | | | +(a0−c)（SP:1364） | | +c（SP:1365） | 删除（SP:1362） | +(prefund−G)（EP `_postExecution`） | −xc（T:266） |
+| postOp 成功（CREDIT） | | | −a0（T:321） | +c（T:324） | +(a0−c)（SP:1364） | | +c（SP:1365） | 删除（SP:1362） | +(prefund−G) | |
+| opReverted（BALANCE，用户执行 revert） | −xc（T:266） | −x0（T:262） | | | +(a0−c)（SP:1364） | | +c（SP:1365） | 删除（SP:1362） | +(prefund−G) | −xc |
+| opReverted（CREDIT，用户执行 revert） | | | −a0（T:321） | +c（T:324） | +(a0−c)（SP:1364） | | +c（SP:1365） | 删除（SP:1362） | +(prefund−G) | |
 | postOp 回滚（I10；用户执行一并撤销） | | 锁留下（活标记随交易结束清零） | 预留留下 | | 暂不退（仍是 −a0） | | **不变** | 保留，活标记清零 | +(prefund−G)（EP 以 postOpReverted 模式二次 `_postExecution`） | |
-| stale release（锁，交易之后，任何人） | | −x0（B:313；T:270 入口） | | | | | | | | |
-| stale release（预留，交易之后） | | | −a0（B:323；T:326 入口） | | | | | | | |
-| `releaseStaleSponsorship(h)`（交易之后，任何人） | | | | | +a0（SP:1356） | | | 删除（SP:1355） | | |
-| `withdrawProtocolRevenue(amt)` | | | | | | −amt（SP:855） | −amt（SP:853） | | | |
-| `mint(m)` 且有债（自动抵债） | +m − rx（B:246–247） | | | −ra（B:245） | | | | | | +m − rx |
+| stale release（锁，交易之后，任何人） | | −x0（B:318；T:272 入口） | | | | | | | | |
+| stale release（预留，交易之后） | | | −a0（B:328；T:328 入口） | | | | | | | |
+| `releaseStaleSponsorship(h)`（交易之后，任何人） | | | | | +a0（SP:1378） | | | 删除（SP:1377） | | |
+| `withdrawProtocolRevenue(amt)` | | | | | | −amt（SP:864） | −amt（SP:862） | | | |
+| `mint(m)` 且有债（自动抵债） | +m − rx（B:251–252） | | | −ra（B:250） | | | | | | +m − rx |
 | 用户停用 / 恢复（X:66–67） | | | | | | | | | | |
-| 急停 / 更换 SP | 已有的锁、预留照常由原 locker 结算（T:252）或交易后释放 | | | | | | | 原 SP 的 in-flight 照常结算或释放 | | |
+| 急停 / 更换 SP | 已有的锁、预留照常由原 locker 结算（T:254）或交易后释放 | | | | | | | 原 SP 的 in-flight 照常结算或释放 | | |
 | 迁移（§6） | 旧代币不动；v2 从 0 开始 | 0 | 0 | 0 | 原 operator 的余额保留 | | | 空 | | |
 
-前置条件：BALANCE 锁定要求 `balance − lockedOf ≥ x0`，且额度、总额、单笔上限、停用标志都满足（T:187–211）；CREDIT 预留要求 C-1（T:275–286）；postOp 结算要求 L-3（T:250–253，T:313–316）；postOp 入口要求 `gasleft() ≥ SETTLE_GAS_BOUND`（SP:1308）；同一 opHash 的 postOp 只记账一次（SP:1318–1319，P1-17）。
-opReverted 与 postOp 成功走同一段代码：SP 的 postOp 不区分 `PostOpMode`（SP:1300）。在两种模式下，速率限制时间戳都会写入（SP:1313–1314）。
-`ra`、`rx` 是自动抵债的 aPNTs 额和 xPNTs 额（B:238–249）。
+前置条件：BALANCE 锁定要求 `balance − lockedOf ≥ x0`，且额度、总额、单笔上限、停用标志都满足（T:189–213）；CREDIT 预留要求 C-1（T:277–288）；postOp 结算要求 L-3（T:252–255，T:315–318）；postOp 入口要求 `gasleft() ≥ SETTLE_GAS_BOUND`（SP:1330）；同一 opHash 的 postOp 只记账一次（SP:1340–1341，P1-17）。
+opReverted 与 postOp 成功走同一段代码：SP 的 postOp 不区分 `PostOpMode`（SP:1322）。在两种模式下，速率限制时间戳都会写入（SP:1335–1336）。
+`ra`、`rx` 是自动抵债的 aPNTs 额和 xPNTs 额（B:243–254）。
 **守恒**：对每一笔 op，operator 净变化 = −c（结算）或 0（回滚后 release）；protocolRevenue 只在 postOp 结算时增加 c。验证期不再预记收入，因此不存在"退款被 protocolRevenue 截断"的问题（R10-M1b）。
 **测试**：`SuperPaymasterV55Test.test_balance_mode_end_to_end`（operator 净减 == 收入增 == 烧币量）、`test_I10_stale_sponsorship_restores_operator`、`test_I10_release_refused_while_in_flight`、`test_I8_settle_failure_rolls_back_user_execution_e2e`、`xPNTsTokenV2Test.test_L3_…`/`test_L4_…`，以及 D3 的 A 层和 I 层。
 
 ### 10.3 B-6：预留额（规范）
 
 ```
-a_gas = ceil( maxCost × cachedPrice.price × 1e18 / (10^decimals × aPNTsPriceUSD) )      // 用缓存价，验证期采样（SuperPaymaster.sol:1126）
+a_gas = ceil( maxCost × cachedPrice.price × 1e18 / (10^decimals × aPNTsPriceUSD) )      // 用缓存价，验证期采样（SuperPaymaster.sol:1167–1168 `_calculateAPNTsAmount`，validate 在 :1253 调用；cbcb7045）
 a0    = ceil( a_gas × (BPS + protocolFeeBPS + VALIDATION_BUFFER_BPS) / BPS )             // 含协议费和 10% 验证缓冲
 x0    = ceil( a0 × exchangeRate_v / 1e18 )，并要求 exchangeRate_v ≤ maxRate（用户在 paymasterAndData 里的承诺）
 c     = min( a0, ceil( calc(actualGasCost + buffer) × (BPS + protocolFeeBPS) / BPS ) )   // postOp 时用同一个缓存价
@@ -579,7 +581,7 @@ c     = min( a0, ceil( calc(actualGasCost + buffer) × (BPS + protocolFeeBPS) / 
 ### 10.5 B-5：SP 不适用 codehash 规则
 
 SP 是 UUPS 代理，codehash 规则（§9）约束不到它的实现。**SP 单独处理**：S-0 / S-1 / S-3 / S-5 / S-6 对 SP 地址检查的是
-**`SP_REGISTRY`（协议治理维护的代理地址白名单，模板 immutable）**，只确认"这是一个协议认可的 SP 代理"；实现的风险归入 SP 的升级治理（信任矩阵 §10.7）。
+**`AOAProtocolRegistry` 的 `KIND_SP` 类（协议治理维护的代理地址白名单；token 经 immutable `PROTOCOL_REGISTRY` 调用 `isApprovedSP`，例如 `xPNTsTokenV2.sol:89`、`xPNTsTokenV2Ext.sol:237`、`:263`）**，只确认"这是一个协议认可的 SP 代理"；实现的风险归入 SP 的升级治理（信任矩阵 §10.7）。
 codehash 规则只适用于非 SP 的 spender 和分档源。
 
 ### 10.6 B-3：R1-4 原文点名的测试（带 ID）
@@ -600,10 +602,10 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 
 | 主体 | 能力（源码位置） | 最坏后果 | 缓解 |
 |---|---|---|---|
-| SP owner | UUPS 升级；`setOperatorPaused`（`:589`）；`setProtocolFee`（`:459`，上限 20%）；`setTreasury`（`:469`）；`setAPNTSPrice`（`:437`）；`emergencySetPrice`（`:522`，1 h timelock）；`setXPNTsFactory`（`:475`，**即时生效**）；BLS 聚合器（`:1019`–`:1034`，queue/apply）；`slashOperator`（`:910`）；`updateReputation`（`:924`）；`setAgentRegistries`（`:1600`，影响资格判定）；`withdrawProtocolRevenue`（`:796`）；EntryPoint 存款与质押（Base `:48`–`:64`） | 升级为恶意实现：token 侧上界见 I6；operator 的 aPNTs 与 EntryPoint 押金可以被拿走；可以暂停或罚没 operator | 建议把升级权和即时生效的配置放到 timelock 后面（产品改进项）；论文如实写成信任假设 |
+| SP owner | UUPS 升级；`setOperatorPaused`（`:645`）；`setProtocolFee`（`:515`，上限 20%）；`setTreasury`（`:525`）；`setAPNTSPrice`（`:493`）；`emergencySetPrice`（`:578`，1 h timelock）；`setXPNTsFactory`（`:531`，**即时生效**）；BLS 聚合器（`initBLSAggregator` `:1060`，`queueBLSAggregator` `:1068` / `applyBLSAggregator` `:1075`）；`slashOperator`（`:951`，owner 路径不设 30% 上限）；`updateReputation`（`:965`）；`setAgentRegistries`（`:1474`，影响资格判定）；`withdrawProtocolRevenue`（`:852`）；EntryPoint 存款与质押（Base `:48`–`:64`）。行号按 `cbcb7045` | 升级为恶意实现：拿走 EntryPoint 押金与质押、SP 持有的全部 aPNTs（operator 余额 + `protocolRevenue`）；社区 xPNTs **只能被销毁、不能被转走**（SP 不是 spender，A-3），每用户上界见 I6；可以暂停或罚没 operator（owner 路径的 `slashOperator` 不设上限）。研究部署下的合计上界见 §10.8 RDR-7 ②③ | 建议把升级权和即时生效的配置放到 timelock 后面（产品改进项）；论文如实写成信任假设 |
 | **（DSR，2026-09-13）SP 的升级权** | `_authorizeUpgrade` 是 `onlyOwner`，**没有 timelock**（`BasePaymasterUpgradeable.sol:42`）；owner 是 **EOA `0xb560…`**（Sepolia 实测），单步 `Ownable` | 即时替换实现：可以拿走 operator 存款、revenue、EP 押金和质押；**用户的 xPNTs 受 I6 保护**（token 侧的上界不依赖 SP 的实现） | **主网前决策项**：T1（owner 换成 TimelockController 48 h，Mycelium Safe 担任 proposer/canceller）+ G（guardian 只能暂停和全局停止赞助，恢复必须走 timelock）；Registry 同样处理。评估见 `upgrade-governance-eval.md` |
 | Registry owner | 即时替换 BLS 聚合器（`Registry.sol:283`）；立即升级（`:967`）；`setCreditTier`（`:676`）；`setReputationSource`（`:848`）；`setLevelThresholds`（`:870`）；`setSuperPaymaster`（`:276`） | 绕过 BLS、改变 AUTO 额度 | 用户申请上限约束信用暴露（I6）；建议 timelock。黑名单更新现在要求非空 BLS proof（`:619`–`:640`） |
-| `SP_REGISTRY` / `SPENDER_REGISTRY` / `TIER_SOURCE_REGISTRY` 的 owner（v4.0 注：源码里是同一个合约 `AOAProtocolRegistry` 的三个 kind，只有一个 owner，`AOAProtocolRegistry.sol:23–26`） | 增删白名单 | 把恶意合约加入白名单 | 白名单只是**必要条件**：激活仍需 communityOwner 提议并等 48 h；只在激活时检查，事后移除不影响已激活的；`seal()` 之后"加入"本身要等 48 h（§11.2 第 3 条）；**v4.0：owner 在 A5s / 主网前与 AOA 工厂的 owner 一并转给 GOV-1 的 48h timelock（runbook M1）** |
+| `AOAProtocolRegistry` 的 owner（一个合约、一个 owner，管三类白名单 `KIND_SP` / `KIND_SPENDER` / `KIND_TIER_SOURCE`，`AOAProtocolRegistry.sol:23–26`；OZ 单步 `Ownable`） | 增删白名单（`bootstrapApprove` `:53`、`seal` `:61`、`proposeApproval` `:66`、`revokeApproval` `:82`） | 把恶意合约加入白名单 | 白名单只是**必要条件**：激活仍需 communityOwner 提议并等 48 h；只在激活时检查，事后移除不影响已激活的；`seal()` 之后"加入"本身要等 48 h（§11.2 第 3 条）；**v4.0：owner 在 A5s / 主网前与 AOA 工厂的 owner 一并转给 GOV-1 的 48h timelock（runbook M1）** |
 | （DSR O2）白名单撤销的范围 | `AOAProtocolRegistry.revokeApproval` **只影响以后的激活**，不会撤下已经激活的 SP、spender 或分档源 | 已激活的对象出问题时，白名单撤销无济于事 | 已激活对象的应急路径在 **token 层**：SP → `emergencyRevokePaymaster`（S-4），之后走 S-6 切到备用 SP 或 S-3 换 SP；spender → `removeAutoApprovedSpender`（即时生效）；分档源 → `queueTierSource` 换源（48 h），紧急时可以先 `queueCreditPolicy(OFF)`，或者由用户自己 `disableSpenderForSelf` / `revokeCredit` |
 | 工厂（owner） | 创世配置（S-0、A-10）；对已部署 token 发起 SP 提议（S-1，communityOwner 可以取消） | 创世时写入错误的 SP 或 spender | 创世配置读回（runbook 第 7a 步）；之后没有即时权限 |
 | communityOwner | 策略切换、MANUAL 批准、调汇率（有上下限）、spender 提议、急停、备用 SP；类型：EOA 或 Safe；可以用 `transferCommunityOwnership` 转让 | 可用性攻击（反复切换）；不能越过用户的申请上限 | 建议使用 Safe；恢复程序：由现任 owner 转让，丢失 key 时无法恢复（论文写明） |
@@ -620,10 +622,10 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | # | 事项 | 作者决定 | 落地 |
 |---|---|---|---|
 | GOV-1 | SP 和 Registry 的 owner / 升级权 | **同意**：两者的 owner 都改为 **48h TimelockController**，作为主网上线的前提 | runbook 主网前步骤 M1；评估见 `upgrade-governance-eval.md` T1 |
-| GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。**存储必须升级安全（见下方 GOV-2 存储设计）**。实现和 Codex 都在主网前完成（D5b），体积按 D5b 实测（main 当前 22,942 B，余量 1,634：v4.0 在 `cbcb7045` 上 `forge build`，default profile，runs 500 / cancun / via_ir，产物 metadata 里的 source keccak 与源码一致；合入 Part B 后约 1,035，这是实验分支在 22,915 B 基线上的测量，合入后要重测；须拆分，见 D5b-design §1）；Registry 侧的升级见 runbook 第 5c 步；runbook M1（`scheduleBatch` 里的 `setGuardian`）、M2 |
+| GOV-2 | 止损开关 + 安全的所有权转移 | **同意**：加 **guardian**（G，只能暂停、只能全局停止赞助，恢复必须走 timelock，不能升级，不能动资金）和 **Ownable2Step** | 要改代码（SP 以及 Registry 的所有权转移）。**存储必须升级安全（见下方 GOV-2 存储设计）**。实现和 Codex 都在主网前完成（D5b），体积按 D5b 实测（main 当前 22,942 B，余量 1,634：v4.0 在 `cbcb7045` 上 `forge build`，default profile，runs 500 / cancun / via_ir，产物 metadata 里的 source keccak 与源码一致；合入 Part B 后约 1,035，这是实验分支在 22,915 B 基线上的测量，合入后必须实测；须拆分，见 D5b-design §1：这正是 D5b 把 SP 拆成核心 + SuperPaymasterAdmin 扩展的原因，"余量 ≥ 1,024"的 CI 检查是发布门槛）；Registry 侧的升级见 runbook 第 5c 步；runbook M1（`scheduleBatch` 里的 `setGuardian`）、M2 |
 | GOV-3 | aPNTs 价格（`setAPNTSPrice`） | **走 48h timelock，只能由 AAStar 社区治理多签更改**（即 GOV-1 那个 timelock，proposer 是这把治理多签），**不设 keeper 例外** | GOV-1 完成后自动生效，不另改代码；治理多签 = **Mycelium 多签 `0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`**（作者确认，三条链同地址，Sepolia 上是 2-of-3）。作者补充：aPNTs 作为 xPNTs 的一种，发行量和信用由 reputation system 按发行量、行业参数等做动态分析并实时展示，这属于 reputation system 的范围，不进 SP 5.5.x |
 | GOV-4 | aPNTs 铸币权（原 GOV-2） | **已定（作者 2026-09-13，经 DSR）**：(b) 两条链都用 `APNTsCapped`：mint 强制上限；调高只能由治理多签 `0x51eD…E114` 经 48h timelock 执行；调低即时生效；minter 和 capGuardian 都是治理多签。**主网初始上限 300,000e18**（DSR 按作者口径计算：10 个社区 × 100 人 × 20 笔/月 × 每笔约 0.624 aPNTs × 12 个月 × 2 ≈ 299,482，取整，约合 $6,000；buffer 收紧后同一口径约为 242,880）；Sepolia 用标明为测试值的上限。(a) 适用于被弃用的旧 aPNTs `0xBb46`：renounceFactory 并转给多签后闲置（已演练，runbook 7d）。**TODO，不进 5.5.0**：(c) 售卖合约（独立小合约，按收款铸造，由多签把 minter 转给它）；(d) SP 侧的存款速率上限；reputation 的背书率监测（EntryPoint 押金价值 ÷ operator 持有的 aPNTs 负债，低于 1.2 报警） | `APNTsCapped` 作为独立小交付物实现，由 DSR 验收；设计见 `apnts-capped-design.md` |
-| GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | **作者决定（2026-09-13）：这些参数不要写死在合约里，要能动态调整，由 SDK 控制；具体方式交 SP 决定。SP 的决定**：两类参数分开处理。① **每笔 op 的 gas limit 和费用参数**（`paymasterPostOpGasLimit`、`paymasterVerificationGasLimit`、`callGasLimit`、maxFee、maxRate）本来就由 SDK 动态设置；② **安全下限和计费常数**（`MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_POSTOP`、`C_WRAP`）**不能交给 SDK**：SDK 和 UserOp 都在攻击者手里，C_POSTOP 设低就等于让 SP 补贴，破坏 I9。所以它们由合约强制执行，但**不写死在字节码里**，改成链上治理参数，SDK 从链上的 `gasParams()` 读取当前值，据此动态设置每笔 op 的 gas。**采纳 Part A**（C_WRAP 5k，Codex APPROVE；C_POSTOP 的默认值在 Part B 中定为 175k）。**采纳 Part B 定稿**（v4.0 更新；实验分支 `exp/buffer-and-params`，合约 `6c3a9a0e`，报告 `fe3a728c` 的 `buffer-and-params-experiment.md` B2–B4；Codex 第 1 轮 2 个 HIGH + 1 个 MEDIUM（B2 修复），第 2、3 轮各 1 个 HIGH（B3、B4 修复）；第 4 轮只有 1 条 LOW，是变异表的标注错误，已在 `fe3a728c` 更正，合约代码未改）：① `MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_WRAP`、`C_POSTOP` **四个参数打包在一个存储槽**（4 × uint32），待生效值和 eta 在另一个槽；槽全为 0 时取默认值 200k / 160k / 5k / 175k，所以原地升级不需要初始化。② 修改走 `queueGasParams` → 合约内部 **48h** → `executeGasParams`（两者都是 onlyOwner，可以 `cancelGasParams`）；GOV-1 之后 owner 是 48h timelock，所以**从提案到生效 ≥ 96h**（timelock 48h + 内部队列 48h；计划 §8.2 第 6 条：有意的纵深防御，不改）。③ **硬边界**（queue 和 execute 两处都检查）：SETTLE ∈ [155k, 1M]；MIN ∈ [SETTLE + 20k, 2M]；C_POSTOP ∈ [175k, MIN]；C_WRAP ∈ [5k, 50k]。所有能通过边界检查的配置都满足当前的 G 层规则，全下限组合另经 G 层规则和 G2 fuzz 验证补贴为 0（报告 B2 §2）。④ 验证时把当时的整个参数槽作为 **context 的第 12 个字**追加在末尾，context 为 **384 B**；前 11 个字与 5.5.0 完全相同，每个字保持 ABI 规范类型。postOp 按长度区分：384 B 读快照；**352 B 是 5.5.0 产生的旧格式，走旧规则回退**：入口检查用 SETTLE 160k，buffer 用 5.5.0 的原公式（`postOpGasLimit + ⌈10%·(callGas + postOpGas)⌉ + 30k`），结果仍受 a0 封顶。这样即使参数修改或实现升级、回滚发生在 bundle 中途，已通过验证的 op 也按验证时的那组参数结算（C2）。⑤ 中间格式 `e0cf0dc8`（12 字但没有长度判断）和 `fb64e7eb`（快照打包进第 9 个字）**永远不得部署**。⑥ **体积**：SP runtime 23,541 B、余量 1,035（**实验分支上的测量**，那时 main 的基线是 22,915 B；main 此后到 `cbcb7045` 为 22,942 B，D5b 要在合入后重新实测，见 GOV-2 行和 D5b-design §1）。放不下时按 D5b-design §1 的规则拆出 SuperPaymasterAdmin 扩展（v3.x 写的"放不下时 Part B 只保留 `C_POSTOP` 和 `SETTLE_GAS_BOUND` 两个参数"这条退路，已被这条拆分规则取代）。另注：C_POSTOP 是 gas 单位，不随 gas 价格或市场波动变化，只随代码或硬分叉（R-AMS）变化；价格因素已经由 `actualUserOpFeePerGas` 和价格快照动态处理 | 与 GOV-2 合并为 D5b 实施，由 DSR 验收 |
+| GOV-5 | gas 常数参数化 + buffer 收紧（原 GOV-3） | **作者决定（2026-09-13）：这些参数不要写死在合约里，要能动态调整，由 SDK 控制；具体方式交 SP 决定。SP 的决定**：两类参数分开处理。① **每笔 op 的 gas limit 和费用参数**（`paymasterPostOpGasLimit`、`paymasterVerificationGasLimit`、`callGasLimit`、maxFee、maxRate）本来就由 SDK 动态设置；② **安全下限和计费常数**（`MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_POSTOP`、`C_WRAP`）**不能交给 SDK**：SDK 和 UserOp 都在攻击者手里，C_POSTOP 设低就等于让 SP 补贴，破坏 I9。所以它们由合约强制执行，但**不写死在字节码里**，改成链上治理参数，SDK 从链上的 `gasParams()` 读取当前值，据此动态设置每笔 op 的 gas。**采纳 Part A**（C_WRAP 5k，Codex APPROVE；C_POSTOP 的默认值在 Part B 中定为 175k）。**采纳 Part B 定稿**（v4.0 更新；实验分支 `exp/buffer-and-params`，合约 `6c3a9a0e`，报告 `fe3a728c` 的 `buffer-and-params-experiment.md` B2–B4；Codex 第 1 轮 2 个 HIGH + 1 个 MEDIUM（B2 修复），第 2、3 轮各 1 个 HIGH（B3、B4 修复）；第 4 轮只有 1 条 LOW，是变异表的标注错误，已在 `fe3a728c` 更正，合约代码未改；**Part B 定稿：Codex 5 轮，第 5 轮（收尾，`fe3a728c`）APPROVE**，没有新发现，结论经 SP 协调会话转达，收尾复核记录见 `buffer-and-params-experiment.md`）：① `MIN_POST_OP_GAS`、`SETTLE_GAS_BOUND`、`C_WRAP`、`C_POSTOP` **四个参数打包在一个存储槽**（4 × uint32），待生效值和 eta 在另一个槽；槽全为 0 时取默认值 200k / 160k / 5k / 175k，所以原地升级不需要初始化。② 修改走 `queueGasParams` → 合约内部 **48h** → `executeGasParams`（两者都是 onlyOwner，可以 `cancelGasParams`）；GOV-1 之后 owner 是 48h timelock，所以**从提案到生效 ≥ 96h**（timelock 48h + 内部队列 48h；计划 §8.2 第 6 条：有意的纵深防御，不改）。③ **硬边界**（queue 和 execute 两处都检查）：SETTLE ∈ [155k, 1M]；MIN ∈ [SETTLE + 20k, 2M]；C_POSTOP ∈ [175k, MIN]；C_WRAP ∈ [5k, 50k]。所有能通过边界检查的配置都满足当前的 G 层规则，全下限组合另经 G 层规则和 G2 fuzz 验证补贴为 0（报告 B2 §2）。④ 验证时把当时的整个参数槽作为 **context 的第 12 个字**追加在末尾，context 为 **384 B**；前 11 个字与 5.5.0 完全相同，每个字保持 ABI 规范类型。postOp 按长度区分：384 B 读快照；**352 B 是 5.5.0 产生的旧格式，走旧规则回退**：入口检查用 SETTLE 160k，buffer 用 5.5.0 的原公式（`postOpGasLimit + ⌈10%·(callGas + postOpGas)⌉ + 30k`），结果仍受 a0 封顶。这样即使参数修改或实现升级、回滚发生在 bundle 中途，已通过验证的 op 也按验证时的那组参数结算（C2）。⑤ 中间格式 `e0cf0dc8`（12 字但没有长度判断）和 `fb64e7eb`（快照打包进第 9 个字）**永远不得部署**。⑥ **体积**：SP runtime 23,541 B、余量 1,035（**实验分支上的测量**，那时 main 的基线是 22,915 B；main 此后到 `cbcb7045` 为 22,942 B，D5b 要在合入后重新实测，见 GOV-2 行和 D5b-design §1；基线多出的 27 B 线性叠加会让余量逼近甚至低于 1,024，但 via_ir 下体积不能线性相加，**合入后必须实测**）。**这正是 D5b §1 把 SP 拆成核心 + SuperPaymasterAdmin 扩展的原因**（`D5b-design.md` §1–§2），而"余量 ≥ 1,024"的 CI 检查是**发布门槛**（D5b-design §2 第 7 条；rc1 门槛 A2 的 CI 条件），不满足不能出 rc。放不下时按 D5b-design §1 的规则拆出 SuperPaymasterAdmin 扩展（v3.x 写的"放不下时 Part B 只保留 `C_POSTOP` 和 `SETTLE_GAS_BOUND` 两个参数"这条退路，已被这条拆分规则取代）。另注：C_POSTOP 是 gas 单位，不随 gas 价格或市场波动变化，只随代码或硬分叉（R-AMS）变化；价格因素已经由 `actualUserOpFeePerGas` 和价格快照动态处理 | 与 GOV-2 合并为 D5b 实施，由 DSR 验收 |
 
 **GOV-2 规范（第 3 版）**。第一版写的是"采用 OZ `Ownable2Step`"，不是升级安全的；第二版给了 ERC-7201 的存储设计，但 Codex 收尾审查指出它还有 1 个 Critical 和若干 High/Medium 问题。以下为最终规范，D5b 按此实现。
 
@@ -637,7 +639,7 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 2. `acceptOwnership()`：`msg.sender == pendingOwner` 才能调用，然后调 `_transferOwnership(msg.sender)`。
 3. **覆盖 `_transferOwnership`：先删除 pending，再调 `super._transferOwnership`**。这样任何修改 owner 的路径（accept、initialize、将来的 reinitializer）都会清掉旧的提名，旧提名不能在之后接管。
 4. `renounceOwnership()` 一律 revert。
-5. **非零 owner**：两边的初始化都必须拒绝 `address(0)`。SP 已经这样做了（`SuperPaymaster.sol:293`）；**Registry.initialize 目前直接调 `_transferOwnership(_owner)`，不检查零地址（`Registry.sol:87`），要补上**。
+5. **非零 owner**：两边的初始化都必须拒绝 `address(0)`。SP 已经这样做了（`SuperPaymaster.sol:299`，`initialize` 在 `:293`）；**Registry.initialize 目前直接调 `_transferOwnership(_owner)`，不检查零地址（`Registry.sol:87–88`），要补上**。
 6. guardian（只在 SP）：`setGuardian` 只能由 owner 调用；guardian **只能**做下面两件事：① `setOperatorPaused(op, true)`，传 `false` 必须 revert（不能沿用现有的 bool setter 简单改成 `onlyOwnerOrGuardian`）；② 把全局 `paused` 从 false 设为 true。**解除暂停（包括逐个 operator 的解除和全局解除）只能由 owner（timelock）执行。** 全局 `paused` 的检查要放在 `validatePaymasterUserOp` 解析 operator 和 paymasterAndData **之前**，这样格式错误的 op 也会返回 sigFail，而不是 revert。**暂停不能影响 postOp、`releaseStaleSponsorship`、token 侧的 stale release**，已经在途的 op 照常结算或释放。
 
 *C. 升级流程（GOV-1 之后）*
@@ -663,7 +665,7 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 
 **作者决定（2026-09-13，计划 §9.1，经 §10 修订；CC-122）**：本文是博士论文的研究制品，**不做付费外部审计**。论文按"已机械验证的损失上界"收窄主张（不主张"资产安全"），把"未经外部审计"写进 limitations，并把主网实验的风险压在实验押金以内。外部审计属于产品上线，见 §10.8c。
 
-**位置**：A4（Sepolia 最终治理状态下的真实链验证）之后、A6（OP 主网部署）之前，是 A6 的硬前置条件。**A6 部署的 commit = 通过本闸门的 final tag**（取代原 AUD-4；final tag 与最后一个完成 Sepolia 回归的 rc 是同一个 commit，见 §6"发布身份"）。部署后仍按 §11.1 R10-M5 的第二条核对链上字节码（SP 实现槽与 runtime codehash、token 模板与克隆的实现地址、白名单合约、EntryPoint v0.7 的 runtime codehash，编译器与依赖版本锁定）。复核一旦产生字节码修复，旧的 A4 就作废，要重新出 rc 并在 Sepolia 回归（经 timelock 升级，含 C2 测试）。
+**位置**：A4（Sepolia 最终治理状态下的真实链验证）之后、A6（OP 主网部署）之前，是 A6 的硬前置条件。**A6 部署的 commit = 通过本闸门的 final tag**（取代原 AUD-4；final tag 与最后一个完成 Sepolia 回归的 rc 是同一个 commit，见 §6"发布身份"）。部署后仍按 §11.1 R10-M5 的第二条核对链上字节码（SP 实现槽与 runtime codehash、token 模板与克隆的实现地址、`AOAProtocolRegistry`、EntryPoint v0.7 的 runtime codehash，编译器与依赖版本锁定）。复核一旦产生字节码修复，旧的 A4 就作废，要重新出 rc 并在 Sepolia 回归（经 timelock 升级，含 C2 测试）。
 
 | # | 条件 | 负责 |
 |---|---|---|
@@ -673,24 +675,12 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 | RDR-4 | **公开征求复核**：代码开源，写好 `SECURITY.md`，在 ERC-4337 社区与 Ethereum Magicians 发出 review 请求；收到的问题逐条记录并处理，致谢写进论文 | 作者 + SP |
 | RDR-5 | **能找到人工复核就做**：非作者的安全研究者复核核心的验证与结算路径，签一页复核记录；**找不到就在 limitations 如实写"没有独立人工复核"，不阻塞** | 作者 |
 | RDR-6 | **主网风险上界**：① SP 在 EntryPoint 的押金按 **D_cap = N_SP × c̄_eth × (1 + m) + F** 设上限（N_SP 是样本协议里 SP 的 op 总数，包括失败样本和重试；c̄_eth 是 Sepolia A4 实测 P95 乘以 OP 的 maxFee 上限；m 是价格波动余量；F 是押金下限 = B_max × 各项 gas limit 之和 × maxFee 上限），算出后写死在 runbook；基线 paymaster 的押金按同一公式分别计算，一并计入总暴露。**冻结条件是"押金 ≥ F"，不是"押金不变"**：collector 在每笔发送之前读 `balanceOf(SP)`，"余额 − 本笔预估成本 < F"就停止采样，这一笔记为"前置条件未满足"、不发送；只能在窗口之间由协议账户按固定额度补充，每次补充都登记；万一出现 AA31，归为基础设施失败、单独计数（计划 §10.3）。② 主网 `APNTsCapped` 只按实验需要铸造，铸造之后**立即由 capGuardian 执行 `lowerCap(已铸量)`**，使研究部署期间的上限等于实际铸造量，而不是 300,000e18（计划 §10.4）。③ guardian 预先就位。④ 主网实验限定在一个时间窗内，采完就提走押金；GOV-1 之后提款也要走 timelock，所以**窗口开始时就预先 schedule `withdrawTo`，ETA 设在窗口结束时刻**（既不违反"窗口内不能有 timelock 操作到期"，提款也不会晚 48h）。⑤ 只用协议控制的账户，不涉及真实用户资金。⑥ **暴露清单包括旧的主网部署**：OP 主网上现有的 SP `0xA2c9…`（质押 0.1 ETH，owner 是 EOA）和 V4 paymaster 实例；处置二选一（暂停并提走押金、解除质押；或者明确写成"不在研究部署范围内"并列出现有押金），**待作者在 A6 前决定（W-2）**；主网 SP 的质押暴露（保持 ≥ 1 ETH，或自托管 Rundler 调低 minStake）同样**待作者决定（W-1）**（计划 §10.1 ★3、§10.5） | SP + 作者 |
-| RDR-7 | **作者书面接受风险**：A6 放行时，作者签一份风险接受记录，写明实际押金、aPNTs 铸造量、时间窗与最坏损失。**最坏损失**：合约漏洞被利用时 = 押金；owner 被攻破时 = 押金 + 质押（≥ 1 ETH）。后一种情况下，owner 要先 `unlockStake`、等 86400 s 再 `withdrawStake`，GOV-1 之后每一步还要先等 48h timelock，所以至少有 48h + 1d 的可见窗口，但 guardian 无法阻止（计划 §10.1 ★2） | 作者 |
+| RDR-7 | **作者书面接受风险**：A6 放行时，作者签一份风险接受记录，写明实际押金、aPNTs 铸造量、时间窗与最坏损失。**最坏损失**（计划 §10.1 ★2；v4.0 按 `cbcb7045` 源码补全，行号为 `SuperPaymaster.sol`，另注明的除外）：<br>① **合约漏洞被利用时 = 押金**。理由：`operators[op].aPNTsBalance` 在源码里只有三类减少路径：(a) validate 的在途预留 `−a0`（`:1267`），postOp 退回 `a0 − c`（`:1364`，`c ≤ a0`，`c` 记入 `protocolRevenue`，`:1365`），或交易后 `releaseStaleSponsorship` 全额退回（`:1378`），所以每笔 op 的净扣减 ≤ a0，且就是这笔 op 的 gas 结算额；(b) `withdraw`（`:838`），只能由 operator 本人取自己的余额；(c) `_slash`（`:1035`、`:1039`），入口是 BLS 路径 `executeSlashWithBLS`（`:977`，只有 `BLS_AGGREGATOR` 能调，每次上限为余额的 30%，`:1027`）和 owner 路径 `slashOperator`（`:951`，不设上限）；罚没额记入 `protocolRevenue`，仍在 SP 内，只能由 owner 经 `withdrawProtocolRevenue`（`:852`）取出。所以只要不是 owner 或 BLS 法定人数，按代码的预期路径 operator 的 aPNTs 不会流出 SP。"= 押金"的前提是被利用的漏洞不打开 (a)–(c) 之外的扣减路径：守恒测试（§10.2 守恒、`test_balance_mode_end_to_end`）和 RDR-1 / RDR-2 支撑这一点，但**它不是证明，列为待验证假设**。BLS 法定人数被攻破属于信任假设（研究部署中三把 guardian 私钥由同一方持有，见 RepCredit 的 limitations），不算在这一格里。<br>② **owner 被攻破时 = 押金 + 质押（≥ 1 ETH）+ SP 持有的全部 aPNTs（operator 余额与 `protocolRevenue`；研究部署下 operator 由协议控制，二者都是 `APNTsCapped`，合计 ≤ 已铸造量，即 `lowerCap` 之后的 cap）+ 社区 xPNTs 的销毁量（见 ③）**。质押部分：owner 要先 `unlockStake`、等 86400 s 再 `withdrawStake`，GOV-1 之后每一步还要先等 48h timelock，所以至少有 48h + 1d 的可见窗口，但 guardian 无法阻止。<br>③ **恶意（被升级的）SP 能销毁的社区 xPNTs**：SP **不是** spender：S-0 不把它写入 `autoApprovedSpenders`（`xPNTsTokenV2.sol:87–93`），`transferFrom` / `burn(from)` 对当前 SP 和 `historicalSP` 一律 revert（A-3，`xPNTsTokenV2.sol:146`）。它能造成损失的只有锁定→结算（`tryLockForGas` `xPNTsTokenV2.sol:224` → `settleLocked` `:249`）和信用（`tryReserveCredit` `:298` → `settleCredit` `:312`）两条路径，上界就是 I6：每个用户，锁定路径结算的 aPNTs 等值 ≤ `min(该 SP 的剩余自动额度 + K·SP cap, 剩余总额 + K·总额上限)`（`_remainingWith`，`xPNTsV2Base.sol:275–285`；SP 转述的续期在 `_lockDecision` 里把两处 `used` 视为 0，受 `autoRenewUsed < K` 约束，`xPNTsTokenV2.sol:198–205`；`K = 1`、默认 SP cap = 默认总额 = 5,000 aPNTs，`xPNTsV2Base.sol:29–32`；`renewalMode` 为 `ACCOUNT_ONLY` 的账户没有 SP 转述续期，`K·cap` 一项为 0，`xPNTsTokenV2.sol:199`），折合的 xPNTs 按锁定时的汇率计，且不超过余额；信用路径新增债务 ≤ `effectiveCreditCap` ≤ 用户自己的 `requestedCap`（`xPNTsTokenV2.sol:336–349`），`creditPolicy == OFF` 时为 0（`:338`，AOA 评估社区就是 OFF）；债务之后在给该用户 mint 时自动抵扣，烧掉的是新铸的 xPNTs（`xPNTsV2Base.sol:242–256`）。xPNTs **只能被销毁，不能被转走**（I6、A-3）。研究部署中所有账户都由协议控制，所以这一项 ≤ Σ（各测试账户的上述上界）。源码给出的上界与 §4 I6 的文字一致，没有发现出入 | 作者 |
 
 **AI 多轮对抗审阅（Codex）是 RDR-1 的前置条件**，在论文里如实写成"**AI 辅助的对抗审阅**"，不是审计，也不冒充独立审计。Slither、Aderyn、Halmos、fuzz 同样只是工具验证。
 
 **论文措辞（计划 §10.1 ★1，P5 使用）**：
 > We verify bounded-loss properties (I1–I10) of the evaluated commit by EntryPoint-level invariant fuzzing, mutation testing, bounded symbolic verification of the core invariants (Halmos; bounds and abstractions listed in Appendix X), and ERC-7562 compliance checks on two production bundler implementations (Rundler v0.11.0, Alto v1.2.5) in a local environment. The artifact has not undergone an external security audit; mainnet measurements were conducted with protocol-controlled accounts under capped deposits, and production deployment would require an independent audit.
-
-### 10.8c 产品上线审计闸门（v4.0 新增；内容来自原 §10.8 AUD-1…AUD-4 与 §11.1 R10-M5）
-
-**触发条件**：产品面向真实用户、有真实资金流入时才启动（届时再考虑外部审计或资助渠道，计划 §9.3 O-2、O-3）。**与论文无关**，不是论文的前置条件。**在它通过之前，任何主网部署都只能作为"研究部署"**，受 §10.8 RDR-6 的上限约束。
-
-| 步 | 内容 | 验收 |
-|---|---|---|
-| AUD-1 | 冻结审计 commit，写明范围：SP 5.5.0（**含 D5b 的 SuperPaymasterAdmin 扩展**）、**Registry 的 GOV-2 改动**（两步所有权、零 owner 拒绝，runbook 第 5c 步）、xPNTs v2 模板（核心 + 扩展）、AOA 工厂、`GlobalTierSource`、lens（如有）、白名单合约（`AOAProtocolRegistry`，三类白名单在同一个合约里）、**`APNTsCapped`**，以及 **TimelockController 的配置**（proposer / canceller / executor / admin、minDelay） | commit hash 与范围写进 `docs/audit/` |
-| AUD-2 | 由**独立的外部审计方**审计（不能由 Slither、Echidna、Halmos 或 AI 审阅代替，它们只是前置条件） | 报告原文入库 |
-| AUD-3 | 修复 commit；有 High 或以上的修复时，必须复审。审计 commit 之后**任何**在范围内的代码改动都要审计方复审；未解决的 Medium 要逐条说明处理（§11.1 R10-M5 第一条） | **High 及以上全部关闭**，复审结论入库 |
-| AUD-4 | 产品上线所用部署的 commit 必须等于"审计 commit + 已复审的修复"；审计产生字节码修复 → 旧的 A4 作废 → 出 rc(n+1) → 经 timelock 在 Sepolia 回归（含 C2），版本标识按 §6"发布身份" | 部署记录里写明 commit 对应关系 |
-| AUD-5 | 部署后核对：SP 实现槽和 runtime codehash、token 模板与克隆的实现地址、白名单合约，以及 EntryPoint v0.7 的 runtime codehash；锁定编译器和依赖版本（§11.1 R10-M5 第二条） | 核对记录入库 |
 
 ### 10.8b R-AMS：Amsterdam（EIP-8037/8038）的前向兼容风险（v3.9，D5 B0 发现）
 
@@ -701,6 +691,18 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 - **触发条件（可检查）**：任何一条目标链公布了 Amsterdam 的激活时间 → 在 Amsterdam 级的链上重跑 G 层（T-R14-09、no-OOG 扫描、C_WRAP）和 B 层 → 如果当前参数不够，在硬边界内的，走 `queueGasParams` → `executeGasParams`（≥ 96h）；超出硬边界的，走 UUPS 升级；两种情况都同步更新 SDK 的 gas 取值。由于调整至少要 96h，重测必须在激活时间之前至少留出这段时间（再加上 UUPS 路径所需的开发与复核时间）。
 - **上线前检查（runbook 第 0 步的附加项）**：用 `eth_config` 读目标链的 `current` 和 `next` fork（如果链不开放 `eth_config`，就用该链官方公布的升级时间表，外加 opcode 探针）。**`next` 是 Amsterdam，或者已经启用了 EIP-8037/8038，就阻塞上线**，先完成上一条的重测。
 - 论文口径：所有测量都注明硬分叉层级（Osaka + BPO2），R-AMS 写进 limitations 和前向风险（DSR 负责）。
+
+### 10.8c 产品上线审计闸门（v4.0 新增；内容来自原 §10.8 AUD-1…AUD-4 与 §11.1 R10-M5）
+
+**触发条件**：产品面向真实用户、有真实资金流入时才启动（届时再考虑外部审计或资助渠道，计划 §9.3 O-2、O-3）。**与论文无关**，不是论文的前置条件。**在它通过之前，任何主网部署都只能作为"研究部署"**，受 §10.8 RDR-6 的上限约束。
+
+| 步 | 内容 | 验收 |
+|---|---|---|
+| AUD-1 | 冻结审计 commit，写明范围：SP 5.5.0（**含 D5b 的 SuperPaymasterAdmin 扩展**）、**Registry 的 GOV-2 改动**（两步所有权、零 owner 拒绝，runbook 第 5c 步）、xPNTs v2 模板（核心 + 扩展）、AOA 工厂、`GlobalTierSource`、lens（如有）、`AOAProtocolRegistry`（三类白名单都在这一个合约里）、**`APNTsCapped`**，以及 **TimelockController 的配置**（proposer / canceller / executor / admin、minDelay） | commit hash 与范围写进 `docs/audit/` |
+| AUD-2 | 由**独立的外部审计方**审计（不能由 Slither、Echidna、Halmos 或 AI 审阅代替，它们只是前置条件） | 报告原文入库 |
+| AUD-3 | 修复 commit；有 High 或以上的修复时，必须复审。审计 commit 之后**任何**在范围内的代码改动都要审计方复审；未解决的 Medium 要逐条说明处理（§11.1 R10-M5 第一条） | **High 及以上全部关闭**，复审结论入库 |
+| AUD-4 | 产品上线所用部署的 commit 必须等于"审计 commit + 已复审的修复"；审计产生字节码修复 → 旧的 A4 作废 → 出 rc(n+1) → 经 timelock 在 Sepolia 回归（含 C2），版本标识按 §6"发布身份" | 部署记录里写明 commit 对应关系 |
+| AUD-5 | 部署后核对：SP 实现槽和 runtime codehash、token 模板与克隆的实现地址、`AOAProtocolRegistry`，以及 EntryPoint v0.7 的 runtime codehash；锁定编译器和依赖版本（§11.1 R10-M5 第二条） | 核对记录入库 |
 
 ### 10.9 Medium
 
@@ -716,16 +718,16 @@ codehash 规则只适用于非 SP 的 spender 和分档源。
 |---|---|---|
 | R10-H1 | SP 调 token 结算时还有第二道 EIP-150 的 63/64 转发，`MIN_POST_OP_GAS ≥ 上界 + 开销 + 余量` 在数学上不够严格 | `MIN_POST_OP_GAS ≥ G_pre + G_call + max(⌈64·G_settle/63⌉, G_settle + G_post) + margin`（`G_pre` 是 postOp 在结算调用之前的开销，`G_call` 是这次调用本身的开销，`G_post` 是结算之后的开销）。**T-R14-09 必须经过 EntryPoint，并设 `paymasterPostOpGasLimit == MIN_POST_OP_GAS`，结算要成功** |
 | R10-M1 | "执行结果被保留 ⇔ 结算成功"写过头了：`opReverted` 的 op 没有执行结果被保留，但照常结算；I10 的"用户净额 = 0"也写得太宽（nonce 递增、账户验证期写的状态会留下） | §10.1 的双向改为单向，即 **I8：执行结果被保留 ⇒ 已经结算**；I10 改为"stale release 之后，执行的副作用和 token 扣费都为 0"；另补上 `totalSpent += a0` 也会留下 |
-| R10-M1b | postOp 回滚时 operator 的 `a0` 被直接记成收入 | **D2 实现在途预留**：validate 时 `operator.aPNTsBalance −= a0`，`inflight[opHash] = (operator, a0)` 写在 SP 自己的存储里（SP 已质押，STO-031），并 TSTORE 一个活标记；postOp 时 `protocolRevenue += c`，`operator += a0 − c`，删掉 inflight；新增 `releaseStaleSponsorship(opHash)`（任何人都能调、幂等、要求活标记为 0），把 `a0` 全额退回 operator。这样也去掉了"退款被 protocolRevenue 截断"的问题（SP `:1397`）。体积按 D4 实测 |
+| R10-M1b | postOp 回滚时 operator 的 `a0` 被直接记成收入 | **D2 实现在途预留**：validate 时 `operator.aPNTsBalance −= a0`，`inflight[opHash] = (operator, a0)` 写在 SP 自己的存储里（SP 已质押，STO-031），并 TSTORE 一个活标记；postOp 时 `protocolRevenue += c`，`operator += a0 − c`，删掉 inflight；新增 `releaseStaleSponsorship(opHash)`（任何人都能调、幂等、要求活标记为 0），把 `a0` 全额退回 operator。这样也去掉了"退款被 protocolRevenue 截断"的问题（SP `:1397`，指 R10-M1b 之前的代码；该截断逻辑在 5.5.0 中已不存在，`cbcb7045` 的 `:1397` 是别的代码）。体积按 D4 实测 |
 | R10-M2 | §10.2 的表和现有代码不一致（退款被截断；opReverted 行留了空格） | 以在途预留为准重写表格；opReverted 按 BALANCE 和 CREDIT 拆成两行，各自完整写出增减量（D6 补 file:line 时一并完成） |
 | R10-M3 | §10.3 buffer 的量纲没写清楚 | `bufWei = (postOpGasLimit + ⌈(callGasLimit + postOpGasLimit)·10/100⌉ + C_WRAP) × actualUserOpFeePerGas`；`c = min(a0, ⌈calc_snap(actualGasCost + bufWei) × (BPS + fee) / BPS⌉)`。**`calc_snap` 用验证时的价格快照**，通过 context 传给 postOp，不在 postOp 里重新读缓存价 |
 | R10-M4 | §10.5 的 `SP_REGISTRY` 没有同步到前文 | 实现中 SP 登记在 `AOAProtocolRegistry` 的 `KIND_SP` 下，按地址登记；§2.5 的 S-0 / S-1 / S-3 / S-5 / S-6 一律指这个地址白名单，不再说 codehash；§10.7 补上"S-0 创世不需要 48 h"这个例外 |
-| R10-M5 | §10.8 审计闸门没有证明"部署的字节码就是审计过的字节码" | AUD 追加两条：审计 commit 之后**任何**在范围内的代码改动都要审计方复审，未解决的 Medium 要逐条说明处理；部署后核对 SP 实现槽和 runtime codehash、token 模板与克隆的实现地址、两个白名单合约，以及 EntryPoint v0.7 的 runtime codehash，并锁定编译器和依赖版本。（v4.0：这两条随原 AUD 一起移到 §10.8c 的 AUD-3、AUD-5；部署后核对这一条同样适用于 §10.8 研究部署） |
+| R10-M5 | §10.8 审计闸门没有证明"部署的字节码就是审计过的字节码" | AUD 追加两条：审计 commit 之后**任何**在范围内的代码改动都要审计方复审，未解决的 Medium 要逐条说明处理；部署后核对 SP 实现槽和 runtime codehash、token 模板与克隆的实现地址、`AOAProtocolRegistry`，以及 EntryPoint v0.7 的 runtime codehash，并锁定编译器和依赖版本。（v4.0：这两条随原 AUD 一起移到 §10.8c 的 AUD-3、AUD-5；部署后核对这一条同样适用于 §10.8 研究部署） |
 
 ### 11.2 实现期发现（D1）
 
 1. **单体 token 实测 30,388 B，超过 EIP-170。** 拆成核心（`xPNTsTokenV2`，19,509 B）和扩展（`xPNTsTokenV2Ext`，21,922 B），扩展经 fallback 以 DELEGATECALL 调用；
    存储布局由同一条继承链保证一致，并由 `scripts/check-xpnts-v2-layout.py` 复核。**验证期入口全部在核心合约里。** 以此取代 §5 里 token 的体积估算。
 2. **工厂改为接收预先部署好的模板**（EIP-3860：核心和扩展的创建码加起来放不进工厂的构造函数）。部署顺序见 D1-traceability §1。
-3. **白名单合约有部署期 bootstrap**：`seal()` 之前 owner 可以即时批准，之后新增批准要走 48 h，撤销即时生效，`seal()` 不可逆。**runbook 第 4 步**改为"部署 → bootstrap → `seal()` → 读回 `sealed_() == true`"，这一步完成之前不得部署工厂，也不得有任何社区发币。**信任矩阵**：`seal()` 之前 owner 对三类白名单是完全信任，之后新增要经过 48 h 公示。
+3. **白名单合约 `AOAProtocolRegistry` 有部署期 bootstrap**：`seal()` 之前 owner 可以即时批准，之后新增批准要走 48 h，撤销即时生效，`seal()` 不可逆。**runbook 第 4 步**改为"部署 → bootstrap → `seal()` → 读回 `sealed_() == true`"，这一步完成之前不得部署工厂，也不得有任何社区发币。**信任矩阵**：`seal()` 之前 owner 对三类白名单是完全信任，之后新增要经过 48 h 公示。
 4. **SDK 要合并核心和扩展的 ABI**，因为调用都发往同一个地址。
