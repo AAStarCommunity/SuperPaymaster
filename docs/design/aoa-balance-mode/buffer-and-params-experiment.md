@@ -91,7 +91,7 @@ m 对新公式多付率的影响（C_POSTOP = ⌈W × (1+m) / 1k⌉ × 1k，W = 
 
 ## Part B：把 gas 参数改成治理参数（commit B，建在 A 之上，可以单独评判）
 
-> **Codex 结论**：Part A（`31921fbc`）APPROVE；Part B（`d7ae5099`）REQUEST CHANGES，已在 B2 修复（见文末「B2：Codex 第 1 轮修复」）。**B.1–B.5 描述的是 `d7ae5099` 时的状态，凡与 B2 冲突的地方以 B2 为准**（尤其是：execute 的安全论证、C_POSTOP/C_WRAP 下限、默认 C_POSTOP、体积与 gas 数字）。
+> **Codex 结论**：Part A（`31921fbc`）APPROVE；Part B（`d7ae5099`）REQUEST CHANGES，已在 B2 修复（见文末「B2：Codex 第 1 轮修复」）；Codex 第 2 轮确认第 1 轮的问题全部关闭，但提出一个新的 HIGH（12 字 context 导致 bundle 中途升级时出错），已在 B3 修复。**B.1–B.5 描述的是 `d7ae5099` 时的状态，凡与 B2 冲突的地方以 B2 为准**（尤其是：execute 的安全论证、C_POSTOP/C_WRAP 下限、默认 C_POSTOP、体积与 gas 数字）。
 
 ### B.1 改动
 
@@ -192,3 +192,40 @@ postOp 多了 878 gas，W_postop 从 146,600 升到 **147,478**（每条路径�
 | 全量测试 | cancun 129 个 suite，1586 通过 / 0 失败 / 49 跳过；**prague 最后跑**，1495 通过 / 0 失败 / 21 跳过；之后又跑了一次 `forge build`（cancun 产物），体积数字取自这份产物 |
 
 多付率比 A 高出约 1 个百分点，原因是默认 C_POSTOP 从 170k 提到了 175k。
+
+## B3：Codex 第 2 轮修复（建在 `e0cf0dc8` 之上）
+
+**Codex 第 2 轮**：第 1 轮的三项全部 CLOSED；新增 **HIGH**，已成立。B2 把 context 扩成了 12 个字，postOp 无条件读取 `context[352:384]`。假设受害者的 op 在**旧实现**（5.5.0，11 字 = 352 B context）下通过了验证，而同一个 handleOps 里，一笔自付 gas 的攻击者 op 通过 TimelockController 开放的 executor 执行一个已经可以执行的 `upgradeToAndCall(newImpl, "")`，那么受害者的 postOp 就会在新实现上越界读取并 panic：执行被撤销，gas 由 SP 押金承担，和第 1 轮是同一类 griefing。**B2 里"打包成一个独立的第 12 个字"的做法因此作废。**
+
+### 修复
+
+- **context 保持 5.5.0 的 11 字 / 352 B 布局不变**。快照放进第 9 个字，也就是原来的 `decimals` 字：`decSnap = decimals | settle<<8 | cPostop<<40 | cWrap<<72`。结构体里这个字段的类型从 `uint8` 改成 `uint256`，其余 10 个字的位置和类型都不变。5.5.0 产生的 context 在这个字里只有 `decimals`（等于 8），快照位是 0，按新结构体解码不会出错。
+- **5.5.0 context 的回退规则（快照为 0 时）**：入口检查用 `LEGACY_SETTLE_GAS_BOUND = 160_000`；buffer **按 5.5.0 的原公式** `postOpGasLimit + ⌈10%·(callGas+postOpGas)⌉ + LEGACY_C_WRAP_GAS 30_000` 计算。理由有三：① 这正是这笔 op 被准入和被报价时依据的公式，a0 也是按它预留的；② 这个公式比新公式更保守（G2 在旧公式下同样零补贴，见 A.4），不存在少收的风险；③ 如果回退到新常量（175k + 5k），同一笔 op 会在实现切换的一瞬间被换一套报价方式，没有必要。新实现产生的 context 总是带非零快照（SETTLE 下限是 155k）。
+- 入口检查在解码之前读第 9 个字（`context[288:320]` 右移 8 位），不再读取第 352 字节之后的任何数据。
+
+### 测试
+
+- `SuperPaymasterV55UpgradeRace.t.sol`：**当前 5.5.0 实现**的字节码作为固定文件入库（`contracts/test/fixtures/superpaymaster-5.5.0-impl.creation.hex`，由 feat/aoa-balance-mode-5.5.0 的 SP 源码构建，source keccak `0xab8309da…`，runtime 22,915 B，与 D3 的记录一致）。代理最初指向这个实现，owner 是 OpenZeppelin TimelockController（executor 开放）。bundle 的第一笔是攻击者的自付 op，它通过开放的 executor 执行 `upgradeToAndCall(实验版实现, "")`；后面两笔受害者 op 都是由 **5.5.0 实现**验证的。断言：升级确实在 bundle 中途发生了（`version()` 和 ERC1967 实现槽都已读回）；**两笔受害者的 postOp 都没有失败**，都已结算，执行结果都保留；计费落在**验证时（5.5.0 公式）**的上下界之内。
+- **变异**：新实现换成 `e0cf0dc8` 的 12 字版本 → `round 2: no victim postOp fails …` 变红（2 笔失败），这正是 Codex 描述的场景；回退分支改成"不给 buffer" → `charge covers the op's cost` 变红（出现补贴）；第 1 轮的两个参数竞争变异在新代码上重跑，仍然变红。
+- G2 的判定改为从 `decSnap` 读快照（`decimals = uint8(decSnap)`，并断言 104 位以上没有多余的位）。
+
+### 规范规则（建议并入 03-final-spec；DSR 已在 `40ed8c0f` 写入规范）
+
+> **OpCtx 布局是升级兼容面**：任何一次 SP 升级，都必须保证**上一版实现产生的 context 能被新实现正确结算**，包括长度、每个字的位置和类型，以及缺少新字段时有明确的回退语义。**必须有测试覆盖"从上一个发布版本在 bundle 中途升级"**：规范 EntryPoint；owner 是 executor 开放的 TimelockController；由上一版验证、由新版结算，断言 postOp 不失败，计费落在验证时的界限之内。
+
+**纵深防御**：GOV-1 应当把 timelock 的 executor 限定为 multisig。但合约的正确性不依赖这一点，也就是说，参数修改（B2）和升级（B3）即使在 bundle 中途执行，也都已经被证明是无害的。
+
+### 重跑结果（B3 最终状态）
+
+| 项 | 结果 |
+|---|---|
+| 体积 | SP runtime **23,532 B**，余量 **1,044**（高于 1,024 的门槛，只多 20 B）；source keccak 与源码一致 |
+| 存储布局 | OK（40 个条目，与 d7ae5099 的快照相同） |
+| gas | 验证 232,364（A 为 229,557，+2,807）；postOp 140,354（A 为 140,186，+168） |
+| W_postop / 规则 | 146,768；默认参数和全下限组合都满足 175,000 ≥ 168,784（余量 19.2%）；wrap 1,702 ≤ 5,000（context 恢复为 11 字） |
+| G2 | 默认参数和全下限组合都是 1000 runs 加 1000 个固定种子，**补贴 0**。多付率 ≤ MIN+50k 为 24.9% / 39.7% / 47.2%，1.0–1.5M 为 19.3% / 29.9% / 33.7% |
+| 负对照 | 默认 C_POSTOP 设为 73,400 → 4,407 笔中 2,620 笔被补贴，`DSR no-subsidy` 断言变红 |
+| 两个竞争测试 | 参数竞争（B2）和升级竞争（B3）都通过 |
+| 全量测试 | cancun 130 个 suite，1587 通过 / 0 失败 / 49 跳过；**prague 最后跑**，1496 通过 / 0 失败 / 21 跳过；之后又跑了一次 `forge build`，体积取自这份产物 |
+
+**体积警示**：SP 只剩 20 B 的富余，任何新增的代码都会让它跌破 1,024 的门槛。另外，把快照写成 3 个独立字段的那一版编出来是 24,908 B，但测试照样全绿（见 B2）。建议给 SP 单独加一道体积门槛（CI 跑体积检查脚本），因为 forge 测试不会检查 EIP-170。

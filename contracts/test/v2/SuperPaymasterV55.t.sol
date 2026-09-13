@@ -208,7 +208,7 @@ contract SuperPaymasterV55Test is Test {
         // whose lock does not exist must revert (no silent catch).
         PackedUserOperation memory op = _op(0, 300_000, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
-        bytes memory ctx = abi.encode(SuperPaymaster.OpCtx(address(token), user, 1 ether, h, operator, 1, 0, 300_000, 2000e8, 8, 0.02 ether, uint256(160_000) | (uint256(175_000) << 32) | (uint256(5_000) << 64)));
+        bytes memory ctx = abi.encode(SuperPaymaster.OpCtx(address(token), user, 1 ether, h, operator, 1, 0, 300_000, 2000e8, uint256(8) | (uint256(160_000) << 8) | (uint256(175_000) << 40) | (uint256(5_000) << 72), 0.02 ether));
         vm.prank(address(entryPoint));
         vm.expectRevert(); // token.settleLocked -> NoLock bubbles up: postOp does not swallow it
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
@@ -365,7 +365,7 @@ contract SuperPaymasterV55Test is Test {
         // DSR D2 Low-1: the snapshot must BE the validation-time state, not merely self-consistent
         // (M7a — writing a wrong price into the snapshot — otherwise survives this suite alone)
         assertEq(c.price, pAtValidation, "snapshot price == cachedPrice at validation");
-        assertEq(c.decimals, decAtValidation, "snapshot decimals == cachedPrice at validation");
+        assertEq(uint8(c.decSnap), decAtValidation, "snapshot decimals == cachedPrice at validation");
         assertEq(c.aPriceUSD, aAtValidation, "snapshot aPNTs price == aPNTsPriceUSD at validation");
 
         vm.prank(owner);
@@ -376,7 +376,7 @@ contract SuperPaymasterV55Test is Test {
         uint256 feePerGas = 1 gwei;
         // exp/buffer: C_POSTOP replaces postOpGasLimit (exp/params default 175k); C_WRAP 5k
         uint256 bufWei = (175_000 + Math.ceilDiv((uint256(c.callGas) + c.postOpGas) * 10, 100) + 5_000) * feePerGas;
-        uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(c.decimals)) * c.aPriceUSD, Math.Rounding.Ceil);
+        uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * uint256(c.price), 1e18, (10 ** uint256(uint8(c.decSnap))) * c.aPriceUSD, Math.Rounding.Ceil);
         uint256 expected = Math.mulDiv(aGas, 10_000 + sp.protocolFeeBPS(), 10_000, Math.Rounding.Ceil);
         assertLt(expected, c.a0, "precondition: charge below the reservation cap (cap cannot mask a wrong price)");
 

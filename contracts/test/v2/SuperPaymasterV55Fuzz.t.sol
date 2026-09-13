@@ -1082,12 +1082,12 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(o.nPost, 1, "exactly one postOp call per settled op");
         SuperPaymaster.OpCtx memory c = o.ctx;
         assertEq(c.price, int256(x.price), "R10-M3: postOp context carries the validation-time ETH/USD price");
-        assertEq(c.decimals, x.dec, "R10-M3: postOp context carries the validation-time decimals");
+        assertEq(uint8(c.decSnap), x.dec, "R10-M3: postOp context carries the validation-time decimals");
         assertEq(c.aPriceUSD, x.aPrice, "R10-M3: postOp context carries the validation-time aPNTs/USD price");
-        assertEq(uint32(c.gasSnap), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
-        assertEq(uint32(c.gasSnap >> 32), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
-        assertEq(uint32(c.gasSnap >> 64), _cWrap, "exp/params: context carries the validation-time C_WRAP");
-        assertEq(c.gasSnap >> 96, 0, "exp/params: no stray bits in the snapshot word");
+        assertEq(uint32(c.decSnap >> 8), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
+        assertEq(uint32(c.decSnap >> 40), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
+        assertEq(uint32(c.decSnap >> 72), _cWrap, "exp/params: context carries the validation-time C_WRAP");
+        assertEq(c.decSnap >> 104, 0, "exp/params: no stray bits in the snapshot word");
         assertEq(c.a0, o.a0, "context a0");
         assertEq(c.mode, o.mode, "context mode");
         assertEq(c.callGas, o.callGas, "context callGasLimit");
