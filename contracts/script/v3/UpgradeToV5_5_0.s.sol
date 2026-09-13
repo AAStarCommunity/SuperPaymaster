@@ -581,6 +581,9 @@ contract UpgradeToV5_5_0 is V55Bootstrap {
         require(sp.protocolFeeBPS() == pre.fee, "V55 step5 read-back: protocolFeeBPS drifted");
         require(sp.aPNTsPriceUSD() == pre.aPriceUSD, "V55 step5 read-back: aPNTsPriceUSD drifted");
         require(sp.priceStalenessThreshold() == pre.staleness, "V55 step5 read-back: staleness drifted");
+        // initialize enforces [60, 86400] only on fresh proxies; an upgraded proxy keeps its old value
+        // and 5.5.0 has no setter, so assert the range here (Sepolia 2026-09-13: 4200).
+        require(pre.staleness >= 60 && pre.staleness <= 86400, "V55 step5 read-back: staleness outside [60, 86400]");
         require(sp.totalTrackedBalance() == pre.tracked, "V55 step5 read-back: totalTrackedBalance drifted");
         require(sp.protocolRevenue() == pre.revenue, "V55 step5 read-back: protocolRevenue drifted");
         require(sp.pendingAPNTsToken() == pre.pendingAPNTs, "V55 step5 read-back: pendingAPNTsToken drifted");

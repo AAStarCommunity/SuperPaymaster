@@ -302,7 +302,12 @@ contract SuperPaymaster is BasePaymasterUpgradeable, ReentrancyGuard, ISuperPaym
         // (deployed later via setAPNTsToken which has its own zero-address check)
         APNTS_TOKEN = _apntsToken;
         treasury = _protocolTreasury != address(0) ? _protocolTreasury : _owner;
-        priceStalenessThreshold = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
+        uint256 staleness = _priceStalenessThreshold > 0 ? _priceStalenessThreshold : 3600;
+        // Same range as PaymasterBase.setPriceStalenessThreshold. There is no setter here, so this is
+        // the only write: an oversized value underflows `block.timestamp - threshold` in updatePrice
+        // and truncates `uint48(updatedAt + threshold)` (validUntil).
+        if (staleness < 60 || staleness > 86400) revert InvalidConfiguration();
+        priceStalenessThreshold = staleness;
         // Default values must be set explicitly (proxy storage doesn't inherit implementation defaults)
         aPNTsPriceUSD = 0.02 ether;
         protocolFeeBPS = 1000;

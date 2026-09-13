@@ -199,6 +199,36 @@ contract M5_InitializeZeroOwnerTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         assertEq(SuperPaymaster(payable(address(proxy))).owner(), address(0x42));
     }
+
+    // DSR 2026-09-13 (same pattern as the xPNTs v2 I4 finding): initialize is the ONLY write of
+    // priceStalenessThreshold (no setter), so it must enforce the V4 setter range [60, 86400].
+    function _spImpl() internal returns (SuperPaymaster impl) {
+        MockEntryPointFix ep   = new MockEntryPointFix();
+        MockPriceFeedFix  feed = new MockPriceFeedFix();
+        Registry regImpl = new Registry();
+        bytes memory regInit = abi.encodeCall(Registry.initialize, (address(this), address(0x10), address(0x11)));
+        IRegistry registry = IRegistry(address(new ERC1967Proxy(address(regImpl), regInit)));
+        impl = new SuperPaymaster(IEntryPoint(address(ep)), registry, address(feed));
+    }
+
+    function _init(SuperPaymaster impl, uint256 staleness) internal returns (SuperPaymaster) {
+        bytes memory initData = abi.encodeCall(SuperPaymaster.initialize, (address(0x42), address(0), address(0x20), staleness));
+        return SuperPaymaster(payable(address(new ERC1967Proxy(address(impl), initData))));
+    }
+
+    function test_InitializeRejectsStalenessOutOfRange() public {
+        SuperPaymaster impl = _spImpl();
+        uint256[3] memory bad = [uint256(59), 86401, type(uint256).max];
+        for (uint256 i; i < bad.length; ++i) {
+            bytes memory initData = abi.encodeCall(SuperPaymaster.initialize, (address(0x42), address(0), address(0x20), bad[i]));
+            vm.expectRevert(SuperPaymaster.InvalidConfiguration.selector);
+            new ERC1967Proxy(address(impl), initData);
+        }
+        // positive controls: inclusive bounds and the 0 -> 3600 default
+        assertEq(_init(impl, 60).priceStalenessThreshold(), 60);
+        assertEq(_init(impl, 86400).priceStalenessThreshold(), 86400);
+        assertEq(_init(impl, 0).priceStalenessThreshold(), 3600);
+    }
 }
 
 // -----------------------------------------------------------------------
