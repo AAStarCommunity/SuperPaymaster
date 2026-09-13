@@ -273,6 +273,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         address pmProxy = pmFactory.getPaymasterByOperator(deployer);
         if (pmProxy != address(0)) {
             require(_requireDefaultClone(pmProxy, "Paymaster") == address(pmV4Impl), "T-4: V4 proxy not a clone of pmV4Impl");
+            require(pmFactory.implementations("v4.2") == address(pmV4Impl), "T-4: factory v4.2 != pmV4Impl");
         }
         _requireDefaultArtifact(x402FacilitatorAddr, "X402Facilitator");
         _requireDefaultArtifact(policyRegistryAddr, "PolicyRegistry");
@@ -606,6 +607,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         vm.serializeAddress(jsonObj, "paymasterV4Impl", address(pmV4Impl));
         vm.serializeAddress(jsonObj, "simpleAccountFactory", simpleAccountFactory);
         vm.serializeAddress(jsonObj, "pnts", pntsAddr);
+        // T-4 (Codex stop-review MEDIUM-7): the deployer's V4 (AOA) paymaster clone created in
+        // _orchestrateRolesJason is a deployed contract too — record it so CheckDefaultArtifacts
+        // verifies it (same key TestAccountPrepare writes).
+        vm.serializeAddress(jsonObj, "aPNTsPaymasterV4", pmFactory.getPaymasterByOperator(deployer));
         // ERC-8004 agent registry addresses (official CREATE2 constants per chain).
         // identity + reputation are wired into SuperPaymaster; validation is recorded for future use.
         vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());

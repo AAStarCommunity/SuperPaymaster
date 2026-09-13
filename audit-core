@@ -90,7 +90,9 @@ stamp_key() { echo "deployments/.audit.${ENV}.${1}.stamp"; }
 # split the three aggregator pointers apart, and a stamped Check11 would have answered
 # "already passed" every run afterwards while the split sat there. A cached invariant
 # is not an invariant.
-NEVER_SKIP="Check11_AggregatorPointers"
+# CheckDefaultArtifacts reads EVERY config key (prepare-test adds keys without moving the stamp)
+# and the local artifacts it compares against change with every build: never stamp-skip it.
+NEVER_SKIP="Check11_AggregatorPointers CheckDefaultArtifacts"
 
 should_skip() {
     local key="$1"
@@ -134,7 +136,13 @@ rpc_retry() {
 # ---------------------------------------------------------------------------
 
 echo "━━━ A) Forge Script Checks ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring Check10_V54 Check11_AggregatorPointers VerifyV3_1_1"
+# T-4: CheckDefaultArtifacts resolves profile.default artifacts from out/ — build them now with a
+# plain default-profile `forge build` (a previous `forge test --evm-version prague` rewrites the
+# unsuffixed artifacts; the verifier rejects those, so they must be refreshed first).
+forge build
+# T-4 (Codex stop-review HIGH-6): CheckDefaultArtifacts runs on EVERY network, not only on anvil.
+# On a network still carrying pre-T-4 bytecode it FAILS — that is the correct, honest answer.
+CHECK_SCRIPTS="Check04_Registry Check01_GToken Check02_GTokenStaking Check03_MySBT Check07_SuperPaymaster Check08_Wiring Check10_V54 Check11_AggregatorPointers VerifyV3_1_1 CheckDefaultArtifacts"
 
 run_forge_check() {
     local SCRIPT="$1"

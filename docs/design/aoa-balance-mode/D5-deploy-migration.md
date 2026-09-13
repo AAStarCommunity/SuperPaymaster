@@ -214,7 +214,7 @@ forge script …UpgradeToV5_5_0 [--sig …] --rpc-url http://127.0.0.1:28546 --u
 - **artifact 的解析不看文件名**。forge 的命名会随编译情况变化：只有一个 profile 编译过时叫 `X.json`，两个都编译过时叫 `X.default.json` / `X.registry-size.json`；源文件同名时还会嵌套，例如仓库里有 3 个 EntryPoint.sol，default 版本在 `out/core/EntryPoint.sol/EntryPoint.json`，而 `out/EntryPoint.sol/EntryPoint.json` 反而是 runs=200。解析器先把每个合约映射到它的源文件，尝试 forge 用过的所有布局，只接受 artifact 自己的 metadata 同时满足两点的那一份：`compilationTarget` 等于该源文件，`optimizer.runs == 500`。Registry 例外：它唯一的构建就是受限的 runs=200（`out/Registry.sol/Registry.json`，属于预期）。
 - **内存隔离**。`run()` 是一个调用帧，Solidity 不释放内存。每次检查都把几百 KB 的 JSON 交给解析 cheatcode，第一版在第 5 个合约就 `MemoryOOG`；改用 forge 缓存索引查路径，每次查找约 12M gas，同样耗尽。现在的做法：查找和比对放到一个单独的 `T4ArtifactReader` 合约里，通过外部 **view** 调用（STATICCALL，不会被广播）执行，每次调用的内存在返回时释放。forge 不允许脚本里用 `address(this)`，所以不能自调用。reader 在脚本构造函数里创建，不在任何 broadcast 里。验证：dry-run 的 72 笔交易里没有一笔发往 reader。
 - anvil 专用的基础设施（EntryPoint、SimpleAccountFactory/SimpleAccount、价格 mock）原来只在部署脚本的闭包里被编译，也就只有 runs=200 版本。新增 `contracts/test/helpers/AnvilMockPriceFeed.sol`：它 import 了前两者，并承接了原来写在 DeployAnvil 里的 MockPriceFeed（改名 `AnvilMockPriceFeed`），这样 `forge build` 会产出它们的 default 版本。
-- DeployAnvil、DeployLive、DeployRepCreditSepolia 末尾都有 `_assertAllDefaultArtifacts()`，把本脚本创建的所有东西（直接部署的、代理、工厂克隆）再核一遍。`prepare-test` 在 anvil 上最后运行新的只读检查 `contracts/script/checks/CheckDefaultArtifacts.s.sol`；live 链上还是 T-4 之前的部署，所以不在 live 链上跑。
+- DeployAnvil、DeployLive、DeployRepCreditSepolia 末尾都有 `_assertAllDefaultArtifacts()`，把本脚本创建的所有东西（直接部署的、代理、工厂克隆）再核一遍。`prepare-test` 在 anvil 上最后运行新的只读检查 `contracts/script/checks/CheckDefaultArtifacts.s.sol`；live 链上还是 T-4 之前的部署，所以不在 live 链上跑。（**§8.2 已改为：audit-core 和 prepare-test 在所有网络上都运行它**）
 
 **验收 (1)**：全新 anvil（28545），`./deploy-core anvil --force` exit 0（deploy-core 日志里有 100 行 `default artifact OK`，每个合约在创建时和最后的 T-4 汇总里各出现一次），9 个 Check、ABI 选择器、代理指向检查全部通过，内置的 prepare-test 和 Check09 也通过；随后单独的 `./prepare-test anvil` exit 0。同一条链上的 L4 余额模式 op：链上烧毁 78.2766 = operator 余额减少 = revenue 增加，`lockedOf` = 0。
 
@@ -266,6 +266,44 @@ forge script …UpgradeToV5_5_0 [--sig …] --rpc-url http://127.0.0.1:28546 --u
 **验收 (4)**：在 Sepolia fork（本地 28546）上**只模拟、不广播**，使用 anvil 测试私钥，`TESTNET_EOA_OWNER_ACK=true`。两个脚本都 exit 0，并执行了 `=== T-4: all contracts == profile.default artifact ===` 段：
 - DeployLive：56 行 `default artifact OK` + 3 个克隆，覆盖 26 类：AOAProtocolRegistry、BLSAggregator、DVTValidator、ERC1967Proxy（×2）、GTokenAuthorization、GTokenStaking、GlobalTierSource、MicroPaymentChannel、MySBT、Paymaster、PaymasterFactory、PolicyRegistry、Registry、ReputationSystem、SuperPaymaster、SuperPaymasterLens、TimelockController、X402Facilitator、xPNTsFactory、xPNTsFactoryV2、xPNTsToken、xPNTsTokenV2、xPNTsTokenV2Ext；克隆：aPNTs → xPNTsToken、V4 proxy → Paymaster、Mycelium PNTs → xPNTsTokenV2。
 - DeployRepCreditSepolia：46 行 + 2 个克隆，覆盖 21 类（同上，去掉 V4/x402/timelock/policy/MicroPaymentChannel，加上两个 Mock agent registry）。
+
+### 8.2 T-4 验证器加固（Codex stop-review 未通过 → 修复）
+
+基线 `eb446269`。`contracts/src`、`foundry.toml` 不改。
+
+| # | Codex 发现 | 修复 |
+|---|---|---|
+| 1 CRITICAL | 解析器只看 optimizer runs，并且优先选不带后缀的 `X.json`；而这个文件会被最后一次编译覆盖，例如 `forge test --evm-version prague` 之后 `SuperPaymaster.json` 变成 Prague/500，旧逻辑就会选中它 | `DefaultArtifacts._isDefaultBuild`：artifact 的 metadata 必须**完全**等于 [profile.default]，包括 compilationTarget、solc `0.8.33+`、optimizer 开启且 runs=500（Registry 为 200）、viaIR=true、evmVersion=cancun，以及 **source keccak256 等于当前源文件**。0 个匹配报错；2 个**不同**的匹配报错（字节相同的重复副本视为同一构建）。deploy-core、prepare-test、audit-core 在校验前都先跑一次普通的 `forge build`。**注意：`forge test --evm-version prague` 会覆盖不带后缀的 artifact，之后必须先重新 `forge build` 才能部署或审计**，否则校验器会拒绝（见反例 A） |
+| 2 CRITICAL | `UpgradeLive.s.sol`（deploy-core 对已有 live 部署走的路径）用 `new` 部署，并拿 `new` 出来的实例（registry-size 构建）判断"有没有变" | "有没有变"改为对照 default artifact（immutable 屏蔽），并对 SP 的三个 immutable 做 binding 检查。Registry、SP、MicroPaymentChannel、TimelockController、X402Facilitator、PolicyRegistry 一律走 `_deployDefault`；升级后对两个代理做 `_requireDefaultProxy` 和 SP binding 检查。**5.4.x → 5.5.0 的裸 impl 替换直接拒绝**，要求改用 `UpgradeToV5_5_0.s.sol`（在 Sepolia fork 上实测会拒绝：`UpgradeLive: SP is not 5.5.0 - use UpgradeToV5_5_0.s.sol`） |
+| 3 HIGH | deploy-core 的跳过哈希不覆盖脚本和校验器 | 哈希加入 `contracts/script/**/*.sol`、`prepare-test`、`audit-core`、`contracts/test/helpers/AnvilMockPriceFeed.sol` |
+| 4 HIGH | CheckDefaultArtifacts 失败开放：检查写死的清单，缺失、为零或无代码的地址被跳过，只要检查过一行就算成功 | 遍历 config 的**每一个** key。未知 key、零地址、无代码、非地址都 FAIL。排除项是逐条审查过的白名单，每项写明理由：元数据字符串/数字；`blsGuardians`、`deployer` 必须是 EOA；live 链上的第三方合约要检查 canonical codehash 或它在 SP 里的绑定；`*Prev`、`blsValidator` 必须有代码并且**没有**接在 live 线路上；anvil 上 `agentValidationRegistry = 0` 是有意为之。新增必需 key 集合（基础集 / 5.5.0 v2 栈 / 完整部署），**被删掉的 key 也会 FAIL**；另外检查 live wiring（Registry.SUPER_PAYMASTER / GTOKEN_STAKING / MYSBT / blsAggregator、DVT.BLS_AGGREGATOR、SP.APNTS_TOKEN / xpntsFactory）必须指向 config 里的地址。覆盖 operatorXPNTsV2、livenessRegistry、xPNTsFactoryCC28、xPNTsTokenCC28Test、blsAggregatorPrev、blsFraudProofVerifierPrev、blsValidator、UpgradeToV5_5_0 输出的 xPNTsV2Tokens |
+| 5 HIGH | immutable 被屏蔽后没有检查它们的取值 | 屏蔽比对之后，逐个用 getter 读回构造参数型 immutable，与 config 比对：SP 的 REGISTRY/entryPoint/ETH_USD_PRICE_FEED；GTokenAuthorization.factory；Staking、MySBT、BLSAggregator、DVTValidator、ReputationSystem、Paymaster、GlobalTierSource 的 registry 绑定；X402Facilitator 的 REGISTRY/XPNTS_FACTORY；PolicyRegistry.timelock；v2 模板的 PROTOCOL_REGISTRY/EXTENSION；xPNTsTokenV2Ext.PROTOCOL_REGISTRY；两个工厂的 REGISTRY/implementation；SimpleAccountFactory → SimpleAccount.entryPoint。**artifact 里有 immutable、却没有 binding 规则的合约直接 FAIL**，唯一例外是审查过的"只有自引用 immutable"清单（Registry 的 UUPS `__self`；xPNTsToken、MicroPaymentChannel 的 EIP-712 缓存；EntryPoint 的 senderCreator） |
+| 6 HIGH | 不是 live 上的门槛 | CheckDefaultArtifacts 加入 audit-core 的 CHECK_SCRIPTS，并且 NEVER_SKIP；prepare-test 也在**所有网络**上运行它 |
+| 7 MEDIUM | 克隆没有绑定到期望的实现 | aPNTs 的实现必须等于 `xPNTsFactory.implementation()`；V4 克隆的实现必须等于 `paymasterV4Impl`，且等于 `PaymasterFactory.implementations("v4.2")`；v2 克隆的实现必须等于 `xPNTsTokenV2Impl`，且等于 `xPNTsFactoryV2.implementation()`。工厂的产物在链上逐个枚举并检查（两个 xPNTs 工厂的 `getAllTokens`、PaymasterFactory 的 `paymasterList`）。DeployLive 现在把自己的 V4 克隆写进 config（`aPNTsPaymasterV4`） |
+| 8 MEDIUM | deploy-core 用 `\|\| echo` 吞掉 prepare-test 的失败 | prepare-test 失败或不可执行时，deploy-core 以 1 退出，并**清空 srcHash**，保证下次运行会重新部署并重新审计 |
+
+**反例（每一条现在都会 FAIL；anvil 28545，除注明外都用临时 config 副本）**：
+
+| 反例 | 结果 |
+|---|---|
+| A. `forge build --evm-version prague` 之后（`SuperPaymaster.json`、`Registry.json` 等不带后缀的文件变成 `evm=prague`），不重新构建就直接运行校验器 | exit 1：`no profile.default build of AnvilMockPriceFeed … (run a plain forge build)`，Prague artifact 不会被选中（旧逻辑只看 runs=500，会选中 Prague 的 `SuperPaymaster.json`）。执行普通 `forge build` 后，`SuperPaymaster.json` 回到 `evm=cancun`，校验器 exit 0，选中的路径打印在每一行 |
+| B. 删除 `policyRegistry` 这个 key | `policyRegistry \| REQUIRED KEY MISSING from config \| FAIL`，exit 1 |
+| C. 把 `xPNTsFactoryV2` 设为 0 | 5 行 FAIL：工厂 zero/no code、无法枚举产物、`SP.xpntsFactory` wiring 不符、两个 v2 克隆的模板不符；exit 1 |
+| D. 把 `staking` 设为一个 EOA（anvil #5） | `staking: zero / no code`、MySBT 的 GTOKEN_STAKING binding 错、`Registry.GTOKEN_STAKING` wiring 不符，3 行 FAIL，exit 1 |
+| E. 新增一个未知 key `mysteryContract` | `UNKNOWN KEY - add a reviewed rule \| FAIL`，exit 1 |
+| F. immutable 绑定错误：用 **default** artifact 部署一个 SP impl，但 `REGISTRY = 0x…dEaD`，再把代理升级到它 | `superPaymaster (implementation) \| SuperPaymaster: default artifact OK but IMMUTABLE BINDING WRONG: REGISTRY, entryPoint, ETH_USD_PRICE_FEED == config \| FAIL`，另有 `spImpl != live ERC-1967 slot`，exit 1。这正是"只做屏蔽比对"会漏掉的情况。恢复原 impl 后 exit 0 |
+| G. `pnts` 指向一个 EIP-1167 克隆，但它克隆的是 paymasterV4Impl | `EIP-1167 clone of an UNEXPECTED implementation 0x84eA… (expected 0x4A67…) \| FAIL`，exit 1 |
+| H1. prepare-test 的校验器失败（`CONFIG_PATH` 指向一个带未知 key 的 config） | `./prepare-test anvil` exit 1（`mysteryContract … FAIL`） |
+| H2. deploy-core 中 prepare-test 失败（故障注入：临时让 prepare-test 不可执行，其余步骤都真实运行） | deploy-core exit 1：`❌ prepare-test (incl. its verifiers) failed — deployment NOT accepted`，`srcHash cleared`；config 里 `srcHash = ''` |
+| I. UpgradeLive："有没有变"要对照 default artifact | 未改动时：`Registry/SuperPaymaster: SKIP`，`Nothing to do`。把 SP 代理换到 **registry-size** 构建（22,756 B）后：`SuperPaymaster: WILL UPGRADE`，经 `_deployDefault` 部署出 22,915 B 的 default impl，升级后代理和实现检查通过（模拟，之后已恢复） |
+| J. 在 Sepolia 的真实 config 上跑（fork，只读） | exit 1，38 行通过、13 行失败：SP 5.4.2 impl、BLSAggregator、PaymasterFactory、3.x xPNTsFactory 及其 aPNTs/PNTs 克隆、两个 V4 克隆（实现 `0xc0F9…` ≠ 已登记的 `paymasterV4Impl`），以及 pnts 不是 v2。这就是 Sepolia 当前字节码的真实状态，也说明检查在 live 网络上会变红 |
+
+**重跑验收**：
+- 全新 anvil，`./deploy-core anvil --force` exit 0：10 个 Check（含 CheckDefaultArtifacts，46 行全过）、ABI、代理检查全部通过，内置 prepare-test 的校验器 50 行全过。之后单独运行 `./prepare-test anvil` exit 0（50/0），`./audit-core anvil --force` exit 0（50/0）。L4 余额模式 op：烧毁 = operator 余额减少 = revenue 增加，`lockedOf` = 0。
+- `forge test`（Cancun）**1567 / 0 / 49**，然后**最后**跑 `forge test --evm-version prague`，在正常的 out 目录里，**1476 / 0 / 21**。Prague 跑完后 `SuperPaymaster.json` 是 `evm=prague`；随后的 `./deploy-core anvil --force` 先执行普通 `forge build`，`SuperPaymaster.json` 回到 `evm=cancun`，校验器选中 Cancun artifact，全部通过。
+- DeployLive 和 DeployRepCreditSepolia 在 Sepolia fork 上的模拟（不广播）仍然 exit 0，T-4 断言段都执行了（56+3 行、46+2 行）。
+
+**GOV-1 备注（spec 03 §10.7b「GOV-2 规范（第 3 版）」C 部分，与 D5b 一起做，现在不做）**：owner 移交给 timelock 之后，UpgradeLive（以及 UpgradeToV5_5_0 的第 5 步）必须改成"部署 impl → timelock `schedule(upgradeToAndCall)` → 等待 minDelay → `execute`"，每一步都要读回。现在的"owner 直接 `upgradeToAndCall`"写法到那时会失效。
 
 ## 9. 第 1 步的两条分支——请作者决定
 

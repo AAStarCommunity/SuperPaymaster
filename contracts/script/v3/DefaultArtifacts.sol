@@ -18,14 +18,17 @@ import "forge-std/console.sol";
  *         Which file is "the default artifact" is NOT decided by its name: forge names an artifact
  *         `X.json` when only one profile built X and `X.default.json` / `X.registry-size.json` when
  *         both did (and nests it, e.g. out/core/EntryPoint.sol/, when source names collide), and
- *         that changes from build to build. The resolver maps each contract to its source file,
- *         tries every layout forge uses, and accepts only the artifact whose OWN metadata names that
- *         source as compilation target and says `optimizer.runs == 500` — except Registry, whose
- *         only build is the restricted runs=200 one (expected; the restriction is part of
- *         profile.default).
+ *         that changes from build to build; the unsuffixed file is simply the LAST compile
+ *         (`forge test --evm-version prague` rewrites it with a Prague build). The resolver maps
+ *         each contract to its source file, tries every layout forge uses, and accepts only an
+ *         artifact whose OWN metadata matches [profile.default] exactly: compilation target,
+ *         solc 0.8.33, optimizer on with runs 500 (Registry: its compilation_restrictions 200),
+ *         viaIR, evmVersion cancun, and the source keccak256 == the source file now. Zero or
+ *         two different matching builds fail.
  *
- *         Run `forge build` before any script using this (deploy-core does): `forge script` only
- *         compiles the script's own closure, so it does not refresh the default artifacts.
+ *         Run a plain `forge build` before any script using this (deploy-core, prepare-test and
+ *         audit-core do): `forge script` only compiles the script's own closure, so it does not
+ *         refresh the default artifacts.
  */
 /// @notice Artifact lookups / comparisons, each executed in its OWN call frame.
 /// @dev    A script's run() is ONE call frame and Solidity never frees memory: reading and handing
@@ -76,6 +79,7 @@ contract T4ArtifactReader is Script {
         if (h == keccak256("Registry")) return "contracts/src/core/Registry.sol";
         if (h == keccak256("GTokenStaking")) return "contracts/src/core/GTokenStaking.sol";
         if (h == keccak256("PolicyRegistry")) return "contracts/src/core/PolicyRegistry.sol";
+        if (h == keccak256("LivenessRegistry")) return "contracts/src/core/LivenessRegistry.sol";
         if (h == keccak256("GTokenAuthorization")) return "contracts/src/tokens/GTokenAuthorization.sol";
         if (h == keccak256("MySBT")) return "contracts/src/tokens/MySBT.sol";
         if (h == keccak256("xPNTsFactory")) return "contracts/src/tokens/xPNTsFactory.sol";
@@ -113,14 +117,34 @@ contract T4ArtifactReader is Script {
         return _codeEqArtifactImpl(target, rel);
     }
 
+    /// @notice Number of distinct immutables (AST ids) in the artifact's runtime.
+    function t4ImmutableCount(string calldata rel) external view returns (uint256) {
+        (bool ok, string memory json) = _tryRead(rel);
+        require(ok, string.concat("DefaultArtifacts: artifact missing: ", rel));
+        try vm.parseJsonKeys(json, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
+            return k.length;
+        } catch {
+            return 0;
+        }
+    }
+
+    /// @notice The exact [profile.default] build settings (foundry.toml). An artifact is accepted
+    ///         only if its OWN metadata carries every one of them — see `_isDefaultBuild`.
+    string internal constant DEFAULT_SOLC_PREFIX = "0.8.33+";
+    string internal constant DEFAULT_EVM = "cancun";
+
     /// @notice Relative path of the profile.default artifact of contract `name` (Registry: its
-    ///         only, restricted runs=200 build). Reverts if it does not exist (run `forge build`).
+    ///         only, compilation_restrictions-limited runs=200 build). Reverts unless EXACTLY one
+    ///         distinct build matches (run a plain `forge build` first).
     /// @dev Candidate paths are every layout forge uses for a source (plain, `.default` suffix,
-    ///      nested under 1–2 parent directories when names collide); the winner is decided by the
-    ///      artifact's OWN metadata — compilation target == the mapped source AND optimizer runs ==
-    ///      the profile.default value. (The forge cache index would give the path directly, but
-    ///      handing its ~0.8 MB to a JSON cheatcode costs ~12M gas per lookup — the first version
-    ///      of this helper ran the script out of gas.)
+    ///      nested under 1–2 parent directories when names collide). File names prove nothing:
+    ///      the UNSUFFIXED `X.json` is overwritten by whichever compile ran last — e.g.
+    ///      `forge test --evm-version prague` leaves a Prague/500 `SuperPaymaster.json` next to a
+    ///      Cancun/500 `SuperPaymaster.default.json`, and a check on optimizer runs alone picked
+    ///      the Prague one (Codex stop-review, CRITICAL-1). Several candidates may be byte-identical
+    ///      copies of the same build (stale unsuffixed + suffixed); two DIFFERENT matching builds
+    ///      is ambiguous and fails. (The forge cache index would give the path directly, but
+    ///      handing its ~0.8 MB to a JSON cheatcode costs ~12M gas per lookup.)
     function _defaultArtifactImpl(string memory name) internal view returns (string memory) {
         string memory src = _sourceOf(name);
         (string memory file, string memory d1, string memory d2) = _tail3(src);
@@ -134,13 +158,56 @@ contract T4ArtifactReader is Script {
             string.concat("out/", d2, "/", d1, "/", file, n1),
             string.concat("out/", d2, "/", d1, "/", file, n2)
         ];
-        string memory targetKey = string.concat("$.metadata.settings.compilationTarget['", src, "']");
-        uint256 want = _expectedRuns(name);
+        (bool okSrc, string memory source) = _tryRead(src);
+        require(okSrc, string.concat("DefaultArtifacts: source file missing: ", src));
+        bytes32 srcHash = keccak256(bytes(source));
+        uint256 found;
+        string memory pick;
+        bytes32 pickCode;
         for (uint256 i; i < c.length; ++i) {
             (bool ok, string memory j) = _tryRead(c[i]);
-            if (ok && _runsOf(j) == want && vm.keyExistsJson(j, targetKey)) return c[i];
+            if (!ok || !_isDefaultBuild(j, src, srcHash, _expectedRuns(name))) continue;
+            bytes32 code = keccak256(vm.parseJsonBytes(j, ".deployedBytecode.object"));
+            if (found == 0) {
+                pick = c[i];
+                pickCode = code;
+            } else {
+                require(code == pickCode, string.concat("DefaultArtifacts: ambiguous default builds of ", name, ": ", pick, " vs ", c[i]));
+            }
+            found++;
         }
-        revert(string.concat("DefaultArtifacts: no profile.default artifact of ", name, " from ", src, " (run `forge build`)"));
+        require(found != 0, string.concat("DefaultArtifacts: no profile.default build of ", name, " from ", src, " (run a plain `forge build`)"));
+        return pick;
+    }
+
+    /// @notice Artifact metadata == [profile.default]: compilation target, compiler version,
+    ///         optimizer enabled + runs, viaIR, evmVersion, and the source keccak256 == the source
+    ///         file as it is NOW (a stale artifact of an edited source fails).
+    function _isDefaultBuild(string memory j, string memory src, bytes32 srcHash, uint256 runs)
+        internal view returns (bool)
+    {
+        if (!vm.keyExistsJson(j, string.concat("$.metadata.settings.compilationTarget['", src, "']"))) return false;
+        if (_runsOf(j) != runs) return false;
+        try vm.parseJsonBool(j, ".metadata.settings.optimizer.enabled") returns (bool e) { if (!e) return false; } catch { return false; }
+        try vm.parseJsonBool(j, ".metadata.settings.viaIR") returns (bool v) { if (!v) return false; } catch { return false; }
+        try vm.parseJsonString(j, ".metadata.settings.evmVersion") returns (string memory ev) {
+            if (keccak256(bytes(ev)) != keccak256(bytes(DEFAULT_EVM))) return false;
+        } catch { return false; }
+        try vm.parseJsonString(j, ".metadata.compiler.version") returns (string memory cv) {
+            if (!_startsWith(cv, DEFAULT_SOLC_PREFIX)) return false;
+        } catch { return false; }
+        try vm.parseJsonBytes32(j, string.concat("$.metadata.sources['", src, "'].keccak256")) returns (bytes32 k) {
+            if (k != srcHash) return false;
+        } catch { return false; }
+        return true;
+    }
+
+    function _startsWith(string memory s, string memory p) internal pure returns (bool) {
+        bytes memory a = bytes(s);
+        bytes memory b = bytes(p);
+        if (a.length < b.length) return false;
+        for (uint256 i; i < b.length; ++i) if (a[i] != b[i]) return false;
+        return true;
     }
 
     /// @dev "a/b/c/File.sol" -> ("File.sol", "c", "b").
@@ -194,7 +261,7 @@ contract T4ArtifactReader is Script {
 
 abstract contract DefaultArtifacts is Script {
     /// @dev Simulation-only helper (constructor-time, outside any broadcast); see T4ArtifactReader.
-    T4ArtifactReader private _t4Reader = new T4ArtifactReader();
+    T4ArtifactReader internal _t4Reader = new T4ArtifactReader();
 
     function _defaultArtifact(string memory name) internal view returns (string memory) {
         return _t4Reader.t4DefaultArtifact(name);

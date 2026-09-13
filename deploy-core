@@ -33,9 +33,14 @@ fi
 # Cover Solidity sources AND the build/deploy toolchain files so that changes to
 # foundry.toml (optimizer, profile, remappings), remappings.txt, or deploy-core
 # itself will also trigger a fresh deploy rather than being silently skipped.
+# T-4 (Codex stop-review HIGH-3): also the deploy/verify SCRIPTS (contracts/script — incl. the
+# default-artifact verifier), the anvil infra helper, prepare-test and audit-core. A change to
+# the code that deploys or verifies must re-run deploy + audit, never be skipped as "unchanged".
 CURRENT_HASH=$(
   { find contracts/src -name "*.sol" -not -path "*/mocks/*" -type f -exec shasum -a 256 {} +; \
-    shasum -a 256 foundry.toml remappings.txt deploy-core 2>/dev/null; } \
+    find contracts/script -name "*.sol" -type f -exec shasum -a 256 {} +; \
+    shasum -a 256 foundry.toml remappings.txt deploy-core prepare-test audit-core \
+      contracts/test/helpers/AnvilMockPriceFeed.sol 2>/dev/null; } \
   | sort | shasum -a 256 | awk '{print $1}')
 CONFIG_FILE_PATH="deployments/config.$ENV.json"
 
@@ -244,10 +249,17 @@ if [ "$SHOULD_RUN_DEPLOY" = true ]; then
         sepolia|op-sepolia|anvil)
             echo ""
             echo "━━━ Phase 2.5) Prepare Test Accounts ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            if [ -x "./prepare-test" ]; then
-                ./prepare-test "$ENV" || echo -e "\033[1;33m⚠️  prepare-test failed. Re-run './prepare-test $ENV' manually.\033[0m"
-            else
-                echo -e "\033[1;33m⚠️  prepare-test not executable; skipping test account setup.\033[0m"
+            # T-4 (Codex stop-review MEDIUM-8): prepare-test ends with verifiers (Check09 and,
+            # on anvil, CheckDefaultArtifacts). A verifier failure must FAIL the deployment, not
+            # be downgraded to a warning — and must not leave a valid srcHash behind, or the next
+            # run would skip deploy + audit as "unchanged".
+            if [ ! -x "./prepare-test" ] || ! ./prepare-test "$ENV"; then
+                echo -e "\033[0;31m❌ prepare-test (incl. its verifiers) failed — deployment NOT accepted.\033[0m"
+                if [ -f "$CONFIG_FILE_PATH" ]; then
+                    jq '.srcHash = ""' "$CONFIG_FILE_PATH" > "${CONFIG_FILE_PATH}.tmp" && mv "${CONFIG_FILE_PATH}.tmp" "$CONFIG_FILE_PATH"
+                    echo "   srcHash cleared so the next run redeploys and re-audits."
+                fi
+                exit 1
             fi
             ;;
         mainnet|optimism|op-mainnet)

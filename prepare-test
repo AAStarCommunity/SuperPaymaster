@@ -57,12 +57,13 @@ echo -e "\n🛡️ Verifying Test Accounts..."
 forge script "contracts/script/checks/Check09_TestAccounts.s.sol:Check09_TestAccounts" \
     --rpc-url "$RPC_URL" --timeout 300 -vv
 
-if [ "$ENV" == "anvil" ]; then
-    # T-4: every deployed address (incl. proxies and factory clones created above) must run the
-    # profile.default bytes. Anvil only: live chains still carry pre-T-4 deployments.
-    echo -e "\n🔬 T-4: runtime == profile.default artifact for every config address..."
-    CONFIG_FILE="$CONFIG_FILE" forge script "contracts/script/checks/CheckDefaultArtifacts.s.sol:CheckDefaultArtifacts" \
-        --rpc-url "$RPC_URL" -vv
-fi
+# T-4: every deployed address (incl. the proxies and factory clones created above) must run the
+# profile.default bytes, on EVERY network. A network still carrying pre-T-4 bytecode fails here —
+# the honest answer. The plain `forge build` refreshes the default artifacts the verifier needs
+# (a previous `forge test --evm-version prague` overwrites the unsuffixed ones).
+echo -e "\n🔬 T-4: runtime == profile.default artifact for every config address..."
+forge build
+CONFIG_FILE="$CONFIG_FILE" forge script "contracts/script/checks/CheckDefaultArtifacts.s.sol:CheckDefaultArtifacts" \
+    --rpc-url "$RPC_URL" -vv
 
 echo -e "\n\033[0;32m✅ Test Environment is Prepared & Verified!\033[0m"
