@@ -1,13 +1,13 @@
 # D5c-1 halmos run
-# date_utc: 2026-09-13T10:34:24Z
-# git_head: 3c28ec21e25c7944fda6380aff40c8d289724cf5  dirty_src: 0
+# date_utc: 2026-09-13T12:33:49Z
+# git_head: 08172c7dbafe375648037853da07e793949e4218  dirty_src: 0
 # halmos: halmos 0.3.3
 # forge: forge Version: 1.7.1
 # FOUNDRY_PROFILE: <unset> (= default)
 # command: halmos --contract XPNTsV2RateHalmosTest --panic-error-codes '*' --match-test ^check_RATE_base
 # (trimmed: 5519 lines of compiler / Halmos parse warnings omitted)
 Running 2 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2RateHalmosTest
-[32m[PASS][0m check_RATE_base_initialize() (paths: 4, time: 0.11s, bounds: [])
+[32m[PASS][0m check_RATE_base_initialize() (paths: 4, time: 0.05s, bounds: [])
 WARNING  unknown deployed bytecode:                                             
          0x6080806040526004361015610012575f80fd5b5f905f3560e01c9081621b4db814611
          71d5750806306433b1b146116da57806308c2ddcd146116995780630ad026dd146115b7
@@ -204,7 +204,7 @@ WARNING  unknown deployed bytecode:
          57565b68056bc75e2d631000009150565b5050505068056bc75e2d6310000090565b600
          1600160a01b035f54163303611ad357565b63118cdaa760e01b5f523360045260245ffd
          fea164736f6c6343000821000a                                             
-[32m[PASS][0m check_RATE_base_realFactory() (paths: 5, time: 0.36s, bounds: [])
-Symbolic test result: 2 passed; 0 failed; time: 0.54s
+[32m[PASS][0m check_RATE_base_realFactory() (paths: 5, time: 0.19s, bounds: [])
+Symbolic test result: 2 passed; 0 failed; time: 0.29s
 
-# exit_code: 0  wall_seconds: 31
+# exit_code: 0  wall_seconds: 16

@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import signal
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -50,6 +51,9 @@ def _t(inp):
     return t
 
 
+WALL_CAP_S = 3600  # set from --part-wall-cap-s in main()
+
+
 def run_part(contract, check, part, label, out_dir, extra, suffix=""):
     log = os.path.join(out_dir, f"{check}.{label}{suffix}.log")
     env = dict(os.environ, D5C1_PART=str(part), PYTHONUNBUFFERED="1",
@@ -64,13 +68,25 @@ def run_part(contract, check, part, label, out_dir, extra, suffix=""):
             head = os.environ.get("D5C1_TREE", "<no git: see D5C1_TREE / mutation diff>")
         f.write(f"# git_head: {head}\n# tree_note: {os.environ.get('D5C1_TREE', '-')}\n")
         f.flush()
-        rc = subprocess.call(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
+        # own process group: on the wall cap we kill exactly this halmos and its solver children
+        pr = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+        walled = False
+        try:
+            rc = pr.wait(timeout=WALL_CAP_S)
+        except subprocess.TimeoutExpired:
+            walled = True
+            os.killpg(pr.pid, signal.SIGKILL)
+            rc = pr.wait()
+        if walled:
+            f.write(f"\n# WALL-CAP: killed after {WALL_CAP_S} s (per-partition cap); no result line = bounded/open\n")
         f.write(f"\n# exit_code: {rc}  wall_seconds: {int(time.time() - t0)}\n")
     text = open(log).read()
     m = re.search(r"\[(PASS|FAIL|TIMEOUT|ERROR)\]\s*\x1b?\[?0?m?\s*" + re.escape(check) + r"\([^)]*\) \(paths: (\d+), time: ([0-9.]+)s", text)
     res = {"part": label, "D5C1_PART": part, "exit": rc, "wall_s": int(time.time() - t0), "log": os.path.basename(log)}
     if m:
         res.update(result=m.group(1), paths=int(m.group(2)), time_s=float(m.group(3)))
+    elif "# WALL-CAP:" in text:
+        res.update(result="TIMEOUT-WALL", wall_cap_s=WALL_CAP_S)
     else:
         res.update(result="NO-RESULT-LINE")
     res["counterexample"] = "Counterexample" in text
@@ -89,12 +105,16 @@ def main():
     ap.add_argument("--retry-timeout-ms", type=int, default=900000,
                     help="parts whose result is TIMEOUT are re-run once with --solver-timeout-assertion <ms> "
                          "(0 = no retry); the first log is kept, the retry log ends in .retry.log")
+    ap.add_argument("--part-wall-cap-s", type=int, default=3600,
+                    help="hard wall-clock cap per partition; exceeded -> TIMEOUT-WALL (no retry)")
     argv = sys.argv[1:]
     extra = []
     if "--" in argv:
         k = argv.index("--")
         argv, extra = argv[:k], argv[k + 1:]
     a = ap.parse_args(argv)
+    global WALL_CAP_S
+    WALL_CAP_S = a.part_wall_cap_s
     os.makedirs(a.out_dir, exist_ok=True)
     parts = [(1, "OTHER")] + [(sel, f"{sig.split('(')[0]}-{sel:08x}") for sig, sel in selectors(ABI_OF[a.abi])]
     if a.only:
@@ -118,6 +138,15 @@ def main():
                 r["first_attempt"] = {k: results[i].get(k) for k in ("result", "paths", "time_s", "log")}
                 r["retry_solver_timeout_assertion_ms"] = a.retry_timeout_ms
                 results[i] = r
+    # merge with an earlier summary of the same check (a re-run of some partitions via --only)
+    sj = os.path.join(a.out_dir, f"{a.check}.summary.json")
+    if a.only and os.path.exists(sj):
+        old = {r["part"]: r for r in json.load(open(sj))["results"]}
+        for r in results:
+            if r["part"] in old:
+                r["previous_attempt"] = {k: old[r["part"]].get(k) for k in ("result", "paths", "time_s", "log")}
+            old[r["part"]] = r
+        results = list(old.values())
     verdict = "PASS" if all(r["result"] == "PASS" for r in results) else "NOT-ALL-PASS"
     summary = {"contract": a.contract, "check": a.check, "abi": ABI_OF[a.abi], "parts": len(results),
                "verdict": verdict, "wall_s": int(time.time() - t0), "extra_args": extra, "results": results}

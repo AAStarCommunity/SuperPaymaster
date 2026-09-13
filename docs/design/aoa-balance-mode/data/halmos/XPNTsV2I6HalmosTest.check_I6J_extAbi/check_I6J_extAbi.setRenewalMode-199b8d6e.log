@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: setRenewalMode-199b8d6e (D5C1_PART=429624686)
+# command: D5C1_PART=429624686 halmos --contract XPNTsV2I6HalmosTest --function check_I6J_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 08172c7dbafe375648037853da07e793949e4218
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I6HalmosTest
+setup: 0.05s (decode: 0.01s, run: 0.04s)
+[32m[PASS][0m check_I6J_extAbi() (paths: 4, time: 0.97s (paths: 0.97s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.02s
+
+[time] total: 9.73s (build: 2.11s, load: 6.60s, tests: 1.02s)
+
+# exit_code: 0  wall_seconds: 20

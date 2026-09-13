@@ -1,0 +1,16 @@
+XPNTsV2I6HalmosTest.check_I6J_coreAbi over xPNTsTokenV2: PASS (15 parts, wall 287 s)
+  OTHER                                    PASS            paths=3 time=0.9s exit=0
+  approve-095ea7b3                         PASS            paths=4 time=0.44s exit=0
+  burn-9dc29fac                            PASS            paths=3538 time=224.57s exit=0
+  burn-42966c68                            PASS            paths=7 time=0.62s exit=0
+  initialize-dd1ea56c                      PASS            paths=2 time=0.4s exit=0
+  permit-d505accf                          PASS            paths=9 time=0.79s exit=0
+  releaseStaleCredit-de4880ca              PASS            paths=5 time=1.13s exit=0
+  releaseStaleLock-f7b3d30d                PASS            paths=11 time=1.06s exit=0
+  renewForSelf-e8c122c7                    PASS            paths=5 time=0.5s exit=0
+  settleCredit-1baf4408                    PASS            paths=25 time=47.7s exit=0
+  settleLocked-7e48bbce                    PASS            paths=4 time=0.46s exit=0
+  transfer-a9059cbb                        PASS            paths=9 time=1.35s exit=0
+  transferFrom-23b872dd                    PASS            paths=3714 time=228.97s exit=0
+  tryLockForGas-ec290731                   PASS            paths=952 time=65.95s exit=0
+  tryReserveCredit-de9e4cae                PASS            paths=93 time=15.59s exit=0

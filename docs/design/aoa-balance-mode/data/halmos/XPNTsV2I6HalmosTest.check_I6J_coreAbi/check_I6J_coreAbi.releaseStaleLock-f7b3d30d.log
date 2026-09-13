@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: releaseStaleLock-f7b3d30d (D5C1_PART=4155757325)
+# command: D5C1_PART=4155757325 halmos --contract XPNTsV2I6HalmosTest --function check_I6J_coreAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 08172c7dbafe375648037853da07e793949e4218
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I6HalmosTest
+setup: 0.10s (decode: 0.03s, run: 0.07s)
+[32m[PASS][0m check_I6J_coreAbi() (paths: 11, time: 1.06s (paths: 1.06s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 1.16s
+
+[time] total: 10.57s (build: 2.17s, load: 7.24s, tests: 1.16s)
+
+# exit_code: 0  wall_seconds: 21

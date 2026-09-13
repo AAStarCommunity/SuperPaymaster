@@ -1,0 +1,14 @@
+# D5c1 partitioned run
+# part: proposeSP-95483c15 (D5C1_PART=2504539157)
+# command: D5C1_PART=2504539157 halmos --contract XPNTsV2I6HalmosTest --function check_I6J_extAbi --panic-error-codes * --default-bytes-lengths 0,65 --statistics
+# git_head: 08172c7dbafe375648037853da07e793949e4218
+# tree_note: -
+# (trimmed: 5518 lines of compiler / Halmos parse warnings omitted)
+Running 1 tests for contracts/test/halmos/XPNTsV2Halmos.t.sol:XPNTsV2I6HalmosTest
+setup: 0.05s (decode: 0.02s, run: 0.03s)
+[32m[PASS][0m check_I6J_extAbi() (paths: 20, time: 2.23s (paths: 2.23s, models: 0.00s), bounds: [])
+Symbolic test result: 1 passed; 0 failed; time: 2.29s
+
+[time] total: 11.09s (build: 2.01s, load: 6.80s, tests: 2.29s)
+
+# exit_code: 0  wall_seconds: 21

@@ -1,0 +1,180 @@
+{
+ "contract": "XPNTsV2I6HalmosTest",
+ "check": "check_I6J_coreAbi",
+ "abi": "xPNTsTokenV2",
+ "parts": 15,
+ "verdict": "PASS",
+ "wall_s": 287,
+ "extra_args": [
+  "--default-bytes-lengths",
+  "0,65",
+  "--statistics"
+ ],
+ "results": [
+  {
+   "part": "OTHER",
+   "D5C1_PART": 1,
+   "exit": 0,
+   "wall_s": 17,
+   "log": "check_I6J_coreAbi.OTHER.log",
+   "result": "PASS",
+   "paths": 3,
+   "time_s": 0.9,
+   "counterexample": false
+  },
+  {
+   "part": "approve-095ea7b3",
+   "D5C1_PART": 157198259,
+   "exit": 0,
+   "wall_s": 17,
+   "log": "check_I6J_coreAbi.approve-095ea7b3.log",
+   "result": "PASS",
+   "paths": 4,
+   "time_s": 0.44,
+   "counterexample": false
+  },
+  {
+   "part": "burn-9dc29fac",
+   "D5C1_PART": 2646777772,
+   "exit": 0,
+   "wall_s": 241,
+   "log": "check_I6J_coreAbi.burn-9dc29fac.log",
+   "result": "PASS",
+   "paths": 3538,
+   "time_s": 224.57,
+   "counterexample": false
+  },
+  {
+   "part": "burn-42966c68",
+   "D5C1_PART": 1117154408,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6J_coreAbi.burn-42966c68.log",
+   "result": "PASS",
+   "paths": 7,
+   "time_s": 0.62,
+   "counterexample": false
+  },
+  {
+   "part": "initialize-dd1ea56c",
+   "D5C1_PART": 3709773164,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6J_coreAbi.initialize-dd1ea56c.log",
+   "result": "PASS",
+   "paths": 2,
+   "time_s": 0.4,
+   "counterexample": false
+  },
+  {
+   "part": "permit-d505accf",
+   "D5C1_PART": 3573918927,
+   "exit": 0,
+   "wall_s": 20,
+   "log": "check_I6J_coreAbi.permit-d505accf.log",
+   "result": "PASS",
+   "paths": 9,
+   "time_s": 0.79,
+   "counterexample": false
+  },
+  {
+   "part": "releaseStaleCredit-de4880ca",
+   "D5C1_PART": 3729293514,
+   "exit": 0,
+   "wall_s": 21,
+   "log": "check_I6J_coreAbi.releaseStaleCredit-de4880ca.log",
+   "result": "PASS",
+   "paths": 5,
+   "time_s": 1.13,
+   "counterexample": false
+  },
+  {
+   "part": "releaseStaleLock-f7b3d30d",
+   "D5C1_PART": 4155757325,
+   "exit": 0,
+   "wall_s": 21,
+   "log": "check_I6J_coreAbi.releaseStaleLock-f7b3d30d.log",
+   "result": "PASS",
+   "paths": 11,
+   "time_s": 1.06,
+   "counterexample": false
+  },
+  {
+   "part": "renewForSelf-e8c122c7",
+   "D5C1_PART": 3904971463,
+   "exit": 0,
+   "wall_s": 20,
+   "log": "check_I6J_coreAbi.renewForSelf-e8c122c7.log",
+   "result": "PASS",
+   "paths": 5,
+   "time_s": 0.5,
+   "counterexample": false
+  },
+  {
+   "part": "settleCredit-1baf4408",
+   "D5C1_PART": 464471048,
+   "exit": 0,
+   "wall_s": 65,
+   "log": "check_I6J_coreAbi.settleCredit-1baf4408.log",
+   "result": "PASS",
+   "paths": 25,
+   "time_s": 47.7,
+   "counterexample": false
+  },
+  {
+   "part": "settleLocked-7e48bbce",
+   "D5C1_PART": 2118695886,
+   "exit": 0,
+   "wall_s": 19,
+   "log": "check_I6J_coreAbi.settleLocked-7e48bbce.log",
+   "result": "PASS",
+   "paths": 4,
+   "time_s": 0.46,
+   "counterexample": false
+  },
+  {
+   "part": "transfer-a9059cbb",
+   "D5C1_PART": 2835717307,
+   "exit": 0,
+   "wall_s": 20,
+   "log": "check_I6J_coreAbi.transfer-a9059cbb.log",
+   "result": "PASS",
+   "paths": 9,
+   "time_s": 1.35,
+   "counterexample": false
+  },
+  {
+   "part": "transferFrom-23b872dd",
+   "D5C1_PART": 599290589,
+   "exit": 0,
+   "wall_s": 245,
+   "log": "check_I6J_coreAbi.transferFrom-23b872dd.log",
+   "result": "PASS",
+   "paths": 3714,
+   "time_s": 228.97,
+   "counterexample": false
+  },
+  {
+   "part": "tryLockForGas-ec290731",
+   "D5C1_PART": 3962111793,
+   "exit": 0,
+   "wall_s": 84,
+   "log": "check_I6J_coreAbi.tryLockForGas-ec290731.log",
+   "result": "PASS",
+   "paths": 952,
+   "time_s": 65.95,
+   "counterexample": false
+  },
+  {
+   "part": "tryReserveCredit-de9e4cae",
+   "D5C1_PART": 3734916270,
+   "exit": 0,
+   "wall_s": 33,
+   "log": "check_I6J_coreAbi.tryReserveCredit-de9e4cae.log",
+   "result": "PASS",
+   "paths": 93,
+   "time_s": 15.59,
+   "counterexample": false
+  }
+ ]
+}
