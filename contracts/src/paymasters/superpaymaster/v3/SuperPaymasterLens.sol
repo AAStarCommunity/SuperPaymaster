@@ -8,7 +8,12 @@ import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol"
 import { IVersioned } from "src/interfaces/IVersioned.sol";
 import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
 
+/// @dev Same shape as SuperPaymaster.GasParams / PendingGasParams (exp/params).
+struct LensGasParams { uint32 minPostOpGas; uint32 settleGasBound; uint32 cWrap; uint32 cPostop; }
+struct LensPendingGasParams { uint32 minPostOpGas; uint32 settleGasBound; uint32 cWrap; uint32 cPostop; uint64 eta; }
+
 interface ISPLensView {
+    function gasParams() external view returns (LensGasParams memory current, LensPendingGasParams memory pending);
     function version() external view returns (string memory);
     function entryPoint() external view returns (IEntryPoint);
     function operators(address operator) external view returns (
@@ -35,7 +40,7 @@ interface ISPLensView {
  *         Kept in lock-step with validation by the D-layer consistency test.
  */
 contract SuperPaymasterLens is IVersioned {
-    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.0");
+    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.1-exp");
 
     // --- copies of SuperPaymaster 5.5.0 internal constants ---
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
@@ -43,7 +48,7 @@ contract SuperPaymasterLens is IVersioned {
     uint256 internal constant RATE_OFFSET = 72;
     uint256 internal constant TOKEN_OFFSET = 104;
     uint256 internal constant FLAGS_OFFSET = 124;
-    uint256 internal constant MIN_POST_OP_GAS = 200_000;
+    // exp/params: MIN_POST_OP_GAS is read from SP (`gasParams()`), not copied.
     uint256 internal constant BPS_DENOMINATOR = 10_000;
     uint256 internal constant VALIDATION_BUFFER_BPS = 1000;
     uint8 internal constant FLAG_SP_RENEW = 1;
@@ -66,7 +71,12 @@ contract SuperPaymasterLens is IVersioned {
     bytes32 public constant DRYRUN_CREDIT_REJECTED          = bytes32("CREDIT_REJECTED");
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymasterLens-1.0.0";
+        return "SuperPaymasterLens-1.1.0-exp";
+    }
+
+    function _minPostOpGas(ISPLensView s) private view returns (uint256) {
+        (LensGasParams memory g, ) = s.gasParams();
+        return g.minPostOpGas;
     }
 
     /// @notice Would `sp.validatePaymasterUserOp(userOp, hash, maxCost)` sponsor this op, and if
@@ -84,7 +94,7 @@ contract SuperPaymasterLens is IVersioned {
         if (isPaused) return (false, DRYRUN_OPERATOR_PAUSED);
         if (!s.isEligibleForSponsorship(userOp.sender)) return (false, DRYRUN_USER_NOT_ELIGIBLE);
         if (pmd.length >= POSTOP_GAS_OFFSET + 16
-            && uint128(bytes16(pmd[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16])) < MIN_POST_OP_GAS) {
+            && uint128(bytes16(pmd[POSTOP_GAS_OFFSET:POSTOP_GAS_OFFSET + 16])) < _minPostOpGas(s)) {
             return (false, DRYRUN_POSTOP_GAS_TOO_LOW);
         }
         (uint48 lastTime, bool blocked) = s.userOpState(operator, userOp.sender);

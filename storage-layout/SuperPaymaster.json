@@ -441,11 +441,85 @@
     }
   },
   {
-    "label": "__gap",
+    "label": "_gasParams",
     "slot": "38",
     "offset": 0,
     "type": {
-      "array": "uint256[27]",
+      "struct": "struct SuperPaymaster.GasParams",
+      "members": [
+        {
+          "label": "minPostOpGas",
+          "slot": "0",
+          "offset": 0,
+          "type": "uint32"
+        },
+        {
+          "label": "settleGasBound",
+          "slot": "0",
+          "offset": 4,
+          "type": "uint32"
+        },
+        {
+          "label": "cWrap",
+          "slot": "0",
+          "offset": 8,
+          "type": "uint32"
+        },
+        {
+          "label": "cPostop",
+          "slot": "0",
+          "offset": 12,
+          "type": "uint32"
+        }
+      ]
+    }
+  },
+  {
+    "label": "_pendingGasParams",
+    "slot": "39",
+    "offset": 0,
+    "type": {
+      "struct": "struct SuperPaymaster.PendingGasParams",
+      "members": [
+        {
+          "label": "minPostOpGas",
+          "slot": "0",
+          "offset": 0,
+          "type": "uint32"
+        },
+        {
+          "label": "settleGasBound",
+          "slot": "0",
+          "offset": 4,
+          "type": "uint32"
+        },
+        {
+          "label": "cWrap",
+          "slot": "0",
+          "offset": 8,
+          "type": "uint32"
+        },
+        {
+          "label": "cPostop",
+          "slot": "0",
+          "offset": 12,
+          "type": "uint32"
+        },
+        {
+          "label": "eta",
+          "slot": "0",
+          "offset": 16,
+          "type": "uint64"
+        }
+      ]
+    }
+  },
+  {
+    "label": "__gap",
+    "slot": "40",
+    "offset": 0,
+    "type": {
+      "array": "uint256[25]",
       "base": "uint256"
     }
   }

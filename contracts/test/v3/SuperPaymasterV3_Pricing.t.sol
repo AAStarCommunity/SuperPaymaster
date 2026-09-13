@@ -328,12 +328,12 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         op.paymasterAndData = _pmd();
     }
 
-    /// @notice R10-M3: bufWei = (postOpGas + ceil((callGas + postOpGas) * 10 / 100) + C_WRAP) * feePerGas,
+    /// @notice R10-M3 (exp/buffer): bufWei = (C_POSTOP + ceil((callGas + postOpGas) * 10 / 100) + C_WRAP) * feePerGas,
     ///         charge = min(a0, ceil(calc_snap(actualGasCost + bufWei) * (BPS + fee) / BPS)).
-    ///         postOpGas = 200_000, callGas = 100_000, C_WRAP = 30_000, feePerGas = 1 gwei:
-    ///         bufWei = (200_000 + 30_000 + 30_000) * 1e9 = 2.6e14 wei.
-    ///         calc(1e14 + 2.6e14) at $2000 / $0.02 = 3.6e19 aPNTs; charge = 3.96e19.
-    ///         a0 = ceil(calc(1e15) * 1.2) = 1.2e20, so the refund is 8.04e19.
+    ///         C_POSTOP = 175_000 (exp/params default), postOpGas = 200_000, callGas = 100_000, C_WRAP = 5_000, feePerGas = 1 gwei:
+    ///         bufWei = (175_000 + 30_000 + 5_000) * 1e9 = 2.1e14 wei.
+    ///         calc(1e14 + 2.1e14) at $2000 / $0.02 = 3.1e19 aPNTs; charge = 3.41e19.
+    ///         a0 = ceil(calc(1e15) * 1.2) = 1.2e20, so the refund is 8.59e19.
     ///         Discriminates the buffer: with bufWei = 0 the charge would be 1.1e19.
     function test_PostOp_ConservativeBuffer_R10M3() public {
         uint256 maxCost = 1e15;
@@ -347,13 +347,13 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         assertEq(5000 ether - balAfterVal, 1.2e20, "a0 = ceil(calc(maxCost) * 1.2)");
 
         vm.expectEmit(true, true, false, true, address(paymaster));
-        emit ISuperPaymaster.TransactionSponsored(operator1, user1, 3.6e19, 3.96e19);
+        emit ISuperPaymaster.TransactionSponsored(operator1, user1, 3.1e19, 3.41e19);
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
 
         (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
-        assertEq(uint256(balFinal) - balAfterVal, 1.2e20 - 3.96e19, "operator refund = a0 - charge");
-        assertEq(paymaster.protocolRevenue(), 3.96e19, "revenue = charge");
+        assertEq(uint256(balFinal) - balAfterVal, 1.2e20 - 3.41e19, "operator refund = a0 - charge");
+        assertEq(paymaster.protocolRevenue(), 3.41e19, "revenue = charge");
     }
 
     /// @notice §10.3: c = min(a0, ...). An actualGasCost far above maxCost is charged exactly a0

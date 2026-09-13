@@ -44,7 +44,7 @@
 | U-09 | unit-test | `31921fbc`（exp/buffer-and-params Part A；`git archive`，未改动） | `data/g-layer/31921fbc-exp-partA-PostOpBound.log` L27（W_postop 146,600）、L14（CREDIT 首次用户路径）、L28–L31（C_POSTOP 170k ≥ 146,600 × 1.15 = 168,590；wrap 1,702 ≤ 5k） | 在 `git archive 31921fbc` 的树里：`forge test --match-path contracts/test/v2/SuperPaymasterV55PostOpBound.t.sol -vv` | sha256(data/g-layer/31921fbc-exp-partA-PostOpBound.log)=3e654ea66fc2bb7ce0a2fd3af450130c4168c3e36e3a4030c97304e8ccd2d662 |
 | U-10 | unit-test | this commit（= `a3eb0945` 的 contracts 树 + 导出钩子） | `data/unit-test/forge-test-cancun.log` 末行：126 个套件，1600 passed / 0 failed / 49 skipped | `forge test`（Cancun，导出钩子关闭） | sha256(data/unit-test/forge-test-cancun.log)=c6d3aa2b01cf8fb8b254814f34e602558c25e622952ab44e2b62f8e4ef211671 |
 | U-11 | unit-test（构建产物） | `3b0d4821` / `c5fc803c` / `3e7ddd9a` / this commit / `31921fbc` | `data/sizes/sizes-*.json`（`.rows[]`：按产物自身 metadata 选 runs / evm，`sourceKeccakMatchesTree` 核对源码） | `node script/evidence/sizes.mjs <树根>`（历史 commit 用 `git archive` + `forge build`） | sha256(data/sizes/sizes-3b0d4821-sp542-baseline.json)=c3bd07ff38fef7ed525d29359385a3f155be4661a93e403787886cf4b4c29273；sha256(data/sizes/sizes-c5fc803c.json)=997cbcfe1a3dfc9fe67e4875be69d533033e625ddefd9ecd91ee91a89d5a0ab1；sha256(data/sizes/sizes-3e7ddd9a.json)=cd96208bc48aaaf5264fb09e0863efdc9802a0cf4a53ae7fc6e9cdffbd2b9a28；sha256(data/sizes/sizes-df941d57.json)=b13bbd7dd202d223ab2403e9dbf701e987f188175b90be584fa2f2761a01a064；sha256(data/sizes/sizes-31921fbc-exp-partA.json)=5955c1e346c14ca1076c1ab436ade5c0ca37b2ea2db3eead77a79db822e56b68 |
-| U-12 | unit-test | **PENDING（exp/buffer-and-params）** | 预定：`data/g2-expA-31921fbc-*.jsonl`、`data/g2-expB-e0cf0dc8-*.jsonl`（同一 schema，自带 `formula` 标签）+ 同一脚本的 stats | 同 U-01 / U-02（钩子原样移植，只有 `bufGas` 一行按该分支的收费预言改） | — |
+| U-12 | unit-test | Part A = `git archive 31921fbc` + 导出钩子（`data/g2-31921fbc-partA.hook.diff`）；Part B = `6c3a9a0e`（exp/buffer-and-params，已合入本分支） | `data/g2-31921fbc-partA.jsonl`、`data/g2-6c3a9a0e-partB.jsonl`（各 6,069 笔 = 4,398 结算 + 1,671 注入失败；`formula` 标签 `A_Cpostop170k_Cwrap5k` / `B_Cpostop175k_Cwrap5k_default`）+ `*.stats.txt/json` + `*.forge.log`；变异证据 `data/mutations/`（b-nolen-asm 等价变异、b-slice、c-384-as-legacy） | 见 `data/README.md` 末节「Part A / Part B exports」；`node script/evidence/overpay-stats.mjs <file>`（0 处不一致、0 补贴；重跑逐字节相同；Codex 第 5 轮复核通过） | sha256(data/g2-31921fbc-partA.jsonl)=fef179f9feddf086d350082909a811b4202dfbd441a1299187e9cc4625f3f694；sha256(data/g2-6c3a9a0e-partB.jsonl)=3f018408eb57b1ce702c9bc05218e05c21c2fa90c9eb360bf01b324f9b028c65 |
 | T-01 | 模板 | this commit | `data/templates/p2-sepolia-runbook.csv`、`p4-deployments.csv`、`p4-op-mainnet-ops.csv`（只有表头；规范见 `03-final-spec.md` §6.1） | — | sha256(data/templates/p4-op-mainnet-ops.csv)=a882a46b1420aa921634327e04ae01d760f5088a7b2a180d8e49461eb0ac6b38 |
 
 ## 2. 登记册数字 → 证据
@@ -160,7 +160,8 @@
 | 同上，postOpGasLimit ≤ MIN+50k | 41.8 / 61.3 / 81.5 %，最小 21.8 %（n 3,489） | U-02 stats L8 | 41.8 / 61.3 / 81.5 %，最小 21.8 % | 一致（U-03 L39–L42） |
 | 同上，postOpGasLimit 1.0–1.5M | 243.4 / 305.3 / 371.1 % | U-02 stats L9（谓词 `postOpGasLimit ≥ 1,000,000`，n 900） | 243.4 / 305.3 / 371.1 % | 一致。注意：这一组 main 分支的 fuzz 本身不输出，数字最早见于 `31921fbc` 的 commit 信息（实验分支 fuzz 的旧公式模式）；现在第一次有逐笔原始数据 |
 | 修复前（`4fa67967`）36.6 / 58.6 / 76.6；75.9 / 251 / 342 | 已被替代 | `D5-traceability.md` L47–L52 | — | **MISSING（原始数据）**，已被取代，不再引用 |
-| Part A（C_POSTOP 170k，C_WRAP 5k）；m 敏感性；Part B（175k 默认、全下限） | 见登记册 | U-12 | — | **PENDING（exp/buffer-and-params）**，同一 schema / 同一脚本 |
+| Part A `31921fbc`（C_POSTOP 170k，C_WRAP 5k） | 见登记册 | U-12 | 全部 22.6 / 37.4 / 45.6 %；≤ 250k 23.7 / 38.3 / 45.6 %；≥ 1M 18.3 / 28.8 / 32.5 % | 同一 schema / 同一脚本重算 |
+| Part B `6c3a9a0e`（默认参数 175k / 5k） | 见登记册 | U-12 | 全部 23.7 / 38.8 / 47.2 %；≤ 250k 24.9 / 39.7 / 47.2 %；≥ 1M 19.3 / 29.9 / 33.7 % | 同上；m 敏感性与全下限组合只有 fuzz 断言（零补贴），未做逐笔导出 |
 
 ### §2.6 真实 bundler 测试（G1，本地 anvil Osaka）
 
@@ -213,8 +214,7 @@
 
 | 条目 | 由谁 / 在哪 |
 |---|---|
-| U-12 Part A / Part B 的 G2 逐笔导出与统计（含 m 敏感性、全下限组合） | exp/buffer-and-params，另一个 agent；同一 schema（`data/README.md` §1）与同一脚本 |
-| Part B 体积、W_postop 147,478 / 146,817 的日志 | 同上 |
+| Part B 体积（exp 实测 23,541 B；合入本分支后 23,568 B，余量 1,008 < 1,024 门槛 → D5b 拆分）与 W_postop 146,853 的原始日志 | D5b 时按 U-11 的 `sizes.mjs` 采集 |
 | P2 / P4 的 onchain-real 数据 | 按 `03-final-spec.md` §6 第 4 列与 §6.1 采集 |
 
 ### 本次发现（需要更正别处的文字）

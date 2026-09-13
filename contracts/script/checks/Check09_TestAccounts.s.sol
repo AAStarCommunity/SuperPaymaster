@@ -7,6 +7,7 @@ import "src/core/Registry.sol";
 import "src/tokens/GToken.sol";
 import "src/tokens/xPNTsToken.sol";
 import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import { SPReleaseVersion } from "../v3/SPReleaseVersion.sol";
 import {Paymaster} from "src/paymasters/v4/Paymaster.sol";
 import {PaymasterFactory} from "src/paymasters/v4/core/PaymasterFactory.sol";
 
@@ -69,7 +70,7 @@ contract Check09_TestAccounts is Script {
         // 2b. SuperPaymaster 5.5.0: the operator token must be an xPNTs v2 token issued to Anni by
         //     the factory SP is wired to, and the price cache must be live (else AA32/AA33).
         SuperPaymaster spc = SuperPaymaster(payable(superPaymaster));
-        if (keccak256(bytes(spc.version())) == keccak256("SuperPaymaster-5.5.0")) {
+        if (keccak256(bytes(spc.version())) == keccak256(bytes(SPReleaseVersion.SP))) {
             (bool ok, bytes memory ret) = xpntsToken.staticcall(abi.encodeWithSignature("BALANCE_MODE_VERSION()"));
             require(ok && ret.length == 32 && abi.decode(ret, (uint16)) == 1, "Check09: Anni SP token is not xPNTs v2");
             (bool ok2, bytes memory ret2) =

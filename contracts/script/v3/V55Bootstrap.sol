@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
+import { SPReleaseVersion } from "./SPReleaseVersion.sol";
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
 import {DefaultArtifacts} from "./DefaultArtifacts.sol";
@@ -67,12 +68,12 @@ interface ISPV55Script {
  *         `require`s the state it claims — a call that silently no-ops fails the script.
  */
 abstract contract V55Bootstrap is DefaultArtifacts {
-    string internal constant SP_V55_VERSION = "SuperPaymaster-5.5.0";
+    string internal constant SP_V55_VERSION = SPReleaseVersion.SP;
     string internal constant XPNTS_V2_VERSION = "XPNTs-4.0.0";
     string internal constant FACTORY_V2_VERSION = "xPNTsFactory-3.0.0-v2";
     string internal constant AOA_REG_VERSION = "AOAProtocolRegistry-1.0.0";
     string internal constant TIER_SOURCE_VERSION = "GlobalTierSource-1.0.0";
-    string internal constant LENS_VERSION = "SuperPaymasterLens-1.0.0";
+    string internal constant LENS_VERSION = SPReleaseVersion.LENS;
 
     struct V55Stack {
         address tierSource;

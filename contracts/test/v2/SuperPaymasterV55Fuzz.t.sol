@@ -91,7 +91,19 @@ contract SuperPaymasterV55FuzzTest is Test {
     bytes32 constant EP_CODEHASH = 0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58;
 
     uint256 constant MIN_POST_OP_GAS = 200_000; // SuperPaymaster.MIN_POST_OP_GAS
-    uint256 constant C_WRAP = 30_000;           // SuperPaymaster.C_WRAP_GAS (pinned by V55Test R10M3)
+    /// @dev Buffer constants of the charge oracle (exp/buffer). Defaults = the source values
+    ///      (C_POSTOP_GAS 170k, C_WRAP_GAS 5k; pinned by SuperPaymasterV55PostOpBoundTest and
+    ///      V55Test R10M3). Env overrides exist ONLY for the negative control / m sweep, where the
+    ///      source constant is changed in lock-step: G2_C_POSTOP, G2_C_WRAP; G2_BUF_OLD=true selects
+    ///      the pre-experiment formula (postOpGasLimit + ... + 30k) for the OLD-vs-NEW comparison;
+    ///      G2_COUNT_SUBSIDY=true counts subsidised ops instead of failing on the first one.
+    uint256 private _cPostop;
+    uint256 private _cWrap;
+    bool private _bufOld;
+    bool private _countSubsidy;
+    bool private _cPostopFromEnv;
+    uint256 private _minPost; // SP gasParams().minPostOpGas (exp/params)
+    uint256 private _settle;  // SP gasParams().settleGasBound
     uint256 constant VERIF_GAS = 400_000;
     uint256 constant PM_VERIF_GAS = 700_000;
     uint256 constant PVG = 50_000;
@@ -211,6 +223,8 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 P;
         uint256 fpg;
         SuperPaymaster.OpCtx ctx;
+        uint256 ctxLen;
+        uint256 ctxSnap; // trailing word 12 of a 384-byte context
         // independent expectation
         uint256 chargeExp;
         uint256 xcExp;
@@ -291,6 +305,12 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 nRatio;
         uint256 sumRatioPpm;
         uint256[] tightPpm; // same, only ops with postOpGasLimit <= MIN + 50k
+        uint256[] largePpm; // same, only ops with postOpGasLimit in [1.0M, 1.5M]
+        uint256 nLarge;
+        uint256 sumLargePpm;
+        uint256 subsidyCnt;  // ops whose net-of-fee charge (ETH) < actualGasCost
+        uint256 subsidyWei;
+        uint256 maxSubsidyPpm;
         uint256 nTight;
         uint256 sumTightPpm;
         uint256 sumChargeEth;
@@ -304,6 +324,9 @@ contract SuperPaymasterV55FuzzTest is Test {
     // ------------------------------------------------------------------
 
     function setUp() public {
+        _cPostopFromEnv = vm.envOr("G2_C_POSTOP", uint256(0)) != 0;
+        _bufOld = vm.envOr("G2_BUF_OLD", false);
+        _countSubsidy = vm.envOr("G2_COUNT_SUBSIDY", false);
         vm.etch(EP, vm.parseBytes(vm.readFile("contracts/test/fixtures/entrypoint-v0.7.runtime.hex")));
         vm.etch(SENDER_CREATOR, vm.parseBytes(vm.readFile("contracts/test/fixtures/sendercreator-v0.7.runtime.hex")));
         assertEq(EP.codehash, EP_CODEHASH, "canonical EntryPoint v0.7 bytecode");
@@ -331,6 +354,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         sp.updatePrice();
         sp.deposit{value: 100 ether}();
+        _loadParams();
         sp.transferOwnership(address(relay)); // owner actions from now on go through the relay
         vm.stopPrank();
 
@@ -370,6 +394,46 @@ contract SuperPaymasterV55FuzzTest is Test {
     // Tests
     // ==================================================================
 
+    /// @notice Same campaign with the ALL-FLOOR parameter tuple (MIN 175k, SETTLE 155k, C_WRAP 5k,
+    ///         C_POSTOP 175k) configured through SP's queue/execute (Codex B-HIGH-2).
+    /// forge-config: default.isolate = true
+    /// forge-config: default.fuzz.runs = 1000
+    /// forge-config: default.fuzz.seed = "0xd5c4"
+    /// forge-config: default.fuzz.dictionary.dictionary_weight = 0
+    function testFuzz_G2_floor_params(uint256 seed) public {
+        _configureFloor();
+        Stats memory st = _newStats(64);
+        _campaign(seed, st);
+        assertEq(st.subsidyCnt, 0, "DSR no-subsidy: subsidised settled ops in this campaign == 0");
+    }
+
+    /// @notice Coverage replay (fixed seeds) under the all-floor tuple.
+    /// forge-config: default.isolate = true
+    function test_G2_coverage_replay_floor_params() public {
+        _configureFloor();
+        _coverage();
+    }
+
+    /// @dev exp/params: the oracle uses exactly what SP says it uses (env overrides only for the
+    ///      negative control / OLD-formula comparison of Part A).
+    function _loadParams() internal {
+        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        _minPost = g.minPostOpGas;
+        _settle = g.settleGasBound;
+        _cPostop = vm.envOr("G2_C_POSTOP", uint256(g.cPostop));
+        _cWrap = vm.envOr("G2_C_WRAP", uint256(g.cWrap));
+    }
+
+    function _configureFloor() internal {
+        _owner(abi.encodeCall(SuperPaymaster.queueGasParams, (175_000, 155_000, 5_000, 175_000)));
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        _owner(abi.encodeCall(SuperPaymaster.executeGasParams, ()));
+        sp.updatePrice();
+        _loadParams();
+        assertEq(_settle, 155_000, "precondition: all-floor tuple active");
+        assertEq(_minPost, 175_000, "precondition: all-floor tuple active");
+    }
+
     /// @notice G2 inline fuzz: every run is one seeded campaign; all per-op / per-bundle /
     ///         per-operator / per-release assertions run inside. Fixed seed for reproducibility.
     /// forge-config: default.isolate = true
@@ -379,6 +443,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     function testFuzz_G2_I8_I9_I10_conservation(uint256 seed) public {
         Stats memory st = _newStats(64);
         _campaign(seed, st);
+        assertEq(st.subsidyCnt, 0, "DSR no-subsidy: subsidised settled ops in this campaign == 0");
     }
 
     /// @notice G2 coverage gate: replays COVERAGE_SEEDS fixed seeds through the SAME campaign body
@@ -391,6 +456,10 @@ contract SuperPaymasterV55FuzzTest is Test {
     ///      resets only the test frame's own counter; every isolated handleOps tx is metered normally.
     /// forge-config: default.isolate = true
     function test_G2_coverage_replay_fixed_seeds() public {
+        _coverage();
+    }
+
+    function _coverage() internal {
         Stats memory st = _newStats(RATIO_CAP);
         {
             string memory p = vm.envOr("G2_EXPORT_PATH", string(""));
@@ -438,6 +507,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertGt(st.evEmergency, 0, "coverage: token emergency stops");
         assertGt(st.evRate, 0, "coverage: exchange-rate changes");
         assertGt(st.evPrice, 0, "coverage: price changes");
+        assertEq(st.subsidyCnt, 0, "DSR no-subsidy: subsidised settled ops over the campaign == 0");
         assertEq(st.unbCnt, 0, "I9: unbacked sponsorship count over the campaign == 0");
         assertEq(st.unbAmt, 0, "I9: unbacked sponsorship amount over the campaign == 0");
     }
@@ -564,9 +634,9 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.exec = e < 45 ? EX_OK : e < 63 ? EX_MOVE : e < 82 ? EX_REVERT : EX_OOG;
             uint256 pkd = _r(100);
             o.postGas = uint128(
-                pkd < 8 ? MIN_POST_OP_GAS - 1
-                : pkd < 38 ? MIN_POST_OP_GAS
-                : pkd < 80 ? MIN_POST_OP_GAS + _r(50_001)
+                pkd < 8 ? _minPost - 1
+                : pkd < 38 ? _minPost
+                : pkd < 80 ? _minPost + _r(50_001)
                 : 1_000_000 + _r(500_001)
             );
             o.callGas = uint128(
@@ -592,7 +662,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         xPNTsTokenV2 k = tok[o.t];
         (, , bool paused, , , , , , ) = sp.operators(opr[o.t]);
         (, bool blocked) = sp.userOpState(opr[o.t], u);
-        hardSP = o.postGas < MIN_POST_OP_GAS || !sp.sbtHolders(u) || blocked || paused;
+        hardSP = o.postGas < _minPost || !sp.sbtHolders(u) || blocked || paused;
         hardTok = k.emergencyDisabled() || k.spenderDisabled(address(sp), u) || o.a0 > k.maxSingleTxLimit();
     }
 
@@ -796,7 +866,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                     "model: the first predicted-invalid op is rejected by SP (AA34) at its index (k-th op rejected)");
                 x.os[firstNi].rejected = true;
                 st.rejected++;
-                if (x.os[firstNi].postGas < MIN_POST_OP_GAS) st.rejMinMinus1++;
+                if (x.os[firstNi].postGas < _minPost) st.rejMinMinus1++;
                 if (x.os[firstNi].rejSolv) st.rejSolvency++;
                 continue;
             }
@@ -832,6 +902,12 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.P = P;
             o.fpg = fpg;
             o.ctx = c;
+            o.ctxLen = ctxb.length;
+            if (ctxb.length == 384) {
+                uint256 w;
+                assembly ("memory-safe") { w := mload(add(ctxb, 384)) }
+                o.ctxSnap = w;
+            }
         }
     }
 
@@ -964,6 +1040,18 @@ contract SuperPaymasterV55FuzzTest is Test {
             }
 
             if (o.settled) {
+                // ---- DSR (zero-tolerance hard gate, checked FIRST): the user's net-of-fee charge
+                //      covers what EntryPoint took from SP's deposit for this op
+                uint256 eth = _chargeEthNet(x, o.spCharge);
+                if (eth < o.G) {
+                    st.subsidyCnt++;
+                    st.subsidyWei += o.G - eth;
+                    uint256 sppm = (o.G - eth) * 1e6 / o.G;
+                    if (sppm > st.maxSubsidyPpm) st.maxSubsidyPpm = sppm;
+                }
+                if (!_countSubsidy) {
+                    assertGe(eth, o.G, "DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost");
+                }
                 _checkExactCharge(x, o);
                 st.exactChecks++;
                 if (ethMoved) st.postAfterEthMove++;
@@ -972,18 +1060,19 @@ contract SuperPaymasterV55FuzzTest is Test {
                 if (!o.success) st.opReverted++;
                 if (o.exec == EX_OOG) st.oogSettled++;
                 if (o.kept) st.kept++;
-                if (o.postGas == MIN_POST_OP_GAS) st.atMinSettled++;
-                // ---- DSR: the user's (net-of-fee) charge covers what EntryPoint took from SP's deposit
-                uint256 eth = _chargeEthNet(x, o.spCharge);
-                assertGe(eth, o.G, "DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost");
-                uint256 ppm = (eth - o.G) * 1e6 / o.G;
+                if (o.postGas == _minPost) st.atMinSettled++;
+                uint256 ppm = eth >= o.G ? (eth - o.G) * 1e6 / o.G : 0;
                 if (st.nRatio < st.ratioPpm.length) {
                     st.ratioPpm[st.nRatio++] = ppm;
                     st.sumRatioPpm += ppm;
                 }
-                if (o.postGas <= MIN_POST_OP_GAS + 50_000 && st.nTight < st.tightPpm.length) {
+                if (o.postGas <= _minPost + 50_000 && st.nTight < st.tightPpm.length) {
                     st.tightPpm[st.nTight++] = ppm;
                     st.sumTightPpm += ppm;
+                }
+                if (o.postGas >= 1_000_000 && st.nLarge < st.largePpm.length) {
+                    st.largePpm[st.nLarge++] = ppm;
+                    st.sumLargePpm += ppm;
                 }
                 st.sumChargeEth += eth;
                 st.sumGSettled += o.G;
@@ -1006,7 +1095,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 st.sumGInjected += o.G;
                 _pend.push(Pend(o.h, o.u, o.t, o.mode, o.a0, o.x0));
             }
-            if (o.postGas == MIN_POST_OP_GAS) st.atMinIncluded++;
+            if (o.postGas == _minPost) st.atMinIncluded++;
             if (_expOn) _exportOp(x, o, i, ethMoved, aMoved);
         }
         assertEq(bUnbCnt, 0, "I9: unbacked sponsorship count per bundle == 0");
@@ -1020,12 +1109,18 @@ contract SuperPaymasterV55FuzzTest is Test {
     ///      diff); the prices come from the snapshot the TEST read before the bundle — not from the
     ///      context. A postOp that re-read the live cachedPrice / aPNTsPriceUSD after a mid-bundle
     ///      move would produce a different aGas.
-    function _checkExactCharge(B memory x, Op memory o) internal pure {
+    function _checkExactCharge(B memory x, Op memory o) internal view {
         assertEq(o.nPost, 1, "exactly one postOp call per settled op");
         SuperPaymaster.OpCtx memory c = o.ctx;
         assertEq(c.price, int256(x.price), "R10-M3: postOp context carries the validation-time ETH/USD price");
         assertEq(c.decimals, x.dec, "R10-M3: postOp context carries the validation-time decimals");
         assertEq(c.aPriceUSD, x.aPrice, "R10-M3: postOp context carries the validation-time aPNTs/USD price");
+        assertEq(o.ctxLen, 384, "exp/params: context = 11 ABI-canonical 5.5.0 words + 1 snapshot word");
+        assertEq(uint32(o.ctxSnap), _minPost, "exp/params: snapshot word = GasParams slot at validation (MIN)");
+        assertEq(uint32(o.ctxSnap >> 32), _settle, "exp/params: context carries the validation-time SETTLE_GAS_BOUND");
+        assertEq(uint32(o.ctxSnap >> 64), _cWrap, "exp/params: context carries the validation-time C_WRAP");
+        assertEq(uint32(o.ctxSnap >> 96), _cPostop, "exp/params: context carries the validation-time C_POSTOP");
+        assertEq(o.ctxSnap >> 128, 0, "exp/params: no stray bits in the snapshot word");
         assertEq(c.a0, o.a0, "context a0");
         assertEq(c.mode, o.mode, "context mode");
         assertEq(c.callGas, o.callGas, "context callGasLimit");
@@ -1033,7 +1128,9 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(o.fpg, o.fee, "EntryPoint gas price == maxFee (basefee 0, maxFee == priority)");
         assertLe(o.P, o.G, "postOp's actualGasCost <= final actualGasCost");
 
-        uint256 bufGas = uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + C_WRAP;
+        uint256 bufGas = _bufOld
+            ? uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + 30_000
+            : _cPostop + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + _cWrap;
         uint256 bufWei = bufGas * o.fpg;
         uint256 aGasExp = Math.mulDiv((o.P + bufWei) * x.price, 1e18, (10 ** uint256(x.dec)) * x.aPrice, Math.Rounding.Ceil);
         uint256 chargeExp = Math.mulDiv(aGasExp, BPS + x.feeBps, BPS, Math.Rounding.Ceil);
@@ -1053,7 +1150,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         // EntryPoint-level bound, independent of the postOp calldata: the aGas SP reported, turned back
         // into wei at the SNAPSHOT prices, lies in [G, G + bufWei] (P <= G <= P + bufWei, C_WRAP bound).
         uint256 W = Math.mulDiv(o.tsAGas, (10 ** uint256(x.dec)) * x.aPrice, x.price * 1e18);
-        assertGe(W + 1, o.G, "R10-M3 EP-level: aGas at snapshot prices >= final actualGasCost");
+        if (!_countSubsidy) assertGe(W + 1, o.G, "R10-M3 EP-level: aGas at snapshot prices >= final actualGasCost");
         assertLe(W, o.G + bufWei + 1, "R10-M3 EP-level: aGas at snapshot prices <= actualGasCost + bufWei");
     }
 
@@ -1070,10 +1167,15 @@ contract SuperPaymasterV55FuzzTest is Test {
     // ------------------------------------------------------------------
 
     function _exportOp(B memory x, Op memory o, uint256 i, bool ethMoved, bool aMoved) internal {
-        uint256 bufGas = uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + C_WRAP;
+        uint256 bufGas = _bufOld
+            ? uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + 30_000
+            : _cPostop + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + _cWrap;
+        string memory tag = _bufOld ? "OLD_postOpGasLimit_Cwrap30k" : string.concat(
+            "B_Cpostop", vm.toString(_cPostop / 1000), "k_Cwrap", vm.toString(_cWrap / 1000),
+            _settle == 160_000 && _minPost == 200_000 ? "k_default" : "k_configured");
         uint256 eth = o.settled ? _chargeEthNet(x, o.spCharge) : 0;
         string memory s1 = string.concat(
-            '{"formula":"OLD_postOpGasLimit_Cwrap30k","seedIndex":', vm.toString(_expSeedIdx),
+            '{"formula":"', tag, '","seedIndex":', vm.toString(_expSeedIdx),
             ',"seed":"', vm.toString(bytes32(_expSeed)),
             '","bundle":', vm.toString(_expBundle),
             ',"op":', vm.toString(i),
@@ -1305,7 +1407,9 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(sp.protocolRevenue() - x.rev0, sumAll, "conservation: protocolRevenue delta == +sum(expected charge)");
         uint256 depDelta = x.dep0 - entryPoint.balanceOf(address(sp));
         assertEq(depDelta, gAll, "EP: SP deposit delta == sum(UserOperationEvent.actualGasCost) over the bundle");
-        assertGe(ethSettled, gSettled, "DSR no-subsidy: bundle sum(net charge in ETH) >= sum(actualGasCost) of settled ops");
+        if (!_countSubsidy) {
+            assertGe(ethSettled, gSettled, "DSR no-subsidy: bundle sum(net charge in ETH) >= sum(actualGasCost) of settled ops");
+        }
         st.sumDepDelta += depDelta;
     }
 
@@ -1449,9 +1553,10 @@ contract SuperPaymasterV55FuzzTest is Test {
     function _newStats(uint256 cap) internal pure returns (Stats memory st) {
         st.ratioPpm = new uint256[](cap);
         st.tightPpm = new uint256[](cap);
+        st.largePpm = new uint256[](cap);
     }
 
-    function _report(Stats memory st) internal pure {
+    function _report(Stats memory st) internal view {
         console.log("G2 campaign: seeds", st.runs, "bundles executed", st.bundles);
         console.log("  campaigns with a low-balance operator", st.lowOperatorRuns);
         console.log("  ops planned / rejected (AA34, verified one by one)", st.planned, st.rejected);
@@ -1475,6 +1580,9 @@ contract SuperPaymasterV55FuzzTest is Test {
         console.log("  sum net charge (ETH wei) over settled ops", st.sumChargeEth);
         _dist("  R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n =", st.ratioPpm, st.nRatio, st.sumRatioPpm);
         _dist("  R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n =", st.tightPpm, st.nTight, st.sumTightPpm);
+        _dist("  R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n =", st.largePpm, st.nLarge, st.sumLargePpm);
+        console.log("  buffer: C_POSTOP / C_WRAP / old formula", _cPostop, _cWrap, _bufOld ? 1 : 0);
+        console.log("  SUBSIDY: ops / total wei / max ppm", st.subsidyCnt, st.subsidyWei, st.maxSubsidyPpm);
     }
 
     function _dist(string memory title, uint256[] memory a, uint256 n, uint256 sum) internal pure {
