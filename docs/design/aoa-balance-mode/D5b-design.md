@@ -134,15 +134,29 @@ lens 读取 SP 的 view 时，如果其中一部分移到了扩展，staticcall 
 
 **自测**（`scripts/d5b-timelock-roles-selftest.sh`，本机 anvil）：正确的 M1 timelock → 通过；授予一个清单外的 DEFAULT_ADMIN → 失败；撤销 → 通过；把 PROPOSER 授给清单外地址 → 失败，撤销 → 通过；把 EXECUTOR 授给 `mustHoldNothing` 账户（旧 owner）→ 失败，撤销 → 通过；清单 `deploymentBlock` 写错 → 深度探针与正对照失败。输出在 `data/d5b/timelock-roles/`。forge 侧与事件侧的对照：同一个"清单外 admin"，forge 预检**通过**（`test_preflight_is_bounded_unlisted_admin_passes`），事件检查**失败**（自测第 2 步）。
 
-**forge 测试** `contracts/test/v2/D5bTimelockPreflight.t.sol`（12 个）：正例（完整走完 M1）；非 Safe 调用者不调度；五个负对照——72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；调度之后再授予角色，execute 前的第二次预检拦下；清单指向另一个 timelock、清单不是 M1 策略、清单文件缺失，三者都 revert；以及上面的"有界"正面展示。
+**forge 测试** `contracts/test/v2/D5bTimelockPreflight.t.sol`（预检部分；全部 21 个见 §6.3c）：正例（完整走完 M1）；非 Safe 调用者不调度；五个负对照——72h 延迟、开放 executor、部署者仍是 admin、Safe 缺 canceller、多一个 EOA proposer——每个都在预检里 revert，批次没有被调度，两个代理的 owner 与提名都没变；调度之后再授予角色，execute 前的第二次预检拦下；清单指向另一个 timelock、清单不是 M1 策略、清单文件缺失，三者都 revert；以及上面的"有界"正面展示。
 
-### §6.3c runbook 附加要求（M1 与之后每一次 timelock 升级；写入下一版 03 §6 之前以本节为准）
+### §6.3c 排他性闸门在代码里强制执行（Codex 在 `ed2a4762` 上的收尾发现："只写在 runbook 里，生产流程可以绕过"）
 
+**闸门在代码里，不只在 runbook 里。** `UpgradeViaTimelock` 的四个受治理广播（schedule-upgrade、execute-upgrade，对 SP 和 Registry 都适用；M1 的 schedule-accept、execute-accept）都先调用 `governedGate` = 有界预检 `m1Preflight` + `requireRolesAttestation`。后者要求事件历史检查脚本写出的证明文件（环境变量 `TL_ROLES_ATTESTATION`，路径必须在仓库目录内，forge 只能读项目内文件；建议 `deployments/attestations/timelock-roles.<env>.<head>.json`），在任何 schedule / execute 之前逐项核对，不满足就 revert：
+
+- `result == "PASS"`；`chainId == block.chainid`；`timelock` 等于配置的 timelock；
+- `manifestKeccak256` 等于**此刻读到的清单文件字节**的 keccak256（证明之后清单被改过就拒绝；证明文件同时记录 sha256 供人核对）；
+- 扫描头块不晚于当前块，且不早于当前块 `TL_ATTEST_MAX_AGE` 个块（默认 300；可配置）；
+- 四个角色的证明持有者集合与清单**完全相等**，并且每个证明里的持有者此刻在链上仍 `hasRole`。
+
+证明文件由 `check-timelock-roles.mjs --attest <path|auto>` 写出，字段：`result`、`chainId`、`timelock`、`manifestPath`、`manifestSha256`、`manifestKeccak256`、`deploymentBlock`、`headBlock`、`headBlockHash`、四个角色重建出的持有者集合、`mustHoldNothing`、日志条数、深度探针结果、完整性说明（是否用了 `--rpc2`）、`problems`，以及脚本版本与 git commit（含脚本目录是否有未提交改动）。**它不是密码学签名**：文件由检查脚本生成，forge 侧重新核对 chainId、timelock、清单哈希、新鲜度和每个持有者的链上状态，伪造一个 PASS 也骗不过"证明集合 == 清单"加链上 `hasRole` 这两条（见 `test_bounded_preflight_passes_unlisted_admin_but_attestation_gate_blocks`：清单外 admin 的 FAIL 证明被拒，手工改成 PASS 的证明也因集合不等被拒）。
+
+**逃生开关**：`TL_ALLOW_NO_ATTESTATION=true` 只在本地链（chainId 31337 / 1337）上接受，并打印醒目警告；在其他任何 chainId 上 revert（`test_attestation_opt_out_rejected_on_live_chain`，`vm.chainId(10)`）。
+
+**runbook（M1 与之后每一次经 timelock 的升级或参数修改）**：
 1. M1 之前提交 `deployments/timelock-roles.<env>.json`（timelock 地址、部署块、M1 策略的四个角色集合、`mustHoldNothing` 历史账户及标签），走评审。
-2. **每一次 schedule 之前**（M1 的 `scheduleBatch`，以及之后每一次经 timelock 的升级或参数修改）运行 `node script/governance/check-timelock-roles.mjs --rpc <归档端点> --rpc2 <第二个独立归档端点> --manifest deployments/timelock-roles.<env>.json --out <报告>`，退出码必须为 0；报告与命令行（RPC 已脱敏）按 03 §6.1 归档。只有一个端点时，报告里的"completeness NOT independently verified"要原样记录，不能写成"已验证完整"。
-3. 然后才运行 `UpgradeViaTimelock` 的 schedule / execute 模式（它们会再做一次 forge 侧的有界预检）。anvil 演练已按这个顺序执行：`data/d5b/rehearsal/roles-*.log`。
+2. 每一次 schedule **和** execute 之前运行 `node script/governance/check-timelock-roles.mjs --rpc <归档端点> --rpc2 <第二个独立归档端点> --manifest deployments/timelock-roles.<env>.json --out <报告> --attest auto`；把生成的证明文件路径设为 `TL_ROLES_ATTESTATION` 再运行对应模式——没有它，脚本直接拒绝。报告、证明文件与命令行（RPC 已脱敏）按 03 §6.1 归档。只有一个端点时，证明里的"completeness NOT independently verified"要原样保留。
+3. anvil 演练已按"检查 → 证明 → schedule / execute"端到端执行（每个受治理广播之前各一次，外加一个"不带证明的 schedule-accept 被拒"的负对照）：`data/d5b/rehearsal/roles-*.log`、`attestation-*.json`。
 
-**不受 M1 预检保护的路径（明确说明）**：Registry 第 5c 步（`UpgradeRegistryD5b`）、`deploy-impl`、`direct-upgrade` 是 **M1 之前的 EOA 路径**，不涉及 timelock，也不运行 M1 预检；它们只依赖"owner == 广播者"与各自的读回。M1 之后这三条路径不能再用于代理升级（`direct-upgrade` 与 5c 会因 owner 不是广播者而拒绝；`deploy-impl` 只部署 impl，不改代理）。
+**测试**（`contracts/test/v2/D5bTimelockPreflight.t.sol`，21 个）：有效证明通过（完整走完 M1）；证明缺失、chainId 错、timelock 错、扫描头过旧（`vm.roll` +301）、证明之后清单被改、结果为 FAIL、持有者集合与清单不等，各自 revert，批次未调度、owner 与提名不变；逃生开关在 live chainId 上被拒、在本地链上放行；以及上面那条"清单外 admin：有界预检放行，证明闸门拦下"。
+
+**不受 M1 闸门保护的路径（明确说明）**：Registry 第 5c 步（`UpgradeRegistryD5b`）、`deploy-impl`、`direct-upgrade` 是 **M1 之前的 EOA 路径**，不涉及 timelock，也不运行预检和证明核对；它们只依赖"owner == 广播者"与各自的读回。M1 之后这三条路径不能再用于代理升级（`direct-upgrade` 与 5c 会因 owner 不是广播者而拒绝；`deploy-impl` 只部署 impl，不改代理）。
 
 ### §6.4 Codex 审阅（第 1 轮，2026-09-13，只读，范围 = `c30854f9..HEAD` 的 src、升级脚本、布局 / selector 门槛）
 

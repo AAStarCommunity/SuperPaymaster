@@ -9,6 +9,7 @@
 #   4. PROPOSER granted to an address not in the manifest  -> FAILS; revoked -> PASSES
 #   5. EXECUTOR granted to a mustHoldNothing account       -> FAILS; revoked -> PASSES
 #   6. manifest deploymentBlock wrong (depth probe)        -> FAILS
+# Every step also checks the attestation the checker wrote (--attest): result PASS iff the check passed.
 # Usage: scripts/d5b-timelock-roles-selftest.sh <workDir>   (plain `forge build` first)
 # =============================================================================
 set -euo pipefail
@@ -45,7 +46,10 @@ PROP=$("$CAST" keccak PROPOSER_ROLE); EXEC=$("$CAST" keccak EXECUTOR_ROLE)
 
 n=0
 expect() { # <0|1> <label>
-  n=$((n+1)); set +e; $CHECK --rpc "$RPC" --manifest "$W/manifest.json" --out "$W/step$n.json" >"$W/step$n.log" 2>&1; rc=$?; set -e
+  n=$((n+1)); set +e; $CHECK --rpc "$RPC" --manifest "$W/manifest.json" --out "$W/step$n.json" --attest "$W/att$n.json" >"$W/step$n.log" 2>&1; rc=$?; set -e
+  res=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['result'])" "$W/att$n.json" 2>/dev/null || echo none)
+  want=$([ "$1" = 0 ] && echo PASS || echo FAIL)
+  if [ "$res" != "$want" ]; then echo "SELF-TEST FAILED at step $n: attestation result $res, expected $want"; exit 1; fi
   if [ "$rc" = "$1" ]; then echo "  step $n ok: $2 (exit $rc)"; else echo "SELF-TEST FAILED at step $n: $2 (exit $rc, expected $1)"; cat "$W/step$n.log"; exit 1; fi
 }
 echo "timelock $TL deployed in block $BLK"

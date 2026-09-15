@@ -249,7 +249,13 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         address[] cancellers;
         address[] executors;
         address[] mustHoldNothing;
+        // gate inputs (not part of the JSON manifest)
+        bytes32 fileKeccak;   // keccak256 of the manifest file bytes as read
+        string attestation;   // TL_ROLES_ATTESTATION: path of the checker's attestation file
+        bool optOut;          // TL_ALLOW_NO_ATTESTATION: local chains only, loudly logged
     }
+
+    uint256 internal constant ATTEST_MAX_AGE_BLOCKS = 300; // default; env TL_ATTEST_MAX_AGE overrides
 
     function _manifest(Cfg memory c) internal view returns (RoleManifest memory m) {
         string memory env = vm.envOr("ENV", string("anvil"));
@@ -267,6 +273,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         m.cancellers = vm.parseJsonAddressArray(j, ".roles.CANCELLER_ROLE");
         m.executors = vm.parseJsonAddressArray(j, ".roles.EXECUTOR_ROLE");
         m.mustHoldNothing = vm.parseJsonAddressArray(j, ".mustHoldNothing");
+        m.fileKeccak = keccak256(bytes(j));
+        m.attestation = vm.envOr("TL_ROLES_ATTESTATION", string(""));
+        m.optOut = vm.envOr("TL_ALLOW_NO_ATTESTATION", false);
         require(m.timelock == c.timelock, "M1 preflight: manifest timelock != configured timelock");
     }
 
@@ -332,6 +341,81 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         }
     }
 
+    /// @notice Local development chains on which the attestation opt-out is permitted.
+    function _isLocalChain() internal view returns (bool) {
+        return block.chainid == 31337 || block.chainid == 1337;
+    }
+
+    function _sameSet(address[] memory a, address[] memory b) internal pure returns (bool) {
+        if (a.length != b.length) return false;
+        for (uint256 i; i < a.length; ++i) {
+            bool found;
+            for (uint256 k; k < b.length; ++k) if (a[i] == b[k]) { found = true; break; }
+            if (!found) return false;
+        }
+        return true;
+    }
+
+    function _attestedRole(TimelockController tl, string memory j, string memory role, bytes32 roleId,
+        address[] memory manifestSet) internal view
+    {
+        address[] memory att = vm.parseJsonAddressArray(j, string.concat(".roles.", role));
+        require(_sameSet(att, manifestSet) && _sameSet(manifestSet, att),
+            string.concat("roles attestation: attested ", role, " holders != manifest"));
+        for (uint256 i; i < att.length; ++i) {
+            require(tl.hasRole(roleId, att[i]), string.concat("roles attestation: attested ", role, " holder no longer holds it"));
+        }
+    }
+
+    /**
+     * @notice MACHINE-ENFORCED exclusivity gate (Codex stop-time finding on ed2a4762). The event-history
+     *         checker (script/governance/check-timelock-roles.mjs) is the only thing that can establish
+     *         that NO unlisted account holds a role; every governed broadcast therefore requires the
+     *         attestation it writes (env TL_ROLES_ATTESTATION). Reverts — before anything is scheduled
+     *         or executed — unless: result == "PASS"; chainId == block.chainid; timelock == this timelock;
+     *         manifestKeccak256 == keccak256 of the manifest file as read now; the scan head is not in
+     *         the future and at most TL_ATTEST_MAX_AGE (default 300) blocks old; each attested holder set
+     *         equals the manifest's and every attested holder still holds its role.
+     *         Opt-out: TL_ALLOW_NO_ATTESTATION=true is accepted ONLY on chain ids 31337 / 1337 and is
+     *         loudly logged; on any other chain it reverts.
+     */
+    function requireRolesAttestation(TimelockController tl, RoleManifest memory m) public view {
+        if (bytes(m.attestation).length == 0) {
+            if (m.optOut) {
+                require(_isLocalChain(), "roles attestation: opt-out is impossible on a live chain");
+                console.log("  !!!!! WARNING: TL_ALLOW_NO_ATTESTATION - role exclusivity NOT checked (local chain only) !!!!!");
+                return;
+            }
+            revert("roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)");
+        }
+        require(!m.optOut || _isLocalChain(), "roles attestation: opt-out is impossible on a live chain");
+        string memory j;
+        try vm.readFile(m.attestation) returns (string memory body) {
+            j = body;
+        } catch {
+            revert("roles attestation: file unreadable");
+        }
+        require(keccak256(bytes(vm.parseJsonString(j, ".result"))) == keccak256("PASS"), "roles attestation: result != PASS");
+        require(vm.parseJsonUint(j, ".chainId") == block.chainid, "roles attestation: chainId != this chain");
+        require(vm.parseJsonAddress(j, ".timelock") == address(tl), "roles attestation: timelock mismatch");
+        require(vm.parseJsonBytes32(j, ".manifestKeccak256") == m.fileKeccak,
+            "roles attestation: manifest changed after the attestation");
+        uint256 head = vm.parseJsonUint(j, ".headBlock");
+        require(head <= block.number, "roles attestation: head block is in the future");
+        require(block.number - head <= vm.envOr("TL_ATTEST_MAX_AGE", ATTEST_MAX_AGE_BLOCKS), "roles attestation: stale");
+        _attestedRole(tl, j, "DEFAULT_ADMIN_ROLE", tl.DEFAULT_ADMIN_ROLE(), m.admins);
+        _attestedRole(tl, j, "PROPOSER_ROLE", tl.PROPOSER_ROLE(), m.proposers);
+        _attestedRole(tl, j, "CANCELLER_ROLE", tl.CANCELLER_ROLE(), m.cancellers);
+        _attestedRole(tl, j, "EXECUTOR_ROLE", tl.EXECUTOR_ROLE(), m.executors);
+        console.log("  roles attestation OK: event-history holder sets == manifest, head block", head);
+    }
+
+    /// @notice The gate every governed broadcast runs: bounded preflight, then the attestation.
+    function governedGate(TimelockController tl, RoleManifest memory m) public view {
+        m1Preflight(tl, m);
+        requireRolesAttestation(tl, m);
+    }
+
     function deployImpl(Cfg memory c, bool isSP) public returns (address impl) {
         vm.startBroadcast();
         impl = isSP
@@ -355,7 +439,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         RoleManifest memory m) public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, m);
+        governedGate(tl, m);
         address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         require(ID5bOwned(proxy).owner() == address(tl), "schedule: proxy owner is not the timelock");
@@ -387,7 +471,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         RoleManifest memory m) public
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, m); // again, immediately before the execute broadcast
+        governedGate(tl, m); // again, immediately before the execute broadcast
         address safe = _safeOf(m);
         address proxy = isSP ? c.sp : c.registry;
         bytes memory data = _upgradeCall(impl);
@@ -457,7 +541,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         public returns (bytes32 id)
     {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, m);
+        governedGate(tl, m);
         require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         require(ID5bOwned(c.sp).pendingOwner() == address(tl), "M1: SP.pendingOwner != timelock (run SP.transferOwnership(timelock) first)");
         require(ID5bOwned(c.registry).pendingOwner() == address(tl), "M1: Registry.pendingOwner != timelock");
@@ -483,7 +567,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
 
     function executeAcceptWith(Cfg memory c, address safe, bytes32 salt, address executor, RoleManifest memory m) public {
         TimelockController tl = _timelock(c);
-        m1Preflight(tl, m); // again, immediately before the acceptance broadcast
+        governedGate(tl, m); // again, immediately before the acceptance broadcast
         require(safe == _safeOf(m), "M1 preflight: guardian Safe != manifest Safe");
         (address[] memory t, uint256[] memory v, bytes[] memory p) = _acceptBatch(c, safe);
         bytes32 id = tl.hashOperationBatch(t, v, p, bytes32(0), salt);

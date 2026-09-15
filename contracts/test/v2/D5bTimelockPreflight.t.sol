@@ -12,7 +12,7 @@ import { V55Registry, V55PriceFeed } from "../helpers/V55TestFixtures.sol";
 import { UpgradeViaTimelock } from "../../script/v3/UpgradeViaTimelock.s.sol";
 
 /**
- * @title D5bTimelockPreflightTest — Codex D5b closing review (Medium)
+ * @title D5bTimelockPreflightTest — Codex D5b closing review + re-check (M1 preflight, roles attestation gate)
  * @notice UpgradeViaTimelock.m1Preflight must reject a mis-configured GOV-1 timelock BEFORE any
  *         schedule / execute is broadcast, so an ownership hand-over can never complete on a wrong
  *         timelock and only then fail a post-condition. One positive path and one negative control per
@@ -70,14 +70,69 @@ contract D5bTimelockPreflightTest is Test {
         c.timelock = address(tl);
     }
 
-    /// @dev The committed-manifest shape (M1 policy); mustHoldNothing = deployer (= old owner) + a known EOA.
-    function _manifest(TimelockController tl) internal view returns (UpgradeViaTimelock.RoleManifest memory m) {
+    // ------------------------------------------------------------------ manifest + attestation helpers
+
+    bytes32 constant MANIFEST_KECCAK = keccak256("d5b-test-manifest-v1"); // stands in for the file bytes
+    string constant ATT_DIR = "cache/d5b-attestations/";
+
+    function _addrs(address[] memory a) internal pure returns (string memory out) {
+        out = "[";
+        for (uint256 i; i < a.length; ++i) out = string.concat(out, i == 0 ? "" : ",", "\"", vm.toString(a[i]), "\"");
+        out = string.concat(out, "]");
+    }
+
+    struct Att {
+        string result;
+        uint256 chainId;
+        address timelock;
+        bytes32 manifestKeccak;
+        uint256 head;
+        address[] admins;
+        address[] proposers;
+    }
+
+    function _goodAtt(TimelockController tl) internal view returns (Att memory a) {
+        a.result = "PASS";
+        a.chainId = block.chainid;
+        a.timelock = address(tl);
+        a.manifestKeccak = MANIFEST_KECCAK;
+        a.head = block.number;
+        a.admins = _one(address(tl));
+        a.proposers = _one(safe);
+    }
+
+    /// @dev Same shape as check-timelock-roles.mjs --attest (only the fields the gate reads + result).
+    function _writeAtt(string memory name, Att memory a) internal returns (string memory path) {
+        path = string.concat(ATT_DIR, name, ".json");
+        string memory j = string.concat(
+            "{\"schema\":\"d5b-timelock-roles-attestation/1\",\"result\":\"", a.result,
+            "\",\"chainId\":", vm.toString(a.chainId),
+            ",\"timelock\":\"", vm.toString(a.timelock),
+            "\",\"manifestKeccak256\":\"", vm.toString(a.manifestKeccak),
+            "\",\"headBlock\":", vm.toString(a.head)
+        );
+        j = string.concat(j,
+            ",\"roles\":{\"DEFAULT_ADMIN_ROLE\":", _addrs(a.admins),
+            ",\"PROPOSER_ROLE\":", _addrs(a.proposers),
+            ",\"CANCELLER_ROLE\":", _addrs(_one(safe)),
+            ",\"EXECUTOR_ROLE\":", _addrs(_one(safe)), "}}"
+        );
+        vm.createDir(ATT_DIR, true);
+        vm.writeFile(path, j);
+    }
+
+    /// @dev The committed-manifest shape (M1 policy) + a valid attestation written under a unique name.
+    function _manifest(TimelockController tl, string memory name)
+        internal returns (UpgradeViaTimelock.RoleManifest memory m)
+    {
         m.timelock = address(tl);
         m.admins = _one(address(tl));
         m.proposers = _one(safe);
         m.cancellers = _one(safe);
         m.executors = _one(safe);
         m.mustHoldNothing = _two(deployer, eoa);
+        m.fileKeccak = MANIFEST_KECCAK;
+        m.attestation = _writeAtt(name, _goodAtt(tl));
     }
 
     function _batchId(TimelockController tl) internal view returns (bytes32) {
@@ -91,11 +146,11 @@ contract D5bTimelockPreflightTest is Test {
         return tl.hashOperationBatch(t, v, p, bytes32(0), SALT);
     }
 
-    /// @dev The negative-control shape: the preflight reverts with `reason` inside scheduleAcceptWith,
-    ///      nothing was scheduled, ownership / nominations untouched.
-    function _assertRejectedBeforeSchedule(TimelockController tl, string memory reason) internal {
+    /// @dev The negative-control shape: the gate reverts with `reason` inside scheduleAcceptWith, nothing
+    ///      was scheduled, ownership / nominations untouched.
+    function _assertRejected(TimelockController tl, UpgradeViaTimelock.RoleManifest memory m, string memory reason) internal {
         vm.expectRevert(bytes(reason));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
         assertFalse(tl.isOperation(_batchId(tl)), "nothing scheduled");
         assertEq(sp.owner(), deployer, "SP owner unchanged");
         assertEq(reg.owner(), deployer, "Registry owner unchanged");
@@ -103,15 +158,20 @@ contract D5bTimelockPreflightTest is Test {
         assertEq(reg.pendingOwner(), address(tl), "Registry nomination unchanged");
     }
 
+    function _correctTl() internal returns (TimelockController) {
+        return _tl(48 hours, _one(safe), _one(safe), address(0));
+    }
+
     // ------------------------------------------------------------------ positive
 
     function test_preflight_correct_timelock_passes_and_M1_completes() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        script.m1Preflight(tl, _manifest(tl));
-        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "positive");
+        script.governedGate(tl, m);
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
         assertTrue(tl.isOperationPending(id), "scheduled");
         vm.warp(block.timestamp + 48 hours);
-        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, m);
         assertEq(sp.owner(), address(tl));
         assertEq(reg.owner(), address(tl));
         assertEq(sp.guardian(), safe);
@@ -119,93 +179,177 @@ contract D5bTimelockPreflightTest is Test {
 
     /// @notice A non-Safe caller never broadcasts: it only gets the Safe's calldata.
     function test_non_safe_caller_does_not_schedule() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, eoa, _manifest(tl));
+        TimelockController tl = _correctTl();
+        script.scheduleAcceptWith(_cfg(tl), safe, SALT, eoa, _manifest(tl, "nonsafe"));
         assertFalse(tl.isOperation(_batchId(tl)), "no schedule from a non-Safe caller");
     }
 
-    // ------------------------------------------------------------------ one negative control per condition
+    // ------------------------------------------------------------------ preflight: one negative per condition
 
     function test_preflight_rejects_72h_delay() public {
         TimelockController tl = _tl(72 hours, _one(safe), _one(safe), address(0));
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: minDelay != 172800");
+        _assertRejected(tl, _manifest(tl, "d72"), "M1 preflight: minDelay != 172800");
     }
 
     function test_preflight_rejects_open_executor() public {
         TimelockController tl = _tl(48 hours, _one(safe), _two(safe, address(0)), address(0));
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: executor role is OPEN (address(0))");
+        _assertRejected(tl, _manifest(tl, "open"), "M1 preflight: executor role is OPEN (address(0))");
     }
 
     function test_preflight_rejects_deployer_still_admin() public {
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), deployer);
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: a listed account holds DEFAULT_ADMIN_ROLE");
+        _assertRejected(tl, _manifest(tl, "depadmin"), "M1 preflight: a listed account holds DEFAULT_ADMIN_ROLE");
     }
 
     function test_preflight_rejects_safe_missing_canceller() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
+        TimelockController tl = _correctTl();
         vm.startPrank(address(tl)); // only the timelock administers its own roles (admin = none)
         tl.revokeRole(tl.CANCELLER_ROLE(), safe);
         vm.stopPrank();
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: Safe must hold PROPOSER, CANCELLER and EXECUTOR");
+        _assertRejected(tl, _manifest(tl, "nocancel"), "M1 preflight: Safe must hold PROPOSER, CANCELLER and EXECUTOR");
     }
 
     function test_preflight_rejects_extra_eoa_proposer() public {
         TimelockController tl = _tl(48 hours, _two(safe, eoa), _one(safe), address(0));
-        _assertRejectedBeforeSchedule(tl, "M1 preflight: a listed account holds a timelock role");
+        _assertRejected(tl, _manifest(tl, "eoaprop"), "M1 preflight: a listed account holds a timelock role");
     }
 
-    /// @notice The preflight also runs immediately before the acceptance broadcast: a role granted
-    ///         AFTER scheduling (here an extra executor) stops the execute, owners unchanged.
+    /// @notice The gate also runs immediately before the acceptance broadcast: a role granted AFTER
+    ///         scheduling (here an extra executor) stops the execute, owners unchanged.
     function test_preflight_reruns_before_execute() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "rerun");
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
         vm.startPrank(address(tl));
         tl.grantRole(tl.EXECUTOR_ROLE(), eoa);
         vm.stopPrank();
         vm.warp(block.timestamp + 48 hours);
         vm.expectRevert(bytes("M1 preflight: a listed account holds a timelock role"));
-        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
+        script.executeAcceptWith(_cfg(tl), safe, SALT, safe, m);
         assertTrue(tl.isOperationReady(id), "batch still ready, not executed");
         assertEq(sp.owner(), deployer, "SP owner unchanged");
         assertEq(reg.owner(), deployer, "Registry owner unchanged");
     }
 
-    // ------------------------------------------------------------------ manifest binding and the bound
-
     function test_preflight_rejects_manifest_for_another_timelock() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl);
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "othertl");
         m.timelock = address(0xBEEF);
-        vm.expectRevert(bytes("M1 preflight: manifest timelock != timelock"));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
-        assertFalse(tl.isOperation(_batchId(tl)), "nothing scheduled");
+        _assertRejected(tl, m, "M1 preflight: manifest timelock != timelock");
     }
 
     function test_preflight_rejects_manifest_not_m1_policy() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
-        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl);
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "notm1");
         m.executors = _two(safe, eoa);
-        vm.expectRevert(bytes("M1 preflight: manifest is not the M1 policy (admin=[timelock], P=C=E=[Safe])"));
-        script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m);
+        _assertRejected(tl, m, "M1 preflight: manifest is not the M1 policy (admin=[timelock], P=C=E=[Safe])");
     }
 
     function test_preflight_manifest_file_missing_reverts() public {
-        TimelockController tl = _tl(48 hours, _one(safe), _one(safe), address(0));
+        TimelockController tl = _correctTl();
         // ENV unset -> "anvil"; no deployments/timelock-roles.anvil.json is committed (only the example schema)
         assertFalse(vm.isFile("deployments/timelock-roles.anvil.json"), "precondition: no anvil manifest committed");
         vm.expectRevert(bytes("M1 preflight: manifest deployments/timelock-roles.<ENV>.json missing"));
         script.manifestOf(_cfg(tl));
     }
 
+    // ------------------------------------------------------------------ the bound, and how the attestation closes it
+
     /// @notice DOCUMENTED BOUND: an admin the manifest does not name is invisible to the forge preflight
-    ///         (AccessControl cannot enumerate holders). The preflight PASSES here; the event-history
-    ///         checker (check-timelock-roles.mjs) is what catches it — see its anvil self-test.
-    function test_preflight_is_bounded_unlisted_admin_passes() public {
+    ///         (AccessControl cannot enumerate holders): m1Preflight PASSES. The event-history checker sees
+    ///         it (anvil self-test step 2), so its attestation lists it — and the MACHINE-ENFORCED gate then
+    ///         refuses to schedule because the attested admin set != the manifest.
+    function test_bounded_preflight_passes_unlisted_admin_but_attestation_gate_blocks() public {
         address unlisted = address(0xAD1);
         TimelockController tl = _tl(48 hours, _one(safe), _one(safe), unlisted);
         assertTrue(tl.hasRole(tl.DEFAULT_ADMIN_ROLE(), unlisted), "precondition: an unlisted external admin exists");
-        script.m1Preflight(tl, _manifest(tl)); // passes: bounded known-account check
-        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, _manifest(tl));
-        assertTrue(tl.isOperationPending(id), "bounded: the forge preflight alone lets this timelock through");
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "unlisted");
+        script.m1Preflight(tl, m); // passes: bounded known-account check
+        Att memory a = _goodAtt(tl);
+        a.result = "FAIL"; // what the checker writes for this timelock ...
+        a.admins = _two(address(tl), unlisted); // ... with the admin it found in the event history
+        m.attestation = _writeAtt("unlisted-fail", a);
+        _assertRejected(tl, m, "roles attestation: result != PASS");
+        a.result = "PASS"; // even a hand-edited PASS cannot hide it: the holder sets must equal the manifest
+        m.attestation = _writeAtt("unlisted-forged", a);
+        _assertRejected(tl, m, "roles attestation: attested DEFAULT_ADMIN_ROLE holders != manifest");
+    }
+
+    // ------------------------------------------------------------------ attestation gate: one negative per condition
+
+    function test_attestation_missing_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "missing");
+        m.attestation = "";
+        _assertRejected(tl, m, "roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)");
+    }
+
+    function test_attestation_wrong_chainid_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "chainid");
+        Att memory a = _goodAtt(tl);
+        a.chainId = 11155111;
+        m.attestation = _writeAtt("chainid-bad", a);
+        _assertRejected(tl, m, "roles attestation: chainId != this chain");
+    }
+
+    function test_attestation_wrong_timelock_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "tlmis");
+        Att memory a = _goodAtt(tl);
+        a.timelock = address(0xBEEF);
+        m.attestation = _writeAtt("tlmis-bad", a);
+        _assertRejected(tl, m, "roles attestation: timelock mismatch");
+    }
+
+    function test_attestation_stale_head_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "stale"); // head = current block
+        vm.roll(block.number + 301);
+        _assertRejected(tl, m, "roles attestation: stale");
+    }
+
+    function test_attestation_manifest_changed_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "mchanged");
+        m.fileKeccak = keccak256("d5b-test-manifest-v2"); // the manifest file was edited after attesting
+        _assertRejected(tl, m, "roles attestation: manifest changed after the attestation");
+    }
+
+    function test_attestation_result_fail_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "failres");
+        Att memory a = _goodAtt(tl);
+        a.result = "FAIL";
+        m.attestation = _writeAtt("failres-bad", a);
+        _assertRejected(tl, m, "roles attestation: result != PASS");
+    }
+
+    function test_attestation_holder_set_not_manifest_reverts() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "holders");
+        Att memory a = _goodAtt(tl);
+        a.proposers = _two(safe, eoa);
+        m.attestation = _writeAtt("holders-bad", a);
+        _assertRejected(tl, m, "roles attestation: attested PROPOSER_ROLE holders != manifest");
+    }
+
+    function test_attestation_opt_out_rejected_on_live_chain() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "optout-live");
+        m.attestation = "";
+        m.optOut = true;
+        vm.chainId(10); // OP mainnet
+        _assertRejected(tl, m, "roles attestation: opt-out is impossible on a live chain");
+    }
+
+    function test_attestation_opt_out_allowed_on_local_chain_only() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "optout-local");
+        m.attestation = "";
+        m.optOut = true;
+        assertEq(block.chainid, 31337, "precondition: local chain id");
+        bytes32 id = script.scheduleAcceptWith(_cfg(tl), safe, SALT, safe, m); // loudly logged, proceeds
+        assertTrue(tl.isOperationPending(id), "opt-out works on a local chain");
     }
 }

@@ -30,7 +30,7 @@ EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 "$ANVIL" --port "$PORT" --chain-id 31337 --hardfork osaka >"$W/anvil.log" 2>&1 &
 APID=$!; echo "$APID" >"$W/anvil.pid"
 MANIFEST="deployments/timelock-roles.$ENVNAME.json"
-cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG" "$ROOT/$MANIFEST"; }
+cleanup() { kill "$APID" 2>/dev/null || true; rm -f "$ROOT/$CFG" "$ROOT/$MANIFEST" "$ROOT"/deployments/attestations/timelock-roles."$ENVNAME".*.json; }
 trap cleanup EXIT
 for _ in $(seq 1 100); do "$CAST" chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 0.2; done
 
@@ -73,8 +73,11 @@ cp "$CFG" "$W/config.$ENVNAME.json"
 printf '{\n  "network": "%s",\n  "chainId": 31337,\n  "timelock": "%s",\n  "deploymentBlock": %s,\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer / old SP and Registry owner"]\n}\n' \
   "$ENVNAME" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$MANIFEST"
 cp "$MANIFEST" "$W/timelock-roles.$ENVNAME.json"
-roles_check() { # runbook: event-history role check, output archived, BEFORE every schedule
-  node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$MANIFEST" --out "$W/roles-$1.json" | tee "$W/roles-$1.log" | tail -1
+roles_check() { # event-history role check -> attestation; UpgradeViaTimelock REQUIRES it (TL_ROLES_ATTESTATION)
+  node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$MANIFEST" --out "$W/roles-$1.json" \
+    --attest "deployments/attestations/timelock-roles.$ENVNAME.$1.json" | tee "$W/roles-$1.log" | tail -2
+  ATT="deployments/attestations/timelock-roles.$ENVNAME.$1.json"   # forge may only read inside the project
+  cp "$ATT" "$W/attestation-$1.json"
 }
 echo "  SP proxy $SP (impl $SP_IMPL, $("$CAST" call "$SP" 'version()(string)' --rpc-url "$RPC"))"
 echo "  Registry proxy $REG (impl $REG_IMPL, $("$CAST" call "$REG" 'version()(string)' --rpc-url "$RPC"))"
@@ -94,11 +97,13 @@ step "B / M1: two-step transfer to the timelock + ONE scheduleBatch"
 send "$OWNER" "$SP" "transferOwnership(address)" "$TL"
 send "$OWNER" "$REG" "transferOwnership(address)" "$TL"
 echo "  after step 1: SP.owner=$("$CAST" call "$SP" 'owner()(address)' --rpc-url "$RPC") pendingOwner=$("$CAST" call "$SP" 'pendingOwner()(address)' --rpc-url "$RPC")"
+must_fail "schedule-accept WITHOUT a roles attestation" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept
 roles_check before-M1
-fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept | tee "$W/B-schedule.log" | grep -E "scheduled|Error|revert" || true
-must_fail "execute-accept before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-accept TL_ROLES_ATTESTATION="$ATT" | tee "$W/B-schedule.log" | grep -E "scheduled|Error|revert" || true
+must_fail "execute-accept before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT"
 warp48h
-fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
+roles_check before-M1-execute
+fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-accept TL_ROLES_ATTESTATION="$ATT" | tee "$W/B-execute.log" | grep -E "read-back|Error|revert" || true
 grep -q "M1/M2 read-back OK" "$W/B-execute.log"
 must_fail "old EOA owner upgradeToAndCall after M1" "$CAST" send --rpc-url "$RPC" --unlocked --from "$OWNER" "$SP" "upgradeToAndCall(address,bytes)" "$NEW_SP" 0x
 
@@ -107,10 +112,11 @@ for T in SP REGISTRY; do
   fscript UpgradeViaTimelock "$OWNER" TL_MODE=deploy-impl TL_TARGET=$T | tee "$W/C-$T-deploy.log" | grep -E "ready|new implementation|Error|revert" || true
   NI=$(grep -oE "pass as TL_NEW_IMPL\): 0x[0-9a-fA-F]{40}" "$W/C-$T-deploy.log" | awk '{print $NF}')
   roles_check "before-$T-upgrade"
-  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
-  must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
+  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=schedule-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-schedule.log" | grep -E "scheduled|Error|revert" || true
+  must_fail "execute-upgrade $T before 48h" fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T")
   warp48h
-  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
+  roles_check "before-$T-execute"
+  fscript UpgradeViaTimelock "$MULTISIG" TL_MODE=execute-upgrade TL_ROLES_ATTESTATION="$ATT" TL_TARGET=$T TL_NEW_IMPL="$NI" TL_SALT=$("$CAST" keccak "c-$T") | tee "$W/C-$T-execute.log" | grep -E "read-back|BLS|raw slots|extension|Error|revert" || true
   grep -q "read-back OK" "$W/C-$T-execute.log"
 done
 if [ "$(impl_of "$SP" | tr A-F a-f)" = "$(echo "$NEW_SP" | tr A-F a-f)" ]; then echo "C: SP impl did not move"; exit 1; fi
