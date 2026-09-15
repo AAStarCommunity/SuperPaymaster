@@ -9,4 +9,7 @@ ok    repeated --attest -> exit 2, BOTH destinations FAIL
 ok    '--attest --attest path' -> exit 2, FAIL written
 ok    unknown option -> exit 2, FAIL written
 ok    check mode with --rpc=url -> exit 2, FAIL written
+ok    stray positional (--canonicalize deployments/timelock-roles.example.json stray) -> exit 2, FAIL written
+ok    stray positional (stray --canonicalize deployments/timelock-roles.example.json) -> exit 2, FAIL written
+ok    stray positional without --attest -> exit 2
 SELFTEST: canonicalize controls behave

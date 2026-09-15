@@ -152,12 +152,17 @@ const opt = (k, d) => {
 {
   const KNOWN = new Set(["--rpc", "--rpc2", "--manifest", "--chunk", "--out", "--attest", "--canonicalize"]);
   const seen = new Set();
-  for (const a of args) {
-    if (!a.startsWith("--")) continue;
+  // every flag takes exactly one value; any token that is neither a flag nor the value right after
+  // one (a stray positional) is a usage error too (Codex check of 2446d9d4, Low)
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (!a.startsWith("--")) usage(`unexpected argument "${a}" (every option is "--flag value")`);
     if (a.includes("=")) usage(`"${a}": the --flag=value form is not supported; use "--flag value"`);
     if (!KNOWN.has(a)) usage(`unknown option ${a}`);
     if (seen.has(a)) usage(`${a} given more than once`);
     seen.add(a);
+    if (args[i + 1] === undefined || args[i + 1].startsWith("--")) usage(`${a} needs a value`);
+    i++; // skip the value
   }
 }
 // --canonicalize <path>: print the canonical form (operators fix a file with it); no chain access

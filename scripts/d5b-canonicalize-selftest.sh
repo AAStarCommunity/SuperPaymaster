@@ -31,4 +31,11 @@ pass; node $C --canonicalize $EX --bogus x --attest "$T/att.json" >/dev/null 2>&
 [ $rc -eq 2 ] && [ "$(res)" = FAIL ] && ok "unknown option -> exit 2, FAIL written" || no "unknown rc=$rc result=$(res)"
 pass; node $C --rpc=http://127.0.0.1:1 --manifest $EX --attest "$T/att.json" >/dev/null 2>&1; rc=$?
 [ $rc -eq 2 ] && [ "$(res)" = FAIL ] && ok "check mode with --rpc=url -> exit 2, FAIL written" || no "check --rpc= rc=$rc result=$(res)"
+# Codex check of 2446d9d4 (Low): stray positional arguments
+for form in "--canonicalize $EX stray" "stray --canonicalize $EX"; do
+  pass; node $C $form --attest "$T/att.json" >/dev/null 2>&1; rc=$?
+  [ $rc -eq 2 ] && [ "$(res)" = FAIL ] && ok "stray positional ($form) -> exit 2, FAIL written" || no "stray ($form) rc=$rc result=$(res)"
+done
+node $C --canonicalize $EX stray >/dev/null 2>&1; rc=$?
+[ $rc -eq 2 ] && ok "stray positional without --attest -> exit 2" || no "stray no-attest rc=$rc"
 [ $bad -eq 0 ] && echo "SELFTEST: canonicalize controls behave" || { echo "SELFTEST: FAILED"; exit 1; }
