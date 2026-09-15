@@ -3,11 +3,11 @@
   "result": "FAIL",
   "chainId": null,
   "rpc2ChainId": null,
-  "manifestChainId": "11155111",
-  "timelock": "0x00000000000000000000000000000000fA4e0001",
-  "manifestPath": "deployments/timelock-roles.example.json",
-  "manifestSha256": "2592b096138cac91720a14205b506a718dcc77c90ca8d42bf98f8cb4a9943526",
-  "manifestKeccak256": "0x59bf60bc52bf2b5a396b1919aade65602d4b85d075e711e7cac60ee6468dbd8e",
+  "manifestChainId": "31337",
+  "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-raw.json",
+  "manifestSha256": "dd1d232368d8aa06f6104a2346122e0c4ab0ef79f4d783300cada23da230bc2f",
+  "manifestKeccak256": "0xea3a16e09288535395505f059bcd31728e42ba401367d091dd7f207654010655",
   "deploymentBlock": null,
   "headBlock": null,
   "headBlockHash": null,
@@ -24,12 +24,12 @@
   "endpoint": "http://127.0.0.1:18792",
   "endpoint2": null,
   "problems": [
-    "manifest: `_placeholder` is set — this is the example schema with FAKE addresses, not a network manifest"
+    "manifest: bytes are not the canonical serialization (first difference at byte 36; run: node script/governance/check-timelock-roles.mjs --canonicalize /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-raw.json)"
   ],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.4.0",
-    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."

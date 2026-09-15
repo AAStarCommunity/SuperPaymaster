@@ -1,1 +1,49 @@
-{"_comment": ["Schema of deployments/timelock-roles.<ENV>.json \u2014 the committed expected-holder manifest of the GOV-1", "48h TimelockController that owns SuperPaymaster and Registry after runbook M1 (spec 03 \u00a710.7b GOV-1/2).", "THIS FILE IS AN EXAMPLE: every address below is a FAKE PLACEHOLDER (0x\u2026FA4E\u2026, 'FAKE'), and `_placeholder`", "makes both checks refuse it. Create the real file for a network when its timelock is deployed (A5s on", "Sepolia, A6 on OP mainnet), WITHOUT `_placeholder`, and change it only through a reviewed change.", "EVERY field is required (a missing field is rejected, never read as an empty set):", "  network (non-empty), chainId (must equal the chain being operated on), timelock, deploymentBlock (the", "  block of the timelock CREATE: the constructor grants must be in it), roles.* (four non-empty arrays),", "  mustHoldNothing (non-empty, unique, non-zero) and mustHoldNothingLabels (one non-empty label each).", "`roles` must be the M1 policy: DEFAULT_ADMIN_ROLE = [timelock] only; PROPOSER/CANCELLER/EXECUTOR = [Safe]", "only (on live chains the Mycelium Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114; no open executor).", "`mustHoldNothing` = HISTORICAL accounts persisted here (deployer, old SP owner, old Registry owner, any", "other known EOA), never derived from the proxies' current owner().", "Both checks read it: UpgradeViaTimelock (parseManifest + validateManifest + m1Preflight, bounded) and", "script/governance/check-timelock-roles.mjs (event history; rebuilds the FULL holder set of every role)."], "network": "example-sepolia", "chainId": "11155111", "timelock": "0x00000000000000000000000000000000FA4E0001", "deploymentBlock": "1", "roles": {"DEFAULT_ADMIN_ROLE": ["0x00000000000000000000000000000000FA4E0001"], "PROPOSER_ROLE": ["0x00000000000000000000000000000000FA4E0002"], "CANCELLER_ROLE": ["0x00000000000000000000000000000000FA4E0002"], "EXECUTOR_ROLE": ["0x00000000000000000000000000000000FA4E0002"]}, "mustHoldNothing": ["0x00000000000000000000000000000000FA4E0003", "0x00000000000000000000000000000000FA4E0004"], "mustHoldNothingLabels": ["FAKE placeholder: deployer EOA", "FAKE placeholder: previous SuperPaymaster / Registry owner"]}
+{
+  "_comment": [
+    "Schema of deployments/timelock-roles.<ENV>.json — the committed expected-holder manifest of the GOV-1",
+    "48h TimelockController that owns SuperPaymaster and Registry after runbook M1 (spec 03 §10.7b GOV-1/2).",
+    "THIS FILE IS AN EXAMPLE: every address below is a FAKE PLACEHOLDER (0x…FA4E…, 'FAKE'), and `_placeholder`",
+    "makes both checks refuse it. Create the real file for a network when its timelock is deployed (A5s on",
+    "Sepolia, A6 on OP mainnet), WITHOUT `_placeholder`, and change it only through a reviewed change.",
+    "EVERY field is required (a missing field is rejected, never read as an empty set):",
+    "  network (non-empty), chainId (must equal the chain being operated on), timelock, deploymentBlock (the",
+    "  block of the timelock CREATE: the constructor grants must be in it), roles.* (four non-empty arrays),",
+    "  mustHoldNothing (non-empty, unique, non-zero) and mustHoldNothingLabels (one non-empty label each).",
+    "`roles` must be the M1 policy: DEFAULT_ADMIN_ROLE = [timelock] only; PROPOSER/CANCELLER/EXECUTOR = [Safe]",
+    "only (on live chains the Mycelium Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114; no open executor).",
+    "`mustHoldNothing` = HISTORICAL accounts persisted here (deployer, old SP owner, old Registry owner, any",
+    "other known EOA), never derived from the proxies' current owner().",
+    "Both checks read it: UpgradeViaTimelock (parseManifest + validateManifest + m1Preflight, bounded) and",
+    "script/governance/check-timelock-roles.mjs (event history; rebuilds the FULL holder set of every role).",
+    "chainId and deploymentBlock are JSON STRINGS of decimal digits (no leading zeros, <= uint64).",
+    "The file must be byte-identical to its canonical serialization (2-space JSON, fixed key order, LF,",
+    "one trailing newline, no BOM, no escapes); produce it with",
+    "  node script/governance/check-timelock-roles.mjs --canonicalize <file>"
+  ],
+  "network": "example-sepolia",
+  "chainId": "11155111",
+  "timelock": "0x00000000000000000000000000000000FA4E0001",
+  "deploymentBlock": "1",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": [
+      "0x00000000000000000000000000000000FA4E0001"
+    ],
+    "PROPOSER_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ],
+    "CANCELLER_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ]
+  },
+  "mustHoldNothing": [
+    "0x00000000000000000000000000000000FA4E0003",
+    "0x00000000000000000000000000000000FA4E0004"
+  ],
+  "mustHoldNothingLabels": [
+    "FAKE placeholder: deployer EOA",
+    "FAKE placeholder: previous SuperPaymaster / Registry owner"
+  ]
+}

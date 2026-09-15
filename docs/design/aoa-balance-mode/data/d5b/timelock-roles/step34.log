@@ -1,3 +1,4 @@
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att34.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/att34.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
   - manifest: .chainId must be a decimal string (no leading zeros, <= uint64), got 9007199254740992 (number)
+  - manifest: bytes are not the canonical serialization (first difference at byte 61; run: node script/governance/check-timelock-roles.mjs --canonicalize /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-mut.json)

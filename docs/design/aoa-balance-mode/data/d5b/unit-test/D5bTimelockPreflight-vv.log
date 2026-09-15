@@ -1,0 +1,145 @@
+Missing dependencies found. Installing now...
+
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/Vectorized/solady.git' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/solady' failed
+Failed to clone 'contracts/lib/solady'. Retry scheduled
+fatal: destination path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' already exists and is not an empty directory.
+fatal: clone of 'https://github.com/smartcontractkit/chainlink-brownie-contracts' into submodule path '/Users/jason/Dev/aastar/SuperPaymaster/.claude/worktrees/agent-a73ace1b3c7184568/contracts/lib/chainlink-brownie-contracts' failed
+Failed to clone 'contracts/lib/chainlink-brownie-contracts' a second time, aborting
+Warning: Your project has missing dependencies that could not be installed.
+Compiling 2 files with Solc 0.8.33
+Solc 0.8.33 finished in 11.97s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 35 tests for contracts/test/v2/D5bTimelockPreflight.t.sol:D5bTimelockPreflightTest
+[PASS] test_attest_max_age_raise_is_local_only() (gas: 16004)
+[PASS] test_attestation_head_block_hash_checked_when_available() (gas: 1683134)
+Logs:
+    roles attestation: head block hash verified against blockhash() 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+
+[PASS] test_attestation_holder_set_not_manifest_reverts() (gas: 1505221)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+
+[PASS] test_attestation_manifest_changed_reverts() (gas: 1452453)
+[PASS] test_attestation_missing_reverts() (gas: 1444872)
+[PASS] test_attestation_opt_out_allowed_on_local_chain_only() (gas: 1489246)
+Logs:
+    !!!!! WARNING: TL_ALLOW_NO_ATTESTATION - role exclusivity NOT checked (local chain only) !!!!!
+    !!!!! WARNING: manifest canonical byte form NOT verified - forge parsed it best-effort (local chain only) !!!!!
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+
+[PASS] test_attestation_opt_out_rejected_on_live_chain() (gas: 1445485)
+[PASS] test_attestation_result_fail_reverts() (gas: 1479268)
+[PASS] test_attestation_stale_head_reverts() (gas: 1454514)
+[PASS] test_attestation_wrong_chainid_reverts() (gas: 1478882)
+[PASS] test_attestation_wrong_schema_reverts() (gas: 1477331)
+[PASS] test_attestation_wrong_timelock_reverts() (gas: 1480269)
+[PASS] test_attested_values_must_equal_the_manifest_forge_read() (gas: 1886243)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+
+[PASS] test_bounded_preflight_passes_unlisted_admin_genuine_attestation_stops_the_operator() (gas: 1658912)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+
+[PASS] test_governed_call_refuses_upgrade() (gas: 1742395)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+
+[PASS] test_governed_call_unpause_runs_operator_preflight() (gas: 1932172)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    call scheduled; ready at: 345601
+  0x66855108463d4e93129458b8897467dcc6edfa9f1cdab79a52611438527a4132
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    governed call executed 0x0AF055843C65561A17A461651423bb6F70273D68
+
+[PASS] test_hand_made_pass_attestation_omitting_a_holder_is_accepted() (gas: 1634470)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+
+[PASS] test_live_chain_head_block_hash_fail_closed() (gas: 1830730)
+Logs:
+    roles attestation: head block hash verified against blockhash() 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+
+[PASS] test_manifest_chainid_mismatch_reverts() (gas: 1396357)
+[PASS] test_manifest_example_placeholder_refused() (gas: 19651)
+[PASS] test_manifest_extra_role_key_rejected() (gas: 1486444)
+[PASS] test_manifest_file_missing_field_each_rejected() (gas: 1980578)
+[PASS] test_manifest_vacuous_fields_each_rejected() (gas: 2159316)
+[PASS] test_manifest_whitespace_only_label_rejected() (gas: 1801688)
+[PASS] test_non_safe_caller_does_not_schedule() (gas: 1495815)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    NOTE for Safe signers: the operator preflight above binds only this script run. Before
+    signing, re-run check-timelock-roles.mjs at the current head and review the operation.
+    broadcaster is not the Safe - submit this scheduleBatch from the Safe:
+  0x8f2a0bb000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000000000000000000000000000000000000000000083267a439473d40c510063b30f7c06d1e3bf496ea5e34c5e3290dfc7dc527ce1000000000000000000000000000000000000000000000000000000000002a30000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000af055843c65561a17a461651423bb6f70273d680000000000000000000000003333125ec903c862f5c745d323b198dbed3061580000000000000000000000000af055843c65561a17a461651423bb6f70273d6800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000479ba509700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000479ba50970000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000248a0dac4a00000000000000000000000000000000000000000000000000000000000051ed00000000000000000000000000000000000000000000000000000000
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+
+[PASS] test_preflight_correct_timelock_passes_and_M1_completes() (gas: 1739998)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1/M2 read-back OK: owners == timelock, pendingOwner == 0, guardian == SAFE, minDelay == 48h 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a
+
+[PASS] test_preflight_manifest_file_missing_reverts() (gas: 1340168)
+[PASS] test_preflight_rejects_72h_delay() (gas: 1400625)
+[PASS] test_preflight_rejects_deployer_still_admin() (gas: 1443829)
+[PASS] test_preflight_rejects_extra_eoa_proposer() (gas: 1486109)
+[PASS] test_preflight_rejects_manifest_for_another_timelock() (gas: 1399516)
+[PASS] test_preflight_rejects_manifest_not_m1_policy() (gas: 1403278)
+[PASS] test_preflight_rejects_open_executor() (gas: 1435474)
+[PASS] test_preflight_rejects_safe_missing_canceller() (gas: 1396622)
+[PASS] test_preflight_reruns_before_execute() (gas: 1601373)
+Logs:
+    !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!! 1
+    roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 1
+    M1 batch scheduled; ready at: 172801
+  0x19e246455d2f4065c08bb839be311180ccfe43d752728feef900aea7e2093dcf
+
+Suite result: ok. 35 passed; 0 failed; 0 skipped; finished in 69.31ms (224.02ms CPU time)
+
+Ran 1 test suite in 79.30ms (69.31ms CPU time): 35 tests passed, 0 failed, 0 skipped (35 total tests)

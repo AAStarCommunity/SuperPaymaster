@@ -24,6 +24,10 @@
 #                        1.0, > uint64, "" -> FAIL each; "0" deploymentBlock -> FAIL
 #   E3 structure (L2')   .roles null / number / string / array, a role value that is not an array, the
 #                        whole manifest an array / null -> FAIL, never an uncaught crash
+#   E4 canonical (48cba3bd) the manifest bytes must equal the checker's canonical serialization: an
+#                        escaped key, an escaped value, a duplicate key, an escaped root key + nested
+#                        literal decoy, reordered keys, trailing spaces, CRLF, a BOM, no final newline ->
+#                        FAIL each; the reordered file after --canonicalize -> PASS (control)
 #   From step 2 on, every step's --attest path first holds step 1's genuine PASS: each FAIL step also
 #   proves a failing run replaces an earlier PASS.
 #   F  exit 2            --chunk 0 / -5 / 1.5 / abc / missing value, unreadable manifest, missing --rpc,
@@ -72,7 +76,8 @@ deploy_tl() { # <proposers> <executors> -> "addr block"
 read -r TL BLK <<<"$(deploy_tl "[$SAFE]" "[$SAFE]")"
 manifest() { # <timelock> <deploymentBlock> <out> [chainId]
   printf '{\n  "network": "anvil-selftest",\n  "chainId": "%s",\n  "timelock": "%s",\n  "deploymentBlock": "%s",\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer/old owner"]\n}\n' \
-    "${4:-31337}" "$1" "$2" "$1" "$SAFE" "$SAFE" "$SAFE" "$OWNER" >"$3"
+    "${4:-31337}" "$1" "$2" "$1" "$SAFE" "$SAFE" "$SAFE" "$OWNER" >"$3.draft"
+  node script/governance/check-timelock-roles.mjs --canonicalize "$3.draft" >"$3"; rm -f "$3.draft"
 }
 M="$W/manifest.json"
 manifest "$TL" "$BLK" "$M"
@@ -193,8 +198,46 @@ mut 'set:roles.PROPOSER_ROLE="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"'; expe
 mut 'set:roles.EXECUTOR_ROLE={}'; expect 1 "a role value that is an object, not an array" "manifest: .roles.EXECUTOR_ROLE must be a non-empty array"
 mut 'whole:[1,2]'; expect 1 "the manifest is a JSON array" "manifest: must be a JSON object"
 mut 'whole:null'; expect 1 "the manifest is JSON null" "manifest: must be a JSON object"
+echo "== E4: canonical byte form, enforced by the checker only (Codex re-check of 48cba3bd)"
+rawmut() { # <op> -> $W/manifest-raw.json from the canonical base manifest's TEXT
+  python3 - "$M_SAVE" "$W/manifest-raw.json" "$1" <<'PY'
+import sys
+src, dst, op = sys.argv[1:4]
+t = open(src, "rb").read().decode("utf-8")
+assert t.endswith("}\n")
+if op == "esc-key": t = t.replace('"chainId"', '"\\u0063hainId"', 1)
+elif op == "esc-value": t = t.replace('"anvil-selftest"', '"\\u0061nvil-selftest"', 1)
+elif op == "dup-key": t = t.replace('{\n', '{\n  "network": "decoy",\n', 1)
+elif op == "nested-decoy":  # the 48cba3bd attack: escaped ROOT key with a non-canonical value + a nested literal key
+    i = t.index('  "chainId": ')
+    j = t.index("\n", i)
+    t = t[:i] + '  "\\u0063hainId": "0x7a69",\n  "_x": {"chainId": "31337"},' + t[j:]
+elif op == "reorder":
+    lines = t.split("\n")
+    a = next(k for k, l in enumerate(lines) if l.startswith('  "network"'))
+    b = next(k for k, l in enumerate(lines) if l.startswith('  "chainId"'))
+    lines[a], lines[b] = lines[b], lines[a]
+    t = "\n".join(lines)
+elif op == "trailing-space": t = t.replace(",\n", ",  \n", 1)
+elif op == "crlf": t = t.replace("\n", "\r\n")
+elif op == "bom": t = "﻿" + t
+elif op == "no-final-newline": t = t[:-1]
+else: raise SystemExit("unknown op " + op)
+open(dst, "wb").write(t.encode("utf-8"))
+PY
+}
+M="$W/manifest-raw.json"
+for op in esc-key esc-value dup-key nested-decoy reorder trailing-space crlf bom no-final-newline; do
+  rawmut "$op"; expect 1 "non-canonical bytes: $op" "manifest: bytes are not the canonical serialization"
+done
+python3 -c "import json,sys;assert json.load(open(sys.argv[1], encoding='utf-8-sig'))" "$W/manifest-raw.json" || bad "the BOM variant is not otherwise valid JSON"
+rawmut reorder; $CHECK --canonicalize "$W/manifest-raw.json" >"$W/manifest-fixed.json" || bad "--canonicalize failed"
+cmp -s "$W/manifest-fixed.json" "$M_SAVE" || bad "--canonicalize of the reordered file != the canonical manifest"
+M="$W/manifest-fixed.json"; expect 0 "the reordered file after --canonicalize (control: the helper produces an accepted file)" -
+M="$M_SAVE"
 M="deployments/timelock-roles.example.json"; expect 1 "the committed example (FAKE placeholders)" "manifest: \`_placeholder\` is set"
-python3 -c "import json,sys;d=json.load(open(sys.argv[1]));d.pop('_placeholder');json.dump(d,open(sys.argv[2],'w'))" deployments/timelock-roles.example.json "$W/example-unflagged.json"
+python3 -c "import json,sys;d=json.load(open(sys.argv[1]));d.pop('_placeholder');json.dump(d,open(sys.argv[2],'w'))" deployments/timelock-roles.example.json "$W/example-unflagged.draft.json"
+node script/governance/check-timelock-roles.mjs --canonicalize "$W/example-unflagged.draft.json" >"$W/example-unflagged.json"
 M="$W/example-unflagged.json"; expect 1 "the example minus _placeholder: complete schema, fails only on its chain" "chain mismatch: --rpc chainId 31337 != manifest chainId 11155111"
 if grep -q "manifest:" "$W/step$n.log"; then bad "the example has a schema problem"; fi
 M="$M_SAVE"

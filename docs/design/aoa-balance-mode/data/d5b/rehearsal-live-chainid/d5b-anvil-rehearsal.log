@@ -24,7 +24,7 @@
   negative ok: schedule-accept WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M1.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    M1 batch scheduled; ready at: 1789645942
+    M1 batch scheduled; ready at: 1789648125
   negative ok: execute-accept before 48h reverted (Error: script failed: M1: batch not ready)
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M1-execute.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
@@ -37,7 +37,7 @@ TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the ma
   negative ok: schedule-upgrade SP WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-SP-upgrade.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    scheduled; ready at: 1789818753
+    scheduled; ready at: 1789820938
   negative ok: execute-upgrade SP before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-SP-execute.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
@@ -50,7 +50,7 @@ TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the ma
   negative ok: schedule-upgrade REGISTRY WITHOUT a roles attestation reverted (Error: script failed: roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output))
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-REGISTRY-upgrade.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
-    scheduled; ready at: 1789991564
+    scheduled; ready at: 1789993749
   negative ok: execute-upgrade REGISTRY before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-REGISTRY-execute.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
@@ -66,7 +66,7 @@ attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.befor
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest
     roles attestation: head block hash verified against blockhash() 34
     roles attestation OK (operator preflight; unsigned, not an enforcement boundary), head block 34
-    call scheduled; ready at: 1790164375
+    call scheduled; ready at: 1790166559
   negative ok: execute-call (unpause) before 48h reverted (Error: script failed: execute: operation not ready (not scheduled)
 attestation written: deployments/attestations/timelock-roles.d5b-rehearsal.before-M2-unpause-execute.json (result PASS)
 TIMELOCK ROLE CHECK OK: the event-history holder set of every role equals the manifest

@@ -231,15 +231,7 @@ MUTATIONS = [
         "blind": ["test_attestation_stale_head_reverts"],
         "suites": [PF],
     },
-    # ---- Codex re-check of 7ca43549 (M2, L1)
-    {
-        "name": "s-integer-not-canonical",
-        "what": "Codex re-check of 7ca43549 (M2): chainId is read with parseJsonUint again (bare numbers / hex accepted)",
-        "edits": [(UVT, """        m.chainId = canonicalUint(j, ".chainId");""", """        m.chainId = vm.parseJsonUint(j, ".chainId");""")],
-        "red": ["test_manifest_integer_canonical_form_only"],
-        "blind": ["test_manifest_file_missing_field_each_rejected", "test_manifest_chainid_mismatch_reverts"],
-        "suites": [PF],
-    },
+    # ---- Codex re-check of 7ca43549 (L1); (s) was dropped with forge's raw-text canonicalUint (48cba3bd)
     {
         "name": "t-live-head-hash-not-fail-closed",
         "what": "Codex re-check of 7ca43549 (L1): live chain ids no longer fail closed on an unverifiable head hash",
@@ -250,7 +242,100 @@ MUTATIONS = [
         "blind": ["test_attestation_head_block_hash_checked_when_available", "test_attestation_opt_out_rejected_on_live_chain"],
         "suites": [PF],
     },
+    {
+        "name": "v-attested-values-unchecked",
+        "what": ("Codex re-check of 48cba3bd: forge no longer requires the attested manifest values to equal "
+                 "the values it read (the transitive canonical-form link)"),
+        "edits": [(UVT, """        require(vm.parseJsonUint(j, ".manifestChainId") == m.chainId, "roles attestation: attested manifest chainId != manifest");
+        require(vm.parseJsonUint(j, ".deploymentBlock") == m.deploymentBlock, "roles attestation: attested deploymentBlock != manifest");
+        address[] memory attMhn = vm.parseJsonAddressArray(j, ".mustHoldNothing");
+        require(attMhn.length == m.mustHoldNothing.length, "roles attestation: attested mustHoldNothing != manifest");
+        for (uint256 i; i < attMhn.length; ++i) {
+            require(attMhn[i] == m.mustHoldNothing[i], "roles attestation: attested mustHoldNothing != manifest");
+        }
+        string[] memory attLabels = vm.parseJsonStringArray(j, ".mustHoldNothingLabels");
+        require(attLabels.length == m.mustHoldNothingLabels.length, "roles attestation: attested labels != manifest");
+        for (uint256 i; i < attLabels.length; ++i) {
+            require(keccak256(bytes(attLabels[i])) == keccak256(bytes(m.mustHoldNothingLabels[i])),
+                "roles attestation: attested labels != manifest");
+        }
+""", "")],
+        "red": ["test_attested_values_must_equal_the_manifest_forge_read"],
+        "blind": ["test_attestation_manifest_changed_reverts", "test_preflight_correct_timelock_passes_and_M1_completes"],
+        "suites": [PF],
+    },
 ]
+
+
+# ---- mutations of the event-history checker (JS), killed by its anvil self-test (not by forge)
+CHK = "script/governance/check-timelock-roles.mjs"
+SELFTEST = "scripts/d5b-timelock-roles-selftest.sh"
+CANON_STEPS = ["non-canonical bytes: " + x for x in
+               ["esc-key", "esc-value", "dup-key", "reorder", "trailing-space", "crlf", "bom", "no-final-newline"]]
+CHECKER_MUTATIONS = [
+    {
+        "name": "u-checker-canonical-bytes-check-removed",
+        "what": "Codex re-check of 48cba3bd: the checker no longer requires manifest bytes == canonical serialization",
+        "edit": ("  if (Buffer.compare(canon, manifestBytes) !== 0) {", "  if (false) {"),
+        "red": CANON_STEPS,
+        # the decoy also carries a non-decimal chainId and an unknown key: with the canonical check gone it
+        # is STILL refused (exit 1, FAIL), only for another reason -> "failed, but not with <needle>"
+        "other_reason": ["non-canonical bytes: nested-decoy"],
+        "blind": ["correct M1 timelock == manifest", "the committed example"],
+    },
+]
+
+
+def run_selftest(check_cmd, work):
+    env = dict(os.environ, KEEP_GOING="1", CHECK=check_cmd)
+    r = subprocess.run(["bash", SELFTEST, work], cwd=ROOT, env=env, capture_output=True, text=True, timeout=1500)
+    import re
+    return r.stdout, re.findall(r"SELF-TEST FAILED at step \d+: (.*)", r.stdout)
+
+
+def run_checker_mutations(only):
+    failed = False
+    work0 = tempfile.mkdtemp(prefix="d5b-chk-col0-")
+    try:
+        out, reds = run_selftest(f"node {CHK}", work0)
+        print(f"\nchecker column 0 (unmutated self-test): {out.strip().splitlines()[-1]}; red = {reds}")
+        if reds:
+            raise SystemExit("unmutated checker self-test is not green — matrix meaningless")
+    finally:
+        shutil.rmtree(work0, ignore_errors=True)
+    for mu in CHECKER_MUTATIONS:
+        if only and mu["name"] not in only:
+            continue
+        src = open(os.path.join(ROOT, CHK)).read()
+        a, b = mu["edit"]
+        if src.count(a) != 1:
+            raise SystemExit(f"{mu['name']}: anchor not found exactly once in {CHK}")
+        mpath = os.path.join(ROOT, "script", "governance", f".mut-{mu['name']}.mjs")
+        work = tempfile.mkdtemp(prefix="d5b-chk-mut-")
+        try:
+            open(mpath, "w").write(src.replace(a, b))
+            out, reds = run_selftest(f"node {os.path.relpath(mpath, ROOT)}", work)
+        finally:
+            os.remove(mpath)
+            shutil.rmtree(work, ignore_errors=True)
+        hit = lambda lbl: any(r.startswith(lbl) for r in reds)
+        missing = [t for t in mu["red"] if not any(r.startswith(t + " (exit 0, expected 1)") for r in reds)]
+        leaked = [t for t in mu["blind"] if hit(t)]
+        other = mu.get("other_reason", [])
+        # still refused, for another reason: the only allowed self-test complaint is the needle mismatch
+        wrong_other = [t for t in other if not any(r.startswith(t + " — failed, but not with") for r in reds)]
+        ok = not missing and not leaked and not wrong_other
+        print(f"\n== {mu['name']}: {mu['what']}")
+        print(f"   self-test red ({len(reds)}):")
+        for r in reds:
+            print(f"     - {r[:160]}")
+        print(f"   expected red {mu['red']} -> missing {missing}")
+        print(f"   (red = the self-test step now PASSES the non-canonical file: exit 0 where 1 is required)")
+        print(f"   still refused for another reason {other} -> not so {wrong_other}")
+        print(f"   blind steps {mu['blind']} -> turned red {leaked}")
+        print(f"   RESULT: {'OK' if ok else 'FAIL'}")
+        failed |= not ok
+    return failed
 
 
 def scratch():
@@ -288,8 +373,13 @@ def run_suite(tmp, suite):
 
 def main():
     only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else None
+    chk_names = {m["name"] for m in CHECKER_MUTATIONS}
+    run_chk = only is None or any(n in chk_names for n in only)
+    run_forge = only is None or any(n not in chk_names for n in only)
+    failed = run_checker_mutations(only) if run_chk else False
+    if not run_forge:
+        sys.exit(1 if failed else 0)
     tmp = scratch()
-    failed = False
     try:
         pristine = {}
         for s in [GOV2, RACE, PF]:

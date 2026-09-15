@@ -297,7 +297,11 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         ".mustHoldNothingLabels"
     ];
 
-    /// @notice Parse a manifest body. EVERY schema field is required (Codex re-check M3: a manifest
+    /// @notice Parse a manifest body with forge's normal JSON cheatcodes (BEST EFFORT as to the byte-level
+    ///         form: forge coerces types, e.g. "0x.." or long digit strings). The canonical byte form is
+    ///         enforced in ONE place, the checker (check-timelock-roles.mjs, CANONICAL FORM); on the
+    ///         attested path requireRolesAttestation binds these exact bytes to a PASS attestation and
+    ///         requires the values read here to equal the attested ones. EVERY schema field is required (Codex re-check M3: a manifest
     ///         that omits a field must not parse as an empty — vacuously satisfied — set); the content
     ///         rules (chainId, M1 policy, non-empty unique labelled mustHoldNothing) are enforced by
     ///         validateManifest, which m1Preflight runs.
@@ -310,9 +314,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         require(bytes(vm.parseJsonString(j, ".network")).length > 0, "M1 manifest: empty network");
         // the four role keys exist (checked above); any further key under .roles is rejected, as in the checker
         require(vm.parseJsonKeys(j, ".roles").length == 4, "M1 manifest: unknown role key in .roles");
-        m.chainId = canonicalUint(j, ".chainId");
+        m.chainId = vm.parseJsonUint(j, ".chainId");
         m.timelock = vm.parseJsonAddress(j, ".timelock");
-        m.deploymentBlock = canonicalUint(j, ".deploymentBlock");
+        m.deploymentBlock = vm.parseJsonUint(j, ".deploymentBlock");
         m.admins = vm.parseJsonAddressArray(j, ".roles.DEFAULT_ADMIN_ROLE");
         m.proposers = vm.parseJsonAddressArray(j, ".roles.PROPOSER_ROLE");
         m.cancellers = vm.parseJsonAddressArray(j, ".roles.CANCELLER_ROLE");
@@ -320,55 +324,6 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
         m.mustHoldNothing = vm.parseJsonAddressArray(j, ".mustHoldNothing");
         m.mustHoldNothingLabels = vm.parseJsonStringArray(j, ".mustHoldNothingLabels");
         m.fileKeccak = keccak256(bytes(j));
-    }
-
-    /**
-     * @notice The ONE canonical form of `chainId` and `deploymentBlock` in a manifest (Codex re-check of
-     *         7ca43549, M2): a JSON STRING of decimal digits, no leading zeros (except "0"), <= 2^64 - 1.
-     *         Everything else is rejected, bare JSON numbers included (JSON numbers lose precision above
-     *         2^53 in the JS checker; forge coerces "0x.." strings and long digit strings to numbers).
-     *         Because forge's JSON cheatcodes coerce types, the RAW JSON text is inspected: the key must
-     *         occur exactly once as a key token (an unescaped `"<key>"` followed by `:`), and its value
-     *         token must be a double-quoted run of 1..20 decimal digits. forge's own reading of the same
-     *         key must then agree with the value. The checker applies the same rule to the raw JSON type.
-     */
-    function canonicalUint(string memory j, string memory key) public view returns (uint256 v) {
-        string memory err = string.concat("M1 manifest: ", key, " must be a decimal string (no leading zeros, <= uint64)");
-        bytes memory b = bytes(j);
-        bytes memory kb = bytes(key);
-        bytes memory pat = new bytes(kb.length + 1); // `"<key without the leading dot>"`
-        pat[0] = '"';
-        for (uint256 i = 1; i < kb.length; ++i) pat[i] = kb[i];
-        pat[kb.length] = '"';
-        uint256 found;
-        uint256 at;
-        for (uint256 i; i + pat.length <= b.length; ++i) {
-            if (i > 0 && b[i - 1] == "\\") continue; // an escaped quote inside a string
-            bool hit = true;
-            for (uint256 k; k < pat.length; ++k) {
-                if (b[i + k] != pat[k]) { hit = false; break; }
-            }
-            if (!hit) continue;
-            uint256 q = _skipWs(b, i + pat.length);
-            if (q >= b.length || b[q] != ":") continue; // a string value, not a key
-            ++found;
-            at = _skipWs(b, q + 1);
-        }
-        require(found == 1 && at < b.length && b[at] == '"', err);
-        uint256 n;
-        uint256 p = at + 1;
-        for (; p < b.length && b[p] != '"'; ++p) {
-            uint8 c = uint8(b[p]);
-            require(c >= 0x30 && c <= 0x39 && ++n <= 20, err);
-            v = v * 10 + (c - 0x30);
-        }
-        require(p < b.length && n != 0 && (n == 1 || b[at + 1] != "0") && v <= type(uint64).max, err);
-        require(vm.parseJsonUint(j, key) == v, err);
-    }
-
-    function _skipWs(bytes memory b, uint256 i) internal pure returns (uint256) {
-        while (i < b.length && (b[i] == " " || b[i] == "\t" || b[i] == "\n" || b[i] == "\r")) ++i;
-        return i;
     }
 
     /**
@@ -537,7 +492,9 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
      *         it is for: stopping an operator from preparing a schedule / execute against a timelock whose
      *         role history no longer matches the committed manifest. Checks, all before anything is
      *         broadcast: schema == ATTEST_SCHEMA; result == "PASS"; chainId == block.chainid; timelock ==
-     *         this timelock; manifestKeccak256 == keccak256 of the manifest file as read now; the head
+     *         this timelock; manifestKeccak256 == keccak256 of the manifest file as read now (and the
+     *         attested manifestChainId / deploymentBlock / mustHoldNothing / labels == the values forge
+     *         read: the checker only attests canonical bytes, so this carries the canonical form over); the head
      *         block is not in the future and at most attestMaxAge(TL_ATTEST_MAX_AGE, default 256) blocks
      *         old; on a LIVE chain id the head must be 1..256 blocks older than block.number and
      *         blockhash(head) must be non-zero and equal headBlockHash (fail-closed: same-chain-id fork /
@@ -552,6 +509,7 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             if (m.optOut) {
                 require(_isLocalChain(), "roles attestation: opt-out is impossible on a live chain");
                 console.log("  !!!!! WARNING: TL_ALLOW_NO_ATTESTATION - role exclusivity NOT checked (local chain only) !!!!!");
+                console.log("  !!!!! WARNING: manifest canonical byte form NOT verified - forge parsed it best-effort (local chain only) !!!!!");
                 return;
             }
             revert("roles attestation: missing (set TL_ROLES_ATTESTATION to the check-timelock-roles.mjs output)");
@@ -589,6 +547,24 @@ contract UpgradeViaTimelock is D5bUpgradeChecks {
             console.log("  roles attestation: head block hash verified against blockhash()", head);
         } else {
             console.log("  !!!!! roles attestation: head block hash NOT verified (local chain only: blockhash unavailable) !!!!!", head);
+        }
+        // Canonical form, transitively (Codex re-check of 48cba3bd): the checker attests PASS only for a
+        // manifest whose bytes are its canonical serialization; manifestKeccak256 above binds the file
+        // forge read to exactly those bytes; so forge's cheatcode reading is a reading of canonical
+        // bytes, and it must agree with the values the checker attested. (Still an operator preflight:
+        // the attestation is unsigned.)
+        require(vm.parseJsonUint(j, ".manifestChainId") == m.chainId, "roles attestation: attested manifest chainId != manifest");
+        require(vm.parseJsonUint(j, ".deploymentBlock") == m.deploymentBlock, "roles attestation: attested deploymentBlock != manifest");
+        address[] memory attMhn = vm.parseJsonAddressArray(j, ".mustHoldNothing");
+        require(attMhn.length == m.mustHoldNothing.length, "roles attestation: attested mustHoldNothing != manifest");
+        for (uint256 i; i < attMhn.length; ++i) {
+            require(attMhn[i] == m.mustHoldNothing[i], "roles attestation: attested mustHoldNothing != manifest");
+        }
+        string[] memory attLabels = vm.parseJsonStringArray(j, ".mustHoldNothingLabels");
+        require(attLabels.length == m.mustHoldNothingLabels.length, "roles attestation: attested labels != manifest");
+        for (uint256 i; i < attLabels.length; ++i) {
+            require(keccak256(bytes(attLabels[i])) == keccak256(bytes(m.mustHoldNothingLabels[i])),
+                "roles attestation: attested labels != manifest");
         }
         _attestedRole(tl, j, "DEFAULT_ADMIN_ROLE", tl.DEFAULT_ADMIN_ROLE(), m.admins);
         _attestedRole(tl, j, "PROPOSER_ROLE", tl.PROPOSER_ROLE(), m.proposers);

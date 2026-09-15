@@ -3,6 +3,6 @@ timelock 0x5FbDB2315678afecb367f032d93F642f64180aa3 (chain 31337, rpc2 chain 313
   PROPOSER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   CANCELLER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   EXECUTOR_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att12.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/att12.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
   - --rpc2 does not serve the pinned head block 7 (its head is 6: lagging endpoint)

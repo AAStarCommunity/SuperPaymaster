@@ -94,6 +94,10 @@ contract D5bTimelockPreflightTest is Test {
         uint256 head;
         address[] admins;
         address[] proposers;
+        uint256 manifestChainId; // attested manifest values (the checker writes them as decimal strings)
+        uint256 deploymentBlock;
+        address[] mustHoldNothing;
+        string[] labels;
     }
 
     function _goodAtt(TimelockController tl) internal view returns (Att memory a) {
@@ -106,6 +110,18 @@ contract D5bTimelockPreflightTest is Test {
         a.head = block.number;
         a.admins = _one(address(tl));
         a.proposers = _one(safe);
+        a.manifestChainId = block.chainid;
+        a.deploymentBlock = block.number;
+        a.mustHoldNothing = _two(deployer, eoa);
+        a.labels = new string[](2);
+        a.labels[0] = "deployer / old owner";
+        a.labels[1] = "ops EOA";
+    }
+
+    function _strs(string[] memory a) internal pure returns (string memory out) {
+        out = "[";
+        for (uint256 i; i < a.length; ++i) out = string.concat(out, i == 0 ? "" : ",", "\"", a[i], "\"");
+        out = string.concat(out, "]");
     }
 
     /// @dev Same shape as check-timelock-roles.mjs --attest (only the fields the preflight reads).
@@ -123,7 +139,11 @@ contract D5bTimelockPreflightTest is Test {
             ",\"roles\":{\"DEFAULT_ADMIN_ROLE\":", _addrs(a.admins),
             ",\"PROPOSER_ROLE\":", _addrs(a.proposers),
             ",\"CANCELLER_ROLE\":", _addrs(_one(safe)),
-            ",\"EXECUTOR_ROLE\":", _addrs(_one(safe)), "}}"
+            ",\"EXECUTOR_ROLE\":", _addrs(_one(safe)), "}"
+        );
+        j = string.concat(j,
+            ",\"manifestChainId\":\"", vm.toString(a.manifestChainId), "\",\"deploymentBlock\":\"", vm.toString(a.deploymentBlock),
+            "\",\"mustHoldNothing\":", _addrs(a.mustHoldNothing), ",\"mustHoldNothingLabels\":", _strs(a.labels), "}"
         );
         vm.createDir(ATT_DIR, true);
         vm.writeFile(path, j);
@@ -584,48 +604,6 @@ contract D5bTimelockPreflightTest is Test {
 
     // ------------------------------------------------------------------ Codex re-check of 7ca43549 (M2, L1)
 
-    /// @notice chainId / deploymentBlock have ONE canonical form: a JSON string of decimal digits, no
-    ///         leading zeros, <= uint64. Each non-canonical form is rejected for each key; the canonical
-    ///         form is accepted (positive control).
-    function test_manifest_integer_canonical_form_only() public {
-        TimelockController tl = _correctTl();
-        string memory chainOk = string.concat("\"", vm.toString(block.chainid), "\"");
-        UpgradeViaTimelock.RoleManifest memory ok = script.parseManifest(_bodyRaw(tl, 10, false, chainOk, "\"1\""));
-        assertEq(ok.chainId, block.chainid, "positive control: canonical chainId");
-        assertEq(ok.deploymentBlock, 1, "positive control: canonical deploymentBlock");
-        assertEq(script.parseManifest(_bodyRaw(tl, 10, false, chainOk, "\"18446744073709551615\"")).deploymentBlock,
-            type(uint64).max, "positive control: uint64 max");
-        string[7] memory bad = [
-            vm.toString(block.chainid), // bare number
-            "9007199254740993",         // bare number above 2^53
-            "\"0x7a69\"",               // hex string
-            "\"031337\"",               // leading zero
-            "1.0",                      // bare float
-            "\"18446744073709551616\"", // uint64 max + 1
-            "\"\""                      // empty string
-        ];
-        // the raw-text scan: an escaped "chainId": inside a string value is not a key (positive control) ...
-        string memory base = _bodyRaw(tl, 10, false, chainOk, "\"1\"");
-        string memory noted = string.concat("{\"_note\":\"say \\\"chainId\\\": \\\"9\\\"\",", _dropFirst(base));
-        assertEq(script.parseManifest(noted).chainId, block.chainid, "escaped key text inside a string is ignored");
-        // ... but a second "chainId" key anywhere (here nested) is ambiguous and rejected
-        vm.expectRevert(bytes("M1 manifest: .chainId must be a decimal string (no leading zeros, <= uint64)"));
-        script.parseManifest(string.concat("{\"_x\":{\"chainId\":\"9\"},", _dropFirst(base)));
-        for (uint256 i; i < bad.length; ++i) {
-            vm.expectRevert(bytes("M1 manifest: .chainId must be a decimal string (no leading zeros, <= uint64)"));
-            script.parseManifest(_bodyRaw(tl, 10, false, bad[i], "\"1\""));
-            vm.expectRevert(bytes("M1 manifest: .deploymentBlock must be a decimal string (no leading zeros, <= uint64)"));
-            script.parseManifest(_bodyRaw(tl, 10, false, chainOk, bad[i]));
-        }
-    }
-
-    function _dropFirst(string memory s) internal pure returns (string memory) {
-        bytes memory b = bytes(s);
-        bytes memory o = new bytes(b.length - 1);
-        for (uint256 i = 1; i < b.length; ++i) o[i - 1] = b[i];
-        return string(o);
-    }
-
     /// @notice LIVE chain ids fail closed on headBlockHash: an attestation of the current block (no
     ///         blockhash yet), a zero blockhash, a mismatching one, and one older than the 256-block window
     ///         are all refused; a matching blockhash 1..256 blocks back passes.
@@ -651,5 +629,33 @@ contract D5bTimelockPreflightTest is Test {
         m.attestation = _writeAtt("live-old", a);
         vm.roll(block.number + 257);
         _assertRejected(tl, m, "roles attestation: stale"); // 257 > the live maximum of 256
+    }
+
+    // ------------------------------------------------------------------ Codex re-check of 48cba3bd: canonical form, transitively
+
+    /// @notice The canonical byte form is enforced by the checker only; forge carries it over by requiring
+    ///         the manifest values it read to equal the attested ones (the attestation binds the exact
+    ///         bytes through manifestKeccak256 — test_attestation_manifest_changed_reverts). Each attested
+    ///         value that differs from forge's reading stops the script.
+    function test_attested_values_must_equal_the_manifest_forge_read() public {
+        TimelockController tl = _correctTl();
+        UpgradeViaTimelock.RoleManifest memory m = _manifest(tl, "vals");
+        script.operatorPreflight(tl, m); // positive control
+        Att memory a = _goodAtt(tl);
+        a.manifestChainId = 11155111;
+        m.attestation = _writeAtt("vals-chain", a);
+        _assertRejected(tl, m, "roles attestation: attested manifest chainId != manifest");
+        a = _goodAtt(tl);
+        a.deploymentBlock = block.number + 1;
+        m.attestation = _writeAtt("vals-block", a);
+        _assertRejected(tl, m, "roles attestation: attested deploymentBlock != manifest");
+        a = _goodAtt(tl);
+        a.mustHoldNothing = _two(eoa, deployer); // same set, different order: not the same manifest
+        m.attestation = _writeAtt("vals-mhn", a);
+        _assertRejected(tl, m, "roles attestation: attested mustHoldNothing != manifest");
+        a = _goodAtt(tl);
+        a.labels[1] = "ops EOA (edited)";
+        m.attestation = _writeAtt("vals-labels", a);
+        _assertRejected(tl, m, "roles attestation: attested labels != manifest");
     }
 }

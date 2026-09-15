@@ -3,6 +3,6 @@ timelock 0x5FbDB2315678afecb367f032d93F642f64180aa3 (chain 31337, rpc2 chain 313
   PROPOSER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   CANCELLER_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
   EXECUTOR_ROLE: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/att14.json (result FAIL)
+attestation written: /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/att14.json (result FAIL)
 TIMELOCK ROLE CHECK FAILED:
-  - --rpc2 returned a different role-log list over [1, 7] (9 vs 10 logs; first difference at index 9: null vs {"event":"RoleRevoked","role":"0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63","account":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","sender":"0x5FbDB2315678afecb367f032d93F642f64180aa3","blockNumber":"7","blockHash":"0xc7d51852e4e9acbe30e30be82d3e014a2a4302f8532dc4602219719ce5a6fef2","logIndex":0,"transactionHash":"0x063cca8df611268b5f72746a243517ff5ac270cd29a57100dd40ea469688d7b6"})
+  - --rpc2 returned a different role-log list over [1, 7] (9 vs 10 logs; first difference at index 9: null vs {"event":"RoleRevoked","role":"0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63","account":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","sender":"0x5FbDB2315678afecb367f032d93F642f64180aa3","blockNumber":"7","blockHash":"0x8d2824378d97d7d2caba21bc1558c7579a922a86a7edf5f3bad60bac4d7601c5","logIndex":0,"transactionHash":"0x063cca8df611268b5f72746a243517ff5ac270cd29a57100dd40ea469688d7b6"})

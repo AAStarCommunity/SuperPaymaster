@@ -1,50 +1,35 @@
 {
   "schema": "d5b-timelock-roles-attestation/2",
-  "result": "PASS",
-  "chainId": 31337,
+  "result": "FAIL",
+  "chainId": null,
   "rpc2ChainId": null,
-  "manifestChainId": "31337",
-  "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest.json",
-  "manifestSha256": "41538c543e09f71f00999c754640cc791e18d8729ab0ce2380dd13a23c1d7108",
-  "manifestKeccak256": "0x6718cfbb499da08902cf5063b45dfebee3f84a14bfc788cc46334c02f0512ca8",
-  "deploymentBlock": "1",
-  "headBlock": 11,
-  "headBlockHash": "0x5ada5034fba1c24c6acd028163739206b44756c3e7ec93c2fb6dc030074414b3",
-  "roles": {
-    "DEFAULT_ADMIN_ROLE": [
-      "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-    ],
-    "PROPOSER_ROLE": [
-      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    ],
-    "CANCELLER_ROLE": [
-      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    ],
-    "EXECUTOR_ROLE": [
-      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    ]
-  },
+  "manifestChainId": "11155111",
+  "timelock": "0x00000000000000000000000000000000fA4e0001",
+  "manifestPath": "deployments/timelock-roles.example.json",
+  "manifestSha256": "ff733cb5f266bcdffdb000f1cf0c0d0a0ebbf7634c18a9d94b3ff99463d1c594",
+  "manifestKeccak256": "0x7e969e0620fa802f0f5c1a4d022aab915e9eae329d3967f3c2dcd01b80a09f82",
+  "deploymentBlock": null,
+  "headBlock": null,
+  "headBlockHash": null,
+  "roles": {},
   "unknownRoles": [],
-  "mustHoldNothing": [
-    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-  ],
-  "mustHoldNothingLabels": [
-    "deployer/old owner"
-  ],
-  "logs": 10,
-  "depthProbe": true,
+  "mustHoldNothing": [],
+  "mustHoldNothingLabels": [],
+  "logs": null,
+  "depthProbe": null,
   "rpc2DepthProbe": null,
-  "constructorControl": "constructor grants found in deployment block 1",
-  "completeness": "completeness NOT independently verified (no --rpc2)",
+  "constructorControl": null,
+  "completeness": null,
   "rpc2Used": false,
   "endpoint": "http://127.0.0.1:18792",
   "endpoint2": null,
-  "problems": [],
+  "problems": [
+    "manifest: `_placeholder` is set — this is the example schema with FAKE addresses, not a network manifest"
+  ],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.4.0",
-    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."

@@ -14,7 +14,11 @@
     "`mustHoldNothing` = HISTORICAL accounts persisted here (deployer, old SP owner, old Registry owner, any",
     "other known EOA), never derived from the proxies' current owner().",
     "Both checks read it: UpgradeViaTimelock (parseManifest + validateManifest + m1Preflight, bounded) and",
-    "script/governance/check-timelock-roles.mjs (event history; rebuilds the FULL holder set of every role)."
+    "script/governance/check-timelock-roles.mjs (event history; rebuilds the FULL holder set of every role).",
+    "chainId and deploymentBlock are JSON STRINGS of decimal digits (no leading zeros, <= uint64).",
+    "The file must be byte-identical to its canonical serialization (2-space JSON, fixed key order, LF,",
+    "one trailing newline, no BOM, no escapes); produce it with",
+    "  node script/governance/check-timelock-roles.mjs --canonicalize <file>"
   ],
   "_placeholder": true,
   "network": "example-sepolia",
@@ -22,10 +26,18 @@
   "timelock": "0x00000000000000000000000000000000FA4E0001",
   "deploymentBlock": "1",
   "roles": {
-    "DEFAULT_ADMIN_ROLE": ["0x00000000000000000000000000000000FA4E0001"],
-    "PROPOSER_ROLE": ["0x00000000000000000000000000000000FA4E0002"],
-    "CANCELLER_ROLE": ["0x00000000000000000000000000000000FA4E0002"],
-    "EXECUTOR_ROLE": ["0x00000000000000000000000000000000FA4E0002"]
+    "DEFAULT_ADMIN_ROLE": [
+      "0x00000000000000000000000000000000FA4E0001"
+    ],
+    "PROPOSER_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ],
+    "CANCELLER_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ],
+    "EXECUTOR_ROLE": [
+      "0x00000000000000000000000000000000FA4E0002"
+    ]
   },
   "mustHoldNothing": [
     "0x00000000000000000000000000000000FA4E0003",

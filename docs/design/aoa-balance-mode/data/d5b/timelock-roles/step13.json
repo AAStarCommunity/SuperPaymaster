@@ -5,12 +5,12 @@
   "rpc2ChainId": 31337,
   "manifestChainId": "31337",
   "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest.json",
-  "manifestSha256": "41538c543e09f71f00999c754640cc791e18d8729ab0ce2380dd13a23c1d7108",
-  "manifestKeccak256": "0x6718cfbb499da08902cf5063b45dfebee3f84a14bfc788cc46334c02f0512ca8",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest.json",
+  "manifestSha256": "f164ed55005f3f9eb7533cfa51260c90c4b4f2036126991bff4c690ec02be526",
+  "manifestKeccak256": "0xed249ab82c33aafeeebba746d6941d78dbb1d7b784cd325601ea5c44b611e67a",
   "deploymentBlock": "1",
   "headBlock": 7,
-  "headBlockHash": "0xc7d51852e4e9acbe30e30be82d3e014a2a4302f8532dc4602219719ce5a6fef2",
+  "headBlockHash": "0x8d2824378d97d7d2caba21bc1558c7579a922a86a7edf5f3bad60bac4d7601c5",
   "roles": {
     "DEFAULT_ADMIN_ROLE": [
       "0x5FbDB2315678afecb367f032d93F642f64180aa3"
@@ -36,15 +36,15 @@
   "depthProbe": true,
   "rpc2DepthProbe": true,
   "constructorControl": "constructor grants found in deployment block 1",
-  "completeness": "second endpoint http://127.0.0.1:18795 served the same head 7 (0xc7d51852e4e9acbe30e30be82d3e014a2a4302f8532dc4602219719ce5a6fef2), passed its depth probe and returned the identical 10 role logs (canonical fields)",
+  "completeness": "second endpoint http://127.0.0.1:18795 served the same head 7 (0x8d2824378d97d7d2caba21bc1558c7579a922a86a7edf5f3bad60bac4d7601c5), passed its depth probe and returned the identical 10 role logs (canonical fields)",
   "rpc2Used": true,
   "endpoint": "http://127.0.0.1:18792",
   "endpoint2": "http://127.0.0.1:18795",
   "problems": [],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.4.0",
-    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs.",

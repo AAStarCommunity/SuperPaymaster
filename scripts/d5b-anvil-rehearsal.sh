@@ -78,7 +78,8 @@ printf '{\n  "superPaymaster": "%s",\n  "registry": "%s",\n  "entryPoint": "%s",
 cp "$CFG" "$W/config.$ENVNAME.json"
 # committed-manifest shape (deployments/timelock-roles.example.json): M1 policy + historical accounts
 printf '{\n  "network": "%s",\n  "chainId": "%s",\n  "timelock": "%s",\n  "deploymentBlock": "%s",\n  "roles": {\n    "DEFAULT_ADMIN_ROLE": ["%s"],\n    "PROPOSER_ROLE": ["%s"],\n    "CANCELLER_ROLE": ["%s"],\n    "EXECUTOR_ROLE": ["%s"]\n  },\n  "mustHoldNothing": ["%s"],\n  "mustHoldNothingLabels": ["deployer / old SP and Registry owner"]\n}\n' \
-  "$ENVNAME" "$CHAIN_ID" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$MANIFEST"
+  "$ENVNAME" "$CHAIN_ID" "$TL" "$TL_BLOCK" "$TL" "$MULTISIG" "$MULTISIG" "$MULTISIG" "$OWNER" >"$W/manifest.draft.json"
+node script/governance/check-timelock-roles.mjs --canonicalize "$W/manifest.draft.json" >"$MANIFEST"   # the only accepted byte form
 cp "$MANIFEST" "$W/timelock-roles.$ENVNAME.json"
 roles_check() { # event-history role check -> attestation; UpgradeViaTimelock REQUIRES it (TL_ROLES_ATTESTATION)
   node script/governance/check-timelock-roles.mjs --rpc "$RPC" --manifest "$MANIFEST" --out "$W/roles-$1.json" \

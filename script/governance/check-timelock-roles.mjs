@@ -65,8 +65,40 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createPublicClient, http, parseAbiItem, getAddress, isAddress, keccak256, toBytes } from "viem";
 
-const CHECKER_VERSION = "check-timelock-roles/1.4.0";
-const USAGE = "usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]";
+const CHECKER_VERSION = "check-timelock-roles/1.5.0";
+const USAGE = "usage: --rpc <url> --manifest <path> [--rpc2 <url>] [--chunk <positive integer>] [--out f] [--attest <path>|auto]\n" +
+  "       --canonicalize <manifest>   (print the canonical serialization; see CANONICAL FORM)";
+
+// ------------------------------------------------------------------ CANONICAL FORM (Codex re-check of 48cba3bd)
+// The ONE place the manifest's byte-level form is enforced. A manifest is accepted only if its raw bytes
+// are EXACTLY canonicalManifest(JSON.parse(bytes)):
+//   - UTF-8, no BOM, LF line endings, 2-space indentation, one trailing "\n" — i.e.
+//     JSON.stringify(value, null, 2) + "\n" (JSON.stringify writes non-ASCII characters literally and
+//     escapes only what JSON requires);
+//   - top-level keys in the order of TOP_KEYS (only those keys; `_comment` / `_placeholder` optional),
+//     `roles` keys in the order of ROLE_LIST.
+// Because JSON.parse -> canonical re-serialization is a function of the parsed VALUE, this rejects
+// unicode-escaped keys or values, duplicate keys (the parser keeps one), nested decoys under unknown
+// keys, reordered keys, alternative number / string spellings, trailing spaces, CRLF and a BOM. Forge
+// (UpgradeViaTimelock) does not re-parse the bytes' form: it relies on the attestation binding the exact
+// file bytes (manifestKeccak256), see requireRolesAttestation.
+const TOP_KEYS = ["_comment", "_placeholder", "network", "chainId", "timelock", "deploymentBlock", "roles",
+  "mustHoldNothing", "mustHoldNothingLabels"];
+const ROLE_KEYS = ["DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "CANCELLER_ROLE", "EXECUTOR_ROLE"];
+function canonicalManifest(value) {
+  const isObj = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
+  if (!isObj(value)) return JSON.stringify(value, null, 2) + "\n";
+  const out = {};
+  for (const k of TOP_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(value, k)) continue;
+    if (k === "roles" && isObj(value.roles)) {
+      const r = {};
+      for (const rk of ROLE_KEYS) if (Object.prototype.hasOwnProperty.call(value.roles, rk)) r[rk] = value.roles[rk];
+      out.roles = r; // unknown role keys are dropped here (and reported by validateManifest)
+    } else out[k] = value[k];
+  }
+  return JSON.stringify(out, null, 2) + "\n"; // unknown top-level keys are dropped (and reported)
+}
 const ATTEST_SCHEMA = "d5b-timelock-roles-attestation/2";
 const args = process.argv.slice(2);
 // --attest is located before anything else is validated, so that even a usage error overwrites a
@@ -99,6 +131,14 @@ const opt = (k, d) => {
   if (v === undefined || v.startsWith("--")) usage(`${k} needs a value`);
   return v;
 };
+// --canonicalize <path>: print the canonical form (operators fix a file with it); no chain access
+if (args.includes("--canonicalize")) {
+  const p = opt("--canonicalize");
+  let v;
+  try { v = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); } catch (e) { console.error(`cannot parse ${p}: ${e.message}`); process.exit(2); }
+  process.stdout.write(canonicalManifest(v));
+  process.exit(0);
+}
 const RPC = opt("--rpc");
 const RPC2 = opt("--rpc2");
 const MANIFEST = opt("--manifest");
@@ -162,10 +202,10 @@ function fail(problems, code = 1) {
 // exception — a malformed manifest included — ends in main().catch, which writes a FAIL attestation.
 let TL, FROM, MANIFEST_CHAIN, expected, mustNothing, m;
 const U64_MAX = 18446744073709551615n;
-// ONE canonical integer form for chainId / deploymentBlock (Codex re-check of 7ca43549, M2): a JSON
-// STRING of decimal digits, no leading zeros (except "0"), <= uint64 — checked on the RAW JSON type, so
-// bare numbers (1, 1.0, 9007199254740993), hex strings, "007" and "" are all rejected. Forge's
-// UpgradeViaTimelock.canonicalUint applies the same rule to the raw JSON text.
+// chainId / deploymentBlock (Codex re-check of 7ca43549, M2): a JSON STRING of decimal digits, no leading
+// zeros (except "0"), <= uint64 — checked on the parsed JSON type, so bare numbers (1, 1.0,
+// 9007199254740993), hex strings, "007" and "" are all rejected; the byte-level form is the CANONICAL
+// FORM check above.
 const canonU64 = (v) => typeof v === "string" && /^(0|[1-9][0-9]{0,19})$/.test(v) && BigInt(v) <= U64_MAX;
 
 function loadManifest() {
@@ -173,8 +213,18 @@ function loadManifest() {
   try { manifestBytes = readFileSync(MANIFEST); } catch (e) { usage(`cannot read manifest ${MANIFEST}: ${e.message}`); }
   att.manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
   att.manifestKeccak256 = keccak256(manifestBytes);
-  try { m = JSON.parse(manifestBytes.toString("utf8")); } catch (e) { fail([`manifest is not valid JSON: ${e.message}`]); }
+  // a leading BOM is tolerated by the PARSER only so that the canonical-bytes check below names it
+  try { m = JSON.parse(manifestBytes.toString("utf8").replace(/^\uFEFF/, "")); } catch (e) { fail([`manifest is not valid JSON: ${e.message}`]); }
   const v = validateManifest(m);
+  // byte-level canonical form (see CANONICAL FORM): the attested bytes are canonical or nothing passes
+  const canon = Buffer.from(canonicalManifest(m), "utf8");
+  if (Buffer.compare(canon, manifestBytes) !== 0) {
+    let i = 0;
+    while (i < canon.length && i < manifestBytes.length && canon[i] === manifestBytes[i]) ++i;
+    v.problems.push(`manifest: bytes are not the canonical serialization (first difference at byte ${i}; ` +
+      `run: node script/governance/check-timelock-roles.mjs --canonicalize ${MANIFEST})`);
+  }
+  for (const k of Object.keys(isPlainObject(m) ? m : {})) if (!TOP_KEYS.includes(k)) v.problems.push(`manifest: unknown top-level key .${k}`);
   if (typeof m?.network === "string" && /^[A-Za-z0-9._-]+$/.test(m.network)) manifestNetwork = m.network;
   att.manifestChainId = typeof m?.chainId === "string" ? m.chainId : null;
   att.timelock = v.tl;
@@ -188,6 +238,8 @@ function loadManifest() {
   att.mustHoldNothing = mustNothing;
   att.mustHoldNothingLabels = m.mustHoldNothingLabels;
 }
+
+const isPlainObject = (o) => o !== null && typeof o === "object" && !Array.isArray(o);
 
 function validateManifest(m) {
   const p = [];

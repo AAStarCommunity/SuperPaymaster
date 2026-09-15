@@ -5,7 +5,7 @@
   "rpc2ChainId": null,
   "manifestChainId": "31337",
   "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st5/manifest-mut.json",
+  "manifestPath": "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-mut.json",
   "manifestSha256": "ec42e5ce0f11ba624026f995985729c9367d2344ee020153753bbdb99b5c1a87",
   "manifestKeccak256": "0xf7fdcb36df3157aecce1d8b27591cd7fe6daf547d214ff511a2e1c5bb1bc47c7",
   "deploymentBlock": null,
@@ -24,12 +24,13 @@
   "endpoint": "http://127.0.0.1:18792",
   "endpoint2": null,
   "problems": [
-    "manifest: .deploymentBlock must be a decimal string (no leading zeros, <= uint64), got \"031337\" (string)"
+    "manifest: .deploymentBlock must be a decimal string (no leading zeros, <= uint64), got \"031337\" (string)",
+    "manifest: bytes are not the canonical serialization (first difference at byte 629; run: node script/governance/check-timelock-roles.mjs --canonicalize /private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/40e98775-96fd-462e-b1c2-340f78cbcd98/scratchpad/st6/manifest-mut.json)"
   ],
   "checker": {
     "path": "script/governance/check-timelock-roles.mjs",
-    "version": "check-timelock-roles/1.4.0",
-    "gitCommit": "7ca435493edaced110f74882c2a1acc32cc1e899",
+    "version": "check-timelock-roles/1.5.0",
+    "gitCommit": "48cba3bde3e78df9593ec82f34635742cbdacce9",
     "gitDirty": true
   },
   "note": "Operator check output, NOT signed and NOT an enforcement boundary: UpgradeViaTimelock uses it as an operator preflight (chainId, timelock, manifest hash, freshness, head hash when available, attested holders still hold their roles); it cannot bind what the Safe signs."
