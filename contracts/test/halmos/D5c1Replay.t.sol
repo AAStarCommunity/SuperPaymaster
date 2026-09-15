@@ -102,6 +102,82 @@ contract D5c1ReplayTest is Test {
         assertEq(tok.balanceOf(user), bal0, "A-3: victim balance untouched");
     }
 
+    /// A-3 bits 0 and 1 separately (mutations M-A3TF / M-A3BF remove the SP firewall from
+    /// transferFrom only / burn(address,uint256) only). The SP holds an explicit, unlimited approval,
+    /// so without the firewall both calls would succeed. The assertion prints (bits of both attempts)
+    /// & 3: M-A3TF must give exactly 1 (bit 0), M-A3BF exactly 2 (bit 1).
+    function test_D5c1_A3_scenario_spFirewallBits() public {
+        XPNTsV2HalmosProbe probe = new XPNTsV2HalmosProbe();
+        vm.prank(user);
+        tok.approve(sp, type(uint256).max);
+        XPNTsV2HalmosBase.Ctx memory c = _c(sp, xPNTsTokenV2.transferFrom.selector, user, bytes32(0), 1 ether, 0);
+        c.w1 = uint256(uint160(address(0xDEAD)));
+        XPNTsV2HalmosBase.S memory a = probe.snapOf(address(tok), c);
+        vm.prank(sp);
+        (c.ok, ) = address(tok).call(abi.encodeCall(xPNTsTokenV2.transferFrom, (user, address(0xDEAD), 1 ether)));
+        uint256 bits = probe.a3Bits(a, probe.snapOf(address(tok), c), c);
+        c = _c(sp, bytes4(keccak256("burn(address,uint256)")), user, bytes32(0), 0, 0);
+        c.w1 = 1 ether;
+        a = probe.snapOf(address(tok), c);
+        vm.prank(sp);
+        (c.ok, ) = address(tok).call(abi.encodeWithSignature("burn(address,uint256)", user, 1 ether));
+        bits |= probe.a3Bits(a, probe.snapOf(address(tok), c), c);
+        assertEq(bits & 3, 0, "A-3 firewall bits (bit0 transferFrom, bit1 burn(from))");
+    }
+
+    /// Spec-vs-code discrepancy D-A3-2 (D5c-1-halmos.md §F), replayed concretely. Spec 03 §2.3 A-3:
+    /// burn(address,uint256) is rejected for a current or historical SP caller, always. The code
+    /// (xPNTsTokenV2.sol:134, `if (msg.sender != from) _spendV2(...)`) lets an SP burn its OWN
+    /// balance through burn(from == itself) — the same as burn(uint256). This test is GREEN on the
+    /// code as it is: it documents the behaviour and that the literal A-3 bit 1 is the one violated
+    /// (a user's tokens are not affected: the NoSelfBurn bitmask is 0).
+    function test_D5c1_DISCREPANCY_A3_2_spBurnsOwnBalance() public {
+        XPNTsV2HalmosProbe probe = new XPNTsV2HalmosProbe();
+        vm.prank(user);
+        tok.transfer(sp, 5 ether);              // an SP can hold xPNTs like anyone else
+        assertTrue(tok.historicalSP(sp), "the genesis SP is current and historical");
+        XPNTsV2HalmosBase.Ctx memory c = _c(sp, bytes4(keccak256("burn(address,uint256)")), sp, bytes32(0), 0, 0);
+        c.w1 = 1 ether;
+        XPNTsV2HalmosBase.S memory a = probe.snapOf(address(tok), c);
+        uint256 supply0 = tok.totalSupply();
+        vm.prank(sp);
+        (c.ok, ) = address(tok).call(abi.encodeWithSignature("burn(address,uint256)", sp, 1 ether));
+        XPNTsV2HalmosBase.S memory b = probe.snapOf(address(tok), c);
+        assertTrue(c.ok, "D-A3-2: burn(address,uint256) by the SP with from == SP succeeds");
+        assertEq(tok.balanceOf(sp), 4 ether);
+        assertEq(tok.totalSupply(), supply0 - 1 ether);
+        assertEq(probe.a3Bits(a, b, c), 2, "exactly the literal A3-2 (bit 1) is violated");
+        assertEq(probe.a3BitsNoSelf(a, b, c), 0, "every other A-3 predicate holds (no third party touched)");
+        // and a historical (rotated-out) SP likewise
+        address sp2 = address(0x5C);
+        V2TokenDeployer.approveSP(st, sp2);
+        vm.prank(owner_);
+        _ext().proposeSP(sp2);
+        vm.warp(block.timestamp + 48 hours);
+        _ext().activateSP();
+        assertTrue(tok.historicalSP(sp) && tok.SUPERPAYMASTER_ADDRESS() == sp2, "sp is now historical only");
+        vm.prank(sp);
+        (bool ok2, ) = address(tok).call(abi.encodeWithSignature("burn(address,uint256)", sp, 1 ether));
+        assertTrue(ok2, "D-A3-2: a historical SP can burn its own balance too");
+        vm.prank(sp);
+        vm.expectRevert(xPNTsV2Base.SPCannotTransfer.selector);
+        tok.burn(user, 1 ether);                // a third party's tokens stay protected
+    }
+
+    /// I4 balance conjunct (mutation M-I4B removes the A-1 lock check in _update): with 5,000 xPNTs
+    /// locked out of 10,000, a transfer of 6,000 must be rejected (balance would fall below lockedOf).
+    function test_D5c1_I4B_scenario_transferBelowLockedRejected() public {
+        XPNTsV2HalmosProbe probe = new XPNTsV2HalmosProbe();
+        vm.prank(sp);
+        tok.tryLockForGas(user, H, 5_000 ether, false);
+        assertEq(tok.lockedOf(user), 5_000 ether);
+        XPNTsV2HalmosBase.Ctx memory c = _c(user, bytes4(keccak256("transfer(address,uint256)")), address(0xDEAD), bytes32(0), 0, 0);
+        vm.prank(user);
+        (c.ok, ) = address(tok).call(abi.encodeWithSignature("transfer(address,uint256)", address(0xDEAD), 6_000 ether));
+        assertEq(probe.i4bBits(probe.snapOf(address(tok), c)), 0, "I4-B predicate bitmask on the over-lock transfer");
+        assertFalse(c.ok, "A-1: the transfer is rejected");
+    }
+
     /// I2 scenario (mutation M-I2 drops the per-(spender,user) remaining-cap check in _lockDecision).
     function test_D5c1_I2_scenario_lockBeyondSpCapRejected() public {
         XPNTsV2HalmosProbe probe = new XPNTsV2HalmosProbe();
@@ -212,6 +288,9 @@ contract D5c1ReplayTest is Test {
         assertEq(s.crAmount, cr.amount, "credit amount");
         assertEq(s.crLocker, cr.locker, "credit locker");
         assertEq(s.explicitAllow, 777, "raw _allowances[user][sender]");
+        assertEq(s.rate, tok.exchangeRate(), "exchangeRate");
+        c.e = address(0xE1);
+        assertEq(probe.snapOf(address(tok), c).explicitAllowE, 777, "raw _allowances[user][e]");
         // default-cap branch of capA: a spender cell that was never set
         c.e = address(0xE2);
         s = probe.snapOf(address(tok), c);

@@ -28,8 +28,18 @@ contract XPNTsV2HalmosProbe is XPNTsV2HalmosBase {
         _primeCredit(c, sp0);
     }
 
+    /// A-3 bits 0-5 with bit 1 as the spec states it (any `from`)
     function a3Bits(S memory a, S memory b, Ctx memory c) external pure returns (uint256) {
-        return _a3bits(a, b, c);
+        return _a3bits(a, b, c, true);
+    }
+
+    /// A-3 bits 0-5 with bit 1 restricted to from != sender (XPNTsV2A3NoSelfBurnHalmosTest)
+    function a3BitsNoSelf(S memory a, S memory b, Ctx memory c) external pure returns (uint256) {
+        return _a3bits(a, b, c, false);
+    }
+
+    function i4bBits(S memory b) external pure returns (uint256) {
+        return _i4bbits(b);
     }
 
     function a3xBits(S memory a, S memory b, Ctx memory c) external pure returns (uint256) {

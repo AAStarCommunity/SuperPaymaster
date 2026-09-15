@@ -113,6 +113,9 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
     uint256 internal constant M160 = type(uint160).max;
 
     bytes4 internal constant SEL_BURN_FROM = bytes4(keccak256("burn(address,uint256)"));
+    bytes4 internal constant SEL_APPROVE = bytes4(keccak256("approve(address,uint256)"));
+    bytes4 internal constant SEL_PERMIT =
+        bytes4(keccak256("permit(address,address,uint256,uint256,uint8,bytes32,bytes32)"));
 
     AOAProtocolRegistry internal reg;
     xPNTsTokenV2Ext internal ext;
@@ -198,6 +201,8 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         uint256 crAmount;    // _creditRes[h][v]
         address crLocker;
         uint256 explicitAllow; // raw ERC20 _allowances[v][sender]
+        uint256 explicitAllowE; // raw ERC20 _allowances[v][e] (the tracked spender cell)
+        uint256 rate;        // exchangeRate
     }
 
     struct Ctx {
@@ -248,6 +253,8 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         s.crAmount = _ld(cr) & M128;
         unchecked { s.crLocker = address(uint160(_ld(bytes32(uint256(cr) + 1)))); }
         s.explicitAllow = _ld(_m2(c.v, c.sender, S_ALLOW));
+        s.explicitAllowE = _ld(_m2(c.v, c.e, S_ALLOW));
+        s.rate = _ld(bytes32(S_RATE));
     }
 
     // ------------------------------------------------------------------ the step
@@ -320,6 +327,7 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         }
 
         a = _snap(c);
+        _preAssume(a, c);
         if (useJ) {
             vm.assume(a.reqCap <= jB);
             vm.assume(a.debt <= jB);
@@ -440,6 +448,9 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
     /// @dev Hook for additional, explicitly labelled pre-state assumptions (default: none).
     function _extraAssumptions(Ctx memory c) internal view virtual {}
 
+    /// @dev Hook for an induction hypothesis on the snapshot taken right before the call (default: none).
+    function _preAssume(S memory a, Ctx memory c) internal view virtual {}
+
     /// @dev Hook to restrict the explored selectors (default: none). Only for diagnostics or to
     ///      split one ABI into disjoint selector groups that together cover it.
     function _selectorFilter(bytes4 sel) internal virtual {}
@@ -474,12 +485,16 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
     // ------------------------------------------------------------------ predicate bitmasks
     // (shared with XPNTsV2HalmosProbe so a counterexample can be replayed concretely)
 
-    function _a3bits(S memory a, S memory b, Ctx memory c) internal pure returns (uint256 bad) {
+    /// @param literal true: bit 1 exactly as spec 03 §2.3 A-3 states it (burn(address,uint256) by an
+    ///        SP always fails, whatever `from` is); false: restricted to from != sender (the code lets an
+    ///        SP burn its own balance, xPNTsTokenV2.sol:134 — discrepancy D-A3-2, D5c-1-halmos.md §F)
+    function _a3bits(S memory a, S memory b, Ctx memory c, bool literal) internal pure returns (uint256 bad) {
         unchecked {
             uint256 dec = a.bal - b.bal;
             uint256 dd = _u(c.v != c.sender) & _u(b.bal < a.bal);
+            uint256 burnFrom = _u(c.sel == SEL_BURN_FROM) & (literal ? 1 : _u(c.userArg != c.sender));
             bad |= (_imp(_u(c.sel == xPNTsTokenV2.transferFrom.selector), _u(!c.ok)) ^ 1) << 0;
-            bad |= (_imp(_u(c.sel == SEL_BURN_FROM) & _u(c.userArg != c.sender), _u(!c.ok)) ^ 1) << 1;
+            bad |= (_imp(burnFrom, _u(!c.ok)) ^ 1) << 1;
             bad |= (_imp(dd, _u(b.supply <= a.supply) & _u(a.supply - b.supply >= dec)) ^ 1) << 2;
             bad |= (_imp(dd, _u(c.sel == xPNTsTokenV2.settleLocked.selector) & _u(c.userArg == c.v)
                 & _u(a.lkLocker == c.sender)) ^ 1) << 3;
@@ -507,6 +522,9 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         uint256 spRenew;     // SP-relayed renewal lock for v by the current SP (autoRenewUsed < K)
         uint256 userRenew;   // renewForSelf by v | R2 executeBySig for v
         uint256 refundBound; // a0 - min(charge, a0) for settle, a0 for release
+        uint256 isPull;      // successful transferFrom / burn(from) of v's tokens by a third party
+        uint256 val;         // the value argument of that pull (transferFrom: word 2, burn(from): word 1)
+        uint256 lockAdmit;   // tryLockForGas by the current SP for v
     }
 
     function _flags(S memory a, Ctx memory c) internal pure returns (F memory f) {
@@ -519,14 +537,20 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
                 & _u(c.userArg == c.v) & _u(c.w3 == 1) & _u(a.renewUsed < K);
             f.userRenew = _isUserRenewal(c);
             f.refundBound = _sel01(f.isSettle, a.lkA0 - _minBF(c.w2, a.lkA0), a.lkA0);
+            uint256 isTf = _u(c.sel == xPNTsTokenV2.transferFrom.selector);
+            f.isPull = _u(c.ok) & (isTf | _u(c.sel == SEL_BURN_FROM)) & _u(c.userArg == c.v) & _u(c.sender != c.v);
+            f.val = _sel01(isTf, c.w2, c.w1);
+            f.lockAdmit = _u(c.sel == xPNTsTokenV2.tryLockForGas.selector) & _u(c.sender == a.sp) & _u(c.userArg == c.v);
         }
     }
 
     /// bits 0-5
     function _i2counters(S memory a, S memory b, Ctx memory c, F memory f) internal pure returns (uint256 bad) {
         unchecked {
-            bad |= (_imp(_u(b.usedA > a.usedA), _u(b.usedA <= a.capA)) ^ 1) << 0;
-            bad |= (_imp(_u(b.usedB > a.usedB), _u(b.usedB <= a.capB)) ^ 1) << 1;
+            // the cap in force at the admission, before AND after the step (a cap change never
+            // coincides with growth; lowering a cap does not reset used — see §7 (c))
+            bad |= (_imp(_u(b.usedA > a.usedA), _u(b.usedA <= a.capA) & _u(b.usedA <= b.capA)) ^ 1) << 0;
+            bad |= (_imp(_u(b.usedB > a.usedB), _u(b.usedB <= a.capB) & _u(b.usedB <= b.capB)) ^ 1) << 1;
             bad |= (_imp(_u(b.renewUsed > a.renewUsed), _u(b.renewUsed <= K) & f.spRenew) ^ 1) << 2;
             bad |= (_imp(_u(b.renewUsed < a.renewUsed), f.userRenew) ^ 1) << 3;
             uint256 refundA = f.consume & _u(a.lkLocker == c.e) & _u(a.usedA - b.usedA <= f.refundBound);
@@ -536,15 +560,39 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         }
     }
 
-    /// bit 6
+    /// bits 6, 11, 12, 13, 14 — the pull paths, split into the explicit ERC-20 half (ordinary,
+    /// user-authorised; NOT governed by I2) and the auto-allowance half (bounded by the caps)
     function _i2pull(S memory a, S memory b, Ctx memory c, F memory f) internal pure returns (uint256 bad) {
         unchecked {
             uint256 pull = _u(c.sender != c.v) & _u(b.bal < a.bal) & (f.isSettle ^ 1) & _u(c.e == c.sender);
-            uint256 meteredAuto = _u(b.usedA > a.usedA) & _u(b.usedA <= a.capA) & _u(b.usedB > a.usedB)
-                & _u(b.usedB <= a.capB);
-            uint256 metered = _u(a.explicitAllow >= a.bal - b.bal) | meteredAuto;
             uint256 viaPull = _u(c.sel == xPNTsTokenV2.transferFrom.selector) | _u(c.sel == SEL_BURN_FROM);
-            bad |= (_imp(pull, viaPull & metered) ^ 1) << 6;
+            // I2-7: a third-party loss is a transferFrom / burn(from) of v's tokens, at most its value
+            bad |= (_imp(pull, viaPull & _u(c.userArg == c.v) & _u(a.bal - b.bal <= f.val)) ^ 1) << 6;
+            uint256 E = a.explicitAllow;
+            uint256 expl = f.isPull & _u(f.val <= E);
+            // I2-7E: a pull covered by the explicit allowance consumes exactly its value from it (an
+            // infinite approval stays infinite) and never touches the auto counters
+            uint256 debited = _sel01(_u(E == type(uint256).max), _u(b.explicitAllow == E),
+                _u(b.explicitAllow == E - f.val));
+            bad |= (_imp(expl, debited & _u(b.usedB == a.usedB) & (_u(b.usedA == a.usedA) | _u(c.e != c.sender))) ^ 1) << 11;
+            // I2-7A: a pull beyond the explicit allowance first consumes all of it, then meters the
+            // rest in the puller's cell and the total by the same amount du, at least its aPNTs value:
+            // du * rate >= (val - E) * 1e18 (products exact: du < 2^128, rate <= 1e22 by R, rest < 2^190)
+            uint256 rest = f.val - E;
+            uint256 du = b.usedA - a.usedA;
+            uint256 auto_ = f.isPull & _u(f.val > E) & _u(c.e == c.sender);
+            bad |= (_imp(auto_, _u(b.explicitAllow == 0) & _u(b.usedA > a.usedA) & _u(b.usedB >= a.usedB)
+                & _u(b.usedB - a.usedB == du) & _u(rest < (uint256(1) << 190))
+                & _u(rest * 1e18 <= du * a.rate)) ^ 1) << 12;
+            // I2-10: the counters grow only by an admission: the SP's lock for v (its own cell) or a
+            // pull of v's tokens by the cell's spender
+            uint256 byE = _u(c.e == c.sender) & (f.lockAdmit | f.isPull);
+            bad |= (_imp(_u(b.usedA > a.usedA), byE) ^ 1) << 13;
+            bad |= (_imp(_u(b.usedB > a.usedB), f.lockAdmit | f.isPull) ^ 1) << 13;
+            // I2-7U: an explicit allowance of v is raised only by v (approve, or permit signed by v)
+            uint256 byOwner = (_u(c.sel == SEL_APPROVE) & _u(c.sender == c.v) & _u(c.userArg == c.e))
+                | (_u(c.sel == SEL_PERMIT) & _u(c.userArg == c.v) & _u(address(uint160(c.w1)) == c.e));
+            bad |= (_imp(_u(b.explicitAllowE > a.explicitAllowE), byOwner) ^ 1) << 14;
         }
     }
 
@@ -605,6 +653,11 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
         }
     }
 
+    /// I4 balance conjunct (bit 0): balanceOf(v) >= lockedOf(v) after the step
+    function _i4bbits(S memory b) internal pure returns (uint256 bad) {
+        bad = _u(b.bal < b.locked);
+    }
+
     event D5C1_BAD(uint256 bad);
 
     function _report(uint256 bad) internal {
@@ -617,7 +670,12 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
 // A-3 (+ the balance half of I6): a current or historical SP can only DESTROY the victim's tokens,
 // only through settleLocked of the victim's own record that it holds, at most xc.
 //   bit 0  A3-1  transferFrom never succeeds for the SP / a historical SP
-//   bit 1  A3-2  burn(from != sender, ·) never succeeds for the SP / a historical SP
+//   bit 1  A3-2  burn(address,uint256) never succeeds for the SP / a historical SP — LITERALLY as
+//                spec 03 §2.3 states it (any `from`). The code lets an SP burn its OWN balance
+//                (xPNTsTokenV2.sol:134, `if (msg.sender != from) _spendV2(...)`): discrepancy D-A3-2,
+//                so check_A3_coreAbi's burn(address,uint256) partition is EXPECTED to fail; the
+//                NoSelfBurn variant (bit 1 restricted to from != sender) must pass there, and
+//                check_A3_selfBurnDiscrepancy isolates the literal bit on from == sender.
 //   bit 2  A3-3  victim loss  ==>  totalSupply falls by at least the loss (destroy, not transfer)
 //   bit 3  A3-4  victim loss  ==>  selector == settleLocked, user == victim, record.locker == sender
 //   bit 4  A3-5  victim loss <= x0 (the escrowed xLocked of that record)
@@ -625,14 +683,46 @@ abstract contract XPNTsV2HalmosBase is Test, HalmosBase {
 //   (exact ceil bound, bit 6, lives in check_A3x_*: non-linear, kept apart)
 // =====================================================================================
 contract XPNTsV2A3HalmosTest is XPNTsV2HalmosBase {
+    /// bit 1 exactly as the spec states it (true) or restricted to from != sender (false)
+    function _literalBurn() internal pure virtual returns (bool) { return true; }
+
+    /// which of bits 0-5 this check asserts
+    function _mask() internal pure virtual returns (uint256) { return 0x3f; }
+
     function _a3(bool extAbi) internal {
         (S memory a, S memory b, Ctx memory c) = _step(extAbi, true, PRIME_LOCK, false, 0);
-        _report(_a3bits(a, b, c));
+        _report(_a3bits(a, b, c, _literalBurn()) & _mask());
     }
 
     function check_A3_coreAbi() public { _a3(false); }
 
     function check_A3_extAbi() public { _a3(true); }
+
+    /// D-A3-2 isolated: an SP (current or historical) calls burn(from == itself, x); only the literal
+    /// bit 1 is asserted. EXPECTED to fail (the code permits it): the spec-vs-code discrepancy.
+    function check_A3_selfBurnDiscrepancy() public {
+        (S memory a, S memory b, Ctx memory c) = _step(false, true, PRIME_LOCK, false, 0);
+        vm.assume(c.userArg == c.sender);
+        _report(_a3bits(a, b, c, true) & 2);
+    }
+}
+
+/// Every A-3 bit with bit 1 restricted to from != sender: on the burn(address,uint256) partition
+/// this shows the ONLY way the literal A-3 fails is an SP burning its own balance.
+contract XPNTsV2A3NoSelfBurnHalmosTest is XPNTsV2A3HalmosTest {
+    function _literalBurn() internal pure override returns (bool) { return false; }
+}
+
+/// Bit 0 alone (the transferFrom firewall): mutation M-A3TF must turn it red, M-A3BF must not.
+contract XPNTsV2A3Bit0HalmosTest is XPNTsV2A3HalmosTest {
+    function _mask() internal pure override returns (uint256) { return 1; }
+}
+
+/// Bit 1 alone, from != sender (the burn(from) firewall): M-A3BF must turn it red, M-A3TF must not.
+contract XPNTsV2A3Bit1HalmosTest is XPNTsV2A3HalmosTest {
+    function _literalBurn() internal pure override returns (bool) { return false; }
+
+    function _mask() internal pure override returns (uint256) { return 2; }
 }
 
 /// A-3 exact bound (§10.2): victim loss <= xc = min(x0, ceil(c·x0/a0)), c = min(charge, a0),
@@ -651,16 +741,27 @@ contract XPNTsV2A3xHalmosTest is XPNTsV2HalmosBase {
 
 // =====================================================================================
 // I2 step lemmas (arbitrary sender; lock-primed):
-//   bit 0  I2-1  _auto[e][v].used grows            ==>  used' <= cap in force
-//   bit 1  I2-2  _budget[v].used grows             ==>  used' <= total cap in force
+//   bit 0  I2-1  _auto[e][v].used grows            ==>  used' <= the cell's cap before AND after the step
+//   bit 1  I2-2  _budget[v].used grows             ==>  used' <= the total cap before AND after the step
 //   bit 2  I2-3  autoRenewUsed grows               ==>  <= K, and only via the SP's spRenew lock
 //   bit 3  I2-4  autoRenewUsed shrinks             ==>  a user renewal (renewForSelf by v / R2 for v)
 //   bit 4  I2-5  _auto[e][v].used shrinks          ==>  user renewal | SP renewal of the SP cell |
 //                                                     refund of the consumed (v,h) record held by e,
 //                                                     by at most a0 - charge (settle) or a0 (release)
 //   bit 5  I2-6  _budget[v].used shrinks           ==>  same, for any record holder
-//   bit 6  I2-7  third-party pull by e              ==>  transferFrom/burn(from) covered by explicit
-//                                                     approval or metered in e's cell+total within caps
+//   bit 6  I2-7  third-party loss of v by e (not settle) ==> transferFrom / burn(from) of v's tokens,
+//                                                     loss <= its value
+//   bit 11 I2-7E pull within the explicit ERC-20 allowance E ==> E debited by exactly the value (an
+//                                                     infinite E stays infinite); auto counters untouched
+//                                                     (explicit approval is ordinary ERC-20
+//                                                     authorisation, outside I2 — SP decision, 口径待 DSR 确认)
+//   bit 12 I2-7A pull beyond E                      ==>  E -> 0, then the rest metered in e's cell and in the
+//                                                     total by the same du > 0 with du*rate >= rest*1e18
+//                                                     (so bits 0/1 bound the auto half by the caps)
+//   bit 13 I2-10 _auto[e][v].used / _budget[v].used grow only by an admission: the current SP's
+//                                                     tryLockForGas for v (its own cell) or a pull of
+//                                                     v's tokens by the cell's spender
+//   bit 14 I2-7U _allowances[v][e] grows            ==>  approve by v, or permit with owner v
 //   bit 7  I2-8  a (v,h) lock record is created     ==>  only by tryLockForGas of the current SP, and
 //                                                     metered exactly (+a0 on used, +x0 on lockedOf),
 //                                                     a0 > 0 => x0 > 0
@@ -711,6 +812,74 @@ contract XPNTsV2A3MintNoDebtHalmosTest is XPNTsV2A3HalmosTest {
 contract XPNTsV2I2MintNoDebtHalmosTest is XPNTsV2I2HalmosTest {
     function _extraAssumptions(Ctx memory c) internal view override {
         super._extraAssumptions(c);
+        vm.assume(_ld(_m1(c.v, S_DEBTS)) == 0);
+    }
+}
+
+// =====================================================================================
+// I4, balance conjunct (H2): balanceOf(u) >= lockedOf(u) is INDUCTIVE.
+//   base: initialize on the fresh clone / the real factory deployment -> holds for every u
+//   step: pre.bal(v) >= pre.locked(v)  ==>  post.bal(v) >= post.locked(v), for one arbitrary call over
+//         the core / extension ABI, ANY sender, lock-primed settle (live marker), including mint with
+//         automatic debt repayment                                                     (bit 0)
+// =====================================================================================
+contract XPNTsV2I4BHalmosTest is XPNTsV2HalmosBase {
+    function _preAssume(S memory a, Ctx memory) internal view virtual override {
+        vm.assume(a.bal >= a.locked); // induction hypothesis
+    }
+
+    function _i4b(bool extAbi) internal {
+        (, S memory b, ) = _step(extAbi, false, PRIME_LOCK, false, 0);
+        _report(_i4bbits(b));
+    }
+
+    function check_I4B_coreAbi() public { _i4b(false); }
+
+    function check_I4B_extAbi() public { _i4b(true); }
+
+    function _holdsFor(address t) internal returns (uint256) {
+        address u = svm.createAddress("u");
+        uint256 bal = uint256(vm.load(t, keccak256(abi.encode(u, S_BAL))));
+        uint256 lk = uint256(vm.load(t, keccak256(abi.encode(u, S_LOCKED))));
+        return _u(bal >= lk);
+    }
+
+    /// Base case on the real clone created in setUp (never initialised, concrete empty storage).
+    function check_I4B_base_initialize() public {
+        xPNTsTokenV2.InitConfig memory cfg = xPNTsTokenV2.InitConfig({
+            name: "n", symbol: "s", communityOwner: address(0xC0), community: address(0xC1),
+            communityName: "c", communityENS: "e", exchangeRate: svm.createUint256("initRate"),
+            superPaymaster: address(0), genesisSpender: address(0), tierSource: address(0)
+        });
+        (bool ok, ) = address(tok).call(abi.encodeCall(xPNTsTokenV2.initialize, (cfg)));
+        ok;
+        _report(_holdsFor(address(tok)) ^ 1);
+    }
+
+    /// Base case through the real deployment path (xPNTsFactoryV2.deployxPNTsToken, symbolic rate).
+    function check_I4B_base_realFactory() public {
+        AOAProtocolRegistry r2 = new AOAProtocolRegistry(address(this));
+        MockRegistryV2Lite roles = new MockRegistryV2Lite();
+        GlobalTierSource ts = new GlobalTierSource(address(roles));
+        address sp = address(0x5B);
+        r2.bootstrapApprove(r2.KIND_SP(), r2.spKey(sp));
+        r2.bootstrapApprove(r2.KIND_TIER_SOURCE(), address(ts).codehash);
+        xPNTsTokenV2Ext e2 = new xPNTsTokenV2Ext(address(r2));
+        xPNTsTokenV2 i2 = new xPNTsTokenV2(address(r2), address(e2));
+        xPNTsFactoryV2 factory = new xPNTsFactoryV2(sp, address(roles), address(i2), address(ts));
+        vm.prank(address(0xC0));
+        (bool ok, bytes memory ret) = address(factory).call(abi.encodeCall(
+            xPNTsFactoryV2.deployxPNTsToken, ("C", "xC", "C", "c.eth", svm.createUint256("deployRate"), address(0))
+        ));
+        uint256 good = 1;
+        if (ok) good = _holdsFor(abi.decode(ret, (address)));
+        _report(good ^ 1);
+    }
+}
+
+/// I4-B on the `mint` partition with debts(v) == 0 (no auto-repay: the linear half).
+contract XPNTsV2I4BMintNoDebtHalmosTest is XPNTsV2I4BHalmosTest {
+    function _extraAssumptions(Ctx memory c) internal view override {
         vm.assume(_ld(_m1(c.v, S_DEBTS)) == 0);
     }
 }
@@ -838,6 +1007,19 @@ contract XPNTsV2WitnessHalmosTest is XPNTsV2HalmosBase {
     function check_witness_I6_debtGrows() public {
         (S memory a, S memory b, ) = _step(false, false, PRIME_CREDIT, false, 0);
         assert(_u(b.debt > a.debt) == 0);
+    }
+
+    /// I2-7E: a third-party pull covered by the explicit allowance really happens (bit 11's antecedent).
+    function check_witness_I2_explicitPull() public {
+        (S memory a, S memory b, Ctx memory c) = _step(false, false, PRIME_LOCK, false, 0);
+        assert((_u(c.ok) & _u(c.userArg == c.v) & _u(c.sender != c.v) & _u(c.w2 <= a.explicitAllow)
+            & _u(a.explicitAllow != 0) & _u(b.bal < a.bal)) == 0);
+    }
+
+    /// I4-B: v's balance really decreases while v has locked tokens (the step property is not vacuous).
+    function check_witness_I4B_outgoingWithLock() public {
+        (S memory a, S memory b, Ctx memory c) = _step(false, false, PRIME_LOCK, false, 0);
+        assert((_u(c.ok) & _u(c.sender == c.v) & _u(a.locked != 0) & _u(b.bal < a.bal)) == 0);
     }
 
     /// I6-1: a new reservation is really admitted.
